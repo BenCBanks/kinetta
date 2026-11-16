@@ -1,5 +1,6 @@
-// Homepage screenshots (site/assets/shots): every shot in light and dark, at an iPhone 16's screen size (393 x 852 at 2x =
-// 786 x 1704), from a throwaway install with dev/demo/seed.py + dev/screenshots/stage.py loaded. Usage: node take.js <out dir> [base url]
+// Fictional browser screenshots from a disposable install. Defaults are the website's 393 x 852 @2x scenes;
+// SCREENSHOT_WIDTH/HEIGHT/SCALE/THEMES can select a labeled App Store fallback viewport such as 440 x 956 @3x.
+// Usage: node take.js <out dir> [base url]
 // Writes PNGs; to_webp.py turns them into the site's .webp files. Maps use the operator-configured tile/archive source; never bulk-fetch the public OSM tile service.
 // Like a real iPhone (2026-10-13): the app gets the status bar's 59 px at the top and the home bar's 34 px at the bottom
 // (its stylesheet's safe-area values are filled in), and a status bar with the Dynamic Island and the home bar are drawn over it.
@@ -12,7 +13,14 @@ const SHOTS = require('./scenes.json');
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const MAP_SHOTS = new Set(['home-feed','activity-detail','feed','activity','activity-splits','route']);
 const NEEDS_MAP = !ONLY || ONLY.some(name => MAP_SHOTS.has(name));
-const W = 393, H = 852, TOP = 59, BOTTOM = 34;
+const W = Number(process.env.SCREENSHOT_WIDTH || 393);
+const H = Number(process.env.SCREENSHOT_HEIGHT || 852);
+const SCALE = Number(process.env.SCREENSHOT_SCALE || 2);
+const TOP = Number(process.env.SCREENSHOT_SAFE_TOP || 59), BOTTOM = Number(process.env.SCREENSHOT_SAFE_BOTTOM || 34);
+const SCHEMES = (process.env.SCREENSHOT_THEMES || 'light,dark').split(',').filter(value => ['light','dark'].includes(value));
+if (![W,H,SCALE,TOP,BOTTOM].every(Number.isFinite) || W < 320 || H < 600 || SCALE < 1 || SCALE > 4 || !SCHEMES.length) {
+  throw Error('Invalid browser screenshot viewport/theme settings');
+}
 async function enableKitForDemo(page) {
   // Kit requires the person's explicit opt-in; this is only the fictional screenshot account.
   const result = await page.evaluate(async () => {
@@ -41,15 +49,15 @@ const BOWL = (note) => { const small = /half|small/i.test(note || '');
 const PRODUCT = {source: 'off', id: '0000000000017', name: 'Greek yogurt, plain nonfat', brand: null,
   per100: {kcal: 59, protein_g: 10.3, carbs_g: 3.6, fat_g: 0.4, fiber_g: 0}, serving: {label: '1 container (170 g)', g: 170}};
 // the iPhone's status bar (9:41, signal, Wi-Fi, battery), the Dynamic Island and the home bar, over every shot
-function chrome(dark) {
-  const c = dark ? '#fff' : '#000', W = 393;
+function chrome({dark, width}) {
+  const c = dark ? '#fff' : '#000', W = width;
   for (const id of ['k-sb', 'k-hb']) document.getElementById(id)?.remove();
   // like the installed app, the page's colour sits behind the status bar, except over a map at the very top
   const bg = document.querySelector('.scrim') || (document.querySelector('.map-head') && scrollY < 40) ? 'transparent' : getComputedStyle(document.body).backgroundColor;   // a sheet's dimmed page shows through
   const NS = 'http://www.w3.org/2000/svg', sb = document.createElementNS(NS, 'svg');
   sb.id = 'k-sb'; sb.setAttribute('viewBox', `0 0 ${W} 54`); sb.setAttribute('width', W); sb.setAttribute('height', 54);
   // set through .style: the app's security policy ignores style="..." attributes
-  sb.style.cssText = 'position:fixed;left:0;top:0;width:393px;height:54px;z-index:2147483647;pointer-events:none;display:block';
+  sb.style.cssText = `position:fixed;left:0;top:0;width:${W}px;height:54px;z-index:2147483647;pointer-events:none;display:block`;
   sb.innerHTML = `<rect width="${W}" height="54" fill="${bg}"/>
     <text x="66" y="35" text-anchor="middle" fill="${c}" font-family="-apple-system,'SF Pro Text',Inter,system-ui,sans-serif" font-size="17" font-weight="600" letter-spacing="-.2">9:41</text>
     <rect x="${W / 2 - 62}" y="11" width="124" height="36" rx="18" fill="#000"/>
@@ -59,7 +67,7 @@ function chrome(dark) {
       <rect x="49" y="1.2" width="24" height="10.6" rx="3.2" fill="none" stroke="${c}" stroke-opacity=".4"/><rect x="51" y="3.2" width="20" height="6.6" rx="1.8"/><path d="M74.6 4.8v3.4a1.8 1.8 0 0 0 0-3.4z" fill-opacity=".45"/></g>`;
   const hb = document.createElementNS(NS, 'svg');
   hb.id = 'k-hb'; hb.setAttribute('viewBox', `0 0 ${W} 13`); hb.setAttribute('width', W); hb.setAttribute('height', 13);
-  hb.style.cssText = 'position:fixed;left:0;bottom:0;width:393px;height:13px;z-index:2147483647;pointer-events:none;display:block';
+  hb.style.cssText = `position:fixed;left:0;bottom:0;width:${W}px;height:13px;z-index:2147483647;pointer-events:none;display:block`;
   hb.innerHTML = `<rect x="${W / 2 - 67}" y="0" width="134" height="5" rx="2.5" fill="${c}"/>`;
   document.body.append(sb, hb);
 }
@@ -139,7 +147,7 @@ async function closeCaptureContext(context) {
 (async () => {
   const browser = await chromium.launch(), errors = [];
   const openFoodDemo = async (login, scheme) => {
-    const context = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
+    const context = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: SCALE, colorScheme: scheme,
       timezoneId: SCREENSHOT_CLOCK.timezone, serviceWorkers: 'block'});
     await context.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
     await context.route('**/style.css*', async route => {
@@ -158,9 +166,9 @@ async function closeCaptureContext(context) {
     return {context, page};
   };
   try {
-  for (const scheme of ['light', 'dark']) {
+  for (const scheme of SCHEMES) {
     // Keep the browser's calendar day aligned with the screenshot fixture used for staging.
-    const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
+    const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: SCALE, colorScheme: scheme,
       timezoneId: SCREENSHOT_CLOCK.timezone});
     let foodChatCtx = null, foodChatPage = null, foodRepeatCtx = null, foodRepeatPage = null;
     if(NEEDS_MAP){
@@ -264,7 +272,7 @@ async function closeCaptureContext(context) {
             await ready.locator('.thread-food').count() !== 3) throw Error('Food chat capture must show three items in one review card.');
         if ((await foodChatPage.locator('#thread-review-add').innerText()).trim() !== 'Add to log') throw Error('Food chat capture must show Add to log.');
         await foodChatPage.evaluate(() => document.activeElement.blur());
-        await foodChatPage.evaluate(chrome, scheme === 'dark');
+        await foodChatPage.evaluate(chrome, {dark: scheme === 'dark', width: W});
         await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
@@ -297,7 +305,7 @@ async function closeCaptureContext(context) {
             (await foodChatPage.locator('#review-confirm').innerText()).trim() !== 'Add food and weight') {
           throw Error('Food-and-weight review must show its 165 lb entry and Add food and weight action.');
         }
-        await foodChatPage.evaluate(chrome, scheme === 'dark');
+        await foodChatPage.evaluate(chrome, {dark: scheme === 'dark', width: W});
         await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
@@ -317,7 +325,7 @@ async function closeCaptureContext(context) {
         if (state.text !== 'Same as yesterday · 225 kcal' || !state.empty || state.entries !== 0) throw Error('Repeat capture must show an empty Breakfast and its Same as yesterday shortcut.');
         await shortcut.scrollIntoViewIfNeeded();
         await foodRepeatPage.evaluate(() => document.activeElement.blur());
-        await foodRepeatPage.evaluate(chrome, scheme === 'dark');
+        await foodRepeatPage.evaluate(chrome, {dark: scheme === 'dark', width: W});
         await foodRepeatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await foodRepeatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
@@ -447,7 +455,7 @@ async function closeCaptureContext(context) {
           await page.setInputFiles('#ql-file', PHOTO); await page.click('#photos-use');
           await settle(page); await page.locator('.thread-card').filter({hasText: 'Spiced rice'}).filter({hasText: '320'}).first().waitFor();
           await page.evaluate(() => document.activeElement.blur()); await page.waitForTimeout(500);
-          await loadedMaps(page); await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))); await page.screenshot({path: `${OUT}/${scheme}-snap.png`});
+          await loadedMaps(page); await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))); await page.screenshot({path: `${OUT}/${scheme}-snap.png`});
           await say(page, opt.snap[1]); await page.locator('.thread-card').filter({hasText: 'Spiced rice'}).filter({hasText: '160'}).first().waitFor();
         }
         await page.evaluate(() => document.activeElement.blur());
@@ -487,7 +495,7 @@ async function closeCaptureContext(context) {
       await page.waitForTimeout(700);
       await loadedMaps(page, {advanceMapFade: ['activity', 'activity-splits', 'feed', 'route'].includes(name)});
       if(opt.tab){const heading=page.locator(`#activity-pane-${opt.tab} h2`).first();await heading.waitFor({state:'visible'});await heading.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));}
-      await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
