@@ -247,22 +247,36 @@ function fitnessChart(box, title, draw) {
   if (graph) { graph.setAttribute('role','button'); graph.tabIndex=0; graph.setAttribute('aria-label','View '+title+' full screen'); graph.onclick=open; graph.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}}; }
   $('.chart-expand',box).hidden=!graph;$('.chart-expand',box).onclick=open;
 }
+function progressChartCard(id, title, stats, rangeId, content) {
+  return `<section class="card progress-chart-card" data-progress-chart="${esc(id)}"><header class="progress-chart-heading"><h2>${esc(title)}</h2><div id="${esc(rangeId)}"></div></header>${stats}${content}</section>`;
+}
 async function pFitnessLoaded(body, q) {
-  const R = getRange(q), nowY = new Date().getFullYear();
-  const days = R.from ? Math.min(3650, Math.ceil((Date.now() - new Date(R.from, 0, 1)) / 864e5) + 1) : 3650;
-  // The year filter stays with Running fitness; it filters the charts, not the predictions.
-  body.innerHTML = `<div id="fi-summary"></div><div id="fi-pred">${skel(1)}</div><div id="fi-body">${skel(1)}</div>`;
+  const rangeOptions=[['1m','1M'],['3m','3M'],['1y','1Y'],['all','All']], selectedRange=rangeOptions.some(([key])=>key===q.get('range'))?q.get('range'):'all';
+  const days=3650;
+  // The range controls filter charts only; current fitness and race predictions remain unchanged.
+  body.innerHTML = `<div id="fi-summary"></div><div id="fi-pred">${skel(1)}</div><div id="fi-body">${skel(2)}</div>`;
   await load(`/api/fitness?days=${days}`, (f0) => {
     const summaryBox = $('#fi-summary', body), box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
-    const f = {...f0, days: f0.days.filter((d) => inRange(R, +d.d.slice(0, 4)))};
+    const now=new Date(),cutoff=new Date(now);
+    if(selectedRange==='1m')cutoff.setMonth(cutoff.getMonth()-1);
+    else if(selectedRange==='3m')cutoff.setMonth(cutoff.getMonth()-3);
+    else if(selectedRange==='1y')cutoff.setFullYear(cutoff.getFullYear()-1);
+    const chartDays=selectedRange==='all'?f0.days:f0.days.filter(d=>new Date(`${d.d}T00:00:00`)>cutoff);
+    const chartMonths=selectedRange==='all'?f0.vdot_months:f0.vdot_months.filter(m=>new Date(`${m.m}-01T00:00:00`)>new Date(cutoff.getFullYear(),cutoff.getMonth(),1));
+    const f=f0;
     const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0};
+    const form = last.form, [kind, word] = form > 5 ? ['good', 'Fresh'] : form < -15 ? ['warn', 'Tired'] : ['steady', 'Steady'];
     if (summaryBox && f0.days.some(d => d.fitness > 0)) {
-      const form = last.form, [kind, word] = form > 5 ? ['good', 'Fresh'] : form < -15 ? ['warn', 'Tired'] : ['', 'Training steadily'];
       const mini = (label, value) => `<span><b class="num">${esc(value)}</b><small>${esc(label)}</small></span>`;
       summaryBox.innerHTML = `<section class="card me-form fitness-current" aria-label="Fitness and form"><span class="me-form-top"><span class="grow"><small>Fitness &amp; form</small><b class="status-word ${kind}">${word}</b></span></span>
-        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Form', (form > 0 ? '+' : '') + Math.round(form))}${f0.vdot_now ? mini('Run score', f0.vdot_now) : ''}</span>
-        ${f0.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Build up gradually to stay healthy.</span>' : ''}</section>`;
+        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Form', (form > 0 ? '+' : '') + Math.round(form))}${f0.vdot_now ? mini('Run score', f0.vdot_now) : ''}</span></section>`;
     }
+    const fiveK = f.predictions.find(p => Math.abs(Number(p.distance_m) - 5000) < 50);
+    const fitnessStats = ProgressUI.statRow([
+      {label:'Fitness',value:f0.days.some(d=>d.fitness>0)?String(Math.round(last.fitness)):'–'},
+      {label:'Form',value:f0.days.some(d=>d.fitness>0)?word:'–',unit:f0.days.some(d=>d.fitness>0)?`${form>0?'+':''}${Math.round(form)}`:''},
+      {label:'5K estimate',value:fiveK?dur(fiveK.seconds):'–'}
+    ]);
     const predictionSourceDetail = p => {
       const source = p.from || {};
       const date = Number.isFinite(Date.parse(source.start_time)) ? fdate(source.start_time, {month:'short', day:'numeric'}) : 'date unavailable';
@@ -286,16 +300,22 @@ async function pFitnessLoaded(body, q) {
           <div class="prediction-sources"><p class="small muted">Recent efforts used</p><ul>${f.predictions.map(predictionSourceDetail).join('')}</ul></div>
         </details></div>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p><a class="primary wide prediction-start" data-fitness-empty-action href="/track">Record a run</a></div>';
-    box.innerHTML = `<div class="card fitness-running"><div class="fitness-running-heading"><h2>Running fitness</h2><span class="rng" id="fi-range"></span></div>${f.vdot_months.length ? `<div class="bigstat">${stat('Run score · 90 days', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
-        <p class="small muted">Run score rates your best efforts of a mile or longer; higher means faster. It isn’t a measured VO₂max.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
-      <div class="card"><h2>Fitness, fatigue & form</h2>
-      <div class="bigstat">${stat('Fitness', Math.round(last.fitness))}${stat('Form', (last.form > 0 ? '+' : '') + Math.round(last.form))}</div>
-      <div id="p-load"></div><p class="small muted">Form is fitness (about 6 weeks of training) minus fatigue (the last week): above zero means fresh.</p></div>`;
-    rangeBar($('#fi-range', box), R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
+    const rangeScores=chartMonths.map(m=>m.v);
+    const hasRunScoreHistory=rangeScores.filter(Number.isFinite).length>=2;
+    const runScoreStats = hasRunScoreHistory ? ProgressUI.statRow([
+      {label:'Current',value:f.vdot_now?Number(f.vdot_now).toFixed(1):'–'},
+      {label:'Best in range',value:Math.max(...rangeScores).toFixed(1)},
+      {label:'Best ever',value:f0.vdot_months.length?Math.max(...f0.vdot_months.map(m=>m.v)).toFixed(1):'–'}
+    ]) : '';
+    box.innerHTML = `${progressChartCard('training-load','Fitness',fitnessStats,'fi-range',`<div id="p-load"></div>${f0.ramp_7d>8?'<p class="fitness-ramp-warning" role="status">Your training load jumped this week. Build up gradually to stay healthy.</p>':''}`)}
+      ${chartMonths.length?progressChartCard('run-score','Run score',runScoreStats,'fi-range-score','<div id="p-vdot"></div>'):'<section class="card progress-chart-card progress-chart-empty"><h2>Run score</h2><p class="muted">Needs runs of a mile or longer.</p></section>'}`;
+    for(const id of ['fi-range','fi-range-score']){const rangeBox=$('#'+id,box);if(rangeBox)rangeBox.innerHTML=ProgressUI.rangeText(rangeOptions,selectedRange,{label:'Fitness chart range',attribute:'fitness-range'});}
+    $$('[data-fitness-range]',box).forEach(button=>button.onclick=()=>{const next=new URLSearchParams(location.search);next.set('range',button.dataset.fitnessRange);go('/progress?'+next.toString(),{replace:true});});
+    const formItem=$$('.stat-row-item',box)[1];if(formItem){formItem.dataset.formState=kind;}
     requestAnimationFrame(() => {
-      fitnessChart($('#p-load', box), 'Training load', (mount, height, options) => loadChart(mount, f.days, {height,...options}));
-      if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Monthly best run score', (mount, height, options) => {trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
-        {fmt: (v) => v.toFixed(1), rollName:'6-month average of monthly bests', color: 'brand', height, ...options, keep: (p) => inRange(R, p.d.getFullYear())});
+      fitnessChart($('#p-load', box), 'Fitness', (mount, height, options) => loadChart(mount, chartDays, {height,...options}));
+      if (chartMonths.length) fitnessChart($('#p-vdot', box), 'Run score', (mount, height, options) => {trendLine(mount, monthSeries(chartMonths[0].m, (m) => { const r = chartMonths.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
+        {fmt: (v) => v.toFixed(1), rollName:'6-month average of monthly bests', color: 'brand', height, ...options});
         const key=$('.legend span:last-child',mount);if(key)key.lastChild.textContent='Monthly best';});
     });
   });

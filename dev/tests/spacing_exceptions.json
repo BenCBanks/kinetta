@@ -1,5 +1,41 @@
 [
   {
+    "id": "progress-chart-card-title-type",
+    "selector": "#fi-body .progress-chart-card .progress-chart-heading h2",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 15,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1021",
+    "reason": "The approved #1021 ChartCard title is 15px/600; the chart heading remains distinct from larger section headings and every clipping check stays active."
+  },
+  {
+    "id": "progress-chart-range-label-type",
+    "selector": ".progress-chart-heading .range-text button",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1021",
+    "reason": "The approved #1021 RangeText uses 13px labels in 44px-high buttons; target size, gaps and clipping remain audited."
+  },
+  {
+    "id": "progress-chart-form-value-type",
+    "selector": "#fi-body .progress-chart-card .stat-row-item[data-form-state] b.num",
+    "metric": "font-max",
+    "kind": "approved-type",
+    "exact": 22,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1021",
+    "reason": "The shared #1021 StatRow uses 22px/600 tabular values; only its semantic Form number is excepted, while the colored state word, unit and clipping remain checked."
+  },
+  {
+    "id": "me-today-date-type",
+    "selector": ".me-today-date",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1020",
+    "reason": "The approved #1020 Today design sets its date label to 13px/500; all other text sizes and clipping remain audited."
+  },
+  {
     "id": "lift-set-value-type",
     "selector": ".compact-lift .lift-row > input.lift-in",
     "metric": "font-max",
@@ -60,6 +96,15 @@
     "exact": 0,
     "followup": "https://github.com/BenCBanks/kinetta/issues/1021",
     "reason": "Issue #1021 groups Progress destinations in one inset surface; adjacent 56px rows share 1px dividers instead of card gaps. Each row remains a full-height labeled link."
+  },
+  {
+    "id": "me-today-inset-row-divider",
+    "selector": ".me-today-list > .me-today-row",
+    "metric": "gap",
+    "kind": "grouped-list",
+    "exact": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1020",
+    "reason": "Issue #1020 groups Today destinations in one inset surface; adjacent 52px rows use 1px dividers instead of card gaps. Every row remains a full-height labeled link."
   },
   {
     "id": "nutrition-calorie-ring-center-number",

@@ -7,22 +7,23 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
 // Poll with page.evaluate: the app's Content Security Policy forbids the string evaluation waitForFunction uses.
 async function until(page,fn,label,arg){for(let i=0;i<150;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);}
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
-const [act]=await(await l.request.get(base+'/api/activities?limit=1')).json();assert(act,'demo activity');
+const activities=await(await l.request.get(base+'/api/activities?limit=50')).json(),act=activities.find(a=>a.sport==='run'&&!(a.photos||[]).length)||activities.find(a=>!(a.photos||[]).length);assert(act,'demo activity without photos');
 for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark']){
  const c=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
  p.on('pageerror',e=>errors.push(e.message));
  await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
- await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(q.method()+' '+u.pathname);return r.fulfill({json:{}});}return r.continue();});
+ await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(q.method()==='GET'&&u.pathname==='/api/activity-photos/900001')return r.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48"><rect width="64" height="48" fill="#2e80bd"/></svg>'});if(!['GET','HEAD'].includes(q.method())){writes.push(q.method()+' '+u.pathname);if(q.method()==='POST'&&/\/api\/activities\/\d+\/photos$/.test(u.pathname))return r.fulfill({json:{id:900001,w:64,h:48}});return r.fulfill({json:{}});}return r.continue();});
  const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${theme}.png`});}};
  const open=async()=>{await p.locator('#d-edit').click();await p.waitForSelector('.sheet.pinned #e-form');await p.waitForSelector('#e-visibility-value:not(:text-is("Loading…"))');await p.waitForTimeout(400);}; // let the sheet finish sliding in
  await p.goto(base+'/activity/'+act.id);await until(p,()=>App.pageReady,'page');await open();
  const sheet=p.locator('.sheet.pinned'),head=sheet.locator('header'),save=head.locator('button[form="e-form"]'),cancel=head.locator('[data-close]');
  assert.equal((await save.innerText()).trim(),'Save');assert.equal((await cancel.innerText()).trim(),'Cancel');
  for(const button of [save,cancel]){const bb=await button.boundingBox();assert(bb.height>=43.5&&bb.width>=43.5,'44px header buttons (sub-pixel while the sheet slides in) '+JSON.stringify(bb));}
- // Order: title, sport, description, visibility, then More details; Photos are a separate PR.
+ // Order: title, sport, photos, description, visibility, then More details.
  const order=await p.$$eval('#e-primary > *',e=>e.map(x=>x.id||x.querySelector('input,select,textarea')?.name||x.className||x.tagName));
  const at=k=>order.findIndex(x=>x.includes(k));
- assert(at('name')>=0&&at('kind')>at('name')&&at('e-description')>at('kind')&&at('e-visibility-open')>at('e-description')&&at('e-more')>at('e-visibility-open'),'order: '+order.join(','));
+ assert(at('name')>=0&&at('kind')>at('name')&&at('activity-edit-photos')>at('kind')&&at('e-description')>at('activity-edit-photos')&&at('e-visibility-open')>at('e-description')&&at('e-more')>at('e-visibility-open'),'order: '+order.join(','));
+ assert.equal(await p.locator('#e-photo-count').innerText(),'0 of 10','photo count uses the existing activity limit');assert.equal((await p.locator('#e-photos .ph-add').innerText()).trim(),'Add photos','empty state is one plain Add photos action');
  assert.equal(await p.locator('#e-form .actions').count(),0,'no bottom button row');
  assert.equal(await p.locator('#e-visibility-view').isHidden(),true,'Visibility starts as a row');
  assert.match(await p.locator('#e-visibility-value').innerText(),/Only me|Friends|Everyone/,'row shows the current audience');
@@ -45,17 +46,20 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}
  // Only the small grab bar scrolls away; the header then sits flush with the sheet's top edge.
  const [hy,sy]=[(await head.boundingBox()).y,(await sheet.boundingBox()).y];assert(hy>=sy-1&&hy<=top0,'header stays pinned at the top: '+hy+' sheet '+sy);assert(await save.isVisible());
  await p.locator('#e-more > summary').click();await p.locator('#e-del').scrollIntoViewIfNeeded();await shot('edit-bottom');
- // Untouched: Cancel closes at once.
- await cancel.click();await p.waitForSelector('.scrim',{state:'detached'});
- // Changed: Cancel asks; dismissing the question keeps the sheet and the draft; accepting discards.
- await open();await p.locator('#e-form input[name="name"]').fill('Draft title kept');
- // The question is the shared confirm sheet: Keep editing on the left, red Discard on the right.
  const ask=async()=>{await p.locator('.confirm-sheet').waitFor();assert.equal(await p.getByRole('alertdialog',{name:'Discard your changes?'}).count(),1);const [keep,discard]=await p.locator('.confirm-sheet .btnrow button').all();assert.equal(await keep.innerText(),'Keep editing');assert.equal(await discard.innerText(),'Discard');for(const b of [keep,discard])assert((await b.boundingBox()).height>=44,'44px confirm buttons');assert((await keep.boundingBox()).x<(await discard.boundingBox()).x,'Cancel sits left of the action');};
+ // A pending photo appears in the section; Cancel asks and discards it without an upload.
+ await p.locator('#e-photos [data-phfile]').setInputFiles({name:'fictional-photo.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48"><rect width="64" height="48" fill="#2e80bd"/></svg>')});await until(p,()=>document.querySelector('#e-photo-count')?.textContent==='1 of 10','photo count update');assert.equal(await p.locator('#e-photos .ph-th').count(),1,'uploaded photo appears as a thumbnail');assert.equal((await p.locator('#e-photos .ph-add').innerText()).trim(),'Add','filled section offers Add more');await shot('edit-photos');
+ await cancel.click();await ask();await p.locator('[data-confirm-ok]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});await p.waitForSelector('.sheet.pinned',{state:'detached'});assert(!writes.some(w=>w==='POST /api/activities/'+act.id+'/photos'),'Cancel discards pending photos');
+ // Changed: Cancel asks; dismissing the question keeps the form draft; Escape on the question keeps editing.
+ await open();assert.equal(await p.locator('#e-photo-count').innerText(),'0 of 10','Cancel removed the discarded photo draft on the next edit');await p.locator('#e-form input[name="name"]').fill('Draft title kept');
+ // The question is the shared confirm sheet: Keep editing on the left, red Discard on the right.
  await cancel.click();await ask();await shot('discard-confirm');await p.locator('[data-confirm-cancel]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal(await p.locator('#e-form input[name="name"]').inputValue(),'Draft title kept','draft kept');
  await p.keyboard.press('Escape');await ask();await p.keyboard.press('Escape');await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal(await p.locator('.sheet.pinned').count(),1,'Escape asks too, and Escape on the question keeps editing');
  // Save from the pinned header sends the edit (intercepted) and closes without asking.
+ await p.locator('#e-photos [data-phfile]').setInputFiles({name:'fictional-photo.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48"><rect width="64" height="48" fill="#2e80bd"/></svg>')});await until(p,()=>document.querySelector('#e-photo-count')?.textContent==='1 of 10','saved photo count');await shot('edit-photos');
  await save.click();await p.waitForSelector('.scrim',{state:'detached'});
  assert(writes.some(w=>w==='PATCH /api/activities/'+act.id),'saved from the header: '+writes.join(','));
+ assert(writes.some(w=>w==='POST /api/activities/'+act.id+'/photos'),'Save commits the pending activity photo');
  await open();await p.locator('#e-form select[name="kind"]').selectOption({index:1});await cancel.click();await ask();await p.locator('[data-confirm-ok]').click();await p.waitForSelector('.scrim',{state:'detached'});assert.equal(writes.filter(w=>w.startsWith('PATCH')).length,1,'a changed choice asks, and Discard closes without saving');
  assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no overflow');
  assert.deepEqual(errors,[]);assert.equal(writes.filter(w=>w.startsWith('DELETE')).length,0,'nothing deleted');

@@ -519,36 +519,41 @@ async function meOverview(el) {
     const distance=rows.reduce((sum,a)=>sum+(Number(a.distance_m)||0),0),names=[...new Set(rows.map(a=>SPORT_NAMES[a.sport]||a.sport_label||'Workout'))].join(', ');
     return {title:rows.length+' workouts'+(distance>0?' · '+U.dist(distance,1)+' '+U.du():''),detail:names,icon:'activity',sport:rows[0]?.sport||'other',href:'/me/activities'};
   };
-  const activityMarkup=state=>{
-    if(state.error)return '<div class="me-today-row" data-today-activity><span class="me-today-icon" data-sport="run">'+svg('activity')+'</span><button type="button" class="me-today-error" data-today-retry>Couldn\'t load · Try again</button></div>';
-    let title,detail,icon='activity',sport='run',href='/track',empty=false;
-    if(state.rows.length)({title,detail,icon,sport,href}=activityLine(state.rows));
-    else if(state.plan){
-      const p=state.plan.plan,w=state.plan.today_workout;
-      if(!w||w.type==='rest'||(w.day&&w.day!==state.day)){title='Rest day';detail='On your plan';href='/plan';}
-      else{const baseTitle=String(w.title||'Workout').trim(),amount=w.minutes?w.minutes+' min':w.dist?w.dist+' '+p.unit:'';title=amount&&!baseTitle.toLowerCase().includes(amount.toLowerCase())?baseTitle+' · '+amount:baseTitle;detail='On your plan';sport=w.type||'run';icon=IC[sport]?sport:'activity';href='/plan';}
-    }else{title='No workout yet today';detail='';empty=true;href='/track';}
-    const copy=empty?'<span>'+title+'</span>':'<b>'+esc(title)+'</b><small>'+esc(detail)+'</small>';
-    return '<a class="me-today-row" data-today-activity data-sport="'+esc(sport)+'" href="'+esc(href)+'"><span class="me-today-icon">'+svg(icon)+'</span><span class="me-today-copy'+(empty?' me-today-empty':'')+'">'+copy+'</span>'+svg('chev','me-today-chevron')+'</a>';
-  };
-  const foodMarkup=(data,day)=>{
-    const href='/food?d='+encodeURIComponent(day);let content;
-    if(!data.entries.length)content='<span class="me-today-empty">No food logged today</span>';
-    else{
-      const kcalTarget=data.targets?.kcal_target,proteinTarget=data.targets?.protein_target,estimate=data.entries.some(e=>e.source==='ai'||e.origin==='ai'||e.ref?.origin==='ai');
-      const unknownKcal=data.unknown_nutrients?.kcal||0,unknownProtein=data.unknown_nutrients?.protein_g||0;
-      const kcal=unknownKcal>=data.entries.length?'Unknown kcal':(estimate?'≈ ':'')+r0(homeCalories(data.totals.kcal))+(kcalTarget!=null?' / '+r0(kcalTarget):'')+' kcal';
-      const protein=unknownProtein>=data.entries.length?'Unknown protein'+(proteinTarget!=null?' · '+r0(proteinTarget)+' g target':''):
-        unknownProtein?r0(data.totals.protein_g)+' g recorded'+(proteinTarget!=null?' · '+r0(proteinTarget)+' g protein target':''):
-        r0(data.totals.protein_g)+(proteinTarget!=null?' / '+r0(proteinTarget)+' g protein':' g protein');
-      content='<b>'+kcal+'</b><small>'+protein+'</small>';
+  const valueMarkup=(value,accent=false)=>`<span class="me-today-value${accent?' is-action':''}">${esc(value)}</span>`;
+  const planMarkup=(plan,day,{error=false}={})=>{
+    const workout=plan?.plan?.race_day&&day>plan.plan.race_day?null:plan?.today_workout;
+    let title='Rest day',value='On your plan',sport='run';
+    if(workout&&workout.type!=='rest'&&(!workout.day||workout.day===day)){
+      title=String(workout.title||'Workout').trim();sport=workout.type||'run';
+      const amount=workout.minutes?`${workout.minutes} min`:workout.dist?`${workout.dist} ${plan.plan.unit}`:'';
+      if(amount&&title.toLowerCase().endsWith(amount.toLowerCase()))title=title.slice(0,-amount.length).replace(/[\s·–-]+$/,'').trim();
+      value=amount||'Plan';
     }
-    return '<div class="me-today-row" data-today-food><span class="me-today-icon me-today-food-icon">'+svg('food')+'</span><a class="me-today-copy'+(data.entries.length?'':' me-today-empty')+'" href="'+href+'">'+content+'</a><button type="button" class="me-today-add" data-today-add aria-label="Add food">'+svg('plus')+'</button></div>';
+    const icon=IC[sport]?sport:'activity';
+    if(error)return `<button type="button" class="me-today-row" data-today-plan data-today-retry><span class="me-today-icon">${svg(icon)}</span><span class="me-today-title">Plan workout</span>${valueMarkup('Retry',true)}${svg('chev','me-today-chevron')}</button>`;
+    return `<a class="me-today-row" data-today-plan data-sport="${esc(sport)}" href="/plan"><span class="me-today-icon">${svg(icon)}</span><span class="me-today-title">${esc(title)}</span>${valueMarkup(value)}${svg('chev','me-today-chevron')}</a>`;
+  };
+  const activityMarkup=({rows,latest,error=false})=>{
+    if(error)return `<button type="button" class="me-today-row" data-today-activity data-today-retry><span class="me-today-icon">${svg('activity')}</span><span class="me-today-title">Latest activity</span>${valueMarkup('Retry',true)}${svg('chev','me-today-chevron')}</button>`;
+    const items=rows.length?rows:latest?[latest]:[];
+    if(!items.length)return '';
+    const summary=activityLine(items),title=items.length>1?`${items.length} workouts`:SPORT_NAMES[items[0].sport]||items[0].sport_label||'Activity';
+    const value=items.length>1?(summary.title.split(' · ').slice(1).join(' · ')||summary.detail):summary.title.replace(title,'').replace(/^\s*·\s*/, '')||summary.detail;
+    const icon=items.length===1&&IC[items[0].sport]?items[0].sport:'activity',href=items.length===1&&items[0].id?`/activity/${items[0].id}`:'/me/activities';
+    return `<a class="me-today-row" data-today-activity data-sport="${esc(items[0].sport||'other')}" href="${esc(href)}"><span class="me-today-icon">${svg(icon)}</span><span class="me-today-title">${esc(title)}</span>${valueMarkup(value||summary.detail||'Open')}${svg('chev','me-today-chevron')}</a>`;
+  };
+  const foodMarkup=(data,day,{error=false}={})=>{
+    if(error)return `<button type="button" class="me-today-row" data-today-food data-today-retry><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup('Retry',true)}${svg('chev','me-today-chevron')}</button>`;
+    const href='/food?d='+encodeURIComponent(day);
+    if(!data.entries.length)return `<button type="button" class="me-today-row" data-today-food data-today-add aria-label="Add food for today"><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup('Add',true)}${svg('chev','me-today-chevron')}</button>`;
+    const estimate=data.entries.some(e=>e.source==='ai'||e.origin==='ai'||e.ref?.origin==='ai'),unknown=(data.unknown_nutrients?.kcal||0)>=data.entries.length;
+    const target=data.targets?.kcal_target,value=unknown?'Unknown':(estimate?'≈ ':'')+r0(homeCalories(data.totals.kcal))+(target!=null?' of '+r0(target):'')+(target==null?' kcal':'');
+    return `<a class="me-today-row" data-today-food href="${href}"><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup(value)}${svg('chev','me-today-chevron')}</a>`;
   };
   let todaySequence=0,midnightTimer=null,todaySkeletonTimer=null;
-  const skeletonRow='<div class="me-today-row me-today-skeleton" aria-hidden="true"><span class="me-today-icon"></span><span class="me-today-copy"><i></i><i></i></span></div>';
+  const skeletonRow='<div class="me-today-row me-today-skeleton" aria-hidden="true"><span class="me-today-icon"></span><span class="me-today-title"><i></i></span><span class="me-today-value"><i></i></span></div>';
   const stopTodaySkeleton=()=>{if(todaySkeletonTimer!==null){clearTimeout(todaySkeletonTimer);todaySkeletonTimer=null;}};
-  todayRoot.innerHTML='<section class="me-today" aria-label="Today" aria-busy="true"><div class="me-today-head"><h2>Today</h2><span class="me-today-date">'+esc(shortDate())+'</span></div><div data-today-skeleton hidden>'+skeletonRow+skeletonRow+'</div></section>';
+  todayRoot.innerHTML='<section class="me-today" aria-label="Today" aria-busy="true"><div class="me-today-head"><h2>Today</h2><span class="me-today-date">'+esc(shortDate())+'</span></div><div class="me-today-list card list" data-today-skeleton hidden>'+skeletonRow+skeletonRow+skeletonRow+'</div></section>';
   todaySkeletonTimer=setTimeout(()=>{todaySkeletonTimer=null;const pending=$('[data-today-skeleton]',todayRoot);if(pending)pending.hidden=false;},200);
   const refreshToday=async()=>{
     if(!el.isConnected||owner!==readOwner())return;
@@ -573,23 +578,25 @@ async function meOverview(el) {
     const foodData=foodDayResult.status==='fulfilled'?foodDayResult.value:null,recentFood=foodHistoryResult.status==='fulfilled'?foodHistoryRows.length>0:!!App.me.recentFoodUser;
     if(foodHistoryResult.status==='fulfilled')App.me.recentFoodUser=foodHistoryRows.length>0;
     const todayFoodUser=App.me.kcal_target!=null||recentFood||!!foodData?.food_user;
-    const activityUser=(activityFailed?!!App.me.recentActivityUser:recentActivity)||(planFailed?!!App.me.hasActivePlan:planActive);
+    const planUser=planFailed?App.me.hasActivePlan===true:planActive;
+    const activityUser=activityFailed?!!App.me.recentActivityUser:recentActivity;
     if(activityResult.status==='fulfilled'){activityHistory=activities.length>0;App.me.hasActivityHistory=activityHistory;}else if(App.me.hasActivityHistory!=null)activityHistory=!!App.me.hasActivityHistory;
     if(foodData)foodHistory=!!foodData.has_history||foodData.entries?.length>0;
     else if(foodHistoryResult.status==='fulfilled')foodHistory=foodHistoryRows.length>0;
     else if(App.me.hasFoodHistory!=null)foodHistory=!!App.me.hasFoodHistory;
     if(foodHistory!==null)App.me.hasFoodHistory=foodHistory;
     activePlan=planFailed?App.me.hasActivePlan===true:planActive;drawSetup();
-    const activityError=activityUser&&(activityFailed||(!todayRows.length&&planFailed)),foodError=todayFoodUser&&foodDayResult.status==='rejected',hasError=activityError||foodError;
+    const activityError=activityUser&&activityFailed,planError=planUser&&planFailed,foodError=todayFoodUser&&foodDayResult.status==='rejected',hasError=activityError||planError||foodError;
     if(!hasError)App.me.meTodayUpdatedAt=new Date().toISOString();
     const rows=[];
-    if(activityUser)rows.push(activityMarkup({error:activityError,rows:todayRows,plan:plan?.plan?plan:null,day}));
-    if(todayFoodUser)rows.push(foodError?'<div class="me-today-row" data-today-food><span class="me-today-icon me-today-food-icon">'+svg('food')+'</span><button type="button" class="me-today-error" data-today-retry>Couldn\'t load · Try again</button></div>':foodMarkup(foodData,day));
+    if(planUser)rows.push(planMarkup(plan,day,{error:planError}));
+    if(todayFoodUser)rows.push(foodMarkup(foodData,day,{error:foodError}));
+    if(activityUser)rows.push(activityMarkup({rows:todayRows,latest:latestActivity,error:activityError||todayActivityResult.status==='rejected'}));
     const updated=hasError&&App.me.meTodayUpdatedAt?' · updated '+new Date(App.me.meTodayUpdatedAt).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}):'';
     stopTodaySkeleton();
-    todayRoot.innerHTML=rows.length?'<section class="me-today" aria-labelledby="t-today-title"><div class="me-today-head"><h2 id="t-today-title">Today</h2><span class="me-today-date">'+esc(shortDate())+(updated?'<small>'+esc(updated)+'</small>':'')+'</span></div>'+rows.join('')+'</section>':'';
+    todayRoot.innerHTML=rows.length?'<section class="me-today" aria-labelledby="t-today-title"><div class="me-today-head"><h2 id="t-today-title">Today</h2><span class="me-today-date">'+esc(shortDate())+(updated?'<small>'+esc(updated)+'</small>':'')+'</span></div><div class="me-today-list card list">'+rows.join('')+'</div></section>':'';
     todayRoot.dataset.loadedDay=day;todayRoot.dataset.loadedToken=String(token);delete todayRoot.dataset.loading;
-    $$('.me-today-error',todayRoot).forEach(button=>button.onclick=()=>refreshToday());
+    $$('[data-today-retry]',todayRoot).forEach(button=>button.onclick=()=>refreshToday());
     const add=$('[data-today-add]',todayRoot);if(add)add.onclick=()=>describeSheet(day,guessMeal());
     if(foodData?.entries?.length){
       if(!checkinStarted){checkinStarted=true;weeklyCheckinCard($('#t-checkin',el),{home:true}).catch(()=>{});}
@@ -970,13 +977,14 @@ function editActivity(a) {
     if (!dirty) return true;
     const editor = $('#e-form')?.closest('.sheet'), after = editor?._afterDiscard;
     if (editor) editor._afterDiscard = null;
-    if (!asking) { asking = true; confirmSheet('Discard your changes?', {body: 'Your edits to this activity won’t be saved.', action: 'Discard', cancel: 'Keep editing'}).then((ok) => { asking = false; if (ok && closeEdit) { closeEdit(); if (after) after(); } }); }
+    if (!asking) { asking = true; confirmSheet('Discard your changes?', {body: 'Your edits to this activity won’t be saved.', action: 'Discard', cancel: 'Keep editing'}).then((ok) => { asking = false; if (ok && closeEdit) { delete a._photoDraft; closeEdit(); if (after) after(); } }); }
     return false;
   };
   sheet('Edit activity', `<form class="form activity-edit-form" id="e-form">
     <div id="e-primary" class="activity-edit-primary">
       <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
       <label>Sport<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
+      <section class="activity-edit-photos" aria-label="Activity photos"><div class="activity-edit-photo-heading"><span>Photos</span><span id="e-photo-count" class="activity-edit-photo-count"></span></div><div id="e-photos"></div></section>
       <div id="e-description" class="activity-edit-section">${optionalText('description', 'Description', 'Add description', a.description)}</div>
       <button type="button" class="activity-edit-row" id="e-visibility-open"><span>Visibility</span><span class="activity-edit-row-value" id="e-visibility-value">Loading…</span>${svg('chev')}</button>
       <details id="e-more" class="activity-edit-more"><summary><span>More details</span><span class="chev">${svg('chev')}</span></summary>
@@ -1000,8 +1008,11 @@ function editActivity(a) {
     // Any edit (typing, a choice, a sharing button) means closing asks first; opening the fold-outs doesn't count.
     const touched = () => { dirty = true; };
     f.addEventListener('input', touched); f.addEventListener('change', touched);
+    f.addEventListener('activity-photo-draft-change',touched);
     f.addEventListener('click', (e) => { if (e.target.closest('.seg button, #sh-usual')) touched(); });
     wireOptionalText(f);
+    const photoBox=$('#e-photos',body),photoCount=$('#e-photo-count',body);
+    const drawPhotos=()=>{photoCount.textContent=`${a._photoDraft?.photos.length??a.photos?.length??0} of ${PHOTO_MAX}`;photoStrip(photoBox,a,true,{afterChange:drawPhotos,defer:true});};drawPhotos();
     let saveShare = null;   // sharing (2026-10-12): moved here from the activity page
     (a._social ? Promise.resolve(a._social) : api(`/api/activities/${a.id}/social`))
       .then((s) => { if (f.isConnected) {
@@ -1031,6 +1042,7 @@ function editActivity(a) {
       try {
         await api(`/api/activities/${a.id}`, json('PATCH', body2));
         if (saveShare) await saveShare();
+        await saveActivityPhotoDraft(a);
         invalidate('/api/'); close(); toast('Saved'); render();
       } catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Save'; }
     };
@@ -1359,7 +1371,9 @@ function foodProgress(el,q) {
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE.filter(progressItemEnabled)].find(m => m[0] === view);
   el.innerHTML = `<div class="top progress-heading"><h1>${esc(({routes:'Routes',trends:'Years'})[view]||v?.[1]||'Progress')}</h1><div class="acts"><button type="button" class="icon-btn" id="recap-entry" aria-label="Share a progress picture">${svg('share')}</button></div></div><div id="p-body">${skelChart()}</div>`;
+  if (view === 'fitness') $('.top',el)?.classList.add('progress-no-kit-entry');
   progressBack(el); progressVisit(view); wireProgressFocus(el);
+  if (view === 'fitness') $('.progress-back',el)?.insertAdjacentHTML('beforeend','<span class="back-label">Progress</span>');
   $('#recap-entry',el).onclick=()=>Recaps.open('this_month');
   progressFilters(el, $('#p-body',el), filters, {selector:view === 'heatmap' ? '.heatmap-tools' : '.card'});
   if (['fitness','records','lifting'].includes(view)) {

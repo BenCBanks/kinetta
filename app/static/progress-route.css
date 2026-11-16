@@ -3,17 +3,37 @@
 /* Fitness, Records and Lifting share one compact sub-page bar and sibling navigation. */
 .progress-subpage-heading {
   display:grid;
-  grid-template-columns:44px minmax(0,1fr) 44px;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
   align-items:center;
   gap:8px;
   flex-wrap:nowrap;
 }
 .progress-subpage-heading .progress-back { grid-column:1;grid-row:1;justify-self:start; }
+.progress-subpage-heading .progress-back { display:inline-flex;align-items:center;gap:4px;width:max-content;max-width:100%;min-width:44px;height:44px;padding:0;overflow:visible;border:0;background:transparent;box-shadow:none;text-decoration:none;white-space:nowrap; }
+.progress-subpage-heading .progress-back svg { width:20px;height:20px;flex:none; }
+.progress-subpage-heading .progress-back .back-label { color:var(--tx);font-size:15px;font-weight:500; }
 .progress-subpage-heading h1 { grid-column:2;grid-row:1;min-width:0;margin:0;text-align:center;font-size:17px;font-weight:600;line-height:1.2;overflow-wrap:anywhere; }
 .progress-subpage-heading > .acts { grid-column:3;grid-row:1;justify-content:flex-end;min-width:44px;margin:0; }
 .progress-subpage-heading > .acts > :is(button,a) { flex:none;width:44px;height:44px; }
+.progress-subpage-heading.progress-no-kit-entry .kit-help { display:none; }
 .progress-subpage-tabs { margin:0 0 12px; }
 .progress-subpage-tabs .underline-tabs { gap:8px; }
+
+/* Fitness charts use the same quiet card, metric row and range control. */
+.progress-chart-card { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:none; }
+.progress-chart-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; margin:0 0 10px; }
+#fi-body .progress-chart-card .progress-chart-heading h2 { min-width:0; margin:0; font-size:15px; font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
+.progress-chart-heading .rng { flex:none; margin:0; }
+.progress-chart-heading .range-text { flex:none; gap:8px; }
+.progress-chart-heading .range-text button { min-width:44px; padding-inline:4px; font-size:13px; }
+.progress-chart-card .stat-row { margin:0 0 10px; }
+.progress-chart-card .readout { position:static; top:auto; z-index:auto; gap:4px 10px; min-height:0; padding:4px 0; margin:0 0 4px; border:0; border-radius:0; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; font-size:13px; }
+.progress-chart-card .chart-expand { min-height:44px; }
+.progress-chart-card .stat-row-item[data-form-state="good"] b { color:var(--good); }
+.progress-chart-card .stat-row-item[data-form-state="warn"] b { color:var(--warn); }
+.progress-chart-card .stat-row-item[data-form-state="steady"] b { color:var(--tx2); }
+.fitness-ramp-warning { margin:8px 0 0; color:var(--warn); font-size:13px; line-height:1.35; }
+.progress-chart-empty p { margin:0; color:var(--tx2); }
 
 .fitness-running-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
 .fitness-running-heading h2 { margin:0; }

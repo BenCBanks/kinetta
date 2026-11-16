@@ -439,7 +439,7 @@ async function fitnessRouteCase(browser){
   await cold.page.goto(base+fitness);await readyFitness(cold.page);
   assert.equal(cold.assets.filter(path=>path===asset).length,1,'direct Fitness requests one existing Progress bundle');
   assert.match(new URL(cold.assetUrls.find(url=>new URL(url).pathname===asset)).searchParams.get('v'),/^[0-9a-f]{32}$/,'deferred asset uses its built content hash');
-  assert.equal(await cold.page.locator('#fi-range .range-btn').count(),1,'the moved renderer retains the year filter');
+  assert.equal(await cold.page.locator('#fi-range [data-fitness-range="1y"]').count(),1,'the moved renderer retains the one-year chart range');
   assert.equal(await cold.page.evaluate(()=>window.__fitnessRenders.length),1,'the direct route invokes the real renderer once');
   await cold.page.evaluate(()=>go('/progress'));await ready(cold.page,'#p-home-totals','Progress after Fitness');
   await cold.page.evaluate(path=>go(path),fitness);await readyFitness(cold.page);

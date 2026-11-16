@@ -842,14 +842,19 @@ const photoSrc = (p, thumb) => `/api/activity-photos/${p.id}${thumb ? '?size=thu
 function photoChanged(aid) {
   invalidate('/api/activities/' + aid); invalidate('/api/shared/' + aid); invalidate('/api/activities?'); invalidate('/api/feed/friends'); invalidateFeed();
 }
-function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null} = {}) {
+function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null, defer = false} = {}) {
   if (!box) return;
-  const ph = a.photos || [];
+  const draft = defer ? (a._photoDraft ||= {initial: [...(a.photos || [])], photos: [...(a.photos || [])]}) : null;
+  const photos = () => draft ? draft.photos : (a.photos || []);
+  const ph = photos();
   if (!ph.length && !mine) { box.innerHTML = ''; return; }
   const canAdd = mine && ph.length < PHOTO_MAX;
-  box.innerHTML = `<div class="ph-strip${ph.length && !controlsOnly ? '' : ' empty'}">${controlsOnly ? '' : ph.map((p, i) => `<button type="button" class="ph-th" data-ph="${i}" aria-label="Photo ${i + 1} of ${ph.length}">${pimg(photoSrc(p, true))}</button>`).join('')}
+  const src = p => p.pending ? p.preview : photoSrc(p, true);
+  box.innerHTML = `<div class="ph-strip${ph.length && !controlsOnly ? '' : ' empty'}">${controlsOnly ? '' : ph.map((p, i) => `<button type="button" class="ph-th" data-ph="${i}" aria-label="Photo ${i + 1} of ${ph.length}">${pimg(src(p))}</button>`).join('')}
     ${canAdd ? `<button type="button" class="ph-add" data-phadd>${svg('camera')}<span>${ph.length ? 'Add' : 'Add photos'}</span></button><input type="file" accept="image/*" multiple hidden data-phfile>` : ''}</div>`;
-  $$('[data-ph]', box).forEach((b) => b.onclick = () => photoViewer(a, +b.dataset.ph, mine, () => photoStrip(box, a, mine)));
+  const redraw = () => {if(draft)box.dispatchEvent(new Event('activity-photo-draft-change',{bubbles:true}));return afterChange ? afterChange() : photoStrip(box, a, mine);};
+  const view = draft ? {...a, get photos(){return draft.photos;}, set photos(value){draft.photos=value;}} : a;
+  $$('[data-ph]', box).forEach((b) => b.onclick = () => photoViewer(view, +b.dataset.ph, mine, redraw, {draft}));
   const add = $('[data-phadd]', box), file = $('[data-phfile]', box);
   if (!add) return;
   add.onclick = () => file.click();
@@ -861,15 +866,30 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null} = {
       $('span', add).textContent = files.length > 1 ? `Adding ${done + 1} of ${files.length}…` : 'Adding…';
       try {
         const image = await shrinkPhoto(f, 1600);
-        a.photos = [...(a.photos || []), await api(`/api/activities/${a.id}/photos`, json('POST', {image}))]; done++;
+        if (draft) draft.photos.push({pending:true,preview:image});
+        else a.photos = [...(a.photos || []), await api(`/api/activities/${a.id}/photos`, json('POST', {image}))];
+        done++;
       } catch (x) { toast(x.message || "That photo couldn't be added"); break; }
     }
-    if (done) photoChanged(a.id);
-    if (afterChange) afterChange(); else photoStrip(box, a, mine);
+    if (done && !draft) photoChanged(a.id);
+    redraw();
   };
 }
+async function saveActivityPhotoDraft(a) {
+  const draft=a?._photoDraft;if(!draft)return;
+  let changed=false;
+  for(const old of [...draft.initial])if(!draft.photos.some(p=>p.id===old.id)){
+    await api('/api/activity-photos/'+old.id,{method:'DELETE'});
+    draft.initial=draft.initial.filter(p=>p.id!==old.id);changed=true;
+  }
+  for(let i=0;i<draft.photos.length;i++)if(draft.photos[i].pending){
+    const saved=await api(`/api/activities/${a.id}/photos`,json('POST',{image:draft.photos[i].preview}));
+    draft.photos[i]=saved;draft.initial.push(saved);changed=true;
+  }
+  a.photos=draft.photos;delete a._photoDraft;if(changed)photoChanged(a.id);
+}
 // full screen: swipe or the arrows for the next one; the owner can remove one
-function photoViewer(a, start, mine, onChange) {
+function photoViewer(a, start, mine, onChange, {draft=null}={}) {
   const previous=document.activeElement,page=$('#page')||root,anchor=document.createComment('photo viewer');page.append(anchor);
   let i = start,changed=false,closed=false;
   const v = document.createElement('div');
@@ -878,7 +898,7 @@ function photoViewer(a, start, mine, onChange) {
     const ph = a.photos, p = ph[i];
     v.innerHTML = `<div class="ph-bar"><button type="button" class="icon-btn" data-x aria-label="Close">${svg('close')}</button><span class="num">${i + 1} of ${ph.length}</span>
         ${mine ? `<button type="button" class="icon-btn" data-del aria-label="Remove this photo">${svg('trash')}</button>` : '<span class="ph-sp"></span>'}</div>
-      <div class="ph-stage">${pimg(photoSrc(p), `width="${p.w}" height="${p.h}"`).replace('alt=""', `alt="Photo ${i + 1} of ${ph.length}"`)}</div>
+      <div class="ph-stage">${pimg(p.pending?p.preview:photoSrc(p), `width="${p.w||''}" height="${p.h||''}"`).replace('alt=""', `alt="Photo ${i + 1} of ${ph.length}"`)}</div>
       ${ph.length > 1 ? `<button type="button" class="ph-nav prev" data-step="-1" aria-label="Previous photo"${i ? '' : ' hidden'}>${svg('back')}</button>
         <button type="button" class="ph-nav next" data-step="1" aria-label="Next photo"${i < ph.length - 1 ? '' : ' hidden'}>${svg('back')}</button>` : ''}`;
     $('[data-x]', v).onclick = close;
@@ -888,8 +908,9 @@ function photoViewer(a, start, mine, onChange) {
       if (!await confirmSheet('Remove this photo?', {action: 'Remove'})) return;
       del.disabled = true;
       try {
-        await api('/api/activity-photos/' + p.id, {method: 'DELETE'});
-        a.photos = ph.filter((x) => x.id !== p.id); photoChanged(a.id);changed=true;
+        if(draft){a.photos=ph.filter(x=>x!==p);}
+        else {await api('/api/activity-photos/' + p.id, {method: 'DELETE'});a.photos = ph.filter((x) => x.id !== p.id);photoChanged(a.id);}
+        changed=true;
         if(closed){if(page.isConnected)onChange();return;} // Refresh a still-open page after a late removal, never a different view.
         if (!a.photos.length) return close();
         i = Math.min(i, a.photos.length - 1); draw();

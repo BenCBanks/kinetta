@@ -49,9 +49,9 @@ async function run(){
  await done;
  assert.equal(today.dataset.loadedDay,day,'Today records the completed local date');
  assert.equal(today.dataset.loading,undefined,'the loading state ends after source reads settle');
- assert.equal((today.innerHTML.match(/data-today-activity/g)||[]).length,1,'the active plan produces one activity row');
- assert.match(today.innerHTML,/Easy run · 30 min/,'the planned session is rendered in Today');
- assert.match(today.innerHTML,/On your plan/,'the row explains that the session is planned');
+ assert.equal((today.innerHTML.match(/data-today-plan/g)||[]).length,1,'the active plan produces one plan row');
+ assert.match(today.innerHTML,/class="me-today-title">Easy run</,'the planned workout title is rendered in Today');
+ assert.match(today.innerHTML,/class="me-today-value">30 min</,'the planned workout amount is kept in the value column');
  assert.match(today.innerHTML,/href="\/plan"/,'the planned row opens the plan');
  assert.doesNotMatch(today.innerHTML,/data-today-food/,'a non-food user does not get a food row');
  assert.doesNotMatch(el.innerHTML,/Your dashboard|t-plan|t-food/,'the removed dashboard and plan/food cards stay absent');

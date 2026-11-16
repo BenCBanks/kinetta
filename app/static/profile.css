@@ -77,15 +77,17 @@
 .profile-achievement-ladder-threshold { color:var(--tx2); font-weight:500; }
 .profile-achievement-ladder-badge.is-upcoming .profile-achievement-ladder-name,.profile-achievement-ladder-badge.is-upcoming .profile-achievement-ladder-threshold { color:var(--tx2); }
 .profile-achievement-ladder-progress { display:block; width:100%; max-width:100%; min-width:0; height:3px; margin:1px 0; overflow:hidden; border-radius:2px; background:color-mix(in srgb,var(--tx2) 38%,var(--bg)); }
-.achievement-share-card { box-sizing:border-box; width:952px; margin:0; padding:0 64px 24px; overflow:hidden; border-radius:28px; background:color-mix(in srgb,var(--bg) 86%,#fff); color:var(--tx); font-family:var(--font-ui); box-shadow:0 18px 44px rgba(12,20,24,.22); }
+.achievement-share-card { box-sizing:border-box; width:952px; margin:0; padding:0 64px 24px; overflow:hidden; border-radius:28px 28px 0 0; background:color-mix(in srgb,var(--bg) 86%,#fff); color:var(--tx); font-family:var(--font-ui); box-shadow:0 18px 44px rgba(12,20,24,.22); }
 .achievement-share-head { margin-inline:-64px; padding:28px 64px 24px; border-radius:28px 28px 0 0; background:linear-gradient(135deg,var(--color-action),var(--color-brand) 60%,var(--color-ride)); color:#fff; }
 .achievement-share-brand { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:48px; }
-.achievement-share-brand img { display:block; width:220px; height:75px; object-fit:contain; object-position:left center; filter:brightness(0) invert(1); }
+.achievement-share-brand img { display:block; width:220px; height:75px; object-fit:contain; object-position:left center; filter:none; }
 .achievement-share-brand span { color:rgba(255,255,255,.78); font-size:20px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+.achievement-share-brand .achievement-share-sport-label { color:#fff; font-size:36px; font-weight:600; letter-spacing:.02em; text-transform:none; }
 .achievement-share-identity { display:flex; align-items:center; gap:24px; margin-top:8px; }
 .achievement-share-avatar { display:block; flex:0 0 160px; width:160px; height:160px; border-radius:50%; object-fit:cover; background:rgba(255,255,255,.22); }
 .achievement-share-avatar.is-initials { display:flex; align-items:center; justify-content:center; color:#fff; font-size:60px; font-weight:800; letter-spacing:.03em; }
 .achievement-share-head h1 { margin:0; color:#fff; font-size:72px; line-height:1.05; font-weight:800; overflow-wrap:anywhere; }
+.achievement-share-track-title { margin:8px 0 0; color:rgba(255,255,255,.86); font-size:27px; line-height:1.12; font-weight:650; overflow-wrap:anywhere; }
 .achievement-share-total { margin:12px 0 0; color:rgba(255,255,255,.9); font-size:32px; line-height:1.1; font-weight:650; }
 .achievement-share-highlights { display:grid; gap:0; }
 .achievement-share-track { box-sizing:border-box; min-height:214px; padding:8px 0 10px; border-top:2px solid var(--line); }
@@ -151,7 +153,9 @@
 .achievement-share-single-track .achievement-share-badges { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
 .achievement-share-track-card .achievement-share-track-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:24px 14px; padding-top:24px; }
 .achievement-share-track-card .achievement-share-track-grid { grid-template-columns:repeat(2,minmax(0,1fr)); min-height:900px; align-content:space-between; gap:24px 34px; }
+.achievement-share-track-card[data-track-code="sport:run"] .achievement-share-track-grid { min-height:500px; }
 .achievement-share-track-card .achievement-share-badge { min-height:210px; }
+.achievement-share-track-card .achievement-share-badge.is-next { gap:6px; }
 .achievement-share-track-card .achievement-share-badge .profile-achievement-medallion { flex-basis:178px; width:178px; height:178px; }
 .achievement-share-track-card .achievement-share-badge .profile-achievement-icon { width:68px; height:68px; }
 .achievement-share-single-track .achievement-share-progress,.achievement-share-track-card .achievement-share-progress { width:178px; align-self:center; }
@@ -455,17 +459,18 @@
 .me-chip[aria-pressed=true] { border:1.5px solid var(--btn); background:var(--accent2); color:var(--accent); }
 .me-card-actions { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr); gap:10px; margin-top:8px; }
 .me-card-actions button { min-height:46px; }
-/* Today sits directly below the unchanged shareable Me card. Rows stay open and separated by one hairline. */
+/* Today uses one inset list, directly below the unchanged shareable Me card. */
 .me-today { margin:16px 0 16px; }
 .me-today-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; min-height:34px; margin:0 0 2px; }
-.me-today-head h2 { margin:0; font-size:1.25rem; line-height:1.3; font-weight:650; }
-.me-today-date { color:var(--tx2); font-size:.9375rem; text-align:right; white-space:nowrap; }
-.me-today-date small { display:block; color:var(--tx3); font-size:.8125rem; }
-.me-today-row { display:flex; align-items:center; gap:12px; min-height:62px; color:var(--tx); text-decoration:none; }
-.me-today-row + .me-today-row { border-top:1px solid var(--line); }
-.me-today-row[data-today-activity] { cursor:pointer; }
-.me-today-icon { display:flex; align-items:center; justify-content:center; flex:none; width:20px; height:20px; color:var(--color-run); }
-.me-today-icon svg { width:20px; height:20px; }
+.me-today-head h2 { margin:0; font-size:20px; line-height:1.3; font-weight:700; }
+.me-today-date { color:var(--tx3); font-size:13px; font-weight:500; text-align:right; white-space:nowrap; }
+.me-today-date small { display:block; color:var(--tx3); font-size:12px; }
+.me-today-list.card.list { margin:0; padding:0 12px; border:1px solid color-mix(in srgb,var(--line) 75%,transparent); border-radius:16px; background:var(--surface-raised); box-shadow:var(--elevation-rest); }
+.me-today-list > .me-today-row { display:flex; align-items:center; gap:12px; width:100%; min-width:0; min-height:52px; padding:6px 4px; border:0; color:var(--tx); background:transparent; text-decoration:none; text-align:left; font:inherit; cursor:pointer; transition:transform var(--motion-press) ease-out,background-color var(--motion-settle) var(--motion-ease),opacity var(--motion-press) ease-out; }
+.me-today-list > .me-today-row + .me-today-row { margin-top:0; border-top:1px solid var(--line); }
+.me-today-list > .me-today-row:active { opacity:1; transform:scale(.985); background:var(--surface-card); }
+.me-today-icon { display:flex; align-items:center; justify-content:center; flex:none; width:22px; height:22px; color:var(--color-run); }
+.me-today-icon svg { width:22px; height:22px; }
 .me-today-row[data-sport="ride"] .me-today-icon { color:var(--color-ride); }
 .me-today-row[data-sport="walk"] .me-today-icon { color:var(--color-walk); }
 .me-today-row[data-sport="hike"] .me-today-icon { color:var(--color-hike); }
@@ -474,23 +479,23 @@
 .me-today-row[data-sport="ski"] .me-today-icon { color:var(--color-ski); }
 .me-today-row[data-sport="workout"] .me-today-icon { color:var(--color-workout); }
 .me-today-food-icon { color:var(--color-food,var(--color-green)); }
-.me-today-copy { display:flex; flex:1; flex-direction:column; justify-content:center; gap:8px; min-width:0; min-height:44px; color:inherit; text-decoration:none; }
-.me-today-copy b { font-size:1rem; line-height:1.25; font-weight:650; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-.me-today-copy small { color:var(--tx2); font-size:.875rem; line-height:1.3; font-weight:400; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-.me-today-copy.me-today-empty,.me-today-empty { color:var(--tx2); font-size:.9375rem; line-height:1.3; font-weight:400; }
-.me-today-chevron { flex:none; width:16px; height:16px; margin-left:auto; color:var(--tx3); }
-.me-today-add { display:grid; place-items:center; flex:none; width:44px; height:44px; margin:0 -4px 0 0; padding:0; border:0; background:transparent; color:var(--accent); }
-.me-today-add svg { width:20px; height:20px; }
-.me-today-error { flex:1; min-width:0; min-height:44px; padding:0; border:0; background:transparent; color:var(--tx2); font:400 .9375rem/1.3 system-ui,sans-serif; text-align:left; }
-.me-today-row a:focus-visible,.me-today-add:focus-visible,.me-today-error:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:4px; }
+.me-today-title { flex:1; min-width:0; color:var(--tx); font-size:15px; line-height:1.25; font-weight:500; overflow-wrap:anywhere; }
+.me-today-value { flex:0 1 auto; min-width:0; max-width:58%; color:var(--tx); font-size:15px; line-height:1.25; font-weight:600; font-variant-numeric:tabular-nums; text-align:right; overflow-wrap:anywhere; }
+.me-today-value.is-action { color:var(--accent); }
+.me-today-chevron { flex:none; width:16px; height:16px; color:var(--tx3); }
+.me-today-row:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:8px; }
 .me-today-skeleton .me-today-icon { border-radius:50%; background:var(--card2); }
-.me-today-skeleton .me-today-copy { gap:6px; }
-.me-today-skeleton .me-today-copy i { display:block; width:68%; height:12px; border-radius:6px; background:var(--card2); }
-.me-today-skeleton .me-today-copy i + i { width:38%; height:10px; }
+.me-today-skeleton .me-today-title i,.me-today-skeleton .me-today-value i { display:block; height:12px; border-radius:6px; background:var(--card2); }
+.me-today-skeleton .me-today-title i { width:68%; }
+.me-today-skeleton .me-today-value i { width:96px; margin-left:auto; }
+@media (prefers-reduced-motion:reduce) { .me-today-list > .me-today-row { transition:none; } .me-today-list > .me-today-row:active { transform:none; } }
 .me-dim { opacity:.35; transition:opacity .15s; }
+.shell:has(.me-top) { padding-bottom:calc(env(safe-area-inset-bottom,0px) + var(--tab-h) + 16px); }
 .setup-check .setup-heading { margin-top:0; align-items:flex-start; }
 .setup-check .setup-heading p { margin:2px 0 0; }
 .setup-check .setup-heading button { min-height:44px; padding:0 14px; }
+.setup-check .setup-heading [data-hide-setup] { min-width:44px; min-height:44px; padding:0 4px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--accent); font-size:15px; font-weight:600; }
+.setup-check .setup-heading [data-hide-setup]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .setup-check progress { display:block; width:100%; height:6px; margin:4px 0 4px; border:0; border-radius:3px; background:var(--card2); appearance:none; overflow:hidden; }
 .setup-check progress::-webkit-progress-bar { background:var(--card2); }
 .setup-check progress::-webkit-progress-value { background:var(--good); border-radius:3px; }
@@ -804,6 +809,12 @@
 .me-card-banner .me-card-pill { min-height:44px; background:transparent; color:rgba(255,255,255,.88); font-size:.9375rem; font-weight:550; }
 .me-card-banner .me-card-pill svg { opacity:.82; }
 .me-card-banner .me-card-pill:active { background:rgba(255,255,255,.12); }
+/* #1025 public profile relationships: clear primary action, plain relationship text, separate report control. */
+.me-card-banner [data-person-action="add"],.me-card-banner [data-person-action="accept"] { min-width:44px; min-height:44px; padding:4px 12px; border-radius:22px; background:linear-gradient(var(--color-action),var(--color-action)) center/100% 36px no-repeat; color:var(--color-on-action); font-size:15px; font-weight:600; }
+.me-card-banner [data-person-action="add"] svg,.me-card-banner [data-person-action="accept"] svg { width:16px; height:16px; }
+.me-card-banner [data-person-manage],.me-card-banner [data-person-action="cancel"] { padding-inline:8px; background:transparent; color:rgba(255,255,255,.9); font-weight:600; }
+.me-card-banner [data-person-report] { box-sizing:border-box; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; border-radius:50%; background:rgba(255,255,255,.14); box-shadow:none; }
+.me-card-banner [data-person-report]:active { background:rgba(255,255,255,.24); }
 .me-card-name { padding-top:2px; }
 .me-card-name h2 { font-size:1.0625rem; line-height:1.2; font-weight:500; letter-spacing:-.01em; white-space:nowrap; overflow:visible; text-overflow:clip; }
 .me-showcase-streak { min-width:0; font-size:.9375rem; font-weight:400; line-height:1.2; white-space:nowrap; }
