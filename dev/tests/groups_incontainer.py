@@ -173,15 +173,27 @@ class Groups(unittest.TestCase):
         group, original = self.make()
         self.assertEqual(self.accept(original).status_code, 200)
         self.assertEqual(self.clients[1].post('/api/groups/' + group['id'] + '/leave', json={}).status_code, 200)
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing",
+                                              json={'level':'total_shared'}).status_code, 404,
+                         'a left member cannot change sharing')
         rotated = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         stale = self.accept(original, who=1)
         unknown = self.accept('0' * 32, who=1)
         self.assertEqual(stale.status_code, 404)
         self.assertEqual(stale.json(), unknown.json())
         self.assertEqual(self.accept(rotated, who=1).status_code, 200)
+        self.assertEqual(self.clients[1].get(f"/api/groups/{group['id']}").json()['sharing_level'], 'just_in',
+                         'rejoining resets the old choice to the privacy-first default')
         login = self.clients[1].get('/api/me').json()['login']
         removed = self.clients[0].post('/api/groups/' + group['id'] + '/remove', json={'username': login})
         self.assertEqual(removed.status_code, 200)
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing",
+                                              json={'level':'total_shared'}).status_code, 404,
+                         'a removed member cannot change sharing')
+        after_removal = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
+        self.assertEqual(self.accept(after_removal, who=1).status_code, 200)
+        self.assertEqual(self.clients[1].get(f"/api/groups/{group['id']}").json()['sharing_level'], 'just_in',
+                         'reactivating a removed member resets the old sharing choice')
         refused = self.accept(rotated, who=1)
         unknown = self.accept('0' * 32, who=1)
         self.assertEqual(refused.status_code, 404)
@@ -201,6 +213,10 @@ class Groups(unittest.TestCase):
                              'just_in', 'new memberships default to the private choice')
             default = c.execute("SELECT column_default FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='group_members' AND column_name='sharing_level'").fetchone()
             self.assertIn('just_in', default['column_default'])
+            actual = c.execute("SELECT column_default,is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='group_members' AND column_name='sharing_level'").fetchone()
+            self.assertIsNotNone(actual, 'the real group_members table has the migrated column')
+            self.assertIn('just_in', actual['column_default'])
+            self.assertEqual(actual['is_nullable'], 'NO')
 
     def test_group_and_account_sharing_must_both_allow_totals_and_blocks_still_apply(self):
         group, token = self.make()
@@ -218,8 +234,8 @@ class Groups(unittest.TestCase):
         self.activity(2, self.now - dt.timedelta(hours=1), distance=30000, name='SHARED MEMBER C')
         self.activity(3, self.now - dt.timedelta(minutes=30), distance=900000, name='BLOCKED MEMBER D')
 
-        def group_view():
-            return self.clients[0].get('/api/groups/' + group['id']).json()
+        def group_view(who=0):
+            return self.clients[who].get('/api/groups/' + group['id']).json()
 
         initial = group_view()
         self.assertEqual(initial['sharing_level'], 'total_shared')
@@ -230,6 +246,11 @@ class Groups(unittest.TestCase):
                          [member['username'] for member in initial['members']])
         self.assertTrue(next(m for m in initial['members'] if m['username']==self.clients[1].get('/api/me').json()['login'])
                         ['sharing_total_only'], 'a group-default member has no visible contribution')
+        blocked_view = group_view(who=3)
+        self.assertEqual(blocked_view['member_count'], 3)
+        self.assertEqual(blocked_view['total'], 930, 'a blocked member’s own view excludes the blocker’s contribution')
+        self.assertNotIn(self.clients[0].get('/api/me').json()['login'],
+                         [member['username'] for member in blocked_view['members']])
 
         with db.connect() as c:
             c.execute('UPDATE activities SET distance_m=1200000 WHERE id=%s', (hidden_b,))
@@ -279,6 +300,9 @@ class Groups(unittest.TestCase):
         self.assertNotIn('total', shared)
         self.assertEqual(self.clients[2].get('/api/groups/' + group['id']).status_code, 404)
         self.assertEqual(self.clients[2].post('/api/groups/' + group['id'] + '/close', json={}).status_code, 404)
+        self.assertEqual(self.clients[2].post(f"/api/groups/{group['id']}/sharing",
+                                              json={'level':'total_shared'}).status_code, 404,
+                         'a non-member cannot change group sharing')
         with db.connect() as c:
             c.execute('DELETE FROM activities WHERE id=%s', (own_a,))
         remaining = self.clients[1].get('/api/groups/' + group['id']).json()
@@ -814,19 +838,21 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s AND user_id=%s',
                       (event_start - dt.timedelta(days=1), group['id'], self.ids[2]))
-            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",
-                      (group['id'], self.ids[2]))
+        self.assertEqual(self.clients[2].post(f"/api/groups/{group['id']}/recap-consent",
+                                              json={'consent':True}).json(), {'consent':True})
         self.activity(2, event_start + dt.timedelta(hours=3), distance=3000)
         three = self.clients[0].get(f"/api/groups/{group['id']}").json()
         self.assertEqual(three['member_count'], 3)
-        self.assertEqual(three['total'], 6)
-        self.assertEqual(three['recap']['total'], 6)
+        self.assertEqual(three['total'], 3)
+        self.assertEqual(three['recap']['total'], 3)
         member_logins = [self.clients[i].get('/api/me').json()['login'] for i in range(3)]
         self.assertEqual(three['members'][0]['username'], member_logins[0], 'the viewer is first in Members')
         self.assertEqual([member['username'] for member in three['members'][1:]],
                          sorted(member_logins[1:], key=str.casefold), 'other Members are sorted by username')
-        self.assertEqual({member['username']: member['value'] for member in three['members']},
-                         dict(zip(member_logins, (1, 2, 3))))
+        self.assertEqual({member['username']: member['value'] for member in three['members'] if 'value' in member},
+                         dict(zip(member_logins[:2], (1, 2))))
+        self.assertTrue(next(member for member in three['members'] if member['username']==member_logins[2])
+                        ['sharing_total_only'], 'a recap-consenting just-in member remains out of group totals')
         self.assertCountEqual(three['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)],
                          'the recap names only members who opted in')
 
