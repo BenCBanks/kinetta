@@ -196,6 +196,10 @@ const engine=process.env.KINETTA_ACTIVITY_BROWSER==='webkit'?webkit:chromium,b=a
    if(who==='typical'&&(size.width===390||size.width===330))await verifyActivityMonthJump(p,out,theme,size.width);
    assert.deepEqual(errors,[]);assert(!writes.some(w=>w!=='/api/challenges/signup/continue'),'month navigation does not write records');console.log(`Activity month jump ${size.width}px ${theme}: time-zone label, paging, filters and screenshots PASS`);await closeRoutedActivityContext(c);continue;
   }
+  if(who==='heavy'&&size.width===390&&theme==='light'){
+   const start=activityFixtureNow.toISOString().slice(0,10),end=new Date(activityFixtureNow.valueOf()+6*86400000).toISOString().slice(0,10);
+   await c.route('**/api/challenges',async r=>{const response=await r.fetch(),rows=await response.json();for(const row of rows){row.start=start;row.end=end;row.joining_closed=false;if(row.self){row.self.days_left=6;row.self.finished=false;}}return r.fulfill({response,json:rows});},{times:1});
+  }
     if(weeklyRecapTest)await p.clock.setFixedTime(weeklyRecapNow);
     if(weeklyRecapTest){await p.goto(base+'/');await p.evaluate(()=>{window.__weeklyRecapTestLocale=Intl.DateTimeFormat().resolvedOptions().locale;for(const key of Object.keys(localStorage))if(key.includes('weekly-recap'))localStorage.removeItem(key);});}
   const recapReads=weeklyRecapTest?[p.waitForResponse(r=>new URL(r.url()).pathname==='/api/recaps'),p.waitForResponse(r=>new URL(r.url()).pathname==='/api/progress/volume'),p.waitForResponse(r=>new URL(r.url()).pathname==='/api/achievements')]:[];
@@ -260,6 +264,7 @@ const engine=process.env.KINETTA_ACTIVITY_BROWSER==='webkit'?webkit:chromium,b=a
   }
   if(who==='heavy'&&size.width===390&&theme==='light'){
    const own=(await(await c.request.get(base+'/api/challenges')).json())[0];assert(own);
+   own.start=activityFixtureNow.toISOString().slice(0,10);own.end=new Date(activityFixtureNow.valueOf()+6*86400000).toISOString().slice(0,10);own.joining_closed=false;own.self.days_left=6;own.self.finished=false;
    const checkState=async(items,text)=>{await c.route('**/api/challenges',r=>r.fulfill({json:items}),{times:1});await p.evaluate(()=>void document.querySelector('#page').refresh());await until(p,()=>document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false','summary refresh');if(text)assert.match(await p.locator('.challenge-summary').innerText(),text);else assert.equal(await p.locator('.feed-social-strip').count(),0);};
    await checkState([{...own,self:{...own.self,value:own.target,complete:true,finished:false}}],/Goal reached/);
    await checkState([own,{...own,code:'fictional_second',self:{...own.self,days_left:8}}],/2 challenges/);
