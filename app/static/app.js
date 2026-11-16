@@ -88,6 +88,7 @@ const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
+  {re: /^\/route\/\d+$/, tab: 'progress', scripts: [MEDIA_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/plan$/, tab: 'progress', scripts: [INTERVALS_ROUTE_ASSET, PLAN_ROUTE_ASSET]},
   {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET, TRACK_ROUTE_ASSET], styles: [TRACK_ROUTE_STYLE]},
   {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET, SETTINGS_ROUTE_ASSET]},
@@ -1417,7 +1418,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------- skeleton ----------
 // The launch mark from index.html, reused wherever the whole app restarts itself.
-const LAUNCH = `<div class="launch" role="status" aria-label="Loading Kinetta">${document.querySelector('.launch')?.innerHTML || ''}</div>`;
+const LAUNCH = `<div class="${document.querySelector('.launch')?.classList.contains('route-launch')?'launch route-launch':'launch'}" role="status" aria-label="Loading Kinetta">${document.querySelector('.launch')?.innerHTML || ''}</div>`;
 function Skeleton({count=3}={}) { return Array.from({length:count},()=>'<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join(''); }
 const skel = (n = 3) => Skeleton({count:n});
 // Keep fast local/cache reads free of a skeleton flash. Call the returned stop

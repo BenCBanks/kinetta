@@ -1224,28 +1224,34 @@ function routeActivityRate(a,sport) {
   const value=rate({...a,sport});return value.label==='Time'?'–':value.v+value.u;
 }
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
-  el.innerHTML = `<div class="top">${backBtn('Routes')}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
+  const back = `<button type="button" class="route-back" data-back aria-label="Back to Routes">${svg('back')}<span>Routes</span></button>`;
+  el.innerHTML = `<div class="top route-detail-top">${back}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
   wireBack(el, '/progress/routes');
   await load(`/api/routes/${id}`, (r) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
     const pts = acts.filter((a) => a.elapsed_s > 0 && a.distance_m > 0).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.elapsed_s / a.distance_m * 1000, id: a.id}));
     const t = r.pace_trend, e = r.efficiency_trend;
     let headline = matchedRouteTrendHeadline(t, pts, foot);
-    if (e && t) { const effUp = e.slope_per_day > 0; headline += ` Recorded distance per heartbeat ${e.slope_per_day===0?'is unchanged':effUp?'increased':'decreased'}. Conditions and recording differences can affect this.`; }
+    if (e && t) { const efficiency=e.slope_per_day===0?'is unchanged':e.slope_per_day>0?'increased':'decreased'; headline = `${headline.replace(/\.$/,'')}; distance per heartbeat ${efficiency}, though conditions can affect that measure.`; }
     const best = acts.find((a) => a.id === r.fastest_id);
     const knownTimes=acts.filter(a=>a.elapsed_s>0),average=knownTimes.length===acts.length&&acts.length?dur(knownTimes.reduce((s,a)=>s+a.elapsed_s,0)/knownTimes.length):'–';
-    el.innerHTML = `<div class="top">${backBtn('Routes')}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
-      <div class="card"><h1>${esc(r.name)}</h1><p class="muted">${acts.length} times · ${SPORT_NAMES[r.sport] || 'Activity'} · first ${esc(fdate(acts[0].start_time, {month: 'short', year: 'numeric'}))}</p>
-        <div class="hero">${stat('Best', best&&best.elapsed_s>0?dur(best.elapsed_s):'–')}${stat('Average', average)}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div></div>
-      ${r.line ? '<div class="map" id="r-map"></div>' : ''}
-      <div class="card"><h2>${foot ? 'Pace' : 'Speed'} over time</h2>${headline ? `<div class="callout">${esc(headline)}</div>` : ''}<div id="r-chart"></div>
-        <div class="badges"><span class="badge"><span class="route-fastest-key" aria-hidden="true">●</span> Fastest</span><span class="badge">- - Trend</span></div></div>
-      <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
-        <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
-        <div class="r"><b class="num">${a.elapsed_s>0?dur(a.elapsed_s):'–'}</b><br><small class="muted num">${routeActivityRate(a,r.sport)}</small></div></a>`).join('')}</div>`;
+    el.innerHTML = `<div class="top route-detail-top">${back}<button class="route-edit" id="r-edit" aria-label="Edit route">${svg('edit')}<span>Edit</span></button></div>
+      <header class="route-detail-heading"><h1>${esc(r.name)}</h1><p>${acts.length} ${acts.length === 1 ? 'activity' : 'activities'} · ${SPORT_NAMES[r.sport] || 'Activity'} · first ${esc(fdate(acts[0].start_time, {month: 'short', year: 'numeric'}))}</p></header>
+      ${r.line ? `<div class="map route-detail-map" id="r-map" role="img" aria-label="Route map"><button type="button" class="map-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
+      <section class="route-detail-stats" aria-label="Route summary"><div class="route-detail-hairline"></div><div class="hero">${stat('Best', best&&best.elapsed_s>0?dur(best.elapsed_s):'–')}${stat('Average', average)}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div><div class="route-detail-hairline"></div></section>
+      ${pts.length > 1 ? `<section class="route-detail-chart"><h2>${foot ? 'Pace' : 'Speed'} over time</h2>${headline ? `<p class="route-detail-trend">${esc(headline)}</p>` : ''}<div id="r-chart"></div>
+        <div class="route-detail-legend"><span><span class="route-fastest-key" aria-hidden="true">●</span> Fastest</span><span>— Trend</span></div></section>` : ''}
+      <section class="route-detail-efforts"><h2>Efforts</h2><div class="inset-group">${[...acts].reverse().map((a) => `<a class="inset-row route-effort-row" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
+        <span class="inset-label"><span>${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</span><small>${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></span>
+        <span class="route-effort-result">${a.id === r.fastest_id ? `<span class="route-effort-best" aria-label="Fastest effort">${svg('trophy')}</span>` : ''}<span><b class="num">${a.elapsed_s>0?dur(a.elapsed_s):'–'}</b><small class="num">${routeActivityRate(a,r.sport)}</small></span><span class="chev">${svg('chev')}</span></span></a>`).join('')}</div></section>`;
     wireBack(el, '/progress/routes');
-    requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
-    if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).catch(() => {}));
+    if (pts.length > 1) requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
+    if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).then(view => {
+      const box=$('#r-map',el);if(!view||!box?.isConnected)return;
+      view.map.invalidateSize({pan:false});const bounds=view.group.getBounds();
+      if(bounds.isValid())view.map.fitBounds(bounds,{paddingTopLeft:[18,18],paddingBottomRight:[76,72],animate:false});
+      wireMediaMapFull(box, () => view, [r.line], false);
+    }).catch(() => {}));
     $('#r-edit', el).onclick = () => sheet('Rename route', `<form class="form"><label>Name<input name="name" value="${esc(r.name)}" maxlength="120" enterkeyhint="done"></label>
       <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`, (b, close) => {
       $('form', b).onsubmit = async (ev) => { ev.preventDefault(); try { await api(`/api/routes/${id}`, json('PATCH', {name: $('input', b).value})); invalidate('/api/'); close(); render(); } catch (x) { toast(x.message); } };
