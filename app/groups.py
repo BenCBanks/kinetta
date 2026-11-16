@@ -4,11 +4,12 @@ import hashlib
 import hmac
 import os
 import secrets
+import threading
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from . import account_email, auth, community_filter, db, notify, reactions
 from .parsers import SPORTS as ACTIVITY_SPORTS
@@ -121,6 +122,11 @@ class GroupRecapConsent(BaseModel):
 class GroupNotificationPreference(BaseModel):
     model_config = ConfigDict(extra='forbid')
     muted: bool
+
+
+class GroupMondayRecapPreference(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    enabled: StrictBool
 
 
 class GroupSharingPreference(BaseModel):
@@ -286,7 +292,17 @@ def _contributions(c, group, members, now=None):
 
 
 def _weekly_contributions(c, group, members, now):
-    local_day, start, week_end = _local_week_window(group['time_zone'], now)
+    return _period_contributions(c, group, members, now)
+
+
+def _period_contributions(c, group, members, now, monday=None):
+    local_day, current_start, current_end = _local_week_window(group['time_zone'], now)
+    if monday is None:
+        start, week_end = current_start, current_end
+    else:
+        zone = _zone(group['time_zone'])
+        start = dt.datetime.combine(monday, dt.time.min, zone).astimezone(UTC)
+        week_end = dt.datetime.combine(monday + dt.timedelta(days=7), dt.time.min, zone).astimezone(UTC)
     zone = _zone(group['time_zone'])
     event_date = group['event_date']
     group_start = _goal_start_at(group)
@@ -313,11 +329,11 @@ def _weekly_contributions(c, group, members, now):
       GROUP BY m.user_id''', (group_start, start, end, all_sports, group['goal_sports'], group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
         0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
-    return local_day, {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
+    return (monday if monday is not None else local_day), {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
 
 
 def _answer(c, group, uid):
-    members = c.execute(f'''SELECT m.user_id,m.joined_at,m.recap_consent,m.notifications_muted,m.sharing_level,
+    members = c.execute(f'''SELECT m.user_id,m.joined_at,m.recap_consent,m.notifications_muted,m.monday_recap_enabled,m.sharing_level,
                                    u.login::text AS username,u.photo_v AS photo,
                                    {_GROUP_TOTAL_SHARING_SQL} AS share_total
                             FROM group_members m JOIN users u ON u.id=m.user_id
@@ -339,6 +355,11 @@ def _answer(c, group, uid):
     days_to_event = max(0, (event_date - today).days) if event_date else None
     week_total = round(sum(weekly.values()), 3)
     me = next(member for member in members if member['user_id'] == uid)
+    monday = local_day - dt.timedelta(days=local_day.weekday())
+    previous_monday = monday - dt.timedelta(days=7)
+    recap_ready = c.execute('SELECT 1 FROM group_monday_recaps WHERE group_id=%s AND week_start=%s',
+                            (group['id'], previous_monday)).fetchone() is not None
+    recap_week = _period_contributions(c, group, sharing, now, previous_monday)[1] if recap_ready and member_count >= 3 else {}
     own_total = contributions.get(uid, 0) if member_count >= 3 and me['share_total'] else _contributions(c, group, [me], now).get(uid, 0)
     own_week = weekly.get(uid, 0) if member_count >= 3 and me['share_total'] else _weekly_contributions(c, group, [me], now)[1].get(uid, 0)
     visible_total = total if member_count >= 3 else own_total
@@ -358,6 +379,8 @@ def _answer(c, group, uid):
         **({'this_week_total': week_total}
            if member_count >= 3 else {'your_this_week_total': own_week}),
         'week_start': (local_day - dt.timedelta(days=local_day.weekday())).isoformat(),
+        'monday_recap': ({'week_start': previous_monday.isoformat(), 'total': round(sum(recap_week.values()), 3)}
+                         if recap_ready and member_count >= 3 else None),
         'days_to_event': days_to_event,
         'weeks_to_event': weeks_to_event,
         'event_state': ('ongoing' if event_date is None else
@@ -370,6 +393,7 @@ def _answer(c, group, uid):
                     for m in visible],
         'member_count': member_count, 'is_organizer': uid == group['organizer_id'],
         'recap_consent': bool(me['recap_consent']), 'notifications_muted': bool(me['notifications_muted']),
+        'monday_recap_enabled': bool(me['monday_recap_enabled']),
         'joining_closed': bool(group['joining_closed']), 'closed': bool(group['closed_at']),
     }
 
@@ -752,6 +776,21 @@ def set_group_notification_mute(group_id: str, body: GroupNotificationPreference
     return {'muted': body.muted}
 
 
+@router.post('/api/groups/{group_id}/monday-recap')
+def set_group_monday_recap(group_id: str, body: GroupMondayRecapPreference, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'], lock=True)
+        changed = c.execute('''UPDATE group_members SET monday_recap_enabled=%s
+                               WHERE group_id=%s AND user_id=%s AND status='active' RETURNING user_id''',
+                            (body.enabled, group['id'], user['id'])).fetchone()
+        if not changed:
+            raise HTTPException(404, GROUP_MISSING)
+        if not body.enabled:
+            c.execute("DELETE FROM notifications WHERE user_id=%s AND group_id=%s AND kind='group_monday_recap'",
+                      (user['id'], group['id']))
+    return {'enabled': body.enabled}
+
+
 @router.post('/api/groups/{group_id}/sharing')
 def set_group_sharing_level(group_id: str, body: GroupSharingPreference, user=Depends(current_user)):
     with db.connect() as c:
@@ -761,6 +800,54 @@ def set_group_sharing_level(group_id: str, body: GroupSharingPreference, user=De
         if updated.rowcount != 1:
             raise HTTPException(404, GROUP_MISSING)
     return {'level': body.level}
+
+
+def monday_recap_tick(now=None):
+    """Create one private bell alert per opted-in member when a group's local Monday recap opens."""
+    now = now or _now()
+    with db.connect() as c:
+        groups = c.execute('''SELECT g.id,g.time_zone FROM event_groups g WHERE g.closed_at IS NULL
+          AND EXISTS(SELECT 1 FROM group_members m WHERE m.group_id=g.id AND m.status='active'
+            AND m.monday_recap_enabled AND NOT m.notifications_muted) ORDER BY g.id''').fetchall()
+    sent = 0
+    for group in groups:
+        zone = _zone(group['time_zone'])
+        local = now.astimezone(zone)
+        if local.weekday() != 0 or not (dt.time(9, 0) <= local.timetz().replace(tzinfo=None) < dt.time(9, 15)):
+            continue
+        current_monday = local.date()
+        last_monday = current_monday - dt.timedelta(days=7)
+        with db.connect() as c:
+            claim = c.execute('''INSERT INTO group_monday_recaps(group_id,week_start) VALUES(%s,%s)
+                                 ON CONFLICT DO NOTHING RETURNING group_id''',
+                              (group['id'], last_monday)).fetchone()
+            if not claim:
+                continue
+            members = c.execute('''SELECT m.user_id FROM group_members m JOIN users u ON u.id=m.user_id
+                WHERE m.group_id=%s AND m.status='active' AND m.monday_recap_enabled AND NOT m.notifications_muted
+                  AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND u.password_change_expires IS NULL
+                ORDER BY m.user_id''', (group['id'],)).fetchall()
+            for member in members:
+                c.execute('''INSERT INTO notifications(user_id,kind,actor_id,group_id,group_week_start)
+                    VALUES(%s,'group_monday_recap',%s,%s,%s) ON CONFLICT DO NOTHING''',
+                          (member['user_id'], member['user_id'], group['id'], last_monday))
+                sent += 1
+    return sent
+
+
+def start_worker():
+    stop = threading.Event()
+
+    def run():
+        while not stop.wait(60):
+            try:
+                monday_recap_tick()
+            except Exception as error:
+                print('group Monday recap paused', type(error).__name__, flush=True)
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    return stop, worker
 
 
 @router.get('/api/group-invites/{token}')

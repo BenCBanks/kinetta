@@ -60,6 +60,7 @@ class Groups(unittest.TestCase):
         response = self.clients[who].post('/api/groups', json=body)
         self.assertEqual(response.status_code, 200, response.text)
         group = response.json()
+        self.assertFalse(group['monday_recap_enabled'], 'group Monday alerts are off for new memberships')
         token = group['invite_url'].rsplit('/', 1)[1]
         return group, token
 
@@ -990,6 +991,53 @@ class Groups(unittest.TestCase):
         self.assertEqual(blocked_view['recap']['your_total'], 1)
         self.assertTrue(all('value' not in member for member in blocked_view['members']))
         self.assertEqual(blocked_view['recap']['participants'], [self.clients[0].get('/api/me').json()['login']])
+
+    def test_monday_recap_is_opt_in_private_and_once_per_group_week(self):
+        now = dt.datetime(2026, 11, 16, 14, 5, tzinfo=dt.timezone.utc)  # Monday, 9:05 a.m. in the group zone.
+        body = {'title':'Fictional Monday group','event_date':None,'time_zone':'America/New_York','note':'',
+                'goal_type':'distance','goal_target':80,'goal_unit':'km','goal_sports':list(parsers.SPORTS),
+                'goal_start_date':'2026-10-01','training_for':''}
+        response = self.clients[0].post('/api/groups', json=body)
+        self.assertEqual(response.status_code, 200, response.text)
+        group = response.json()
+        token = group['invite_url'].rsplit('/', 1)[1]
+        for who in (1, 2):
+            self.assertEqual(self.accept(token, who=who).status_code, 200)
+        with db.connect() as c:
+            c.execute("UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)", (self.ids[:3],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared',joined_at=%s WHERE group_id=%s",
+                      (dt.datetime(2026,10,1,tzinfo=dt.timezone.utc),group['id']))
+            c.execute('UPDATE group_members SET monday_recap_enabled=true WHERE group_id=%s AND user_id=ANY(%s)',
+                      (group['id'],self.ids[:2]))
+            c.execute('UPDATE group_members SET notifications_muted=true WHERE group_id=%s AND user_id=%s',
+                      (group['id'],self.ids[1]))
+        start = dt.datetime(2026,11,9,14,tzinfo=dt.timezone.utc)
+        for who, distance in ((0,1000),(1,2000),(2,3000)):
+            self.activity(who,start+dt.timedelta(hours=who),sport='run',distance=distance)
+        self.assertEqual(groups.monday_recap_tick(now), 1)
+        self.assertEqual(groups.monday_recap_tick(now), 0, 'the group/week claim prevents a duplicate alert')
+        with db.connect() as c:
+            notices = c.execute("SELECT user_id,kind,group_week_start FROM notifications WHERE group_id=%s AND kind='group_monday_recap'",(group['id'],)).fetchall()
+        self.assertEqual([(r['user_id'],r['kind'],r['group_week_start']) for r in notices],
+                         [(self.ids[0],'group_monday_recap',dt.date(2026,11,9))],
+                         'the default-off and muted members receive no recap alert')
+        with patch.object(groups, '_now', return_value=now):
+            recap = self.clients[0].get('/api/groups/'+group['id']).json()['monday_recap']
+            self.assertEqual(recap, {'week_start':'2026-11-09','total':6.0},
+                             'the recap uses only the viewer-safe shared aggregate')
+            self.assertEqual(self.clients[1].get('/api/groups/'+group['id']).json()['monday_recap'],recap,
+                             'muting alerts does not change the group data already visible under sharing rules')
+        alert = self.clients[0].get('/api/notifications').json()['items']
+        self.assertEqual([(item['kind'],item['text'],item['link']) for item in alert],
+                         [('group_monday_recap','Monday recap from Fictional Monday group',f"/groups/{group['id']}")])
+        self.assertEqual(self.clients[1].get('/api/notifications').json()['items'],[],
+                         'muted members do not receive a recap alert')
+        self.assertEqual(self.clients[2].get('/api/notifications').json()['items'], [],
+                         'non-opted-in members see no Monday alert')
+        self.assertEqual(self.clients[0].post(f"/api/groups/{group['id']}/monday-recap",json={'enabled':False}).json(),
+                         {'enabled':False})
+        self.assertEqual(self.clients[0].get('/api/notifications').json()['items'], [],
+                         'turning the preference off removes its old alert')
 
 
 unittest.main()
