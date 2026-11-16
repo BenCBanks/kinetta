@@ -306,7 +306,7 @@
 .friend-invite-primary { width:100%;min-height:48px;padding:12px 16px;border-radius:14px;background:var(--btn);background-image:none;color:var(--onbtn,#fff);font-size:16px;font-weight:600;box-shadow:none; }
 .friend-invite-primary:active { transform:scale(.985); }
 .friend-invite-primary:disabled { opacity:.7; }
-.friend-invite-screen .friend-invite-later,.friend-invite-screen .friend-invite-home { display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin-top:8px;padding:8px 12px;color:var(--tx2);font-size:15px;font-weight:500;text-decoration:none; }
+.friend-invite-screen .friend-invite-later,.friend-invite-screen .friend-invite-home { display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin-top:8px;padding:8px 12px;color:var(--tx);font-size:15px;font-weight:600;text-decoration:none; }
 .friend-invite-screen .friend-invite-later:active,.friend-invite-screen .friend-invite-home:active { opacity:.65; }
 .friend-invite-symbol { display:grid;place-items:center;width:72px;height:72px;margin-bottom:18px;border-radius:50%;background:color-mix(in srgb,var(--accent) 12%,var(--canvas));color:var(--accent); }
 .friend-invite-symbol-icon { display:block;width:34px;height:34px; }
