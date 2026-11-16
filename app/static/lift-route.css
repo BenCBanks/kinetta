@@ -132,6 +132,20 @@
 .lift-history-sets { margin:0; font-size:1.0625rem; font-weight:600; font-variant-numeric:tabular-nums; }
 .lift-history-best { display:block; margin-top:3px; color:var(--tx3); font-size:.875rem; font-weight:500; }
 
+/* Keep the end of a long session clear of the floating tab bar. */
+.shell:has(.compact-lift) { padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 16px); }
+.compact-lift .lift-ex { box-shadow:none; }
+:root[data-theme="light"] .compact-lift .lift-ex { border:1px solid var(--line); }
+.compact-lift .lift-sets { margin:8px -12px 0; }
+.compact-lift .lift-row { position:relative; border-top:0; }
+.compact-lift .lift-row:not(.lh)::before { position:absolute; top:0; right:12px; left:12px; height:1px; background:var(--line); content:""; }
+.compact-lift .lift-row.lh { align-items:center; height:28px; min-height:28px; }
+.compact-lift .lift-row.lh .lh-prev { min-height:0; height:auto; }
+.compact-lift .lift-row > .lift-prev { align-self:center; }
+.compact-lift .lift-row > .lift-n.readonly { justify-content:flex-start; padding-left:12px; }
+.compact-lift .lift-row > .lift-n { height:44px; min-height:44px; }
+.compact-lift .lift-row > .lift-tick { height:48px; min-height:48px; }
+
 /* At enlarged text sizes, keep complete numeric values and the tick together.
    The set control and previous result use the line above instead of squeezing fields. */
 .compact-lift .lift-sets { container-type:inline-size; }
