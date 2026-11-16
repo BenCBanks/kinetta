@@ -7,7 +7,7 @@ n = 0
 def ck(cond, m):
     global n
     assert cond, m; n += 1
-fixture_instant = dt.datetime.fromisoformat(os.environ.get('KINETTA_TEST_NOW', '2026-11-15T23:55:00+00:00')).astimezone(dt.timezone.utc)
+fixture_instant = (dt.datetime.fromisoformat(os.environ['KINETTA_TEST_NOW']) if os.environ.get('KINETTA_TEST_NOW') else dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
 anchor_day = fixture_instant.date()
 day = lambda k: (anchor_day - dt.timedelta(days=k)).isoformat()
 for k in (0, 30, 400): p.delete(f'/api/food/weights/{day(k)}')

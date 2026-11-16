@@ -5,11 +5,11 @@ import uuid
 from zoneinfo import ZoneInfo
 from app import db, food_thread, food_thread_log as engine, food_photo
 uid=None;original_connect=db.connect;original_ask=food_photo.ask;original_finish=food_thread.finish_reply
-fixture_captured_at=dt.datetime.fromisoformat(os.environ.get('KINETTA_TEST_NOW', '2026-11-15T23:55:00+00:00')).astimezone(dt.timezone.utc)
+fixture_captured_at=(dt.datetime.fromisoformat(os.environ['KINETTA_TEST_NOW']) if os.environ.get('KINETTA_TEST_NOW') else dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
 account_tz=ZoneInfo('UTC')
 fixture_day=fixture_captured_at.astimezone(account_tz).date()
 # Recent-repeat behavior uses the app's live 30-minute window; capture it once for synthetic created_at values.
-recent_window_now=dt.datetime.now(dt.timezone.utc)
+recent_window_now=(dt.datetime.now(dt.timezone.utc) if os.environ.get('KINETTA_TEST_NOW') else fixture_captured_at)
 try:
  with db.connect() as c:
   uid=c.execute("INSERT INTO users(login,name) VALUES ('zz_test_thread_atomic','Fictional atomic food') RETURNING id").fetchone()['id']
