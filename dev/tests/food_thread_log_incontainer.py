@@ -1,10 +1,11 @@
 """Atomic food/reply commits and learned times, with no second connection/provider."""
 import datetime as dt
+import os
 import uuid
 from zoneinfo import ZoneInfo
 from app import db, food_thread, food_thread_log as engine, food_photo
 uid=None;original_connect=db.connect;original_ask=food_photo.ask;original_finish=food_thread.finish_reply
-fixture_captured_at=dt.datetime.now(dt.timezone.utc)
+fixture_captured_at=dt.datetime.fromisoformat(os.environ.get('KINETTA_TEST_NOW', '2026-11-15T23:55:00+00:00')).astimezone(dt.timezone.utc)
 account_tz=ZoneInfo('UTC')
 fixture_day=fixture_captured_at.astimezone(account_tz).date()
 try:
@@ -74,7 +75,7 @@ try:
    c.execute("INSERT INTO profile(user_id,tz,kcal_target,protein_target,food_chat_auto_log) VALUES (%s,'UTC',2000,110,true)",(uid2,))
  repeat_day=fixture_day
  def seed_group(uid2,items,minutes_ago=5,hours_ago=0,meal='lunch',day=repeat_day):
-  stamp=dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=minutes_ago,hours=hours_ago)
+  stamp=fixture_captured_at-dt.timedelta(minutes=minutes_ago,hours=hours_ago)
   if day!=repeat_day:stamp=dt.datetime.combine(day,dt.time(8),dt.timezone.utc)
   prefix=str(uuid.uuid4());ids=[]
   with db.connect() as c:
