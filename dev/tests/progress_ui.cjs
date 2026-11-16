@@ -205,18 +205,22 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    await home();await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));const bottom=await p.evaluate(()=>{const root=document.scrollingElement,max=Math.max(0,root.scrollHeight-root.clientHeight);window.scrollTo({top:max,behavior:'instant'});return{max,scrollY,scrollHeight:root.scrollHeight,clientHeight:root.clientHeight};});assert(bottom.max>1&&bottom.scrollY>0,'Progress scroll-preservation fixture reaches the document bottom after route scroll restoration settles: '+JSON.stringify(bottom));await p.evaluate(()=>document.addEventListener('click',e=>{const tile=e.target.closest('[data-progress-feature="lifting"]');if(tile){globalThis.progressLeaveScroll=scrollY;globalThis.progressLeaveCardTop=tile.getBoundingClientRect().top;}},{capture:true}));await p.locator('[data-progress-feature="lifting"]').click();await p.waitForURL('**/progress?view=lifting');await ready();const y=await p.evaluate(()=>globalThis.progressLeaveScroll);assert(y>0,'scroll-preservation case starts below the top');await p.locator('.progress-back').click();await p.waitForURL(base+'/progress');await p.locator('.progress-home').waitFor();await ready();await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));const cardTop=await p.evaluate(()=>globalThis.progressLeaveCardTop),cardDocumentY=cardTop+y;await until(p,target=>{const tile=document.querySelector('[data-progress-feature="lifting"]');return tile&&Math.abs(tile.getBoundingClientRect().top+scrollY-target)<8;},'home preserves the visible card document position after normal end-of-content scroll clamping',cardDocumentY);
    assert.equal(await p.locator('[data-progress-feature="lifting"] .progress-new:not(.seen)').count(),0,'visited tile drops New');
-   // A failed mileage request explains the problem and can recover through a one-shot retry.
+   // Keep volume reads failing until the screen shows Retry. warmTabs can prefetch this same URL, so a one-shot failure
+   // can be consumed before the screen asks for it; invalidate its pending read and use in-app navigation here.
    if(who==='empty'&&size.width===390){
-    let mileageAttempts=0;
-    await c.route('**/api/progress/volume?*',async r=>{mileageAttempts++;if(mileageAttempts===1)return r.fulfill({status:503,json:{detail:'Fictional temporary failure'}});const monday=new Date(fixtureToday+'T12:00:00Z');monday.setUTCDate(monday.getUTCDate()-((monday.getUTCDay()+6)%7));const p=monday.toISOString().slice(0,10);return r.fulfill({json:{period:'week',today:fixtureToday,rows:[{p,s:'run',d:5000,t:2500,pace_d:5000,pace_t:2500,n:1,a:0}]}});});
-    await p.evaluate(()=>{const path='/api/progress/volume?period=week';App.cache.delete(path);localStorage.removeItem('fit.c:'+path);});
-    await p.goto(base+'/progress');await ready();await p.locator('#p-home-totals .mileage-error').waitFor();
+    let mileageAttempts=0,failMileageUntilRetry=true;
+    await c.route('**/api/progress/volume?*',async r=>{mileageAttempts++;if(failMileageUntilRetry)return r.fulfill({status:503,json:{detail:'Fictional temporary failure'}});const monday=new Date(fixtureToday+'T12:00:00Z');monday.setUTCDate(monday.getUTCDate()-((monday.getUTCDay()+6)%7));const p=monday.toISOString().slice(0,10);return r.fulfill({json:{period:'week',today:fixtureToday,rows:[{p,s:'run',d:5000,t:2500,pace_d:5000,pace_t:2500,n:1,a:0}]}});});
+    await p.evaluate(()=>{invalidate('/api/progress/volume');localStorage.removeItem('fit.c:/api/progress/volume?period=week');});
+    await p.evaluate(()=>go('/progress'));await ready();await p.locator('#p-home-totals .mileage-error').waitFor();
+    await until(p,()=>![...pendingReads.keys()].some(key=>JSON.parse(key)[1]==='/api/progress/volume?period=week'),'failed volume reads settle before Retry');
+    assert(mileageAttempts>=1,'the Progress screen receives a failed volume response before Retry');
     assert.match(await p.locator('.mileage-error').innerText(),/Distance totals couldn’t load\.\s*Retry/,'mileage failure explains the issue and offers Retry');
     assert(await p.locator('[data-mileage-retry]').evaluate(button=>button.getBoundingClientRect().height>=44),'Retry keeps a 44px touch target');
     assert.equal(await p.locator('#p-home-totals .mileage-error .progress-filters').count(),1,'chart filters stay in the error card');
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/mileage-error-${theme}.png`,animations:'disabled'});}
+    failMileageUntilRetry=false;const attemptsBeforeRetry=mileageAttempts;
     await p.locator('[data-mileage-retry]').click();await p.locator('#m-chart').waitFor();
-    assert.equal(mileageAttempts,2,'Retry makes exactly one new mileage request');
+    assert.equal(mileageAttempts,attemptsBeforeRetry+1,'Retry makes exactly one new mileage request');
    }
    // Failed overview/fitness/volume requests keep their existing descriptions and navigation.
    await c.route('**/api/progress/overview',r=>r.fulfill({status:503,json:{detail:'Fictional unavailable response'}}));
