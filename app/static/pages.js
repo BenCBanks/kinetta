@@ -1224,9 +1224,9 @@ function routeActivityRate(a,sport) {
   const value=rate({...a,sport});return value.label==='Time'?'–':value.v+value.u;
 }
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
-  const back = `<button type="button" class="route-back" data-back aria-label="Back to Progress">${svg('back')}<span>Progress</span></button>`;
+  const back = `<button type="button" class="route-back" data-back aria-label="Back to Routes">${svg('back')}<span>Routes</span></button>`;
   el.innerHTML = `<div class="top route-detail-top">${back}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
-  wireBack(el, '/progress/routes', () => 'Progress');
+  wireBack(el, '/progress/routes');
   await load(`/api/routes/${id}`, (r) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
     const pts = acts.filter((a) => a.elapsed_s > 0 && a.distance_m > 0).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.elapsed_s / a.distance_m * 1000, id: a.id}));
@@ -1244,7 +1244,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
       <section class="route-detail-efforts"><h2>Efforts</h2><div class="inset-group">${[...acts].reverse().map((a) => `<a class="inset-row route-effort-row" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
         <span class="inset-label"><span>${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</span><small>${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></span>
         <span class="route-effort-result">${a.id === r.fastest_id ? `<span class="route-effort-best" aria-label="Fastest effort">${svg('trophy')}</span>` : ''}<span><b class="num">${a.elapsed_s>0?dur(a.elapsed_s):'–'}</b><small class="num">${routeActivityRate(a,r.sport)}</small></span><span class="chev">${svg('chev')}</span></span></a>`).join('')}</div></section>`;
-    wireBack(el, '/progress/routes', () => 'Progress');
+    wireBack(el, '/progress/routes');
     if (pts.length > 1) requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
     if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).then(view => {
       const box=$('#r-map',el);if(!view||!box?.isConnected)return;
