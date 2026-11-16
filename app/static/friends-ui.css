@@ -199,7 +199,7 @@
 .group-goal>small {color:var(--tx3);font-size:13px;}
 .group-goal>.group-goal-period {color:var(--tx2);font-weight:650;}
 .group-goal>.group-week {color:var(--tx2);font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
-.group-goal>.group-weekly-target {color:var(--accent);font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
+.group-goal>.group-weekly-target {color:var(--tx2);font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
 .group-goal>.group-goal-plan-link {min-height:48px;margin-top:2px;padding:8px 0;color:var(--accent);font-size:15px;font-weight:600;}
 .group-goal>.group-goal-plan-link>svg {color:var(--tx3);}
 .group-goal>.group-goal-hint {font-size:13px;line-height:1.35;}
