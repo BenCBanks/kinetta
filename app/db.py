@@ -2171,6 +2171,10 @@ MIGRATIONS = [
     # 110. Food-day last-meal lookups match the owner's meal while finding the most recent day.
     """CREATE INDEX food_entries_user_meal_day ON food_entries (user_id, meal, day DESC);""",
 
+    # 111. Group progress sharing is a per-membership opt-in and starts private for existing and new members.
+    """ALTER TABLE group_members ADD COLUMN sharing_level text NOT NULL DEFAULT 'just_in'
+       CHECK(sharing_level IN ('total_shared','just_in'));""",
+
 ]
 
 
