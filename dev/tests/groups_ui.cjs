@@ -2,7 +2,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KINETTA_SHOTS;
-const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATE_TODAY=(()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:GROUP_UPDATE_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(GROUP_UPDATE_NOW),part=type=>parts.find(value=>value.type===type)?.value;return`${part('year')}-${part('month')}-${part('day')}`;})(),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1',GROUP_LIST_ONLY=process.env.KINETTA_GROUPS_LIST_ONLY==='1',GROUP_DETAIL_ONLY=process.env.KINETTA_GROUPS_DETAIL_ONLY==='1';
+const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATE_TODAY=(()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:GROUP_UPDATE_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(GROUP_UPDATE_NOW),part=type=>parts.find(value=>value.type===type)?.value;return`${part('year')}-${part('month')}-${part('day')}`;})(),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1',GROUP_LIST_ONLY=process.env.KINETTA_GROUPS_LIST_ONLY==='1',GROUP_DETAIL_ONLY=process.env.KINETTA_GROUPS_DETAIL_ONLY==='1',GROUP_INVITE_ONLY=process.env.KINETTA_GROUPS_INVITE_ONLY==='1';
 const newUpdateText='Alex has the trail notes.';
 const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idTwo='00000000-0000-4000-8000-000000000002',idThree='00000000-0000-4000-8000-000000000004',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003',idLongOwnGoal='00000000-0000-4000-8000-000000000005',idSix='00000000-0000-4000-8000-000000000006',idTen='00000000-0000-4000-8000-000000000010';
 const idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013',idOngoing='00000000-0000-4000-8000-000000000014',idDetail='00000000-0000-4000-8000-000000000017',idEscaped='00000000-0000-4000-8000-000000000018';
@@ -103,6 +103,16 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   return{context,page,errors,postedGroups,postedUpdates,groupPreferences,stripPosts,stripState:()=>stripData,updatesState:()=>updatesState,updateReactionPeopleReads:()=>updateReactionPeopleReads,groupDateChanges,ongoingState:()=>ongoingState};
  }
  try{
+  if(GROUP_INVITE_ONLY){
+   for(const theme of ['light','dark'])for(const width of [390,330]){
+    const {context,page,errors}=await open(theme,width);await page.goto(base+`/group-invite/${token}`);await page.locator('#group-accept').waitFor();
+    await capture(page,`groups-invite-accept-${width}-${theme}`,null,{fullPage:false});const screen=page.locator('.group-invite-card');assert.equal(await screen.locator('h1').innerText(),'You’re invited to a group');assert.equal(await screen.locator('.friend-invite-caption').innerText(),'Join to see the group with its members.');assert.equal(await screen.locator('#group-accept').innerText(),'Join');assert.equal(await screen.locator('.friend-invite-symbol').count(),1);
+    assert(!/Dolomites|fictional_member|Fictional walk group/.test(await screen.innerText()),'the unauthenticated invite preview does not reveal group identity');assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),`Group invite fits ${width}px (${theme})`);
+    const button=await page.locator('#group-accept').boundingBox(),later=await page.locator('.friend-invite-later').boundingBox();assert(button.height>=44&&button.width>=width-90);assert(later.height>=44&&later.width>=44);
+    await page.locator('#group-accept').click();await page.waitForURL('**'+groupUrl(idEmpty));assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   }
+   console.log('Groups invite acceptance 390/330 light/dark PASS');return;
+  }
   if(GROUP_LIST_ONLY){
    for(const theme of ['light','dark'])for(const width of [390,330]){
     const {context,page,errors}=await open(theme,width,'none','list');await page.goto(base+'/me/groups');await page.locator('.group-list-card .group-list-row').nth(2).waitFor();
@@ -228,7 +238,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
     assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+`/group-invite/${token}`);await page.locator('#group-accept').waitFor();
-   assert.match(await page.locator('.group-invite-card').innerText(),/You’re invited to a private group/);assert(!/Fictional Trail Group|fictional_member/.test(await page.locator('.group-invite-card').innerText()));
+   assert.equal(await page.locator('.group-invite-card h1').innerText(),'You’re invited to a group');assert.equal(await page.locator('#group-accept').innerText(),'Join');assert(!/Fictional Trail Group|fictional_member/.test(await page.locator('.group-invite-card').innerText()));
    await capture(page,`groups-invite-accept-390-${theme}`);await page.locator('#group-accept').click();await page.waitForURL('**'+groupUrl(idEmpty));
    assert.equal(await page.locator('.group-title h1').innerText(),'Fictional Trail Group');assert.equal(await page.locator('.group-goal-value').innerText(),'12 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-goal-hint').innerText(),'Group totals appear with 3 members');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
