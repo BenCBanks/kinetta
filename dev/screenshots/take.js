@@ -411,7 +411,8 @@ async function closeCaptureContext(context) {
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
         await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
         await page.locator('#thread-text').waitFor();
-        await page.locator('[data-thread-quick="recipes"]').click();
+        await page.locator('#thread-plus').click();
+        await page.locator('.sheet .thread-tools-sheet button').filter({hasText:'Recipes'}).click();
         await page.locator('.sheet .fe[data-dish]').filter({hasText:opt.logDish}).click();
         await page.fill('#dl input[name=g]', opt.portion);
       }
