@@ -562,7 +562,13 @@ function wireHomeChallengeLink(el){
   link?.addEventListener('click',event=>{if(event.defaultPrevented||event.metaKey||event.ctrlKey||event.button>0)return;if(typeof Discovery!=='undefined')Discovery.visit('activity','challenges');});
 }
 function groupListMarkup(groups){
-  return groups.length?`<div class="card list group-list-card">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow"><b>${esc(group.title)}</b><small>${group.event_date?`${esc(groupDate(group.event_date,group.time_zone))} · `:'All time · '}${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+  return groups.length?`<div class="card list group-list-card">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow"><b>${esc(group.title)}</b><small>${esc(groupListSubtitle(group))}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+}
+function groupListSubtitle(group){
+  const current=group.total!==undefined?Number(group.total)||0:Number(group.your_total)||0,target=Number(group.goal_target)||0;
+  const progress=group.total!==undefined?`${groupNumber(current)} of ${groupAmount(target,group.goal_unit)}`:`You: ${groupNumber(current)} of ${groupAmount(target,group.goal_unit)}`;
+  const timing=group.event_date?`${group.weeks_to_event==null?'Event date set':`${group.weeks_to_event} ${group.weeks_to_event===1?'week':'weeks'} to go`}`:'All time';
+  return `${progress} · ${timing}`;
 }
 async function homeGroups(el) {
   const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner();
@@ -1228,26 +1234,31 @@ function groupInviteSheet(url){
     });
 }
 function groupCreateSheet(done){
-  const today=new Date().toLocaleDateString('en-CA'),zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
+  const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
   sheet('Create a group',`<form class="form group-create-form" id="group-create-form"><div class="group-create-fields">
     <label>Group name<input name="title" maxlength="80" required autocomplete="off" placeholder="Dolomites hike"></label>
-    <label>Event date (optional)<input name="event_date" type="date" min="${today}"></label><button class="group-date-clear" type="button" data-group-date-clear hidden>Clear date</button>
-    <div class="group-time-zone"><button class="group-zone-change" type="button" id="group-zone-change">${esc(groupTimeZoneLabel(zone))} · Change</button><select class="group-zone-picker" name="time_zone" aria-label="Event time zone" required hidden>${groupTimeZoneOptions(zone)}</select></div>
-    <label>Short note (optional)<textarea name="note" maxlength="280" rows="2"></textarea></label>
     <label>Shared goal<select name="goal_type"><option value="distance">Distance</option><option value="elevation">Elevation</option><option value="long_outings">Long outings</option><option value="sessions">Sessions</option></select></label>
     <div class="group-goal-fields"><label>Target<input name="goal_target" type="number" min="0.1" max="1000000" step="0.1" value="100" required></label><label>Units<select name="goal_unit"><option value="km">km</option><option value="mi">mi</option></select></label></div>
-    <p class="small muted">Only group members see the group. Activities, routes, food and body data stay private.</p></div>
+    <fieldset class="group-sports-field"><legend>Sports included</legend><div class="group-sport-options">${[['run','Run'],['ride','Ride'],['walk','Walk'],['hike','Hike'],['swim','Swim'],['row','Row'],['ski','Ski'],['workout','Workout'],['other','Other']].map(([key,label])=>`<label><input type="checkbox" name="goal_sports" value="${key}" checked><span>${label}</span></label>`).join('')}</div></fieldset>
+    <label>Goal start date<input name="goal_start_date" type="date" value="${today}" required></label>
+    <label>Event date (optional)<input name="event_date" type="date" min="${today}"></label><button class="group-date-clear" type="button" data-group-date-clear hidden>Clear date</button>
+    <div class="group-time-zone"><button class="group-zone-change" type="button" id="group-zone-change">${esc(groupTimeZoneLabel(zone))} · Change</button><select class="group-zone-picker" name="time_zone" aria-label="Event time zone" required hidden>${groupTimeZoneOptions(zone)}</select></div>
+    <label>Training for (optional)<input name="training_for" maxlength="80" autocomplete="off" placeholder="Half marathon"></label>
+    <p class="small muted">Only group members see the group. Activities, routes, food and body data stay private.</p>
+    <label>Short note (optional)<textarea name="note" maxlength="280" rows="2"></textarea></label></div>
     <div class="group-create-footer"><button class="primary wide" type="submit">Create group</button><button class="linkbtn wide" type="button" data-close>Cancel</button></div></form>`,(body,close)=>{
-      const form=$('#group-create-form',body),kind=form.elements.goal_type,unit=form.elements.goal_unit,target=form.elements.goal_target,zoneButton=$('#group-zone-change',form),zonePicker=form.elements.time_zone,date=form.elements.event_date,clearDate=$('[data-group-date-clear]',form);
+      const form=$('#group-create-form',body),kind=form.elements.goal_type,unit=form.elements.goal_unit,target=form.elements.goal_target,zoneButton=$('#group-zone-change',form),zonePicker=form.elements.time_zone,date=form.elements.event_date,startDate=form.elements.goal_start_date,clearDate=$('[data-group-date-clear]',form);
       const setGoal=()=>{const options=kind.value==='distance'?[['km','km'],['mi','mi']]:kind.value==='elevation'?[['m','m'],['ft','ft']]:kind.value==='long_outings'?[['outings','outings']]:[['sessions','sessions']];unit.innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');target.step=options[0][0]==='km'||options[0][0]==='mi'||options[0][0]==='m'||options[0][0]==='ft'?'0.1':'1';target.min=target.step;};
       kind.onchange=setGoal;setGoal();
+      const syncDateBounds=()=>{date.min=startDate.value||today;if(date.value&&date.value<date.min){date.value='';clearDate.hidden=true;}};startDate.oninput=syncDateBounds;startDate.onchange=syncDateBounds;
       const syncDateClear=()=>{clearDate.hidden=!date.value;};date.oninput=syncDateClear;date.onchange=syncDateClear;
       clearDate.onclick=()=>{date.value='';syncDateClear();date.focus({preventScroll:true});};
       zoneButton.onclick=()=>{zonePicker.hidden=false;zoneButton.hidden=true;zonePicker.focus({preventScroll:true});try{zonePicker.showPicker?.();}catch{}};
       const closeZonePicker=()=>{if(zonePicker.hidden)return;zoneButton.textContent=`${groupTimeZoneLabel(zonePicker.value)} · Change`;zonePicker.hidden=true;zoneButton.hidden=false;};
       zonePicker.onchange=()=>{closeZonePicker();zoneButton.focus({preventScroll:true});};zonePicker.onblur=closeZonePicker;
       form.onsubmit=async event=>{event.preventDefault();const submit=$('button[type=submit]',form);if(submit.disabled)return;submit.disabled=true;
-        const data={title:form.elements.title.value.trim(),event_date:date.value||null,time_zone:zonePicker.value,note:form.elements.note.value.trim(),goal_type:kind.value,goal_target:Number(target.value),goal_unit:unit.value};
+        if(!form.querySelector('[name="goal_sports"]:checked')){toast('Choose at least one sport');submit.disabled=false;return;}
+        const data={title:form.elements.title.value.trim(),training_for:form.elements.training_for.value.trim(),goal_start_date:startDate.value,event_date:date.value||null,time_zone:zonePicker.value,note:form.elements.note.value.trim(),goal_type:kind.value,goal_target:Number(target.value),goal_unit:unit.value,goal_sports:[...form.querySelectorAll('[name="goal_sports"]:checked')].map(input=>input.value)};
         try{const group=await api('/api/groups',json('POST',data));if(!body.isConnected)return;close();done(group);}
         catch(error){if(body.isConnected){toast(error.message);submit.disabled=false;}}
       };
@@ -1349,9 +1360,10 @@ function groupGoal(group){
   const progressMax=target||1,progressValue=Math.min(progressMax,Math.max(0,value));
   const week=group.this_week_total!==undefined?`This week · +${groupNumber(group.this_week_total)} ${group.goal_unit} · ${source} sharing`:`This week · You: ${groupAmount(group.your_this_week_total,group.goal_unit)}`;
   const weekHtml=group.this_week_total!==undefined||group.your_this_week_total!==undefined?`<small class="group-week">${esc(week)}</small>`:'';
+  const weeklyTarget=group.weekly_target!=null?`<small class="group-weekly-target">${group.weekly_target_scope==='group'?'Weekly group target':'Your weekly target'} · ${esc(groupAmount(group.weekly_target,group.goal_unit))} / week</small>`:'';
   const weeklyCheer=group.event_state!=='complete'&&!group.closed?`<div class="group-week-cheer">${reactionButtons(null,group.weekly_reaction||{},false,true,null,{id:group.id})}</div>`:'';
   const title=GROUP_GOALS[group.goal_type]||'Shared goal',targetText=`of ${groupAmount(target,group.goal_unit)}`,sourceText=combined?` · ${source} sharing`:'';
-  return `<section class="group-goal card" aria-label="Shared goal"><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} ${esc(targetText)}"></progress><strong class="group-goal-value" data-type="stat">${esc(groupAmount(value,group.goal_unit))}</strong><small class="group-goal-label" data-type="secondary">${combined?'Together':'Your total'} · ${esc(title)} · ${esc(targetText)}${sourceText}</small>${group.event_state==='ongoing'?'<small class="group-goal-period">All time</small>':''}${weekHtml}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
+  return `<section class="group-goal card" aria-label="Shared goal"><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} ${esc(targetText)}"></progress><strong class="group-goal-value" data-type="stat">${esc(groupAmount(value,group.goal_unit))}</strong><small class="group-goal-label" data-type="secondary">${combined?'Together':'Your total'} · ${esc(title)} · ${esc(targetText)}${sourceText}</small>${group.event_state==='ongoing'?'<small class="group-goal-period">All time</small>':''}${weeklyTarget}${weekHtml}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
 }
 function groupPage(el,group,selectedTab='members',keepExpanded=false){
   group={...group,event_state:group.event_state||(group.event_date==null?'ongoing':(group.days_to_event||0)===0?'today':'upcoming'),updates:group.updates||[],weekly_reaction:group.weekly_reaction||{my_reaction:null,reactions:{}}};
@@ -1361,7 +1373,7 @@ function groupPage(el,group,selectedTab='members',keepExpanded=false){
     const total=group.total!==undefined?`${groupAmount(group.total,group.goal_unit)} · from ${Number(group.sharing_member_count)||0} of ${group.member_count}`:`You: ${groupAmount(group.your_total,group.goal_unit)}`;
     const summary=group.event_state==='ongoing'?`${GROUP_GOALS[group.goal_type]||'Shared goal'} · ${total}`:`${groupDate(group.event_date,group.time_zone)} · ${timing}`;
     el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
-    <header class="group-title"><div class="group-title-name">${svg('lock')}<h1>${esc(group.title)}</h1></div><p class="group-title-summary">${esc(summary)}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
+    <header class="group-title"><div class="group-title-name">${svg('lock')}<h1>${esc(group.title)}</h1></div><p class="group-title-summary">${esc(summary)}</p>${group.training_for?`<p class="group-training-for">Training for ${esc(group.training_for)}</p>`:''}${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
     ${groupGoal(group)}
     ${group.event_state==='today'?'<section class="group-event-day card">Today’s the day</section>':group.event_state==='complete'?groupRecapCard(group):''}
     <div class="group-content-tabs"><div class="group-detail-tabs" role="tablist" aria-label="Group details"><button type="button" id="group-tab-members" role="tab" aria-controls="group-panel-members" aria-selected="${activeTab==='members'}" tabindex="${activeTab==='members'?'0':'-1'}" data-group-tab="members">Members <span data-type="secondary">${group.member_count}</span></button><button type="button" id="group-tab-updates" role="tab" aria-controls="group-panel-updates" aria-selected="${activeTab==='updates'}" tabindex="${activeTab==='updates'?'0':'-1'}" data-group-tab="updates">Updates</button></div>
