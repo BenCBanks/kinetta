@@ -39,7 +39,7 @@ assert.equal(vm.runInContext("recipeCalories(2431)",context),vm.runInContext("r0
 vm.runInContext("describeSheet('2026-10-17','lunch','photo')",context);
 assert.deepEqual(calls.pop(),['go','/food/describe?d=2026-10-17&meal=lunch&tool=photo']);
 const pages=fs.readFileSync('app/static/pages.js','utf8'),thread=fs.readFileSync('app/static/thread.js','utf8');
-assert.match(pages,/weeklyCheckinCard\(/);assert.match(pages,/describeSheet\(day,guessMeal\(\)\)/);assert.match(pages,/shrinkPhoto\(f, 1024\)/);assert.match(pages,/homeCalories\(/);assert.match(pages,/dayLabel\(/);
+assert.match(pages,/weeklyCheckinCard\(/);assert.match(pages,/describeSheet\(day,guessMeal\(\)\)/);assert.match(pages,/shrinkPhoto\(f, 1024\)/);assert.match(pages,/homeCalories\(/);assert.match(homeSource,/const dayLabel\s*=/);
 assert.match(fs.readFileSync('app/static/cook.js','utf8'),/recipeCalories\(/);
 assert.match(fs.readFileSync('app/static/kit.js','utf8'),/\br0\(/);
 assert.match(thread,/homeCalories\(/);assert.match(thread,/shrinkPhoto\(/);
@@ -48,7 +48,7 @@ const index=fs.readFileSync('app/static/index.html','utf8');
 assert(index.includes('/static/food-home.js?v=__ASSET_HASH__'),'shared Food helpers stay eager for the Me surface');
 assert(!index.includes('/static/thread.js?v=__ASSET_HASH__'),'FoodThread is deferred until a Food conversation');
 assert(!index.includes('/static/food.js?v=__ASSET_HASH__')&&!index.includes('/static/kit.js?v=__ASSET_HASH__'),'full Nutrition and Kit modules stay out of the initial script path');
-console.log('Food home boundary: shared math/date globals, Cook/Kit/Pages callsites, describe route and eager script order PASS');
+console.log('Food home boundary: shared math/date globals, Cook/Kit callsites, describe route and eager script order PASS');
 
 (async()=>{
  const page={dataset:{},closest(selector){return selector==='#page'?page:null;}};
