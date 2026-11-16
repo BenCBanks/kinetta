@@ -61,6 +61,8 @@
 	<string>Kinetta checks your contacts for Kinetta accounts. It sends salted email and phone hashes; names and contact details stay on your phone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Kinetta lets you choose photos for your meals, your activities and your profile picture.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Kinetta saves activity pictures you ask to save to Photos.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
