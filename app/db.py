@@ -2187,6 +2187,23 @@ MIGRATIONS = [
                goal_sports <@ ARRAY['run','ride','walk','hike','swim','row','ski','workout','other']::text[]);
        ALTER TABLE event_groups ADD CONSTRAINT event_groups_training_for_check CHECK(length(training_for)<=80);""",
 
+    # 113. Group Monday recaps are individually opt-in and claimed once per group/week.
+    """ALTER TABLE group_members ADD COLUMN monday_recap_enabled boolean NOT NULL DEFAULT false;
+    CREATE TABLE group_monday_recaps (
+      group_id uuid NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
+      week_start date NOT NULL,
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(group_id,week_start));
+    REVOKE ALL ON group_monday_recaps FROM PUBLIC,fit_readers,fit_all_readers;
+    ALTER TABLE notifications DROP CONSTRAINT notifications_group_fields;
+    ALTER TABLE notifications ADD CONSTRAINT notifications_group_fields CHECK(
+      (group_id IS NULL AND group_update_id IS NULL AND group_week_start IS NULL) OR
+      (group_id IS NOT NULL AND ((kind='group_update' AND group_update_id IS NOT NULL AND group_week_start IS NULL) OR
+        (kind='group_cheer' AND (group_update_id IS NOT NULL)<>(group_week_start IS NOT NULL)) OR
+        (kind='group_monday_recap' AND group_update_id IS NULL AND group_week_start IS NOT NULL))));
+    CREATE UNIQUE INDEX notifications_group_monday_recap ON notifications(user_id,group_id,group_week_start)
+      WHERE group_id IS NOT NULL AND kind='group_monday_recap';""",
+
 ]
 
 

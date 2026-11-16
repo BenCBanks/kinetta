@@ -1167,16 +1167,27 @@ function peopleRow(box, people, {title = 'People you may know', onChange, invite
     } catch (x) { if(live()){toast(x.message);b.disabled=false;b.classList.remove('is-pending');b.removeAttribute('aria-busy');b.setAttribute('aria-label',label);b.innerHTML=compactAdd?svg('plus'):'＋ Add';} }
   });
 }
-// The page an invite link opens when you're signed in: who sent it, and one button.
+// The page an invite link opens when you're signed in: a compact Contacts-style accept card.
 route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
+  el.classList.add('friend-invite-page');
   el.innerHTML = `<div class="top">${backBtn('Home')}</div>${skel(1)}`;
   wireBack(el, '/activity');
   let who;
   try { who = await api('/api/friend-links/' + encodeURIComponent(code)); }
-  catch (x) { el.innerHTML = `<div class="top">${backBtn('Home')}</div><div class="card empty"><b>This invite link doesn’t work</b>${esc(x.message)}<div class="btncol"><a class="ghost" href="/me/friends?find=1">Find friends</a></div></div>`; wireBack(el, '/activity'); return; }
-  el.innerHTML = `<div class="top">${backBtn('Home')}</div><div class="card empty add-friend"><b>${esc(who.name)} invited you to be friends</b>
-    You’ll each see the activities the other shares with friends. You can change that or stop being friends any time.
-    <div class="btncol"><button class="primary" id="af-yes">Become friends</button><a class="ghost" href="/activity">Not now</a></div></div>`;
+  catch (x) {
+    if ([403,404].includes(x.status)) {
+      el.innerHTML = `<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen friend-invite-unavailable"><span class="friend-invite-symbol" aria-hidden="true">${svg('me')}</span><p class="friend-invite-caption">This invite isn’t available</p><a class="friend-invite-home" href="/activity">Go home</a></section>`;
+      wireBack(el, '/activity'); return;
+    }
+    showError(el,x); return;
+  }
+  const login = String(who.name || '').replace(/^@/, '');
+  const person = {name: login ? login[0].toUpperCase() + login.slice(1) : 'Kinetta member', login: login || 'member'};
+  el.innerHTML = `<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen" aria-label="Friend invitation">
+    ${avatar(person, 'lg friend-invite-avatar')}<h1>${esc(person.name)}</h1><p class="friend-invite-handle">@${esc(person.login)}</p>
+    <p class="friend-invite-caption">You’ll see each other’s shared workouts.</p>
+    <button class="primary friend-invite-primary" id="af-yes" type="button">Add friend</button>
+    <a class="friend-invite-later" href="/activity">Not now</a></section>`;
   wireBack(el, '/activity');
   $('#af-yes', el).onclick = async (e) => {
     e.target.disabled = true;
@@ -1363,10 +1374,11 @@ function groupGoal(group){
   const progressMax=target||1,progressValue=Math.min(progressMax,Math.max(0,value));
   const week=group.this_week_total!==undefined?`This week · +${groupNumber(group.this_week_total)} ${group.goal_unit} · ${source} sharing`:`This week · You: ${groupAmount(group.your_this_week_total,group.goal_unit)}`;
   const weekHtml=group.this_week_total!==undefined||group.your_this_week_total!==undefined?`<small class="group-week">${esc(week)}</small>`:'';
+  const lastWeek=group.monday_recap?`<small class="group-week">Last week · ${esc(groupAmount(group.monday_recap.total,group.goal_unit))}</small>`:'';
   const weeklyTarget=group.weekly_target!=null?`<small class="group-weekly-target">${group.weekly_target_scope==='group'?'Weekly group target':'Your weekly target'} · ${esc(groupAmount(group.weekly_target,group.goal_unit))} / week</small>`:'';
   const weeklyCheer=group.event_state!=='complete'&&!group.closed?`<div class="group-week-cheer">${reactionButtons(null,group.weekly_reaction||{},false,true,null,{id:group.id})}</div>`:'';
   const title=GROUP_GOALS[group.goal_type]||'Shared goal',targetText=`of ${groupAmount(target,group.goal_unit)}`,sourceText=combined?` · ${source} sharing`:'';
-  return `<section class="group-goal card" aria-label="Shared goal"><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} ${esc(targetText)}"></progress><strong class="group-goal-value" data-type="stat">${esc(groupAmount(value,group.goal_unit))}</strong><small class="group-goal-label" data-type="secondary">${combined?'Together':'Your total'} · ${esc(title)} · ${esc(targetText)}${sourceText}</small>${group.event_state==='ongoing'?'<small class="group-goal-period">All time</small>':''}${weeklyTarget}${weekHtml}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
+  return `<section class="group-goal card" aria-label="Shared goal"><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} ${esc(targetText)}"></progress><strong class="group-goal-value" data-type="stat">${esc(groupAmount(value,group.goal_unit))}</strong><small class="group-goal-label" data-type="secondary">${combined?'Together':'Your total'} · ${esc(title)} · ${esc(targetText)}${sourceText}</small>${group.event_state==='ongoing'?'<small class="group-goal-period">All time</small>':''}${weeklyTarget}${weekHtml}${lastWeek}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
 }
 function groupPage(el,group,selectedTab='members',keepExpanded=false){
   group={...group,event_state:group.event_state||(group.event_date==null?'ongoing':(group.days_to_event||0)===0?'today':'upcoming'),updates:group.updates||[],weekly_reaction:group.weekly_reaction||{my_reaction:null,reactions:{}}};
@@ -1400,6 +1412,7 @@ function groupMenu(group,reload){
   if(group.is_organizer&&group.member_count>1)opts.push(`<button type="button" class="row-link" data-gact="transfer"><span>Transfer organizer</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="remove"><span>Remove a member</span>${svg('chev')}</button>`);
   if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link danger" data-gact="close"><span>Close group</span>${svg('chev')}</button>`);
   if(group.event_date)opts.push(`<button type="button" class="row-link" data-gact="recap-consent"><span>${group.recap_consent?'Remove my name from the event recap':'Include my name in the event recap'}</span>${svg('chev')}</button>`);
+  if(Number(group.member_count)>=3)opts.push(`<button type="button" class="row-link" data-gact="monday-recap"><span class="grow"><span>${group.monday_recap_enabled?'Turn off Monday recap':'Get Monday recap'}</span><small>In-app alert · off by default</small></span>${svg('chev')}</button>`);
   opts.push(`<button type="button" class="row-link" data-gact="notifications"><span>${group.notifications_muted?'Unmute group notifications':'Mute group notifications'}</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="mute-strip"><span>Mute Activity strip</span>${svg('chev')}</button>`);
   opts.push(`<button type="button" class="row-link" data-gact="leave"><span>Leave group</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="report"><span>Report group</span>${svg('chev')}</button>`);
   groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
@@ -1413,6 +1426,7 @@ function groupMenu(group,reload){
       else if(action==='transfer'||action==='remove')groupMemberAction(group,action==='transfer'?'Transfer organizer':'Remove a member',action==='transfer'?'transfer':'remove',reload);
       else if(action==='mute-strip')api('/api/groups/activity-strip',json('POST',{muted:true})).then(()=>toast('Activity strip hidden')).catch(error=>toast(error.message));
       else if(action==='notifications')run('/api/groups/'+encodeURIComponent(group.id)+'/notifications','POST',{muted:!group.notifications_muted});
+      else if(action==='monday-recap')api('/api/groups/'+encodeURIComponent(group.id)+'/monday-recap',json('POST',{enabled:!group.monday_recap_enabled})).then(()=>{toast(group.monday_recap_enabled?'Monday recap off':'Monday recap on');reload();}).catch(error=>toast(error.message));
       else if(action==='recap-consent')api('/api/groups/'+encodeURIComponent(group.id)+'/recap-consent',json('POST',{consent:!group.recap_consent})).then(()=>{toast(group.recap_consent?'Your name was removed from the recap':'Your name can appear in the recap');reload();}).catch(error=>toast(error.message));
       else if(action==='report')groupReport(group);
     });
@@ -1438,8 +1452,9 @@ route(/^\/groups\/([0-9a-f-]{36})$/i,'activity',async(el,id)=>{
 });
 route(/^\/group-invite\/([\w-]+)$/,'activity',async(el,token)=>{
   el.classList.add('group-invite-page');el.innerHTML='<div class="card empty">Checking invite…</div>';wireBack(el,'/activity');
-  try{await api('/api/group-invites/'+encodeURIComponent(token));if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="group-invite-card"><p class="eyebrow">Kinetta Groups</p><h1>You’re invited to a private group</h1><p>Only members can see the group. Sign in and accept to join.</p><div class="btncol"><button type="button" class="primary" id="group-accept">Accept invitation</button><a class="ghost" href="/activity">Not now</a></div></section>`;wireBack(el,'/activity');$('#group-accept',el).onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const group=await api('/api/group-invites/'+encodeURIComponent(token)+'/accept',json('POST',{}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){toast(error.message);button.disabled=false;}};}
-  catch(error){if(!el.isConnected)return;if([403,404].includes(error.status)){el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="group-invite-card"><h1>This invite isn’t available</h1><p>Ask the organizer for a new group invite.</p><a class="ghost" href="/activity">Go to Home</a></section>`;wireBack(el,'/activity');}else showError(el,error);}
+  const groupGlyph = '<svg class="friend-invite-symbol-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.2 2.3-5 5.5-5s5.1 1.8 5.5 5M16 5.5a3 3 0 0 1 0 5.8M17 14c2.3.5 3.5 2.1 3.7 5"/></svg>';
+  try{await api('/api/group-invites/'+encodeURIComponent(token));if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen group-invite-card" aria-label="Group invitation"><span class="friend-invite-symbol" aria-hidden="true">${groupGlyph}</span><h1>You’re invited to a group</h1><p class="friend-invite-caption">Join to see the group with its members.</p><button type="button" class="primary friend-invite-primary" id="group-accept">Join</button><a class="friend-invite-later" href="/activity">Not now</a></section>`;wireBack(el,'/activity');$('#group-accept',el).onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const group=await api('/api/group-invites/'+encodeURIComponent(token)+'/accept',json('POST',{}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){toast(error.message);button.disabled=false;}};}
+  catch(error){if(!el.isConnected)return;if([403,404].includes(error.status)){el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen friend-invite-unavailable"><span class="friend-invite-symbol" aria-hidden="true">${groupGlyph}</span><p class="friend-invite-caption">This invite isn’t available</p><a class="friend-invite-home" href="/activity">Go home</a></section>`;wireBack(el,'/activity');}else showError(el,error);}
 });
 
 // ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------

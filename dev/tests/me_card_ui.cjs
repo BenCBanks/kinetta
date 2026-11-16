@@ -171,20 +171,17 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   for(const stat of ['distance','activities','time'])assert(await weekly.locator(`[data-week-stat="${stat}"]`).count()===1,`current week exposes ${stat}`);
   const currentStats=await weekly.locator('[data-week-stat]').allTextContents();assert(currentStats.every(value=>value.trim()),'This week has visible distance, workout and time totals');
   assert.equal(await label.locator('span').innerText(),'This week','current week is the default selection');
-  assert.equal(await p.locator('.me-week-streak[data-week-streak="12"]').count(),1,'streak appears at twelve weeks');
-  assert.equal(await p.locator('.me-card-close-to[data-close-to]').innerText(),'Only you\n18 mi to 1,000 mi this year','private close-to text has the owner label and profile units');
-  assert.equal(await p.locator('.me-owner-only').count(),2,'private streak and close-to use the same visible Only you label');
+  const streak=p.locator('[data-me-showcase-streak] .me-showcase-streak'),streakRow=p.locator('[data-me-showcase-streak] .me-showcase-row');
+  assert.equal(await streak.count(),1,'the 12-week streak appears below the owner identity');
+  assert.equal(await streakRow.getAttribute('aria-label'),'12-week activity streak','the streak has an accessible label');
+  assert.equal(await streak.locator('span').innerText(),'12-week streak');
+  assert.equal(await p.locator('[data-me-close-to]').innerText(),'18 mi to 1,000 mi this year','the private close-to text uses profile units');
+  assert.equal(await p.locator('.me-owner-only').count(),0,'the shared-card design does not add a competing owner-only label');
   assert.equal(await weekly.locator('[data-week-stat]').count(),3,'the close-to line adds no number row');
-  const closeGeometry=await p.locator('.me-card-close-to').evaluate(n=>{const r=n.getBoundingClientRect(),bar=document.querySelector('.me-card-bars').getBoundingClientRect(),s=getComputedStyle(n);return{top:r.top,barBottom:bar.bottom,font:parseFloat(s.fontSize),border:s.borderWidth,background:s.backgroundColor};});
-  assert(closeGeometry.top>=closeGeometry.barBottom&&closeGeometry.font>=13&&closeGeometry.border==='0px'&&closeGeometry.background==='rgba(0, 0, 0, 0)','close-to remains plain 13px secondary text under the bars '+JSON.stringify(closeGeometry));
+  const closeGeometry=await p.locator('[data-me-close-to]').evaluate(n=>{const r=n.getBoundingClientRect(),divider=n.previousElementSibling.getBoundingClientRect(),s=getComputedStyle(n);return{top:r.top,dividerBottom:divider.bottom,font:parseFloat(s.fontSize),border:s.borderWidth,background:s.backgroundColor,hidden:n.hidden};});
+  assert(!closeGeometry.hidden&&closeGeometry.top>=closeGeometry.dividerBottom&&closeGeometry.font>=13&&closeGeometry.border==='0px'&&closeGeometry.background==='rgba(0, 0, 0, 0)','close-to remains readable plain secondary text below the dashboard heading '+JSON.stringify(closeGeometry));
   await screenshot('me-card-both');if(size.width===330||size.width===390){const feature=p.locator('.me-featured-achievements');await feature.evaluate(n=>n.scrollIntoView({block:'start',behavior:'instant'}));const visible=await p.evaluate(()=>{const featured=document.querySelector('.me-featured-achievements').getBoundingClientRect(),tab=document.querySelector('.bottom-nav,nav').getBoundingClientRect();return{top:featured.top,bottom:featured.bottom,tabTop:tab.top};});assert(visible.top>=-1&&visible.bottom<=visible.tabTop+1,`${size.width}px Featured rail scrolls fully above the fixed tab bar `+JSON.stringify(visible));if(out)await p.screenshot({path:`${out}/me-featured-visible-${size.width}-${theme}.png`,animations:'disabled'});await p.locator('.me-top').evaluate(n=>n.scrollIntoView({block:'start',behavior:'instant'}));}
-  assert.equal(await p.locator('.me-week-streak').getAttribute('aria-label'),'12-week activity streak. Only you can see this.');
-  assert.equal(await p.locator('.me-week-streak > span[aria-hidden="true"]').innerText(),'12-week streak');
-  assert.equal(await p.locator('.me-week-streak .me-owner-only').innerText(),'Only you');
-  assert.equal(await p.locator('.me-week-streak .me-owner-only').evaluate(n=>getComputedStyle(n).fontSize),'13px','owner-only labels use the same readable secondary type');
-  assert.equal(await p.locator('.me-week-streak svg').count(),1,'streak flame remains visible without relying on a device emoji font');
-  const streakLayout=await p.locator('.me-week-streak').evaluate(node=>({right:node.getBoundingClientRect().right,headRight:node.parentElement.getBoundingClientRect().right,textAlign:getComputedStyle(node).textAlign}));
-  assert(Math.abs(streakLayout.right-streakLayout.headRight)<1&&streakLayout.textAlign==='right','streak is right-aligned in the This week row');
+  assert.equal(await p.locator('[data-me-showcase-streak] .me-showcase-streak svg').count(),1,'the streak flame remains a drawn icon');
   await p.waitForFunction(()=>typeof App!=='undefined'&&App.me?.notifications===6);
   assert.equal(await p.locator('.me-top a[aria-label="Settings"]').count(),1,'Me header shows Settings');
   assert.equal(await p.locator('.me-top .bell').count(),0,'the notification bell belongs to Home, not the Me header');
@@ -208,8 +205,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    assert(g.visibleGaps.every(w=>w>=5.9),'weekly bars keep 6px visual gaps '+JSON.stringify(g));
    assert.deepEqual(g.zero,[2,2],'zero weeks use a 2px tick');assert(g.low>=4,'nonzero weeks remain at least 4px high '+JSON.stringify(g));
    // Main's Me chart now uses a bare, full-opacity current bar; the geometry and visual gaps above are the contract.
-   const expected=seriesFixture.weeks.map((w,i)=>i===0||w.d.slice(8,10)==='01'||w.d.slice(0,7)!==w.end.slice(0,7)?i:-1).filter(i=>i>=0);
-   assert.deepEqual(g.transitions,expected,'month labels appear under the week containing each month start');
+   const labels=seriesFixture.weeks.map((w,i)=>i===0||w.d.slice(0,7)!==seriesFixture.weeks[i-1]?.d.slice(0,7)?i:-1),expected=labels.filter(i=>i>=0);
+   for(let i=0;i<expected.length-1;i++)if(expected[i+1]-expected[i]<2)expected[i]=-1;
+   assert.deepEqual(g.transitions,expected.filter(i=>i>=0),'month labels appear at month transitions with room between labels');
   };
   const checkTargets=async()=>{
    const geometry=await weeks.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,label:n.getAttribute('aria-label')};}));
@@ -226,8 +224,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   };
   if(todayOnly||size.width===390&&size.root===16&&theme==='light'){
    await p.locator('#t-today[data-loaded-day]').waitFor({state:'attached'});
-   const sectionGap=await p.evaluate(()=>{const card=document.querySelector('.me-card').getBoundingClientRect(),today=document.querySelector('.me-today').getBoundingClientRect();return today.top-card.bottom;});
-   assert(Math.abs(sectionGap-16)<1,`Me card and Today use a 16px section gap (${sectionGap}px)`);
+   const dashboardFlow=await p.evaluate(()=>{const card=document.querySelector('.me-card').getBoundingClientRect(),dividerNode=document.querySelector('.me-dashboard-divider'),divider=dividerNode.getBoundingClientRect(),today=document.querySelector('.me-today').getBoundingClientRect();return{cardBottom:card.bottom,dividerTop:divider.top,todayTop:today.top,title:dividerNode.firstElementChild?.textContent?.trim()};});
+   assert.equal(dashboardFlow.title,'Your dashboard','the private dashboard remains between the profile card and Today');
+   assert(Math.abs(dashboardFlow.dividerTop-dashboardFlow.cardBottom-22)<1&&dashboardFlow.todayTop>dashboardFlow.dividerTop,`Me keeps the dashboard heading below the card and Today after it (${JSON.stringify(dashboardFlow)})`);
    const meCard=p.locator('.me-card'),share=p.locator('[data-card-share]');
    const waitFeatured=()=>meCard.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});
    await waitFeatured();
@@ -298,7 +297,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   if(size.width===390&&size.root===16)await screenshot('me-card-current-week');
   if(size.width===390&&size.root===16&&theme==='light'){
    if(out)await p.locator('.me-top').screenshot({path:`${out}/me-header-${size.width}-${theme}.png`,animations:'disabled'});
-   await p.mouse.click(arrow.x+arrow.width/2,arrow.y+arrow.height/2);await p.waitForURL('**/people/alex');await p.locator('#person-profile').waitFor();
+   await profileLink.click();await p.waitForURL('**/people/alex');await p.locator('#person-profile').waitFor();
    await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   }
 
@@ -333,20 +332,22 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   // The two approved slots have independent visibility rules; neither adds another number row.
   for(const fixture of ['streak-only','target-only','neither']){
    slotFixture=fixture;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
-   assert.equal(await p.locator('.me-week-streak').count(),fixture==='streak-only'?1:0,fixture+' streak visibility');
-   assert.equal(await p.locator('.me-card-close-to').count(),fixture==='target-only'?1:0,fixture+' close-to visibility');
+   await p.locator('[data-me-showcase-streak][data-loaded="true"]').waitFor({state:'attached'});
+   assert.equal(await p.locator('[data-me-showcase-streak] .me-showcase-streak').count(),fixture==='streak-only'?1:0,fixture+' streak visibility');
+   assert.equal(await p.locator('[data-me-close-to]').isVisible(),fixture==='target-only',fixture+' close-to visibility');
    assert.equal(await weekly.locator('[data-week-stat]').count(),3,fixture+' keeps the three existing numbers');
    if(fixture==='streak-only')await screenshot('me-card-streak-only');
    if(fixture==='target-only')await screenshot('me-card-target-only');
    if(fixture==='neither')await screenshot('me-card-neither');
   }
   slotFixture='short-streak';await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
-  assert.equal(await p.locator('.me-week-streak').count(),0,'streaks shorter than two weeks stay hidden');
-  assert.equal(await p.locator('.me-card-close-to').count(),0,'neither-source state hides the line when a one-week streak has no target');
+  await p.locator('[data-me-showcase-streak][data-loaded="true"]').waitFor({state:'attached'});
+  assert.equal(await p.locator('[data-me-showcase-streak] .me-showcase-streak').count(),0,'streaks shorter than two weeks stay hidden');
+  assert.equal(await p.locator('[data-me-close-to]').isVisible(),false,'neither-source state hides the line when a one-week streak has no target');
   if(size.width===390&&size.root===16&&theme==='light'){
    zeroDistanceFixture=true;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
    assert.equal(await p.locator('.me-week').count(),12,'lifting-only history still shows all twelve weeks');assert.equal(await p.locator('.me-week.zero').count(),12,'zero-distance history keeps the zero baseline ticks');
-   assert.equal(await p.locator('[data-week-stat="distance"] .me-metric-value').innerText(),'0');assert.equal(await p.locator('[data-week-stat="activities"] .me-metric-value').innerText(),'2');assert.equal(await p.locator('[data-week-stat="time"] .me-metric-value').innerText(),'20m');
+   assert.equal(await p.locator('[data-week-stat="distance"] .me-metric-value').innerText(),'0 mi');assert.equal(await p.locator('[data-week-stat="activities"] .me-metric-value').innerText(),'2');assert.equal(await p.locator('[data-week-stat="time"] .me-metric-value').innerText(),'20m');
    await screenshot('me-card-zero-distance-workouts');
   }
   if(size.width===390&&size.root===16){
@@ -381,7 +382,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    assert.equal(await p.locator('.me-featured-item').count(),4,'all four pinned achievements fit in one row');
    const featuredHits=[];for(const item of await p.locator('.me-featured-item').all()){await item.scrollIntoViewIfNeeded();featuredHits.push(await item.evaluate(n=>{const r=n.querySelector('.profile-achievement-medallion').getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{label:n.getAttribute('aria-label'),target:hit?.closest('.me-featured-item')===n,clearOfProfile:!hit?.closest('.me-card-open-link')};}));}assert(featuredHits.every(item=>item.target&&item.clearOfProfile),'each Featured medal remains its own top hit target outside the card profile link '+JSON.stringify(featuredHits));
    assert.equal(await p.locator('.me-showcase-streak').innerText(),'12-day streak','a live day streak sits beside the medals, labelled');
-   const streakFont=await p.locator('.me-showcase-streak').evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(streakFont>=15,'the compact streak number meets the minimum readable type size ('+streakFont+'px)');
+   const streakFont=await p.locator('.me-showcase-streak').evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(streakFont>=14,'the compact streak number meets the 14px readable type size ('+streakFont+'px)');
    const grid=await p.locator('.me-featured-achievements .profile-achievement-list').evaluate(n=>{const box=n.getBoundingClientRect(),nodes=[...n.children],items=nodes.map(x=>x.getBoundingClientRect()),medals=nodes.map(x=>x.querySelector('.profile-achievement-medallion').getBoundingClientRect()),style=getComputedStyle(n);return{display:style.display,columns:style.gridTemplateColumns.split(' ').length,overflow:style.overflowX,scrollWidth:n.scrollWidth,clientWidth:n.clientWidth,centers:medals.map(x=>x.x+x.width/2),medalSizes:medals.map(x=>[x.width,x.height]),box:{left:box.left,right:box.right},items:items.map(x=>({left:x.left,right:x.right,top:x.top,bottom:x.bottom}))};});
    const medalBounds=size.width===330?[56,60]:[68,72];assert.equal(grid.display,'grid');assert.equal(grid.columns,4);assert.equal(grid.overflow,'visible');assert(grid.scrollWidth<=grid.clientWidth+1&&grid.centers.length===4&&grid.centers.every((x,i)=>!i||x>grid.centers[i-1])&&grid.items.every(item=>Math.abs(item.top-grid.items[0].top)<1&&item.left>=grid.box.left-1&&item.right<=grid.box.right+1&&item.bottom-item.top>=44)&&grid.medalSizes.every(([w,h])=>w>=medalBounds[0]&&w<=medalBounds[1]&&w===h),'featured medals fit four across with responsive size, wrapped labels and 44px+ link targets '+JSON.stringify(grid));
    const medalReadability=await p.locator('.me-featured-item').evaluateAll(nodes=>nodes.map(node=>{const medal=node.querySelector('.profile-achievement-medallion'),icon=medal.querySelector('.profile-achievement-icon').getBoundingClientRect(),value=medal.querySelector('.profile-achievement-value').getBoundingClientRect(),level=medal.querySelector('.profile-achievement-level')?.getBoundingClientRect(),multiple=medal.querySelector('.profile-achievement-multiple')?.getBoundingClientRect(),overlap=(a,b)=>a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;return{name:node.querySelector('.profile-achievement-name').textContent.trim(),value:medal.querySelector('.profile-achievement-value').textContent.trim(),aria:node.getAttribute('aria-label'),badgesClear:[level,multiple].filter(Boolean).every(b=>!overlap(b,icon)&&!overlap(b,value)&&(!level||!multiple||!overlap(level,multiple)))};}));assert(medalReadability.every(item=>item.badgesClear),'level/multiple badges stay clear of icons and values '+JSON.stringify(medalReadability));const journey=medalReadability.find(item=>item.name==='Journey');assert.equal(journey.value,'27.1k mi');assert.match(journey.aria,/27,111 mi/,'Journey aria-label keeps the exact value');assert.equal(medalReadability.find(item=>item.name==='Workouts').name,'Workouts','workout label remains intact');

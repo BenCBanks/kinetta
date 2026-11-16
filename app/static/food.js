@@ -1194,7 +1194,7 @@ function weeksCard(box) {
   return load('/api/food/weeks?weeks=26', (W) => {
     if (!valid()) return;
     const rows = W.weeks, logged = rows.filter((w) => w.days_logged);
-    if (!logged.length) { box.innerHTML = '<div class="card empty"><b>No food logged yet</b>Weekly averages appear here once you start logging.</div>'; return; }
+    if (!logged.length) { box.innerHTML = '<div class="card empty nutrition-weeks-empty"><b>No food logged yet</b>Weekly averages appear here once you start logging.<br><a class="linkbtn" href="/food">Log food</a></div>'; return; }
     const shown = rows.slice(rows.findIndex((w) => w.days_logged));   // from the first logged week
     const wt = (kg) => (kg == null ? '–' : U.weight(kg));
     box.innerHTML = `<div class="card nutrition-weeks"><p class="small muted">Last 26 weeks · separate from the selected chart range</p><div class="tblwrap" tabindex="0" role="region" aria-label="Weekly food totals; scroll sideways for more columns"><table class="tbl yrs"><thead><tr><th>Week of</th><th class="r">Days</th><th class="r">Eaten kcal/day</th><th class="r">Protein g/day</th><th class="r">Carbs g/day</th><th class="r">Fat g/day</th><th class="r">Exercise kcal/day</th><th class="r">${U.du()}</th><th class="r">Weight ${imp()?'lb':'kg'}</th></tr></thead><tbody>
