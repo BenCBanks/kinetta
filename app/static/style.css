@@ -873,18 +873,6 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .startbar { position: fixed; z-index: 5; left: 16px; right: 16px; max-width: 728px; margin: 0 auto; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 12px); }
 .shell:has(.startbar) { padding-bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 96px); }
 .startbar .primary { width: 100%; min-height: 46px; font-size: 15px; border-radius: 999px; box-shadow: var(--lift); }
-/* plan setup (2026-10-12): the race date as a normal-sized field on iPhone, the goal as h / min / s boxes */
-.datefield { -webkit-appearance: none; appearance: none; display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 48px; text-align: left; line-height: 1.3; }
-@media (max-width: 480px) { .form .entry-when { grid-template-columns: minmax(0, 1fr); } }
-.datefield::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; }
-.ps-note { margin: -4px 0 4px; } .ps-note .linkbtn { min-height: 0; padding: 0; margin-left: 4px; }
-.goaltime { border: 0; padding: 0; margin: 4px 0 0; min-width: 0; }
-.goaltime legend { font-weight: 600; font-size: 14px; color: var(--tx2); padding: 0; margin-bottom: 6px; }
-.hms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.hms label { display: grid; gap: 4px; justify-items: center; margin: 0; }
-.hms input { width: 100%; min-height: 52px; padding: 8px; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
-.hms span { color: var(--tx3); font-size: 13px; font-weight: 600; }
-#ps-pace { margin: 8px 0 0; }
 .plan-hero .ph-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .plan-hero h2 { font-size: var(--text-app-section); font-weight: 700; letter-spacing: -.03em; margin: 2px 0; }
 .ph-ring .ring b { font-size: 18px; }
