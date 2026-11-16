@@ -309,6 +309,7 @@ jobs:
             export NODE_PATH="$PWD/dev/tests/browser/node_modules"
             node dev/tests/test_spacing_dom.cjs
             node dev/tests/spacing_audit.cjs
+            KINETTA_LOADING_OUTPUT=/tmp/loading-audit node dev/tests/loading_audit.cjs
           '
       - name: Check Home, Activity and Me at persona-local clock boundaries
         run: |
@@ -338,6 +339,7 @@ jobs:
             /tmp/spacing-report.json
             /tmp/spacing-shots
             /tmp/accessibility-evidence
+            /tmp/loading-audit
           if-no-files-found: ignore
       - name: Stop the disposable copy
         if: always()
