@@ -118,7 +118,9 @@ class CIPolicyTests(unittest.TestCase):
         tests=(ROOT/'.github/workflows/tests.yml').read_text()
         self.assertIn('group: tests-${{ github.ref }}',tests)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}",tests)
-        self.assertIn('github.event.pull_request.draft == true',tests);self.assertIn('dev/tests/run.sh --quick',tests)
+        quick=tests.split('\n  quick:\n',1)[1].split('\n  backend:\n',1)[0]
+        self.assertIn('github.event.pull_request.draft == true',quick);self.assertIn('dev/tests/run.sh --quick',quick)
+        self.assertIn('timeout-minutes: 15',quick)
         self.assertNotIn('paths:',tests) # required full-suite workflow must run for every ready PR
         gate=tests.split('\n  tests:\n',1)[1].split('\n  spacing:\n',1)[0]
         self.assertIn('name: tests',gate)
