@@ -2,8 +2,10 @@
 // Screen payload caching remains in app.js, where requests are scoped to its owner session.
 (() => {
   const pending = new WeakMap();
+  const active = new Set();
   let generation = 0;
   const owner = () => JSON.stringify([Native.base || location.origin, App.me?.id ?? null]);
+  const route = () => location.pathname + location.search;
 
   const shell = kind => kind === 'progress'
     ? `<div class="paint-gate-placeholder paint-gate-progress" aria-hidden="true">
@@ -19,39 +21,49 @@
         <div class="paint-gate-feed-card"><i></i><i></i><span><i></i><i></i><i></i></span></div>
       </div>`;
 
+  function show(el, state) {
+    if (state.done) return;
+    state.done = true;
+    clearTimeout(state.timer);
+    const current = pending.get(el) === state;
+    active.delete(state);
+    if (current) {
+      pending.delete(el);
+      delete el.dataset.paintGate;
+      el.removeAttribute('aria-busy');
+    }
+    state.node.remove();
+    if (!current || !el.isConnected || owner() !== state.account || route() !== state.route) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (el.isConnected && owner() === state.account && route() === state.route)
+        el.dispatchEvent(new CustomEvent('kinetta:screen-painted', {bubbles:true,detail:{screen:state.kind, waitedMs:Math.round(performance.now()-state.startedAt)}}));
+    }));
+  }
+  function clearAll() {
+    for (const state of [...active]) show(state.el, state);
+  }
+  function routeChanged(href=route()) {
+    const currentOwner=owner();
+    for (const state of [...active]) if (state.route !== href || state.account !== currentOwner) show(state.el, state);
+  }
   function begin(el, kind, {cached=false}={}) {
-    if (!el || typeof readOwner !== 'function' || !App.me) return {finish: promise => promise};
-    if(cached)return {finish:()=>Promise.resolve()};
+    const passthrough = promise => Promise.resolve(promise).finally(() => {});
+    if (!el || typeof readOwner !== 'function' || !App.me) return {finish:passthrough};
+    if(cached)return {finish:passthrough};
     const id = ++generation, account = owner(), placeholder = document.createElement('div');
     placeholder.innerHTML = shell(kind);
     const node = placeholder.firstElementChild;
     el.dataset.paintGate = String(id);
     el.setAttribute('aria-busy', 'true');
     el.append(node);
-    let reveal;
-    const timeout = new Promise(resolve => { reveal = resolve; });
-    const startedAt=performance.now(), state = {id, account, node, done: false, timer: null, reveal};
+    const state = {id, el, kind, account, route:route(), node, startedAt:performance.now(), done:false, timer:null};
     pending.set(el, state);
-    const show = () => {
-      if (state.done) return;
-      state.done = true;
-      clearTimeout(state.timer);
-      if (pending.get(el) !== state || !el.isConnected || owner() !== account) return;
-      delete el.dataset.paintGate;
-      el.removeAttribute('aria-busy');
-      node.remove();
-      requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        if(el.isConnected&&owner()===account)el.dispatchEvent(new CustomEvent('kinetta:screen-painted', {bubbles:true,detail:{screen:kind, waitedMs:Math.round(performance.now()-startedAt)}}));
-      }));
-    };
-    state.timer = setTimeout(() => { show(); reveal(); }, 1500);
+    active.add(state);
+    state.timer = setTimeout(() => show(el,state), 1500);
     return {
-      finish(promise) {
-        const work = Promise.resolve(promise);
-        return Promise.race([work, timeout]).finally(() => { show(); reveal(); });
-      }
+      finish: promise => Promise.resolve(promise).finally(() => show(el,state))
     };
   }
 
-  globalThis.PaintGate = {begin};
+  globalThis.PaintGate = {begin, clearAll, routeChanged};
 })();

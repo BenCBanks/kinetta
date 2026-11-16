@@ -137,6 +137,29 @@ async function main(){
      await p.waitForFunction(selector=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector(selector),readySelector,{timeout:15000});
      const revisit=await p.evaluate(()=>({placeholder:!!document.querySelector('.paint-gate-placeholder'),busy:document.querySelector('#page')?.hasAttribute('aria-busy'),feedRows:document.querySelectorAll('#ff-list .post').length}));
      assert(!revisit.placeholder&&!revisit.busy,`${scene.name} revisits paint its account-scoped cached screen immediately: ${JSON.stringify(revisit)}`);
+     if(home&&width===390&&theme==='light'){
+      await p.evaluate(()=>{window.__normalHomeFeed=homeFeed;homeFeed=()=>Promise.reject(Object.assign(Error('Fictional cached feed failure'),{status:503}));void go('/food');});
+      await p.waitForFunction(()=>location.pathname==='/food'&&document.querySelector('#page')?.getBoundingClientRect().height>0,undefined,{timeout:10000});
+      await p.evaluate(()=>void go('/activity'));
+      await p.waitForSelector('#page .load-error',{timeout:5000});
+      assert.match(await p.locator('#page .load-error').innerText(),/Couldn’t load|Couldn't load/,'a cached Home revisit preserves a failed screen read for the router error state');
+      await p.evaluate(()=>{homeFeed=window.__normalHomeFeed;void go('/food');});
+      await p.waitForFunction(()=>location.pathname==='/food'&&document.querySelector('#page')?.getBoundingClientRect().height>0,undefined,{timeout:10000});
+
+      await p.evaluate(()=>{App.cache.delete('feed:home');localStorage.removeItem('fit.c:feed:home');void go('/activity');});
+      await p.waitForSelector('#page[data-paint-gate]',{timeout:5000});
+      const routeAt=await p.evaluate(()=>{const t=performance.now();void go('/food');return t;});
+      await p.waitForFunction(start=>location.pathname==='/food'&&document.querySelector('#page')&&!document.querySelector('#page').hasAttribute('data-paint-gate')&&document.querySelector('#page').getBoundingClientRect().height>0&&performance.now()-start<=200,routeAt,{timeout:200});
+
+      await p.evaluate(()=>{App.cache.delete('feed:home');localStorage.removeItem('fit.c:feed:home');window.__normalHomeFeed=homeFeed;homeFeed=()=>new Promise((_,reject)=>setTimeout(()=>reject(Object.assign(Error('Fictional late feed failure'),{status:503})),1650));void go('/activity');});
+      await p.waitForSelector('#page[data-paint-gate]',{timeout:5000});
+      await p.waitForTimeout(1510);
+      const revealed=await p.evaluate(()=>({gate:document.querySelector('#page')?.hasAttribute('data-paint-gate'),busy:document.querySelector('#page')?.hasAttribute('aria-busy'),error:!!document.querySelector('#page .load-error')}));
+      assert.deepEqual(revealed,{gate:false,busy:false,error:false},'the cap reveals the real Home while its failed read is still pending');
+      await p.waitForSelector('#page .load-error',{timeout:1000});
+      assert.match(await p.locator('#page .load-error').innerText(),/Couldn’t load|Couldn't load/,'an API rejection after the reveal cap still reaches the error screen');
+      await p.evaluate(()=>{homeFeed=window.__normalHomeFeed;});
+     }
     }
     assert.equal(await p.evaluate(id=>App.me?.id===id,auth.id),true,'Intended fictional fixture account remains signed in');
     assert.deepEqual(pageErrors,[],`${scene.name} has no browser errors`);
