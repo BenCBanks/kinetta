@@ -2040,7 +2040,7 @@ function garminNote(g){
 }
 function garminCard(box,C,valid){
   const g=C.garmin_connect;if(!box)return;
-  if(!(C.garmin_connect_available||g)){box.innerHTML='<section class="inset-section"><h2 class="inset-caption">Garmin Connect</h2><div class="inset-group"><p class="inset-empty">Not available yet.</p></div></section>';return;}
+  if(!(C.garmin_connect_available||g)){box.innerHTML='<section class="inset-section"><h2 class="inset-caption">Garmin Connect</h2><div class="inset-group"><p class="inset-empty">Garmin Connect isn’t available for this account.</p><a class="connection-action" href="/track/import">Import files</a></div></section>';return;}
   box.innerHTML=`<section class="inset-section"><h2 class="inset-caption">Garmin Connect</h2><div class="inset-group">
     <div class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg('run')}</span><span class="inset-label has-detail"><span>${g?'<b>Connected.</b> '+garminNote(g):'New Garmin activities arrive after your watch syncs.'}</span><small>${g?'For older history, '+(Native.on?'import past workouts from the Health app':'use the Health app or import a Strava export in your browser')+'.':'New workouts arrive with maps and heart rate.'}</small></span>${g?'':'<button type="button" class="connection-action" id="gc-on">Connect</button>'}</div>
     ${g?`<label class="inset-row switch-row connection-kit"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit read my Garmin activities</span><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}></label>

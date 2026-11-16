@@ -15,6 +15,14 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    await p.goto(base+'/me');await until(p,()=>App.pageReady);
+   const exerciseFixture={mine:Array.from({length:9},(_,i)=>({id:998800+i,name:`Fictional exercise ${i+1}`,sessions:2,last:'2026-10-30',kind:'weight',best_kg:20+i,best_reps:8}))};
+   await c.route(url=>{const u=new URL(url.url());return u.origin===base&&u.pathname==='/api/lifts/exercises';},r=>r.fulfill({json:exerciseFixture}));
+   await c.route(url=>{const u=new URL(url.url());return u.origin===base&&u.pathname==='/api/lifts/sessions'&&u.searchParams.get('limit')==='5';},r=>r.fulfill({json:[]}));
+   await p.goto(base+'/progress?view=lifting');await p.locator('#lv-q').waitFor();
+   await p.locator('#lv-q').fill('Fictional name with no match');assert(await p.locator('#lv-search-empty').isVisible(),'a no-match exercise search explains the blank result');
+   const clearSearch=p.locator('#lv-search-clear');assert.equal(await clearSearch.innerText(),'Clear search');assert((await clearSearch.boundingBox()).height>=44,'clear-search action is at least 44px');
+   if(shots&&size.width===390){require('node:fs').mkdirSync(shots,{recursive:true});await p.screenshot({path:require('node:path').join(shots,`lift-exercise-search-empty-${theme}.png`),fullPage:true,animations:'disabled'});}
+   await clearSearch.click();assert.equal(await p.locator('#lv-ex .row-link:visible').count(),9,'clearing search restores all exercise rows');
    // The logger now lives in the guarded lift-routes bundle; load it through a real deferred route before
    // exercising its controls directly below. The eager Me/Track summary seam has already been checked above.
    await p.goto(base+'/lift/ex/999905');await until(p,()=>App.pageReady);

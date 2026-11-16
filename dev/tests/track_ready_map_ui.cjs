@@ -50,5 +50,12 @@ for(const size of [{width:390,height:844},{width:330,height:667}])for(const them
  assert.equal(new URL(p.url()).pathname,'/track','closing stays on Track');
  assert.equal(await p.locator('#track-start').evaluate(n=>!n.closest('[inert]')),true,'page usable again');
  const ov=await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);assert(!ov,'no overflow');
- assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);console.log(`Track ready map ${size.width}x${size.height} ${theme} PASS`);await c.close();}
+ assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);console.log(`Track ready map ${size.width}x${size.height} ${theme} PASS`);await c.close();
+ const browserContext=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true});
+ await browserContext.route('**/api/connections**',r=>r.fulfill({json:{garmin_connect_available:false}}));
+ const connectionsPage=await browserContext.newPage();await connectionsPage.goto(base+'/track/connections');await until(connectionsPage,()=>document.querySelector('.connections-page')?.innerText.includes('Garmin Connect isn’t available for this account'),'Garmin unavailable state');
+ assert.equal(await connectionsPage.getByRole('link',{name:'Import files'}).getAttribute('href'),'/track/import','unavailable Garmin state offers the existing file-import route');
+ assert((await connectionsPage.getByRole('link',{name:'Import files'}).boundingBox()).height>=44,'file-import recovery target is at least 44px');
+ if(out&&size.width===390)await connectionsPage.screenshot({path:`${out}/track-garmin-unavailable-${theme}.png`,fullPage:true,animations:'disabled'});
+ await browserContext.close();}
 await b.close();})().catch(e=>{console.error(e);process.exit(1);});
