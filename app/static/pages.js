@@ -1344,6 +1344,18 @@ function pHead(el, view, filters) {
   progressBack(el); progressVisit(view); wireProgressFocus(el);
   $('#recap-entry',el).onclick=()=>Recaps.open('this_month');
   progressFilters(el, $('#p-body',el), filters, {selector:view === 'heatmap' ? '.heatmap-tools' : '.card'});
+  if (['fitness','records','lifting'].includes(view)) {
+    const heading=$('.top',el),body=$('#p-body',el),nav=document.createElement('nav');
+    heading.classList.add('progress-subpage-heading');
+    nav.className='progress-subpage-tabs';
+    nav.innerHTML=ProgressUI.underlineTabs(PVIEWS.map(([key,title])=>[key,title]),view,{label:'Progress section',attribute:'progress-section'});
+    body.before(nav);
+    nav.addEventListener('click',event=>{
+      const button=event.target.closest('[data-progress-section]');if(!button)return;
+      const q=new URLSearchParams(location.search);q.set('view',button.dataset.progressSection);q.delete('section');
+      go('/progress?'+q.toString());
+    });
+  }
 }
 const PEXPLORE = [
   ['weight','Weight','Weight history','scale','c-blue'],
