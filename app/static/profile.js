@@ -943,7 +943,6 @@ const MeCard=(()=>{
     const content=data?profileView(data,{viewer,period,preview}).html:skel(1);
     return `<section class="me-card me-card-${period}" data-profile-card-period="${period}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id me-card-id-link">${identity}${friends}</div>
-        ${preview&&period==='week'?'<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>View as friend</button></div>':''}
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="${data?'false':'true'}">${content}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
@@ -1064,6 +1063,7 @@ const MeCard=(()=>{
     }).join('')}</div></div>`:'';
     return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div></div>
       <dl class="me-card-numbers me-numbers-3"><div data-week-stat="distance"><dd><b class="me-metric-value" data-type="stat" data-week-value="distance">${esc(values.distance)}</b></dd><dt data-type="secondary">Distance</dt></div><div data-week-stat="activities"><dd><b class="me-metric-value" data-type="stat" data-week-value="activities">${esc(values.activities)}</b></dd><dt data-type="secondary">Workouts</dt></div><div data-week-stat="time"><dd><b class="me-metric-value" data-type="stat" data-week-value="time">${esc(values.time)}</b></dd><dt data-type="secondary">Time</dt></div></dl>
+      ${preview?'<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>View as friend</button></div>':''}
       ${chart}</div><div class="me-featured-slot" data-me-featured></div>`;
   }
   function sections(r,layout,full){

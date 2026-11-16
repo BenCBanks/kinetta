@@ -831,6 +831,7 @@
 .me-showcase-streak svg { color:var(--color-achievement); }
 .me-showcase-streak { font-size:14px; font-weight:500; }
 .me-card-preview-row { margin:0 0 -4px; border-bottom:1px solid var(--line); }
+.me-card-weekly .me-card-preview-row { margin-bottom:8px; border-bottom:0; }
 .me-card-preview-action { font-weight:500; }
 .me-card-weekly .me-card-bars { width:100%; max-width:none; height:calc(64px + 1.2em + 6px); padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; overflow:visible; }
 .me-card-weekly .me-week { min-height:calc(64px + 1.2em + 6px); border-radius:0; }
