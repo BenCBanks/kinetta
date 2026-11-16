@@ -448,7 +448,7 @@ function refreshMe(me) {
 }
 
 // ---------- offline: kept screens + a send queue for food and weight (2026-10-10) ----------
-const KEEP = [/^\/api\/recaps\?/,/^\/api\/friends$/,/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/plans\/current$/,
+const KEEP = [/^\/api\/recaps\?/,/^\/api\/friends$/,/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/activity-food$/, /^\/api\/progress\/overview$/, /^\/api\/plans\/current$/,
   /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=(?:1|3)$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
   /^\/api\/progress\/volume\?period=week$/, /^feed:home$/, /^\/api\/feed\/friends\?limit=3$/];   // 2026-10-16: Activity and Progress open from the saved copy too; 2026-10-18: all of Me
 const store = {
@@ -459,7 +459,7 @@ const store = {
 const serverKey = () => Native.base || location.origin;
 function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, server: serverKey(), data}); }
 function kept(path) { const v = store.get('fit.c:' + path); return v && (v.server === serverKey() || (!v.server && !Native.on)) && (!App.me || v.who === App.me.login) ? v.data : null; }
-function forgetKept() { try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
+function forgetKept() { App.cache?.clear();try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
 
 // Fold a generated note without redrawing the page, map or inputs. Remember only its fingerprint on this device.
 function coachKey(key) { return 'fit.coach.hidden:' + JSON.stringify([Native.base || location.origin, App.me.id, key]); }

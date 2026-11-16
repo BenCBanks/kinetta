@@ -20,12 +20,16 @@ assert(wanted.length>0&&wanted.every(name=>allScreens.includes(name)),'Loading a
 const themes=process.env.KINETTA_LOADING_THEMES?process.env.KINETTA_LOADING_THEMES.split(','):['light','dark'];
 assert(themes.length>0&&themes.every(theme=>['light','dark'].includes(theme)),'Loading audit theme selection is valid');
 const frames=[0,100,250,500,1000];
+const width=Number(process.env.KINETTA_LOADING_WIDTH||390);
+assert(Number.isInteger(width)&&width>=320&&width<=500,'Loading audit viewport width is supported');
 const safe=name=>name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
 
 async function state(page){
  return page.evaluate(()=>({
   readyState:document.readyState,
   height:document.documentElement.scrollHeight,
+  viewportWidth:innerWidth,
+  documentWidth:document.documentElement.scrollWidth,
   title:document.title,
   heading:document.querySelector('h1')?.textContent?.trim()||'',
   text:document.body?.innerText?.slice(0,240)||'',
@@ -34,7 +38,10 @@ async function state(page){
   elapsed:Math.round(performance.now()-(window.__loadingAuditStart||performance.timeOrigin)),
   cls:window.__loadingAudit?.cls||0,
   shifts:window.__loadingAudit?.shifts||[],
-  feedTools:document.querySelector('#feed-tools')?{busy:document.querySelector('#feed-tools').getAttribute('aria-busy'),posts:document.querySelectorAll('#ff-list .post').length}:null
+  feedTools:document.querySelector('#feed-tools')?{busy:document.querySelector('#feed-tools').getAttribute('aria-busy'),posts:document.querySelectorAll('#ff-list .post').length}:null,
+  calmPaint:window.__loadingAudit?.paint||null,
+  postPaintCls:window.__loadingAudit?.postPaintCls||0,
+  postPaintSectionMutations:window.__loadingAudit?.postPaintSectionMutations||0
  }));
 }
 
@@ -53,25 +60,30 @@ async function captureFrame(page,file){
 async function coldFixturePage(browser,base,scene,sessions,theme){
  const auth=sessions.get(scene.login+(scene.native?':native':''));
  assert(auth&& (scene.login==='alex'||scene.login.startsWith('zz_test_')),'Fictional fixture session exists');
- const size={width:390,height:844,root:16},context=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:'UTC'}),writes=[],pageErrors=[],failed=[];
+ const size={width,height:844,root:16},context=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:'UTC'}),writes=[],pageErrors=[],failed=[];
  try{
   const liftData=scene.lift?await(await context.request.get(base+'/api/activities/'+scene.lift+'/lifts')).json():null;
   await context.addInitScript(initialize,{root:size.root,native:!!scene.native,base,token:auth.token,id:auth.id,lift:scene.lift,liftData});
   if(scene.dismissWeeklyRecap)await seedWeeklyRecapDismissal(context,{id:auth.id,tz:auth.tz},base,screenshotClock);
-  await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url());
+  await context.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());
    if(url.origin!==base)return route.abort();
    if(url.pathname==='/api/challenges/signup/continue')return route.fulfill({json:{}});
    if(request.method()==='POST'&&url.pathname==='/api/milestones/celebrate')return route.fulfill({json:{items:[],pending:false}});
    if(!['GET','HEAD'].includes(request.method())){writes.push(url.pathname);return route.abort();}
    if(url.pathname==='/api/map-config')return route.fulfill({json:{kind:'raster',url:base+'/__loading_tiles/{z}/{x}/{y}.png',max_zoom:17,attribution:'Demo tiles'}});
    if(url.pathname.startsWith('/__loading_tiles/'))return route.fulfill({contentType:'image/png',body:tile});
+   if(request.method()==='GET'&&url.pathname.startsWith('/api/')){
+    const delay=150+[...url.pathname].reduce((sum,char)=>(sum+char.charCodeAt(0))%251,0);
+    await new Promise(resolve=>setTimeout(resolve,delay));
+   }
    return route.continue();
   });
   const page=await context.newPage();page.on('pageerror',error=>pageErrors.push(error.message));page.on('requestfailed',request=>{const pathname=new URL(request.url()).pathname,error=request.failure()?.errorText||'failed';if(!(pathname.startsWith('/__loading_tiles/')&&error==='net::ERR_ABORTED'))failed.push(`${request.method()} ${pathname}: ${error}`);});
   await page.clock.setFixedTime(screenshotClock);
   await page.addInitScript(()=>{
-   window.__loadingAuditStart=performance.now();window.__loadingAudit={cls:0,shifts:[]};
-   try{new PerformanceObserver(list=>{for(const entry of list.getEntries())if(!entry.hadRecentInput){window.__loadingAudit.cls+=entry.value;window.__loadingAudit.shifts.push({at:Math.round(entry.startTime),value:entry.value,sources:(entry.sources||[]).slice(0,4).map(source=>({tag:source.node?.tagName||'',id:source.node?.id||'',className:String(source.node?.className||'').slice(0,80)}))});}}).observe({type:'layout-shift',buffered:true});}catch{}
+   window.__loadingAuditStart=performance.now();window.__loadingAudit={cls:0,shifts:[],postPaintCls:0,postPaintSectionMutations:0};
+   document.addEventListener('kinetta:screen-painted',event=>{const root=event.target,sections=event.detail.screen==='progress'?'#p-combined-week,#p-home-totals,#p-explore':'#weekly-recap,#feed-tools,#ff-list,#activity-groups-strip';window.__loadingAudit.paint={screen:event.detail.screen,waitedMs:event.detail.waitedMs};window.__loadingAudit.postPaintAt=performance.now();const observer=new MutationObserver(records=>{for(const record of records)if(record.type==='childList'){const target=record.target.nodeType===1?record.target:record.target.parentElement;if(target===root||target?.closest(sections))window.__loadingAudit.postPaintSectionMutations++;}});observer.observe(root,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),1800);});
+   try{new PerformanceObserver(list=>{for(const entry of list.getEntries())if(!entry.hadRecentInput){window.__loadingAudit.cls+=entry.value;if(window.__loadingAudit.postPaintAt&&entry.startTime>window.__loadingAudit.postPaintAt)window.__loadingAudit.postPaintCls+=entry.value;window.__loadingAudit.shifts.push({at:Math.round(entry.startTime),value:entry.value,sources:(entry.sources||[]).slice(0,4).map(source=>({tag:source.node?.tagName||'',id:source.node?.id||'',className:String(source.node?.className||'').slice(0,80)}))});}}).observe({type:'layout-shift',buffered:true});}catch{}
   });
   return {context,page,auth,writes,pageErrors,failed};
  }catch(error){await context.close();throw error;}
@@ -102,13 +114,30 @@ async function main(){
     const filmstrip=[];
     for(const target of frames){
      const remaining=target-(Date.now()-begin);if(remaining>0)await p.waitForTimeout(remaining);
-     const file=path.join(output,`${safe(scene.name)}-${theme}-${target}ms.png`);
+     const file=path.join(output,`${safe(scene.name)}-${width}-${theme}-${target}ms.png`);
      await captureFrame(p,file);
      filmstrip.push({target_ms:target,actual_ms:Date.now()-begin,...await state(p),file});
     }
     const firstUseful=scene.name==='Home'?'#ff-list .post':scene.ready;
     await p.waitForFunction(selector=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector(selector)?.getClientRects().length&&!document.querySelector('#app .boot'),firstUseful,{timeout:30000});
     const ready=await state(p);
+    assert(ready.documentWidth<=ready.viewportWidth,`${scene.name} has no horizontal viewport overflow: ${ready.documentWidth} > ${ready.viewportWidth}`);
+    if(['Home','Progress'].includes(scene.name)){
+     await p.waitForFunction(screen=>window.__loadingAudit?.paint?.screen===screen,scene.name==='Home'?'home':'progress',{timeout:5000});
+     await p.waitForTimeout(1900);
+     const calm=await state(p);
+     assert(calm.calmPaint&&calm.calmPaint.waitedMs<=1500,`${scene.name} paints once after its first reads or the 1.5s cap: ${JSON.stringify(calm.calmPaint)}`);
+     assert(calm.postPaintCls<=0.02,`${scene.name} has no visible post-paint layout shift: ${calm.postPaintCls}`);
+     assert.equal(calm.postPaintSectionMutations,0,`${scene.name} has no screen section inserted after first paint`);
+     await captureFrame(p,path.join(output,`${safe(scene.name)}-${width}-${theme}-painted.png`));
+     const home=scene.name==='Home',other=home?'/progress':'/activity',back=home?'/activity':'/progress',readySelector=home?'#ff-list':'#p-explore';
+     await p.evaluate(path=>go(path),other);
+     await p.waitForFunction(()=>typeof App!=='undefined'&&App.pageReady,{timeout:15000});
+     await p.evaluate(path=>go(path),back);
+     await p.waitForFunction(selector=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector(selector),readySelector,{timeout:15000});
+     const revisit=await p.evaluate(()=>({placeholder:!!document.querySelector('.paint-gate-placeholder'),busy:document.querySelector('#page')?.hasAttribute('aria-busy'),feedRows:document.querySelectorAll('#ff-list .post').length}));
+     assert(!revisit.placeholder&&!revisit.busy,`${scene.name} revisits paint its account-scoped cached screen immediately: ${JSON.stringify(revisit)}`);
+    }
     assert.equal(await p.evaluate(id=>App.me?.id===id,auth.id),true,'Intended fictional fixture account remains signed in');
     assert.deepEqual(pageErrors,[],`${scene.name} has no browser errors`);
     assert.deepEqual(failed,[],`${scene.name} has no failed requests`);
@@ -122,7 +151,7 @@ async function main(){
    finally{await opened?.context.close();}
   }
  }finally{await browser.close();}
- const report={diagnostic_only:true,fictional:true,viewport:'390x844',themes:['light','dark'],network:'150ms latency, 400kbps down, 200kbps up; cache disabled',frames_ms:frames,results,errors};
+ const report={diagnostic_only:true,fictional:true,viewport:`${width}x844`,themes:['light','dark'],network:'150ms RTT plus deterministic 150–400ms delay per API request; cache disabled',frames_ms:frames,results,errors};
  fs.writeFileSync(reportPath,JSON.stringify(report,null,2));
  console.log(`Loading audit: ${results.length}/${wanted.length*themes.length} screen/theme cases, ${errors.length} errors; ${reportPath}`);
  if(errors.length||results.length!==wanted.length*themes.length)process.exitCode=1;
