@@ -299,13 +299,21 @@ function mileageChart(box, series, period = 'days', {shared=false,progress=false
 
 // A shared private reader keeps Me and both Progress halves consistent.
 function combinedWeekHtml(w) {
-  const stats=[];
-  if(w.workouts)stats.push(stat('Workouts',w.workouts));
-  if(w.distance_m>0)stats.push(stat('Distance',U.dist(w.distance_m),U.du()));
-  if(w.seconds>0)stats.push(stat('Time',U.time(w.seconds)));
-  const food=w.days_logged?`${w.days_logged} of 7 days with food logged.`:'Your food consistency will appear as you log meals.';
-  const protein=w.days_logged&&w.protein_target?`${w.protein_days_reached?`${w.protein_days_reached} ${w.protein_days_reached===1?'day':'days'} reached`:'No logged days reached'} your current ${r0(w.protein_target)} g protein target.${w.protein_days_unknown?` ${w.protein_days_unknown} logged ${w.protein_days_unknown===1?'day has':'days have'} unknown protein.`:''}`:'';
-  return `<details class="combined-week chev-row"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
+  const startDate=new Date(`${w.start}T12:00:00Z`),endDate=new Date(`${w.end}T12:00:00Z`),periodOptions={month:'short',day:'numeric',timeZone:'UTC'};
+  if(startDate.getUTCFullYear()!==endDate.getUTCFullYear())periodOptions.year='numeric';
+  const period=`${startDate.toLocaleDateString([],periodOptions)} – ${endDate.toLocaleDateString([],periodOptions)}`;
+  const distance=w.distance_m>0?U.dist(w.distance_m):'–',distanceUnit=w.distance_m>0?U.du():'';
+  const duration=w.seconds>0?U.time(w.seconds):'–';
+  const stats=ProgressUI.statRow([
+    {label:'Workouts',value:w.workouts||0},
+    {label:'Distance',value:distance,unit:distanceUnit},
+    {label:'Time',value:duration},
+  ]);
+  const proteinKnown=Number(w.protein_days_reached)||0,unknown=Number(w.protein_days_unknown)||0;
+  const proteinFact=w.protein_target
+    ? `<b>${proteinKnown} of 7 days</b> hit your ${r0(w.protein_target)} g protein goal${unknown?` <span class="combined-week-unknown">(${unknown} unknown)</span>`:''}`
+    : `<b>Protein goal not set</b> · <span class="combined-week-unknown">Set a goal to track this.</span>`;
+  return `<details class="combined-week card"><summary><span class="combined-week-heading"><strong>Your week in review</strong><small>${esc(period)}</small></span><span class="combined-week-toggle"><span class="combined-week-show">Show</span><span class="combined-week-hide">Hide</span>${svg('down')}</span></summary><div class="combined-week-content">${stats}<div class="combined-week-facts"><p class="combined-week-fact">${svg('food')}<span><b>${Number(w.days_logged)||0} of 7 days</b> with food logged</span></p><p class="combined-week-fact">${svg('activity')}<span>${proteinFact}</span></p></div><div class="combined-week-links"><a class="row-link" href="${w.days_logged?'/food?view=overview&from=progress':'/food/describe'}"><span>Food review</span>${svg('chev')}</a><a class="row-link" href="${profileHref(App.me)}"><span>Your workouts</span>${svg('chev')}</a></div></div></details>`;
 }
 function combinedWeek(box) {
   if(!box)return;const owner=readOwner();
