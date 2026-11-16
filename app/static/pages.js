@@ -1359,7 +1359,9 @@ function foodProgress(el,q) {
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE.filter(progressItemEnabled)].find(m => m[0] === view);
   el.innerHTML = `<div class="top progress-heading"><h1>${esc(({routes:'Routes',trends:'Years'})[view]||v?.[1]||'Progress')}</h1><div class="acts"><button type="button" class="icon-btn" id="recap-entry" aria-label="Share a progress picture">${svg('share')}</button></div></div><div id="p-body">${skelChart()}</div>`;
+  if (view === 'fitness') $('.top',el)?.classList.add('progress-no-kit-entry');
   progressBack(el); progressVisit(view); wireProgressFocus(el);
+  if (view === 'fitness') $('.progress-back',el)?.insertAdjacentHTML('beforeend','<span class="back-label">Progress</span>');
   $('#recap-entry',el).onclick=()=>Recaps.open('this_month');
   progressFilters(el, $('#p-body',el), filters, {selector:view === 'heatmap' ? '.heatmap-tools' : '.card'});
   if (['fitness','records','lifting'].includes(view)) {
