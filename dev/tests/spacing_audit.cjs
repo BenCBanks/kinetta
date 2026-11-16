@@ -37,14 +37,15 @@ async function waitForRouteStyles(p){
     // Reuse the guarded context's live collectors throughout traversal.
     const writes=opened.writes,pageErrors=opened.pageErrors;
     if(scene.todayPlan){
-     const row=p.locator('#t-today [data-today-activity]'),title=row.locator('.me-today-copy > b');
-     assert.equal(await row.count(),1,'The deterministic Me Today fixture renders its planned activity row');
+     const row=p.locator('#t-today [data-today-plan]'),title=row.locator('.me-today-title'),value=row.locator('.me-today-value');
+     assert.equal(await row.count(),1,'The deterministic Me Today fixture renders its planned workout row');
      assert.equal(await p.locator('#t-today').getAttribute('data-loaded-day'),fixtures.me_today.today,'The Me Today fixture and its page clock use the same day');
-     assert.equal(await title.count(),1,'The planned activity row has a visible title');
-     assert.equal(await row.locator('.me-today-copy > small').innerText(),'On your plan','The activity row is from the active plan');
-     assert.equal(await row.getAttribute('href'),'/plan','Tapping the planned activity opens the plan');
+     assert.equal(await title.count(),1,'The planned workout row has one visible title');
+     assert.equal(await title.innerText(),'Easy run','The row names the active plan workout');
+     assert.equal(await value.innerText(),'4 mi','The row shows the planned workout amount once');
+     assert.equal(await row.getAttribute('href'),'/plan','Tapping the planned workout opens the plan');
      const font=await title.evaluate(n=>parseFloat(getComputedStyle(n).fontSize));
-     assert(font>=size.root*15/16-.02&&font<=size.root+.02,`Today workout action text follows the body scale (${font}px at ${size.root}px root)`);
+     assert(font>=size.root*15/16-.02&&font<=size.root+.02,`Today workout title follows the body scale (${font}px at ${size.root}px root)`);
     }
     const measurements=[],seen=new Set(),allTexts=new Map(),exposure=new Map();
     const measure=async()=>{
