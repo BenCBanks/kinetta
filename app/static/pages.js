@@ -963,8 +963,7 @@ function editActivity(a) {
   // times as 1:34:50 like everywhere else in the app; heart rate, energy and climb as whole numbers (2026-10-16)
   const isTime=(key)=>key.endsWith('_s');
   const correctionFields=summaryFields.map(([key,label,unit,scale])=>{const value=a[key]==null?'':isTime(key)?dur(a[key]):key==='distance_m'?String(Math.round(a[key]/scale*100)/100):String(Math.round(a[key]/scale));initial[key]=value;return `<label>${label} (${unit})<input name="summary_${key}" inputmode="${isTime(key)?'text':'decimal'}" value="${value}" placeholder="Not recorded" aria-label="${label} in ${isTime(key)?'hours, minutes and seconds':unit}"></label>${Object.hasOwn(a.summary_overrides||{},key)?`<label class="check"><input type="checkbox" name="restore_${key}"> Use recorded ${label.toLowerCase()}</label>`:''}`}).join('');
-  // Redesigned 30 Oct 2026 (Ben): Cancel · Save stay pinned at the top; the most-used choices come first, the rarer
-  // details are grouped, and Delete sits alone at the bottom, away from Save.
+  // Edit activity, #1111 PR1: compact rows keep the common edits first. Photos are added in PR2.
   let dirty = false, closeEdit = null, asking = false;
   // Closing with unsaved edits asks first in the shared confirm sheet; the editor stays open until Discard.
   const canClose = () => {
@@ -974,17 +973,27 @@ function editActivity(a) {
     if (!asking) { asking = true; confirmSheet('Discard your changes?', {body: 'Your edits to this activity won’t be saved.', action: 'Discard', cancel: 'Keep editing'}).then((ok) => { asking = false; if (ok && closeEdit) { closeEdit(); if (after) after(); } }); }
     return false;
   };
-  sheet('Edit activity', `<form class="form" id="e-form">
-    <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
-    <label>What did you do?<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
-    <div id="e-share" class="e-share"><p class="small muted">Loading sharing…</p></div>
-    ${optionalText('description', 'Description', 'Add a description', a.description)}
-    ${optionalText('private_note', 'Private note (only you)', 'Add a private note', a.private_note)}
-    <h3 class="ghead e-details-head">Details</h3>
-    <details id="e-summary" class="fold-row"><summary><span class="ri c-brand">${svg('edit')}</span><span class="grow"><b>Distance, time & heart rate</b><small>Fix numbers your watch got wrong</small></span><span class="chev">${svg('chev')}</span></summary><div class="form e-fields"><p class="small muted">Your edits stay when the Health app syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
-    <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
-    <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
-    <button type="button" class="e-delete" id="e-del">Delete activity</button></form>`, async (body, close) => {
+  sheet('Edit activity', `<form class="form activity-edit-form" id="e-form">
+    <div id="e-primary" class="activity-edit-primary">
+      <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
+      <label>Sport<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
+      <div id="e-description" class="activity-edit-section">${optionalText('description', 'Description', 'Add description', a.description)}</div>
+      <button type="button" class="activity-edit-row" id="e-visibility-open"><span>Visibility</span><span class="activity-edit-row-value" id="e-visibility-value">Loading…</span>${svg('chev')}</button>
+      <details id="e-more" class="activity-edit-more"><summary><span>More details</span><span class="chev">${svg('chev')}</span></summary>
+        <div class="activity-edit-more-body">
+          <details id="e-summary" class="activity-edit-summary"><summary>Edit distance, time and heart rate<span class="chev">${svg('chev')}</span></summary><div class="form e-fields">${correctionFields}</div></details>
+          <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
+          <div id="e-private-note">${optionalText('private_note', 'Private note (only you)', 'Add private note', a.private_note)}</div>
+          <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
+          <button type="button" class="e-delete" id="e-del">Delete activity</button>
+        </div>
+      </details>
+    </div>
+    <section id="e-visibility-view" class="activity-edit-visibility" hidden aria-label="Visibility">
+      <button type="button" id="e-visibility-back" class="activity-edit-back">${svg('back')}<span>Back</span></button>
+      <div id="e-share-fields" class="e-share"></div>
+    </section>
+  </form>`, async (body, close) => {
     closeEdit = close;
     body.closest('.sheet').classList.add('activity-editor');
     const f = $('#e-form', body), btn = body.closest('.sheet').querySelector('button[form="e-form"]');
@@ -995,8 +1004,17 @@ function editActivity(a) {
     wireOptionalText(f);
     let saveShare = null;   // sharing (2026-10-12): moved here from the activity page
     (a._social ? Promise.resolve(a._social) : api(`/api/activities/${a.id}/social`))
-      .then((s) => { if (f.isConnected) saveShare = shareFields($('#e-share', body), a.id, s); })
-      .catch(() => { $('#e-share', body).innerHTML = '<p class="small muted">Sharing could not load. Try again later.</p>'; });
+      .then((s) => { if (f.isConnected) {
+        const shareBox=$('#e-share-fields', body);saveShare = shareFields(shareBox, a.id, s); $('#e-visibility-value', body).textContent = VIS_SHORT[s.visibility] || 'Only me';
+        $('.vis3',shareBox)?.classList.add('activity-edit-audience');
+        $('.ghead',shareBox)?.replaceChildren(document.createTextNode('Visibility'));
+        const checks=()=>$$('[data-vis]',shareBox).forEach(button=>{if(!$('.activity-vis-check',button))button.insertAdjacentHTML('beforeend',`<span class="activity-vis-check" aria-hidden="true">${svg('check')}</span>`);});
+        checks();shareBox.addEventListener('click',e=>{if(e.target.closest('[data-vis]'))queueMicrotask(checks);});
+      } })
+      .catch(() => { $('#e-visibility-value', body).textContent = 'Unavailable'; $('#e-share-fields', body).innerHTML = '<p class="small muted" role="alert">Sharing could not load. Try again later.</p>'; });
+    const primary = $('#e-primary', body), visibility = $('#e-visibility-view', body), openVisibility = $('#e-visibility-open', body), backVisibility = $('#e-visibility-back', body);
+    openVisibility.onclick = () => { primary.hidden = true; visibility.hidden = false; backVisibility.focus(); };
+    backVisibility.onclick = () => { visibility.hidden = true; primary.hidden = false; openVisibility.focus(); };
     api('/api/gear').then((gear) => { f.gear.insertAdjacentHTML('beforeend', gear.filter((g) => !g.retired || g.id === a.gear_id).map((g) => `<option value="${g.id}"${g.id === a.gear_id ? ' selected' : ''}>${esc(g.name)}</option>`).join('')); }).catch(() => {});
     f.onsubmit = async (e) => {
       e.preventDefault();
