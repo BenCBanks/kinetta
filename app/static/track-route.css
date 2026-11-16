@@ -91,6 +91,11 @@
 .track-recording-settings .switch-row small { font-size:max(13px,.85rem); }
 
 #track-gps-chip { font-size:max(13px,.8125rem); }
+#track-content .track-ready-map-wrap:not(.full) :is(.track-location-action,.track-location-status) { left:10px; top:10px; max-width:calc(100% - 128px); min-height:44px; white-space:nowrap; }
+#track-content .track-location-action { display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--line); color:var(--accent); background:var(--card); box-shadow:none; pointer-events:auto; cursor:pointer; font:600 14px/1.2 var(--font-ui); }
+#track-content .track-location-action[hidden],#track-content .track-location-status[hidden] { display:none; }
+#track-content .track-location-status { pointer-events:none; }
+.track-ready-map-wrap.full .track-location-action,.track-ready-map-wrap.full .track-location-status { top:calc(env(safe-area-inset-top) + 10px); left:calc(env(safe-area-inset-left) + 10px); max-width:calc(100% - 128px); }
 .track-plan > .me-chip { font-size:max(15px,.9375rem); }
 
 /* A short ready map keeps both tools above the required source credits. */
