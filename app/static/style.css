@@ -1548,6 +1548,20 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .health-page .inset-group,.activity-import .inset-group { margin:0; }
 .connections-page .inset-empty,.activity-import .inset-empty { margin:0; padding:14px 16px; color:var(--tx3); font-size:15px; }
 .connections-page .connection-action { display:inline-flex; flex:none; align-items:center; justify-content:center; min-width:54px; min-height:44px; padding:0 4px; border:0; border-radius:0; background:transparent; color:var(--accent); font:500 15px/1.2 var(--font); text-decoration:none; white-space:normal; }
+.connections-page .connection-status-row { min-height:56px; padding-inline:16px; }
+.connections-page #c-gc .connection-status-row,.connections-page #c-list > .connection-status-row:not(:first-child),.connections-page #c-list > a.connection-status-row { border-top:1px solid var(--line); }
+.connections-page .connection-status-row .inset-label { min-width:0; }
+.connections-page .connection-status-row .inset-label > span { font-size:16px; font-weight:500; }
+.connections-page .connection-status-row .inset-label small { display:block; color:var(--tx3); font-size:13px; line-height:1.35; }
+.connections-page .connection-value-link { flex:none; min-height:44px; color:var(--accent); font-size:15px; font-weight:500; text-decoration:none; }
+.connections-page .connection-row-button { box-sizing:border-box; width:100%; border:0; border-radius:0; background:transparent; color:inherit; text-align:left; font:inherit; cursor:pointer; }
+.connections-page .connection-row-button:active { background:color-mix(in srgb,var(--tx) 5%,transparent); }
+.connections-page .connection-details { padding:0 16px 8px; border-top:1px solid var(--line); }
+.connections-page .connection-detail-row { display:flex; justify-content:space-between; gap:16px; min-height:40px; align-items:center; border-bottom:1px solid var(--line); color:var(--tx2); font-size:14px; }
+.connections-page .connection-detail-row > span:last-child { color:var(--tx); text-align:right; }
+.connections-page .connection-detail-note { margin:10px 0; color:var(--tx2); font-size:13px; line-height:1.4; }
+.connections-page .connection-details .connection-kit,.connections-page .connection-details .connection-disconnect { margin-inline:-16px; }
+.connections-page .connection-error { color:var(--alert) !important; }
 .connections-page .connection-kit { min-height:48px; margin:0; padding:0 16px; }
 .connections-page .connection-disconnect { min-height:48px; justify-content:flex-start; padding:0 16px; }
 .connections-page .connection-item { min-width:0; }
