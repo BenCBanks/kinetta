@@ -1,5 +1,5 @@
 """Real owner-bound shared food review; all data fictional, no provider/device calls."""
-import copy,datetime as dt,json,unittest,uuid
+import copy,datetime as dt,json,os,unittest,uuid
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -7,8 +7,9 @@ from fastapi.testclient import TestClient
 from app import auth,db,food_thread as T
 from app.main import app
 
-# A fixed fictional diary day keeps this API fixture independent of CI's calendar.
-FIXTURE_TODAY=dt.date(2026,11,9)
+# One module-scoped instant keeps every fictional diary date consistent across UTC boundaries.
+FIXTURE_INSTANT=(dt.datetime.fromisoformat(os.environ['KINETTA_TEST_NOW']) if os.environ.get('KINETTA_TEST_NOW') else dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+FIXTURE_TODAY=FIXTURE_INSTANT.astimezone(ZoneInfo(db.DEFAULT_TZ)).date()
 
 class Review(unittest.TestCase):
  def setUp(self):
@@ -185,10 +186,10 @@ class Review(unittest.TestCase):
   m,body=self.stage();self.post('/api/food/thread/reviews/items',{**body,'draft_id':str(uuid.uuid4())},status=409)
   self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':str(uuid.uuid4()),'messages':[m['id']]},status=409)
   r=self.prepare([m])
-  with db.connect() as c:c.execute("UPDATE food_chat_messages SET result=jsonb_set(result,'{expires}',to_jsonb(%s::text)) WHERE user_id=%s AND reply_to=%s",((dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=2)).isoformat(),self.ids[0],r['id']))
+  with db.connect() as c:c.execute("UPDATE food_chat_messages SET result=jsonb_set(result,'{expires}',to_jsonb(%s::text)) WHERE user_id=%s AND reply_to=%s",((FIXTURE_INSTANT-dt.timedelta(days=2)).isoformat(),self.ids[0],r['id']))
   self.post(f"/api/food/thread/reviews/{r['id']}/confirm",{'confirm':True,'meal':'dinner'},status=409);self.assertEqual(self.rows('food_entries'),[])
  def test_copied_meals_wait_for_final_review_with_either_old_preference(self):
-  fixture_now=dt.datetime.now(dt.timezone.utc)
+  fixture_now=FIXTURE_INSTANT
   with db.connect() as c:fixture_tz=c.execute('SELECT tz FROM profile WHERE user_id=%s',(self.ids[0],)).fetchone()['tz']
   fixture_today=fixture_now.astimezone(ZoneInfo(fixture_tz)).date()
   yesterday=fixture_today-dt.timedelta(days=1)
@@ -256,7 +257,7 @@ class Review(unittest.TestCase):
   parsed=food_thread_weight.parse(Conn(),self.ids[0],'Oatmeal with a coffee, weighed 152.4 this morning.',FIXTURE_TODAY)
   self.assertEqual(parsed['food'],'Oatmeal with a coffee');self.assertEqual(parsed['unit'],'kg')
   self.food('Fictional oat bar',180)
-  captured_at=dt.datetime.combine(FIXTURE_TODAY,dt.time(12),dt.timezone.utc)
+  captured_at=FIXTURE_INSTANT
   m,_=self.send('1 Fictional oat bar for breakfast, weighed 152.4 this morning.',captured_at=captured_at)
   result=next(x['result'] for x in self.a.get('/api/food/thread/reviews/draft/'+self.draft).json()['messages'] if x.get('reply_to')==m['id'])
   self.assertEqual(result['weight']['unit'],'lb');self.assertEqual(len(result['parts']),1)
