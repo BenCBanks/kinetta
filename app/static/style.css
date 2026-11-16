@@ -2027,15 +2027,6 @@ button.thread-food:active { opacity: .7; }
 .plan-legend span { display:inline-flex; align-items:center; gap:5px; }
 .plan-legend span::before { content:''; width:8px; height:8px; border-radius:2px; background:var(--workout-color); }
 
-/* Social reads update inside one steady sheet; the composer is mounted before the request. */
-.social-sheet { display:flex; flex-direction:column; }
-.social-sheet .comments { height:clamp(160px,34dvh,300px); overflow-y:auto; overscroll-behavior:contain; }
-.social-sheet .social-reactions { height:44px; display:flex; align-items:center; flex:none; }
-.social-sheet .c-form { margin-top:auto; padding-top:12px; }
-.social-sheet .social-read-status:empty { display:none; }
-.social-people { min-height:180px; }
-.social-read-status { overflow-wrap:anywhere; }
-
 .activity-reactions[aria-busy="true"] .reaction-more { opacity:1; }
 
 #pi-go svg { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }

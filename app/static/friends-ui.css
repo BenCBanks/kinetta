@@ -1,3 +1,12 @@
+/* Social reads update inside one steady sheet; the composer is mounted before the request. */
+.social-sheet { display:flex; flex-direction:column; }
+.social-sheet .comments { height:clamp(160px,34dvh,300px); overflow-y:auto; overscroll-behavior:contain; }
+.social-sheet .social-reactions { height:44px; display:flex; align-items:center; flex:none; }
+.social-sheet .c-form { margin-top:auto; padding-top:12px; }
+.social-sheet .social-read-status:empty { display:none; }
+.social-people { min-height:180px; }
+.social-read-status { overflow-wrap:anywhere; }
+
 /* One compact Find friends screen; every entry point uses the same 44px actions. */
 .friends-page > .top { gap:8px; }
 .friends-page > .top h1 { flex:1;min-width:0;margin:0; }
