@@ -53,8 +53,11 @@ while True:
   # A new account's historical baseline is intentionally silent. This UI case
   # needs a visible offer, so make that state explicit after the worker has
   # created the fictional milestone instead of relying on account freshness.
+  # This fixture exercises the detail UI, not the real seven-day offer window.
+  # Keep the fictional offer itself recent even when the pinned screenshot run
+  # crosses that wall-clock boundary; the activity date remains fixture-pinned.
   visible=subprocess.run(['docker','exec',project+'-db-1','psql','-U','postgres','-d','fit','-q','-tA','-c',
-   f"UPDATE milestones SET silent=false,seen_at=NULL WHERE user_id={uid} AND activity_id={ids['run']} AND code='first:run:10000' AND valid RETURNING title"],
+   f"UPDATE milestones SET silent=false,seen_at=NULL,occurred=now(),day=(now() AT TIME ZONE 'UTC')::date WHERE user_id={uid} AND activity_id={ids['run']} AND code='first:run:10000' AND valid RETURNING title"],
    text=True,capture_output=True)
   assert visible.returncode==0 and visible.stdout.strip()=='First 10K', 'fictional run fixture must create its First 10K milestone'
   milestones=ok(owner.get(f'/api/milestones?activity_id={ids["run"]}'))
