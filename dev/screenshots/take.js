@@ -494,7 +494,7 @@ async function closeCaptureContext(context) {
       }, opt.to);
       await page.waitForTimeout(700);
       await loadedMaps(page, {advanceMapFade: ['activity', 'activity-splits', 'feed', 'route'].includes(name)});
-      if(opt.tab){const heading=page.locator(`#activity-pane-${opt.tab} h2`).first();await heading.waitFor({state:'visible'});await heading.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));}
+      if(opt.tab){const content=page.locator(`#activity-pane-${opt.tab} .activity-splits-scroll tbody tr`).first();await content.waitFor({state:'visible'});await content.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));}
       await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
