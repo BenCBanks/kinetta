@@ -5,7 +5,9 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
 assert([330,390].includes(viewportWidth),'Friends UI width is 330px or 390px');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
- const fixture=cp.execFileSync('python3',[path.join(__dirname,'friends_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(fixture.trim());const browser=await chromium.launch(),contexts=[];
+ const inviteOnly=process.env.KINETTA_FRIEND_CASE==='invite';
+ if(!inviteOnly){const fixture=cp.execFileSync('python3',[path.join(__dirname,'friends_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(fixture.trim());}
+ const browser=await chromium.launch(),contexts=[];
  async function open(state,theme,size={width:viewportWidth,height:844},initialPath='/me/friends?find=1'){
   const c=await browser.newContext({viewport:size,colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_'+state,password:pw}})).status(),200);
@@ -148,6 +150,35 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.equal(stale.qrRequests.length,1,'the old invite QR request completes after owner change');assert.equal(await stale.p.evaluate(()=>window.__pendingInviteQrBox?.querySelector('svg')||null),null,'old-owner invite does not render after its deferred load');
    assert.equal(await stale.p.locator('#iv-qr-code svg').count(),0,'new owner has no stale invite QR');assert.deepEqual(stale.errors,[]);await close(stale.c);
    console.log('Find friends QR: action-only load, deduplication and late old-owner guard PASS');
+  }
+  if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='invite'){
+   async function openInvite(theme,width){
+    const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
+    assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
+    await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
+    const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));return{c,p,errors};
+   }
+   for(const theme of ['light','dark'])for(const width of [390,330]){
+    const {c,p,errors}=await openInvite(theme,width);let accepted=0;
+    await p.route('**/api/friend-links/invite-ui-test',route=>{
+     if(route.request().method()==='POST'){accepted++;return route.fulfill({json:{status:'friends',name:'Fictional Sender',login:'zz_test_fc_sender',new:true}});}
+     return route.fulfill({json:{name:'@river'}});
+    });
+    await p.goto(base+'/add/invite-ui-test');await p.locator('#af-yes').waitFor();
+    assert.equal(await p.locator('.friend-invite-screen h1').innerText(),'River');assert.equal(await p.locator('.friend-invite-handle').innerText(),'@river');
+    assert.equal(await p.locator('.friend-invite-screen .av').evaluate(el=>{const r=el.getBoundingClientRect();return[r.width,r.height]}).then(box=>box.join(',')),'72,72');
+    assert.equal(await p.locator('.friend-invite-caption').innerText(),'You’ll see each other’s shared workouts.');assert.equal(await p.locator('#af-yes').innerText(),'Add friend');assert.equal(await p.locator('.friend-invite-later').innerText(),'Not now');
+    assert(await p.locator('#af-yes').evaluate((el,min)=>{const r=el.getBoundingClientRect();return r.width>=min&&r.height>=44;},width-90),'Add friend is a full-width touch target');assert(await p.locator('.friend-invite-later').evaluate(el=>{const r=el.getBoundingClientRect();return r.width>=44&&r.height>=44&&getComputedStyle(el).fontSize==='15px'&&getComputedStyle(el).fontWeight==='600'&&getComputedStyle(el).color===getComputedStyle(document.body).color;}),'Not now is 15px/600 primary text with a 44px target');
+    assert.equal(await p.locator('#af-yes').evaluate(el=>getComputedStyle(el).backgroundColor),theme==='light'?'rgb(37, 99, 235)':'rgb(47, 100, 216)','invite action uses the solid, contrast-safe action token in both themes');
+    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),`Friend invite fits ${width}px (${theme})`);await capture(p,`friend-invite-${width}-${theme}`);await p.locator('#af-yes').click();await p.waitForURL('**/people/zz_test_fc_sender');assert.equal(accepted,1,'Add friend accepts the existing invite exactly once');assert.deepEqual(errors,[]);await close(c);
+   }
+   for(const theme of ['light','dark'])for(const width of [390,330]){
+    const {c,p,errors}=await openInvite(theme,width);
+    await p.route('**/api/friend-links/invite-expired',route=>route.fulfill({status:404,json:{detail:'This invite link has expired or was replaced. Ask for a new one.'}}));
+    await p.goto(base+'/add/invite-expired');await p.locator('.friend-invite-unavailable').waitFor();const text=await p.locator('.friend-invite-unavailable').innerText();
+    assert.equal(text.replace(/\n+/g,'\n'),'This invite isn’t available\nGo home','invalid link has one generic line and a home action');assert(!text.includes('expired')&&!text.includes('replaced'),'invalid state does not reveal token status');await capture(p,`friend-invite-invalid-${width}-${theme}`);assert.deepEqual(errors,[]);await close(c);
+   }
+   console.log('Friend invite 390/330 light/dark: accept, unavailable and 44px actions PASS');
   }
  }finally{for(const c of contexts)await c.close();await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
