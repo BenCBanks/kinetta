@@ -1,5 +1,50 @@
 [
   {
+    "id": "lift-set-value-type",
+    "selector": ".compact-lift .lift-row > input.lift-in",
+    "metric": "font-max",
+    "kind": "approved-type",
+    "exact": 20,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1022",
+    "reason": "The approved #1022 Lift design uses 20px/600 weight and rep values for in-place editing; clipping and every other type limit remain audited."
+  },
+  {
+    "id": "lift-note-type",
+    "selector": ".compact-lift .lift-note",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1022",
+    "reason": "The approved #1022 Lift design sets the exercise note at 13px beneath its name; clipping and all other text remain audited."
+  },
+  {
+    "id": "lift-session-clock-type",
+    "selector": ".compact-lift .lift-header-clock #lf-time",
+    "metric": "font-max",
+    "kind": "approved-type",
+    "exact": 17,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1022",
+    "reason": "The approved #1022 live Lift header uses a centered 17px elapsed clock; all other text and clipping remain audited."
+  },
+  {
+    "id": "lift-exercise-name-type",
+    "selector": ".compact-lift .lift-name",
+    "metric": "font-max",
+    "kind": "approved-type",
+    "exact": 17,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1022",
+    "reason": "The approved #1022 Lift card names are 17px/600; notes, row values, clipping and other type limits remain audited."
+  },
+  {
+    "id": "lift-set-row-hit-area-gap",
+    "selector": ".compact-lift .lift-row > :is(button,input)",
+    "metric": "gap",
+    "kind": "approved-type",
+    "maximum": 4,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1022",
+    "reason": "Approved #1022 sets are 48px high with full 44px input/button hit areas, leaving at most 4px between adjacent rows; columns within each row keep 8px gaps."
+  },
+  {
     "id": "new-feature-dot-label",
     "selector": ".progress-tile .progress-new[aria-label=\"New feature\"]",
     "metric": "font-min",

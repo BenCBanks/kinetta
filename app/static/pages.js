@@ -1047,16 +1047,12 @@ function sharePicture(id, known, origin=null) {
       const details=social?.details||{},savedTrim=Number(social?.trim_m)||400,mapAllowed=details.map!==false;
       const line=mapAllowed?activity.line:null,hasLine=!!(line&&decode(line).length>1),controls=hasLine?[{key:'hideEnds',label:'Hide where it starts and ends',checked:true}]:[];
       const safe={...activity,line,avg_hr:details.heart_rate?activity.avg_hr:null,calories:details.calories?activity.calories:null};
-      const trimValue=state=>state.hideEnds?savedTrim:0,date=fdate(activity.start_time,{weekday:'short',month:'short',day:'numeric',year:'numeric'}),name=(activity.name||'activity').replace(/[^\w -]+/g,'').trim()||'activity';
-      const items=[{label:'Activity card',filename:`${name}.png`,controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
-      if(hasLine)items.push({label:'Route map',filename:`${name}-route.png`,controls,build:state=>{const trim=trimValue(state),routePoints=trimRoute(decode(line),trim);return ShareArt.simplePicture({kicker:'Route map',title:activity.name,date,value:'Route',routePoints,routeTrimmed:trim>0});}});
-      const rateInfo=rate(activity),statsFacts=[`Elapsed time: ${activityElapsedText(activity)}`];
-      if(details.pace&&rateInfo.label!=='Time')statsFacts.push(`${rateInfo.label}: ${rateInfo.v} ${rateInfo.u}`);
-      if(details.heart_rate&&activity.avg_hr)statsFacts.push(`Average heart rate: ${Math.round(activity.avg_hr)} bpm`);
-      if(details.elevation&&activity.ascent_m)statsFacts.push(`Climb: ${App.me?.units==='metric'?Math.round(activity.ascent_m)+' m':Math.round(activity.ascent_m*3.28084)+' ft'}`);
-      if(details.calories&&activity.calories)statsFacts.push(`Calories: ${Math.round(activity.calories)} kcal`);
-      items.push({label:'Stats',filename:`${name}-stats.png`,build:()=>ShareArt.simplePicture({kicker:SPORT_NAMES[activity.sport]||'Activity',title:activity.name,date,value:activity.distance_m?U.dist(activity.distance_m):activityElapsedText(activity),unit:activity.distance_m?U.du():'elapsed time',facts:statsFacts})});
-      await loadShareArt();if(!live())return;ShareSheet.open({items});
+      const trimValue=state=>state.hideEnds?savedTrim:0;
+      const items=[{label:'Card',filename:'kinetta-activity.png',controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
+      const rateInfo=rate(activity),pace=details.pace&&rateInfo.label!=='Time'?`${rateInfo.v} ${rateInfo.u}`:'';
+      if(hasLine)items.push({label:'Route',filename:'kinetta-route.png',controls,initial:{ink:'blue'},inkChoices:['blue','dark','light'],build:state=>ShareArt.routeSilhouette({routePoints:trimRoute(decode(line),trimValue(state)),pace,totalTime:activityElapsedText(activity),ink:state.ink})});
+      items.push({label:'Stats',filename:'kinetta-stats.png',initial:{ink:'blue'},inkChoices:['blue','dark','light'],build:state=>ShareArt.statsPicture({distance:activity.distance_m?`${U.dist(activity.distance_m)} ${U.du()}`:'',pace,totalTime:activityElapsedText(activity),ink:state.ink})});
+      await loadShareArt();if(!live())return;ShareSheet.open({items,title:'Share activity',mode:'tabs'});
    }catch(error){if(live())toast(error.message||'Couldn’t load this activity. Tap Share to try again.');}
    finally{activityShareOpening.delete(context);}
   })();
@@ -1080,7 +1076,7 @@ function mercator(la, lo) {     // 0..1 across the world map
   const s = Math.sin(la * Math.PI / 180);
   return [(lo + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)];
 }
-async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon -> canvas x/y. box.top/under: kept clear of the route
+async function mapPlace(g, pts, box, {hideLabels=false}={}) {      // draws the tiles; returns lat/lon -> canvas x/y. box.top/under: kept clear of the route
   const m = pts.map(([la, lo]) => mercator(la, lo));
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const [x, y] of m) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
@@ -1089,7 +1085,7 @@ async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon 
   const cx = (x0 + x1) / 2 * n, cy = (y0 + y1) / 2 * n, mx = box.x + box.w / 2, my = box.y + (box.top || 0) + (box.h - box.under - (box.top || 0)) / 2;
   const tx0 = Math.floor((cx + (box.x - mx) / k) / TILE), tx1 = Math.floor((cx + (box.x + box.w - mx) / k) / TILE);
   const ty0 = Math.max(0, Math.floor((cy + (box.y - my) / k) / TILE)), ty1 = Math.min(2 ** z - 1, Math.floor((cy + (box.y + box.h - my) / k) / TILE));
-  const count=await MapTiles.paint(g,pts,box,{z,k,n,cx,cy,mx,my,tx0,tx1,ty0,ty1,zf});
+  const count=await MapTiles.paint(g,pts,box,{z,k,n,cx,cy,mx,my,tx0,tx1,ty0,ty1,zf},{hideLabels});
   return {tiles: count, P: ([la, lo]) => { const [x, y] = mercator(la, lo); return [(x * n - cx) * k + mx, (y * n - cy) * k + my]; }};
 }
 // The share picture uses the light Sky Blue tokens in either app appearance; routes are blue, like the map.
@@ -1112,31 +1108,21 @@ async function routePicture(a, trim, details={}) {
   const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
   try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
-  const hue = PIC.route, M = 48, PAD = 44, SAFE_TOP = 40, SAFE_BOTTOM = M;
-  // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
+  const hue = PIC.route, M = 48, PAD = 56, SAFE_TOP = 40, SAFE_BOTTOM = M;
+  // The approved Card includes only activity type, elapsed time, permitted pace and distance.
   const r = rate(a), cells = [];
   cells.push(['Elapsed time', activityElapsedText(a), '']);
   if (details.pace!==false&&a.distance_m && r.label!=='Time') cells.push([r.label, r.v, r.u]);
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
-  if (cells.length < 3 && details.heart_rate && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
-  if (cells.length < 3 && details.calories && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
-  // the title on one line, shortened with … when it doesn't fit beside the brand
-  g.font = `700 46px ${ui}`;
-  const room = W - 2 * M - 2 * PAD - 200, lines = [''], maxLines = 1;
-  for (const w of (a.name || '').split(/\s+/)) {
-    const t = (lines[lines.length - 1] + ' ' + w).trim();
-    if (g.measureText(t).width <= room || !lines[lines.length - 1]) { lines[lines.length - 1] = t; continue; }
-    if (lines.length === maxLines) { let l = lines[lines.length - 1]; while (l && g.measureText(l + '…').width > room) l = l.slice(0, -1); lines[lines.length - 1] = l.trimEnd() + '…'; break; }
-    lines.push(w);
-  }
-  const CH = PAD + lines.length * 54 + 34 + 30 + 26 + 72 + PAD - 8, CY = H - SAFE_BOTTOM - CH, CX = M, CW = W - 2 * M;
+  // The 56px bottom inset matches the wordmark's top inset after the larger stat row is drawn.
+  const CH = 2 * PAD + 215, CY = H - SAFE_BOTTOM - CH, CX = M, CW = W - 2 * M;
   g.fillStyle = PIC.bg; g.fillRect(0, 0, W, H);
   const pts = a.line ? trimRoute(decode(a.line), trim) : [];
   let tiles = 0;
   if (pts.length > 1) {
     // the map fills the picture, a little muted so the blue route is what you see first
     g.filter = 'grayscale(.45) brightness(1.03) contrast(.95)';
-    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: H, pad: 96, top: SAFE_TOP, under: H - CY - 24});
+    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: H, pad: 96, top: SAFE_TOP, under: H - CY - 24},{hideLabels:true});
     g.filter = 'none'; tiles = n;
     if (tiles) { g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(0, 0, W, H); }
     g.lineJoin = g.lineCap = 'round';
@@ -1165,30 +1151,24 @@ async function routePicture(a, trim, details={}) {
   const behind = document.createElement('canvas'); behind.width = W; behind.height = H; behind.getContext('2d').drawImage(c, 0, 0);
   g.save(); card(); g.clip(); g.filter = 'blur(18px) saturate(1.2)'; g.drawImage(behind, 0, 0); g.filter = 'none';
   g.fillStyle = tiles ? 'rgba(255,255,255,.58)' : 'rgba(255,255,255,.8)'; g.fillRect(CX, CY, CW, CH); g.restore();
-  card(); g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.75)'; g.stroke();
+  card(); g.lineWidth = 2; g.strokeStyle = 'rgba(21,25,29,.18)'; g.stroke();
   g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   let y = CY + PAD + 40;
-  g.font = `700 46px ${ui}`; g.fillStyle = PIC.text;
-  lines.forEach((l, i) => g.fillText(l, CX + PAD, y + i * 54));
   // the brand, top right of the card
   g.font = `600 30px ${serif}`; const bw = g.measureText('Kinetta').width;
   g.fillStyle = PIC.text; g.fillText('Kinetta', CX + CW - PAD - bw, CY + PAD + 30);
   drawMark(g, CX + CW - PAD - bw - 28, CY + PAD + 20, 38, PIC.brand);
-  y += (lines.length - 1) * 54 + 40;
-  const kind = (a.sport_label || SPORT_NAMES[a.sport] || 'Activity').toUpperCase();
+  const kind = (SPORT_NAMES[a.sport] || 'Activity').toUpperCase();
   g.font = `700 24px ${ui}`; g.fillStyle = hue; g.fillText(kind, CX + PAD, y);
-  const kw = g.measureText(kind).width;
-  g.font = `500 24px ${ui}`; g.fillStyle = PIC.muted;
-  g.fillText(`  ·  ${fdate(a.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'})}`, CX + PAD + kw, y);
   y += 30; g.strokeStyle = PIC.line; g.lineWidth = 2; g.beginPath(); g.moveTo(CX + PAD, y); g.lineTo(CX + CW - PAD, y); g.stroke();
-  y += 50; const cw = (CW - 2 * PAD) / cells.length;
+  y += 50; const innerW = CW - 2 * PAD, cws = cells.length === 3 ? [innerW * .4, innerW * .35, innerW * .25] : cells.map(() => innerW / cells.length);
   cells.forEach(([lab, v, u], i) => {
-    const x = CX + PAD + i * cw;
-    g.font = `600 22px ${ui}`; g.fillStyle = PIC.muted; g.fillText(lab.toUpperCase(), x, y);
-    let size = cells.length === 3 ? 64 : 76; g.font = `800 ${size}px ${ui}`;
+    const x = CX + PAD + cws.slice(0, i).reduce((sum, width) => sum + width, 0), cw = cws[i];
+    g.font = `600 48px ${ui}`; g.fillStyle = PIC.muted; g.fillText(lab, x, y);
+    let size = cells.length === 3 ? 72 : 80; g.font = `800 ${size}px ${ui}`;
     const fit = cw - 20 - (u ? 56 : 0); while (size > 40 && g.measureText(v).width > fit) { size -= 4; g.font = `800 ${size}px ${ui}`; }
     g.fillStyle = PIC.text; g.fillText(v, x, y + 14 + size);
-    if (u) { const vw = g.measureText(v).width; g.font = `600 24px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, y + 14 + size); }
+    if (u) { const vw = g.measureText(v).width; g.font = `600 42px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, y + 14 + size); }
   });
   return new Promise((res) => c.toBlob(b=>{if(b&&typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);res(b);}, 'image/png'));
 }
@@ -1298,6 +1278,16 @@ function progressFilters(el, body, html, {selector='.card'}={}) {
   };
   const observer = new MutationObserver(mount); observer.observe(body, {childList:true,subtree:true});
   viewResources.set(body, () => observer.disconnect()); mount();
+}
+function progressMileageError(body, q) {
+  body.innerHTML = '<div class="card empty mileage-error" role="alert"><p class="small muted">Distance totals couldn’t load.</p><button type="button" class="linkbtn" data-mileage-retry>Retry</button></div>';
+  const retry = $('[data-mileage-retry]', body);
+  retry.onclick = async () => {
+    if (retry.disabled) return;
+    retry.disabled = true; retry.textContent = 'Loading…';
+    try { await pMileage(body, q, {home:true}); }
+    catch { if (body.isConnected) progressMileageError(body, q); }
+  };
 }
 function progressPeriods(period) {
   return '<div class="me-period mileage-toggle" role="group" aria-label="Totals period">'+PPERIODS.map(([k,n])=>`<button type="button" data-progress-period="${k}" aria-pressed="${period===k}">${n}</button>`).join('')+'</div>';
@@ -1420,7 +1410,7 @@ async function progressHome(el, q) {
     if(recordValue)$('[data-progress-record]',el).textContent=recordValue;
   };
   await Promise.allSettled([
-    pMileage(totals,q,{home:true}).catch(()=>{if(valid())totals.innerHTML='<div class="card empty">Distance by week, month and year →</div>';}),
+    pMileage(totals,q,{home:true}).catch(()=>{if(valid())progressMileageError(totals,q);}),
     load('/api/progress/overview',o=>{
       if(!valid())return;recordValue=o.record?`${o.record.label} · ${dur(o.record.elapsed_s)}`:null;refreshProgressTiles(o,true);
     }).catch(()=>{if(valid())refreshProgressTiles(null,true);}),
@@ -1873,6 +1863,115 @@ function passwordSheet() {
 route(/^\/me\/people$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Admin tools</h1><p>${App.me.is_admin?'Manage this Kinetta in the separate browser portal. Your personal settings stay here in Me.':'These tools are for the person who runs this Kinetta.'}</p>${App.me.is_admin?`<a class="primary wide" href="${esc((Native.base||location.origin)+'/admin')}" target="_blank" rel="noopener">Open admin tools</a>`:''}`;
   wireBack(el,'/me');
+});
+route(/^\/track$/, 'track', async (el) => {
+  Track.sync();
+  el.classList.add('track-home-page');
+  el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts">${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div></div><div id="track-content"></div>`;
+  await Track.restoreReview();
+  if (TrackNative.supported) { try { await Track.pullNative(); } catch (error) { toast(error.message); } }
+
+  const content=$('#track-content',el),context=Track.__routeContext(),choices=context.recordingChoices();
+  const recentKey=()=>context.key?context.key+':recent':null;
+  const readRecent=()=>{try{const value=store.get(recentKey());return Array.isArray(value)?value.filter(index=>Number.isInteger(index)&&index>=0&&index<choices.length):[];}catch(_){return[];}};
+  let defaultChoices=null;
+  const decorate=()=>{
+    if(!el.isConnected)return;
+    const row=$('.track-quick',content),buttons=row?$$('[data-quick]',row):[];
+    if(row&&buttons.length){
+      const selected=+(buttons.find(button=>button.getAttribute('aria-pressed')==='true')?.dataset.quick??store.get(context.key+':choice')??0);
+      defaultChoices ||= buttons.slice(0,3).map(button=>+button.dataset.quick);
+      const defaults=defaultChoices,saved=readRecent(),ordered=[...new Set([...saved,selected,...defaults])].slice(0,3);
+      ordered.forEach(index=>{
+        if(buttons.some(button=>+button.dataset.quick===index)||!choices[index])return;
+        const button=buttons[0].cloneNode(false);button.dataset.quick=String(index);delete button.dataset.trackHomeDecorated;
+        button.addEventListener('click',()=>{const moreButton=$('#track-other',content);moreButton?.click();$(`.track-sport-picker [data-pk="${index}"]`)?.click();});
+        row.append(button);
+      });
+      const allButtons=$$('[data-quick]',row);
+      allButtons.forEach(button=>{
+        const index=+button.dataset.quick,choice=choices[index];if(!choice)return;
+        button.hidden=false;button.classList.toggle('track-home-hidden',!ordered.includes(index));button.dataset.sport=choice.lift?'workout':choice.sport;
+        button.setAttribute('aria-label',choice.label);
+        if(button.dataset.trackHomeDecorated!=='1'){
+          const icon=document.createElement('span');icon.className='track-sport-icon';icon.innerHTML=svg(choice.lift?'workout':choice.sport);
+          const label=document.createElement('span');label.className='track-sport-label';label.textContent=choice.lift?'Lift':choice.label==='Treadmill run'?'Treadmill':choice.label;
+          button.replaceChildren(icon,label);button.dataset.trackHomeDecorated='1';
+        }
+      });
+      const visibleOrder=allButtons.filter(button=>!button.classList.contains('track-home-hidden')).map(button=>+button.dataset.quick);
+      if(visibleOrder.some((index,position)=>ordered[position]!==index)||visibleOrder.length!==ordered.length)ordered.forEach(index=>{const button=allButtons.find(item=>+item.dataset.quick===index);if(button)row.append(button);});
+      const more=$('#track-other',content),selectedVisible=ordered.includes(selected);
+      if(more){more.setAttribute('aria-pressed',String(!selectedVisible));more.setAttribute('aria-label',selectedVisible?'More activities':'More activities, selected '+(choices[selected]?.label||''));if(selectedVisible&&more.querySelector('span')?.textContent!=='More')more.innerHTML=`<span>More</span>${svg('down')}`;}
+      if(allButtons.length<3)allButtons.forEach(button=>button.classList.remove('track-home-hidden'));
+    }
+    const start=$('#track-start',content);if(start){start.classList.remove('round-btn','start');start.classList.add('primary','wide','track-start-button');}
+    const plan=$('#track-plan',content),planLink=plan?.querySelector('a:first-child'),planLoad=plan?.querySelector('[data-plan-use]');
+    if(plan&&!plan.hidden&&planLink){
+      planLink.classList.add('track-plan-main');
+      const caption=planLink.querySelector('small'),title=planLink.querySelector('b');
+      if(caption&&caption.textContent!=="Today's plan")caption.textContent="Today's plan";
+      if(title)title.classList.add('track-plan-title');
+      if(planLoad){
+        planLoad.classList.add('track-plan-load');
+        if(plan.dataset.loaded==='true'){
+          if(!planLoad.disabled&&planLoad.textContent.trim()!=='Loading…'){
+            planLoad.setAttribute('aria-label','Plan loaded');
+            if(planLoad.dataset.trackPlanLoaded!=='true'){planLoad.innerHTML=`${svg('check')}<span>Loaded</span>`;planLoad.dataset.trackPlanLoaded='true';}
+          }
+        }else if(planLoad.dataset.trackPlanWatch!=='true'){
+          planLoad.setAttribute('aria-label',"Load today's plan");
+          if(planLoad.textContent.trim()==='Use')planLoad.textContent='Load';
+          planLoad.dataset.trackPlanWatch='true';
+          planLoad.addEventListener('click',()=>{
+            const settle=()=>{
+              if(!planLoad.isConnected)return;
+              if(planLoad.disabled||planLoad.textContent.trim()==='Loading…'){setTimeout(settle,40);return;}
+              if(!$('#track-ready-error',content)?.textContent.trim()&&globalThis.Intervals?.selected()){
+                plan.dataset.loaded='true';decorate();
+              }
+            };
+            setTimeout(settle,40);
+          });
+        }else{planLoad.setAttribute('aria-label',"Load today's plan");if(planLoad.textContent.trim()==='Use')planLoad.textContent='Load';}
+      }
+    }
+    if(start){
+      const label=start.getAttribute('aria-label')||'';
+      if(plan?.dataset.loaded==='true'&&/^Start (run|walk)$/i.test(label)){
+        const visible=label.replace(/^Start /i,'Start ');
+        const text=start.querySelector('span');if(text&&text.textContent!==visible)text.textContent=visible;
+      }else{
+        const text=start.querySelector('span');if(text&&/^Start (run|walk)$/i.test(text.textContent))text.textContent='Start';
+      }
+    }
+    $('#track-content .track-gps-note')?.remove();$('#track-tools-h',content)?.remove();
+    const interval=$('#interval-open',content);
+    if(interval&&interval.dataset.trackHomeControl!=='1'){interval.innerHTML=`${svg('clock')}<span>Intervals</span>${svg('chev')}`;interval.dataset.trackHomeControl='1';}
+    const audio=$('#track-options',content);
+    if(audio){if(audio.dataset.trackHomeControl!=='1'||audio.querySelector('span')?.textContent!=='Audio & auto-pause'){audio.innerHTML=`${svg('sound')}<span>Audio &amp; auto-pause</span>${svg('chev')}`;audio.dataset.trackHomeControl='1';}const current=audio.getAttribute('aria-label')||'',prefix='Audio & auto-pause',details=current.startsWith(prefix)?current.slice(prefix.length).replace(/^\.\s*/,''):current.split('. ').slice(1).join('. '),label=`${prefix}${details?`. ${details}`:''}`;if(current!==label)audio.setAttribute('aria-label',label);}
+    const explore=$('#track-explore',content),connection=explore?.querySelector('a[data-track-feature="connections"]');
+    if(connection){
+      explore.classList.add('track-connections');
+      connection.className='track-connection-row';connection.setAttribute('aria-label','Connections');
+      if(connection.dataset.trackHomeDecorated!=='1'){connection.innerHTML=`<span>${svg('watch')}<b>Connections</b></span>${svg('chev')}`;connection.dataset.trackHomeDecorated='1';}
+    }
+    const mapWrap=$('#track-ready-map-wrap',content),mapError=$('#track-ready-error',content);
+    mapWrap?.classList.toggle('track-map-failed',/^Map unavailable\b/.test(mapError?.textContent.trim()||''));
+  };
+  const remember=event=>{
+    const button=event.target.closest('[data-quick]');if(!button||!content.contains(button))return;
+    const index=+button.dataset.quick,key=recentKey();if(!key)return;
+    store.set(key,[index,...readRecent().filter(item=>item!==index)].slice(0,3));requestAnimationFrame(decorate);
+  };
+  const rememberMore=event=>{
+    const item=event.target.closest('.track-sport-picker [data-pk]');if(!item)return;
+    const index=+item.dataset.pk,key=recentKey();if(key&&Number.isInteger(index))store.set(key,[index,...readRecent().filter(value=>value!==index)].slice(0,3));
+  };
+  const observer=new MutationObserver(()=>{observer.disconnect();try{decorate();}finally{observer.observe(content,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-label']});}});observer.observe(content,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-label']});
+  el.addEventListener('click',remember,true);document.addEventListener('click',rememberMore,true);
+  viewResources.set(el,()=>{observer.disconnect();el.removeEventListener('click',remember,true);document.removeEventListener('click',rememberMore,true);});
+  Track.draw();decorate();
 });
 // admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
 route(/^\/me\/import$/, 'track', async () => go('/track/import', {replace:true}));

@@ -4,6 +4,7 @@
 const{chromium}=require('playwright'),assert=require('node:assert/strict');
 const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant);
 const base=process.env.KINETTA_URL||'http://localhost:8798';
+const shots=process.env.KINETTA_LIFT_SHOTS;
 async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error('Lifting UI did not settle');}
 (async()=>{
  const browser=await chromium.launch();
@@ -34,6 +35,19 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    assert.equal((await p.locator('.lift-history-name').count()),3,'workout history links each exercise to its history');
    assert.equal((await p.locator('.lift-history input,.lift-history button[data-set],.lift-history .lift-tick,.lift-history .lift-addset').count()),0,'saved workout history has no editing controls');
    assert.equal((await p.locator('.compact-lift-history [data-back]').innerText()).trim(),'Track','saved workout history has a labelled back');
+   const shot=async state=>{if(shots&&size.width<=390){const fs=require('node:fs'),path=require('node:path');fs.mkdirSync(shots,{recursive:true});await p.evaluate(()=>document.fonts.ready);await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await p.screenshot({path:path.join(shots,`lift-${state}-${size.width}-${theme}.png`),animations:'disabled'});}};
+   await p.evaluate(start=>liftLogger(document.querySelector('#page'),999906,{open:true,start_time:start,exercises:[]}),start);
+   assert(await p.locator('#lf-empty-add').isVisible());assert(await p.locator('#lf-add').isHidden());
+   assert.equal((await p.locator('.lift-back').innerText()).trim(),'Lift','active logger has a visible labelled back');
+   assert.notEqual(await p.locator('#lf-empty-add').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','Add exercise keeps its action fill');
+   assert.equal(await p.locator('#lf-empty-add').evaluate(e=>getComputedStyle(e).backgroundImage),'none','Add exercise has a flat fill, not a gradient');
+   assert.equal(await p.locator('#lf-empty-add').evaluate(e=>getComputedStyle(e).boxShadow),'none','Add exercise has no gradient elevation shadow');
+   await shot('empty');
+   const historyExercises=exercises.map(e=>({...e,sets:e.kind==='weight'?[{kg:60,reps:8,done:true}]:e.kind==='time'?[{secs:45,done:true}]:[{reps:12,done:true}]}));
+   await p.evaluate(({start,exercises})=>liftLogger(document.querySelector('#page'),999907,{open:false,start_time:start,exercises}),{start,exercises:historyExercises});
+   assert.equal(await p.locator('.lift-in').count(),0,'history has read-only values');assert.equal(await p.locator('.lift-tick,[data-set]').count(),0,'history has no checkboxes or set menus');assert(await p.locator('#lf-add').isHidden());
+   assert.equal((await p.locator('.lift-back').innerText()).trim(),'Progress','history has a visible labelled back');
+   await shot('history');
    let release,first=true;const writes=[];
    await c.route('**/api/activities/999901/lifts',async r=>{
     assert.equal(r.request().method(),'PUT');const body=r.request().postDataJSON();writes.push(body);
@@ -41,7 +55,13 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
     await r.fulfill({json:{open:!body.finish,start_time:start,exercises:body.exercises.map(e=>({...exercises.find(x=>x.exercise_id===e.exercise_id),...e,sets:e.sets.map(s=>({...s,pr:[]}))}))}});
    });
    await c.route('**/api/activities/999901',r=>r.fulfill({json:{id:999901,name:'Fictional lifting session',sport:'workout',sport_label:'Strength',elapsed_s:1234,moving_s:1234,start_time:start,visibility:'me',calories:120}}));
-   await p.evaluate(({start,exercises})=>{App.me.units='imperial';liftLogger(document.querySelector('#page'),999901,{open:true,start_time:start,exercises});},{start,exercises});
+   await p.evaluate(({start,exercises})=>{App.me.units='imperial';liftLogger(document.querySelector('#page'),999901,{open:true,start_time:start,lastTick:new Date(start).getTime()-62000,exercises});},{start,exercises});
+   assert(await p.locator('#lf-restbox').isVisible(),'rest appears beneath the running clock');assert(await p.locator('#lf-finish').isVisible());
+   assert.equal(await p.locator('.lift-row[data-row]').first().evaluate(n=>Math.round(n.getBoundingClientRect().height)),48,'set rows stay 48px');
+   assert.equal(await p.locator('.lift-tick').first().evaluate(n=>Math.round(n.getBoundingClientRect().width)),44,'check target remains 44px');
+   assert.equal(await p.locator('.lift-tick').first().evaluate(n=>Math.round(parseFloat(getComputedStyle(n,'::before').width))),28,'check mark is a 28px circle inside its target');
+   await shot('live');
+   if(process.env.KINETTA_LIFT_CAPTURE_ONLY==='1'){await c.close();continue;}
    const clipped=await p.locator('.lift-in').evaluateAll(es=>es.flatMap(e=>{const s=getComputedStyle(e),g=document.createElement('canvas').getContext('2d');g.font=s.font;const max=e.dataset.k==='kg'?'2204.6':e.dataset.k==='secs'?'86400':'1000',space=e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight),needed=g.measureText(max).width;return needed>space+1?[{field:e.dataset.k,space,needed}]:[];}));
    assert.deepEqual(clipped,[],'Supported numeric values must fit without hiding decimals');
    await p.locator('.lift-ex').first().locator('[data-tick="0"]').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saving…');

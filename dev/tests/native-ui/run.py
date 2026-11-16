@@ -8,10 +8,10 @@ from header_geometry import check_headers
 # 6.9-inch App Store story order: Home feed, Activity, Track, Nutrition day,
 # Kit food chat, Progress, Me (including featured badges), then Friends.
 STORE_STAGES=('header-activity','activity','header-track','header-food','food','header-progress','header-me','friends-typical')
-LAYOUT_STAGES=(('header-me',16),('header-activity',16),('header-track',16),('header-progress',16),('header-food',16),('achievement-share-track',16),('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16))
+LAYOUT_STAGES=(('header-me',16),('header-activity',16),('header-track',16),('header-progress',16),('header-food',16),('achievement-share-track',16),('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-photos-save',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16))
 def layout_stages(theme):
  # The bundled achievement share flow is covered once in light; both themes remain covered in browser UI.
- return [case for case in LAYOUT_STAGES if case[0]!='achievement-share-track' or theme=='light']
+ return [case for case in LAYOUT_STAGES if (case[0]!='achievement-share-track' or theme=='light') and (case[0]!='activity-photos-save' or theme=='light')]
 from startup_timing import phase_durations,summary_markdown
 p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 assert not (a.store and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'
@@ -96,8 +96,10 @@ for device in preferred:
     run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if a.store else []),*(['--startup-timing'] if measure_startup else []))
     if not installed:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
+    if stage=='activity-photos-save':sim('privacy',udid,'grant','photos-add','com.kinetta.app')
     container=Path(sim('get_app_container',udid,'com.kinetta.app','data'))
     process_launch_epoch_ms=time.time_ns()/1_000_000 if measure_startup else None
+    process_launch_monotonic_ns=time.monotonic_ns() if measure_startup else None
     sim('launch',udid,'com.kinetta.app')
     metrics=None
     for _ in range(250):
@@ -105,7 +107,7 @@ for device in preferred:
       candidate=json.loads((container/'tmp/kinetta-ui-metrics.json').read_text())
       if candidate.get('run')==token:metrics=candidate;break
      except (OSError,ValueError):pass
-     time.sleep(.2)
+     time.sleep(.01 if measure_startup else .2)
     filename=device['name'].replace(' ','-').replace('(','').replace(')','')+'-'+theme+'-'+stage+'-'+str(root)
     if not metrics:
      sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)
@@ -115,7 +117,9 @@ for device in preferred:
      timing=metrics.get('startupTiming')
      assert timing,'Cold-start fixture did not return phase timestamps'
      timing['processLaunchEpochMs']=process_launch_epoch_ms
-     timing['phasesMs']=phase_durations(timing,process_launch_epoch_ms)
+     runner_elapsed_ms=(time.monotonic_ns()-process_launch_monotonic_ns)/1_000_000
+     timing['runnerElapsedToMetricsMs']=runner_elapsed_ms
+     timing['phasesMs']=phase_durations(timing,process_launch_epoch_ms,runner_elapsed_ms)
      startup_rows.append({'device':device['name'],'phases':timing['phasesMs']})
      phases=timing['phasesMs']
      print('IOS_COLD_START '+device['name']+' '+ ' '.join(f'{key}={value:.1f}ms' for key,value in phases.items()),flush=True)
@@ -129,7 +133,9 @@ for device in preferred:
     assert metrics['mePreloadCount']==0,metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
-    assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty','achievements','achievement-share-track') or stage.startswith(('friends-','groups-','header-'))),metrics
+    assert nav['visible']==(stage in ('activity','activity-photos-save','activity-sticky','activity-empty','achievements','achievement-share-track') or stage.startswith(('friends-','groups-','header-'))),metrics
+    if stage=='activity-photos-save':
+     proof=metrics.get('photosSave',{});assert proof.get('saved') is True and 'photos' in proof.get('status','').lower(), 'Unsigned Simulator must save the fictional activity PNG to its Photos library: '+json.dumps(proof,sort_keys=True)
     if stage=='achievement-share-track':
      share=metrics.get('achievementShare',{});assert share.get('title')=='Share' and share.get('tabs')==[{'label':'Distance','selected':'true'},{'label':'Run','selected':'false'},{'label':'All sports','selected':'false'}],metrics
      assert share.get('preview',{}).get('loaded') and share.get('preview',{}).get('width',0)>0 and share.get('preview',{}).get('height',0)>0 and share.get('sendText')=='Share' and not share.get('sendDisabled'), 'Bundled app opens and renders the preselected Run Distance share picture: '+json.dumps(share,sort_keys=True)

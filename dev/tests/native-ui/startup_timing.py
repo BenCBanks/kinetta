@@ -10,32 +10,33 @@ PHASE_LABELS = (
 )
 
 
-def phase_durations(timing, process_launch_epoch_ms):
-    """Validate one monotonic JS timeline and return launch-to-screen phase ms."""
+def phase_durations(timing, process_launch_epoch_ms, runner_elapsed_ms):
+    """Validate JS phases; bridge launch and WebView clocks with runner monotonic time."""
     origin = float(timing['performanceTimeOriginEpochMs'])
     launch = float(process_launch_epoch_ms)
+    runner_elapsed = float(runner_elapsed_ms)
     marks = [
         float(timing['webViewReadyPerfMs']),
         float(timing['indexLoadedPerfMs']),
         float(timing['apiMeDonePerfMs']),
         float(timing['firstUsefulRenderPerfMs']),
     ]
-    values = [origin, launch, *marks]
+    snapshot = float(timing['metricsSnapshotPerfMs'])
+    values = [origin, launch, runner_elapsed, snapshot, *marks]
     if not all(math.isfinite(value) for value in values):
         raise ValueError('Startup timing contains a non-finite timestamp')
     if any(right < left for left, right in zip(marks, marks[1:])):
         raise ValueError('Startup phase marks are not monotonic')
-    epochs = [origin + mark for mark in marks]
-    launch_to_webview = epochs[0] - launch
+    launch_to_webview = runner_elapsed - (snapshot - marks[0])
     if launch_to_webview < 0 or launch_to_webview > 120_000:
-        raise ValueError('Simulator and runner clocks disagree on process launch time')
+        raise ValueError('Runner monotonic timeline disagrees with WebView startup marks')
     phases = {
         PHASE_LABELS[0][0]: launch_to_webview,
         PHASE_LABELS[1][0]: marks[1] - marks[0],
         PHASE_LABELS[2][0]: marks[2] - marks[1],
         PHASE_LABELS[3][0]: marks[3] - marks[2],
     }
-    phases['total_launch_to_first_useful_ms'] = epochs[3] - launch
+    phases['total_launch_to_first_useful_ms'] = launch_to_webview + sum(marks[i + 1] - marks[i] for i in range(len(marks) - 1))
     if any(value < 0 for value in phases.values()):
         raise ValueError('Startup phase duration is negative')
     return {key: round(value, 1) for key, value in phases.items()}

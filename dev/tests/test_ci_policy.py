@@ -116,6 +116,8 @@ class CIPolicyTests(unittest.TestCase):
             self.assertIn('ready_for_review',text);self.assertIn('synchronize',text);self.assertIn('converted_to_draft',text)
             self.assertIn('github.event.pull_request.draft == false',text)
         tests=(ROOT/'.github/workflows/tests.yml').read_text()
+        self.assertIn('group: tests-${{ github.ref }}',tests)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}",tests)
         self.assertIn('github.event.pull_request.draft == true',tests);self.assertIn('dev/tests/run.sh --quick',tests)
         self.assertNotIn('paths:',tests) # required full-suite workflow must run for every ready PR
         gate=tests.split('\n  tests:\n',1)[1].split('\n  spacing:\n',1)[0]
@@ -127,6 +129,11 @@ class CIPolicyTests(unittest.TestCase):
         self.assertIn('case "$QUICK_RESULT" in success|skipped)',gate)
         self.assertIn('case "$result" in success|skipped)',gate)
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        self.assertIn('group: ios-${{ github.ref }}-${{ (github.event_name == \'schedule\' || github.event_name == \'workflow_dispatch\') && \'release\' || \'check\' }}',ios)
+        self.assertIn('cancel-in-progress: ${{ github.event_name != \'schedule\' && github.event_name != \'workflow_dispatch\' }}',ios)
+        for name,next_name in (('build','native-ui'),('native-ui','store-ui'),('store-ui','testflight')):
+            job=ios.split(f'\n  {name}:\n',1)[1].split(f'\n  {next_name}:\n',1)[0]
+            self.assertIn('github.event.pull_request.draft == false',job)
         self.assertIn("native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}",ios)
         self.assertIn('python3 dev/ci/policy.py',ios)
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping
@@ -159,6 +166,21 @@ class CIPolicyTests(unittest.TestCase):
                       changes==build==native=='success' and
                       ((enabled=='true' and store=='success') or (enabled=='false' and store=='skipped')))
             self.assertEqual(actual,expected,(values,cancelled))
+
+    def test_simulator_runs_retry_once_and_only_pr_failures_are_quarantined(self):
+        ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        native=ios.split('\n  native-ui:\n',1)[1].split('\n  store-ui:\n',1)[0]
+        store=ios.split('\n  store-ui:\n',1)[1].split('\n  testflight:\n',1)[0]
+        for job in (native,store):
+            self.assertIn("continue-on-error: ${{ github.event_name == 'pull_request' }}",job)
+            self.assertIn('continue-on-error: true',job)
+            self.assertEqual(job.count('Retry '),1)
+            self.assertIn('outcome == \'failure\'',job)
+            self.assertEqual(job.count('run.py'),2)
+        self.assertIn('Owner: Basil; expires 2026-11-22.',native)
+        testflight=ios.split('\n  testflight:\n',1)[1].split('\n    runs-on:',1)[0]
+        self.assertIn('needs.native-ui.result == \'success\'',testflight)
+        self.assertIn('needs.store-ui.result == \'success\'',testflight)
 
     def test_tester_delivery_survives_the_skipped_store_job(self):
         # A bare output check carries an implicit success(), which a skipped upstream Store job turns false:

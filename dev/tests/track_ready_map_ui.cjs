@@ -14,10 +14,11 @@ for(const size of [{width:390,height:844},{width:330,height:667}])for(const them
    KinettaTrack:{attach:async()=>({}),detach:async()=>({}),status:async()=>({}),locate:async()=>({lat:40.7812,lon:-73.9665,accuracy:12,timestamp:Date.now()})}}};},{base,token});
  const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
  await c.route(u=>!u.href.startsWith(base),r=>r.abort());
- await c.route('**/api/**',r=>{const q=r.request();if(!['GET','HEAD'].includes(q.method())){writes.push(new URL(q.url()).pathname);return r.fulfill({json:{}});}return r.continue();});
+ await c.route('**/api/**',r=>{const q=r.request(),url=new URL(q.url());if(!['GET','HEAD'].includes(q.method())){writes.push(url.pathname);return r.fulfill({json:{}});}if(url.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__track_ready_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__track_ready_tiles/dark/{z}/{x}/{y}.svg',max_zoom:18,attribution:'Fictional test tiles'}});return r.continue();});
+ await c.route('**/__track_ready_tiles/**',r=>r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e8ece8"/></svg>`}));
  await p.goto(base+'/track');await until(p,()=>App.pageReady,'1')
  // The fictional fix (a public park) puts the dot and accuracy chip on the map at street level.
- await until(p,()=>document.querySelector('#track-ready-map .leaflet-map-pane')&&!document.querySelector('#track-gps-chip').hidden,'2');await p.waitForTimeout(300);
+ await until(p,()=>document.querySelector('#track-ready-map .leaflet-map-pane')&&!document.querySelector('#track-gps-chip').hidden&&document.querySelector('#track-ready-map .leaflet-tile-loaded'),'2');await p.waitForTimeout(300);
  const map=p.locator('#track-ready-map');
  const dotNear=async()=>{const m=await map.boundingBox(),d=await p.locator('#track-ready-map .leaflet-interactive, #track-ready-map path.leaflet-interactive, #track-ready-map path').last().boundingBox();return Math.abs(d.x+d.width/2-(m.x+m.width/2))<24&&Math.abs(d.y+d.height/2-(m.y+m.height/2))<24;};
  assert(await dotNear(),'dot centred');await p.locator('#track-ready-map-wrap .map-full').click();await p.waitForSelector('#track-ready-map-wrap.full');await p.waitForTimeout(200);

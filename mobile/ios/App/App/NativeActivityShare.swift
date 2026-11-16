@@ -1,5 +1,6 @@
 import Capacitor
 import ImageIO
+import Photos
 import UIKit
 import WebKit
 
@@ -11,6 +12,7 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     let pluginMethods: [CAPPluginMethod] = {
         var methods: [CAPPluginMethod] = [
             CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "saveToPhotos", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "keepAwake", returnType: CAPPluginReturnPromise)
         ]
@@ -170,6 +172,36 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
                 self.shareToInstagram(image, call: call, controller: controller)
             } else {
                 self.shareWithSystem(image, call: call, controller: controller)
+            }
+        }
+    }
+
+    @objc func saveToPhotos(_ call: CAPPluginCall) {
+        guard let text = call.getString("image"), text.count <= 12 * 1024 * 1024,
+              text.hasPrefix("data:image/png;base64,"),
+              let data = Data(base64Encoded: String(text.dropFirst("data:image/png;base64,".count))),
+              !data.isEmpty, data.count <= Self.maxBytes,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) == 1,
+              CGImageSourceGetType(source) as String? == "public.png",
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width > 0, height > 0, width <= 4096, height <= 4096, width * height <= 16_777_216 else {
+            call.reject("That activity picture couldn’t be opened"); return
+        }
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            guard status == .authorized else {
+                call.reject("Allow Kinetta to add pictures to Photos to save this image"); return
+            }
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCreationRequest.forAsset()
+                let options = PHAssetResourceCreationOptions()
+                options.originalFilename = "Kinetta-activity.png"
+                request.addResource(with: .photo, data: data, options: options)
+            }) { saved, error in
+                if saved { call.resolve(["saved": true]) }
+                else { call.reject("Couldn’t save this picture to Photos", nil, error) }
             }
         }
     }

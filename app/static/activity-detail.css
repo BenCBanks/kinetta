@@ -376,3 +376,22 @@
 .activity-detail #activity-pane-efforts .detail-effort-result { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
 .activity-detail #activity-pane-efforts .detail-effort-result small { color:var(--tx3); font-size:13px; font-weight:400; }
 .activity-detail #activity-pane-efforts .effort-bar { display:none; }
+
+
+/* Activity-detail rules moved verbatim from the shared stylesheet. */
+/* Activity charts lead with named series; dense recorded values live in Details. */
+.activity-charts .readout { margin: 0 0 8px; padding: 0; min-height: 44px; background: var(--card); box-shadow: none; justify-content: space-between; align-items: center; font-size: .8125rem; }
+.activity-charts .readout .linkbtn { min-height: 44px; padding-inline: 8px; }
+.activity-charts .chartbox + .chartbox { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.activity-charts .lbl { gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 0 0 10px; font-size: .8125rem; }
+.activity-charts .lbl > span:first-child { color: var(--tx); font-size: 1rem; font-weight: 650; }
+.activity-charts .lbl > span:last-child { margin-left: auto; }
+.activity-charts .ln { stroke-width: 2.25; }
+.activity-charts .yl { font-size: 11px; }
+.activity-charts svg:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.seg.dtabs button { min-height: 44px; }
+.sheet.activity-editor > header { grid-template-columns: max-content minmax(0,1fr) max-content; gap: 8px; }
+.sheet.activity-editor > header h2 { min-width: 0; white-space: normal; overflow-wrap: normal; word-break: normal; }
+.e-details-head { margin: 10px 0 -4px; }
+.e-delete { display: block; width: 100%; min-height: 48px; margin-top: 18px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--alert); font-size: 1rem; font-weight: 600; }
+#d-milestones .milestone-more { font-size:15px; }

@@ -37,7 +37,7 @@ const track = fs.readFileSync('app/static/track.js', 'utf8');
 // Viewport size, captions and hit targets are covered by tracking_ui.cjs.
 // Discard right away (28 October 2026): a lifting session can be deleted before or after Finish; a paused recording shows
 // Discard under its controls, on screen.
-assert(/id="lf-discard">Discard session/.test(routes) && /id="lf-sum-del">Delete this session/.test(routes), 'lifting: discard and delete');
+assert(/id="lf-discard" aria-label="More session actions"/.test(routes) && /sheet\('Delete this session\?'/.test(routes) && /id="ld-del"[^>]*>Delete session/.test(routes) && /id="lf-sum-del">Delete this session/.test(routes), 'lifting: overflow discard confirms; summary can delete');
 assert(/function discardLift[\s\S]*queueLift\(key,[\s\S]*method: 'DELETE'[\s\S]*store\.del\(key\)/.test(routes), 'deletes the activity and its account-scoped phone copy after queued writes');
 assert(/\$\{paused \? `<span class="round-ctl round-ctl-discard"><button class="round-btn discard" id="track-discard" aria-label="Discard recording">/.test(trackRoute), 'paused: Discard in the controls row');
 assert(/<header class="track-review-top">[\s\S]*?<button type="button" id="track-review-discard"/.test(trackRoute) && !/class="linkbtn danger track-discard"/.test(trackRoute), 'Review uses its pinned Discard action without a duplicate body link');

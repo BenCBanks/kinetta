@@ -178,7 +178,11 @@
 .group-title .eyebrow,.group-invite-card .eyebrow {margin:0 0 5px;color:var(--tx3);font-size:15px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;}
 .group-title h1,.group-invite-card h1 {font-size:28px;line-height:1.18;letter-spacing:-.025em;overflow-wrap:anywhere;margin:0 0 8px;}
 .group-title>p:not(.eyebrow) {margin:0;color:var(--tx2);line-height:1.45;}
-.group-title .group-note {margin-top:10px!important;color:var(--tx)!important;}
+.group-title-name {display:flex;align-items:center;gap:8px;min-width:0;}
+.group-title-name>svg {flex:none;width:18px;height:18px;color:var(--tx2);}
+.group-title-name h1 {min-width:0;margin:0;}
+.group-title-summary,.group-title .group-note {margin:6px 0 0;color:var(--tx2);font-size:15px;line-height:1.45;overflow-wrap:anywhere;}
+.group-title .group-note {color:var(--tx)!important;}
 .group-page > :is(.group-goal,.group-event-day,.group-recap,.group-updates) { box-shadow:var(--elevation-raised); }
 .group-page > .group-roster { box-shadow:none; }
 .group-goal {display:grid;gap:7px;}
@@ -188,21 +192,31 @@
 .group-goal>.group-goal-hint {font-size:13px;line-height:1.35;}
 .group-goal>.group-total-note {color:var(--tx3);font-size:13px;line-height:1.35;}
 .group-week-cheer {min-width:0;margin-top:1px;}
-.group-goal>strong {min-width:0;font-size:16px;line-height:1.25;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
-.group-progress {display:block;width:100%;height:7px;margin:0;border:0;border-radius:999px;background:var(--line);color:var(--accent);overflow:hidden;appearance:none;-webkit-appearance:none;}
+.group-goal>.group-goal-value {min-width:0;margin-top:2px;font-size:20px;font-weight:600;line-height:1.2;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.group-goal>.group-goal-label {margin-top:-5px;color:var(--tx2);font-size:13px;line-height:1.35;overflow-wrap:anywhere;}
+.group-progress {display:block;width:100%;height:6px;margin:0;border:0;border-radius:999px;background:var(--line);color:var(--accent);overflow:hidden;appearance:none;-webkit-appearance:none;}
 .group-progress::-webkit-progress-bar {border-radius:inherit;background:var(--line);}
-.group-progress::-webkit-progress-value {border-radius:inherit;background:var(--accent);}
-.group-progress::-moz-progress-bar {border-radius:inherit;background:var(--accent);}
-.group-roster>h2 {display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px;font-size:17px;}
-.group-roster>h2 span {color:var(--tx3);font-size:16px;font-weight:550;}
-.group-member-private-note {margin:0 0 4px;color:var(--tx3);font-size:15px;line-height:1.4;}
-.group-member {display:flex;align-items:center;gap:11px;min-height:56px;padding:8px 0;border-top:1px solid var(--line);}
-.group-member-avatar {display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;background:var(--card2);color:var(--tx2);font-size:15px;font-weight:700;}
+.group-progress::-webkit-progress-value {border-radius:inherit;background:var(--accent-gradient);}
+.group-progress::-moz-progress-bar {border-radius:inherit;background:var(--accent-gradient);}
+.group-detail-tabs {display:flex;align-items:stretch;gap:22px;margin:18px 0 10px;border-bottom:1px solid var(--line);}
+.group-detail-tabs button {position:relative;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 2px;border:0;border-radius:0;background:none;color:var(--tx2);font:inherit;font-size:15px;font-weight:500;}
+.group-detail-tabs button::after {position:absolute;right:0;bottom:-1px;left:0;height:2px;border-radius:99px;background:var(--accent);content:"";transform:scaleX(0);transition:transform 160ms ease;}
+.group-detail-tabs button[aria-selected="true"] {color:var(--accent);font-weight:600;}
+.group-detail-tabs button[aria-selected="true"]::after {transform:scaleX(1);}
+.group-detail-tabs button span {color:var(--tx3);font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;}
+.group-detail-tabs button[aria-selected="true"] span {color:inherit;}
+.group-roster {padding-top:4px;padding-bottom:4px;}
+.group-member {display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 0;border-top:1px solid var(--line);}
+.group-member:first-child {border-top:0;}
+.group-member-rank {flex:none;width:22px;color:var(--tx3);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+.group-member-avatar {display:grid;place-items:center;flex:none;width:32px!important;height:32px!important;border-radius:50%;background:var(--card2);color:var(--tx2);font-size:15px;font-weight:600;}
 .group-member-name {display:grid;gap:2px;flex:1;min-width:0;}
-.group-member-name b {min-width:0;overflow-wrap:anywhere;font-size:15px;}
-.group-member-name small {color:var(--tx3);font-size:13px;}
-.group-member-value {flex:none;max-width:42%;color:var(--tx2);font-size:14px;font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere;}
+.group-member-name b {min-width:0;color:var(--tx);overflow-wrap:anywhere;font-size:15px;font-weight:500;}
+.group-member.is-viewer .group-member-name b {color:var(--accent);font-weight:600;}
+.group-member-value,.group-member-total-only {flex:none;max-width:42%;color:var(--tx2);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere;}
+.group-member-total-only {font-size:13px;font-weight:500;}
 .group-more {width:100%;min-height:44px;text-align:left;padding:8px 0;color:var(--accent);}
+.group-roster[hidden],.group-updates[hidden] {display:none!important;}
 .group-empty {display:grid;gap:14px;padding:22px 2px;}
 .group-empty p {margin:0;color:var(--tx2);line-height:1.5;}
 .group-invite-page,.groups-page {min-height:calc(100dvh - 100px);}
@@ -235,7 +249,6 @@
 .group-options-list .row-link.danger {color:var(--alert);}
 .group-event-day {color:var(--accent);font-weight:650;}
 .group-recap-head {display:flex;align-items:center;justify-content:space-between;gap:12px;}
-.group-recap-head .eyebrow {margin:0 0 3px;color:var(--tx3);font-size:13px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;}
 .group-recap-head h2 {margin:0;font-size:17px;}
 .group-recap-head button {min-width:44px;min-height:44px;padding:8px;color:var(--accent);}
 .group-recap>strong {display:block;margin:10px 0 16px;font-size:20px;line-height:1.3;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
@@ -243,6 +256,7 @@
 .group-recap-names {margin:0;color:var(--tx2);line-height:1.45;overflow-wrap:anywhere;}
 .group-updates>h2 {margin:0 0 4px;font-size:17px;}
 .group-update {min-width:0;padding:12px 0;border-top:1px solid var(--line);}
+.group-update:first-child {border-top:0;}
 .group-update-head {display:flex;align-items:center;gap:8px;min-height:44px;}
 .group-update-head>b {min-width:0;overflow-wrap:anywhere;font-size:15px;}
 .group-update-head>time {flex:1;min-width:0;color:var(--tx3);font-size:13px;text-align:right;}
@@ -255,6 +269,7 @@
 .group-update-form button {justify-self:start;min-height:44px;padding:8px 14px;box-shadow:none;}
 .group-update-status {margin:0;min-height:0;overflow-wrap:anywhere;}
 .group-update-status:empty {display:none;}
+@media(prefers-reduced-motion:reduce){.group-detail-tabs button::after{transition:none;}}
 .group-cheer-people {display:grid;gap:4px;}
 @media(max-width:360px) {
  .group-title h1,.group-invite-card h1 {font-size:28px;}
