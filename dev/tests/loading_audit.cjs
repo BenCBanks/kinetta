@@ -38,6 +38,18 @@ async function state(page){
  }));
 }
 
+async function captureFrame(page,file){
+ const paint=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await paint();
+ try{await page.screenshot({path:file,animations:'disabled'});}
+ catch(error){
+  if(!/captureScreenshot|Unable to capture screenshot/.test(error.message))throw error;
+  await page.waitForLoadState('domcontentloaded',{timeout:10000});
+  await paint();
+  await page.screenshot({path:file,animations:'disabled'});
+ }
+}
+
 async function coldFixturePage(browser,base,scene,sessions,theme){
  const auth=sessions.get(scene.login+(scene.native?':native':''));
  assert(auth&& (scene.login==='alex'||scene.login.startsWith('zz_test_')),'Fictional fixture session exists');
@@ -91,7 +103,7 @@ async function main(){
     for(const target of frames){
      const remaining=target-(Date.now()-begin);if(remaining>0)await p.waitForTimeout(remaining);
      const file=path.join(output,`${safe(scene.name)}-${theme}-${target}ms.png`);
-     await p.screenshot({path:file,animations:'disabled'});
+     await captureFrame(p,file);
      filmstrip.push({target_ms:target,actual_ms:Date.now()-begin,...await state(p),file});
     }
     const firstUseful=scene.name==='Home'?'#ff-list .post':scene.ready;
