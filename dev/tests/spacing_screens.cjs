@@ -66,7 +66,7 @@ async function modalState(page,kind){
  else if(kind==='photo')await page.locator('[data-media-photo]').first().click();
  else if(kind==='map')await page.locator('.detail-map-hero .map-full').click();
  else if(kind==='group-create')await page.locator('#group-new').click();
- else if(kind==='group-full')await page.locator('[data-group-more]').click();
+ else if(kind==='group-full'){await page.locator('[data-group-more]').click();await page.locator('.group-member:nth-child(50)').waitFor({state:'attached'});await page.evaluate(()=>window.scrollTo(0,0));}
  else if(kind==='remove'||kind==='block'){
   await page.locator('#person-profile [data-person-manage]').click();
   await page.locator(kind==='remove'?'[data-remove]':'[data-block]').click();
