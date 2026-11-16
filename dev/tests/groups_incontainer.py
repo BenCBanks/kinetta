@@ -1,6 +1,7 @@
 """Fictional Groups: private rows, hashed invites, lifecycle, blocks and aggregate-only activity progress."""
 import datetime as dt
 import hashlib
+import re
 import uuid
 import unittest
 from unittest.mock import patch
@@ -12,7 +13,7 @@ from psycopg.rows import dict_row
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import auth, db, groups
+from app import auth, db, groups, parsers
 from app.main import app
 
 
@@ -49,11 +50,13 @@ class Groups(unittest.TestCase):
             client.close()
         self.anon.close()
 
-    def make(self, who=0, goal_type='distance', goal_target=50, goal_unit='km', zone='America/New_York', event_date=None):
+    def make(self, who=0, goal_type='distance', goal_target=50, goal_unit='km', zone='America/New_York', event_date=None,
+             goal_start_date=None):
         today = self.now.astimezone(ZoneInfo(zone)).date()
         body = {'title': 'Fictional Alpine Weekend', 'event_date': str(event_date or today + dt.timedelta(days=40)),
                 'time_zone': zone, 'note': 'Fictional event note', 'goal_type': goal_type,
-                'goal_target': goal_target, 'goal_unit': goal_unit}
+                'goal_target': goal_target, 'goal_unit': goal_unit,
+                'goal_start_date': (goal_start_date or today - dt.timedelta(days=10)).isoformat()}
         response = self.clients[who].post('/api/groups', json=body)
         self.assertEqual(response.status_code, 200, response.text)
         group = response.json()
@@ -63,28 +66,150 @@ class Groups(unittest.TestCase):
     def accept(self, token, who=1):
         return self.clients[who].post(f'/api/group-invites/{token}/accept', json={})
 
-    def activity(self, who, at, *, distance=1000, ascent=20, seconds=1200, name='PRIVATE WORKOUT', visibility='friends'):
+    def activity(self, who, at, *, sport='hike', distance=1000, ascent=20, seconds=1200, name='PRIVATE WORKOUT', visibility='friends'):
         with db.connect() as c:
             return c.execute('''INSERT INTO activities(user_id,sport,name,private_note,start_time,distance_m,ascent_m,
-                moving_s,elapsed_s,source,visibility) VALUES(%s,'hike',%s,'PRIVATE NOTE',%s,%s,%s,%s,%s,'manual',%s)
-                RETURNING id''', (self.ids[who], name, at, distance, ascent, seconds, seconds, visibility)).fetchone()['id']
+                moving_s,elapsed_s,source,visibility) VALUES(%s,%s,%s,'PRIVATE NOTE',%s,%s,%s,%s,%s,'manual',%s)
+                RETURNING id''', (self.ids[who], sport, name, at, distance, ascent, seconds, seconds, visibility)).fetchone()['id']
+
+    def test_goal_sports_start_date_training_line_and_weekly_target(self):
+        zone = ZoneInfo('America/New_York')
+        today = self.now.astimezone(zone).date()
+        start = today - dt.timedelta(days=10)
+        end = today + dt.timedelta(days=40)
+        body = {'title':'Fictional spring race', 'event_date':end.isoformat(), 'time_zone':'America/New_York',
+                'note':'', 'goal_type':'distance', 'goal_target':100, 'goal_unit':'km',
+                'goal_sports':['run','ride'], 'goal_start_date':start.isoformat(), 'training_for':'Half marathon'}
+        response = self.clients[0].post('/api/groups', json=body)
+        self.assertEqual(response.status_code, 200, response.text)
+        group = response.json()
+        self.assertEqual(group['goal_sports'], ['run','ride'])
+        self.assertEqual(group['goal_start_date'], start.isoformat())
+        self.assertEqual(group['training_for'], 'Half marathon')
+        self.assertIsNone(group['weekly_target_scope'])
+        self.assertIsNone(group['weekly_target'], 'a group below three members has no misleading personal pace')
+        with db.connect() as c:
+            stored = c.execute('SELECT goal_sports,goal_start_date,training_for FROM event_groups WHERE id=%s',
+                               (group['id'],)).fetchone()
+            self.assertEqual(list(stored['goal_sports']),['run','ride'])
+            self.assertEqual(stored['goal_start_date'],start)
+            self.assertEqual(stored['training_for'],'Half marathon')
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
+                      (dt.datetime.combine(start-dt.timedelta(days=1),dt.time.min,zone).astimezone(dt.timezone.utc),group['id']))
+        at_start = dt.datetime.combine(start,dt.time(hour=12),zone).astimezone(dt.timezone.utc)
+        self.activity(0, at_start-dt.timedelta(days=1), sport='run', distance=9000)
+        self.activity(0, at_start, sport='run', distance=1000)
+        self.activity(0, at_start+dt.timedelta(hours=1), sport='ride', distance=2000)
+        self.activity(0, at_start+dt.timedelta(hours=2), sport='hike', distance=7000)
+        result = self.clients[0].get('/api/groups/'+group['id']).json()
+        self.assertEqual(result['your_total'], 3)
+        self.assertEqual(result['your_this_week_total'], 3 if at_start >= groups._local_week_window('America/New_York',self.now)[1] else 0)
+        self.assertIsNone(result['weekly_target'])
+        listed = self.clients[0].get('/api/groups').json()
+        self.assertEqual(listed[0]['goal_sports'], ['run','ride'])
+        self.assertEqual(self.clients[0].patch('/api/groups/'+group['id']+'/event-date',
+                                               json={'event_date':(start-dt.timedelta(days=1)).isoformat()}).status_code,422)
+        invalid = self.clients[0].post('/api/groups',json=body|{'goal_sports':['run','invalid']})
+        self.assertEqual(invalid.status_code,422)
+        duplicate = self.clients[0].post('/api/groups',json=body|{'goal_sports':['run','run']})
+        self.assertEqual(duplicate.status_code,422)
+        after_start = self.clients[0].post('/api/groups',json=body|{'goal_start_date':(end+dt.timedelta(days=1)).isoformat()})
+        self.assertEqual(after_start.status_code,422)
+        try:
+            oldest = today.replace(year=today.year - 1)
+        except ValueError:
+            oldest = today.replace(year=today.year - 1, day=28)
+        self.assertEqual(self.clients[0].post('/api/groups',json=body|{'goal_start_date':oldest.isoformat()}).status_code,200)
+        self.assertEqual(self.clients[0].post('/api/groups',json=body|{'goal_start_date':(oldest-dt.timedelta(days=1)).isoformat()}).status_code,422)
+        self.assertEqual(self.clients[0].post('/api/groups',json=body|{'event_date':None,'goal_start_date':(today+dt.timedelta(days=1)).isoformat()}).status_code,422)
+        future_start=today+dt.timedelta(days=10)
+        scheduled=self.clients[0].post('/api/groups',json=body|{'event_date':(today+dt.timedelta(days=20)).isoformat(),'goal_start_date':future_start.isoformat()})
+        self.assertEqual(scheduled.status_code,200,scheduled.text)
+        self.assertEqual(self.clients[0].patch('/api/groups/'+scheduled.json()['id']+'/event-date',json={'event_date':None}).status_code,422,
+                         'clearing an event date cannot turn a future scheduled start into an invalid ongoing group')
+
+    def test_group_all_sports_preserves_legacy_activity_and_excludes_nonsharing_member(self):
+        group, token = self.make(goal_target=100, goal_unit='km')
+        self.assertEqual(set(group['goal_sports']), set(parsers.SPORTS))
+        self.assertEqual(self.accept(token, who=1).status_code, 200)
+        self.assertEqual(self.accept(token, who=2).status_code, 200)
+        with db.connect() as c:
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids[:3],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=ANY(%s)",
+                      (group['id'], [self.ids[0], self.ids[2]]))
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
+                      (self.now-dt.timedelta(days=2), group['id']))
+        at = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)
+        for sport in parsers.SPORTS:
+            self.activity(0, at, sport=sport, distance=1000)
+        self.activity(0, at, sport='legacy_sport', distance=1000)
+        self.activity(1, at, sport='run', distance=9000)
+        self.activity(2, at, sport='ride', distance=3000)
+        with db.connect() as c:
+            shapes = {row['sport'] for row in c.execute(
+                'SELECT DISTINCT sport FROM activities WHERE user_id=ANY(%s)', (self.ids[:3],)).fetchall()}
+            self.assertEqual(shapes, set(parsers.SPORTS) | {'legacy_sport'})
+            nullable = c.execute("SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='activities' AND column_name='sport'").fetchone()['is_nullable']
+            self.assertEqual(nullable, 'NO', 'current activity rows cannot contain NULL sports')
+        result = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertEqual(result['total'], 13, 'default all-sports totals retain unlisted legacy sports but omit just-in members')
+        self.assertEqual(result['this_week_total'], 13, 'weekly totals omit the non-sharing member too')
+        self.assertEqual(result['weekly_target'], 14.5, 'weekly target uses the sharing-only group total')
+        self.assertEqual(result['sharing_member_count'], 2)
+
+    def test_backdated_goal_start_never_counts_activity_before_membership(self):
+        zone = ZoneInfo('America/New_York')
+        group, token = self.make(goal_start_date=self.now.astimezone(zone).date()-dt.timedelta(days=10))
+        self.assertEqual(self.accept(token, who=1).status_code, 200)
+        with db.connect() as c:
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids[:2],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=ANY(%s)",
+                      (group['id'], self.ids[:2]))
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s AND user_id=%s',
+                      (self.now-dt.timedelta(days=1), group['id'], self.ids[1]))
+        self.activity(1, self.now-dt.timedelta(days=5), sport='run', distance=9000)
+        self.activity(1, self.now-dt.timedelta(hours=1), sport='run', distance=1000)
+        result = self.clients[1].get('/api/groups/' + group['id']).json()
+        self.assertEqual(result['your_total'], 1, 'back-dated goal starts never remove the later joined_at floor')
+
+    def test_goal_sports_migration_matches_parser_and_backfills_local_start_date(self):
+        migration = next(stmt for stmt in db.MIGRATIONS if 'ADD COLUMN goal_sports' in stmt)
+        array = re.search(r'DEFAULT ARRAY\[([^\]]*)\]::text\[\]', migration)
+        self.assertIsNotNone(array)
+        self.assertEqual(set(re.findall(r"'([^']+)'", array.group(1))), set(parsers.SPORTS))
+        with db.connect() as c:
+            c.execute('SET LOCAL search_path TO pg_temp, public')
+            c.execute('CREATE TEMP TABLE event_groups(created timestamptz NOT NULL,time_zone text NOT NULL) ON COMMIT DROP')
+            c.execute("INSERT INTO event_groups VALUES('2025-01-01T02:00:00Z','America/Los_Angeles'),('2025-01-01T02:00:00Z','UTC')")
+            for statement in migration.split(';'):
+                if statement.strip():
+                    c.execute(statement)
+            rows = c.execute('SELECT goal_start_date,goal_sports,training_for FROM event_groups ORDER BY time_zone').fetchall()
+            self.assertEqual([row['goal_start_date'] for row in rows], [dt.date(2024,12,31),dt.date(2025,1,1)])
+            self.assertTrue(all(set(row['goal_sports']) == set(parsers.SPORTS) and row['training_for']=='' for row in rows))
 
     def test_preview_acceptance_hash_rotation_expiry_and_generic_errors(self):
         group, original = self.make()
+        self.assertEqual(group['sharing_level'], 'just_in', 'a new group organizer starts with the private choice')
         self.assertEqual(len(original), 32)
         self.assertTrue(all(ch in '0123456789abcdef' for ch in original))
         with db.connect() as c:
             stored = c.execute('SELECT token_hash FROM group_invites WHERE group_id=%s', (group['id'],)).fetchone()['token_hash']
             self.assertEqual(bytes(stored), hashlib.sha256(original.encode()).digest())
             self.assertNotIn(original.encode(), bytes(stored))
+            c.execute("UPDATE event_groups SET training_for='Half marathon',goal_sports=ARRAY['run'] WHERE id=%s", (group['id'],))
         preview = self.anon.get('/api/group-invites/' + original)
         self.assertEqual(preview.status_code, 200)
         self.assertEqual(preview.json(), {'available': True})
+        self.assertNotIn('training_for', preview.json())
+        self.assertNotIn('goal_sports', preview.json())
+        self.assertNotIn('Half marathon', preview.text)
         self.assertNotIn(group['title'], preview.text)
         self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).status_code, 404)
         accepted = self.accept(original)
         self.assertEqual(accepted.status_code, 200, accepted.text)
         self.assertEqual(accepted.json()['member_count'], 2)
+        self.assertEqual(accepted.json()['sharing_level'], 'just_in', 'a new member starts with the private choice')
         self.assertNotIn('activity_id', accepted.text)
         replacement = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         stale = self.accept(original, who=2)
@@ -149,7 +274,8 @@ class Groups(unittest.TestCase):
         fixed_now = dt.datetime(2026, 11, 1, 7, 30, tzinfo=dt.timezone.utc)
         event_date = fixed_now.astimezone(ZoneInfo('America/Los_Angeles')).date() + dt.timedelta(days=40)
         with patch('app.groups._now', return_value=fixed_now):
-            group, _ = self.make(zone='America/Los_Angeles', event_date=event_date)
+            group, _ = self.make(zone='America/Los_Angeles', event_date=event_date,
+                                 goal_start_date=dt.date(2026, 10, 1))
         local_day, start, end = groups._local_week_window('America/Los_Angeles', fixed_now)
         self.assertEqual(local_day, dt.date(2026, 11, 1))
         self.assertEqual(start, dt.datetime(2026, 10, 26, 7, 0, tzinfo=dt.timezone.utc))
@@ -171,19 +297,100 @@ class Groups(unittest.TestCase):
         group, original = self.make()
         self.assertEqual(self.accept(original).status_code, 200)
         self.assertEqual(self.clients[1].post('/api/groups/' + group['id'] + '/leave', json={}).status_code, 200)
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing",
+                                              json={'level':'total_shared'}).status_code, 404,
+                         'a left member cannot change sharing')
         rotated = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         stale = self.accept(original, who=1)
         unknown = self.accept('0' * 32, who=1)
         self.assertEqual(stale.status_code, 404)
         self.assertEqual(stale.json(), unknown.json())
         self.assertEqual(self.accept(rotated, who=1).status_code, 200)
+        self.assertEqual(self.clients[1].get(f"/api/groups/{group['id']}").json()['sharing_level'], 'just_in',
+                         'rejoining resets the old choice to the privacy-first default')
         login = self.clients[1].get('/api/me').json()['login']
         removed = self.clients[0].post('/api/groups/' + group['id'] + '/remove', json={'username': login})
         self.assertEqual(removed.status_code, 200)
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing",
+                                              json={'level':'total_shared'}).status_code, 404,
+                         'a removed member cannot change sharing')
+        after_removal = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
+        self.assertEqual(self.accept(after_removal, who=1).status_code, 200)
+        self.assertEqual(self.clients[1].get(f"/api/groups/{group['id']}").json()['sharing_level'], 'just_in',
+                         'reactivating a removed member resets the old sharing choice')
         refused = self.accept(rotated, who=1)
         unknown = self.accept('0' * 32, who=1)
         self.assertEqual(refused.status_code, 404)
         self.assertEqual(refused.json(), unknown.json())
+
+    def test_group_sharing_migration_defaults_existing_and_new_memberships_to_private(self):
+        migration = next(stmt for stmt in db.MIGRATIONS if 'ADD COLUMN sharing_level' in stmt)
+        with db.connect() as c:
+            c.execute('SET LOCAL search_path TO pg_temp, public')
+            c.execute('CREATE TEMP TABLE group_members(group_id integer,user_id integer) ON COMMIT DROP')
+            c.execute('INSERT INTO group_members VALUES(1,10)')
+            c.execute(migration)
+            self.assertEqual(c.execute('SELECT sharing_level FROM group_members WHERE group_id=1').fetchone()['sharing_level'],
+                             'just_in', 'the migration gives existing membership the private choice')
+            c.execute('INSERT INTO group_members(group_id,user_id) VALUES(2,11)')
+            self.assertEqual(c.execute('SELECT sharing_level FROM group_members WHERE group_id=2').fetchone()['sharing_level'],
+                             'just_in', 'new memberships default to the private choice')
+            default = c.execute("SELECT column_default FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='group_members' AND column_name='sharing_level'").fetchone()
+            self.assertIn('just_in', default['column_default'])
+            actual = c.execute("SELECT column_default,is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='group_members' AND column_name='sharing_level'").fetchone()
+            self.assertIsNotNone(actual, 'the real group_members table has the migrated column')
+            self.assertIn('just_in', actual['column_default'])
+            self.assertEqual(actual['is_nullable'], 'NO')
+
+    def test_group_and_account_sharing_must_both_allow_totals_and_blocks_still_apply(self):
+        group, token = self.make()
+        for who in (1, 2, 3):
+            self.assertEqual(self.accept(token, who=who).status_code, 200)
+        joined_at = self.now - dt.timedelta(days=2)
+        with db.connect() as c:
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=ANY(%s)",
+                      (group['id'], [self.ids[0], self.ids[2], self.ids[3]]))
+            c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[3]))
+        self.activity(0, self.now - dt.timedelta(hours=3), distance=10000, name='SHARED MEMBER A')
+        hidden_b = self.activity(1, self.now - dt.timedelta(hours=2), distance=20000, name='GROUP PRIVATE MEMBER B')
+        self.activity(2, self.now - dt.timedelta(hours=1), distance=30000, name='SHARED MEMBER C')
+        self.activity(3, self.now - dt.timedelta(minutes=30), distance=900000, name='BLOCKED MEMBER D')
+
+        def group_view(who=0):
+            return self.clients[who].get('/api/groups/' + group['id']).json()
+
+        initial = group_view()
+        self.assertEqual(initial['sharing_level'], 'total_shared')
+        self.assertEqual(initial['member_count'], 3, 'blocked membership is absent from the viewer’s response')
+        self.assertEqual(initial['total'], 40)
+        self.assertEqual(initial['sharing_member_count'], 2)
+        self.assertNotIn(self.clients[3].get('/api/me').json()['login'],
+                         [member['username'] for member in initial['members']])
+        self.assertTrue(next(m for m in initial['members'] if m['username']==self.clients[1].get('/api/me').json()['login'])
+                        ['sharing_total_only'], 'a group-default member has no visible contribution')
+        blocked_view = group_view(who=3)
+        self.assertEqual(blocked_view['member_count'], 3)
+        self.assertEqual(blocked_view['total'], 930, 'a blocked member’s own view excludes the blocker’s contribution')
+        self.assertNotIn(self.clients[0].get('/api/me').json()['login'],
+                         [member['username'] for member in blocked_view['members']])
+
+        with db.connect() as c:
+            c.execute('UPDATE activities SET distance_m=1200000 WHERE id=%s', (hidden_b,))
+        self.assertEqual(group_view()['total'], initial['total'], 'a member who chose just-in cannot change totals')
+
+        changed = self.clients[1].post(f"/api/groups/{group['id']}/sharing", json={'level':'total_shared'})
+        self.assertEqual(changed.status_code, 200, changed.text)
+        self.assertEqual(changed.json(), {'level':'total_shared'})
+        self.assertEqual(group_view()['total'], 1240, 'an explicit group choice enables sharing when account sharing is on')
+
+        with db.connect() as c:
+            c.execute('UPDATE profile SET share_achievements=false WHERE user_id=%s', (self.ids[2],))
+        stricter = group_view()
+        self.assertEqual(stricter['total'], 1210, 'the account-wide off switch wins over group-level sharing')
+        self.assertEqual(stricter['sharing_member_count'], 2)
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing", json={'level':'everyone'}).status_code, 422)
 
     def test_aggregate_is_members_own_rows_and_updates_on_delete_and_leave(self):
         group, _ = self.make()
@@ -206,11 +413,20 @@ class Groups(unittest.TestCase):
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s', (self.ids[1],))
         shared = self.clients[0].get('/api/groups/' + group['id']).json()
         self.assertNotIn('value', shared['members'][1], 'a consented row amount stays hidden below the privacy floor')
-        self.assertNotIn('sharing_total_only', shared['members'][1], 'the floor is not presented as a member privacy choice')
+        self.assertTrue(shared['members'][1]['sharing_total_only'],
+                        'account-wide sharing alone does not override the private group choice')
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing",
+                                              json={'level':'total_shared'}).status_code, 200)
+        shared = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertNotIn('sharing_total_only', shared['members'][1],
+                         'both account-wide and group-specific choices are required to share')
         self.assertNotIn('value', shared['members'][0])
         self.assertNotIn('total', shared)
         self.assertEqual(self.clients[2].get('/api/groups/' + group['id']).status_code, 404)
         self.assertEqual(self.clients[2].post('/api/groups/' + group['id'] + '/close', json={}).status_code, 404)
+        self.assertEqual(self.clients[2].post(f"/api/groups/{group['id']}/sharing",
+                                              json={'level':'total_shared'}).status_code, 404,
+                         'a non-member cannot change group sharing')
         with db.connect() as c:
             c.execute('DELETE FROM activities WHERE id=%s', (own_a,))
         remaining = self.clients[1].get('/api/groups/' + group['id']).json()
@@ -237,6 +453,7 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s", (group['id'],))
         self.activity(0, fixed_now - dt.timedelta(hours=3), distance=12000, name='PRIVATE A')
 
         one = group_view()
@@ -250,6 +467,8 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s', (self.ids[1],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",
+                      (group['id'], self.ids[1]))
         self.activity(1, fixed_now - dt.timedelta(hours=2), distance=3000, name='PRIVATE B')
         two = group_view()
         self.assertEqual(two['member_count'], 2)
@@ -264,6 +483,8 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.accept(token, who=2).status_code, 200)
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",
+                      (group['id'], self.ids[2]))
         self.activity(2, fixed_now - dt.timedelta(hours=1), distance=5000, name='PRIVATE C')
         three = group_view()
         self.assertEqual(three['member_count'], 3)
@@ -283,6 +504,7 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.accept(token, who=3).status_code, 200)
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s", (group['id'],))
         self.activity(3, fixed_now - dt.timedelta(minutes=30), distance=7000, name='PRIVATE D')
         all_four = group_view(who=1)
         self.assertEqual(all_four['member_count'], 4)
@@ -314,8 +536,9 @@ class Groups(unittest.TestCase):
         joined_at = fixed_now - dt.timedelta(days=3)
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
-            c.execute('UPDATE profile SET share_achievements=(user_id<>%s) WHERE user_id=ANY(%s)',
-                      (self.ids[3], self.ids))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id<>%s",
+                      (group['id'], self.ids[3]))
         self.activity(0, fixed_now - dt.timedelta(hours=3), distance=12000, name='SHARED A')
         self.activity(1, fixed_now - dt.timedelta(hours=2), distance=3000, name='SHARED B')
         private_id = self.activity(2, fixed_now - dt.timedelta(hours=1), distance=900000,
@@ -350,7 +573,8 @@ class Groups(unittest.TestCase):
         zone = ZoneInfo('America/New_York')
         body = {'title': 'Fictional trail club', 'time_zone': 'America/New_York',
                 'note': 'Fictional weekly trail goal', 'goal_type': 'distance',
-                'goal_target': 100, 'goal_unit': 'km'}
+                'goal_target': 100, 'goal_unit': 'km',
+                'goal_start_date': self.now.astimezone(zone).date().isoformat()}
         created = self.clients[0].post('/api/groups', json=body)
         self.assertEqual(created.status_code, 200, created.text)
         group = created.json()
@@ -366,7 +590,7 @@ class Groups(unittest.TestCase):
                                    (group['id'],)).fetchone()['created']
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
                       (created_at - dt.timedelta(days=10), group['id']))
-        self.activity(0, created_at - dt.timedelta(seconds=1), distance=3000, name='BEFORE GROUP')
+        self.activity(0, created_at - dt.timedelta(days=1), distance=3000, name='BEFORE GOAL START DATE')
         self.activity(0, created_at + dt.timedelta(seconds=1), distance=12000, name='AFTER GROUP')
         later = created_at + dt.timedelta(seconds=2)
         with patch('app.groups._now', return_value=later):
@@ -716,6 +940,8 @@ class Groups(unittest.TestCase):
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
                       (event_start - dt.timedelta(days=1), group['id']))
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids[:3],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=ANY(%s)",
+                      (group['id'], self.ids[:3]))
         self.activity(0, event_start + dt.timedelta(hours=1), distance=1000)
         self.activity(1, event_start + dt.timedelta(hours=2), distance=2000)
         self.assertEqual(self.clients[0].post(f"/api/groups/{group['id']}/recap-consent", json={'consent': True}).json(),
@@ -737,17 +963,21 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s AND user_id=%s',
                       (event_start - dt.timedelta(days=1), group['id'], self.ids[2]))
+        self.assertEqual(self.clients[2].post(f"/api/groups/{group['id']}/recap-consent",
+                                              json={'consent':True}).json(), {'consent':True})
         self.activity(2, event_start + dt.timedelta(hours=3), distance=3000)
         three = self.clients[0].get(f"/api/groups/{group['id']}").json()
         self.assertEqual(three['member_count'], 3)
-        self.assertEqual(three['total'], 6)
-        self.assertEqual(three['recap']['total'], 6)
+        self.assertEqual(three['total'], 3)
+        self.assertEqual(three['recap']['total'], 3)
         member_logins = [self.clients[i].get('/api/me').json()['login'] for i in range(3)]
         self.assertEqual(three['members'][0]['username'], member_logins[0], 'the viewer is first in Members')
         self.assertEqual([member['username'] for member in three['members'][1:]],
                          sorted(member_logins[1:], key=str.casefold), 'other Members are sorted by username')
-        self.assertEqual({member['username']: member['value'] for member in three['members']},
-                         dict(zip(member_logins, (1, 2, 3))))
+        self.assertEqual({member['username']: member['value'] for member in three['members'] if 'value' in member},
+                         dict(zip(member_logins[:2], (1, 2))))
+        self.assertTrue(next(member for member in three['members'] if member['username']==member_logins[2])
+                        ['sharing_total_only'], 'a recap-consenting just-in member remains out of group totals')
         self.assertCountEqual(three['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)],
                          'the recap names only members who opted in')
 

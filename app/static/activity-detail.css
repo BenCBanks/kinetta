@@ -283,14 +283,14 @@
 .activity-detail .detail-milestone-icon { display:grid; place-items:center; width:20px; height:20px; flex:none; color:var(--color-action); }
 .activity-detail .detail-milestone-icon svg { width:20px; height:20px; }
 .activity-detail .detail-milestone-row #d-milestones { position:static; flex:1; min-width:0; }
-.activity-detail .detail-milestone-row .milestone-banner { position:static; display:flex; align-items:center; min-width:0; min-height:44px; margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
-.activity-detail .detail-milestone-row .milestone-copy { display:flex; align-items:center; flex:1; min-width:0; color:var(--tx3); font-size:15px; }
+.activity-detail .detail-milestone-row .milestone-banner { position:static; display:flex; flex-wrap:nowrap; align-items:center; gap:8px; min-width:0; min-height:44px; margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+.activity-detail .detail-milestone-row .milestone-copy { display:flex; align-items:center; gap:8px; flex:1; min-width:0; color:var(--tx3); font-size:15px; }
 .activity-detail .detail-milestone-row .milestone-copy b { min-width:0; color:var(--tx); font-size:15px; font-weight:500; overflow-wrap:anywhere; }
-.activity-detail .detail-milestone-row .milestone-more { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.activity-detail .detail-milestone-row .milestone-more { position:static; display:inline-flex; align-items:center; flex:none; box-sizing:border-box; min-width:44px; min-height:44px; padding:0 4px; overflow:visible; clip-path:none; color:var(--accent); font-size:14px; line-height:1.2; text-align:left; white-space:normal; }
 .activity-detail .detail-milestone-row .milestone-actions { display:flex; flex:none; align-items:center; }
-.activity-detail .detail-milestone-row .milestone-share { position:absolute; z-index:2; inset:-1px 0 0; display:block; box-sizing:border-box; width:auto; min-width:0; height:auto; min-height:0; padding:0; border:0; border-radius:0; background:transparent; color:var(--tx3); }
-.activity-detail .detail-milestone-row .milestone-share svg { display:none; }
-.activity-detail .detail-milestone-row .milestone-share::after { content:""; position:absolute; top:50%; left:calc((100% - 16px)/3 + 8px); display:block; width:8px; height:8px; border-top:1.5px solid currentColor; border-right:1.5px solid currentColor; transform:translateY(-50%) rotate(45deg); }
+.activity-detail .detail-milestone-row .milestone-share { position:relative; display:grid; place-items:center; box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:var(--r2); background:transparent; color:var(--tx3); }
+.activity-detail .detail-milestone-row .milestone-share svg { display:block; width:18px; height:18px; }
+.activity-detail .detail-milestone-row .milestone-share::after { content:none; }
 .activity-detail .detail-milestone-row .milestone-dismiss { display:none; }
 .activity-detail .detail-milestone-row .milestone-error { flex-basis:100%; margin:0; }
 .activity-detail .activity-tabs { position: sticky; top: calc(env(safe-area-inset-top) + 52px); z-index: 70; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 0; margin: 16px -16px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
@@ -363,10 +363,6 @@
 .activity-detail .detail-milestone-icon { color:var(--color-achievement); }
 .activity-detail .detail-milestone-row .milestone-banner { height:44px; min-height:44px; box-sizing:border-box; }
 .activity-detail .detail-milestone-row .milestone-actions { position:static; }
-.activity-detail .detail-milestone-row .milestone-share { inset:0; }
-.activity-detail .detail-milestone-row .milestone-share::after {
-  right:0; left:auto; border-top-width:2px; border-right-width:2px;
-}
 .activity-detail .activity-tabs .tab-label { position:relative; display:inline-block; line-height:44px; }
 .activity-detail .activity-tabs button[aria-selected="true"] .tab-label::after { position:absolute; right:0; bottom:0; left:0; height:2px; background:var(--accent); content:""; }
 .activity-detail .activity-tabs button[aria-selected="true"]::after { display:none; }
