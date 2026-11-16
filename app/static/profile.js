@@ -598,7 +598,13 @@ const ProfileLayout=(()=>{
     root.querySelectorAll('[data-achievement-sport]').forEach(button=>button.addEventListener('click',()=>mount(button.dataset.achievementSport)));
     root.querySelector('[data-achievement-sport-share]')?.addEventListener('click',()=>openAchievementShare({scope:'sport',sport:selected()}));
     root.querySelectorAll('[data-achievement-track-share]').forEach(button=>button.addEventListener('click',()=>openAchievementShare({scope:'track',sport:shareSportKey(button.dataset.achievementTrackShare),track:button.dataset.achievementTrackShare})));
+    scrollAchievementSportTabIntoView(root);
     scrollAchievementLadders(root,reduce,raf);
+  }
+  function scrollAchievementSportTabIntoView(root){
+    const strip=root?.querySelector('.profile-achievement-sport-switcher'),tab=strip?.querySelector('[aria-selected="true"]');if(!strip||!tab)return;
+    const stripRect=strip.getBoundingClientRect(),tabRect=tab.getBoundingClientRect(),left=strip.scrollLeft+tabRect.left-stripRect.left-(strip.clientWidth-tabRect.width)/2;
+    strip.scrollLeft=Math.max(0,Math.min(left,strip.scrollWidth-strip.clientWidth));
   }
   function scrollAchievementLadders(root,reduce,raf){if(!root)return;raf(()=>root.querySelectorAll('[data-achievement-ladder]').forEach(ladder=>{const next=ladder.querySelector('.is-next')||ladder.lastElementChild;if(!next)return;const left=Math.max(0,next.offsetLeft-(ladder.clientWidth-next.offsetWidth)/2);ladder.scrollLeft=left;if(!reduce&&typeof ladder.scrollTo==='function')ladder.scrollTo({left,behavior:'smooth'});}));}
   function achievementTrackLadder(track,{shared=false,login='',pinnedCodes=new Set(),showTitle=true}={}){

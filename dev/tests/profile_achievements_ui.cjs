@@ -247,6 +247,7 @@ module.exports=async({browser,storageState,base,shots})=>{
  const indexOnly=process.env.KINETTA_ACHIEVEMENT_INDEX_ONLY==='1';
  const tailOnly=process.env.KINETTA_ACHIEVEMENT_TAIL_ONLY==='1';
  const redesignOnly=process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY==='1';
+ const tabsOnly=process.env.KINETTA_ACHIEVEMENT_TABS_ONLY==='1';
  for(const theme of pendingOnly?['light']:['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
   const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,legacyRunAward=null,runEvidenceState=null,deepRunFeatured=false,achievementRedesignEvidence=false,challengeUiFixture=null,shareCompleteEvidence=false,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
@@ -346,6 +347,55 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert.equal(await note.locator('a,button,[role="button"],[role="progressbar"]').count(),0,'the continuation is an explanation');
    const icon=await note.locator('img').boundingBox();assert.equal(icon.width,24);assert.equal(icon.height,24);
   };
+  if(tabsOnly){
+   await page.goto(base+'/me');await until(page,()=>App.pageReady,'Me before achievement tab tests');await setUnits('imperial');
+   for(const width of [390,330]){
+    await page.setViewportSize({width,height:844});await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    const checkEntry=async(entry)=>{
+     await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+     await page.locator('#profile-achievement-page [data-achievement-sport="strength"][aria-selected="true"]').waitFor({state:'visible'});
+     await until(page,()=>{const pageRoot=document.querySelector('#profile-achievement-page'),tabs=pageRoot?.querySelector('.profile-achievement-sport-switcher'),title=pageRoot?.querySelector(':scope > h1'),selected=tabs?.querySelector('[aria-selected="true"]'),a=title?.getBoundingClientRect(),b=tabs?.getBoundingClientRect(),c=selected?.getBoundingClientRect();return !!a&&!!b&&!!c&&a.height>0&&b.width>0&&b.height>=44&&c.width>0&&getComputedStyle(tabs).position==='sticky';},`${entry} stable responsive layout at ${width}px`);
+     await until(page,()=>{const box=document.querySelector('#profile-achievement-page'),tabs=box?.querySelector('.profile-achievement-sport-switcher'),rect=tabs?.getBoundingClientRect();return !!tabs&&rect.width>0&&rect.height>=44&&getComputedStyle(tabs).position==='sticky';},`${entry} achievement layout at ${width}px`);
+
+     const geometry=await page.locator('#profile-achievement-page').evaluate(box=>{
+      const title=box.querySelector(':scope > h1'),overview=box.querySelector('[data-achievement-sport-overview]'),tabs=box.querySelector('.profile-achievement-sport-switcher'),selected=tabs?.querySelector('[aria-selected="true"]'),heading=box.querySelector('.profile-achievement-sport-heading h2'),firstTrack=box.querySelector('.profile-achievement-sport-card .profile-achievement-track-head'),tabRect=selected?.getBoundingClientRect(),tabsRect=tabs?.getBoundingClientRect(),titleRect=title?.getBoundingClientRect(),firstRect=firstTrack?.getBoundingClientRect(),top=box.previousElementSibling?.getBoundingClientRect(),style=tabs&&getComputedStyle(tabs);
+      return{title:title?.textContent.trim(),tabs:tabs?[...tabs.querySelectorAll('[data-achievement-sport]')].map(node=>node.querySelector('span')?.textContent.trim()):[],selected:selected?.querySelector('span')?.textContent.trim(),heading:heading?.textContent.trim(),tabPosition:style?.position,tabTop:tabsRect?.top,tabBottom:tabsRect?.bottom,titleBottom:titleRect?.bottom,topHeaderBottom:top?.bottom,selectedBounds:tabRect&&tabsRect?{left:tabRect.left-tabsRect.left,right:tabsRect.right-tabRect.right,centerOffset:(tabRect.left+tabRect.width/2)-(tabsRect.left+tabsRect.width/2)}:null,scroll:{left:tabs?.scrollLeft,max:tabs?tabs.scrollWidth-tabs.clientWidth:0},mask:style?.maskImage,firstTrackTop:firstRect?.top,pageWidth:document.documentElement.scrollWidth,innerWidth};
+     });
+     assert.equal(geometry.title,'Achievements',`${entry} retains the page title`);
+     assert.deepEqual(geometry.tabs,['Overall','Run','Ride','Walk & hike','Swim','Strength'],`${entry} exposes every sport including empty ones`);
+     assert.equal(geometry.selected,'Strength',`${entry} shows the saved selected sport`);
+     assert.equal(geometry.heading,'Strength',`${entry} names the selected sport in the heading context`);
+     assert.equal(geometry.tabPosition,'sticky',`${entry} keeps the sport row sticky: ${JSON.stringify(geometry)}`);
+     assert(geometry.tabTop>=geometry.titleBottom-1,`${entry} places the switcher directly below the title: ${JSON.stringify(geometry)}`);
+     assert(geometry.tabTop>=geometry.topHeaderBottom-1,`${entry} keeps the switcher below the pinned back header: ${JSON.stringify(geometry)}`);
+     assert(geometry.selectedBounds.left>=-1&&geometry.selectedBounds.right>=-1,`${entry} scrolls the selected sport fully into view: ${JSON.stringify(geometry)}`);
+     assert(Math.abs(geometry.selectedBounds.centerOffset)<=8,`${entry} centres the selected sport clear of the edge fade: ${JSON.stringify(geometry)}`);
+     assert(geometry.scroll.max>0&&geometry.scroll.left>0,`${entry} signals and supports horizontal sport switching: ${JSON.stringify(geometry.scroll)}`);
+     assert.match(geometry.mask,/linear-gradient/i,`${entry} shows an edge fade scroll hint`);
+     assert(geometry.firstTrackTop>=geometry.tabBottom-1,`${entry} starts its first track below the sticky row: ${JSON.stringify(geometry)}`);
+     assert(geometry.pageWidth<=geometry.innerWidth+1,`${entry} has no page-level horizontal overflow`);
+     const targets=await page.locator('.profile-achievement-sport-chip').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return[r.width,r.height];}));
+     assert(targets.every(([w,h])=>w>=44&&h>=44),`${entry} keeps every sport tab at least 44px: ${JSON.stringify(targets)}`);
+     const bars=await page.locator('.profile-achievement-ladder-badge.is-next').evaluateAll(nodes=>nodes.map(node=>{const medal=node.querySelector('.profile-achievement-medallion').getBoundingClientRect(),barNode=node.querySelector('.profile-achievement-ladder-progress'),bar=barNode?.getBoundingClientRect(),style=barNode&&getComputedStyle(barNode),parent=getComputedStyle(node);return bar?{gap:bar.top-medal.bottom,overlap:bar.top<medal.bottom,marginTop:style.marginTop,display:style.display,parentGap:parent.rowGap,medalBottom:medal.bottom,barTop:bar.top}:null;}).filter(Boolean));
+     assert(bars.length>0&&bars.every(item=>item.gap>=7.5&&!item.overlap),`${entry} keeps next-level bars 8px below their badge circles: ${JSON.stringify(bars)}`);
+     if(shots)await screenshot(page,shots,`achievement-tabs-${entry}-${width}-${theme}`);
+     await page.locator('#profile-achievement-page [data-achievement-sport="run"]').click();
+     await page.locator('#profile-achievement-page [data-achievement-sport="run"][aria-selected="true"]').waitFor();
+     assert.equal(await page.locator('[data-achievement-sport-overview]').getAttribute('data-selected-sport'),'run',`${entry} can switch to Run from the visible sport tabs`);
+     const rightEdgeTab=await page.locator('.profile-achievement-sport-switcher').evaluate(strip=>{const selected=strip.querySelector('[aria-selected="true"]'),s=strip.getBoundingClientRect(),r=selected.getBoundingClientRect();return{left:r.left-s.left,right:s.right-r.right,center:(r.left+r.width/2)-(s.left+s.width/2),scrollLeft:strip.scrollLeft};});
+     assert(rightEdgeTab.left>=-1&&rightEdgeTab.right>=-1&&Math.abs(rightEdgeTab.center)<=8&&rightEdgeTab.scrollLeft>0,`${entry} scrolls a right-side selection fully into view after tapping it: ${JSON.stringify(rightEdgeTab)}`);
+     await page.locator('#profile-achievement-page [data-achievement-sport="strength"]').click();
+     await page.locator('#profile-achievement-page [data-achievement-sport="strength"][aria-selected="true"]').waitFor();
+     const finalTab=await page.locator('.profile-achievement-sport-switcher').evaluate(strip=>{const selected=strip.querySelector('[aria-selected="true"]'),s=strip.getBoundingClientRect(),r=selected.getBoundingClientRect();return{left:r.left-s.left,right:s.right-r.right,center:(r.left+r.width/2)-(s.left+s.width/2),scrollLeft:strip.scrollLeft};});
+     assert(finalTab.left>=-1&&finalTab.right>=-1&&Math.abs(finalTab.center)<=8,`${entry} keeps the last sport fully visible after tapping it: ${JSON.stringify(finalTab)}`);
+    };
+    await page.goto(base+'/me/achievements#strength');await until(page,()=>App.pageReady,'direct Achievements route ready');await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await checkEntry('direct');await page.locator('[data-achievement-sport="strength"]').click();await page.locator('[data-achievement-sport-overview][data-selected-sport="strength"]').waitFor();
+    await page.goto(base+'/me');await until(page,()=>App.pageReady,'Me profile before Achievements entry');await page.locator('.me-featured-title a').waitFor({state:'visible'});await page.locator('.me-featured-title a').click();await page.waitForURL('**/me/achievements');await checkEntry('profile');
+    await page.goto(base+'/people/alex?view=achievements');await page.waitForURL('**/me/achievements');await checkEntry('profile-alias');
+   }
+   assert.deepEqual(errors,[],`no browser errors in ${theme}`);assert.deepEqual(writes.filter(url=>url!=='/api/challenges/signup/continue'),[],`no unmocked writes in ${theme}`);
+   console.log(`Achievement sport tabs 390/330 ${theme}: direct and profile entry, selected scroll, first-row clearance PASS`);await context.close();continue;
+  }
   if(tailOnly){
    for(const code of Object.keys(catalog.tracks)){
     await page.goto(base+'/me/achievements/'+encodeURIComponent(code));await waitForHistoryTrack(page,code,'owner continuation');
