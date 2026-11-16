@@ -184,13 +184,13 @@
 .nutrition-home .meal-actions { justify-self:end; margin:0; }
 .nutrition-home .meal-actions { grid-column:3; }
 .nutrition-home .meal > h2 button { color:var(--accent); background:transparent; border:0; border-radius:50%; }
-.nutrition-home .meal .fe { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; width:calc(100% + 32px); min-height:52px; margin:0 -16px; padding:6px 16px; border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; text-align:left; }
+.nutrition-home .meal .fe { display:grid; grid-template-columns:minmax(0,1fr) auto 44px; align-items:center; gap:12px 8px; width:calc(100% + 32px); min-height:52px; margin:0 -16px; padding:6px 16px; border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; text-align:left; }
 .nutrition-home .meal .fe:active { transform:none; background:var(--card2); }
 .nutrition-home .meal-food { display:block; min-width:0; }
 .nutrition-home .meal-food-copy { display:grid; gap:2px; min-width:0; }
 .nutrition-home .meal .fe b { overflow-wrap:anywhere; font-size:15px; line-height:1.2; font-weight:500; }
 .nutrition-home .meal .fe small { font-size:13px; line-height:1.2; }
-.nutrition-row-calories { display:inline-flex; align-items:baseline; justify-self:end; white-space:nowrap; }
+.nutrition-row-calories { display:inline-flex; align-items:baseline; grid-column:2; justify-self:end; white-space:nowrap; }
 .nutrition-row-calories b { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
 .nutrition-home .meal-empty-state { display:none; }
 .nutrition-home .meal-empty .meal-yesterday-repeat { display:flex; align-items:center; min-height:44px; margin:0; padding:0; border-top:1px solid var(--line); color:var(--accent); font-size:15px; }
