@@ -29,9 +29,15 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}
  assert.match(await p.locator('#e-description [data-opt="description"]').innerText(),/Add description/,'description starts as one action row');
  await p.locator('#e-visibility-open').click();await p.locator('#e-visibility-view').waitFor({state:'visible'});await p.locator('#e-share-fields .seg').waitFor();
  assert(await p.locator('#e-primary').isHidden(),'opening Visibility replaces the main form with a sub-view');assert.match(await p.locator('#e-share-fields').innerText(),/Choose what’s shared/);assert.match(await p.locator('#e-share-fields .vis-note').innerText(),/Only you|Friends you have approved|Anyone with an account/);
+ for(const option of await p.locator('#e-share-fields [data-vis]').all()){const box=await option.boundingBox();assert(box&&box.height>=48,'Visibility choice has a 48px target: '+JSON.stringify(box));}
  const selected=p.locator('#e-share-fields [data-vis][aria-pressed="true"]');assert.equal(await selected.count(),1,'one audience is selected');assert(await selected.locator('.activity-vis-check').isVisible(),'selection uses a checkmark');
  await shot('edit-visibility');await p.locator('#e-visibility-back').click();assert(await p.locator('#e-primary').isVisible(),'Back returns to the editor');
- await p.locator('#e-more > summary').click();assert(await p.locator('#e-summary').isVisible());assert(await p.locator('#e-form select[name="gear"]').isVisible());assert(await p.locator('#e-private-note [data-opt="private_note"]').isVisible());await shot('edit-more-details');
+ await p.locator('#e-more > summary').click();assert(await p.locator('#e-summary').isVisible());assert(await p.locator('#e-form select[name="gear"]').isVisible());assert(await p.locator('#e-private-note [data-opt="private_note"]').isVisible());
+ const rowSelectors=['#e-description .opt-add','#e-visibility-open','#e-more > summary','#e-summary > summary','.activity-edit-gear-row','#e-private-note .opt-add','.activity-edit-commute'];
+ for(const selector of rowSelectors){const row=p.locator(selector),box=await row.boundingBox();assert(box&&box.height>=48,`${selector} has a 48px row: ${JSON.stringify(box)}`);const style=await row.evaluate(n=>({fontSize:getComputedStyle(n).fontSize,fontWeight:getComputedStyle(n).fontWeight}));assert.equal(style.fontSize,'16px',`${selector} uses 16px text`);assert.equal(style.fontWeight,'400',`${selector} uses regular weight`);}
+ const visBox=await p.locator('#e-visibility-open').boundingBox(),moreBox=await p.locator('#e-more > summary').boundingBox();assert(visBox.y+visBox.height<=moreBox.y+0.5,'Visibility and More details rows do not overlap');
+ const titleStyle=await p.locator('#e-share-fields .ghead').evaluate(n=>({text:n.textContent.trim(),fontSize:getComputedStyle(n).fontSize,fontWeight:getComputedStyle(n).fontWeight,letterSpacing:getComputedStyle(n).letterSpacing}));assert.deepEqual(titleStyle,{text:'Who can see it',fontSize:'17px',fontWeight:'600',letterSpacing:'normal'},'Visibility sub-view has a normal title');
+ await shot('edit-more-details');
  await p.locator('#e-more > summary').click();await shot('edit-open');
  const top0=(await head.boundingBox()).y;await shot('edit-open');
  // Scroll to the bottom: the header (and Save) stays where it was; Delete is reachable.

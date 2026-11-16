@@ -2616,36 +2616,37 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .activity-edit-primary > label { display:grid; gap:8px; min-width:0; margin:0; color:var(--tx); font-size:15px; font-weight:600; }
 .activity-edit-primary > label :is(input,select) { min-width:0; min-height:44px; font-size:17px; }
 .activity-edit-section { min-width:0; }
-.activity-edit-section .opt-add,.activity-edit-more-body .opt-add { justify-content:flex-start; width:100%; min-height:44px; padding:0; color:var(--tx); font-size:17px; font-weight:500; }
+.activity-edit-section .opt-add,.activity-edit-more-body .opt-add { justify-content:flex-start; width:100%; min-height:48px; padding:0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); font-size:16px; font-weight:400; text-align:left; }
 .activity-edit-section .opt-add svg,.activity-edit-more-body .opt-add svg { display:none; }
 .activity-edit-section .opt-text,.activity-edit-more-body .opt-text { display:grid; gap:8px; margin:0; font-size:15px; font-weight:600; }
-.activity-edit-row { display:grid; grid-template-columns:minmax(0,1fr) auto 18px; align-items:center; gap:12px; width:100%; min-width:0; min-height:56px; padding:8px 0; border:0; border-block:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); text-align:left; font-size:17px; font-weight:500; }
+.activity-edit-row { display:grid; grid-template-columns:minmax(0,1fr) auto 18px; align-items:center; gap:12px; width:100%; min-width:0; min-height:48px; padding:8px 0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); text-align:left; font-size:16px; font-weight:400; }
 .activity-edit-row-value { min-width:0; color:var(--tx2); font-size:15px; text-align:right; overflow-wrap:anywhere; }
 .activity-edit-row > svg,.activity-edit-back > svg { width:18px; height:18px; color:var(--tx3); }
-.activity-edit-primary > .activity-edit-row { margin-block:-24px; }
-.activity-edit-primary > #e-more { margin-top:-24px; border-top:1px solid var(--line); }
 .activity-edit-more { min-width:0; }
-.activity-edit-more > summary,.activity-edit-summary > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; min-height:56px; color:var(--tx); list-style:none; font-size:17px; font-weight:500; }
+.activity-edit-more > summary,.activity-edit-summary > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; min-height:48px; color:var(--tx); list-style:none; font-size:16px; font-weight:400; }
 .activity-edit-more > summary::-webkit-details-marker,.activity-edit-summary > summary::-webkit-details-marker { display:none; }
 .activity-edit-more > summary .chev,.activity-edit-summary > summary .chev { display:grid; width:18px; height:18px; flex:none; color:var(--tx3); transition:transform .15s; }
 .activity-edit-more[open] > summary .chev,.activity-edit-summary[open] > summary .chev { transform:rotate(90deg); }
 .activity-edit-more-body { display:grid; gap:16px; padding:0 0 16px; }
 .activity-edit-summary { min-width:0; border-bottom:1px solid var(--line); }
-.activity-edit-summary > summary { min-height:48px; font-size:15px; font-weight:600; }
+.activity-edit-summary > summary { min-height:48px; font-size:16px; font-weight:400; border-bottom:1px solid var(--line); }
 .activity-edit-summary .e-fields { gap:12px; margin:0; padding:0 0 12px; }
 .activity-edit-summary .e-fields > label { display:grid; gap:6px; min-width:0; margin:0; font-size:15px; font-weight:500; }
 .activity-edit-summary .e-fields :is(input,select) { min-width:0; min-height:44px; font-size:17px; }
-.activity-edit-more-body > label { display:grid; gap:8px; min-width:0; margin:0; font-size:15px; font-weight:600; }
-.activity-edit-more-body > .check { display:flex; font-size:15px; }
+.sheet .form label.activity-edit-gear-row:not(.check):not(.switch-row) { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; min-height:48px; margin:0; border-bottom:1px solid var(--line); color:var(--tx); font-size:16px; font-weight:400; }
+.activity-edit-gear-row .selbox { min-width:0; border:0; background:transparent; box-shadow:none; }
+.activity-edit-gear-row select { min-height:44px; padding-inline:8px 26px; border:0; background:transparent; color:var(--tx); font-size:16px; text-align:right; }
+.activity-edit-more-body > .check { display:flex; min-height:48px; margin:0; font-size:16px; font-weight:400; }
+.activity-edit-more-body > .activity-edit-commute { align-items:center; }
 .activity-edit-more-body > .e-delete { justify-self:start; min-height:44px; margin-top:8px; }
 .activity-edit-visibility { display:grid; gap:16px; min-width:0; }
 .activity-edit-back { display:inline-flex; align-items:center; gap:8px; justify-self:start; min-width:44px; min-height:44px; margin:0; padding:0; border:0; background:transparent; color:var(--accent); font-size:17px; font-weight:500; }
 .activity-edit-visibility .e-share { display:grid; gap:16px; min-width:0; }
-.activity-edit-visibility .e-share > .ghead { margin:0; color:var(--tx); font-size:17px; font-weight:600; }
+.activity-edit-visibility .e-share > .ghead { margin:0; color:var(--tx); font-size:17px; font-weight:600; letter-spacing:normal; text-transform:none; }
 .activity-edit-visibility .vis3 { display:grid; gap:0; border:0; border-block:1px solid var(--line); border-radius:0; background:transparent; }
-.activity-edit-visibility .vis3 > button { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; min-height:48px; padding:8px 0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); text-align:left; font-size:17px; }
+.activity-edit-visibility .vis3 > button { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; min-height:48px; padding:8px 0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); text-align:left; font-size:16px; font-weight:400; }
 .activity-edit-visibility .seg.wide.vis3 { grid-template-columns:minmax(0,1fr); padding:0; gap:0; overflow:visible; background:transparent; }
-.activity-edit-visibility .seg.wide.vis3 > button,.activity-edit-visibility .seg.wide.vis3 > button[aria-pressed="true"] { flex:none; width:100%; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; color:var(--tx); font-weight:500; }
+.activity-edit-visibility .seg.wide.vis3 > button,.activity-edit-visibility .seg.wide.vis3 > button[aria-pressed="true"] { flex:none; width:100%; min-height:48px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; color:var(--tx); font-size:16px; font-weight:400; }
 .activity-edit-visibility .seg.wide.vis3 > button:last-child { border-bottom:0; }
 .activity-edit-visibility .vis3 > button:last-child { border-bottom:0; }
 .activity-edit-visibility .activity-vis-check { visibility:hidden; display:grid; width:20px; height:20px; place-items:center; color:var(--accent); }

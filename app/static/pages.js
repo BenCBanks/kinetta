@@ -982,9 +982,9 @@ function editActivity(a) {
       <details id="e-more" class="activity-edit-more"><summary><span>More details</span><span class="chev">${svg('chev')}</span></summary>
         <div class="activity-edit-more-body">
           <details id="e-summary" class="activity-edit-summary"><summary>Edit distance, time and heart rate<span class="chev">${svg('chev')}</span></summary><div class="form e-fields">${correctionFields}</div></details>
-          <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
-          <div id="e-private-note">${optionalText('private_note', 'Private note (only you)', 'Add private note', a.private_note)}</div>
-          <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
+          <label class="activity-edit-gear-row"><span>Gear</span><span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
+          <div id="e-private-note" class="activity-edit-section">${optionalText('private_note', 'Private note (only you)', 'Add private note', a.private_note)}</div>
+          <label class="check activity-edit-commute"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
           <button type="button" class="e-delete" id="e-del">Delete activity</button>
         </div>
       </details>
@@ -1007,7 +1007,7 @@ function editActivity(a) {
       .then((s) => { if (f.isConnected) {
         const shareBox=$('#e-share-fields', body);saveShare = shareFields(shareBox, a.id, s); $('#e-visibility-value', body).textContent = VIS_SHORT[s.visibility] || 'Only me';
         $('.vis3',shareBox)?.classList.add('activity-edit-audience');
-        $('.ghead',shareBox)?.replaceChildren(document.createTextNode('Visibility'));
+        $('.ghead',shareBox)?.replaceChildren(document.createTextNode('Who can see it'));
         const checks=()=>$$('[data-vis]',shareBox).forEach(button=>{if(!$('.activity-vis-check',button))button.insertAdjacentHTML('beforeend',`<span class="activity-vis-check" aria-hidden="true">${svg('check')}</span>`);});
         checks();shareBox.addEventListener('click',e=>{if(e.target.closest('[data-vis]'))queueMicrotask(checks);});
       } })
