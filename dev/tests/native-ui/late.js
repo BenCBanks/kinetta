@@ -30,7 +30,7 @@
   }
   function storeReady(){
       const checks={
-        'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelectorAll('.me-week').length===7&&document.querySelector('.me-featured-achievements .profile-achievement[data-achievement-code]:nth-child(3)'),
+        'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelector('.me-card-weekly .me-week')&&document.querySelector('.me-featured-achievements .profile-achievement[data-achievement-code]:nth-child(3)'),
         activity:()=>document.querySelector('[data-dt="charts"][aria-selected="true"]')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
         'header-track':()=>document.querySelector('#track-start')?.getAttribute('aria-label')==='Start run'&&!document.querySelector('#track-lap')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
         'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915')&&document.querySelector('.calorie-ring[role="progressbar"][aria-valuenow="915"]'),
