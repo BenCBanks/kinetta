@@ -77,7 +77,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const group of await p.locator('.meal-actions').all()){
     const add=group.locator('[data-add]');
-    const addBox=await add.boundingBox();assert(addBox.height>=44&&addBox.width>=44,'meal plus keeps a 44px target');assert.match(await add.getAttribute('aria-label'),/^Meal actions for /,'meal plus announces that it opens meal actions');
+    const addBox=await add.boundingBox(),mealEdge=await group.evaluate(n=>{const meal=n.closest('section.meal'),r=meal.getBoundingClientRect();return r.right-parseFloat(getComputedStyle(meal).paddingRight);});assert(addBox.height>=44&&addBox.width>=44,'meal plus keeps a 44px target');assert(Math.abs(addBox.x+addBox.width-mealEdge)<1,'meal plus aligns with the meal card right padding');assert.match(await add.getAttribute('aria-label'),/^Meal actions for /,'meal plus announces that it opens meal actions');
+    const total=group.locator('.meal-total');if(await total.count()){const totalBox=await total.boundingBox();assert(totalBox.x+totalBox.width<=addBox.x-4,'meal calories stay left of the plus');}
    }
    assert(await p.locator('#fd-meals .meal > h2').evaluateAll(ns=>ns.every(n=>getComputedStyle(n,'::before').display==='none')),'Nutrition meal headings have no decorative grey dot');
    for(const title of await p.locator('.progress-tile-name').all())assert(await title.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'tile title fits without clipping');

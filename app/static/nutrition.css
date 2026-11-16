@@ -182,6 +182,7 @@
 .nutrition-home .meal > h2 > span:first-child { color:var(--tx); font-size:16px; font-weight:600; }
 .nutrition-home .meal > h2 .meal-total { color:var(--tx2); font-size:14px; font-weight:400; }
 .nutrition-home .meal-actions { justify-self:end; margin:0; }
+.nutrition-home .meal-actions { grid-column:3; }
 .nutrition-home .meal > h2 button { color:var(--accent); background:transparent; border:0; border-radius:50%; }
 .nutrition-home .meal .fe { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; width:calc(100% + 32px); min-height:52px; margin:0 -16px; padding:6px 16px; border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; text-align:left; }
 .nutrition-home .meal .fe:active { transform:none; background:var(--card2); }
