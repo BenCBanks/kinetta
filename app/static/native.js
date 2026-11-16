@@ -49,6 +49,7 @@ const Native = (() => {
   N.webSignIn = (url) => P.KinettaWebSignIn.open({url});
   N.activityShareSupported = on && !!P.KinettaActivityShare;
   N.shareActivityPicture = (image, destination, url = null) => P.KinettaActivityShare.share({image, destination, ...(url ? {url} : {})});
+  N.saveActivityPicture = (image) => P.KinettaActivityShare.saveToPhotos({image});
   N.keepScreenAwake = (enabled) => P.KinettaActivityShare?.keepAwake?.({enabled}) || Promise.resolve();
   N.stopActivityShare = () => P.KinettaActivityShare?.cancel?.() || Promise.resolve();
   N.headers = () => ({...(N.token?{Authorization:'Bearer '+N.token}:{}),...(on&&N.appVersion?{'X-Kinetta-Version':N.appVersion}:{})});

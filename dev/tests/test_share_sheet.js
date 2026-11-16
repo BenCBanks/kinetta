@@ -2,8 +2,8 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const tick=()=>new Promise(setImmediate);
-function harness({native=false,api:apiImpl}={}){
- let owner='zz_test_owner_a',options,html,objectId=0,anchorClicks=0;const timers=new Map(),objects=new Map(),revoked=[],toasts=[],apiCalls=[];
+function harness({native=false,activityShareSupported=false,saveActivityPicture:saveActivityPictureImpl,api:apiImpl}={}){
+ let owner='zz_test_owner_a',options,html,objectId=0,anchorClicks=0;const timers=new Map(),objects=new Map(),revoked=[],toasts=[],apiCalls=[],nativeSaveCalls=[];
  const body={isConnected:true},images=[],choices=[],tabs=[],actions=[];let scrollHandler=null;
  const row={children:choices,clientWidth:286,centerIndex:0,getBoundingClientRect:()=>({left:0,width:286}),addEventListener:(name,handler)=>{if(name==='scroll')scrollHandler=handler;}};
  const controls={_html:'',inputs:[],inkButtons:[],renders:0};Object.defineProperty(controls,'innerHTML',{get(){return this._html;},set(value){this._html=value;this.renders++;this.inputs=[...value.matchAll(/<input type="checkbox" data-share-control="([^"]+)"( checked)?/g)].map(match=>({dataset:{shareControl:match[1]},checked:!!match[2],disabled:false}));this.inkButtons=[...value.matchAll(/<button type="button" data-share-ink="([^"]+)" aria-pressed="([^"]+)">/g)].map(match=>({dataset:{shareInk:match[1]},attrs:{'aria-pressed':match[2]},setAttribute(name,value){this.attrs[name]=value;}}));}});
@@ -13,7 +13,7 @@ function harness({native=false,api:apiImpl}={}){
  const urlApi={createObjectURL(blob){const url='blob:share-'+(++objectId);objects.set(url,blob);return url;},revokeObjectURL(url){revoked.push(url);objects.delete(url);}};
  const cardData={enabled:true,url:'https://example.test/card/fictional',preview:{username:'zz_test_owner_a',sports:[],stats:[],achievements:[]}};
  const context={Blob,AbortController,File:class extends Blob{constructor(parts,name,options){super(parts,options);this.name=name;}},FileReader:class{readAsDataURL(){this.result='data:image/png;base64,fictional';this.onload?.();}},URL:urlApi,
-   Native:{on:native,activityShareSupported:false,headers:()=>({})},App:{me:{id:1},closeActivityShare:null},readOwner:()=>owner,viewResources:new Map(),location:{origin:'https://example.test'},
+   Native:{on:native,activityShareSupported,saveActivityPicture:async image=>{nativeSaveCalls.push(image);return saveActivityPictureImpl?saveActivityPictureImpl(image):{saved:false};},headers:()=>({})},App:{me:{id:1},closeActivityShare:null},readOwner:()=>owner,viewResources:new Map(),location:{origin:'https://example.test'},
    api:async path=>{apiCalls.push(path);return apiImpl?apiImpl(path,cardData):cardData;},fetch:async()=>({ok:true,blob:async()=>new Blob(['fictional card'])}),navigator:{},
    document,setTimeout:(fn,ms)=>{const id=timers.size+1;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),
    sheet:(title,markup,mount)=>{
@@ -32,7 +32,7 @@ function harness({native=false,api:apiImpl}={}){
    },
    $$:(selector)=>selector==='[data-share-choice]'?choices:selector==='[data-share-tab]'?tabs:selector==='[data-share-control]'?controls.inputs:selector==='[data-share-ink]'?controls.inkButtons:selector==='[data-share-action]'?actions:[],
    esc:String,svg:()=>'',toast:message=>toasts.push(message),route:()=>{},col:()=> '#ffffff',getComputedStyle:()=>({getPropertyValue:()=> 'system-ui'}),
-   setOwner:value=>{owner=value;},getObjects:()=>objects,getTimers:()=>timers,getState:()=>({html,anchorClicks,scrollHandler,revoked,toasts,apiCalls,body,choices,tabs,images,previewImage,previewFrame,actions,controls,note,description,status,send,sendLabel,linkButton,save,document})};
+   setOwner:value=>{owner=value;},getObjects:()=>objects,getTimers:()=>timers,getState:()=>({html,anchorClicks,scrollHandler,revoked,toasts,apiCalls,nativeSaveCalls,body,choices,tabs,images,previewImage,previewFrame,actions,controls,note,description,status,send,sendLabel,linkButton,save,document})};
  vm.createContext(context);
  vm.runInContext(fs.readFileSync('app/static/share-art.js','utf8')+'\n'+fs.readFileSync('app/static/recaps.js','utf8')+'\n'+fs.readFileSync('app/static/cards.js','utf8')+'\nthis.shareSheetTest=ShareSheet;this.shareArtTest=ShareArt;this.kinettaCardTest=KinettaCard;',context);
  context.openShare=value=>{options=value;context.shareSheetTest.open(value);};
@@ -73,9 +73,11 @@ function harness({native=false,api:apiImpl}={}){
  c=harness({native:true});c.openShare({items:[{label:'Achievements',build:async()=>new Blob(['fictional PNG'])}]});await tick();await tick();state=c.getState();assert.match(state.images[0].src,/^data:image\/png;base64,/,'native preview uses a data URL instead of a WKWebView blob URL: '+state.status.textContent);
  console.log('Share sheet: native picture preview uses an inline PNG source PASS');
 
- c=harness({native:true});let saved=0;c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone']),afterSave:async()=>saved++}]});await tick();state=c.getState();assert(state.save.hidden,'native app hides the browser-only Save control');await state.save.onclick();assert.equal(saved,0,'a failed native save cannot mark the milestone shared');assert.match(state.status.textContent,/Use Share instead/);
- let oldShare=0;c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone']),afterShare:async()=>oldShare++}]});await tick();state=c.getState();await state.send.onclick();assert.equal(oldShare,0,'an unsupported native bridge cannot record a handoff');assert.equal(state.anchorClicks,0,'an iPhone download link is never treated as a share');assert.match(state.status.textContent,/cannot share pictures/);
- console.log('Share sheet: iPhone hides Save and never records an unsuccessful save PASS');
+ c=harness({native:true,activityShareSupported:true,saveActivityPicture:async image=>({saved:image==='data:image/png;base64,fictional'})});let saved=0;c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone']),afterSave:async()=>saved++}]});await tick();state=c.getState();assert(!state.save.hidden,'native app exposes Save when the Photos bridge is available');await state.save.onclick();assert.deepEqual(state.nativeSaveCalls,['data:image/png;base64,fictional'],'native save hands off only the previewed PNG');assert.equal(saved,1,'a successful Photos save can record the milestone shared');assert.equal(state.status.textContent,'Picture saved to Photos.');
+ c=harness({native:true,activityShareSupported:true,saveActivityPicture:async()=>{throw Error('Allow Kinetta to add pictures to Photos to save this image');}});saved=0;c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone']),afterSave:async()=>saved++}]});await tick();state=c.getState();await state.save.onclick();assert.equal(saved,0,'a denied Photos save cannot mark the milestone shared');assert.match(state.status.textContent,/Allow Kinetta to add pictures to Photos/);
+ let finishPhotos;const photosPending=new Promise(resolve=>finishPhotos=resolve);c=harness({native:true,activityShareSupported:true,saveActivityPicture:()=>photosPending});saved=0;c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone']),afterSave:async()=>saved++}]});await tick();state=c.getState();const pendingSave=state.save.onclick();state.body.isConnected=false;finishPhotos({saved:true});await pendingSave;assert.equal(saved,0,'a closed sheet cannot complete a delayed Photos save callback');assert.equal(state.status.textContent,'','a detached sheet is not repainted after Photos permission resolves');
+ let oldShare=0;c=harness({native:true});c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone']),afterShare:async()=>oldShare++}]});await tick();state=c.getState();await state.send.onclick();assert.equal(oldShare,0,'an unsupported native bridge cannot record a handoff');assert.equal(state.anchorClicks,0,'an iPhone download link is never treated as a share');assert.match(state.status.textContent,/cannot share pictures/);
+ console.log('Share sheet: Photos bridge success, denial, detached permission return and unsupported share PASS');
 
  c=harness();c.Native.activityShareSupported=true;const nativePayload=[];c.Native.shareActivityPicture=async(...args)=>{nativePayload.push(args);return{handedOff:true};};assert.equal(await c.shareArtTest.deliver(new Blob(['image']),'fictional.png',()=>true,'https://example.test/people/demo'),true);assert.deepEqual(nativePayload,[['data:image/png;base64,fictional','system','https://example.test/people/demo']]);
  console.log('Share sheet: native payload carries only the picture, system destination and chosen link PASS');

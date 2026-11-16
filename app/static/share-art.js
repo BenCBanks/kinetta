@@ -213,7 +213,7 @@ const ShareArt=(()=>{
 })();
 const ShareSheet=(()=>{
   const inlineDataUrl=picture=>new Promise((yes,no)=>{const reader=new FileReader();reader.onload=()=>yes(reader.result);reader.onerror=()=>no(Error('Couldn’t read this picture'));reader.readAsDataURL(picture);});
-  const save=(blob,name)=>{if(Native.on)return false;let url;try{url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return true;}catch(_){if(url)URL.revokeObjectURL(url);return false;}};
+  const save=async(blob,name,live)=>{if(Native.activityShareSupported){const image=await inlineDataUrl(blob);if(!live())return false;const result=await Native.saveActivityPicture(image);return result?.saved===true;}if(Native.on)return false;let url;try{url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return true;}catch(_){if(url)URL.revokeObjectURL(url);return false;}};
   function open({items,title='Share',actions=[],mode='carousel'}){
     if(!items?.length)return;
     const owner=readOwner(),tabMode=mode==='tabs',initial=items.map(item=>({...Object.fromEntries((item.controls||[]).map(control=>[control.key,!!control.checked])),...(item.initial||{})})),shared=Object.assign({},...items.map(item=>item.initial||{}),initial[0]),values=tabMode?items.map(()=>shared):initial;
@@ -221,7 +221,7 @@ const ShareSheet=(()=>{
     sheet(title,`<div class="share-sheet${tabMode?' share-sheet-tabs':''}" data-unified-share>
       ${pictureMarkup}
       <div class="share-picture-controls" data-share-controls></div><p class="share-picture-note small muted" data-share-note></p><p class="vh" data-share-description></p><p class="share-picture-status small muted" role="status" aria-live="polite"></p>
-      <div class="share-picture-actions"><button type="button" class="primary wide" data-share-send disabled>${svg('share')}<span data-share-send-label>Share</span></button><button type="button" class="linkbtn wide" data-share-link hidden></button><button type="button" class="linkbtn wide" data-share-save disabled${Native.on?' hidden':''}>Save image</button>${actions.map((action,index)=>`<button type="button" class="linkbtn wide" data-share-action="${index}">${esc(action.label)}</button>`).join('')}</div>
+      <div class="share-picture-actions"><button type="button" class="primary wide" data-share-send disabled>${svg('share')}<span data-share-send-label>Share</span></button><button type="button" class="linkbtn wide" data-share-link hidden></button><button type="button" class="linkbtn wide" data-share-save disabled${Native.on&&!Native.activityShareSupported?' hidden':''}>Save image</button>${actions.map((action,index)=>`<button type="button" class="linkbtn wide" data-share-action="${index}">${esc(action.label)}</button>`).join('')}</div>
     </div>`,(body,close)=>{
       const live=()=>body.isConnected&&owner===readOwner()&&items[selected]?.valid?.()!==false,row=$('.share-picture-row',body),controls=$('[data-share-controls]',body),note=$('[data-share-note]',body),status=$('.share-picture-status',body),send=$('[data-share-send]',body),sendLabel=$('[data-share-send-label]',body),linkButton=$('[data-share-link]',body),saveButton=$('[data-share-save]',body);
       const cache=new Map(),versions=items.map(()=>0);let selected=-1,busy=false,scrollTimer=0,peekFrame=0;
@@ -282,7 +282,7 @@ const ShareSheet=(()=>{
       };
       saveButton.onclick=async()=>{
         const current=cache.get(selected),item=items[selected];if(!current||busy||!live())return;busy=true;buttons();
-        try{if(item.beforeSave&&await item.beforeSave({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;if(!live())return;if(!save(current.blob,current.filename)){status.textContent='This device cannot save the picture here. Use Share instead.';return;}status.textContent='Picture saved.';await item.afterSave?.({blob:current.blob,values:{...values[selected]},close,live});}
+        try{if(item.beforeSave&&await item.beforeSave({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;if(!live())return;const saved=await save(current.blob,current.filename,live);if(!live())return;if(!saved){status.textContent='This device cannot save the picture here. Use Share instead.';return;}status.textContent=Native.activityShareSupported?'Picture saved to Photos.':'Picture saved.';await item.afterSave?.({blob:current.blob,values:{...values[selected]},close,live});}
         catch(error){if(live())status.textContent=error.message||'Couldn’t save this picture.';}
         finally{busy=false;if(live())buttons();}
       };

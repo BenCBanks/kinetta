@@ -1882,6 +1882,115 @@ route(/^\/me\/people$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Admin tools</h1><p>${App.me.is_admin?'Manage this Kinetta in the separate browser portal. Your personal settings stay here in Me.':'These tools are for the person who runs this Kinetta.'}</p>${App.me.is_admin?`<a class="primary wide" href="${esc((Native.base||location.origin)+'/admin')}" target="_blank" rel="noopener">Open admin tools</a>`:''}`;
   wireBack(el,'/me');
 });
+route(/^\/track$/, 'track', async (el) => {
+  Track.sync();
+  el.classList.add('track-home-page');
+  el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts">${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div></div><div id="track-content"></div>`;
+  await Track.restoreReview();
+  if (TrackNative.supported) { try { await Track.pullNative(); } catch (error) { toast(error.message); } }
+
+  const content=$('#track-content',el),context=Track.__routeContext(),choices=context.recordingChoices();
+  const recentKey=()=>context.key?context.key+':recent':null;
+  const readRecent=()=>{try{const value=store.get(recentKey());return Array.isArray(value)?value.filter(index=>Number.isInteger(index)&&index>=0&&index<choices.length):[];}catch(_){return[];}};
+  let defaultChoices=null;
+  const decorate=()=>{
+    if(!el.isConnected)return;
+    const row=$('.track-quick',content),buttons=row?$$('[data-quick]',row):[];
+    if(row&&buttons.length){
+      const selected=+(buttons.find(button=>button.getAttribute('aria-pressed')==='true')?.dataset.quick??store.get(context.key+':choice')??0);
+      defaultChoices ||= buttons.slice(0,3).map(button=>+button.dataset.quick);
+      const defaults=defaultChoices,saved=readRecent(),ordered=[...new Set([...saved,selected,...defaults])].slice(0,3);
+      ordered.forEach(index=>{
+        if(buttons.some(button=>+button.dataset.quick===index)||!choices[index])return;
+        const button=buttons[0].cloneNode(false);button.dataset.quick=String(index);delete button.dataset.trackHomeDecorated;
+        button.addEventListener('click',()=>{const moreButton=$('#track-other',content);moreButton?.click();$(`.track-sport-picker [data-pk="${index}"]`)?.click();});
+        row.append(button);
+      });
+      const allButtons=$$('[data-quick]',row);
+      allButtons.forEach(button=>{
+        const index=+button.dataset.quick,choice=choices[index];if(!choice)return;
+        button.hidden=false;button.classList.toggle('track-home-hidden',!ordered.includes(index));button.dataset.sport=choice.lift?'workout':choice.sport;
+        button.setAttribute('aria-label',choice.label);
+        if(button.dataset.trackHomeDecorated!=='1'){
+          const icon=document.createElement('span');icon.className='track-sport-icon';icon.innerHTML=svg(choice.lift?'workout':choice.sport);
+          const label=document.createElement('span');label.className='track-sport-label';label.textContent=choice.lift?'Lift':choice.label==='Treadmill run'?'Treadmill':choice.label;
+          button.replaceChildren(icon,label);button.dataset.trackHomeDecorated='1';
+        }
+      });
+      const visibleOrder=allButtons.filter(button=>!button.classList.contains('track-home-hidden')).map(button=>+button.dataset.quick);
+      if(visibleOrder.some((index,position)=>ordered[position]!==index)||visibleOrder.length!==ordered.length)ordered.forEach(index=>{const button=allButtons.find(item=>+item.dataset.quick===index);if(button)row.append(button);});
+      const more=$('#track-other',content),selectedVisible=ordered.includes(selected);
+      if(more){more.setAttribute('aria-pressed',String(!selectedVisible));more.setAttribute('aria-label',selectedVisible?'More activities':'More activities, selected '+(choices[selected]?.label||''));if(selectedVisible&&more.querySelector('span')?.textContent!=='More')more.innerHTML=`<span>More</span>${svg('down')}`;}
+      if(allButtons.length<3)allButtons.forEach(button=>button.classList.remove('track-home-hidden'));
+    }
+    const start=$('#track-start',content);if(start){start.classList.remove('round-btn','start');start.classList.add('primary','wide','track-start-button');}
+    const plan=$('#track-plan',content),planLink=plan?.querySelector('a:first-child'),planLoad=plan?.querySelector('[data-plan-use]');
+    if(plan&&!plan.hidden&&planLink){
+      planLink.classList.add('track-plan-main');
+      const caption=planLink.querySelector('small'),title=planLink.querySelector('b');
+      if(caption&&caption.textContent!=="Today's plan")caption.textContent="Today's plan";
+      if(title)title.classList.add('track-plan-title');
+      if(planLoad){
+        planLoad.classList.add('track-plan-load');
+        if(plan.dataset.loaded==='true'){
+          if(!planLoad.disabled&&planLoad.textContent.trim()!=='Loading…'){
+            planLoad.setAttribute('aria-label','Plan loaded');
+            if(planLoad.dataset.trackPlanLoaded!=='true'){planLoad.innerHTML=`${svg('check')}<span>Loaded</span>`;planLoad.dataset.trackPlanLoaded='true';}
+          }
+        }else if(planLoad.dataset.trackPlanWatch!=='true'){
+          planLoad.setAttribute('aria-label',"Load today's plan");
+          if(planLoad.textContent.trim()==='Use')planLoad.textContent='Load';
+          planLoad.dataset.trackPlanWatch='true';
+          planLoad.addEventListener('click',()=>{
+            const settle=()=>{
+              if(!planLoad.isConnected)return;
+              if(planLoad.disabled||planLoad.textContent.trim()==='Loading…'){setTimeout(settle,40);return;}
+              if(!$('#track-ready-error',content)?.textContent.trim()&&globalThis.Intervals?.selected()){
+                plan.dataset.loaded='true';decorate();
+              }
+            };
+            setTimeout(settle,40);
+          });
+        }else{planLoad.setAttribute('aria-label',"Load today's plan");if(planLoad.textContent.trim()==='Use')planLoad.textContent='Load';}
+      }
+    }
+    if(start){
+      const label=start.getAttribute('aria-label')||'';
+      if(plan?.dataset.loaded==='true'&&/^Start (run|walk)$/i.test(label)){
+        const visible=label.replace(/^Start /i,'Start ');
+        const text=start.querySelector('span');if(text&&text.textContent!==visible)text.textContent=visible;
+      }else{
+        const text=start.querySelector('span');if(text&&/^Start (run|walk)$/i.test(text.textContent))text.textContent='Start';
+      }
+    }
+    $('#track-content .track-gps-note')?.remove();$('#track-tools-h',content)?.remove();
+    const interval=$('#interval-open',content);
+    if(interval&&interval.dataset.trackHomeControl!=='1'){interval.innerHTML=`${svg('clock')}<span>Intervals</span>${svg('chev')}`;interval.dataset.trackHomeControl='1';}
+    const audio=$('#track-options',content);
+    if(audio){if(audio.dataset.trackHomeControl!=='1'||audio.querySelector('span')?.textContent!=='Audio & auto-pause'){audio.innerHTML=`${svg('sound')}<span>Audio &amp; auto-pause</span>${svg('chev')}`;audio.dataset.trackHomeControl='1';}const current=audio.getAttribute('aria-label')||'',prefix='Audio & auto-pause',details=current.startsWith(prefix)?current.slice(prefix.length).replace(/^\.\s*/,''):current.split('. ').slice(1).join('. '),label=`${prefix}${details?`. ${details}`:''}`;if(current!==label)audio.setAttribute('aria-label',label);}
+    const explore=$('#track-explore',content),connection=explore?.querySelector('a[data-track-feature="connections"]');
+    if(connection){
+      explore.classList.add('track-connections');
+      connection.className='track-connection-row';connection.setAttribute('aria-label','Connections');
+      if(connection.dataset.trackHomeDecorated!=='1'){connection.innerHTML=`<span>${svg('watch')}<b>Connections</b></span>${svg('chev')}`;connection.dataset.trackHomeDecorated='1';}
+    }
+    const mapWrap=$('#track-ready-map-wrap',content),mapError=$('#track-ready-error',content);
+    mapWrap?.classList.toggle('track-map-failed',/^Map unavailable\b/.test(mapError?.textContent.trim()||''));
+  };
+  const remember=event=>{
+    const button=event.target.closest('[data-quick]');if(!button||!content.contains(button))return;
+    const index=+button.dataset.quick,key=recentKey();if(!key)return;
+    store.set(key,[index,...readRecent().filter(item=>item!==index)].slice(0,3));requestAnimationFrame(decorate);
+  };
+  const rememberMore=event=>{
+    const item=event.target.closest('.track-sport-picker [data-pk]');if(!item)return;
+    const index=+item.dataset.pk,key=recentKey();if(key&&Number.isInteger(index))store.set(key,[index,...readRecent().filter(value=>value!==index)].slice(0,3));
+  };
+  const observer=new MutationObserver(()=>{observer.disconnect();try{decorate();}finally{observer.observe(content,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-label']});}});observer.observe(content,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-label']});
+  el.addEventListener('click',remember,true);document.addEventListener('click',rememberMore,true);
+  viewResources.set(el,()=>{observer.disconnect();el.removeEventListener('click',remember,true);document.removeEventListener('click',rememberMore,true);});
+  Track.draw();decorate();
+});
 // admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
 route(/^\/me\/import$/, 'track', async () => go('/track/import', {replace:true}));
 route(/^\/track\/import$/, 'track', async (el) => {

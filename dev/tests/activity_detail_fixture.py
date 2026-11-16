@@ -50,6 +50,15 @@ deadline=time.monotonic()+20
 while True:
  milestones=ok(owner.get(f'/api/milestones?activity_id={ids["run"]}'))
  if not milestones.get('pending'):
+  # A new account's historical baseline is intentionally silent. This UI case
+  # needs a visible offer, so make that state explicit after the worker has
+  # created the fictional milestone instead of relying on account freshness.
+  visible=subprocess.run(['docker','exec',project+'-db-1','psql','-U','postgres','-d','fit','-q','-tA','-c',
+   f"UPDATE milestones SET silent=false,seen_at=NULL WHERE user_id={uid} AND activity_id={ids['run']} AND code='first:run:10000' AND valid RETURNING title"],
+   text=True,capture_output=True)
+  assert visible.returncode==0 and visible.stdout.strip()=='First 10K', 'fictional run fixture must create its First 10K milestone'
+  milestones=ok(owner.get(f'/api/milestones?activity_id={ids["run"]}'))
+  assert any(item.get('title')=='First 10K' for item in milestones.get('items',[])), 'fictional run fixture exposes its First 10K milestone'
   break
  if time.monotonic()>=deadline:raise TimeoutError('milestone worker did not finish the fictional activity fixture')
  time.sleep(.1)
