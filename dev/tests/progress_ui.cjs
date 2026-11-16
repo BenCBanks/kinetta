@@ -194,7 +194,30 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
      await p.evaluate(url=>go(url),url);await ready();
     }
     if(url==='/progress/segments'){assert.equal(await p.locator('#sg-sport').evaluate(n=>!!n.closest('.card')),true,'segment sport is inside its first card');await p.locator('#sg-sport').click();await p.locator('[data-pk=run]').click();await ready();assert.match(new URL(p.url()).search,/sport=run/);}
-    if(url.includes('view=fitness')){await until(p,()=>!!document.querySelector('#fi-range .range-btn'),'years filter rendered beside Running fitness');assert.equal(await p.locator('#fi-range button').count(),1,'years filter stays with Running fitness after first-card refresh');if(who==='runner'){assert.equal(await p.locator('#fi-summary .fitness-current').count(),1,'Fitness & freshness now leads Progress → Fitness');assert((await p.locator('#fi-summary .fitness-current').boundingBox()).y<(await p.locator('#fi-pred').boundingBox()).y,'moved summary appears before predictions');}}
+    if(url.includes('view=fitness')){
+     await until(p,()=>!!document.querySelector('#fi-range .range-text'),'Fitness range control renders in its chart card');
+     assert.equal(await p.locator('.progress-chart-card').count(),2,'Fitness charts use two independent ChartCards');
+     assert.equal(await p.locator('.progress-chart-card .card').count(),0,'Fitness ChartCards do not nest cards');
+     assert.deepEqual(await p.locator('#fi-range [data-fitness-range]').allTextContents(),['1M','3M','1Y','All'],'training load offers the specified range choices');
+     assert.equal(await p.locator('#fi-range-score .range-text').count(),who==='runner'?1:0,'run score range appears only when its chart exists');
+     for(const range of ['#fi-range [data-fitness-range]','#fi-range-score [data-fitness-range]'])for(const button of await p.locator(range).all())assert((await button.boundingBox()).height>=44,`${range} stays a 44px target`);
+     if(who==='runner'){
+      assert.deepEqual(await p.locator('[data-progress-chart="training-load"] .stat-row-item small').allTextContents(),['Fitness','Form','5K estimate'],'Fitness uses the specified three-metric StatRow');
+      assert.equal(await p.locator('[data-progress-chart="training-load"] .stat-row-item[data-form-state]').count(),1,'form state is conveyed by semantic text color');
+      assert.equal(await p.locator('[data-progress-chart="training-load"] #p-load .chartbox > svg').count(),1,'training load plot is inside its ChartCard');
+      assert.deepEqual(await p.locator('[data-progress-chart="training-load"] #p-load .readout').evaluate(n=>{const s=getComputedStyle(n);return{position:s.position,background:s.backgroundColor,border:s.borderTopWidth,radius:s.borderRadius,shadow:s.boxShadow};}),{position:'static',background:'rgba(0, 0, 0, 0)',border:'0px',radius:'0px',shadow:'none'},'chart inspection values remain plain text instead of a nested soft panel');
+      const runScorePlot=p.locator('[data-progress-chart="run-score"] #p-vdot .chartbox > svg');
+      if(await runScorePlot.count())assert.equal(await runScorePlot.count(),1,'run score plot is inside its ChartCard');
+      else assert.match(await p.locator('[data-progress-chart="run-score"] #p-vdot').innerText(),/Not enough data in this range/,'short run-score history explains why a plot is unavailable');
+      assert((await p.locator('[data-progress-chart="run-score"] .progress-chart-heading h2').innerText()).trim()==='Run score');
+      assert.equal(await p.locator('#fi-range [data-fitness-range="all"]').getAttribute('aria-pressed'),'true','All is selected by default');
+      await p.locator('#fi-range [data-fitness-range="3m"]').click();await p.waitForURL('**/progress?view=fitness&range=3m');await ready();
+      assert.equal(await p.locator('#fi-range [data-fitness-range="3m"]').getAttribute('aria-pressed'),'true','range selection persists in the Fitness route');
+      assert.equal(await p.locator('#fi-range-score [data-fitness-range="3m"]').getAttribute('aria-pressed'),'true','the same range applies to both Fitness charts');
+      await p.evaluate(url=>go(url),url);await ready();
+      if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/fitness-chartcard-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
+     }else assert.equal(await p.locator('.progress-chart-empty').count(),1,'no-score empty state stays inside the route card');
+    }
     if(url.includes('/trends')){
      assert.equal(await p.locator('#p-rng button').count(),1,'years filter remains on the separate Trends view');
      if(size.width<=520&&who==='runner'){

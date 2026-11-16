@@ -1,5 +1,32 @@
 [
   {
+    "id": "progress-chart-card-title-type",
+    "selector": "#fi-body .progress-chart-card .progress-chart-heading h2",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 15,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1021",
+    "reason": "The approved #1021 ChartCard title is 15px/600; the chart heading remains distinct from larger section headings and every clipping check stays active."
+  },
+  {
+    "id": "progress-chart-range-label-type",
+    "selector": ".progress-chart-heading .range-text button",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1021",
+    "reason": "The approved #1021 RangeText uses 13px labels in 44px-high buttons; target size, gaps and clipping remain audited."
+  },
+  {
+    "id": "progress-chart-form-value-type",
+    "selector": "#fi-body .progress-chart-card .stat-row-item[data-form-state] b.num",
+    "metric": "font-max",
+    "kind": "approved-type",
+    "exact": 22,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1021",
+    "reason": "The shared #1021 StatRow uses 22px/600 tabular values; only its semantic Form number is excepted, while the colored state word, unit and clipping remain checked."
+  },
+  {
     "id": "lift-set-value-type",
     "selector": ".compact-lift .lift-row > input.lift-in",
     "metric": "font-max",
