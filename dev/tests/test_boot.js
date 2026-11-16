@@ -1,11 +1,13 @@
 // Actual startup recovery: a required-script failure is recoverable, while later maps/photos keep their own UI.
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-function fixture(styles=[{sheet:{},href:'/static/style.css'}],href='https://fictional.invalid/',native=false){
- let launch=true,page=false,reloads=0,handlers={},preloads=[];const button={},root={innerHTML:''},timers=[];
- const c={URL,Capacitor:native?{isNativePlatform:()=>true}:undefined,document:{head:{appendChild:link=>preloads.push(link)},createElement:tag=>({tagName:tag}),querySelector:()=>launch,querySelectorAll:()=>styles, getElementById:id=>id==='app'?root:id==='page'?(page?{}:null):button},location:{href,protocol:new URL(href).protocol,reload:()=>reloads++},addEventListener:(type,fn)=>handlers[type]=fn,setTimeout:(fn,ms)=>{assert.equal(ms,20000);timers.push(fn);}};
+function fixture(styles=[{sheet:{},href:'/static/style.css'}],href='https://fictional.invalid/',native=false,initialLaunch=true){
+ let launch=initialLaunch,page=false,reloads=0,handlers={},preloads=[],observer;const button={},root={innerHTML:''},timers=[],classes=[];
+ const launchNode={innerHTML:'logo',classList:{add:value=>classes.push(value),contains:value=>classes.includes(value)}};
+ class FakeMutationObserver{constructor(callback){this.callback=callback;this.disconnected=false;}observe(){observer=this;}disconnect(){this.disconnected=true;}}
+ const c={URL,Capacitor:native?{isNativePlatform:()=>true}:undefined,MutationObserver:FakeMutationObserver,document:{head:{appendChild:link=>preloads.push(link)},documentElement:{},createElement:tag=>({tagName:tag}),querySelector:()=>launch?launchNode:null,querySelectorAll:()=>styles, getElementById:id=>id==='app'?root:id==='page'?(page?{}:null):button},location:{href,pathname:new URL(href).pathname,protocol:new URL(href).protocol,reload:()=>reloads++},addEventListener:(type,fn)=>handlers[type]=fn,setTimeout:(fn,ms)=>{assert.equal(ms,20000);timers.push(fn);}};
  vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/boot.js','utf8'),c);
- return {c,root,button,preloads,emit:e=>handlers.error(e),loaded:()=>handlers.DOMContentLoaded(),ready:()=>{launch=false;page=true;},timeout:()=>timers.forEach(fn=>fn()),reloads:()=>reloads};
+ return {c,root,button,preloads,classes,launchNode,emit:e=>handlers.error(e),loaded:()=>handlers.DOMContentLoaded(),ready:()=>{launch=false;page=true;},timeout:()=>timers.forEach(fn=>fn()),reloads:()=>reloads,observer:()=>observer,addLaunch:()=>{launch=true;observer.callback();}};
 }
 let f=fixture();assert.equal(f.preloads.length,1,'Web startup adds the /api/me preload');assert.equal(f.preloads[0].href,'/api/me');assert.equal(f.preloads[0].crossOrigin,'anonymous');assert.equal(f.preloads[0].fetchPriority,'high');f.emit({target:{tagName:'IMG'}});assert.equal(f.c.KinettaBoot.failed,false,'A photo error cannot replace startup');
 f=fixture(undefined,'capacitor://localhost/');assert.equal(f.preloads.length,0,'Capacitor startup does not add a web preload');
@@ -31,3 +33,7 @@ for(const href of ['https://fictional.invalid/','capacitor://localhost/']){
  f=fixture([{sheet:null,href:new URL('/static/style.css',href).href}],href);f.loaded();assert.equal(f.c.KinettaBoot.failed,true,href+' detects missing bundled stylesheet');
 }
 console.log('Startup: required web/native scripts and styles offer reload; optional proxy assets, photos and active screens remain separate PASS');
+f=fixture(undefined,'https://fictional.invalid/progress');assert(f.classes.includes('route-launch'));assert(f.launchNode.innerHTML.includes('sk-bars'),'Progress gets a data-free chart-shaped first paint');assert(!f.launchNode.innerHTML.includes('Opening Kinetta'),'Do not retain the generic startup message on signed-in routes');assert(f.observer().disconnected,'The parser observer stops after the root has its placeholder');
+f=fixture(undefined,'https://fictional.invalid/activity/123',false,false);f.addLaunch();assert(f.classes.includes('route-launch'));assert(f.launchNode.innerHTML.includes('map lead sk'),'Activity detail reserves its map when the parser adds #app');assert(f.observer().disconnected);
+f=fixture(undefined,'https://fictional.invalid/signup');assert.equal(f.c.KinettaBoot.showStartupSkeleton(),false,'Enrollment routes keep their existing copy and flow');
+console.log('Startup skeleton: route-shaped, data-free and limited to app screens PASS');
