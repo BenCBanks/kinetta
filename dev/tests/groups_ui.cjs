@@ -237,6 +237,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    const oneBar=await page.locator('.group-progress').evaluate(el=>el.value/el.max*100);assert(Math.abs(oneBar-2)<1,`one-member bar uses only own progress (${theme})`);
    assert.equal(await page.locator('.group-privacy').count(),0,'the shell does not repeat the privacy sentence');assert(!/Only members can see this group/.test(await page.locator('.group-page').innerText()));
    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'group shell fits the phone');
+   await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="monday-recap"]').count(),0,'groups under three members do not show a recap opt-in');await capture(page,`groups-options-one-member-390-${theme}`,'.scrim');await page.locator('[data-close]').last().click();
    await capture(page,`groups-shell-one-member-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idTwo));await page.locator('.group-roster').waitFor();

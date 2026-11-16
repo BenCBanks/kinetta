@@ -356,10 +356,11 @@ def _answer(c, group, uid):
     week_total = round(sum(weekly.values()), 3)
     me = next(member for member in members if member['user_id'] == uid)
     monday = local_day - dt.timedelta(days=local_day.weekday())
-    previous_monday = monday - dt.timedelta(days=7)
-    recap_ready = c.execute('SELECT 1 FROM group_monday_recaps WHERE group_id=%s AND week_start=%s',
-                            (group['id'], previous_monday)).fetchone() is not None
-    recap_week = _period_contributions(c, group, sharing, now, previous_monday)[1] if recap_ready and member_count >= 3 else {}
+    local_now = now.astimezone(zone)
+    recap_available = local_now.weekday() != 0 or local_now.timetz().replace(tzinfo=None) >= dt.time(9, 0)
+    previous_monday = monday - dt.timedelta(days=7) if recap_available else None
+    recap_week = (_period_contributions(c, group, sharing, now, previous_monday)[1]
+                  if previous_monday is not None and member_count >= 3 else {})
     own_total = contributions.get(uid, 0) if member_count >= 3 and me['share_total'] else _contributions(c, group, [me], now).get(uid, 0)
     own_week = weekly.get(uid, 0) if member_count >= 3 and me['share_total'] else _weekly_contributions(c, group, [me], now)[1].get(uid, 0)
     visible_total = total if member_count >= 3 else own_total
@@ -380,7 +381,7 @@ def _answer(c, group, uid):
            if member_count >= 3 else {'your_this_week_total': own_week}),
         'week_start': (local_day - dt.timedelta(days=local_day.weekday())).isoformat(),
         'monday_recap': ({'week_start': previous_monday.isoformat(), 'total': round(sum(recap_week.values()), 3)}
-                         if recap_ready and member_count >= 3 else None),
+                         if previous_monday is not None and member_count >= 3 else None),
         'days_to_event': days_to_event,
         'weeks_to_event': weeks_to_event,
         'event_state': ('ongoing' if event_date is None else
@@ -807,13 +808,15 @@ def monday_recap_tick(now=None):
     now = now or _now()
     with db.connect() as c:
         groups = c.execute('''SELECT g.id,g.time_zone FROM event_groups g WHERE g.closed_at IS NULL
+          AND (SELECT count(*) FROM group_members active
+               WHERE active.group_id=g.id AND active.status='active')>=3
           AND EXISTS(SELECT 1 FROM group_members m WHERE m.group_id=g.id AND m.status='active'
             AND m.monday_recap_enabled AND NOT m.notifications_muted) ORDER BY g.id''').fetchall()
     sent = 0
     for group in groups:
         zone = _zone(group['time_zone'])
         local = now.astimezone(zone)
-        if local.weekday() != 0 or not (dt.time(9, 0) <= local.timetz().replace(tzinfo=None) < dt.time(9, 15)):
+        if local.weekday() != 0 or local.timetz().replace(tzinfo=None) < dt.time(9, 0):
             continue
         current_monday = local.date()
         last_monday = current_monday - dt.timedelta(days=7)
@@ -828,10 +831,10 @@ def monday_recap_tick(now=None):
                   AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND u.password_change_expires IS NULL
                 ORDER BY m.user_id''', (group['id'],)).fetchall()
             for member in members:
-                c.execute('''INSERT INTO notifications(user_id,kind,actor_id,group_id,group_week_start)
-                    VALUES(%s,'group_monday_recap',%s,%s,%s) ON CONFLICT DO NOTHING''',
-                          (member['user_id'], member['user_id'], group['id'], last_monday))
-                sent += 1
+                inserted = c.execute('''INSERT INTO notifications(user_id,kind,actor_id,group_id,group_week_start)
+                    VALUES(%s,'group_monday_recap',%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id''',
+                                     (member['user_id'], member['user_id'], group['id'], last_monday)).fetchone()
+                sent += 1 if inserted else 0
     return sent
 
 
@@ -907,7 +910,7 @@ def accept_invite(token: str, request: Request, user=Depends(current_user)):
         c.execute('''INSERT INTO group_members(group_id,user_id,status,joined_at,removed_invite_generation)
                      VALUES(%s,%s,'active',now(),NULL)
                      ON CONFLICT(group_id,user_id) DO UPDATE SET status='active',joined_at=now(),removed_invite_generation=NULL,
-                       sharing_level='just_in' ''',
+                       sharing_level='just_in',monday_recap_enabled=false ''',
                   (group_id, user['id']))
         group = c.execute('SELECT * FROM event_groups WHERE id=%s', (group_id,)).fetchone()
         return _answer(c, group, user['id'])
@@ -970,7 +973,7 @@ def remove_member(group_id: str, body: MemberAction, user=Depends(current_user))
                            (group['id'], body.username.strip())).fetchone()
         if not target or target['id'] == user['id']:
             raise HTTPException(404, 'Group member not found')
-        c.execute("UPDATE group_members SET status='removed',removed_invite_generation=%s WHERE group_id=%s AND user_id=%s",
+        c.execute("UPDATE group_members SET status='removed',removed_invite_generation=%s,monday_recap_enabled=false WHERE group_id=%s AND user_id=%s",
                   (group['invite_generation'], group['id'], target['id']))
         c.execute('DELETE FROM notifications WHERE user_id=%s AND group_id=%s', (target['id'], group['id']))
     return {'ok': True}
@@ -986,7 +989,7 @@ def leave_group(group_id: str, user=Depends(current_user)):
         if group['organizer_id'] == user['id']:
             c.execute('UPDATE event_groups SET closed_at=coalesce(closed_at,now()),joining_closed=true WHERE id=%s', (group['id'],))
             c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
-        c.execute("UPDATE group_members SET status='left',removed_invite_generation=NULL WHERE group_id=%s AND user_id=%s",
+        c.execute("UPDATE group_members SET status='left',removed_invite_generation=NULL,monday_recap_enabled=false WHERE group_id=%s AND user_id=%s",
                   (group['id'], user['id']))
         c.execute('DELETE FROM notifications WHERE user_id=%s AND group_id=%s', (user['id'], group['id']))
     return {'ok': True}
