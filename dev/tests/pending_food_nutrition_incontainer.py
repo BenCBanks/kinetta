@@ -7,7 +7,7 @@ from app.main import app
 
 class PendingNutrition(unittest.TestCase):
  def setUp(self):
-  self.ids=[];self.clients=[];self.draft=str(uuid.uuid4())
+  self.ids=[];self.clients=[];self.draft=str(uuid.uuid4());self.day=dt.date.today()
   for _ in range(2):
    login='zz_test_pending_'+uuid.uuid4().hex[:12]
    with db.connect() as c:
@@ -22,18 +22,18 @@ class PendingNutrition(unittest.TestCase):
   r=(client or self.a).post(path,json=body);self.assertEqual(r.status_code,status,r.text[:1400]);return r.json()
  def result(self,data,mid):return next(m['result'] for m in data['messages'] if m.get('reply_to')==mid)
  def staged(self,items=None):
-  e={'day':str(dt.date.today()),'meal':'dinner','name':'Fictional penne','amount':1,'unit':'serving','kcal':200,'protein_g':7,'carbs_g':42,'fat_g':1,'fiber_g':3,'sodium_mg':10}
+  e={'day':str(self.day),'meal':'dinner','name':'Fictional penne','amount':1,'unit':'serving','kcal':200,'protein_g':7,'carbs_g':42,'fat_g':1,'fiber_g':3,'sodium_mg':10}
   data=self.post('/api/food/thread/reviews/items',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'items':items or [e]});m=next(m for m in data['messages'] if m['kind']=='user');return m,self.result(data,m['id'])
  def edit(self,m,p,entry=0,**body):return {'part':p['index'],'entry':entry,'expected':p['remove_token'],**body}
  def review(self,m):return self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'messages':[m['id']]})
- def entries(self):return self.a.get('/api/food/day').json()['entries']
+ def entries(self):return self.a.get('/api/food/day?d='+self.day.isoformat()).json()['entries']
  def test_scanned_metadata_missing_macros_amount_and_exact_confirmed_values(self):
   product={'code':'9990000000019','product_name':'Fictional penne','brands':'Fictional Pantry','quantity':'16 oz (454 g)','serving_size':'1 cup (50 g)','serving_quantity':50,
            'nutriments':{'energy-kcal_100g':400,'energy-kcal_serving':200,'proteins_100g':14,'proteins_serving':7,'carbohydrates_100g':84,'carbohydrates_serving':42,'fiber_100g':6}}
   food=F._off_food(product);self.assertEqual(food['package_size'],'16 oz (454 g)');self.assertEqual(food['per_serving']['protein_g'],7);self.assertIsNone(food['per100']['fat_g'])
   m,_=self.staged();draft=S.catalog_draft(food,{'grams':50},partial=True)
   with db.connect() as c:
-   data=C.write(c,self.ids[0],T.locked_message(c,self.ids[0],m['id']),{'composed':True,'day':str(dt.date.today()),'meal':'dinner','parts':[{'index':0,'status':'ready','drafts':[draft],'entries':S.draft_entries([draft])}]})
+   data=C.write(c,self.ids[0],T.locked_message(c,self.ids[0],m['id']),{'composed':True,'day':str(self.day),'meal':'dinner','parts':[{'index':0,'status':'ready','drafts':[draft],'entries':S.draft_entries([draft])}]})
   p=self.result(data,m['id'])['parts'][0];self.assertIsNone(p['entries'][0]['fat_g']);self.assertEqual(self.entries(),[])
   data=self.post(f"/api/food/thread/messages/{m['id']}/edit-food",self.edit(m,p,amount=100));p=self.result(data,m['id'])['parts'][0]
   e=p['entries'][0];self.assertEqual((e['kcal'],e['protein_g'],e['carbs_g']),(400,14,84));self.assertIsNone(e['fat_g']);self.assertEqual(e['ref']['origin_ref']['serving']['label'],'1 cup (50 g)')
@@ -42,7 +42,7 @@ class PendingNutrition(unittest.TestCase):
   saved=self.entries()[0];self.assertEqual((saved['kcal'],saved['protein_g'],saved['carbs_g']),(e['kcal'],e['protein_g'],e['carbs_g']));self.assertIn('fat_g',saved['ref']['unknown_nutrients'])
   self.post(f"/api/food/thread/messages/{m['id']}/edit-food",self.edit(m,p,amount=150),status=409)
  def test_label_correction_preserves_other_foods_and_does_not_log(self):
-  items=[{'day':str(dt.date.today()),'meal':'dinner','name':name,'amount':amount,'unit':'g','kcal':kcal,'protein_g':protein,'carbs_g':20,'fat_g':0,'source':'off','ref':{'source':'off'}} for name,amount,kcal,protein in [('Fictional penne',100,400,14),('Fictional sauce',50,40,1)]]
+  items=[{'day':str(self.day),'meal':'dinner','name':name,'amount':amount,'unit':'g','kcal':kcal,'protein_g':protein,'carbs_g':20,'fat_g':0,'source':'off','ref':{'source':'off'}} for name,amount,kcal,protein in [('Fictional penne',100,400,14),('Fictional sauce',50,40,1)]]
   m,r=self.staged(items);p=r['parts'][0];other=copy.deepcopy(p['entries'][1]);path=f"/api/food/thread/messages/{m['id']}/edit-food"
   body=self.edit(m,p,item={'name':'Fictional penne corrected','kcal':210,'protein_g':8,'carbs_g':41,'fat_g':None},basis_amount=50,basis_label='1 cup (50 g)',basis_g=50)
   self.post(path,body,client=self.b,status=404);data=self.post(path,body);p=self.result(data,m['id'])['parts'][0]
@@ -53,7 +53,7 @@ class PendingNutrition(unittest.TestCase):
  def test_estimate_correction_is_one_food_only_without_ai_work(self):
   m,_=self.staged();drafts=S.model_drafts({'items':[{'name':'Fictional toast','amount':'1 slice','kcal':100,'protein_g':4,'carbs_g':18,'fat_g':1},{'name':'Fictional spread','amount':'1 spoon','kcal':80,'protein_g':0,'carbs_g':0,'fat_g':9}]})
   with db.connect() as c:
-   data=C.write(c,self.ids[0],T.locked_message(c,self.ids[0],m['id']),{'composed':True,'day':str(dt.date.today()),'meal':'dinner','parts':[{'index':0,'status':'ready','estimated':True,'drafts':drafts,'entries':S.draft_entries(drafts)}]})
+   data=C.write(c,self.ids[0],T.locked_message(c,self.ids[0],m['id']),{'composed':True,'day':str(self.day),'meal':'dinner','parts':[{'index':0,'status':'ready','estimated':True,'drafts':drafts,'entries':S.draft_entries(drafts)}]})
   p=self.result(data,m['id'])['parts'][0];other=copy.deepcopy(p['entries'][1]);data=self.post(f"/api/food/thread/messages/{m['id']}/edit-food",self.edit(m,p,item={'name':'Fictional toast','kcal':120,'protein_g':5,'carbs_g':20,'fat_g':2}))
   rows=self.result(data,m['id'])['parts'][0]['entries'];self.assertEqual(rows[0]['kcal'],120);self.assertEqual(rows[1],other);self.assertEqual(self.entries(),[])
  def test_stale_source_invalid_input_and_ownership_do_not_change_foods(self):
@@ -74,7 +74,7 @@ class PendingNutrition(unittest.TestCase):
   foods=[self.post('/api/food/foods',{'name':name,'serving_g':100,'kcal':100,'protein_g':4,'carbs_g':20,'fat_g':1}) for name in ['Fictional rice','Fictional beans']]
   m,_=self.staged()
   with db.connect() as c:
-   data=C.write(c,self.ids[0],T.locked_message(c,self.ids[0],m['id']),{'composed':True,'day':str(dt.date.today()),'meal':'dinner',
+   data=C.write(c,self.ids[0],T.locked_message(c,self.ids[0],m['id']),{'composed':True,'day':str(self.day),'meal':'dinner',
     'parts':[{'index':0,'status':'ready','templates':[{'kind':'custom','id':f['id'],'portion':{'count':1}} for f in foods]}]})
   p=self.result(data,m['id'])['parts'][0];path=f"/api/food/thread/messages/{m['id']}/remove-food"
   self.assertEqual(self.a.put('/api/food/foods/'+str(foods[1]['id']),json={'name':'Fictional beans','serving_g':100,'kcal':200,'protein_g':8,'carbs_g':40,'fat_g':2}).status_code,200)
