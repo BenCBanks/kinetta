@@ -4,7 +4,7 @@ const GROUP_EMPTY={id:'00000000-0000-4000-8000-000000000001',title:'Fictional hi
 const GROUP_FULL={...GROUP_EMPTY,id:'00000000-0000-4000-8000-000000000050',total:42,members:Array.from({length:50},(_,i)=>({username:i?'fictional_member_'+String(i).padStart(2,'0'):'alex',organizer:i===0,sharing_total_only:true})),member_count:50};delete GROUP_FULL.your_total;
 const scenes=fixtures=>[
  {name:'Me',login:'alex',route:'/me',ready:'#page:not([data-home-loading]):has(.me-card-sections[aria-busy="false"])'},
- {name:'Me Today plan',login:'zz_test_me_today',route:'/me',ready:'#t-today[data-loaded-day] [data-today-activity]',todayPlan:true},
+ {name:'Me Today plan',login:'zz_test_me_today',route:'/me',ready:'#t-today[data-loaded-day] [data-today-plan]',todayPlan:true},
  {name:'Sharing & privacy',login:'alex',route:'/me/sharing',ready:'#sh-find'},
  {name:'Activity',login:'zz_test_feed_typical',route:'/activity',ready:'#feed-tools[aria-busy="false"]',dismissWeeklyRecap:true},
  {name:'Home',login:'zz_test_feed_typical',route:'/',ready:'#feed-tools[aria-busy="false"]',dismissWeeklyRecap:true},

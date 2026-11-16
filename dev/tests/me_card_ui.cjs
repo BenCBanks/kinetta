@@ -16,7 +16,7 @@ const chartFixture=today=>{
   return {d,end,distance_m,activities,time_s:activities?1800+i*120:0,today:i===11};
  })};
 };
-const waitApp=async p=>{for(let i=0;i<150;i++){if(await p.evaluate(()=>typeof App!=='undefined'&&App.pageReady).catch(()=>false))return;await p.waitForTimeout(100);}throw Error('Me route did not initialize');};
+const waitApp=async p=>{for(let i=0;i<150;i++){if(await p.evaluate(()=>typeof App!=='undefined'&&App.pageReady).catch(()=>false))return;await p.waitForTimeout(100);}const state=await p.evaluate(()=>({url:location.href,ready:typeof App==='undefined'?null:App.pageReady,key:typeof App==='undefined'?null:App.page?.key,body:document.body.innerText.slice(0,240)})).catch(e=>({pageError:e.message}));throw Error('Me route did not initialize '+JSON.stringify(state));};
 const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k);});
 (async()=>{
  const b=await chromium.launch(),login=await b.newContext();
@@ -61,7 +61,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     return r.fulfill({json:hasActivity?[row]:yesterday?[{...row,id:918203,start_time:`${addDays(day,-1)}T12:12:00Z`}]:[]});
    }
    if(u.pathname==='/api/plans/current'){
-    const planned=['planned','planned-distance','rest'].includes(todayFixture),day=todayInNewYork();
+    const planned=['both','planned','planned-distance','rest'].includes(todayFixture),day=todayInNewYork();
     const today_workout=todayFixture==='planned-distance'?{type:'run',title:'Tempo run 4 mi',dist:4,day}:{type:todayFixture==='rest'?'rest':'run',title:'Easy run',minutes:30,day};
     return r.fulfill({json:planned?{today:day,plan:{id:9101,race_day:addDays(day,20),unit:'mi'},today_workout}:{plan:null}});
    }
@@ -215,11 +215,11 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   };
   async function screenshot(name){
    if(!out)return;fs.mkdirSync(out,{recursive:true});
-   await p.locator('.me-top').evaluate(n=>n.scrollIntoView({block:'start',inline:'nearest'}));
+   const today=p.locator('.me-today'),captureToday=todayOnly&&await today.count()>0;
+   await (captureToday?today:p.locator('.me-top')).evaluate(n=>n.scrollIntoView({block:'start',inline:'nearest'}));
    await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-   const layout=await p.evaluate(()=>{const header=document.querySelector('.me-top').getBoundingClientRect(),card=document.querySelector('.me-card').getBoundingClientRect();return{headerTop:header.top,headerBottom:header.bottom,cardTop:card.top,cardBottom:card.bottom,scrollHeight:document.scrollingElement.scrollHeight};});
-   assert(layout.headerTop>=0&&layout.headerTop<48,`Screenshot starts with the Me header visible (${layout.headerTop}px)`);
-   assert(layout.cardTop>=layout.headerBottom-1&&layout.cardBottom<=layout.scrollHeight+1,`Screenshot starts the Me card below its header and keeps the full card in the scroll range (${JSON.stringify(layout)})`);
+   if(captureToday){const layout=await p.evaluate(()=>{const heading=document.querySelector('.me-today-head').getBoundingClientRect(),rows=[...document.querySelectorAll('.me-today-list .me-today-row')].map(n=>n.getBoundingClientRect()),nav=document.querySelector('nav.tabs').getBoundingClientRect();return{headingTop:heading.top,headingBottom:heading.bottom,rowsBottom:Math.max(0,...rows.map(r=>r.bottom)),navTop:nav.top};});assert(layout.headingTop>=-1&&layout.headingTop<48,`Screenshot starts with Today visible (${layout.headingTop}px)`);assert(layout.rowsBottom<=layout.navTop,`Today rows clear the tab bar (${JSON.stringify(layout)})`);}
+   else {const layout=await p.evaluate(()=>{const header=document.querySelector('.me-top').getBoundingClientRect(),card=document.querySelector('.me-card').getBoundingClientRect();return{headerTop:header.top,headerBottom:header.bottom,cardTop:card.top,cardBottom:card.bottom,scrollHeight:document.scrollingElement.scrollHeight};});assert(layout.headerTop>=0&&layout.headerTop<48,`Screenshot starts with the Me header visible (${layout.headerTop}px)`);assert(layout.cardTop>=layout.headerBottom-1&&layout.cardBottom<=layout.scrollHeight+1,`Screenshot starts the Me card below its header and keeps the full card in the scroll range (${JSON.stringify(layout)})`);}
    await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});
   };
   if(todayOnly||size.width===390&&size.root===16&&theme==='light'){
@@ -240,7 +240,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const shareLabel=await share.getAttribute('aria-label');assert.equal(shareLabel,'Share your profile');
    const checkTodayState=async(state)=>{
     if(state!==todayFixture){todayFixture=state;await p.goto(base+'/me');await waitApp(p);await p.locator('#t-today[data-loaded-day]').waitFor({state:'attached'});await p.locator('.me-card-weekly .me-week').nth(11).waitFor();await waitFeatured();}
-    const today=p.locator('#t-today'),section=today.locator('.me-today'),activity=today.locator('[data-today-activity]'),food=today.locator('[data-today-food]');
+    const today=p.locator('#t-today'),section=today.locator('.me-today'),activity=today.locator('[data-today-activity]'),plan=today.locator('[data-today-plan]'),food=today.locator('[data-today-food]');
     assert.equal(await meCardSnapshot(),meCardBefore,'Today state changes leave Me card markup unchanged (milestones load separately)');
     assert.equal(await share.getAttribute('aria-label'),shareLabel,'the Me card share control stays unchanged');
     assert.equal(await today.locator('.me-today-head h2').count(),state==='neither'?0:1,'Today is hidden entirely when neither source applies');
@@ -249,42 +249,42 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     if(state==='neither'){
      assert.equal(await today.innerHTML(),'','neither-users have no empty Today placeholder');assert.equal(await activity.count(),0);assert.equal(await food.count(),0);assert((await p.locator('#t-start').innerText()).includes('Get started'),'Get started replaces Today for a neither-user');
     }else{
-     const activityUser=['both','activity','activity-multiple','planned','planned-distance','rest','activity-empty','food-error'].includes(state),foodUser=['both','food','estimate','food-error'].includes(state);
+     const activityUser=['both','activity','activity-multiple','activity-empty','food-error'].includes(state),planUser=['both','planned','planned-distance','rest'].includes(state),foodUser=['both','food','estimate','food-error'].includes(state);
      assert.equal(await activity.count(),activityUser?1:0,`activity row visibility matches ${state} (${size.width}px ${theme})`);
+     assert.equal(await plan.count(),planUser?1:0,`plan row visibility matches ${state} (${size.width}px ${theme})`);
      assert.equal(await food.count(),foodUser?1:0,`food row visibility matches ${state} (${size.width}px ${theme})`);
      assert.equal(await section.locator('.me-today-date').count(),1,'Today date is shown at the right of the header');
-     const rows=await section.locator('.me-today-row').evaluateAll(nodes=>nodes.map(n=>({height:n.getBoundingClientRect().height,text:n.innerText,href:n.getAttribute('href')})));
-     assert(rows.every(row=>row.height>=62),`Today rows are at least 62px tall: ${JSON.stringify(rows)}`);
-     for(const copy of await section.locator('.me-today-copy').all()){
-      const type=await copy.evaluate(n=>{const main=n.querySelector('b'),detail=n.querySelector('small');return{main:main&&parseFloat(getComputedStyle(main).fontSize),detail:detail&&parseFloat(getComputedStyle(detail).fontSize),gap:main&&detail?detail.getBoundingClientRect().top-main.getBoundingClientRect().bottom:null};});
-      if(type.main!==null)assert(type.main<=16,`Today main text respects the 16px spacing cap (${type.main}px)`);
-      if(type.detail!==null)assert(type.detail<=14,`Today secondary text respects the 14px spacing cap (${type.detail}px)`);
-      if(type.gap!==null)assert(type.gap>=8,`Today text lines have an 8px visual gap (${type.gap}px)`);
-     }
+     const list=section.locator('.me-today-list');assert.equal(await list.count(),1,'Today uses one inset list');
+     const rows=await list.locator('.me-today-row').evaluateAll(nodes=>nodes.map(n=>({height:n.getBoundingClientRect().height,text:n.innerText,href:n.getAttribute('href'),kind:n.hasAttribute('data-today-plan')?'plan':n.hasAttribute('data-today-food')?'nutrition':'activity'})));
+     assert(rows.every(row=>row.height>=52),`Today rows meet the 52px minimum: ${JSON.stringify(rows)}`);
+     for(const row of await list.locator('.me-today-title').all()){const size=await row.evaluate(n=>({font:parseFloat(getComputedStyle(n).fontSize),weight:parseInt(getComputedStyle(n).fontWeight,10)}));assert.equal(size.font,15,'Today row titles use 15px');assert.equal(size.weight,500,'Today row titles use 500 weight');}
+     for(const row of await list.locator('.me-today-value').all()){const size=await row.evaluate(n=>({font:parseFloat(getComputedStyle(n).fontSize),weight:parseInt(getComputedStyle(n).fontWeight,10),numeric:getComputedStyle(n).fontVariantNumeric}));assert.equal(size.font,15,'Today values use 15px');assert.equal(size.weight,600,'Today values use 600 weight');assert.match(size.numeric,/tabular-nums/,'Today values use tabular numerals');}
+     if(state==='both')assert.deepEqual(rows.map(row=>row.kind),['plan','nutrition','activity'],'Today order is plan, nutrition, latest activity');
      if(['both','activity','food-error'].includes(state)){
-      assert.match(await activity.innerText(),/Run · 6\.0 mi · 53 min/);assert.match(await activity.innerText(),/7:12 AM/);assert.doesNotMatch(await activity.innerText(),/Today at/);assert.equal(await activity.getAttribute('href'),'/activity/918204');assert(await activity.boundingBox().then(box=>box.height>=56),'activity row is the 56px workout target');
+      assert.match(await activity.innerText(),/Run/);assert.match(await activity.innerText(),/6\.0 mi · 53 min/);assert.equal(await activity.getAttribute('href'),'/activity/918204');
      }
-     if(state==='activity-multiple')assert.match(await activity.innerText(),/2 workouts · 7\.0 mi[\s\S]*Run, Walk/,'the date-window query retains every workout from today');
+     if(state==='activity-multiple')assert.match(await activity.innerText(),/2 workouts[\s\S]*7\.0 mi/,'the date-window query retains every workout from today');
      if(state==='both'){
-      assert.match(await food.innerText(),/1,250 \/ 2,100 kcal/);assert.match(await food.innerText(),/70 \/ 130 g protein/);
+      assert.match(await food.innerText(),/Nutrition[\s\S]*1,250 of 2,100/);assert.equal(await food.getAttribute('href'),`/food?d=${todayInNewYork()}`);
      }
-     if(state==='food')assert.match(await food.innerText(),/No food logged today/);
+     if(state==='food')assert.match(await food.innerText(),/Nutrition[\s\S]*Add/);
      if(state==='planned'){
-      assert.match(await activity.innerText(),/Easy run · 30 min/);assert.match(await activity.innerText(),/On your plan/);assert.equal(await activity.getAttribute('href'),'/plan');
+      assert.match(await plan.innerText(),/Easy run/);assert.match(await plan.innerText(),/30 min/);assert.equal(await plan.getAttribute('href'),'/plan');
      }
      if(state==='planned-distance'){
-      assert.match(await activity.innerText(),/Tempo run 4 mi/);assert.doesNotMatch(await activity.innerText(),/4 mi · 4 mi/,'distance already shown in a plan title is not repeated');assert.equal(await activity.getAttribute('href'),'/plan');
+      assert.equal(await plan.locator('.me-today-title').innerText(),'Tempo run');assert.equal(await plan.locator('.me-today-value').innerText(),'4 mi','planned distance appears once in the value column');assert.equal(await plan.getAttribute('href'),'/plan');
      }
      if(state==='rest'){
-      assert.match(await activity.innerText(),/Rest day/);assert.match(await activity.innerText(),/On your plan/);assert.equal(await activity.getAttribute('href'),'/plan');
+      assert.match(await plan.innerText(),/Rest day/);assert.match(await plan.innerText(),/On your plan/);assert.equal(await plan.getAttribute('href'),'/plan');
      }
-     if(state==='activity-empty'){assert.match(await activity.innerText(),/No workout yet today/);assert.equal(await activity.getAttribute('href'),'/track');}
-     if(state==='estimate')assert.match(await food.innerText(),/≈ 1,250 \/ 2,100 kcal/,'AI food estimates are marked with ≈');
+     if(state==='activity-empty'){assert.match(await activity.innerText(),/Run/);assert.equal(await activity.getAttribute('href'),'/activity/918203');}
+     if(state==='estimate')assert.match(await food.innerText(),/≈ 1,250 of 2,100/,'AI food estimates are marked with ≈');
      if(state==='food-error'){
-      assert.match(await food.innerText(),/Couldn't load · Try again/);const retry=await food.locator('[data-today-retry]').boundingBox();assert(retry.height>=44,'failed food row keeps a 44px retry target');
+      assert.match(await food.innerText(),/Retry/);const retry=await food.boundingBox();assert(retry.height>=44,'failed food row keeps a 44px retry target');
      }
      if(['both','food','estimate'].includes(state)){
-      const add=food.locator('[data-today-add]'),box=await add.boundingBox();assert(box.width>=44&&box.height>=44,'food quick action meets the 44px target');assert.equal(await food.locator('.me-today-copy').getAttribute('href'),`/food?d=${todayInNewYork()}`,'food text opens today’s Nutrition day');
+      if(state==='food'){const add=await food.boundingBox();assert(add.width>=44&&add.height>=44,'Add row meets the 44px target');assert(await food.getAttribute('data-today-add')!==null,'empty Nutrition row opens food entry');}
+      else assert.equal(await food.getAttribute('href'),`/food?d=${todayInNewYork()}`,'Nutrition row opens today’s diary');
      }
     }
     await screenshot(`today-${state}`);
