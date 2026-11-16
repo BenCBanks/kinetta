@@ -1,12 +1,14 @@
 """Weigh-ins (2026-10-12): old ones can be added; the profile weight (used for calorie burn) stays the newest one."""
 import datetime as dt
+import os
 from kc import person
 p = person('zz_test_weigh')
 n = 0
 def ck(cond, m):
     global n
     assert cond, m; n += 1
-anchor_day = dt.date.today()
+fixture_instant = (dt.datetime.fromisoformat(os.environ['KINETTA_TEST_NOW']) if os.environ.get('KINETTA_TEST_NOW') else dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+anchor_day = fixture_instant.date()
 day = lambda k: (anchor_day - dt.timedelta(days=k)).isoformat()
 for k in (0, 30, 400): p.delete(f'/api/food/weights/{day(k)}')
 s, _ = p.put('/api/food/weights', {'day': day(0), 'kg': 80}); ck(s == 200, 'today')

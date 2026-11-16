@@ -963,8 +963,7 @@ function editActivity(a) {
   // times as 1:34:50 like everywhere else in the app; heart rate, energy and climb as whole numbers (2026-10-16)
   const isTime=(key)=>key.endsWith('_s');
   const correctionFields=summaryFields.map(([key,label,unit,scale])=>{const value=a[key]==null?'':isTime(key)?dur(a[key]):key==='distance_m'?String(Math.round(a[key]/scale*100)/100):String(Math.round(a[key]/scale));initial[key]=value;return `<label>${label} (${unit})<input name="summary_${key}" inputmode="${isTime(key)?'text':'decimal'}" value="${value}" placeholder="Not recorded" aria-label="${label} in ${isTime(key)?'hours, minutes and seconds':unit}"></label>${Object.hasOwn(a.summary_overrides||{},key)?`<label class="check"><input type="checkbox" name="restore_${key}"> Use recorded ${label.toLowerCase()}</label>`:''}`}).join('');
-  // Redesigned 30 Oct 2026 (Ben): Cancel · Save stay pinned at the top; the most-used choices come first, the rarer
-  // details are grouped, and Delete sits alone at the bottom, away from Save.
+  // Edit activity, #1111 PR1: compact rows keep the common edits first. Photos are added in PR2.
   let dirty = false, closeEdit = null, asking = false;
   // Closing with unsaved edits asks first in the shared confirm sheet; the editor stays open until Discard.
   const canClose = () => {
@@ -974,17 +973,27 @@ function editActivity(a) {
     if (!asking) { asking = true; confirmSheet('Discard your changes?', {body: 'Your edits to this activity won’t be saved.', action: 'Discard', cancel: 'Keep editing'}).then((ok) => { asking = false; if (ok && closeEdit) { closeEdit(); if (after) after(); } }); }
     return false;
   };
-  sheet('Edit activity', `<form class="form" id="e-form">
-    <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
-    <label>What did you do?<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
-    <div id="e-share" class="e-share"><p class="small muted">Loading sharing…</p></div>
-    ${optionalText('description', 'Description', 'Add a description', a.description)}
-    ${optionalText('private_note', 'Private note (only you)', 'Add a private note', a.private_note)}
-    <h3 class="ghead e-details-head">Details</h3>
-    <details id="e-summary" class="fold-row"><summary><span class="ri c-brand">${svg('edit')}</span><span class="grow"><b>Distance, time & heart rate</b><small>Fix numbers your watch got wrong</small></span><span class="chev">${svg('chev')}</span></summary><div class="form e-fields"><p class="small muted">Your edits stay when the Health app syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
-    <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
-    <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
-    <button type="button" class="e-delete" id="e-del">Delete activity</button></form>`, async (body, close) => {
+  sheet('Edit activity', `<form class="form activity-edit-form" id="e-form">
+    <div id="e-primary" class="activity-edit-primary">
+      <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
+      <label>Sport<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
+      <div id="e-description" class="activity-edit-section">${optionalText('description', 'Description', 'Add description', a.description)}</div>
+      <button type="button" class="activity-edit-row" id="e-visibility-open"><span>Visibility</span><span class="activity-edit-row-value" id="e-visibility-value">Loading…</span>${svg('chev')}</button>
+      <details id="e-more" class="activity-edit-more"><summary><span>More details</span><span class="chev">${svg('chev')}</span></summary>
+        <div class="activity-edit-more-body">
+          <details id="e-summary" class="activity-edit-summary"><summary>Edit distance, time and heart rate<span class="chev">${svg('chev')}</span></summary><div class="form e-fields">${correctionFields}</div></details>
+          <label class="activity-edit-gear-row"><span>Gear</span><span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
+          <div id="e-private-note" class="activity-edit-section">${optionalText('private_note', 'Private note (only you)', 'Add private note', a.private_note)}</div>
+          <label class="check activity-edit-commute"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
+          <button type="button" class="e-delete" id="e-del">Delete activity</button>
+        </div>
+      </details>
+    </div>
+    <section id="e-visibility-view" class="activity-edit-visibility" hidden aria-label="Visibility">
+      <button type="button" id="e-visibility-back" class="activity-edit-back">${svg('back')}<span>Back</span></button>
+      <div id="e-share-fields" class="e-share"></div>
+    </section>
+  </form>`, async (body, close) => {
     closeEdit = close;
     body.closest('.sheet').classList.add('activity-editor');
     const f = $('#e-form', body), btn = body.closest('.sheet').querySelector('button[form="e-form"]');
@@ -995,8 +1004,17 @@ function editActivity(a) {
     wireOptionalText(f);
     let saveShare = null;   // sharing (2026-10-12): moved here from the activity page
     (a._social ? Promise.resolve(a._social) : api(`/api/activities/${a.id}/social`))
-      .then((s) => { if (f.isConnected) saveShare = shareFields($('#e-share', body), a.id, s); })
-      .catch(() => { $('#e-share', body).innerHTML = '<p class="small muted">Sharing could not load. Try again later.</p>'; });
+      .then((s) => { if (f.isConnected) {
+        const shareBox=$('#e-share-fields', body);saveShare = shareFields(shareBox, a.id, s); $('#e-visibility-value', body).textContent = VIS_SHORT[s.visibility] || 'Only me';
+        $('.vis3',shareBox)?.classList.add('activity-edit-audience');
+        $('.ghead',shareBox)?.replaceChildren(document.createTextNode('Who can see it'));
+        const checks=()=>$$('[data-vis]',shareBox).forEach(button=>{if(!$('.activity-vis-check',button))button.insertAdjacentHTML('beforeend',`<span class="activity-vis-check" aria-hidden="true">${svg('check')}</span>`);});
+        checks();shareBox.addEventListener('click',e=>{if(e.target.closest('[data-vis]'))queueMicrotask(checks);});
+      } })
+      .catch(() => { $('#e-visibility-value', body).textContent = 'Unavailable'; $('#e-share-fields', body).innerHTML = '<p class="small muted" role="alert">Sharing could not load. Try again later.</p>'; });
+    const primary = $('#e-primary', body), visibility = $('#e-visibility-view', body), openVisibility = $('#e-visibility-open', body), backVisibility = $('#e-visibility-back', body);
+    openVisibility.onclick = () => { primary.hidden = true; visibility.hidden = false; backVisibility.focus(); };
+    backVisibility.onclick = () => { visibility.hidden = true; primary.hidden = false; openVisibility.focus(); };
     api('/api/gear').then((gear) => { f.gear.insertAdjacentHTML('beforeend', gear.filter((g) => !g.retired || g.id === a.gear_id).map((g) => `<option value="${g.id}"${g.id === a.gear_id ? ' selected' : ''}>${esc(g.name)}</option>`).join('')); }).catch(() => {});
     f.onsubmit = async (e) => {
       e.preventDefault();
@@ -2054,12 +2072,12 @@ function garminNote(g){
 }
 function garminCard(box,C,valid){
   const g=C.garmin_connect;if(!box)return;
-  if(!(C.garmin_connect_available||g)){box.innerHTML='<section class="inset-section"><h2 class="inset-caption">Garmin Connect</h2><div class="inset-group"><p class="inset-empty">Garmin Connect isn’t available for this account. Import activity files or a Strava export using Import activity history below.</p></div></section>';return;}
-  box.innerHTML=`<section class="inset-section"><h2 class="inset-caption">Garmin Connect</h2><div class="inset-group">
-    <div class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg('run')}</span><span class="inset-label has-detail"><span>${g?'<b>Connected.</b> '+garminNote(g):'New Garmin activities arrive after your watch syncs.'}</span><small>${g?'For older history, '+(Native.on?'import past workouts from the Health app':'use the Health app or import a Strava export in your browser')+'.':'New workouts arrive with maps and heart rate.'}</small></span>${g?'':'<button type="button" class="connection-action" id="gc-on">Connect</button>'}</div>
-    ${g?`<label class="inset-row switch-row connection-kit"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit read my Garmin activities</span><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}></label>
+  if(!(C.garmin_connect_available||g)){box.innerHTML='<div class="inset-row connection-status-row"><span class="inset-icon" aria-hidden="true">'+svg('run')+'</span><span class="inset-label"><span>Garmin Connect</span><small>Garmin Connect isn’t available for this account.</small></span></div>';return;}
+  box.innerHTML=`${g?`<button type="button" class="inset-row connection-status-row connection-row-button" id="gc-manage" aria-expanded="false"><span class="inset-icon" aria-hidden="true">${svg('run')}</span><span class="inset-label"><span>Garmin Connect</span><small>Connected${g.last_sync?` · synced ${esc(when(g.last_sync))}`:''}</small></span><span class="inset-value">Manage</span></button>`:`<div class="inset-row connection-status-row"><span class="inset-icon" aria-hidden="true">${svg('run')}</span><span class="inset-label"><span>Garmin Connect</span><small>Not connected</small></span><button type="button" class="connection-action" id="gc-on">Connect</button></div>`}
+    ${g?`<div class="connection-details" id="gc-details" hidden><div class="connection-detail-row"><span>Connection</span><span>Connected</span></div><div class="connection-detail-row"><span>Last sync</span><span>${g.last_sync?esc(when(g.last_sync)):'Waiting for sync'}</span></div><p class="connection-detail-note">${esc(garminNote(g))}</p><label class="inset-row switch-row connection-kit"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit read my Garmin activities</span><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}></label>
     <p class="inset-footer">Off unless you say yes. Sends the activities Kit needs to ${esc(App.me.ai_provider||'the AI service')}. Garmin data is never used to train AI.</p>
-    <button type="button" class="inset-row is-alert connection-disconnect" id="gc-off">Disconnect Garmin</button>`:''}</div></section>`;
+    <button type="button" class="inset-row is-alert connection-disconnect" id="gc-off">Disconnect Garmin</button></div>`:''}`;
+  const manage=$('#gc-manage',box);if(manage)manage.onclick=()=>{const details=$('#gc-details',box),open=details.hidden;details.hidden=!open;manage.setAttribute('aria-expanded',String(open));};
   const on=$('#gc-on',box);if(on)on.onclick=async()=>{
     try{const r=await api('/api/connections/garmin-connect/start',json('POST',{native:Native.signInSheet}));if(!valid())return;
       if(Native.signInSheet){
@@ -2079,14 +2097,15 @@ route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{repla
 route(/^\/track\/connections$/, 'track', async (el) => {
   el.classList.add('connections-page');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Bring in workouts automatically. A watch is optional.</p>
-    <div id="c-gc"></div>
-    <section class="inset-section"><h2 class="inset-caption">Health app</h2><div class="inset-group" id="c-health">${skel(1)}</div></section>
-    <section class="inset-section"><h2 class="inset-caption">Activity history</h2><div class="inset-group">${Native.on ? '<button type="button" class="inset-row has-detail" data-import-history><span class="inset-icon" aria-hidden="true">'+svg('upload')+'</span><span class="inset-label has-detail"><span>Import activity history</span><small>Open your browser to upload files or a Strava export.</small></span><span class="inset-value">Open</span></button>' : '<a class="inset-row has-detail" href="/track/import"><span class="inset-icon" aria-hidden="true">'+svg('upload')+'</span><span class="inset-label has-detail"><span>Import activity history</span><small>Original activity files or a Strava export, in your browser.</small></span><span class="inset-value">Open</span></a>'}</div></section>
-    <details class="inset-disclosure" id="c-other"><summary>Other connections</summary><div id="c-body" class="inset-group">${skel(2)}</div></details>`;
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1>
+    <section class="inset-section connections-list"><div class="inset-group" id="c-list">
+      <div class="inset-row connection-status-row" id="c-health">${skel(1)}</div><div id="c-gc"></div>
+      ${Native.on ? '<button type="button" class="inset-row has-detail connection-status-row" data-import-history><span class="inset-icon" aria-hidden="true">'+svg('upload')+'</span><span class="inset-label"><span>Import activity history</span><small>Upload files or a Strava export</small></span><span class="inset-value connection-row-action">Open</span></button>' : '<a class="inset-row has-detail connection-status-row" href="/track/import"><span class="inset-icon" aria-hidden="true">'+svg('upload')+'</span><span class="inset-label"><span>Import activity history</span><small>Upload files or a Strava export</small></span><span class="inset-value connection-row-action">Open</span></a>'}
+    </div></section>
+    <details class="inset-disclosure connection-other-disclosure" id="c-other"><summary class="connection-other-summary">Other connections</summary><div id="c-body" class="inset-group">${skel(2)}</div></details>`;
   wireBack(el, '/track');
   const importHistory=$('[data-import-history]',el);if(importHistory)importHistory.onclick=()=>sheet('Import history',`<p>Open Kinetta in your browser to import original activity files or a Strava export.</p><a class="primary wide" href="${esc((Native.base||location.origin)+'/track/import')}" target="_blank" rel="noopener">Open in browser</a>`);
-  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<div class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg('heart')}</span><span class="inset-label has-detail"><span>${isOn?'Sync enabled':'Optional connection'}</span><small>${Native.on?'Share nutrition, read weight or import workouts. Health shares only categories you allow.':'Available in the Kinetta iPhone app.'}${st?.at?` Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.`:''}</small></span><a class="connection-action" href="/track/health">${Native.on?isOn?'Manage':'Connect':'About'}</a></div>${error?`<p class="inset-error" role="alert">${esc(error)}</p>`:''}<details class="inset-nested-disclosure"><summary>Using a Garmin?</summary><p class="small">Enable Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send GPS routes to Health. Connect Garmin directly for maps on new workouts.</p></details>`;};
+  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<span class="inset-icon" aria-hidden="true">${svg('heart')}</span><span class="inset-label"><span>Health</span><small${error?' class="connection-error"':''}>${error?esc(error):Native.on?isOn?`Connected${st?.at?` · synced ${esc(when(st.at))}`:''}`:'Not connected': 'Available in the iPhone app'}${!error&&!Native.on?'.':''}</small></span><a class="inset-value connection-row-action" href="/track/health">${Native.on?isOn?'Manage':'Connect':'About'}</a>${error?'<button type="button" class="connection-action" data-health-retry>Retry</button>':''}`;const retry=$('[data-health-retry]',el);if(retry)retry.onclick=()=>{retry.disabled=true;Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked.'));};};
   if(Native.on)Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open the Health app to review setup.'));
   else healthCard(false,null);
   let C;

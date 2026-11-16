@@ -1,5 +1,6 @@
 """Goal setup previews never write; explicit saves are private and bounded. Fictional accounts only."""
 import datetime as dt
+import os
 from kc import person, Client
 
 p, other = person('zz_test_onboard'), person('zz_test_onboard_other')
@@ -10,7 +11,8 @@ def check(label, value):
     assert value, label
     ok += 1
 
-test_day = dt.date.today()
+test_instant = (dt.datetime.fromisoformat(os.environ['KINETTA_TEST_NOW']) if os.environ.get('KINETTA_TEST_NOW') else dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+test_day = test_instant.date()
 profile = {'weight_kg':80,'height_cm':180,'birth_year':1990,'sex':'male','activity_factor':1.3}
 p.put('/api/profile',profile)
 p.put('/api/food/targets',{'kcal_target':2200,'protein_target':120,'carbs_target':250,'fat_target':65,'fiber_target':30})
