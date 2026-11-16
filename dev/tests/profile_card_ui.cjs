@@ -88,8 +88,9 @@ async function milestoneChecks(p,shareArtRequests,bundledLeafLoads){
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
 const shareLeafOnly=process.env.KINETTA_PROFILE_SHARE_LEAF_ONLY==='1';
-const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||badgeOnly||achievementCardOnly;
-(async()=>{cp.execFileSync('node',[path.join(projectRoot,'mobile/scripts/copy-web.mjs')],{cwd:projectRoot,stdio:'pipe'});const bundledMilestones=fs.readFileSync(path.join(mobileBundle,'milestones.js'),'utf8');assert.match(bundledMilestones,/milestones\.share\.js\?v=[A-Za-z0-9_-]+/,'the generated iPhone milestones loader has a stamped share-leaf URL');assert(fs.existsSync(path.join(mobileBundle,'milestones.share.js')),'the generated iPhone app includes the milestones share leaf');const b=await browserType.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
+const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||badgeOnly||achievementCardOnly||process.env.KINETTA_ACHIEVEMENT_TABS_ONLY==='1';
+(async()=>{if(process.env.KINETTA_ACHIEVEMENT_TABS_ONLY!=='1'){cp.execFileSync('node',[path.join(projectRoot,'mobile/scripts/copy-web.mjs')],{cwd:projectRoot,stdio:'pipe'});const bundledMilestones=fs.readFileSync(path.join(mobileBundle,'milestones.js'),'utf8');assert.match(bundledMilestones,/milestones\.share\.js\?v=[A-Za-z0-9_-]+/,'the generated iPhone milestones loader has a stamped share-leaf URL');assert(fs.existsSync(path.join(mobileBundle,'milestones.share.js')),'the generated iPhone app includes the milestones share leaf');}const b=await browserType.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
+ if(process.env.KINETTA_ACHIEVEMENT_TABS_ONLY==='1'){try{await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});}finally{await b.close();}return;}
  if(process.env.KINETTA_ACHIEVEMENT_SHARE_ONLY==='1'){const previous=process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY;process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY='1';try{await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});}finally{if(previous===undefined)delete process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY;else process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY=previous;}await b.close();return;}
  const sizes=focusedOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
  for(const size of sizes)for(const theme of themeOnly?[themeOnly]:badgeOnly||achievementCardOnly?['light','dark']:focusedOnly?['light']:['light','dark']){
@@ -314,6 +315,8 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||b
  await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});
  const priorRedesign=process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY;process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY='1';
  try{await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});}finally{if(priorRedesign===undefined)delete process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY;else process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY=priorRedesign;}
+ const priorTabs=process.env.KINETTA_ACHIEVEMENT_TABS_ONLY;process.env.KINETTA_ACHIEVEMENT_TABS_ONLY='1';
+ try{await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});}finally{if(priorTabs===undefined)delete process.env.KINETTA_ACHIEVEMENT_TABS_ONLY;else process.env.KINETTA_ACHIEVEMENT_TABS_ONLY=priorTabs;}
  await b.close();})().catch(e=>{console.error(e);process.exit(1);});
 
 async function inlineEditorChecks(browser){
