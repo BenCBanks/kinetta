@@ -51,8 +51,9 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
   assert.equal(await unread.locator('.note-av .av').evaluate(el=>el.getBoundingClientRect().width),36,'Notification avatars use the compact 36px size');
   assert.equal(await read.locator('.note-dot').evaluate(el=>getComputedStyle(el).visibility),'hidden','Read rows reserve the unread-marker column without showing a dot');
   for(const row of await page.locator('.note').all()){
-   const boxes=await row.evaluate(el=>{const dot=el.querySelector('.note-dot').getBoundingClientRect(),avatar=el.querySelector('.note-av').getBoundingClientRect(),time=el.querySelector('.note-time').getBoundingClientRect(),rect=el.getBoundingClientRect();return{dot:{left:dot.left},avatar:{left:avatar.left},time:{right:time.right},rect:{right:rect.right}};});
+   const boxes=await row.evaluate(el=>{const dot=el.querySelector('.note-dot').getBoundingClientRect(),avatar=el.querySelector('.note-av').getBoundingClientRect(),time=el.querySelector('.note-time').getBoundingClientRect(),rect=el.getBoundingClientRect(),card=el.closest('.card').getBoundingClientRect();return{dot:{left:dot.left},avatar:{left:avatar.left},time:{right:time.right},rect:{right:rect.right},card:{left:card.left}};});
    assert(boxes.dot.left<boxes.avatar.left,'Unread marker sits left of the avatar');
+   assert(boxes.dot.left>=boxes.card.left+36,'Unread marker sits clearly inside the card padding');
    assert(boxes.time.right<=boxes.rect.right-12,'Notification time stays right-aligned inside the row');
   }
   await shot(page,`notification-center-390-${theme}`);

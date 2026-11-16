@@ -898,7 +898,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .note-t { font-size: 15.5px; line-height: 1.4; font-weight: 450; overflow-wrap: anywhere; } .note-t b { font-weight: 700; }
 .note-q { color: var(--tx2); font-size: 15px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .note-time { flex: none; margin: 1px 0 0 2px; color: var(--tx3); font-size: 13px; line-height: 18px; text-align: right; white-space: nowrap; }
-.note-dot { flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--accent); }
+.note-dot { flex: none; width: 8px; height: 8px; margin: 7px -6px 0 6px; border-radius: 50%; background: var(--accent); }
 .note-dot.is-read { visibility: hidden; }
 .note-av { position: relative; flex: none; }
 .note-av .av { width: 36px; height: 36px; font-size: 14px; }
