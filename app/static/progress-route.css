@@ -224,8 +224,30 @@
 .progress-home-heading.is-compact h1 { font-size:17px; line-height:1.2; font-weight:600; letter-spacing:-.01em; }
 .progress-home-heading .acts { flex-wrap:nowrap; gap:8px; }
 .progress-home #p-combined-week { margin-bottom:8px; }
-.progress-home #p-combined-week .combined-week { display:block; margin:0; padding:0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
-.progress-home #p-combined-week .combined-week > summary { min-height:52px; font-size:16px; font-weight:600; }
+.progress-home #p-combined-week .combined-week { display:block; margin:0 0 8px; padding:12px 16px 8px; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:none; }
+.progress-home #p-combined-week .combined-week > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; padding:0; color:var(--tx); list-style:none; cursor:pointer; }
+.progress-home #p-combined-week .combined-week > summary::-webkit-details-marker { display:none; }
+.progress-home .combined-week-heading { display:grid; min-width:0; gap:3px; }
+.progress-home .combined-week-heading strong { font-size:16px; font-weight:600; line-height:1.25; }
+.progress-home .combined-week-heading small { color:var(--tx3); font-size:13px; font-weight:400; line-height:1.3; }
+.progress-home .combined-week-toggle { display:flex; align-items:center; justify-content:flex-end; gap:4px; flex:none; min-width:56px; min-height:44px; color:var(--accent); font-size:15px; font-weight:600; }
+.progress-home .combined-week-toggle svg { width:16px; height:16px; transition:transform .18s ease-out; }
+.progress-home .combined-week[open] .combined-week-toggle svg { transform:rotate(180deg); }
+.progress-home .combined-week-hide,.progress-home .combined-week[open] .combined-week-show { display:none; }
+.progress-home .combined-week[open] .combined-week-hide { display:inline; }
+.progress-home .combined-week-content { padding-top:12px; border-top:1px solid var(--line); }
+.progress-home .combined-week-content > .stat-row { margin:0 0 14px; }
+.progress-home .combined-week-content .stat-row-item b { font-size:19px; }
+.progress-home .combined-week-facts { display:grid; gap:0; }
+.progress-home .combined-week-fact { display:flex; align-items:center; gap:10px; min-height:44px; color:var(--tx2); font-size:14px; line-height:1.35; }
+.progress-home .combined-week-fact + .combined-week-fact { border-top:1px solid var(--line); }
+.progress-home .combined-week-fact > svg { width:18px; height:18px; flex:none; color:var(--accent); }
+.progress-home .combined-week-fact b { color:var(--tx); font-weight:600; }
+.progress-home .combined-week-unknown { color:var(--tx3); }
+.progress-home .combined-week-links { margin-top:8px; }
+.progress-home .combined-week-links .row-link { min-height:44px; padding:0 2px; border-top:1px solid var(--line); font-size:15px; font-weight:500; }
+.progress-home .combined-week-links .row-link:first-child { border-top:0; }
+.progress-home .combined-week-links .row-link > svg { color:var(--tx3); }
 .progress-home-totals .progress-totals-card { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:none; }
 .progress-home-totals .progress-totals-header { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; }
 .progress-home-totals .progress-totals-header > .range-btn { min-height:44px; font-size:17px; font-weight:600; }
