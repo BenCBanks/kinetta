@@ -40,28 +40,6 @@
 .recipes-library #meal-library .library-row, .recipes-library #meal-library .library-section > .fe, .recipes-library #meal-library .meal-library-row { min-height:56px; margin:0 0 8px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
 .recipes-library #meal-library .library-recipe, .recipes-library #meal-library .library-section > .fe { min-height:56px; padding:6px 0; border:0; border-radius:0; background:transparent; text-align:left; }
 
-/* Chat starters sit at the page bottom, directly above the composer. */
-.chat-suggestions {display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-height:180px;margin:0 calc(0px - var(--space-5)) 8px;padding:0;overflow:hidden;opacity:1;transition:opacity .15s ease,max-height .15s ease,margin-bottom .15s ease;}
-.chat-suggestions[hidden] {display:none;}
-.chat-suggestions > button {position:relative;display:flex;align-items:center;justify-content:flex-start;gap:16px;width:100%;min-width:0;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font-size:15px;font-weight:500;line-height:1.35;text-align:left;white-space:normal;}
-.chat-suggestions > button::before {content:none!important;}
-.chat-suggestions > button::after {position:absolute;right:0;bottom:0;left:52px;height:1px;background:var(--line);content:'';}
-.chat-suggestions > button:last-child::after {content:none;}
-.chat-suggestions > button svg {flex:none;width:20px;height:20px;color:var(--tx2);}
-.chat-suggestions > button span {min-width:0;overflow-wrap:anywhere;}
-.food-thread.has-draft .chat-suggestions,.kit-chat.has-draft .chat-suggestions {max-height:0;margin-bottom:0;opacity:0;pointer-events:none;}
-.food-thread.has-review .thread-quick-actions {display:none;}
-.chat-suggestions.keyboard-hidden {max-height:0;margin-bottom:0;visibility:hidden;opacity:0;pointer-events:none;}
-.chat-suggestions:focus-within {overflow:visible;}
-.kit-chat #kit-intro {margin:0;padding:0;overflow:visible;animation:none;}
-.kit-chat #kit-intro[hidden] {display:none;}
-.kit-chat #kit-intro #kit-load-retry {margin:8px 0;}
-.kit-chat #kit-starters {flex:none;}
-.kit-chat #kit-composer {padding-top:0;margin-top:auto;}
-.kit-chat #kit-fine {margin-top:0;}
-@media(prefers-reduced-motion:reduce){.chat-suggestions{transition:none;}}
-@media(max-width:360px){.chat-suggestions{margin-inline:-16px;}}
-@media(min-width:1000px){.chat-suggestions{margin-inline:-32px;}}
 .recipes-library #meal-library .library-recipe b, .recipes-library #meal-library .library-section > .fe b { font-size:15px; font-weight:600; }
 .recipes-library #meal-library .library-recipe small, .recipes-library #meal-library .library-section > .fe small { font-size:13px; color:var(--tx2); }
 .recipes-library #meal-library .library-recipe > span.num, .recipes-library #meal-library .library-section > .fe > span.num { font-size:13px; color:var(--tx2); white-space:nowrap; }
