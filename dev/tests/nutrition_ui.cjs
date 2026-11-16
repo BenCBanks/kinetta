@@ -11,7 +11,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  try{
  for(const who of ['empty','typical','heavy']){
   const auth=await b.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_nutrition_'+who,password:'green teapot on the hill'}})).status(),200);cleanup.push(auth);const storage=await auth.storageState();
-  let savedMealAdded=false;const sizes=who==='empty'?[{width:390,height:844,root:16}]:[{width:390,height:844,root:16},{width:330,height:844,root:16}];
+  let savedMealAdded=false;const sizes=[{width:390,height:844,root:16},{width:330,height:844,root:16}];
   for(const size of sizes)for(const theme of ['light','dark']){
    if(process.env.KINETTA_NUTRITION_CASE&&process.env.KINETTA_NUTRITION_CASE!==`${who}-${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:fixture.timezone}),p=await c.newPage(),errors=[],consoleErrors=[],writes=[],failed=[];await p.clock.setFixedTime(FIXTURE_NOW);p.nutritionDiagnostics={errors,consoleErrors,failed};p.on('requestfailed',r=>failed.push({url:r.url(),error:r.failure()?.errorText}));
@@ -77,7 +77,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const group of await p.locator('.meal-actions').all()){
     const add=group.locator('[data-add]');
-    const addBox=await add.boundingBox();assert(addBox.height>=44&&addBox.width>=44,'meal plus keeps a 44px target');assert.match(await add.getAttribute('aria-label'),/^Meal actions for /,'meal plus announces that it opens meal actions');
+    const addBox=await add.boundingBox(),mealEdge=await group.evaluate(n=>{const meal=n.closest('section.meal'),r=meal.getBoundingClientRect();return r.right-parseFloat(getComputedStyle(meal).paddingRight);});assert(addBox.height>=44&&addBox.width>=44,'meal plus keeps a 44px target');assert(Math.abs(addBox.x+addBox.width-mealEdge)<1,'meal plus aligns with the meal card right padding');assert.match(await add.getAttribute('aria-label'),/^Meal actions for /,'meal plus announces that it opens meal actions');
+    const total=group.locator('.meal-total');if(await total.count()){const totalBox=await total.boundingBox();assert(totalBox.x+totalBox.width<=addBox.x-4,'meal calories stay left of the plus');}
+    const calorieEdges=await group.evaluate(n=>{const meal=n.closest('section.meal'),total=meal.querySelector('.meal-total')?.getBoundingClientRect(),rows=[...meal.querySelectorAll('.nutrition-row-calories')].map(x=>x.getBoundingClientRect());return{total:total&&total.right,rows:rows.map(x=>x.right)};});if(calorieEdges.total!=null&&calorieEdges.rows.length)assert(calorieEdges.rows.every(right=>Math.abs(right-calorieEdges.total)<1),'meal total and food-row calories share one right edge');
    }
    assert(await p.locator('#fd-meals .meal > h2').evaluateAll(ns=>ns.every(n=>getComputedStyle(n,'::before').display==='none')),'Nutrition meal headings have no decorative grey dot');
    for(const title of await p.locator('.progress-tile-name').all())assert(await title.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'tile title fits without clipping');
