@@ -34,3 +34,11 @@
 .notification-settings .personal-notice-time { display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;margin:0;padding:7px 0 6px;border-top:1px solid var(--line); }
 .notification-settings .personal-notice-time select { width:auto;min-width:104px;max-width:48%;min-height:44px;text-align:right; }
 .notification-settings .settings-footnote { margin:8px 0 0;color:var(--tx3);font-size:13px;line-height:1.4; }
+
+/* Notification feed rows keep their compact layout within this route's stylesheet. */
+.note { gap:10px; min-height:60px; padding:12px 16px; }
+.note + .note::before { left:78px; }
+.note-time { flex:none; margin:1px 0 0 2px; color:var(--tx3); font-size:13px; line-height:18px; text-align:right; white-space:nowrap; }
+.note-dot { width:8px; height:8px; margin:7px -6px 0 6px; }
+.note-dot.is-read { visibility:hidden; }
+.note-av .av { width:36px; height:36px; font-size:14px; }

@@ -16,7 +16,8 @@ assert(comment.includes('<span class="note-q">“Great &lt;pace&gt;!”</span>')
 assert(comment.includes('note-dot')&&comment.includes('class="note unread"'),'new notifications have a dot');
 assert(comment.includes('5 min ago')&&comment.includes('data-kind="comment"'));
 const old=c.noteRow({kind:'cheer',read:true,link:'/a',created:ago(60*30),who:{name:'Jo'},text:'Someone else cheered'});
-assert(!old.includes('note-dot')&&!old.includes('<b>')&&old.includes('Mon at 9:00 AM'),'read rows lose the dot; a name that does not lead stays plain; older times use the date');
+assert(old.includes('note-dot is-read')&&!old.includes('aria-label="New"')&&!old.includes('<b>')&&old.includes('Yesterday'),'read rows reserve a hidden dot slot; names that do not lead stay plain; older times stay compact');
+assert(old.includes('class="note-time"'),'notification time has its right-aligned row target');
 const summary=c.noteRow({kind:'monthly_summary',period_type:'month',period:'2026-10',read:false,link:'/notifications?summary=2026-10',created:ago(2),who:{name:'Kinetta'},text:'Your October summary is ready',detail:'112 mi · 18 workouts'});
 assert(summary.includes('data-summary-type="month" data-summary-period="2026-10"')&&summary.includes('112 mi · 18 workouts'),'monthly summaries expose a period link and private computed detail');
 c.openSummary('month','2026-10');assert.equal(JSON.stringify(opened.pop()),'[{"period":"month","offset":1}]','a recent monthly item opens its exact month');
