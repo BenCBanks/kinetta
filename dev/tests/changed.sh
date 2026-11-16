@@ -120,6 +120,8 @@ run_ui() {
 for group in $group_order; do
   [[ -n "${selected[$group]:-}" ]] || continue
   case "$group" in
+    # lazy_route_ui covers Explore and logs in as a fictional user; seed it in Draft quick runs too.
+    core) python3 dev/tests/explore_fixture.py ;;
     food) python3 dev/tests/food_memory_fixture.py ;;
     social) python3 dev/tests/inline_reactions_fixture.py ;;
     progress) python3 dev/tests/weight_progress_fixture.py ;;

@@ -6,6 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / ".github/workflows/tests.yml").read_text()
+CHANGED_SCREENS = (ROOT / "dev/tests/changed.sh").read_text()
 
 
 class CITieringTests(unittest.TestCase):
@@ -24,6 +25,14 @@ class CITieringTests(unittest.TestCase):
         self.assertIn("github.event.pull_request.draft == false", browser)
         reviewer = WORKFLOW.split("\n  reviewer_integration:\n", 1)[1].split("\n  tests:\n", 1)[0]
         self.assertIn("github.event.pull_request.draft == false", reviewer)
+
+    def test_draft_core_screen_checks_seed_explore_before_lazy_route(self):
+        fixture_setup = CHANGED_SCREENS.split('case "$group" in\n', 1)[1].split("\n  esac", 1)[0]
+        core_setup = fixture_setup.split("core)", 1)[1].split("food)", 1)[0]
+        test_dispatch = CHANGED_SCREENS.split('case "$group" in\n', 2)[2].split("\n  esac", 1)[0]
+        core_tests = test_dispatch.split("core)", 1)[1].split("assets)", 1)[0]
+        self.assertIn("python3 dev/tests/explore_fixture.py", core_setup)
+        self.assertIn("lazy_route_ui.cjs", core_tests)
 
     def test_aggregate_gate_requires_each_tier_and_accepts_only_intended_skips(self):
         gate = WORKFLOW.split("\n  tests:\n", 1)[1].split("\n  spacing:\n", 1)[0]
