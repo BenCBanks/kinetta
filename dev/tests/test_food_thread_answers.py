@@ -2,6 +2,7 @@
 import concurrent.futures
 import datetime as dt
 import uuid
+from zoneinfo import ZoneInfo
 from kc import Client, PW, login, person
 
 n=0
@@ -11,12 +12,18 @@ def check(value,name):
  assert value,name
  n+=1
 
+now=dt.datetime.now(dt.timezone.utc)
+def midpoint_zone(instant):
+ offset=min(range(-12,13),key=lambda hours:abs(((instant.hour+hours)%24)-12))
+ name='Etc/GMT' if offset==0 else f"Etc/GMT{'-' if offset>0 else '+'}{abs(offset)}"
+ return name,ZoneInfo(name)
+zone_name,account_zone=midpoint_zone(now)
+today=now.astimezone(account_zone).date();tuesday=today-dt.timedelta(days=(today.weekday()-1)%7)
 a,b=person('zz_test_thread_facts_a'),person('zz_test_thread_facts_b')
 for c in (a,b):
- c.put('/api/profile',{'tz':'UTC','weight_kg':75,'height_cm':175,'birth_year':1990,'sex':'male','ai_ok':False,'resting_source':'formula'})
+ c.put('/api/profile',{'tz':zone_name,'weight_kg':75,'height_cm':175,'birth_year':1990,'sex':'male','ai_ok':False,'resting_source':'formula'})
  for m in c.get('/api/food/thread?limit=100')[1]['messages']:c.delete('/api/food/thread/messages/'+str(m['id']))
  c.put('/api/food/targets',{'kcal_target':1800,'protein_target':110})
-now=dt.datetime.now(dt.timezone.utc);today=now.date();tuesday=today-dt.timedelta(days=(today.weekday()-1)%7)
 for c in (a,b):
  for day in {today,tuesday}:
   for e in c.get('/api/food/day?d='+str(day))[1]['entries']:c.delete('/api/food/entries/'+str(e['id']))
@@ -57,7 +64,7 @@ with concurrent.futures.ThreadPoolExecutor(4) as pool:
 check(all(status==200 for status,_ in answers) and len({result['messages'][-1]['id'] for _,result in answers})==1,'concurrent answering creates one reply')
 # Resting-only Watch sync remains independent from a manually chosen food goal.
 a.put('/api/profile',{'resting_source':'apple_health'})
-a.post('/api/health/resting',{'tz':'UTC','observed_at':now.isoformat(),'days':[{'day':str(today),'resting_kcal':1200}]})
+a.post('/api/health/resting',{'tz':zone_name,'observed_at':now.isoformat(),'days':[{'day':str(today),'resting_kcal':1200}]})
 _,burn=ask('how much did I burn today?')
 check(burn['result']['source']=='apple_health' and burn['result']['facts']['burned']==1200,'actual synced resting calories, no BMR substitution')
 check(a.get('/api/food/day')[1]['goal']['kcal']==1800,'Watch burn never replaces independently set goal')
