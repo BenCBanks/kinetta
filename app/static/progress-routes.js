@@ -296,11 +296,12 @@ async function pFitnessLoaded(body, q) {
         </details></div>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p><a class="primary wide prediction-start" data-fitness-empty-action href="/track">Record a run</a></div>';
     const rangeScores=chartMonths.map(m=>m.v);
-    const runScoreStats = ProgressUI.statRow([
+    const hasRunScoreHistory=rangeScores.filter(Number.isFinite).length>=2;
+    const runScoreStats = hasRunScoreHistory ? ProgressUI.statRow([
       {label:'Current',value:f.vdot_now?Number(f.vdot_now).toFixed(1):'–'},
-      {label:'Best in range',value:rangeScores.length?Math.max(...rangeScores).toFixed(1):'–'},
+      {label:'Best in range',value:Math.max(...rangeScores).toFixed(1)},
       {label:'Best ever',value:f0.vdot_months.length?Math.max(...f0.vdot_months.map(m=>m.v)).toFixed(1):'–'}
-    ]);
+    ]) : '';
     box.innerHTML = `${progressChartCard('training-load','Fitness',fitnessStats,'fi-range',`<div id="p-load"></div>${f0.ramp_7d>8?'<p class="fitness-ramp-warning" role="status">Your training load jumped this week. Build up gradually to stay healthy.</p>':''}`)}
       ${chartMonths.length?progressChartCard('run-score','Run score',runScoreStats,'fi-range-score','<div id="p-vdot"></div>'):'<section class="card progress-chart-card progress-chart-empty"><h2>Run score</h2><p class="muted">Needs runs of a mile or longer.</p></section>'}`;
     for(const id of ['fi-range','fi-range-score']){const rangeBox=$('#'+id,box);if(rangeBox)rangeBox.innerHTML=ProgressUI.rangeText(rangeOptions,selectedRange,{label:'Fitness chart range',attribute:'fitness-range'});}
