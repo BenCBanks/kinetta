@@ -254,9 +254,9 @@ async function pFitnessLoaded(body, q) {
   const rangeOptions=[['1m','1M'],['3m','3M'],['1y','1Y'],['all','All']], selectedRange=rangeOptions.some(([key])=>key===q.get('range'))?q.get('range'):'all';
   const days=3650;
   // The range controls filter charts only; current fitness and race predictions remain unchanged.
-  body.innerHTML = `<div id="fi-pred">${skel(1)}</div><div id="fi-body">${skel(2)}</div>`;
+  body.innerHTML = `<div id="fi-summary"></div><div id="fi-pred">${skel(1)}</div><div id="fi-body">${skel(2)}</div>`;
   await load(`/api/fitness?days=${days}`, (f0) => {
-    const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
+    const summaryBox = $('#fi-summary', body), box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
     const now=new Date(),cutoff=new Date(now);
     if(selectedRange==='1m')cutoff.setMonth(cutoff.getMonth()-1);
     else if(selectedRange==='3m')cutoff.setMonth(cutoff.getMonth()-3);
@@ -266,6 +266,11 @@ async function pFitnessLoaded(body, q) {
     const f=f0;
     const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0};
     const form = last.form, [kind, word] = form > 5 ? ['good', 'Fresh'] : form < -15 ? ['warn', 'Tired'] : ['steady', 'Steady'];
+    if (summaryBox && f0.days.some(d => d.fitness > 0)) {
+      const mini = (label, value) => `<span><b class="num">${esc(value)}</b><small>${esc(label)}</small></span>`;
+      summaryBox.innerHTML = `<section class="card me-form fitness-current" aria-label="Fitness and form"><span class="me-form-top"><span class="grow"><small>Fitness &amp; form</small><b class="status-word ${kind}">${word}</b></span></span>
+        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Form', (form > 0 ? '+' : '') + Math.round(form))}${f0.vdot_now ? mini('Run score', f0.vdot_now) : ''}</span></section>`;
+    }
     const fiveK = f.predictions.find(p => Math.abs(Number(p.distance_m) - 5000) < 50);
     const fitnessStats = ProgressUI.statRow([
       {label:'Fitness',value:f0.days.some(d=>d.fitness>0)?String(Math.round(last.fitness)):'–'},
