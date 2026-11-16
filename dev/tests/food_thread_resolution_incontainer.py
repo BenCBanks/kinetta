@@ -14,6 +14,7 @@ ESTIMATE={'items':[{'name':'Fictional curry','amount':'2 bowls','grams':600,'kca
           'notes':'Assumed two home-size bowls.','model':'stand-in, not real inference'}
 PLAIN={'source':'usda','id':'fictional-plain','name':'Plain grain','brand':None,'per100':{'kcal':100,'protein_g':10,'carbs_g':10,'fat_g':2.2,'fiber_g':2},
        'serving':{'label':'1 cup','g':200}}
+FIXTURE_TODAY=dt.date(2026,11,14)
 
 class Resolution(unittest.TestCase):
  def setUp(self):
@@ -298,7 +299,7 @@ class Resolution(unittest.TestCase):
   self.post('/api/food/thread/cancel',{'client_id':str(changed['client_id'])},status=409)
 
  def test_29_explicit_destination_and_replay(self):
-  self.own_food();day=(dt.date.today()-dt.timedelta(days=1)).isoformat()
+  self.own_food();day=(FIXTURE_TODAY-dt.timedelta(days=1)).isoformat()
   m,r=self.send('rice',day=day,meal='dinner')
   rows=self.a.get('/api/food/day?d='+day).json()['entries'];self.assertEqual(len(rows),1);self.assertEqual(rows[0]['meal'],'dinner')
   self.assertEqual(self.post('/api/food/thread/messages',{'client_id':m['client_id'],'body':'rice','day':day,'meal':'dinner'})['created'],False)
@@ -307,7 +308,7 @@ class Resolution(unittest.TestCase):
   self.resolve(m,images=[JPEG]);rows=self.a.get('/api/food/day?d='+day).json()['entries'];self.assertEqual(len(rows),2);self.assertTrue(all(e['meal']=='dinner' for e in rows))
 
  def test_missing_amount_asks_before_catalog_or_model(self):
-  day=(dt.date.today()-dt.timedelta(days=1)).isoformat()
+  day=(FIXTURE_TODAY-dt.timedelta(days=1)).isoformat()
   self.no_ai()   # with AI estimates a typical portion is assumed (food_chat_quality); without, the amount is asked
   m,r=self.send('banana',day=day,meal='lunch')
   self.assertIn('Banana — about how much?',self.result(r)['text']);self.assertFalse(self.result(r)['can_resolve'])

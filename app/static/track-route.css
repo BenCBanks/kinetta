@@ -1,5 +1,18 @@
 /* Track route-only styles. Loaded with the /track leaf; shell and nav stay eager. */
 
+.track-question { margin: 24px 0; font-size: 28px; }
+.track-sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0 26px; }
+.track-sports button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 92px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); font: 500 15px system-ui; }
+.track-sports button svg { width: 26px; height: 26px; }
+.track-sports button[aria-pressed="true"] { color: var(--onbtn); background: var(--btn); border-color: var(--btn); }
+.track-gps { display: flex !important; align-items: center; gap: 12px; min-height: 48px; font-size: 16px; }
+.track-gps input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+#track-setup { border-bottom: 1px solid var(--line); padding-bottom: 24px; }
+.track-indoor .row-link, #track-lift { border-bottom: 1px solid var(--line); width: 100%; color: var(--ink); }
+.track-indoor .row-link > svg, #track-lift > svg { width: 18px; flex-shrink: 0; }
+.track-indoor .ri, #track-lift .ri { background: transparent; color: var(--ink); }
+.track-indoor summary { font-weight: 500; color: var(--accent); }
+
 /* Track launch controls; recording and review keep their own layout. */
 .compact-ready.track-ready { gap:8px; }
 .compact-ready .track-quick { display:flex; flex-wrap:nowrap; gap:8px; overflow:hidden; scrollbar-width:none; padding:1px 0; }
