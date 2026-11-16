@@ -14,9 +14,10 @@ function noteRow(n) {
     (n.period_type === 'month' ? /^\d{4}-\d{2}$/.test(n.period) : /^\d{4}$/.test(n.period));
   const summaryAttrs = summary ? ` data-summary-type="${n.period_type}" data-summary-period="${esc(n.period)}"` : '';
   return `<a class="note${n.read ? '' : ' unread'}"${summaryAttrs} href="${esc(n.link)}">
+    <span class="note-dot${n.read ? ' is-read' : ''}"${n.read ? ' aria-hidden="true"' : ' aria-label="New"'}></span>
     <span class="note-av">${avatar(n.who)}<span class="note-k" data-kind="${esc(n.kind)}">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
-    <span class="grow"><span class="note-t">${lead ? `<b>${esc(lead)}</b>` : ''}${esc(rest)}</span>${quote ? `<span class="note-q">“${esc(quote)}”</span>` : n.detail ? `<span class="note-q">${esc(n.detail)}</span>` : ''}<small>${esc(noteAgo(n.created))}</small></span>
-    ${n.read ? '' : '<span class="note-dot" aria-label="New"></span>'}</a>`;
+    <span class="grow"><span class="note-t">${lead ? `<b>${esc(lead)}</b>` : ''}${esc(rest)}</span>${quote ? `<span class="note-q">“${esc(quote)}”</span>` : n.detail ? `<span class="note-q">${esc(n.detail)}</span>` : ''}</span>
+    <small class="note-time">${esc(noteAgo(n.created))}</small></a>`;
 }
 function summaryOffset(type, period) {
   if (!App.me?.tz || !Recaps) return null;
@@ -39,7 +40,9 @@ function noteAgo(iso) {
   if (min < 1) return 'Just now';
   if (min < 60) return `${min} min ago`;
   if (min < 12 * 60) return `${Math.round(min / 60)} hr ago`;
-  return when(iso);
+  if (min < 36 * 60) return 'Yesterday';
+  if (min < 48 * 60) return '1 day ago';
+  return new Date(iso).toLocaleDateString([], {month:'short',day:'numeric',timeZone:App.me?.tz||undefined});
 }
 function notificationDayKey(value) {
   const date=value instanceof Date?value:new Date(value), zone=App.me?.tz||Intl.DateTimeFormat().resolvedOptions().timeZone;

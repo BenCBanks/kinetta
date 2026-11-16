@@ -46,8 +46,21 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
   await page.evaluate(()=>{App.me.tz='America/New_York';});
   assert.equal(await page.locator('[data-summary-period] .note-t').innerText(),titleFor(period));assert.equal(await page.locator('[data-summary-period] .note-q').innerText(),'112 mi · 18 workouts');
   assert.deepEqual(await page.locator('.notes-h').allTextContents(),['Today','Earlier'],'Notification Center groups by local date, regardless of read state');
+  const unread=page.locator('.note.unread').first(),read=page.locator('.note').filter({hasText:'Jordan Sample'}).first();
+  assert.equal(await unread.evaluate(row=>row.firstElementChild.classList.contains('note-dot')),true,'Unread marker is the leading row element');
+  assert.equal(await unread.locator('.note-av .av').evaluate(el=>el.getBoundingClientRect().width),36,'Notification avatars use the compact 36px size');
+  assert.equal(await read.locator('.note-dot').evaluate(el=>getComputedStyle(el).visibility),'hidden','Read rows reserve the unread-marker column without showing a dot');
+  for(const row of await page.locator('.note').all()){
+   const boxes=await row.evaluate(el=>{const dot=el.querySelector('.note-dot').getBoundingClientRect(),avatar=el.querySelector('.note-av').getBoundingClientRect(),time=el.querySelector('.note-time').getBoundingClientRect(),rect=el.getBoundingClientRect();return{dot:{left:dot.left},avatar:{left:avatar.left},time:{right:time.right},rect:{right:rect.right}};});
+   assert(boxes.dot.left<boxes.avatar.left,'Unread marker sits left of the avatar');
+   assert(boxes.time.right<=boxes.rect.right-12,'Notification time stays right-aligned inside the row');
+  }
   await shot(page,`notification-center-390-${theme}`);
-  await page.setViewportSize({width:330,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'notification groups fit at 330px');await shot(page,`notification-center-330-${theme}`);await page.setViewportSize({width:390,height:844});
+  await page.setViewportSize({width:330,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'notification groups fit at 330px');
+  const copyWidth=await page.locator('.note .grow').first().evaluate(el=>el.getBoundingClientRect().width);
+  await shot(page,`notification-center-330-${theme}`);
+  assert(copyWidth>=100,`Notification copy keeps a readable column at 330px (${copyWidth}px)`);
+  await page.setViewportSize({width:390,height:844});
   await page.locator('[data-summary-period]').click();await page.locator('.recap-sheet').waitFor();
   await page.locator('.recap-sheet #recap-status[data-ready="true"]').waitFor({state:'attached'});assert.equal(await page.locator('#recap-status').innerText(),'','recap data loaded without an error');
   const label=await page.locator('#recap-period-label').innerText();assert(label.includes(new Date(period+'-01T12:00:00Z').toLocaleDateString('en-US',{timeZone:'UTC',month:'long'})),'Bell item opens the same month');
