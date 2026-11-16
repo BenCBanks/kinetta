@@ -2493,20 +2493,6 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .me-insights .me-insight-row > svg { width:16px; height:16px; flex:none; color:var(--tx3); }
 .me-insights .me-insights-empty { margin:8px 0 0; }
 
-/* Keep Challenges available below the Home header at every width. */
-.activity-home #feed-top .top,.activity-home #feed-top .acts {flex-wrap:nowrap;}
-.activity-home #feed-tools .feed-find-friends {min-height:56px;margin-bottom:8px;gap:8px;border-top:0;}
-.activity-home #feed-tools .feed-find-friends .ri {display:grid;place-items:center;width:24px;height:24px;flex:none;color:var(--accent);}
-.activity-home #feed-tools .feed-find-friends .ri svg {width:22px;height:22px;}
-@media(max-width:360px) {
- .activity-home .post-hd.post-profile {display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;}
- .activity-home .post-hd>.post-av {grid-column:1;grid-row:1;}
- .activity-home .post-hd>.ph-txt {display:contents;}
- .activity-home .post-hd>.activity-share {grid-column:3;grid-row:1;}
- .activity-home .post-hd>.ph-txt>small {grid-column:1/-1;grid-row:2;white-space:normal;}
- .activity-home .post-route {display:none;}
-}
-
 /* Owner type standard (13 November 2026): preserve the shared hierarchy in later screen CSS. */
 body .activity-card .post-summary .stat small { color:var(--tx3); font-size:13px; font-weight:500; text-transform:none; letter-spacing:0; }
 .me-card-numbers .me-metric-value { font-weight:600; }
