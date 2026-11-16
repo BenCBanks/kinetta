@@ -2,6 +2,7 @@
 the phone push replaced by stand-ins: what is sent, what is kept, consent and limits. Needs the demo data + stage.py
 and a placeholder AI key (GEMINI_API_KEY) so the server thinks it has one; nothing leaves the machine."""
 import json
+import datetime as dt
 from fastapi import HTTPException
 from app import api_dishes, api_food, coach, cook_chat, db, food_coach, food_photo, notify
 
@@ -31,7 +32,7 @@ with db.connect() as c:
     c.execute('DELETE FROM ai_requests'); c.execute("DELETE FROM coach_notes WHERE kind = 'diet'")
     c.execute('UPDATE dishes SET ai_note = NULL, ai_note_at = NULL'); c.execute('UPDATE saved_meals SET ai_note = NULL, ai_note_at = NULL')
     c.execute('UPDATE profile SET ai_ok = (user_id = %s), ai_adult_at = now()', (uid,))
-    day = c.execute("SELECT max(day) AS d FROM food_entries WHERE user_id = %s", (uid,)).fetchone()['d']
+    day = dt.date(2026, 11, 14)
 api_dishes.share(tray, api_dishes.ShareIn(login='jordan'), user={'id': uid})
 
 # --- the review of your eating ---
@@ -53,6 +54,10 @@ ck(api_dishes.dish(tray, user={'id': jid})['review']['summary'].startswith('Abou
 api_dishes.portion(tray, api_dishes.PortionIn(grams=50, meal='dinner'), user={'id': uid})
 ck(api_dishes.dish(tray, user={'id': uid})['review']['changed_since'] is False, 'a portion is not a recipe change')
 ck(refused(lambda: food_coach.recipe_review(tray, user={'id': uid}), 429), 'not again without a change')
+api_food.add_entries([api_food.EntryIn(day=day, meal='breakfast', name='Fictional meal-save fixture',
+                                      kcal=400, protein_g=20, carbs_g=40, fat_g=12,
+                                      source='quick', client_id='test-incontainer-meal-save')], user={'id': uid},
+                     thread=False, captured_at=None, restore_from=None)
 api_food.meal_save(api_food.MealIn(name='Test breakfast', from_day=day, meal='breakfast'), user={'id': uid})
 mid = [m for m in api_food.meals(user={'id': uid}) if m['name'] == 'Test breakfast'][0]['id']
 food_coach.meal_review(mid, user={'id': uid})
