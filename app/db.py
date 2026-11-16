@@ -2175,6 +2175,18 @@ MIGRATIONS = [
     """ALTER TABLE group_members ADD COLUMN sharing_level text NOT NULL DEFAULT 'just_in'
        CHECK(sharing_level IN ('total_shared','just_in'));""",
 
+    # 112. Group goals can be scoped to sports and a local start date, with a descriptive goal line.
+    """ALTER TABLE event_groups
+         ADD COLUMN goal_sports text[] NOT NULL DEFAULT ARRAY['run','ride','walk','hike','swim','row','ski','workout','other']::text[],
+         ADD COLUMN goal_start_date date,
+         ADD COLUMN training_for text NOT NULL DEFAULT '';
+       UPDATE event_groups SET goal_start_date=(created AT TIME ZONE time_zone)::date;
+       ALTER TABLE event_groups ALTER COLUMN goal_start_date SET NOT NULL;
+       ALTER TABLE event_groups ADD CONSTRAINT event_groups_goal_sports_check
+         CHECK(cardinality(goal_sports)>0 AND array_position(goal_sports,NULL) IS NULL AND
+               goal_sports <@ ARRAY['run','ride','walk','hike','swim','row','ski','workout','other']::text[]);
+       ALTER TABLE event_groups ADD CONSTRAINT event_groups_training_for_check CHECK(length(training_for)<=80);""",
+
 ]
 
 
