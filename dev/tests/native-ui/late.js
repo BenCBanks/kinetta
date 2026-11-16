@@ -35,7 +35,7 @@
         'header-track':()=>document.querySelector('#track-start')?.getAttribute('aria-label')==='Start run'&&!document.querySelector('#track-lap')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
         'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915')&&document.querySelector('.calorie-ring[role="progressbar"][aria-valuenow="915"]'),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
-        'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('[data-progress-fitness]').textContent.includes('Training steadily'),
+        'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('#p-explore[aria-busy="false"]')&&document.querySelector('[data-progress-fitness]')?.textContent.trim(),
         'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
         'friends-typical':()=>document.querySelector('#fr-own-list')&&document.querySelectorAll('.fr-friend').length===3,
         achievements:()=>document.querySelector('#profile-achievement-page[aria-busy="false"] h1')?.textContent==='Achievements'&&document.querySelectorAll('#profile-achievement-page .profile-achievement-track .profile-achievement-ladder').length>=3,

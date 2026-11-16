@@ -1,4 +1,19 @@
 /* The social launch tools and compact feed; profile/activity-detail controls keep their own layout. */
+
+/* Keep Challenges available below the Home header at every width. */
+.activity-home #feed-top .top,.activity-home #feed-top .acts {flex-wrap:nowrap;}
+.activity-home #feed-tools .feed-find-friends {min-height:56px;margin-bottom:8px;gap:8px;border-top:0;}
+.activity-home #feed-tools .feed-find-friends .ri {display:grid;place-items:center;width:24px;height:24px;flex:none;color:var(--accent);}
+.activity-home #feed-tools .feed-find-friends .ri svg {width:22px;height:22px;}
+@media(max-width:360px) {
+ .activity-home .post-hd.post-profile {display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;}
+ .activity-home .post-hd>.post-av {grid-column:1;grid-row:1;}
+ .activity-home .post-hd>.ph-txt {display:contents;}
+ .activity-home .post-hd>.activity-share {grid-column:3;grid-row:1;}
+ .activity-home .post-hd>.ph-txt>small {grid-column:1/-1;grid-row:2;white-space:normal;}
+ .activity-home .post-route {display:none;}
+}
+
 #feed-top { margin-bottom:0; }
 #feed-top .top { margin-bottom:0; }
 #feed-top .top .acts { gap:8px; }
