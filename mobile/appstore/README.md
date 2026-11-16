@@ -20,15 +20,21 @@ Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-ra
 
 ## Native screenshot artifacts
 
-The current native runner defines this eight-shot, light-mode story in `dev/tests/native-ui/run.py` (`STORE_STAGES`): Home feed (`header-activity`), Activity detail (`activity`), Track ready (`header-track`), Nutrition day (`header-food`), Add food chat (`food`), Progress (`header-progress`), Me with three earned featured medals (`header-me`), and Friends feed (`friends-typical`). The Nutrition fixture shows 915 of 1,800 kcal across two fictional meals; Me's medals meet their catalog thresholds. The Ready iPhone app workflow for this PR captures all eight from its exact app bundle; review and attach the `appstore-6.9-fictional` artifact from that run. The files remain workflow artifacts, not Git assets.
+The current native runner defines this eight-shot, light-mode story in `dev/tests/native-ui/run.py` (`STORE_STAGES`): Home feed (`header-activity`), Activity detail (`activity`), Track ready (`header-track`), Nutrition day (`header-food`), Add food chat (`food`), Progress (`header-progress`), Me with three earned featured medals (`header-me`), and Friends feed (`friends-typical`). The Nutrition fixture shows 915 of 1,800 kcal across two fictional meals; Me's medals meet their catalog thresholds. When the native job finishes, review and attach the `appstore-6.9-fictional` artifact from that exact app bundle. The files remain workflow artifacts, not Git assets.
 
-Capture from the exact source revision intended for review using the unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Screenshot mode hides map labels; Track uses a supplied point from the fictional park route, with no GPS permission or real position read. The runner verifies the public basemap contract without account credentials and emits eight native light-mode JPEGs at 1320 × 2868, plus source revision, image hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Inspect the raw native artifact against the current app before choosing an optional Sky Blue caption treatment.
+Capture from the exact source revision intended for review using the unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Screenshot mode hides map labels; Track uses a supplied point from the fictional park route, with no GPS permission or real position read. The runner verifies the public basemap contract without account credentials and emits eight native light-mode JPEGs at 1320 × 2868, plus source revision, image hashes and readiness metrics. Inspect the raw native artifact against the current app before choosing an optional Sky Blue caption treatment.
+
+### Browser fallback for #415
+
+If the macOS Simulator capture times out, capture the same fictional browser scenes directly at a 440 × 956 CSS-pixel viewport and device scale factor 3. This produces 1320 × 2868 PNGs without resizing the website's 393 × 852 captures. The app's simulated status bar, Dynamic Island and home indicator are browser overlays; these are **browser captures, not native iPhone or UIKit screenshots**. Attach them with filenames and captions that say `browser capture`. They are a listing fallback for Ben to review, not proof of physical-device behavior.
+
+Before final submission, still review the exact signed build on a real 6.9-inch iPhone: confirm its native status bar, Dynamic Island, safe areas and bottom home indicator; check the eight scenes for clipping, typography, colors and map-label privacy; and verify the app's actual navigation and system permission flows. Confirm that the submitted screenshots accurately represent the selected build. Keep screenshot artifacts out of git.
 
 The Activity map/charts scene uses the `activity` stage, separate from the Home feed’s `header-activity` stage. Generate both from the same current app bundle; do not reuse an older artifact when either layout has changed.
 
 ## 6.9-inch screenshot upload checklist
 
-Use the `appstore-6.9-fictional` artifact from the exact green `iPhone app` workflow run for the submitted source revision. The eight files are native Simulator JPEGs; upload the `.jpg` files only. The `.json` files are evidence for review, not App Store Connect uploads. Each image must be 1320 × 2868, light mode, and show fictional demo data.
+Prefer the `appstore-6.9-fictional` artifact from the exact green `iPhone app` workflow run for the submitted source revision. Its eight files are native Simulator JPEGs; upload the `.jpg` files only. The `.json` files are evidence for review, not App Store Connect uploads. Each image must be 1320 × 2868, light mode, and show fictional demo data.
 
 Upload the images to the iOS version’s **6.9-inch Display** screenshot slot in this order. Drag them one at a time if App Store Connect sorts a multi-file selection by filename:
 
@@ -44,6 +50,19 @@ Upload the images to the iOS version’s **6.9-inch Display** screenshot slot in
 | 8 | Friends feed | `iPhone-16-Pro-Max-light-friends-typical-16.jpg` |
 
 The device prefix is the Simulator model reported by the runner; if Apple’s runner uses a different exact 6.9-inch model, keep the same `light-<stage>-16.jpg` suffixes and use that prefix. Do not upload browser crops, dark-mode images, metric JSON, `public-map.json`, or screenshots from an older workflow run. Review each thumbnail after upload for a complete safe-area header, full bottom navigation and no clipped row.
+
+For this #415 timeout fallback, the PR attaches direct browser captures at 440 × 956 @3x, in this order. They are full-size PNGs and are labeled `browser capture`; they are not native app evidence. Ben must review the representation before using them in App Store Connect. The last browser scene is the Friends list, not the native runner's Friends feed, so retain that native scene as a real-device recapture gap.
+
+| Order | Browser scene | Attached file |
+| ---: | --- | --- |
+| 1 | Home activity feed | `browser-6.9-01-home-feed.png` |
+| 2 | Activity detail | `browser-6.9-02-activity-detail.png` |
+| 3 | Track ready | `browser-6.9-03-track.png` |
+| 4 | Nutrition day | `browser-6.9-04-nutrition-day.png` |
+| 5 | Kit food chat | `browser-6.9-05-kit-food-chat.png` |
+| 6 | Progress | `browser-6.9-06-progress.png` |
+| 7 | Me with featured achievements | `browser-6.9-07-me-achievements.png` |
+| 8 | Friends list (not the native Friends feed scene) | `browser-6.9-08-friends-list.png` |
 
 ### App Store Connect order
 

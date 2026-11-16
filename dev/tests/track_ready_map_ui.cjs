@@ -50,5 +50,12 @@ for(const size of [{width:390,height:844},{width:330,height:667}])for(const them
  assert.equal(new URL(p.url()).pathname,'/track','closing stays on Track');
  assert.equal(await p.locator('#track-start').evaluate(n=>!n.closest('[inert]')),true,'page usable again');
  const ov=await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);assert(!ov,'no overflow');
- assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);console.log(`Track ready map ${size.width}x${size.height} ${theme} PASS`);await c.close();}
+ assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);console.log(`Track ready map ${size.width}x${size.height} ${theme} PASS`);await c.close();
+ const browserContext=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true});
+ await browserContext.route('**/api/connections**',r=>r.fulfill({json:{garmin_connect_available:false}}));
+ const connectionsPage=await browserContext.newPage();await connectionsPage.goto(base+'/track/connections');await until(connectionsPage,()=>document.querySelector('.connections-page')?.innerText.includes('Garmin Connect isn’t available for this account'),'Garmin unavailable state');
+ const importHistory=connectionsPage.locator('.connections-page a[href="/track/import"]');assert.equal(await importHistory.count(),1,'unavailable Garmin keeps one import sub-screen entry');assert.equal(await importHistory.locator('.inset-label').innerText().then(text=>text.split('\n')[0]),'Import activity history','the existing import row remains the single action');
+ assert.match(await connectionsPage.locator('.connections-page').innerText(),/Garmin Connect isn’t available for this account\. Import activity files or a Strava export using Import activity history below\./,'Garmin explanation points to the existing import row');assert((await importHistory.boundingBox()).height>=44,'file-import action keeps its 44px target');
+ if(out&&size.width===390)await connectionsPage.screenshot({path:`${out}/track-garmin-unavailable-${theme}.png`,fullPage:true,animations:'disabled'});
+ await browserContext.close();}
 await b.close();})().catch(e=>{console.error(e);process.exit(1);});

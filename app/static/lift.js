@@ -80,9 +80,13 @@ async function pLifting(body) {
       ${mine.length > 8 ? '<input type="search" id="lv-q" placeholder="Find an exercise" autocomplete="off">' : ''}
       <div id="lv-ex">${mine.map((x) => `<a class="row-link" href="/lift/ex/${x.id}" data-n="${esc(x.name.toLowerCase())}"><span class="grow"><b>${esc(x.name)}</b>
         <small class="muted">${x.sessions} session${x.sessions > 1 ? 's' : ''} · last ${esc(shortDay(x.last))}</small></span>
-        <span class="lv-best"><small class="muted">Best</small><b class="num">${esc(best(x))}</b></span></a>`).join('')}</div></div>`;
+        <span class="lv-best"><small class="muted">Best</small><b class="num">${esc(best(x))}</b></span></a>`).join('')}<div class="lv-search-empty" id="lv-search-empty" hidden><p class="small muted">No matching exercises. Try another name.</p><button type="button" class="linkbtn" id="lv-search-clear">Clear search</button></div></div></div>`;
   const q = $('#lv-q', box);
-  if (q) q.oninput = () => { const t = q.value.trim().toLowerCase(); $$('#lv-ex .row-link', box).forEach((r) => { r.hidden = !!t && !r.dataset.n.includes(t); }); };
+  if (q) {
+    const empty=$('#lv-search-empty',box),clear=$('#lv-search-clear',box);
+    q.oninput = () => { const t = q.value.trim().toLowerCase(); let shown=0; $$('#lv-ex .row-link', box).forEach((r) => { r.hidden = !!t && !r.dataset.n.includes(t);if(!r.hidden)shown++; });empty.hidden=!t||shown>0; };
+    clear.onclick=()=>{q.value='';q.oninput();q.focus();};
+  }
 }
 
 // ---------- on an activity ----------

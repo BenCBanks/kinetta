@@ -24,7 +24,7 @@ NOTICE_VISIBLE += " AND (n.kind<>'milestone' OR EXISTS(SELECT 1 FROM milestones 
 
 NOTICE_VISIBLE += " AND (n.challenge_id IS NULL OR EXISTS(SELECT 1 FROM challenges cq JOIN users cu ON cu.id=cq.user_id JOIN challenge_members cv ON cv.challenge_id=cq.id AND cv.user_id=n.user_id AND cv.status='active' JOIN challenge_members ca ON ca.challenge_id=cq.id AND ca.user_id=n.actor_id AND ca.status='active' WHERE cq.id=n.challenge_id AND NOT cu.needs_email_confirm AND cu.suspended_at IS NULL))"
 
-NOTICE_VISIBLE += " AND (n.group_id IS NULL OR (n.kind IN ('group_update','group_cheer') AND EXISTS(SELECT 1 FROM group_members gm WHERE gm.group_id=n.group_id AND gm.user_id=n.user_id AND gm.status='active' AND NOT gm.notifications_muted) AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=n.user_id AND b.blocked=n.actor_id) OR (b.user_id=n.actor_id AND b.blocked=n.user_id))))"
+NOTICE_VISIBLE += " AND (n.group_id IS NULL OR (n.kind IN ('group_update','group_cheer','group_monday_recap') AND EXISTS(SELECT 1 FROM group_members gm WHERE gm.group_id=n.group_id AND gm.user_id=n.user_id AND gm.status='active' AND NOT gm.notifications_muted AND (n.kind<>'group_monday_recap' OR gm.monday_recap_enabled)) AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=n.user_id AND b.blocked=n.actor_id) OR (b.user_id=n.actor_id AND b.blocked=n.user_id))))"
 
 NOTICE_VISIBLE += " AND (n.kind<>'activity_ready' OR EXISTS(SELECT 1 FROM activities own WHERE own.id=n.activity_id AND own.user_id=n.user_id))"
 
@@ -325,6 +325,9 @@ def _words(r):
     if r['kind'].startswith('challenge_'):
         text={'challenge_join':'@'+r['login']+' joined your challenge','challenge_reminder':'Three days left in your challenge','challenge_finished':'Your challenge finish picture is ready'}[r['kind']]
         return text,'/me/challenges/'+r['challenge_code']
+    if r['kind'] == 'group_monday_recap':
+        title = notification_words.clean(r.get('group_title') or 'your group',80)
+        return f'Monday recap from {title}', f"/groups/{r['group_id']}"
     if r['kind'] in {'group_update','group_cheer'}:
         who = notification_words.clean(r['name'],40)
         title = notification_words.clean(r.get('group_title') or 'your group',80)

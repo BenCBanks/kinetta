@@ -48,6 +48,7 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
   '/api/goals':[],'/api/coach/week':{enabled:false,paused:false,latest:null},'/api/connections':{garmin:{available:false}},
   '/api/features/state':{enabled:false},'/api/food/check-in':{week:today,current:null,readiness:{ready:false,reason:'Not enough complete days yet.'},history:[]},'/api/food/week':{days:[],totals:{}},
  };
+ assert.equal(responses['/api/fitness'].predictions[0].label,'5K','the Store Progress scene must show its fixture-backed fitness prediction');
  const [lat,lon]=require('../../demo/routes.json')['park loop'][0];
  const currentWeek=weeks.find(row=>row.today),currentDays=days.filter(row=>!row.future);
  assert.equal(currentWeek.distance_m,currentDays.reduce((n,row)=>n+row.distance_m,0),'the current Me week matches the visible fictional days');

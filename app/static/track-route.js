@@ -321,7 +321,7 @@
     const done = new URLSearchParams(location.search).get('done'),doneId=done&&/^\d+$/.test(done)?done:null;
     if(new URLSearchParams(location.search).get('past')==='1'){const url=new URL(location.href);url.searchParams.delete('past');history.replaceState(null,'',url.pathname+url.search);setTimeout(()=>{if(el.isConnected)addActivitySheet();});}
     el.innerHTML = `${doneId ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${doneId}">View activity${svg('chev')}</a></div><div id="track-celebration" class="milestone-celebration-host" aria-live="polite"></div><div id="track-next-medal"></div>` : ''}<form class="form track-ready compact-ready" id="track-setup">${TrackNative.supported ? '' : `<p class="small muted track-gps-note">GPS recording is in the iPhone app.${App.me?.iphone_app ? ` <a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">Get it</a>` : ''}</p>`}<div class="track-sport-row" role="group" aria-label="Common activities"><div class="track-quick">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}" aria-label="${esc(choices[i].label)}">${svg(choices[i].lift?'workout':choices[i].sport)}${esc(choices[i].lift?'Lift':choices[i].label==='Treadmill run'?'Treadmill':choices[i].label)}</button>`).join('')}</div><button type="button" class="me-chip" id="track-other" aria-label="More activities"><span>More</span>${svg('down')}</button></div>
-      <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="map-full" aria-label="Full-screen map">${svg('expand')}</button><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
+      <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><button type="button" class="gps-chip track-location-action" id="track-location-action" data-state="enable">Enable location</button><span class="gps-chip track-location-status" id="track-gps-chip" role="status" aria-live="polite" hidden></span><button type="button" class="map-full" aria-label="Full-screen map">${svg('expand')}</button><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
       <div id="track-plan" class="track-plan" hidden></div>
       <div class="track-recording-options" aria-label="This recording"><div id="track-interval-ready"></div><button type="button" class="me-chip" id="track-options" hidden></button></div>
       <div class="track-go"><button class="${outdoor.length?'round-btn start':'primary wide'}" id="track-start"><span>Start</span></button><a id="track-log-past" class="track-log-past" data-track-feature="past" href="/track?past=1">Log a past workout</a></div>
@@ -336,6 +336,12 @@
       }).catch(()=>{});
     }
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false,readyFollow=true;const readyOwner=readOwner(),readyLive=()=>renderRevision===drawRevision&&el.isConnected&&readyOwner===readOwner()&&!session;
+    const gpsAction=$('#track-location-action'),gpsStatus=$('#track-gps-chip');let gpsState='enable';
+    const setGPSState=(state,accuracy)=>{gpsState=state;if(!gpsAction||!gpsStatus)return;
+      const action=state==='enable'||state==='denied';gpsAction.hidden=!action;gpsStatus.hidden=action;
+      if(action){const label=state==='denied'?'Open settings':'Enable location';gpsAction.dataset.state=state;gpsAction.textContent=label;gpsAction.setAttribute('aria-label',label);}
+      else{gpsStatus.textContent=state==='finding'?'Finding GPS':'GPS ready';gpsStatus.dataset.state=state;gpsStatus.title=state==='ready'&&gpsText(accuracy)?`GPS ready. Accuracy ${gpsText(accuracy)}.`:'';}
+    };
     const quickRow=$('.track-sport-row',el),quickBox=$('.track-quick',el),more=$('#track-other',el),quickButtons=$$('[data-quick]',el);
     const fitQuick=()=>{
       if(!readyLive())return;
@@ -381,26 +387,30 @@
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
     // (permission is remembered); a browser locates by itself only after the person has already allowed it.
-    const show=(lat,lon,accuracy,at)=>{if(!readyLive())return;located=true;here=[lat,lon,accuracy,at];if(!view||!$('#track-ready-map')?.isConnected)return;
+    const show=(lat,lon,accuracy,at)=>{if(!readyLive())return;located=true;here=[lat,lon,accuracy,at];setGPSState('ready',accuracy);if(!view||!$('#track-ready-map')?.isConnected)return;
       // street level, so the dot shows which side of the road you're on; later fixes keep it centred
       if(!centred&&readyFollow){view.map.setView([lat,lon],17);centred=true;}else if(readyFollow)view.map.panTo([lat,lon],{animate:true});
-      dot=hereMarker(view,dot,lat,lon,accuracy);const chip=$('#track-gps-chip');if(chip){chip.textContent=gpsText(accuracy);chip.hidden=!chip.textContent;} };
+      dot=hereMarker(view,dot,lat,lon,accuracy); };
+    const openLocationSettings=async()=>{try{const open=window.Capacitor?.Plugins?.KinettaContacts?.openSettings;if(typeof open==='function')await open();else toast('Open your device settings and allow location for Kinetta.');}catch(_){toast('Settings could not be opened.');}};
     const locate=async(quiet)=>{
       const button=$('#track-locate'),error=$('#track-ready-error');if(!button||button.disabled)return;
       button.disabled=true;if(!quiet)error.textContent='';
       try {
-        if(TrackNative.supported){const p=await TrackNative.locate({quiet});show(p.lat,p.lon,p.accuracy,p.timestamp);}
+        if(TrackNative.supported){setGPSState('finding');const p=await TrackNative.locate({quiet});show(p.lat,p.lon,p.accuracy,p.timestamp);}
         else {
           if(!navigator.geolocation)throw new Error('Location is unavailable on this device.');
           if(quiet){const state=await navigator.permissions?.query({name:'geolocation'}).then((s)=>s.state,()=>null);if(state!=='granted')return;}
+          setGPSState('finding');
           const p=await new Promise((ok,no)=>navigator.geolocation.getCurrentPosition(ok,no,{enableHighAccuracy:true,maximumAge:15000,timeout:15000}));
           show(p.coords.latitude,p.coords.longitude,p.coords.accuracy,p.timestamp);
         }
-      } catch(e) { if(!quiet&&button.isConnected)error.textContent=e?.message && TrackNative.supported ? e.message : 'Allow location access to see where you are. You can still choose an indoor activity.'; }
+      } catch(e) { const message=String(e?.message||''),denied=/allow location|location services are off|permission denied/i.test(message)||e?.code===1;if(quiet&&/has not been allowed yet/i.test(message))setGPSState('enable');else if(!quiet||TrackNative.supported)setGPSState(denied?'denied':'enable');if(!quiet&&button.isConnected&&!denied)error.textContent=e?.message && TrackNative.supported ? e.message : 'Allow location access to see where you are. You can still choose an indoor activity.'; }
       finally { if(button.isConnected)button.disabled=false; }
     };
     const auto=()=>{ if(!located&&choices[selected].gps)locate(true); };
-    $('#track-locate').onclick=()=>{centred=false;readyFollow=true;locate(false);};
+    gpsAction.onclick=()=>gpsState==='denied'?openLocationSettings():locate(false);
+    $('#track-locate').onclick=()=>{if(gpsState==='denied'){openLocationSettings();return;}centred=false;readyFollow=true;locate(false);};
+    setGPSState('enable');
     pick(selected,true);
     const logPast=$('#track-log-past',el);if(logPast)logPast.onclick=e=>{if(!readyLive()||e.metaKey||e.ctrlKey||e.button>0)return;e.preventDefault();if(typeof Discovery!=='undefined')Discovery.visit('track','past');addActivitySheet();};
     // keep the dot live while you get ready, not just one fix from when the screen opened
