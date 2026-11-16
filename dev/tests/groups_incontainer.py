@@ -1,6 +1,7 @@
 """Fictional Groups: private rows, hashed invites, lifecycle, blocks and aggregate-only activity progress."""
 import datetime as dt
 import hashlib
+import re
 import uuid
 import unittest
 from unittest.mock import patch
@@ -12,7 +13,7 @@ from psycopg.rows import dict_row
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import auth, db, groups
+from app import auth, db, groups, parsers
 from app.main import app
 
 
@@ -49,11 +50,13 @@ class Groups(unittest.TestCase):
             client.close()
         self.anon.close()
 
-    def make(self, who=0, goal_type='distance', goal_target=50, goal_unit='km', zone='America/New_York', event_date=None):
+    def make(self, who=0, goal_type='distance', goal_target=50, goal_unit='km', zone='America/New_York', event_date=None,
+             goal_start_date=None):
         today = self.now.astimezone(ZoneInfo(zone)).date()
         body = {'title': 'Fictional Alpine Weekend', 'event_date': str(event_date or today + dt.timedelta(days=40)),
                 'time_zone': zone, 'note': 'Fictional event note', 'goal_type': goal_type,
-                'goal_target': goal_target, 'goal_unit': goal_unit}
+                'goal_target': goal_target, 'goal_unit': goal_unit,
+                'goal_start_date': (goal_start_date or today - dt.timedelta(days=10)).isoformat()}
         response = self.clients[who].post('/api/groups', json=body)
         self.assertEqual(response.status_code, 200, response.text)
         group = response.json()
@@ -63,11 +66,127 @@ class Groups(unittest.TestCase):
     def accept(self, token, who=1):
         return self.clients[who].post(f'/api/group-invites/{token}/accept', json={})
 
-    def activity(self, who, at, *, distance=1000, ascent=20, seconds=1200, name='PRIVATE WORKOUT', visibility='friends'):
+    def activity(self, who, at, *, sport='hike', distance=1000, ascent=20, seconds=1200, name='PRIVATE WORKOUT', visibility='friends'):
         with db.connect() as c:
             return c.execute('''INSERT INTO activities(user_id,sport,name,private_note,start_time,distance_m,ascent_m,
-                moving_s,elapsed_s,source,visibility) VALUES(%s,'hike',%s,'PRIVATE NOTE',%s,%s,%s,%s,%s,'manual',%s)
-                RETURNING id''', (self.ids[who], name, at, distance, ascent, seconds, seconds, visibility)).fetchone()['id']
+                moving_s,elapsed_s,source,visibility) VALUES(%s,%s,%s,'PRIVATE NOTE',%s,%s,%s,%s,%s,'manual',%s)
+                RETURNING id''', (self.ids[who], sport, name, at, distance, ascent, seconds, seconds, visibility)).fetchone()['id']
+
+    def test_goal_sports_start_date_training_line_and_weekly_target(self):
+        zone = ZoneInfo('America/New_York')
+        today = self.now.astimezone(zone).date()
+        start = today - dt.timedelta(days=10)
+        end = today + dt.timedelta(days=40)
+        body = {'title':'Fictional spring race', 'event_date':end.isoformat(), 'time_zone':'America/New_York',
+                'note':'', 'goal_type':'distance', 'goal_target':100, 'goal_unit':'km',
+                'goal_sports':['run','ride'], 'goal_start_date':start.isoformat(), 'training_for':'Half marathon'}
+        response = self.clients[0].post('/api/groups', json=body)
+        self.assertEqual(response.status_code, 200, response.text)
+        group = response.json()
+        self.assertEqual(group['goal_sports'], ['run','ride'])
+        self.assertEqual(group['goal_start_date'], start.isoformat())
+        self.assertEqual(group['training_for'], 'Half marathon')
+        self.assertIsNone(group['weekly_target_scope'])
+        self.assertIsNone(group['weekly_target'], 'a group below three members has no misleading personal pace')
+        with db.connect() as c:
+            stored = c.execute('SELECT goal_sports,goal_start_date,training_for FROM event_groups WHERE id=%s',
+                               (group['id'],)).fetchone()
+            self.assertEqual(list(stored['goal_sports']),['run','ride'])
+            self.assertEqual(stored['goal_start_date'],start)
+            self.assertEqual(stored['training_for'],'Half marathon')
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
+                      (dt.datetime.combine(start-dt.timedelta(days=1),dt.time.min,zone).astimezone(dt.timezone.utc),group['id']))
+        at_start = dt.datetime.combine(start,dt.time(hour=12),zone).astimezone(dt.timezone.utc)
+        self.activity(0, at_start-dt.timedelta(days=1), sport='run', distance=9000)
+        self.activity(0, at_start, sport='run', distance=1000)
+        self.activity(0, at_start+dt.timedelta(hours=1), sport='ride', distance=2000)
+        self.activity(0, at_start+dt.timedelta(hours=2), sport='hike', distance=7000)
+        result = self.clients[0].get('/api/groups/'+group['id']).json()
+        self.assertEqual(result['your_total'], 3)
+        self.assertEqual(result['your_this_week_total'], 3 if at_start >= groups._local_week_window('America/New_York',self.now)[1] else 0)
+        self.assertIsNone(result['weekly_target'])
+        listed = self.clients[0].get('/api/groups').json()
+        self.assertEqual(listed[0]['goal_sports'], ['run','ride'])
+        self.assertEqual(self.clients[0].patch('/api/groups/'+group['id']+'/event-date',
+                                               json={'event_date':(start-dt.timedelta(days=1)).isoformat()}).status_code,422)
+        invalid = self.clients[0].post('/api/groups',json=body|{'goal_sports':['run','invalid']})
+        self.assertEqual(invalid.status_code,422)
+        duplicate = self.clients[0].post('/api/groups',json=body|{'goal_sports':['run','run']})
+        self.assertEqual(duplicate.status_code,422)
+        after_start = self.clients[0].post('/api/groups',json=body|{'goal_start_date':(end+dt.timedelta(days=1)).isoformat()})
+        self.assertEqual(after_start.status_code,422)
+        try:
+            oldest = today.replace(year=today.year - 1)
+        except ValueError:
+            oldest = today.replace(year=today.year - 1, day=28)
+        self.assertEqual(self.clients[0].post('/api/groups',json=body|{'goal_start_date':oldest.isoformat()}).status_code,200)
+        self.assertEqual(self.clients[0].post('/api/groups',json=body|{'goal_start_date':(oldest-dt.timedelta(days=1)).isoformat()}).status_code,422)
+        self.assertEqual(self.clients[0].post('/api/groups',json=body|{'event_date':None,'goal_start_date':(today+dt.timedelta(days=1)).isoformat()}).status_code,422)
+        future_start=today+dt.timedelta(days=10)
+        scheduled=self.clients[0].post('/api/groups',json=body|{'event_date':(today+dt.timedelta(days=20)).isoformat(),'goal_start_date':future_start.isoformat()})
+        self.assertEqual(scheduled.status_code,200,scheduled.text)
+        self.assertEqual(self.clients[0].patch('/api/groups/'+scheduled.json()['id']+'/event-date',json={'event_date':None}).status_code,422,
+                         'clearing an event date cannot turn a future scheduled start into an invalid ongoing group')
+
+    def test_group_all_sports_preserves_legacy_activity_and_excludes_nonsharing_member(self):
+        group, token = self.make(goal_target=100, goal_unit='km')
+        self.assertEqual(set(group['goal_sports']), set(parsers.SPORTS))
+        self.assertEqual(self.accept(token, who=1).status_code, 200)
+        self.assertEqual(self.accept(token, who=2).status_code, 200)
+        with db.connect() as c:
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids[:3],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=ANY(%s)",
+                      (group['id'], [self.ids[0], self.ids[2]]))
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
+                      (self.now-dt.timedelta(days=2), group['id']))
+        at = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)
+        for sport in parsers.SPORTS:
+            self.activity(0, at, sport=sport, distance=1000)
+        self.activity(0, at, sport='legacy_sport', distance=1000)
+        self.activity(1, at, sport='run', distance=9000)
+        self.activity(2, at, sport='ride', distance=3000)
+        with db.connect() as c:
+            shapes = {row['sport'] for row in c.execute(
+                'SELECT DISTINCT sport FROM activities WHERE user_id=ANY(%s)', (self.ids[:3],)).fetchall()}
+            self.assertEqual(shapes, set(parsers.SPORTS) | {'legacy_sport'})
+            nullable = c.execute("SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='activities' AND column_name='sport'").fetchone()['is_nullable']
+            self.assertEqual(nullable, 'NO', 'current activity rows cannot contain NULL sports')
+        result = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertEqual(result['total'], 13, 'default all-sports totals retain unlisted legacy sports but omit just-in members')
+        self.assertEqual(result['this_week_total'], 13, 'weekly totals omit the non-sharing member too')
+        self.assertEqual(result['weekly_target'], 14.5, 'weekly target uses the sharing-only group total')
+        self.assertEqual(result['sharing_member_count'], 2)
+
+    def test_backdated_goal_start_never_counts_activity_before_membership(self):
+        zone = ZoneInfo('America/New_York')
+        group, token = self.make(goal_start_date=self.now.astimezone(zone).date()-dt.timedelta(days=10))
+        self.assertEqual(self.accept(token, who=1).status_code, 200)
+        with db.connect() as c:
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids[:2],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=ANY(%s)",
+                      (group['id'], self.ids[:2]))
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s AND user_id=%s',
+                      (self.now-dt.timedelta(days=1), group['id'], self.ids[1]))
+        self.activity(1, self.now-dt.timedelta(days=5), sport='run', distance=9000)
+        self.activity(1, self.now-dt.timedelta(hours=1), sport='run', distance=1000)
+        result = self.clients[1].get('/api/groups/' + group['id']).json()
+        self.assertEqual(result['your_total'], 1, 'back-dated goal starts never remove the later joined_at floor')
+
+    def test_goal_sports_migration_matches_parser_and_backfills_local_start_date(self):
+        migration = next(stmt for stmt in db.MIGRATIONS if 'ADD COLUMN goal_sports' in stmt)
+        array = re.search(r'DEFAULT ARRAY\[([^\]]*)\]::text\[\]', migration)
+        self.assertIsNotNone(array)
+        self.assertEqual(set(re.findall(r"'([^']+)'", array.group(1))), set(parsers.SPORTS))
+        with db.connect() as c:
+            c.execute('SET LOCAL search_path TO pg_temp, public')
+            c.execute('CREATE TEMP TABLE event_groups(created timestamptz NOT NULL,time_zone text NOT NULL) ON COMMIT DROP')
+            c.execute("INSERT INTO event_groups VALUES('2025-01-01T02:00:00Z','America/Los_Angeles'),('2025-01-01T02:00:00Z','UTC')")
+            for statement in migration.split(';'):
+                if statement.strip():
+                    c.execute(statement)
+            rows = c.execute('SELECT goal_start_date,goal_sports,training_for FROM event_groups ORDER BY time_zone').fetchall()
+            self.assertEqual([row['goal_start_date'] for row in rows], [dt.date(2024,12,31),dt.date(2025,1,1)])
+            self.assertTrue(all(set(row['goal_sports']) == set(parsers.SPORTS) and row['training_for']=='' for row in rows))
 
     def test_preview_acceptance_hash_rotation_expiry_and_generic_errors(self):
         group, original = self.make()
@@ -78,9 +197,13 @@ class Groups(unittest.TestCase):
             stored = c.execute('SELECT token_hash FROM group_invites WHERE group_id=%s', (group['id'],)).fetchone()['token_hash']
             self.assertEqual(bytes(stored), hashlib.sha256(original.encode()).digest())
             self.assertNotIn(original.encode(), bytes(stored))
+            c.execute("UPDATE event_groups SET training_for='Half marathon',goal_sports=ARRAY['run'] WHERE id=%s", (group['id'],))
         preview = self.anon.get('/api/group-invites/' + original)
         self.assertEqual(preview.status_code, 200)
         self.assertEqual(preview.json(), {'available': True})
+        self.assertNotIn('training_for', preview.json())
+        self.assertNotIn('goal_sports', preview.json())
+        self.assertNotIn('Half marathon', preview.text)
         self.assertNotIn(group['title'], preview.text)
         self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).status_code, 404)
         accepted = self.accept(original)
@@ -151,7 +274,8 @@ class Groups(unittest.TestCase):
         fixed_now = dt.datetime(2026, 11, 1, 7, 30, tzinfo=dt.timezone.utc)
         event_date = fixed_now.astimezone(ZoneInfo('America/Los_Angeles')).date() + dt.timedelta(days=40)
         with patch('app.groups._now', return_value=fixed_now):
-            group, _ = self.make(zone='America/Los_Angeles', event_date=event_date)
+            group, _ = self.make(zone='America/Los_Angeles', event_date=event_date,
+                                 goal_start_date=dt.date(2026, 10, 1))
         local_day, start, end = groups._local_week_window('America/Los_Angeles', fixed_now)
         self.assertEqual(local_day, dt.date(2026, 11, 1))
         self.assertEqual(start, dt.datetime(2026, 10, 26, 7, 0, tzinfo=dt.timezone.utc))
@@ -449,7 +573,8 @@ class Groups(unittest.TestCase):
         zone = ZoneInfo('America/New_York')
         body = {'title': 'Fictional trail club', 'time_zone': 'America/New_York',
                 'note': 'Fictional weekly trail goal', 'goal_type': 'distance',
-                'goal_target': 100, 'goal_unit': 'km'}
+                'goal_target': 100, 'goal_unit': 'km',
+                'goal_start_date': self.now.astimezone(zone).date().isoformat()}
         created = self.clients[0].post('/api/groups', json=body)
         self.assertEqual(created.status_code, 200, created.text)
         group = created.json()
@@ -465,7 +590,7 @@ class Groups(unittest.TestCase):
                                    (group['id'],)).fetchone()['created']
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
                       (created_at - dt.timedelta(days=10), group['id']))
-        self.activity(0, created_at - dt.timedelta(seconds=1), distance=3000, name='BEFORE GROUP')
+        self.activity(0, created_at - dt.timedelta(days=1), distance=3000, name='BEFORE GOAL START DATE')
         self.activity(0, created_at + dt.timedelta(seconds=1), distance=12000, name='AFTER GROUP')
         later = created_at + dt.timedelta(seconds=2)
         with patch('app.groups._now', return_value=later):

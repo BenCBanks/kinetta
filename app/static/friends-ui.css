@@ -182,6 +182,7 @@
 .group-title-name>svg {flex:none;width:18px;height:18px;color:var(--tx2);}
 .group-title-name h1 {min-width:0;margin:0;}
 .group-title-summary,.group-title .group-note {margin:6px 0 0;color:var(--tx2);font-size:15px;line-height:1.45;overflow-wrap:anywhere;}
+.group-title .group-training-for {margin:4px 0 0;color:var(--tx3);font-size:14px;line-height:1.4;overflow-wrap:anywhere;}
 .group-title .group-note {color:var(--tx)!important;}
 .group-page > :is(.group-goal,.group-event-day,.group-recap,.group-updates) { box-shadow:var(--elevation-raised); }
 .group-page > .group-roster { box-shadow:none; }
@@ -189,6 +190,7 @@
 .group-goal>small {color:var(--tx3);font-size:13px;}
 .group-goal>.group-goal-period {color:var(--tx2);font-weight:650;}
 .group-goal>.group-week {color:var(--tx2);font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
+.group-goal>.group-weekly-target {color:var(--accent);font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
 .group-goal>.group-goal-hint {font-size:13px;line-height:1.35;}
 .group-goal>.group-total-note {color:var(--tx3);font-size:13px;line-height:1.35;}
 .group-week-cheer {min-width:0;margin-top:1px;}
@@ -228,7 +230,7 @@
 .sheet:has(#group-create-form)>.sbody,.sheet:has(#group-event-date-form)>.sbody {display:flex;flex:1;min-width:0;max-width:100%;min-height:0;overflow:hidden;}
 .group-create-form {display:flex;flex:1;min-width:0;max-width:100%;min-height:0;flex-direction:column;gap:0;}
 .group-create-fields {flex:1;min-width:0;max-width:100%;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding-bottom:8px;}
-.group-create-form label {display:block;min-width:0;margin:0 0 8px;}
+.group-create-form label {display:block;min-width:0;margin:0 0 6px;}
 .group-create-form input,.group-create-form select,.group-create-form textarea {display:block;width:100%;min-width:0;max-width:100%;min-height:44px;margin-top:4px;box-sizing:border-box;font-size:16px;}
 .group-create-form input[type=date] {-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;width:100%;}
 .group-date-clear {display:block;min-width:44px;min-height:44px;margin:-8px 0 8px auto;padding:8px 0 8px 8px;border:0;background:none;color:var(--accent);font:inherit;font-size:15px;text-align:right;}
@@ -241,6 +243,12 @@
 .group-create-footer :is(button,a) {min-height:44px;}
 .group-goal-fields {display:grid;min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:12px;}
 .group-goal-fields>label {min-width:0;max-width:100%;}
+.group-sports-field {min-width:0;margin:0 0 10px;padding:0;border:0;}
+.group-sports-field legend {margin:0 0 4px;padding:0;color:var(--tx);font-size:15px;font-weight:500;}
+.group-sport-options {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px;}
+.group-sport-options>label {display:flex;align-items:center;gap:7px;min-width:0;min-height:44px;margin:0!important;color:var(--tx2);font-size:14px;}
+.group-sport-options input {flex:none;width:18px;height:18px;min-height:18px;margin:0;accent-color:var(--accent);}
+.group-sport-options span {min-width:0;overflow-wrap:anywhere;}
 .group-create-form .small {margin:3px 0 8px;line-height:1.45;}
 .group-invite-actions {display:grid;gap:8px;margin:18px 0 8px;}
 .group-invite-link {margin:10px 0!important;padding:8px 0;color:var(--tx3);font-size:13px;overflow-wrap:anywhere;user-select:text;}
@@ -275,6 +283,6 @@
  .group-title h1,.group-invite-card h1 {font-size:28px;}
  .group-goal>strong {max-width:calc(100% - 8px);font-size:16px;}
  .group-goal-fields {grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:8px;}
- .group-create-form label {margin-bottom:5px;}
+ .group-create-form label {margin-bottom:4px;}
  .group-time-zone {margin-top:8px;}
 }

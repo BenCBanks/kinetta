@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import account_email, auth, community_filter, db, notify, reactions
+from .parsers import SPORTS as ACTIVITY_SPORTS
 from .auth import current_user
 
 router = APIRouter()
@@ -20,6 +21,7 @@ INVITE_UNAVAILABLE = 'This group invite is not available.'
 GROUP_MISSING = 'Group not found.'
 KINDS = {'distance', 'elevation', 'long_outings', 'sessions'}
 UNITS = {'km', 'mi', 'm', 'ft', 'outings', 'sessions'}
+GROUP_SPORTS = tuple(ACTIVITY_SPORTS)
 MAX_MEMBERS = 50
 LONG_OUTING_SECONDS = 3600
 _GROUP_TOTAL_SHARING_SQL = "(m.sharing_level='total_shared' AND coalesce(p.share_achievements,false))"
@@ -34,6 +36,9 @@ class GroupCreate(BaseModel):
     goal_type: str
     goal_target: float = Field(gt=0, le=1_000_000, allow_inf_nan=False)
     goal_unit: str
+    goal_sports: list[str] = Field(default_factory=lambda: list(GROUP_SPORTS), min_length=1, max_length=len(GROUP_SPORTS))
+    goal_start_date: dt.date | None = None
+    training_for: str = Field('', max_length=80)
 
     @field_validator('title')
     @classmethod
@@ -46,6 +51,18 @@ class GroupCreate(BaseModel):
     @field_validator('note')
     @classmethod
     def clean_note(cls, value):
+        return value.strip()
+
+    @field_validator('goal_sports')
+    @classmethod
+    def valid_goal_sports(cls, value):
+        if len(set(value)) != len(value) or any(sport not in GROUP_SPORTS for sport in value):
+            raise ValueError('Choose one or more valid sports')
+        return [sport for sport in GROUP_SPORTS if sport in value]
+
+    @field_validator('training_for')
+    @classmethod
+    def clean_training_for(cls, value):
         return value.strip()
 
 
@@ -132,6 +149,24 @@ def _validate_event_date(event_date, time_zone, now=None):
         latest = today.replace(year=today.year + 5, day=28)
     if not today <= event_date <= latest:
         raise HTTPException(422, 'Choose an event date from today through five years from now')
+
+
+def _goal_start_at(group):
+    return dt.datetime.combine(group['goal_start_date'], dt.time.min, _zone(group['time_zone'])).astimezone(UTC)
+
+
+def _validate_goal_start(goal_start_date, event_date, time_zone):
+    today = _now().astimezone(_zone(time_zone)).date()
+    try:
+        one_year_ago = today.replace(year=today.year - 1)
+    except ValueError:
+        one_year_ago = today.replace(year=today.year - 1, day=28)
+    if goal_start_date < one_year_ago:
+        raise HTTPException(422, 'Choose a goal start date within the past year')
+    if event_date is None and goal_start_date > today:
+        raise HTTPException(422, 'An ongoing group cannot start in the future')
+    if event_date is not None and goal_start_date > event_date:
+        raise HTTPException(422, 'The goal start date must be on or before the event date')
 
 
 def _local_week_window(zone_name, now):
@@ -224,12 +259,14 @@ def _contributions(c, group, members, now=None):
     now = now or _now()
     zone = _zone(group['time_zone'])
     event_date = group['event_date']
-    group_start = group['created'] if event_date is None else None
+    group_start = _goal_start_at(group)
     end = (dt.datetime.combine(event_date + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
            if event_date else now)
     visible_ids = [member['user_id'] for member in members]
     if not visible_ids:
         return {}
+    # All selected means legacy/unlisted sport values still count for old groups.
+    all_sports = set(group['goal_sports']) == set(GROUP_SPORTS)
     measures = {
         'distance': "sum(a.distance_m) FILTER(WHERE a.distance_m>0 AND a.distance_m<'Infinity'::real)",
         'elevation': "sum(a.ascent_m) FILTER(WHERE a.ascent_m>0 AND a.ascent_m<'Infinity'::real)",
@@ -238,10 +275,11 @@ def _contributions(c, group, members, now=None):
     }
     rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
       FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
-        AND a.start_time>=greatest(m.joined_at,coalesce(%s::timestamptz,m.joined_at))
-        AND a.start_time<least(%s::timestamptz,%s) AND a.visibility<>'me' AND NOT a.lift_open
+        AND a.start_time>=greatest(m.joined_at,%s::timestamptz)
+        AND a.start_time<least(%s::timestamptz,%s) AND (%s::boolean OR a.sport=ANY(%s::text[]))
+        AND a.visibility<>'me' AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
-      GROUP BY m.user_id''', (group_start, end, now, group['id'], visible_ids)).fetchall()
+      GROUP BY m.user_id''', (group_start, end, now, all_sports, group['goal_sports'], group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
         0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
     return {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
@@ -251,13 +289,15 @@ def _weekly_contributions(c, group, members, now):
     local_day, start, week_end = _local_week_window(group['time_zone'], now)
     zone = _zone(group['time_zone'])
     event_date = group['event_date']
-    group_start = group['created'] if event_date is None else None
+    group_start = _goal_start_at(group)
     event_end = (dt.datetime.combine(event_date + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
                  if event_date else now)
     end = min(week_end, event_end, now)
     visible_ids = [member['user_id'] for member in members]
     if not visible_ids or end <= start:
         return local_day, {}
+    # Keep the all-sports interpretation identical in lifetime and weekly totals.
+    all_sports = set(group['goal_sports']) == set(GROUP_SPORTS)
     measures = {
         'distance': "sum(a.distance_m) FILTER(WHERE a.distance_m>0 AND a.distance_m<'Infinity'::real)",
         'elevation': "sum(a.ascent_m) FILTER(WHERE a.ascent_m>0 AND a.ascent_m<'Infinity'::real)",
@@ -266,10 +306,11 @@ def _weekly_contributions(c, group, members, now):
     }
     rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
       FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
-        AND a.start_time>=greatest(m.joined_at,coalesce(%s::timestamptz,m.joined_at),%s::timestamptz)
-        AND a.start_time<%s::timestamptz AND a.visibility<>'me' AND NOT a.lift_open
+        AND a.start_time>=greatest(m.joined_at,%s::timestamptz,%s::timestamptz)
+        AND a.start_time<%s::timestamptz AND (%s::boolean OR a.sport=ANY(%s::text[]))
+        AND a.visibility<>'me' AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
-      GROUP BY m.user_id''', (group_start, start, end, group['id'], visible_ids)).fetchall()
+      GROUP BY m.user_id''', (group_start, start, end, all_sports, group['goal_sports'], group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
         0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
     return local_day, {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
@@ -300,18 +341,25 @@ def _answer(c, group, uid):
     me = next(member for member in members if member['user_id'] == uid)
     own_total = contributions.get(uid, 0) if member_count >= 3 and me['share_total'] else _contributions(c, group, [me], now).get(uid, 0)
     own_week = weekly.get(uid, 0) if member_count >= 3 and me['share_total'] else _weekly_contributions(c, group, [me], now)[1].get(uid, 0)
+    visible_total = total if member_count >= 3 else own_total
+    weeks_to_event = (days_to_event + 6) // 7 if days_to_event is not None else None
+    weekly_target = (round(max(0, float(group['goal_target']) - visible_total) / weeks_to_event, 1)
+                     if member_count >= 3 and weeks_to_event and weeks_to_event > 0 else None)
     return {
         'id': str(group['id']), 'title': group['title'],
         'event_date': event_date.isoformat() if event_date else None,
         'time_zone': group['time_zone'], 'note': group['note'], 'goal_type': group['goal_type'],
         'goal_target': group['goal_target'], 'goal_unit': group['goal_unit'],
+        'goal_sports': list(group['goal_sports']), 'goal_start_date': group['goal_start_date'].isoformat(),
+        'training_for': group['training_for'], 'weekly_target': weekly_target,
+        'weekly_target_scope': 'group' if weekly_target is not None else None,
         **({'total': total, 'sharing_member_count': sharing_member_count}
            if member_count >= 3 else {'your_total': own_total}),
         **({'this_week_total': week_total}
            if member_count >= 3 else {'your_this_week_total': own_week}),
         'week_start': (local_day - dt.timedelta(days=local_day.weekday())).isoformat(),
         'days_to_event': days_to_event,
-        'weeks_to_event': (days_to_event + 6) // 7 if days_to_event is not None else None,
+        'weeks_to_event': weeks_to_event,
         'event_state': ('ongoing' if event_date is None else
                         'upcoming' if today < event_date else 'today' if today == event_date else 'complete'),
         'sharing_level': me['sharing_level'],
@@ -476,16 +524,20 @@ def _group_detail(c, group, uid, answer):
 def create_group(body: GroupCreate, request: Request, user=Depends(current_user)):
     _valid_goal(body)
     _validate_event_date(body.event_date, body.time_zone)
+    start_date = body.goal_start_date or _now().astimezone(_zone(body.time_zone)).date()
+    _validate_goal_start(start_date, body.event_date, body.time_zone)
     with db.connect() as c:
         from . import challenges
         challenges.account_locks(c, [user['id']])
         challenges.confirmed_for_challenge(c, user['id'])
         community_filter.check(body.title, 'group name')
         community_filter.check(body.note, 'group note')
-        group = c.execute('''INSERT INTO event_groups(organizer_id,title,event_date,time_zone,note,goal_type,goal_target,goal_unit)
-                             VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
+        community_filter.check(body.training_for, 'training goal')
+        group = c.execute('''INSERT INTO event_groups(organizer_id,title,event_date,time_zone,note,goal_type,goal_target,goal_unit,
+                                                      goal_sports,goal_start_date,training_for)
+                             VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
                           (user['id'], body.title, body.event_date, body.time_zone, body.note, body.goal_type,
-                           body.goal_target, body.goal_unit)).fetchone()
+                           body.goal_target, body.goal_unit, body.goal_sports, start_date, body.training_for)).fetchone()
         c.execute("INSERT INTO group_members(group_id,user_id) VALUES(%s,%s)", (group['id'], user['id']))
         invite_url = _new_invite(c, group, request)
         return {**_answer(c, group, user['id']), 'invite_url': invite_url}
@@ -549,6 +601,10 @@ def update_group_event_date(group_id: str, body: GroupEventDate, user=Depends(cu
         if group['event_date'] is not None and now.astimezone(_zone(group['time_zone'])).date() > group['event_date']:
             raise HTTPException(409, 'This group has ended and its event date cannot be changed')
         _validate_event_date(body.event_date, group['time_zone'], now)
+        if body.event_date is None and group['goal_start_date'] > now.astimezone(_zone(group['time_zone'])).date():
+            raise HTTPException(422, 'An ongoing group cannot start in the future')
+        if body.event_date is not None and body.event_date < group['goal_start_date']:
+            raise HTTPException(422, 'The event date must be on or after the goal start date')
         updated = c.execute('UPDATE event_groups SET event_date=%s WHERE id=%s RETURNING *',
                             (body.event_date, group['id'])).fetchone()
         return _answer(c, updated, user['id'])
