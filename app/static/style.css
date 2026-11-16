@@ -103,6 +103,9 @@ details.fold-row[open] { padding-bottom: 12px; }
 .selbox select { appearance: none; -webkit-appearance: none; padding-right: 34px; color: var(--tx); text-overflow: ellipsis; }
 .selbox > svg { position: absolute; right: 12px; top: 50%; width: 16px; height: 16px; margin-top: -8px; transform: rotate(90deg); color: var(--tx3); pointer-events: none; }
 .hand { gap: 14px; }
+.manual-activity-entry { gap: 12px; }
+.manual-entry-group { display:grid; gap:6px; }
+.manual-entry-group-title { margin:0; color:var(--tx2); font-size:15px; font-weight:600; line-height:1.25; }
 .hand .dur { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
 .hand #ma-lift p { margin: 6px 2px 0; }
 /* an iPhone's date box is wider than its space unless told otherwise (it pushed the whole sheet sideways) */
