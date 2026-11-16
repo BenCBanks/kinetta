@@ -98,6 +98,15 @@
     "reason": "Issue #1021 groups Progress destinations in one inset surface; adjacent 56px rows share 1px dividers instead of card gaps. Each row remains a full-height labeled link."
   },
   {
+    "id": "me-today-inset-row-divider",
+    "selector": ".me-today-list > .me-today-row",
+    "metric": "gap",
+    "kind": "grouped-list",
+    "exact": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1020",
+    "reason": "Issue #1020 groups Today destinations in one inset surface; adjacent 52px rows use 1px dividers instead of card gaps. Every row remains a full-height labeled link."
+  },
+  {
     "id": "nutrition-calorie-ring-center-number",
     "selector": ".calorie-ring-label .nutrition-count",
     "metric": "font-max",

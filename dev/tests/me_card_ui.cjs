@@ -255,6 +255,17 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
      assert.equal(await food.count(),foodUser?1:0,`food row visibility matches ${state} (${size.width}px ${theme})`);
      assert.equal(await section.locator('.me-today-date').count(),1,'Today date is shown at the right of the header');
      const list=section.locator('.me-today-list');assert.equal(await list.count(),1,'Today uses one inset list');
+     if(state==='both'){
+      const widths=await p.evaluate(()=>{const today=document.querySelector('.me-today-list').getBoundingClientRect(),insights=document.querySelector('.me-insights').getBoundingClientRect();return{today:{left:today.left,right:today.right},insights:{left:insights.left,right:insights.right}};});
+      assert(Math.abs(widths.today.left-widths.insights.left)<1&&Math.abs(widths.today.right-widths.insights.right)<1,`Today list matches Insights card width (${JSON.stringify(widths)})`);
+      const treatments=await p.evaluate(()=>{const date=document.querySelector('.me-today-date'),hide=document.querySelector('#t-setup [data-hide-setup]'),probe=document.createElement('span');probe.style.color='var(--tx3)';document.body.append(probe);const muted=getComputedStyle(probe).color;probe.style.color='var(--accent)';const accent=getComputedStyle(probe).color;probe.remove();const style=getComputedStyle(hide),rect=hide.getBoundingClientRect();return{dateColor:getComputedStyle(date).color,muted,hideColor:style.color,accent,hideBg:style.backgroundColor,hideBorder:style.borderStyle,hideShadow:style.boxShadow,hideWidth:rect.width,hideHeight:rect.height};});
+      assert.equal(treatments.dateColor,treatments.muted,'Today date uses the shared muted text color');
+      assert.equal(treatments.hideColor,treatments.accent,'Hide is a plain accent text action');
+      assert.equal(treatments.hideBg,'rgba(0, 0, 0, 0)','Hide has no grey pill background');
+      assert.equal(treatments.hideBorder,'none','Hide has no pill border');
+      assert.equal(treatments.hideShadow,'none','Hide has no pill shadow');
+      assert(treatments.hideWidth>=44&&treatments.hideHeight>=44,'Hide keeps a 44px target');
+     }
      const rows=await list.locator('.me-today-row').evaluateAll(nodes=>nodes.map(n=>({height:n.getBoundingClientRect().height,text:n.innerText,href:n.getAttribute('href'),kind:n.hasAttribute('data-today-plan')?'plan':n.hasAttribute('data-today-food')?'nutrition':'activity'})));
      assert(rows.every(row=>row.height>=52),`Today rows meet the 52px minimum: ${JSON.stringify(rows)}`);
      for(const row of await list.locator('.me-today-title').all()){const size=await row.evaluate(n=>({font:parseFloat(getComputedStyle(n).fontSize),weight:parseInt(getComputedStyle(n).fontWeight,10)}));assert.equal(size.font,15,'Today row titles use 15px');assert.equal(size.weight,500,'Today row titles use 500 weight');}
@@ -288,6 +299,18 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
      }
     }
     await screenshot(`today-${state}`);
+    if(todayOnly&&state==='both'){
+     await p.evaluate(()=>{const profileLink=[...document.querySelectorAll('.me-tools a.row-link')].find(node=>node.innerText.includes('See full profile')),nav=document.querySelector('nav.tabs');if(!profileLink)throw new Error('See full profile row is missing');const targetBottom=nav.getBoundingClientRect().top-16;window.scrollTo(0,window.scrollY+profileLink.getBoundingClientRect().bottom-targetBottom);});
+     await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+     const previewClearance=await p.evaluate(()=>{const row=[...document.querySelectorAll('.me-tools a.row-link')].find(node=>node.innerText.includes('See full profile')).getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect(),page=document.querySelector('#page'),probe=document.createElement('div');probe.style.paddingBottom='calc(env(safe-area-inset-bottom,0px) + var(--tab-h) + 16px)';document.body.append(probe);const expected=parseFloat(getComputedStyle(probe).paddingBottom);probe.remove();return{rowTop:row.top,rowBottom:row.bottom,navTop:nav.top,paddingBottom:parseFloat(getComputedStyle(page).paddingBottom),expectedPadding:expected};});
+     assert(previewClearance.rowTop>=0&&previewClearance.rowBottom<=previewClearance.navTop-15,`See full profile row scrolls clear of the tab bar (${JSON.stringify(previewClearance)})`);
+     assert.equal(previewClearance.paddingBottom,previewClearance.expectedPadding,'Me reserves safe area, tab bar and 16px bottom clearance');
+     if(out)await p.screenshot({path:`${out}/me-profile-link-clear-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});
+     await p.evaluate(()=>window.scrollTo(0,document.scrollingElement.scrollHeight));
+     await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+     const pageEnd=await p.evaluate(()=>{const page=document.querySelector('#page'),nav=document.querySelector('nav.tabs'),visible=[...page.children].filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height>0),last=visible.at(-1).getBoundingClientRect(),bar=nav.getBoundingClientRect();return{lastBottom:last.bottom,navTop:bar.top};});
+     assert(pageEnd.lastBottom<=pageEnd.navTop-15,`Last Me content clears the tab bar with 16px breathing room (${JSON.stringify(pageEnd)})`);
+    }
    };
    for(const state of ['both','activity','activity-multiple','food','planned','planned-distance','rest','activity-empty','estimate','food-error','neither'])await checkTodayState(state);
    if(todayOnly){assert.deepEqual(errors,[],'Today fixture renders without browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'Today fixture blocks every write beyond the existing challenge stub');console.log(`Today ${size.width}px ${theme} states: eleven fictional activity, food, plan and visibility states; Me card unchanged PASS`);await c.close();continue;}
