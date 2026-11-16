@@ -181,6 +181,15 @@
     "reason": "The approved #1041 feed-card spec sets date metadata to 13px/400; only this date label gets the compact type size, while clipping and other text limits stay active."
   },
   {
+    "id": "home-feed-activity-title-type",
+    "selector": ".activity-home .activity-card .post-title",
+    "metric": "font-max",
+    "kind": "approved-type",
+    "exact": 20,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1151",
+    "reason": "Issue #1151 approves a 20px/700 Home activity title; only that heading uses the larger type, while clipping and every other text limit remain active."
+  },
+  {
     "id": "nutrition-goal-corner",
     "selector": "#fd-goal",
     "withSelector": "#fd-sum > .nutrition-day-summary > .nutrition-summary-link",
