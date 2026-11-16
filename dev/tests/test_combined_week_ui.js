@@ -5,13 +5,21 @@ h=c.combinedWeekHtml({...empty,workouts:1,seconds:1800});assert.match(h,/Workout
 h=c.combinedWeekHtml({...empty,days_logged:2,protein_days_unknown:1});assert.match(h,/2 of 7 days/);assert.match(h,/1 unknown/);assert(!h.includes('Food consistency will appear'));
 h=c.combinedWeekHtml({...empty,workouts:2,distance_m:5000,seconds:1800,days_logged:3,protein_target:110,protein_days_reached:2});assert.match(h,/Distance:5km/);assert.match(h,/2 of 7 days/);assert.equal((h.match(/class="row-link"/g)||[]).length,2,'both destinations remain available for every data state');
 console.log('Combined week actual renderer: fixed three-metric row, empty/populated food and protein facts, and both destination rows PASS');
+async function resolvedWeekRead(){
+ c.readOwner=()=> 'zz_test_week';c.location={search:''};c.URLSearchParams=URLSearchParams;c.$=()=>({});
+ c.load=async(path,draw)=>{await Promise.resolve();draw({week:empty});return {week:empty};};
+ const box={isConnected:true,innerHTML:''},pending=c.combinedWeek(box);assert.equal(typeof pending?.then,'function','Progress can include the week summary in its first-paint promise');await pending;
+ assert.match(box.innerHTML,/Your week in review/,'the returned read settles after the summary has rendered');
+ console.log('Combined week resolved read: awaitable render contract PASS');
+}
 async function failedWeekCopy(){
  c.readOwner=()=> 'zz_test_week';c.location={search:''};c.URLSearchParams=URLSearchParams;c.document={createElement:tag=>({tag,remove(){this.removed=true;}})};c.$=()=>({});c.load=()=>Promise.reject(Error('Fictional unavailable summary'));
- const failed={isConnected:true,innerHTML:'',append(button){this.retry=button;}};c.combinedWeek(failed);await new Promise(resolve=>setImmediate(resolve));
+ const failed={isConnected:true,innerHTML:'',append(button){this.retry=button;}},pending=c.combinedWeek(failed);assert.equal(typeof pending?.then,'function','Progress can await the week summary read before first paint');await pending;
  assert.match(failed.innerHTML,/Your weekly summary couldn’t load\./);assert.equal(failed.retry.textContent,'Try again.');assert.equal(failed.retry.className,'linkbtn combined-week-retry');
  console.log('Combined week failed-load copy and retry action PASS');
 }
 (async()=>{
+ await resolvedWeekRead();
  await failedWeekCopy();
  c.readOwner=()=> 'A';c.homeCalories=n=>Math.round(n/5)*5;let item={id:1,kcal:538,source:'healthkit',estimated:false};c.load=(path,fn)=>Promise.resolve(fn({today:{items:[item],day_burn:2500,included_in_day_burn:true,food_href:'/food'}}));vm.runInContext(s.slice(s.indexOf('function workoutEnergy('),s.indexOf('function workoutSyncStatus')),c);
  const box={isConnected:true,innerHTML:''};c.workoutEnergy(box,1);assert(box.innerHTML.includes('+540 kcal burned'));assert(box.innerHTML.includes('Recorded calories from the Health app.'));item={...item,kcal:0,estimated:true};c.workoutEnergy(box,1);assert(box.innerHTML.includes('Calories are unavailable'));assert(!box.innerHTML.includes('+0 kcal'));
