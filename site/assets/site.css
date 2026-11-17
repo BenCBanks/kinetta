@@ -652,6 +652,7 @@ header.top .signup { display:flex;align-items:center; }
 .phone-parallax-a { transform:rotate(-7deg) translate3d(-26px,18px,0); z-index:1; }
 .phone-parallax-b { transform:rotate(7deg) translate3d(62px,-24px,0); z-index:2; }
 .home-hero-copy .tour-access { justify-content:flex-start; }
+.home-hero-copy .tour-access a { min-width:44px; }
 .home-hero-copy .tour-access-note { text-align:left; }
 .home-story { border-top:1px solid var(--line); padding:100px 0 120px; }
 .home-story-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(250px,.7fr); gap:clamp(42px,8vw,130px); align-items:start; }
@@ -711,6 +712,7 @@ header.top .signup { display:flex;align-items:center; }
 @media (prefers-reduced-motion:reduce) {
  *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.001ms!important; transition-duration:.001ms!important; }
  .phone-parallax-a,.phone-parallax-b { transform:none; }
+ .home-page .story-pin { position:static; top:auto; }
  .story-step { opacity:1; transform:none; }
 }
 
