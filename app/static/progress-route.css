@@ -55,6 +55,9 @@
 .progress-subpage-heading.progress-no-kit-entry .kit-help { display:none; }
 .progress-subpage-tabs { margin:0 0 12px; }
 .progress-subpage-tabs .underline-tabs { gap:8px; }
+/* Progress and Fitness underline tabs keep pointer taps clear and keyboard focus visible. */
+.progress-subpage-tabs .underline-tabs button:focus { outline:none; box-shadow:none; }
+.progress-subpage-tabs .underline-tabs button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 
 /* Fitness charts use the same quiet card, metric row and range control. */
 .progress-chart-card { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:none; }
