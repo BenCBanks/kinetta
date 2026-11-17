@@ -41,6 +41,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button, a, .tap { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
 button { cursor: pointer; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+/* Underline tabs use their line as the pointer selection cue; reserve a focus ring for keyboard users. */
+:is([role="tablist"] [role="tab"], .underline-tabs button):focus { outline:none; box-shadow:none; }
+:is([role="tablist"] [role="tab"], .underline-tabs button):focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 a { color: var(--accent); text-decoration: none; } a:active { opacity: .7; }
 h1, h2, h3 { margin: 0; line-height: 1.2; font-family: var(--font-display); font-weight: var(--weight-display); letter-spacing: -.02em; color: var(--tx); }
 code { font-size: 13px; word-break: break-all; background: var(--card2); padding: 2px 6px; border-radius: 6px; }
