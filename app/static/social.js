@@ -778,34 +778,39 @@ function socialChanged(aid) {
 }
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
 const QUICK_REPLIES=['Nice work!','Great effort','Way to go'];
+const commentArrowIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+const commentRetryIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5M20 4v7h-7"/></svg>';
 function commentsSheet(aid, s, onChange) {
   cleanViews();
   const account=readOwner();if(s&&!SocialData.peek(aid))SocialData.remember(aid,s);const cached=SocialData.peek(aid);
-  sheet('Comments', `<div class="social social-sheet"><div class="social-reactions"><span class="small muted">Reactions</span></div><div class="comments" aria-label="Comments" aria-busy="${!cached}">${cached?'':skel(2)}</div>
-    <p class="social-read-status small muted" role="status"></p>
-    <div class="c-quick" aria-label="Quick replies">${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
-    <form class="c-form"><span class="c-me" aria-hidden="true">${avatar(App.me)}</span><label class="vh" for="c-${aid}">Write a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Write a comment…" required></textarea><button class="c-send" aria-label="Post comment" disabled>${svg('send')}</button></form></div>`,b=>{
+  sheet('Comments', `<div class="social social-sheet"><div class="social-reactions">${reactionButtons(aid,cached||s||{cheers:[],my_reaction:null},false,true)}</div><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':`<div class="comments-skeleton" aria-hidden="true"><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div></div>`}</div>
+    <p class="social-read-status small muted" role="status" aria-live="polite"></p>
+    <div class="c-quick" aria-label="Quick replies" hidden>${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
+    <form class="c-form"><span class="c-me" aria-hidden="true">${avatar(App.me)}</span><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Send comment" disabled>${commentArrowIcon}</button></form></div>`,b=>{
     const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box),send=$('.c-send',f),quick=$('.c-quick',box);
     const current=()=>box.isConnected&&account===readOwner();
-    // The composer stays obvious: the send button wakes up with text, and quick replies only fill the box (never post).
-    box._sync=()=>{const empty=!f.text.value.trim();send.disabled=!!box._denied||send.dataset.posting==='1'||empty;quick.hidden=!empty||!!box._denied;
-      f.text.style.height='auto';f.text.style.height=Math.min(f.text.scrollHeight+2,132)+'px';};
-    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(!current())return;SocialData.draft(aid,f.text.value);box._sync();};
+    wireReactionGroup($('[data-reaction-group]',box),aid);
+    box._sync=()=>{const empty=!f.text.value.trim(),posting=send.dataset.posting==='1',failed=send.dataset.failed==='1';send.disabled=!!box._denied||posting||empty;
+      send.setAttribute('aria-label',posting?'Sending comment':failed?'Retry sending comment':'Send comment');
+      send.innerHTML=posting?'<span class="c-send-spinner" aria-hidden="true"></span>':failed?commentRetryIcon:commentArrowIcon;
+      quick.hidden=!empty||!box._social?.comments?.length||!!box._denied;
+      f.text.style.height='auto';f.text.style.height=Math.min(f.text.scrollHeight+2,112)+'px';};
+    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(!current())return;if(send.dataset.failed){delete send.dataset.failed;status.textContent='';}SocialData.draft(aid,f.text.value);box._sync();};
     $$('[data-quick]',quick).forEach(b=>b.onclick=()=>{if(!current())return;f.text.value=b.textContent;SocialData.draft(aid,f.text.value);box._sync();f.text.focus();});
     requestAnimationFrame(()=>{if(current())box._sync();});
     const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
     if(cached)drawComments(box,aid,cached,onChange);
     viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}}));
     const refresh=async()=>{try{const fresh=await SocialData.read(aid);update(fresh);}
-      catch(error){if(!current())return;if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}
+      catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}
         list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
-      let denied=false;button.dataset.posting='1';button.setAttribute('aria-busy','true');box._sync();
+      let denied=false;delete button.dataset.failed;button.dataset.posting='1';button.setAttribute('aria-busy','true');status.textContent='Sending comment…';box._sync();
       try{const fresh=await api(`/api/activities/${aid}/comments`,json('POST',{text}));if(account!==readOwner())return;
         SocialData.remember(aid,fresh);socialChanged(aid);
         if(f.text.value===raw){f.text.value='';if(SocialData.draft(aid)===raw)SocialData.draft(aid,'');}
         if(current())update(fresh,{posted:true});
-      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current())status.textContent=error.message;}
+      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current()){if(!denied)button.dataset.failed='1';status.textContent=denied?'You can’t comment on this activity.':"Couldn't send comment. Try again.";}}
       finally{if(current()){if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
     };
     refresh();
@@ -820,17 +825,19 @@ function drawComments(box,aid,s,onChange){
   if(list.getAttribute('aria-busy')==='true')list.replaceChildren();list.setAttribute('aria-busy','false');
   const keep=new Set();let anchor=list.firstElementChild;
   for(const comment of s.comments){const id=String(comment.id);keep.add(id);let node=[...list.children].find(n=>n.dataset.commentId===id);const signature=JSON.stringify(comment);
-    if(!node){node=document.createElement('div');node.className='comment';node.dataset.commentId=id;}
+    if(!node){node=document.createElement('div');node.className='comment';node.setAttribute('role','listitem');node.dataset.commentId=id;}
     if(node===anchor)anchor=anchor.nextElementSibling;else list.insertBefore(node,anchor);
     if(node._signature===signature)continue;node._signature=signature;
-    node.innerHTML=`<a href="${profileHref(comment)}" data-close aria-label="View ${esc(comment.name)}'s profile">${avatar(comment)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(comment)}" data-close><b>${esc(comment.name)}</b></a><small class="muted">${esc(when(comment.created))}</small></div><p>${esc(comment.text)}</p><div class="c-acts">${comment.can_delete?`<button class="linkbtn danger" data-del="${comment.id}" aria-label="Delete comment from ${esc(comment.name)}">Delete</button>`:''}${comment.login!==App.me.login?`<button class="linkbtn muted" data-rep="${comment.id}" aria-label="Report comment from ${esc(comment.name)}">Report</button>`:''}</div></div>`;
+    node.innerHTML=`<a href="${profileHref(comment)}" data-close aria-label="View ${esc(comment.name)}'s profile">${avatar(comment)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(comment)}" data-close><b>${esc(comment.name)}</b></a><small class="muted">${esc(when(comment.created))}</small></div><p>${esc(comment.text)}</p><div class="c-acts">${comment.can_delete?`<button type="button" class="c-comment-options" data-comment-options aria-label="Comment options">${svg('more')}</button>`:''}${comment.login!==App.me.login?`<button class="linkbtn muted" data-rep="${comment.id}" aria-label="Report comment from ${esc(comment.name)}">Report</button>`:''}</div></div>`;
     const after=fresh=>{if(box._owner!==readOwner())return;socialChanged(aid);SocialData.remember(aid,fresh);if(box.isConnected)drawComments(box,aid,fresh,onChange);onChange?.(fresh);};
-    const del=$('[data-del]',node);if(del)del.onclick=async()=>{if(box._owner!==readOwner()||!await confirmSheet('Delete this comment?',{action:'Delete'})||box._owner!==readOwner())return;del.disabled=true;
-      try{await api('/api/comments/'+comment.id,{method:'DELETE'});after({...SocialData.peek(aid)||box._social,comments:(SocialData.peek(aid)||box._social).comments.filter(c=>c.id!==comment.id)});}catch(error){if(box._owner===readOwner())toast(error.message);if(del.isConnected)del.disabled=false;}};
+    const options=$('[data-comment-options]',node);if(options)options.onclick=()=>{if(box._owner!==readOwner())return;sheet('Comment options','<div class="comment-options-menu"><button type="button" class="comment-delete-action" data-comment-delete>Delete comment</button></div>',(menu,close)=>{
+      $('[data-comment-delete]',menu).onclick=async()=>{close();if(box._owner!==readOwner()||!await confirmSheet('Delete this comment?',{body:'This comment will be removed.',action:'Delete'})||box._owner!==readOwner())return;options.disabled=true;
+        try{await api('/api/comments/'+comment.id,{method:'DELETE'});after({...SocialData.peek(aid)||box._social,comments:(SocialData.peek(aid)||box._social).comments.filter(c=>c.id!==comment.id)});}catch(error){if(box._owner===readOwner())toast(error.message);if(options.isConnected)options.disabled=false;}};
+    });};
     const report=$('[data-rep]',node);if(report)report.onclick=()=>{if(box._owner===readOwner())reportSheet(comment,{comment_id:comment.id},()=>after({...box._social,comments:box._social.comments.filter(c=>c.login!==comment.login)}));};
   }
   for(const node of [...list.children])if(!keep.has(node.dataset.commentId))node.remove();
-  if(!s.comments.length)list.innerHTML=`<div class="c-none"><span>${svg('comment')}</span><b>Start the conversation</b><p class="small muted">Only people who can see this activity can read its comments.</p></div>`;
+  if(!s.comments.length)list.replaceChildren();
   box._sync?.();
 }
 
