@@ -89,7 +89,7 @@
 .activity-detail .activity-charts .gl { stroke:var(--color-divider); }
 .activity-detail .activity-charts .sample-area { opacity:.12; }
 .activity-detail .activity-charts .chartbox .sample-area { opacity:.12; }
-.activity-detail .activity-chart-card { padding-bottom:calc(16px + var(--nav-height) + var(--nav-bottom)); }
+.activity-detail .activity-chart-card { padding-bottom:16px; }
 
 /* Activity detail PR 1 (#1019) supersedes the #984 hero-stat treatment with the owner grid rule. */
 .activity-detail .activity-chart-card {
@@ -344,7 +344,7 @@
 .activity-detail .detail-map-hero .compact-media [data-media-step="1"] { right:12px; }
 .activity-detail .detail-map-hero .compact-media:has(.media-map) [data-media-step="-1"] { left:12px; right:auto; }
 .activity-detail .detail-map-hero .compact-media:has(.media-map) [data-media-step="1"] { left:auto; right:12px; }
-.activity-detail .activity-chart-card { padding:16px 16px calc(16px + var(--nav-height) + var(--nav-bottom)); }
+.activity-detail .activity-chart-card { padding:16px; }
 @media (min-width:361px) and (max-width:700px) {
   .activity-detail .activity-chart-card { margin-inline:-6px; }
 }
@@ -366,7 +366,7 @@
 .activity-detail .activity-tabs .tab-label { position:relative; display:inline-block; line-height:44px; }
 .activity-detail .activity-tabs button[aria-selected="true"] .tab-label::after { position:absolute; right:0; bottom:0; left:0; height:2px; background:var(--accent); content:""; }
 .activity-detail .activity-tabs button[aria-selected="true"]::after { display:none; }
-.activity-detail .dpane > .activity-detail-list { padding-bottom:calc(var(--nav-height) + var(--nav-bottom) + 16px); }
+.activity-detail .dpane > .activity-detail-list { padding-bottom:16px; }
 .activity-detail #activity-pane-splits .tbl .bar.strong { background:var(--accent); opacity:.82; }
 .activity-detail #activity-pane-splits .tbl tr.best .bar.strong { background:var(--accent); opacity:1; }
 .activity-detail #activity-pane-efforts .detail-effort-result { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
