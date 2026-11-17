@@ -1318,7 +1318,7 @@ function groupEventDateSheet(group,reload){
 }
 route(/^\/me\/groups$/, 'me', async el=>{
   const createRequested=new URLSearchParams(location.search).get('create')==='1';
-  el.classList.add('groups-page');el.innerHTML=`<div class="top">${backBtn('Friends')}<h1>Groups</h1><button type="button" class="linkbtn" id="group-new">Create</button></div><div id="group-list"><div class="card empty">Loading your groups…</div></div>`;wireBack(el,'/me/friends');
+  el.classList.add('groups-page');el.innerHTML=`<div class="top">${backBtn('Friends')}<h1>Groups</h1><button type="button" class="linkbtn" id="group-new">Create</button></div><div id="group-list"><div class="card group-list-card group-list-loading" role="status" aria-busy="true"><span class="vh">Loading your groups…</span>${[0,1].map(()=>'<div class="group-loading-row" aria-hidden="true"><span class="sk group-loading-glyph"></span><span class="group-loading-copy"><span class="sk group-loading-title"></span><span class="sk group-loading-summary"></span></span><span class="sk group-loading-value"></span></div>').join('')}</div></div>`;wireBack(el,'/me/friends');
   const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url);});
   $('#group-new',el).onclick=create;
   if(createRequested){const address=new URL(location.href);address.searchParams.delete('create');replacePageAddress(el,address.pathname+address.search+address.hash);create();}

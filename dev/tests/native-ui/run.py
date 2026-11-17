@@ -199,7 +199,11 @@ for device in preferred:
      assert friends['findAction'] and friends['findAction']['width']>=44 and friends['findAction']['height']>=44 and not friends['fullChallenges'],metrics
      if friends['requestRow']:assert friends['requestRow']['height']>=44,metrics
      assert all(r['width']>=44 and r['height']>=44 for r in friends['controls']),metrics
-     if stage=='friends-empty':assert friends['empty'] and friends['emptyAction'] and friends['emptyAction']['width']==0,metrics
+     if stage=='friends-empty':
+      assert friends['empty'] and friends['emptyTitle']=='No friends yet' and friends['emptyCopy']=='Search by name or @username, or tap Add to share an invite link.' and friends['emptyAction'] is None,metrics
+      assert friends['emptyPadding']=='14px 16px',metrics
+      for box in (friends['emptyTitleBox'],friends['emptyCopyBox']):
+       assert box and box['x']>=friends['empty']['x']-.5 and box['right']<=friends['empty']['right']+.5 and box['y']>=friends['empty']['y']-.5 and box['bottom']<=friends['empty']['bottom']+.5,metrics
      if stage=='friends-heavy' and root==16:assert friends['firstFriend']['bottom']<nav['box']['y'],metrics
     if stage.startswith('groups-'):
      groups=metrics['groups'];fields=groups['fields'];date=groups['date'];name=groups['name'];grid=groups['grid']
