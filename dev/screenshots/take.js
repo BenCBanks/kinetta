@@ -13,6 +13,17 @@ const SHOTS = require('./scenes.json');
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const MAP_SHOTS = new Set(['home-feed','activity-detail','feed','activity','activity-splits','route']);
 const NEEDS_MAP = !ONLY || ONLY.some(name => MAP_SHOTS.has(name));
+// The screenshot-only public PMTiles relay can see transient resets on large range reads.
+async function fetchArchive(route, headers) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await route.fetch({headers, timeout: 60_000}); }
+    catch (error) {
+      const transient = error?.name === 'TimeoutError' || /ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|socket hang up/i.test(error?.message || '');
+      if (!transient || attempt >= 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  }
+}
 const W = Number(process.env.SCREENSHOT_WIDTH || 393);
 const H = Number(process.env.SCREENSHOT_HEIGHT || 852);
 const SCALE = Number(process.env.SCREENSHOT_SCALE || 2);
@@ -181,7 +192,7 @@ async function closeCaptureContext(context) {
       await ctx.route(archiveOrigin+'/**',async route=>{
         const request=route.request();
         if(!['GET','HEAD'].includes(request.method())||basemap.kind==='pmtiles'&&request.method()==='GET'&&!request.headers().range)return route.abort();
-        const response=await route.fetch({headers:{...request.headers(),origin:publishedOrigin,referer:publishedOrigin+'/'} });
+        const response=await fetchArchive(route,{...request.headers(),origin:publishedOrigin,referer:publishedOrigin+'/'});
         if(!response.ok())throw Error('Approved capture map source returned HTTP '+response.status());
         await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
       });
