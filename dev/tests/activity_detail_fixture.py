@@ -47,12 +47,6 @@ for i,(kind,sport,label) in enumerate([('run','run',None),('paused','run',None),
  if kind=='lifting':
   ex=ok(owner.post('/api/lifts/exercises',{'name':'Fictional squat'}))['id'];ok(owner.put(f'/api/activities/{aid}/lifts',{'exercises':[{'exercise_id':ex,'sets':[{'reps':8,'kg':40,'warmup':True},{'reps':5,'kg':70},{'reps':5,'kg':70}]}]}))
 r=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],input='\n'.join(sql),text=True,capture_output=True);assert r.returncode==0,r.stderr
-# Two earlier fictional same-route attempts make the Details comparison meaningful.
-for index,seconds in enumerate((3900,3780),start=1):
- start=fixture_anchor-dt.timedelta(days=14*index)
- aid=ok(owner.post('/api/activities/manual',{'sport':'run','name':f'Fictional earlier river run {index}','start':start.isoformat(),'duration_s':seconds,'distance_m':10000}))['id']
- sql_history=f"UPDATE activities SET route_id=(SELECT route_id FROM activities WHERE id={ids['run']} AND user_id={uid}),elapsed_s={seconds},moving_s={seconds-60} WHERE id={aid} AND user_id={uid};"
- history=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],input=sql_history,text=True,capture_output=True);assert history.returncode==0,history.stderr
 ok(friend.post('/api/friends',{'login':'zz_test_detail_owner'}));ok(owner.post('/api/friends/zz_test_detail_friend/accept'))
 # The background worker correctly ignores future-dated activities relative to
 # the live API clock. Insert its expected fictional result directly so browser
