@@ -144,7 +144,7 @@ class CIPolicyTests(unittest.TestCase):
     def test_signing_requires_release_main_and_successful_required_jobs(self):
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
         job=ios.split('\n  testflight:\n',1)[1].split('\n    runs-on:',1)[0]
-        self.assertIn('needs: [changes, build, native-ui, store-ui]',job)
+        self.assertIn('needs: [changes, build, native-ui, compact-retry-gate, compact-retry, store-ui]',job)
         condition=re.search(r'\$\{\{(.*?)\}\}',job,re.S).group(1)
         condition=' '.join(condition.split())
         self.assertIn('!cancelled()',condition) # explicitly handle the optional skipped dependency
@@ -153,25 +153,29 @@ class CIPolicyTests(unittest.TestCase):
         # Evaluate the actual workflow expression's boolean/equality subset, without GitHub calls.
         # Unknown output values fail closed; only a disabled, skipped Store job is optional.
         statuses=('success','failure','cancelled','skipped')
-        for changes,build,native,store,enabled,release,ref,cancelled in product(
-                statuses,statuses,statuses,statuses,('true','false',''),('0','1'),
+        retries=('true','false','')
+        for changes,build,native,store,retry_result,retry_enabled,enabled,release,ref,cancelled in product(
+                statuses,statuses,statuses,statuses,statuses,retries,('true','false',''),('0','1'),
                 ('refs/heads/main','refs/heads/topic'),(False,True)):
             values={'needs.changes.result':changes,'needs.build.result':build,
                     'needs.native-ui.result':native,'needs.store-ui.result':store,
+                    'needs.compact-retry.result':retry_result,
+                    'needs.compact-retry-gate.outputs.retry_compact':retry_enabled,
                     'needs.changes.outputs.store':enabled,'needs.changes.outputs.release':release,
                     'github.ref':ref}
             expression=condition.replace('!cancelled()',repr(not cancelled))
             expression=re.sub(r'needs\.[\w.-]+|github\.ref',lambda match:repr(values[match.group()]),expression)
             expression=expression.replace('&&',' and ').replace('||',' or ')
             actual=eval(expression,{'__builtins__':{}},{})
+            native_passes=(native=='success' or (retry_enabled=='true' and retry_result=='success'))
             expected=(not cancelled and release=='1' and ref=='refs/heads/main' and
-                      changes==build==native=='success' and
+                      changes==build=='success' and native_passes and
                       ((enabled=='true' and store=='success') or (enabled=='false' and store=='skipped')))
             self.assertEqual(actual,expected,(values,cancelled))
 
     def test_simulator_runs_retry_once_and_only_pr_failures_are_quarantined(self):
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
-        native=ios.split('\n  native-ui:\n',1)[1].split('\n  store-ui:\n',1)[0]
+        native=ios.split('\n  native-ui:\n',1)[1].split('\n  compact-retry-gate:\n',1)[0]
         store=ios.split('\n  store-ui:\n',1)[1].split('\n  testflight:\n',1)[0]
         for job in (native,store):
             self.assertIn("continue-on-error: ${{ github.event_name == 'pull_request' }}",job)
@@ -179,6 +183,11 @@ class CIPolicyTests(unittest.TestCase):
             self.assertEqual(job.count('Retry '),1)
             self.assertIn('outcome == \'failure\'',job)
             self.assertEqual(job.count('run.py'),2)
+        gate=ios.split('\n  compact-retry-gate:\n',1)[1].split('\n  compact-retry:\n',1)[0]
+        self.assertIn('python3 dev/ci/compact_retry.py',gate)
+        retry=ios.split('\n  compact-retry:\n',1)[1].split('\n  store-ui:\n',1)[0]
+        self.assertEqual(retry.count('run.py'),1)
+        self.assertNotIn('Retry ',retry)
         self.assertIn('Owner: Basil; expires 2026-11-22.',native)
         testflight=ios.split('\n  testflight:\n',1)[1].split('\n    runs-on:',1)[0]
         self.assertIn('needs.native-ui.result == \'success\'',testflight)
