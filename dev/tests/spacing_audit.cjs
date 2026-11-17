@@ -11,6 +11,37 @@ const fixtures=JSON.parse(fs.readFileSync(process.env.KINETTA_SPACING_FIXTURES||
 assert.equal(fixtures.base,base);assert.equal(fixtures.project,project);
 const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'spacing_exceptions.json'),'utf8'));validateExceptions(rules);
 const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-spacing-report.json'),pictures=process.env.KINETTA_SPACING_SHOTS;
+const collectVisualOverlaps=()=>{
+ const selector=el=>{if(el.id)return'#'+CSS.escape(el.id);const parts=[];for(let n=el;n&&n!==document.body&&parts.length<5;n=n.parentElement){if(n.id){parts.unshift('#'+CSS.escape(n.id));break;}let part=n.tagName.toLowerCase();if(typeof n.className==='string'&&n.className.trim())part+='.'+n.className.trim().split(/\s+/).slice(0,2).map(CSS.escape).join('.');const same=n.parentElement?[...n.parentElement.children].filter(s=>s.tagName===n.tagName):[];if(same.length>1)part+=`:nth-of-type(${same.indexOf(n)+1})`;parts.unshift(part);}return parts.join(' > ');},
+  rect=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};},
+  visible=el=>{const r=el.getBoundingClientRect();if(r.width<=0||r.height<=0)return false;for(let n=el;n&&n!==document.documentElement;n=n.parentElement){const s=getComputedStyle(n);if(n.hidden||s.display==='none'||s.visibility==='hidden'||Number(s.opacity)===0)return false;}return true;},
+  isVisual=el=>{const name=typeof el.className==='string'?el.className:el.className?.baseVal||'';return /(?:^|[\s_-])(?:badge|medal|medallion|ring|avatar)(?:$|[\s_-])/i.test(name)||el.classList.contains('av');},
+  overlap=(a,b)=>({x:Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x),y:Math.min(a.y+a.height,b.y+b.height)-Math.max(a.y,b.y)}),
+  candidates=[...document.querySelectorAll('body *')].filter(el=>visible(el)&&isVisual(el)),out=new Map(),add=(a,b,ar,br)=>{const d=overlap(ar,br);if(d.x<=1||d.y<=1)return;const key=[selector(a),selector(b)].sort().join('|');out.set(key,{metric:'badge-overlap',element:selector(a),neighbour:selector(b),actual:{horizontal:d.x,vertical:d.y},expected:'no intersection over 1px',box:ar,neighbourBox:br});};
+ for(const el of candidates){
+  const own=rect(el),boundary=el.closest('.profile-achievement-list,.profile-achievement-sport-cards,.me-featured-achievements,.achievement-share-badges,.achievement-share-track-grid,.achievement-share-all-rows,.achievement-share-card,.profile-achievement-history-head,.post-hd,.me-card,.card')||el.parentElement;
+  let branch=el;
+  for(let parent=el.parentElement;parent;branch=parent,parent=parent.parentElement){
+   const siblings=[...parent.children].filter(node=>node!==branch&&visible(node));
+   for(const sibling of siblings){
+    add(el,sibling,own,rect(sibling));const walker=document.createTreeWalker(sibling,NodeFilter.SHOW_TEXT);
+    for(let node=walker.nextNode();node;node=walker.nextNode()){
+     if(!node.textContent.trim()||!visible(node.parentElement))continue;const range=document.createRange();range.selectNodeContents(node);
+     for(const line of range.getClientRects())add(el,node.parentElement,own,{x:line.x,y:line.y,width:line.width,height:line.height});
+    }
+   }
+   if(parent===boundary)break;
+  }
+ }
+ return[...out.values()];
+};
+async function verifyVisualOverlapCollector(browser){
+ const page=await browser.newPage();
+ try{
+  await page.setContent(`<style>body{margin:0}.profile-achievement-list{position:absolute;width:60px;height:30px}.profile-achievement{position:absolute;inset:0}.profile-achievement-medallion,.profile-achievement-name{position:absolute;top:0;height:20px}.profile-achievement-medallion{left:0;width:20px}.profile-achievement-name{font:12px/20px sans-serif;white-space:nowrap}.overlap .profile-achievement-name{left:18px}.one-pixel .profile-achievement-name{left:19px}</style><div class="profile-achievement-list overlap"><div class="profile-achievement"><span class="profile-achievement-medallion"></span><span class="profile-achievement-name">Run</span></div></div><div class="profile-achievement-list one-pixel" style="left:100px"><div class="profile-achievement"><span class="profile-achievement-medallion"></span><span class="profile-achievement-name">Run</span></div></div>`);
+  const overlaps=await page.evaluate(collectVisualOverlaps);assert.equal(overlaps.length,1,'visual overlap collector flags >1px and ignores a 1px touch');assert(overlaps[0].actual.horizontal>1&&overlaps[0].actual.vertical>1,'the synthetic badge-label overlap exceeds the threshold');
+ }finally{await page.close();}
+}
 async function waitForRouteStyles(p){
  const ready=()=>[...document.querySelectorAll('link[data-route-style]')].every(link=>!!link.sheet);
  await p.waitForFunction(ready,null,{timeout:30000});
@@ -23,8 +54,15 @@ async function waitForPaintGate(p){
 }
 (async()=>{
  const browser=await chromium.launch(),results=[],errors=[];let sessions;
- let selected=scenes(fixtures);if(process.env.KINETTA_SPACING_SCREENS){const names=process.env.KINETTA_SPACING_SCREENS.split(',');selected=selected.filter(s=>names.includes(s.name));assert.equal(selected.length,names.length,'Every selected scene exists');}
+ let selected=scenes(fixtures).map(s=>s.name==='Home'?{...s,visualOverlapCheck:true}:s);
+ selected.push(
+  {name:'Achievements',login:'alex',route:'/me/achievements#run',ready:'#profile-achievement-page[aria-busy="false"]',visualOverlapCheck:true,visualOverlapOnly:true},
+  {name:'Your profile',login:'alex',route:'/people/alex?q=spacing-no-match',ready:'#person-profile .me-card-sections[aria-busy="false"]',visualOverlapCheck:true,visualOverlapOnly:true},
+  {name:'Friend profile',login:'zz_test_fc_typical',route:'/people/zz_test_fc_peer00',ready:'#person-profile .me-card-sections[aria-busy="false"]',visualOverlapCheck:true,visualOverlapOnly:true}
+ );
+ if(process.env.KINETTA_SPACING_SCREENS){const names=process.env.KINETTA_SPACING_SCREENS.split(',');selected=selected.filter(s=>names.includes(s.name));assert.equal(selected.length,names.length,'Every selected scene exists');}
  try{
+  await verifyVisualOverlapCollector(browser);
   sessions=await fixtureSessions(browser,base,selected);
   const clockMatrix=!!process.env.KINETTA_SPACING_CLOCK,sizes=clockMatrix?[{width:390,height:844,root:16}]:[{width:390,height:844,root:16},{width:330,height:667,root:16}],themes=clockMatrix?['light']:['light','dark'];
   for(const size of sizes)for(const theme of themes)for(const scene of selected){
@@ -53,16 +91,17 @@ async function waitForPaintGate(p){
      const font=await title.evaluate(n=>parseFloat(getComputedStyle(n).fontSize));
      assert(font>=size.root*15/16-.02&&font<=size.root+.02,`Today workout title follows the body scale (${font}px at ${size.root}px root)`);
     }
-    const measurements=[],seen=new Set(),allTexts=new Map(),exposure=new Map();
+    const measurements=[],seen=new Set(),allTexts=new Map(),exposure=new Map(),visualOverlaps=new Map();
     const measure=async()=>{
      assert(await p.evaluate(id=>App.me?.id===id,auth.id),'The intended fictional account remains signed in');assert.equal(await p.locator('.login').count(),0,'The intended screen cannot be replaced by login');
      await waitForPaintGate(p);
      await p.locator(scene.recap?'[data-share-image="0"]':scene.ready).first().waitFor({state:'attached'});
      const snapshot=await p.evaluate(collectSpacing,{screen:scene.name,rules});
+     if(scene.visualOverlapCheck)for(const v of await p.evaluate(collectVisualOverlaps))visualOverlaps.set(JSON.stringify([v.metric,v.element,v.neighbour].sort()),{screen:scene.name,...v});
      for(const t of snapshot.texts)allTexts.set(t.key,t);
      const score=r=>Math.min(44,r.width)*Math.min(44,r.height);
      for(const t of snapshot.targets){const old=exposure.get(t.key),bestUsable=old&&score(old.bestUsable)>=score(t.usableRect)?old.bestUsable:t.usableRect;exposure.set(t.key,{...t,bestUsable,seenFully:old?.seenFully||t.fullyVisible,exposed:old?.exposed||t.hit});}
-     const key=JSON.stringify(snapshot.targets.map(t=>[t.key,t.rect]));if(!seen.has(key)){measurements.push(audit(snapshot,rules));seen.add(key);}
+     const key=JSON.stringify(snapshot.targets.map(t=>[t.key,t.rect]));if(!seen.has(key)){if(!scene.visualOverlapOnly)measurements.push(audit(snapshot,rules));seen.add(key);}
     };
     const frame=()=>p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     // Traverse below the fold too. A sheet scrolls independently from its inert background.
@@ -82,17 +121,17 @@ async function waitForPaintGate(p){
     }
     assert(traversedEnd,'Vertical content fits the bounded audit traversal');
     // Hero limits apply to the whole card, including values encountered at different scroll positions.
-    measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[],texts:[...allTexts.values()]},rules));
+    if(!scene.visualOverlapOnly)measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[],texts:[...allTexts.values()]},rules));
     // A sticky/header layer must not hide a target at every position where it can be fully in view.
-    for(const t of exposure.values())if(t.bestUsable.width<43.98||t.bestUsable.height<43.98||t.seenFully&&!t.exposed)measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[{...t,rect:t.bestUsable,unreachable:t.seenFully&&!t.exposed}],texts:[]},rules));
+    if(!scene.visualOverlapOnly)for(const t of exposure.values())if(t.bestUsable.width<43.98||t.bestUsable.height<43.98||t.seenFully&&!t.exposed)measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[{...t,rect:t.bestUsable,unreachable:t.seenFully&&!t.exposed}],texts:[]},rules));
     if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(todayPlan=>{const section=todayPlan&&document.querySelector('#t-today .me-today');window.scrollTo(0,section?Math.max(0,window.scrollY+section.getBoundingClientRect().top-96):0);const sheet=document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet'),body=sheet?.querySelector(':scope > .sbody'),el=body&&body.scrollHeight>body.clientHeight+1?body:sheet;el?.scrollTo(0,0);},!!scene.todayPlan);await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
-    const {violations,exceptionsUsed}=combineMeasurements(measurements,rules);
-    results.push({screen:scene.name,width:size.width,root:size.root,theme,violations,exceptionsUsed});
+    const {violations,exceptionsUsed}=combineMeasurements(measurements,rules),allViolations=[...violations,...visualOverlaps.values()];
+    results.push({screen:scene.name,width:size.width,root:size.root,theme,violations:allViolations,exceptionsUsed});
     const expectedWrites=['Activity detail','Activity photo viewer','Activity full map'].includes(scene.name)?new Set(['/api/milestones/celebrate']):new Set();
     const unexpectedWrites=writes.filter(path=>!expectedWrites.has(path));
     if(pageErrors.length||unexpectedWrites.length)errors.push({screen:scene.name,width:size.width,theme,pageErrors,writes:unexpectedWrites});
-    console.log(`${scene.name} ${size.width}/${size.root} ${theme}: ${violations.length} violations`);
-    for(const v of violations.slice(0,8))console.log(`  ${v.metric}: ${v.element}${v.neighbour?' ↔ '+v.neighbour:''} measured ${JSON.stringify(v.actual)}, expected ${JSON.stringify(v.expected)}`);
+    console.log(`${scene.name} ${size.width}/${size.root} ${theme}: ${allViolations.length} violations`);
+    for(const v of allViolations.slice(0,8))console.log(`  ${v.metric}: ${v.element}${v.neighbour?' ↔ '+v.neighbour:''} measured ${JSON.stringify(v.actual)}, expected ${JSON.stringify(v.expected)}`);
    }catch(e){errors.push({screen:scene.name,width:size.width,theme,error:e.message});console.error(scene.name,e.message);}finally{await c?.close();}
   }
  }finally{await browser.close();}
