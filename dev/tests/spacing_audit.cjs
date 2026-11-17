@@ -18,6 +18,9 @@ async function waitForRouteStyles(p){
  // browser apply it before collecting geometry for the first scene measure.
  await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
 }
+async function waitForPaintGate(p){
+ await p.waitForFunction(()=>{const page=document.querySelector('#page');return page&&!page.hasAttribute('data-paint-gate');},null,{timeout:30000});
+}
 (async()=>{
  const browser=await chromium.launch(),results=[],errors=[];let sessions;
  let selected=scenes(fixtures);if(process.env.KINETTA_SPACING_SCREENS){const names=process.env.KINETTA_SPACING_SCREENS.split(',');selected=selected.filter(s=>names.includes(s.name));assert.equal(selected.length,names.length,'Every selected scene exists');}
@@ -29,6 +32,9 @@ async function waitForRouteStyles(p){
    try{
     const opened=await fixturePage(browser,base,fixtures,sessions,scene,size,theme);c=opened.c;const {p,auth}=opened;
     await waitForRouteStyles(p);
+    // The first-fold shell is intentionally aria-hidden. Wait for its real route
+    // content before checking selectors or measuring controls/text.
+    await waitForPaintGate(p);
     if(scene.detailRedesign){
      await p.locator('#d-map .leaflet-tile-loaded').first().waitFor({state:'attached'});
      await p.evaluate(()=>document.fonts.ready);
@@ -41,8 +47,8 @@ async function waitForRouteStyles(p){
      assert.equal(await row.count(),1,'The deterministic Me Today fixture renders its planned workout row');
      assert.equal(await p.locator('#t-today').getAttribute('data-loaded-day'),fixtures.me_today.today,'The Me Today fixture and its page clock use the same day');
      assert.equal(await title.count(),1,'The planned workout row has one visible title');
-     assert.equal(await title.innerText(),'Easy run','The row names the active plan workout');
-     assert.equal(await value.innerText(),'4 mi','The row shows the planned workout amount once');
+     assert.equal(await title.innerText(),fixtures.me_today.workout_title,'The row names the fixture’s active plan workout');
+     assert.equal(await value.innerText(),fixtures.me_today.workout_amount,'The row shows the fixture’s planned workout amount once');
      assert.equal(await row.getAttribute('href'),'/plan','Tapping the planned workout opens the plan');
      const font=await title.evaluate(n=>parseFloat(getComputedStyle(n).fontSize));
      assert(font>=size.root*15/16-.02&&font<=size.root+.02,`Today workout title follows the body scale (${font}px at ${size.root}px root)`);
@@ -50,6 +56,7 @@ async function waitForRouteStyles(p){
     const measurements=[],seen=new Set(),allTexts=new Map(),exposure=new Map();
     const measure=async()=>{
      assert(await p.evaluate(id=>App.me?.id===id,auth.id),'The intended fictional account remains signed in');assert.equal(await p.locator('.login').count(),0,'The intended screen cannot be replaced by login');
+     await waitForPaintGate(p);
      await p.locator(scene.recap?'[data-share-image="0"]':scene.ready).first().waitFor({state:'attached'});
      const snapshot=await p.evaluate(collectSpacing,{screen:scene.name,rules});
      for(const t of snapshot.texts)allTexts.set(t.key,t);
