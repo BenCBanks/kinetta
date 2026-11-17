@@ -46,7 +46,7 @@ const FriendsUI=(()=>{
     heading.innerHTML=`Your friends${r.friends.length?` <span class="count">${r.friends.length}</span>`:''}`;
     drawRequests(requests,r,live,refresh);
     list.innerHTML=r.friends.length?r.friends.map(p=>`<div class="person person-row fr-friend" data-friend-name="${esc((p.name+' '+p.login).toLocaleLowerCase())}">${profile(p,'fr-friend-link')}<button type="button" class="icon-btn" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button></div>`).join(''):
-      '<div class="friend-empty"><p>No friends yet</p><a class="row-link friend-action" id="fr-empty-browse" href="/me/friends?find=1"><span class="ri">'+svg('user-plus')+'</span><span class="grow"><b>Invite a friend</b></span>'+svg('chev')+'</a></div>';
+      '<div class="friend-empty"><b>No friends yet</b><p>Search by name or @username, or tap Add to share an invite link.</p></div>';
     $$('[data-manage]',list).forEach(button=>button.onclick=()=>{
       if(!live())return;const p=people.find(person=>person.login===button.dataset.manage);if(p)friendshipSheet(p,refresh);
     });
