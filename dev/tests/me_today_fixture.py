@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 from urllib.parse import urlparse
+from fixture_clock import account_day, load_fixture_clock
 
 from kc import person, PW
 
@@ -16,9 +17,9 @@ port = subprocess.check_output(
 ).strip()
 assert base.port == int(port), 'URL must reach this isolated project'
 
-fixture_now = dt.datetime.now(dt.timezone.utc)
-fixture_today = fixture_now.date()
-long_day = 6 if fixture_now.weekday() == 4 else 5
+fixture_now, account_timezone = load_fixture_clock()
+fixture_today = account_day(fixture_now, account_timezone)
+long_day = 6 if fixture_today.weekday() == 4 else 5
 monday = fixture_today - dt.timedelta(days=fixture_today.weekday())
 race_day = monday + dt.timedelta(weeks=5, days=long_day)
 
@@ -26,7 +27,7 @@ login = 'zz_test_me_today'
 c = person(login)
 assert c.post('/api/account/delete', {'password': PW})[0] == 200
 c = person(login, 'River Today')
-assert c.put('/api/profile', {'tz': 'UTC', 'ai_ok': False})[0] == 200
+assert c.put('/api/profile', {'tz': account_timezone, 'ai_ok': False})[0] == 200
 result = c.post('/api/plans', {
     'race': '5k', 'level': 'advanced', 'weeks': 6, 'runs': 6,
     'long_day': long_day, 'race_day': race_day.isoformat(),
@@ -37,9 +38,11 @@ assert plan[0] == 200, plan
 assert plan[1]['today'] == fixture_today.isoformat(), plan[1]
 assert plan[1]['today_workout'] and plan[1]['today_workout']['status'] == 'today', plan[1]
 workout = plan[1]['today_workout']
-amount = f"{workout['minutes']} min" if workout.get('minutes') else f"{workout['dist']} {plan[1]['plan']['unit']}" if workout.get('dist') else 'Plan'
+distance = workout.get('dist')
+distance_text = str(int(distance)) if isinstance(distance, float) and distance.is_integer() else str(distance)
+amount = f"{workout['minutes']} min" if workout.get('minutes') else f"{distance_text} {plan[1]['plan']['unit']}" if distance else 'Plan'
 workout_title = str(workout.get('title') or 'Workout').strip()
 if amount and workout_title.lower().endswith(amount.lower()):
     workout_title = workout_title[:-len(amount)].rstrip(' ·–-')
 print('Me Today fixture ready:', fixture_today.isoformat(), workout_title, amount)
-print(json.dumps({'now': fixture_now.isoformat(), 'today': fixture_today.isoformat(), 'workout_title': workout_title, 'workout_amount': amount}))
+print(json.dumps({'now': fixture_now.isoformat(), 'today': fixture_today.isoformat(), 'timezone': account_timezone, 'workout_title': workout_title, 'workout_amount': amount}))

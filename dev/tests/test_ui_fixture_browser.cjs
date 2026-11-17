@@ -29,15 +29,21 @@ async function personaClockCases(browser,base,scene,sessions){
     assert.deepEqual(opened.pageErrors,[],`${label}: no browser errors`);assert.deepEqual(opened.writes,[],`${label}: no app writes`);
    }finally{await opened.c.close();}
   }
-  // A non-matrix fixture still keeps its explicit calendar fixed, with live timers.
+  // Me Today fixture time and account timezone stay aligned on either side of local midnight.
   delete process.env.KINETTA_SPACING_CLOCK;
-  const instant='2026-11-09T12:00:00Z',fixed=await fixturePage(browser,base,{me_today:{now:instant}},sessions,{...scene,todayPlan:true},size,'light');
-  try{
-   await fixed.p.evaluate(()=>{window.__fixedClockStart=Date.now();window.__fixedClockTimer=false;setTimeout(()=>{window.__fixedClockTimer=true;},60);});
-   await fixed.p.waitForFunction(()=>window.__fixedClockTimer,null,{timeout:3000,polling:50});
-   assert.deepEqual(await fixed.p.evaluate(()=>[window.__fixedClockStart,Date.now()]),[Date.parse(instant),Date.parse(instant)],'non-matrix Me Today fixture retains its fixed calendar');
-  }finally{await fixed.c.close();}
-  console.log('Persona clock matrix: three local boundaries in New York/UTC/Tokyo, advancing Date, live timeout/rAF and retained fixed scene clock PASS');
+  for(const [instant,expectedDay] of [['2026-11-09T07:59:00Z',8],['2026-11-09T08:01:00Z',9]]){
+   const timezone='America/Los_Angeles',fixture={me_today:{now:instant,timezone}},fixed=await fixturePage(browser,base,fixture,sessions,{...scene,todayPlan:true},size,'light');
+   try{
+    const calendar=await fixed.p.evaluate(()=>({now:Date.now(),day:new Date().getDate(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone}));
+    assert.deepEqual(calendar,{now:Date.parse(instant),day:expectedDay,timezone},'Me Today uses the fixture instant in the account timezone across local midnight');
+    if(expectedDay===8){
+     await fixed.p.evaluate(()=>{window.__fixedClockStart=Date.now();window.__fixedClockTimer=false;setTimeout(()=>{window.__fixedClockTimer=true;},60);});
+     await fixed.p.waitForFunction(()=>window.__fixedClockTimer,null,{timeout:3000,polling:50});
+     assert.deepEqual(await fixed.p.evaluate(()=>[window.__fixedClockStart,Date.now()]),[Date.parse(instant),Date.parse(instant)],'Me Today fixed time keeps advancing timers without moving the calendar');
+    }
+   }finally{await fixed.c.close();}
+  }
+  console.log('Persona clock matrix: local boundary cases in New York/UTC/Tokyo and Me Today account-timezone day rollover PASS');
  }finally{if(previous===undefined)delete process.env.KINETTA_SPACING_CLOCK;else process.env.KINETTA_SPACING_CLOCK=previous;}
 }
 (async()=>{
