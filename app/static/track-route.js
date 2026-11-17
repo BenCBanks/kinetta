@@ -211,8 +211,9 @@
   }
   function liveMapHTML(paused) {
     if(session.locationDenied)return `<div class="track-location-off" role="group" aria-label="Location is off"><div class="track-location-off-icon" aria-hidden="true">!</div><b>Location is off</b><button type="button" class="track-open-settings" id="track-open-settings">Open Settings</button><small>Your timer and controls still work.</small></div>`;
+    const followLabel=follow?'Whole route':'Follow me';
     return `<div class="map track-map-wrap" id="track-map-wrap"><div class="track-map live-record-map" id="track-map"></div><span class="gps-chip" id="track-gps-live" hidden></span>
-      <button type="button" class="track-follow-control" id="track-follow" aria-label="Follow me" title="Follow me">${svg('track')}<span>Follow me</span></button>
+      <button type="button" class="track-follow-control" id="track-follow" aria-label="${followLabel}" title="${followLabel}" aria-pressed="${!follow}">${svg('track')}<span>${followLabel}</span></button>
       ${paused && !session.native ? '<button type="button" class="track-timer-link" id="track-timer">Continue without GPS</button>' : ''}</div>`;
   }
   function reflectLiveState(el) {
