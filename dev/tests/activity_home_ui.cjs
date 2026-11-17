@@ -155,12 +155,16 @@ async function assertSharedActivityCard(card,label){
  assert((await icons.count())>=1,`${label}: metadata icons render`);
  const iconSizes=await icons.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height};}));
  assert(iconSizes.every(size=>size.width<=24&&size.height<=24),`${label}: sport and audience icons stay within 24px: ${JSON.stringify(iconSizes)}`);
- const geometry=await card.evaluate(el=>{const box=node=>{const r=node.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},face=el.querySelector('.post-av .av'),author=el.querySelector('.post-name'),identity=el.querySelector('.post-identity'),title=el.querySelector('.post-title'),style=getComputedStyle(title);return{face:box(face),author:box(author),identity:box(identity),title:box(title),align:style.textAlign,font:style.fontSize,weight:style.fontWeight,lineHeight:style.lineHeight};});
+ const geometry=await card.evaluate(el=>{const box=node=>{const r=node.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},face=el.querySelector('.post-av .av'),avatarTarget=el.querySelector('.post-av'),author=el.querySelector('.post-name'),identity=el.querySelector('.post-identity'),title=el.querySelector('.post-title'),style=getComputedStyle(title);return{face:box(face),avatarTarget:box(avatarTarget),author:box(author),identity:box(identity),title:box(title),align:style.textAlign,font:style.fontSize,weight:style.fontWeight,lineHeight:style.lineHeight};});
  const overlaps=geometry.face.x<geometry.author.right&&geometry.face.right>geometry.author.x&&geometry.face.y<geometry.author.bottom&&geometry.face.bottom>geometry.author.y;
  assert(!overlaps,`${label}: avatar does not overlap the author name: ${JSON.stringify(geometry)}`);
+ const hitTarget=await name.evaluate(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n,'::before'),target={x:r.x+(parseFloat(s.left)||0),y:r.y+(parseFloat(s.top)||0),width:parseFloat(s.width)||0,height:parseFloat(s.height)||0},hit=document.elementFromPoint(target.x+target.width/2,target.y+target.height-1);return{target,receivesProfileTap:hit===n||n.contains(hit)};});
+ assert(hitTarget.target.width>=44&&hitTarget.target.height>=44&&hitTarget.target.x>=geometry.avatarTarget.right&&hitTarget.receivesProfileTap,`${label}: profile-name hit target stays at least 44px, clear of the avatar target, and reaches its link: ${JSON.stringify({avatar:geometry.avatarTarget,hitTarget})}`);
  assert(Math.abs(geometry.title.x-geometry.identity.x)<=1&&['left','start'].includes(geometry.align),`${label}: title is left-aligned below identity: ${JSON.stringify(geometry)}`);
  assert(geometry.title.y>=geometry.identity.bottom,`${label}: title follows the author row: ${JSON.stringify(geometry)}`);
  assert(geometry.font==='20px'&&geometry.weight==='700'&&geometry.lineHeight==='24px',`${label}: title uses the shared 20/700/24px style: ${JSON.stringify(geometry)}`);
+ const titleLink=await card.locator('.post-title-link').boundingBox(),targetBottom=hitTarget.target.y+hitTarget.target.height;
+ assert(titleLink.y-targetBottom>=8,`${label}: title target has 8px clearance below the author-name target: ${JSON.stringify({titleLink,target:hitTarget.target,gap:titleLink.y-targetBottom})}`);
  return geometry;
 }
 async function verifyActivityCardSurfaces(page,size,theme,out,ready){
