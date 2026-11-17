@@ -1284,7 +1284,7 @@ Ordinary support shows account status, connection/import state and client-report
 
 ### App cleanup (25 October 2026)
 
-Settings → Edit profile opens the same profile editor as your own profile, with name/bio drafts retained after a failed save. Food entry uses the permanent conversation and final review; the retired fallback chat, nutrition rings and unused reaction pile are removed. Keep the current compact nutrition bars, training-plan completion ring, photo review, reactions and keyboard behavior.
+Settings → Edit profile opens the same profile editor as your own profile, with name/bio drafts retained after a failed save. Food entry uses the permanent conversation and final review; the retired fallback chat and unused reaction pile are removed. Keep the current Nutrition calorie ring, compact macro bars, training-plan completion ring, photo review, reactions and keyboard behavior.
 
 Final food review and recipe-portion previews label missing macros as unknown. Storage placeholders never count as known zero nutrients; a zero supplied by the person or source still displays as zero. A mixed-food total stays unknown if any included food lacks that nutrient.
 
