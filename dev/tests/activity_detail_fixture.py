@@ -1,9 +1,10 @@
 """Before evidence: only fictional seeded/zz_test records on a guarded throwaway project."""
-import os,sys,datetime as dt,subprocess,json,base64,time
+import os,sys,datetime as dt,subprocess,json,base64
 from pathlib import Path
 from urllib.parse import urlparse
 sys.path.insert(0,'dev/tests')
 from kc import person,login,ALEX,PW
+from fixture_clock import load_fixture_clock
 base=urlparse(os.environ['KINETTA_URL']);project=os.environ['KINETTA_PROJECT']
 assert base.hostname in ('localhost','127.0.0.1') and (project.startswith('kt-') or project=='kinettatest')
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip();assert base.port==int(port)
@@ -20,13 +21,16 @@ r=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-
 source={}
 for kind in ('run','ride'):
  rows=ok(alex.get('/api/activities?sport='+kind+'&limit=100'));source[kind]=next(a for a in rows if a['line'] and (kind!='run' or a['distance_m']>=5000))
-fixture_data=json.loads((Path(__file__).resolve().parents[1] / 'screenshots' / 'fixture-time.json').read_text())
-# All activity dates are offsets from the checked-in screenshot clock, never the wall clock.
-fixture_anchor=dt.datetime.fromisoformat(fixture_data['instant'].replace('Z','+00:00'))-dt.timedelta(hours=3);ids={};sql=[]
+# Keep fixture records and the browser on the same shared test instant.
+fixture_now,_=load_fixture_clock(default='fixture')
+fixture_anchor=fixture_now-dt.timedelta(hours=3)
+api_anchor=dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=3)
+ids={};sql=[]
 for i,(kind,sport,label) in enumerate([('run','run',None),('paused','run',None),('treadmill','run','Treadmill Running'),('ride','ride',None),('lifting','workout','Strength Training'),('empty','walk',None)]):
- src=source.get('run') if kind=='paused' else source.get(kind);body={'sport':sport,'name':'Fictional '+kind+' session','start':(fixture_anchor-dt.timedelta(days=i)).isoformat(),'duration_s':src['elapsed_s'] if src else 1800,'sport_label':label}
+ src=source.get('run') if kind=='paused' else source.get(kind);fixture_start=fixture_anchor-dt.timedelta(days=i);api_start=min(fixture_start,api_anchor-dt.timedelta(days=i));body={'sport':sport,'name':'Fictional '+kind+' session','start':api_start.isoformat(),'duration_s':src['elapsed_s'] if src else 1800,'sport_label':label}
  if kind!='empty':body.update(distance_m=src['distance_m'] if src else 5000 if kind=='treadmill' else None)
  aid=ok(owner.post('/api/activities/manual',body))['id'];ids[kind]=aid
+ if api_start!=fixture_start:sql.append(f"UPDATE activities SET start_time='{fixture_start.isoformat()}'::timestamptz WHERE id={aid} AND user_id={uid};")
  ok(owner.put(f'/api/activities/{aid}/sharing',{'visibility':'friends' if kind=='run' else 'me'}))
  if src:
   fields=['chart','geom','start_pt','end_pt','avg_hr','max_hr','distance_m','moving_s','elapsed_s','ascent_m','calories','avg_cad','avg_power','max_speed','laps','splits_km','splits_mi','zones','health_details']
@@ -44,27 +48,16 @@ for i,(kind,sport,label) in enumerate([('run','run',None),('paused','run',None),
   ex=ok(owner.post('/api/lifts/exercises',{'name':'Fictional squat'}))['id'];ok(owner.put(f'/api/activities/{aid}/lifts',{'exercises':[{'exercise_id':ex,'sets':[{'reps':8,'kg':40,'warmup':True},{'reps':5,'kg':70},{'reps':5,'kg':70}]}]}))
 r=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],input='\n'.join(sql),text=True,capture_output=True);assert r.returncode==0,r.stderr
 ok(friend.post('/api/friends',{'login':'zz_test_detail_owner'}));ok(owner.post('/api/friends/zz_test_detail_friend/accept'))
-# Wait for the background worker, then verify the persisted fictional milestone
-# directly. The recent-offer API deliberately hides events older than seven days.
-deadline=time.monotonic()+20
-while True:
- milestones=ok(owner.get(f'/api/milestones?activity_id={ids["run"]}'))
- if not milestones.get('pending'):
-  # A new account's historical baseline is intentionally silent. This UI case
-  # needs a visible offer, so make that state explicit after the worker has
-  # created the fictional milestone instead of relying on account freshness.
-  # This fixture exercises the detail UI, not the real seven-day offer window.
-  # Keep the fictional offer itself recent even when the pinned screenshot run
-  # crosses that wall-clock boundary; the activity date remains fixture-pinned.
-  visible=subprocess.run(['docker','exec',project+'-db-1','psql','-U','postgres','-d','fit','-q','-tA','-c',
-   f"UPDATE milestones SET silent=false,seen_at=NULL,occurred=now(),day=(now() AT TIME ZONE 'UTC')::date WHERE user_id={uid} AND activity_id={ids['run']} AND code='first:run:10000' AND valid RETURNING title"],
-   text=True,capture_output=True)
-  assert visible.returncode==0 and visible.stdout.strip()=='First 10K', 'fictional run fixture must create its First 10K milestone'
-  milestones=ok(owner.get(f'/api/milestones?activity_id={ids["run"]}'))
-  assert any(item.get('title')=='First 10K' for item in milestones.get('items',[])), 'fictional run fixture exposes its First 10K milestone'
-  break
- if time.monotonic()>=deadline:raise TimeoutError('milestone worker did not finish the fictional activity fixture')
- time.sleep(.1)
+# The background worker correctly ignores future-dated activities relative to
+# the live API clock. Insert its expected fictional result directly so browser
+# clock-matrix runs keep this UI fixture independent of worker timing.
+fixture_details=json.dumps({'sport':'run','distance_m':10000,'target_m':10000,'seconds':3600,'label':'First 10K'})
+visible=subprocess.run(['docker','exec',project+'-db-1','psql','-U','postgres','-d','fit','-q','-tA','-c',
+ f"UPDATE milestone_state SET processed=generation,next_check=now()+interval '1 day' WHERE user_id={uid}; INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,silent) VALUES({uid},'first:run:10000','first_distance','First 10K',62,{ids['run']},'{fixture_now.date().isoformat()}'::date,now(),'{fixture_details}'::jsonb,false) ON CONFLICT(user_id,code) DO UPDATE SET activity_id=excluded.activity_id,day=excluded.day,occurred=excluded.occurred,details=excluded.details,valid=true,silent=false,seen_at=NULL RETURNING title"],
+ text=True,capture_output=True)
+assert visible.returncode==0 and visible.stdout.strip()=='First 10K', 'fictional run fixture persists its First 10K milestone'
+milestones=ok(owner.get(f'/api/milestones?activity_id={ids["run"]}'))
+assert any(item.get('title')=='First 10K' for item in milestones.get('items',[])), 'fictional run fixture exposes its First 10K milestone'
 earned=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-At'],input=f"SELECT EXISTS(SELECT 1 FROM milestones WHERE user_id={uid} AND activity_id={ids['run']} AND title='First 10K' AND valid);\n",text=True,capture_output=True);assert earned.returncode==0,earned.stderr;assert earned.stdout.strip()=='t','pinned fictional 10K fixture persists its earned milestone'
 if os.environ.get('KINETTA_DETAIL_IDS'):Path(os.environ['KINETTA_DETAIL_IDS']).write_text(json.dumps(ids))
 print('Fictional run/HR/route, treadmill, ride, lifting, sparse and friend-view fixture ready')
