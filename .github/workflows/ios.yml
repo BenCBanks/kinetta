@@ -218,9 +218,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # A canceled Compact job is retryable only when GitHub shows it waited in queue
-  # without a runner for at least ten minutes. This avoids spending a second Mac
-  # run on simulator failures, runner-started cancellations, or quick manual cancels.
+  # An additional Compact run is allowed only for a long runnerless queue cancellation
+  # or the known simctl launch timeout followed by missing metrics, never for UI assertions.
   compact-retry-gate:
     needs: [changes, native-ui]
     if: >-
@@ -234,9 +233,9 @@ jobs:
       retry_compact: ${{ steps.gate.outputs.retry_compact }}
     steps:
       - uses: actions/checkout@v4
-      - name: Test the Compact queue-retry decision
+      - name: Test the Compact retry decision
         run: python3 -m unittest dev.tests.test_compact_retry
-      - name: Check whether Compact was canceled while still queued
+      - name: Check whether Compact qualifies for one retry
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}

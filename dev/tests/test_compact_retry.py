@@ -43,6 +43,75 @@ class CompactRetryTests(unittest.TestCase):
     def test_actual_test_failure_blocks_retry(self):
         self.assertFalse(eligible(jobs(compact={"conclusion": "failure"})))
 
+    def test_simctl_launch_timeout_then_missing_metrics_is_eligible_once(self):
+        compact = {
+            "id": 1234,
+            "conclusion": "failure",
+            "runner_id": 42,
+            "runner_name": "GitHub Actions 42",
+            "steps": [{
+                "name": "Retry native UI once after a failed attempt",
+                "conclusion": "failure",
+            }],
+        }
+        log = "Command timed out: xcrun simctl launch DEVICE com.kinetta.app\nAssertionError: No native metrics: iPhone SE light header-me\n"
+        self.assertTrue(eligible(jobs(compact=compact), log))
+
+    def test_real_assertion_blocks_timeout_retry_even_if_later_launch_stalls(self):
+        compact = {
+            "id": 1234,
+            "conclusion": "failure",
+            "runner_id": 42,
+            "runner_name": "GitHub Actions 42",
+            "steps": [{
+                "name": "Retry native UI once after a failed attempt",
+                "conclusion": "failure",
+            }],
+        }
+        log = (
+            "AssertionError: Activity title was clipped\n"
+            "Command timed out: xcrun simctl launch DEVICE com.kinetta.app\n"
+            "AssertionError: No native metrics: iPhone SE light header-me\n"
+        )
+        self.assertFalse(eligible(jobs(compact=compact), log))
+
+    def test_missing_metrics_without_simctl_launch_timeout_is_not_eligible(self):
+        compact = {
+            "id": 1234,
+            "conclusion": "failure",
+            "runner_id": 42,
+            "runner_name": "GitHub Actions 42",
+            "steps": [{
+                "name": "Retry native UI once after a failed attempt",
+                "conclusion": "failure",
+            }],
+        }
+        self.assertFalse(eligible(jobs(compact=compact), "AssertionError: No native metrics: SE\n"))
+
+    def test_launch_timeout_without_missing_metrics_is_not_eligible(self):
+        compact = {
+            "id": 1234,
+            "conclusion": "failure",
+            "runner_id": 42,
+            "runner_name": "GitHub Actions 42",
+            "steps": [{
+                "name": "Retry native UI once after a failed attempt",
+                "conclusion": "failure",
+            }],
+        }
+        self.assertFalse(eligible(jobs(compact=compact), "Command timed out: xcrun simctl launch DEVICE app\n"))
+
+    def test_simctl_signature_requires_failed_native_ui_retry_step(self):
+        compact = {
+            "id": 1234,
+            "conclusion": "failure",
+            "runner_id": 42,
+            "runner_name": "GitHub Actions 42",
+            "steps": [{"name": "Check native WebView layout with fictional records", "conclusion": "failure"}],
+        }
+        log = "Command timed out: xcrun simctl launch DEVICE app\nAssertionError: No native metrics: SE\n"
+        self.assertFalse(eligible(jobs(compact=compact), log))
+
     def test_pro_failure_blocks_retry(self):
         self.assertFalse(eligible(jobs(pro={"conclusion": "failure"})))
 
