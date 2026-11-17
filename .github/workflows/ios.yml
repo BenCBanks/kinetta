@@ -263,7 +263,7 @@ jobs:
           path: ${{ runner.temp }}/simulator
       - name: Unpack the unsigned universal Simulator app
         run: unzip -q "$RUNNER_TEMP/simulator/Kinetta-simulator.zip" -d "$RUNNER_TEMP/simulator"
-      - name: Retry the Compact simulator check once
+      - name: Run Compact simulator check after queue cancellation
         timeout-minutes: 23
         run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/native-ui-compact-retry" --device compact --startup-timing
       - uses: actions/upload-artifact@v4
