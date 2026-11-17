@@ -36,5 +36,10 @@ plan = c.get('/api/plans/current')
 assert plan[0] == 200, plan
 assert plan[1]['today'] == fixture_today.isoformat(), plan[1]
 assert plan[1]['today_workout'] and plan[1]['today_workout']['status'] == 'today', plan[1]
-print('Me Today fixture ready:', fixture_today.isoformat(), plan[1]['today_workout']['title'])
-print(json.dumps({'now': fixture_now.isoformat(), 'today': fixture_today.isoformat()}))
+workout = plan[1]['today_workout']
+amount = f"{workout['minutes']} min" if workout.get('minutes') else f"{workout['dist']} {plan[1]['plan']['unit']}" if workout.get('dist') else 'Plan'
+workout_title = str(workout.get('title') or 'Workout').strip()
+if amount and workout_title.lower().endswith(amount.lower()):
+    workout_title = workout_title[:-len(amount)].rstrip(' ·–-')
+print('Me Today fixture ready:', fixture_today.isoformat(), workout_title, amount)
+print(json.dumps({'now': fixture_now.isoformat(), 'today': fixture_today.isoformat(), 'workout_title': workout_title, 'workout_amount': amount}))

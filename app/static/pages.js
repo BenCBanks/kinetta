@@ -553,7 +553,7 @@ async function meOverview(el) {
   const foodMarkup=(data,day,{error=false}={})=>{
     if(error)return `<button type="button" class="me-today-row" data-today-food data-today-retry><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup('Retry',true)}${svg('chev','me-today-chevron')}</button>`;
     const href='/food?d='+encodeURIComponent(day);
-    if(!data.entries.length)return `<button type="button" class="me-today-row" data-today-food data-today-add aria-label="Add food for today"><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup('Add',true)}${svg('chev','me-today-chevron')}</button>`;
+    if(!data.entries.length)return `<button type="button" class="me-today-row" data-today-food data-today-add><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup('Add',true)}${svg('chev','me-today-chevron')}</button>`;
     const estimate=data.entries.some(e=>e.source==='ai'||e.origin==='ai'||e.ref?.origin==='ai'),unknown=(data.unknown_nutrients?.kcal||0)>=data.entries.length;
     const target=data.targets?.kcal_target,value=unknown?'Unknown':(estimate?'≈ ':'')+r0(homeCalories(data.totals.kcal))+(target!=null?' of '+r0(target):'')+(target==null?' kcal':'');
     return `<a class="me-today-row" data-today-food href="${href}"><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup(value)}${svg('chev','me-today-chevron')}</a>`;
