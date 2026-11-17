@@ -113,19 +113,12 @@
 #track-content .track-sport-row { display:flex; align-items:flex-start; gap:8px; min-width:0; }
 #track-content .track-quick { display:flex; flex:1; min-width:0; align-items:flex-start; justify-content:space-between; gap:8px; overflow:visible; padding:0; }
 #track-content .track-quick button { position:relative; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:flex-start; gap:5px; min-width:0; min-height:78px; height:auto; padding:0 2px 8px; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--tx2); font-size:15px; font-weight:500; line-height:1.2; white-space:normal; }
-#track-content .track-quick button[data-sport] .track-sport-icon { display:grid; place-items:center; flex:none; width:24px; height:24px; border-radius:0; background:transparent; color:var(--sport-color,var(--other)); }
-#track-content .track-quick button[data-sport="run"] { --sport-color:var(--run); }
-#track-content .track-quick button[data-sport="ride"] { --sport-color:var(--ride); }
-#track-content .track-quick button[data-sport="walk"] { --sport-color:var(--walk); }
-#track-content .track-quick button[data-sport="hike"] { --sport-color:var(--hike); }
-#track-content .track-quick button[data-sport="swim"] { --sport-color:var(--swim); }
-#track-content .track-quick button[data-sport="row"] { --sport-color:var(--row); }
-#track-content .track-quick button[data-sport="ski"] { --sport-color:var(--ski); }
-#track-content .track-quick button[data-sport="workout"] { --sport-color:var(--workout); }
+#track-content .track-quick button[data-sport] .track-sport-icon { display:grid; place-items:center; flex:none; width:24px; height:24px; border-radius:0; background:transparent; color:var(--tx2); }
 #track-content .track-sport-icon svg { width:24px; height:24px; }
 #track-content .track-sport-label { display:block; max-width:100%; overflow-wrap:anywhere; }
 #track-content .track-quick button.track-home-hidden { display:none !important; }
-#track-content .track-quick button[aria-pressed="true"] { border-bottom-color:var(--sport-color,var(--color-brand)); background:transparent; color:var(--tx); font-weight:600; }
+#track-content .track-quick button[aria-pressed="true"] { border-bottom-color:var(--color-brand); background:transparent; color:var(--tx); font-weight:600; }
+#track-content .track-quick button[aria-pressed="true"] .track-sport-icon { color:var(--color-brand); }
 #track-content #track-other { display:flex; flex:none; flex-direction:row; align-items:center; justify-content:center; gap:3px; min-width:56px; min-height:44px; height:44px; padding:0 2px; border:0; border-radius:0; background:transparent; color:var(--tx2); font-size:15px; font-weight:500; white-space:nowrap; }
 #track-content #track-other svg { flex:none; width:16px; height:16px; }
 #track-content #track-other[aria-pressed="true"] { background:transparent; color:var(--tx); }
