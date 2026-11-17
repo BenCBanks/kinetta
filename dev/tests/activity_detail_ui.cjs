@@ -97,6 +97,46 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
   }
   await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));if(!loadOptions.noWait)await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend,detailAssets,routeScriptOrder};
  }
+ async function commentsSheetStates(width,theme){
+  const size={width,height:width===330?667:844,root:16},{c,p,id,errors,writes}=await open('run',theme,size),label=`Comments ${width}px ${theme}`;
+  try{
+   await until(p,activityId=>!!SocialData.peek(activityId),'activity social fixture',id);
+   const loaded=await p.evaluate(id=>SocialData.peek(id),id),empty={...loaded,cheers:[],comments:[]},own={id:991219,name:'Fictional Runner with a longer display name',login:'zz_test_detail_owner',created:fixtureInstant.toISOString(),text:'Fictional owner comment with a deliberately long route note that wraps naturally without pushing the send control out of the row.',can_delete:true};
+   let releaseRead,readStarted,readCount=0;const readReady=new Promise(resolve=>{readStarted=resolve;}),readGate=new Promise(resolve=>{releaseRead=resolve;});
+   await c.route(`**/api/activities/${id}/social`,async route=>{if(route.request().method()!=='GET')return route.fallback();if(readCount++===0){readStarted();await readGate;return route.fulfill({status:503,json:{detail:'fictional temporary failure'}});}return route.fulfill({json:empty});});
+   await p.evaluate(id=>{SocialData.forget(id);commentsSheet(id,null);},id);
+   await readReady;
+   const list=p.locator('.social-sheet .comments'),form=p.locator('.social-sheet .c-form'),send=form.locator('.c-send');
+   assert.equal(await list.getAttribute('aria-busy'),'true',`${label}: list announces loading`);assert.equal(await list.locator('.comment-skeleton-row').count(),2,`${label}: two static skeleton rows render`);assert(await p.getByRole('button',{name:'React'}).isVisible(),`${label}: React row appears with the skeletons`);assert(await form.isVisible(),`${label}: composer appears before the data response`);
+   async function capture(state){if(!out)return;fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`comments-${state}-${width}-${theme}.png`),animations:'disabled'});}
+   await capture('loading');releaseRead();const loadRetry=p.locator('.social-read-status [data-retry]');await loadRetry.waitFor({state:'visible'});assert.equal(await list.getAttribute('aria-busy'),'false');assert.equal(await list.locator('.comment-skeleton-row').count(),0,`${label}: failed load clears the skeleton`);await capture('load-failed');await loadRetry.click();await until(p,()=>document.querySelector('.social-sheet .comments')?.getAttribute('aria-busy')==='false','retried empty comments response');assert.equal(readCount,2,`${label}: load retry performs one follow-up read`);
+   assert.equal(await list.locator('.comment').count(),0,`${label}: zero comments leave a blank list`);assert.equal(await form.locator('textarea').getAttribute('placeholder'),'Add a comment…');assert.equal(await send.isDisabled(),true,`${label}: blank draft disables send`);
+   const blank=await send.boundingBox();assert(blank&&blank.width===44&&blank.height===44,`${label}: send target is 44×44`);await capture('empty');
+   const gates=[0,1].map(()=>{let release;const promise=new Promise(resolve=>{release=resolve;});return{promise,release};}),signals=[];let postCount=0;
+   await c.route(`**/api/activities/${id}/comments`,async route=>{if(route.request().method()!=='POST')return route.fallback();const index=postCount++;signals[index]?.();await gates[index].promise;if(index===0)return route.fulfill({status:503,json:{detail:'fictional temporary failure'}});return route.fulfill({json:{...empty,comments:[own]}});});
+   await form.locator('textarea').fill(own.text);assert(await send.isEnabled(),`${label}: valid draft enables send`);await capture('idle');
+   const firstStarted=new Promise(resolve=>{signals[0]=resolve;});await send.click();await firstStarted;
+   assert.equal(await send.getAttribute('aria-label'),'Sending comment',`${label}: pending send announces status`);assert.equal(await send.getAttribute('aria-busy'),'true');assert.equal(await send.locator('.c-send-spinner').count(),1);await capture('sending');
+   await form.evaluate(f=>{f.requestSubmit();f.requestSubmit();});await p.waitForTimeout(50);assert.equal(postCount,1,`${label}: pending form cannot send twice`);gates[0].release();
+   await p.getByText("Couldn't send comment. Try again.").waitFor({state:'visible'});assert.equal(await form.locator('textarea').inputValue(),own.text,`${label}: failed send retains draft`);assert.equal(await send.getAttribute('aria-label'),'Retry sending comment');assert(await send.isEnabled());await capture('failed');
+   const retryStarted=new Promise(resolve=>{signals[1]=resolve;});await send.click();await retryStarted;assert.equal(postCount,2);assert.equal(await send.getAttribute('aria-label'),'Sending comment');gates[1].release();
+   await p.getByText(own.text,{exact:true}).waitFor({state:'visible'});assert.equal(await form.locator('textarea').inputValue(),'',`${label}: successful send clears draft`);assert.equal(await p.getByRole('status').innerText(),'Comment posted.');
+   const comment=p.locator(`[data-comment-id="${own.id}"]`),options=comment.getByRole('button',{name:'Comment options'});await capture('posted');assert.equal(await options.count(),1,`${label}: own comment has a neutral options control`);const optionsBox=await options.boundingBox();assert(optionsBox&&optionsBox.width===44&&optionsBox.height===44,`${label}: Comment options has a 44×44 target`);
+   await options.click();const menu=p.locator('.comment-options-menu');await menu.waitFor({state:'visible'});await capture('menu');
+   await menu.getByRole('button',{name:'Delete comment'}).click();const confirm=p.getByRole('alertdialog');await confirm.waitFor({state:'visible'});await capture('confirm');
+   await confirm.getByRole('button',{name:'Cancel'}).click();await confirm.waitFor({state:'detached'});assert.equal(await comment.count(),1,`${label}: cancel keeps the comment`);
+   await comment.getByRole('button',{name:'Comment options'}).click();await p.locator('.comment-options-menu').getByRole('button',{name:'Delete comment'}).click();const confirmAgain=p.getByRole('alertdialog');await confirmAgain.waitFor({state:'visible'});
+   let deletes=0;await c.route(`**/api/comments/${own.id}`,async route=>{if(route.request().method()!=='DELETE')return route.fallback();deletes++;return route.fulfill({status:204});});
+   await confirmAgain.getByRole('button',{name:'Delete'}).click();await until(p,commentId=>!document.querySelector(`[data-comment-id="${commentId}"]`),'successful comment deletion',String(own.id));assert.equal(deletes,1,`${label}: confirmed deletion issues one request`);
+   await p.setViewportSize({width,height:520});const textarea=form.locator('textarea');await textarea.focus();await p.evaluate(()=>{window.KinettaKeyboard={height:220};dispatchEvent(new Event('kinetta:keyboard'));});
+   const keyboardFit=await p.evaluate(()=>{const scrim=document.querySelector('.scrim'),sheet=scrim.querySelector('.sheet'),composer=sheet.querySelector('.c-form'),r=composer.getBoundingClientRect(),style=getComputedStyle(sheet);return{paddingBottom:scrim.style.paddingBottom,maxHeight:style.maxHeight,composerBottom:r.bottom,scrollHeight:document.documentElement.scrollHeight,viewport:innerHeight};});
+   assert.equal(keyboardFit.paddingBottom,'220px',`${label}: native keyboard inset is applied once`);assert.equal(keyboardFit.maxHeight,'292px',`${label}: sheet height fits above keyboard`);assert(keyboardFit.composerBottom<=keyboardFit.viewport+1,`${label}: composer stays in the visible viewport`);
+   const snapshot=await p.evaluate(collectSpacing,{screen:`Comments sheet ${width} ${theme}`,rules:spacingRules}),spacing=audit(snapshot,spacingRules);assert.deepEqual(spacing.violations,[],`${label}: spacing audit ${JSON.stringify(spacing.violations)}`);
+   const axe=await new AxeBuilder({page:p}).include('.scrim').analyze(),serious=axe.violations.filter(v=>['serious','critical'].includes(v.impact));assert.deepEqual(serious.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)})),[],`${label}: serious/critical accessibility audit`);
+   assert.deepEqual(errors,[],`${label}: no page or console errors`);const unrelated=writes.filter(url=>!url.endsWith('/comments')&&!url.startsWith('/api/comments/')&&!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(url));assert.deepEqual(unrelated,[],`${label}: no unrelated writes ${JSON.stringify(writes)}`);
+   console.log(`${label}: loading/empty/send/failure/retry/delete/keyboard/spacing/a11y PASS`);
+  }finally{await c.close();contexts.splice(contexts.indexOf(c),1);}
+ }
  async function assertDetailActionRow(p,label){
   const row=p.locator('#d-soc'),react=row.locator('.reaction-more'),comments=row.locator('.activity-comments'),share=row.locator('[data-detail-share]'),counts=row.locator('.reaction-count');
   assert.equal(await react.count(),1,`${label}: React is present`);assert.equal(await comments.count(),1,`${label}: Comments is present`);assert.equal(await share.count(),1,`${label}: Share is present`);
@@ -420,6 +460,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     console.log(`Activity route comparison ${width}px ${theme}: average, best time, 44px action PASS`);
    }finally{await c.close();contexts.splice(contexts.indexOf(c),1);}
   }
+  if(!medalKind&&(!detailCases.length||detailCases.includes('comments-sheet')))for(const width of [390,330])for(const theme of ['light','dark'])await commentsSheetStates(width,theme);
   if(loadCases.length)console.log(`ActivityDetail lazy loading: ${loadCases.join(', ')} PASS`);
   if(!medalKind&&!process.env.KINETTA_DETAIL_CASE)cp.execFileSync(process.execPath,[path.join(__dirname,'activity_map_transition_ui.cjs')],{env:process.env,stdio:'inherit'});
  }finally{for(const c of contexts)await c.close();for(const who of ['owner','friend']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}
