@@ -179,6 +179,7 @@ python3 dev/tests/test_food_thread_facts.py
 python3 dev/tests/test_weekly_food_review.py
 python3 dev/tests/test_recipe_link.py
 node dev/tests/test_async_reads.js
+node dev/tests/test_paint_gate.js
 node dev/tests/test_page_refresh.js
 node dev/tests/test_food_refresh.js
 node dev/tests/test_offline_queue.js
