@@ -713,6 +713,9 @@
 /* The underline carries pointer selection; show the ring only for keyboard focus. */
 :is(.achievement-share-tabs,.profile-achievement-sport-switcher) [role="tab"]:focus { outline:none; box-shadow:none; }
 :is(.achievement-share-tabs,.profile-achievement-sport-switcher) [role="tab"]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+/* This stylesheet is global: also cover Progress and Fitness underline controls. */
+.progress-subpage-tabs .underline-tabs button:focus,.progress-home-totals .underline-tabs button:focus,.progress-home-totals .progress-metric-controls button:focus { outline:none; box-shadow:none; }
+.progress-subpage-tabs .underline-tabs button:focus-visible,.progress-home-totals .underline-tabs button:focus-visible,.progress-home-totals .progress-metric-controls button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 @media (max-width:600px) {
   .profile-achievement-sport-switcher::before,
   .profile-achievement-sport-switcher::after { position:absolute; top:0; bottom:1px; z-index:2; width:28px; content:""; pointer-events:none; }
