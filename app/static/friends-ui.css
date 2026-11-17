@@ -185,6 +185,15 @@
 .group-list-card .group-list-row .grow b {font-size:16px;font-weight:600;}
 .groups-page .group-list-row .ri { width:36px;height:36px;border-radius:12px;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent); }
 .group-list-card .group-list-row:active { transform:scale(.985);opacity:1;background:var(--surface-raised);box-shadow:none; }
+.groups-page .group-list-loading { display:grid;gap:0;padding:0 14px;box-shadow:none; }
+.groups-page .group-list-loading .sk { background:linear-gradient(90deg,color-mix(in srgb,var(--card2) 76%,var(--tx3)),color-mix(in srgb,var(--card2) 58%,var(--tx3)),color-mix(in srgb,var(--card2) 76%,var(--tx3))); }
+.group-list-loading .group-loading-row { position:relative;display:flex;align-items:center;gap:12px;min-height:66px; }
+.group-list-loading .group-loading-row + .group-loading-row::before { position:absolute;top:0;left:48px;right:0;border-top:1px solid var(--line);content:""; }
+.group-loading-glyph.sk { flex:none;width:36px;height:36px;border-radius:12px; }
+.group-loading-copy { display:grid;flex:1;min-width:0;gap:7px; }
+.group-loading-title.sk { width:44%;height:14px; }
+.group-loading-summary.sk { width:64%;height:11px; }
+.group-loading-value.sk { flex:none;width:48px;height:13px; }
 @media (prefers-reduced-motion: reduce) { .friends-page :is(.friend-action,.friend-request-summary,.pym-row):active,.groups-page .group-list-row:active { transform:none; } }
 .group-title {margin:10px 0 18px;}
 .group-title .eyebrow,.group-invite-card .eyebrow {margin:0 0 5px;color:var(--tx3);font-size:15px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;}
