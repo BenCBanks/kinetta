@@ -88,7 +88,10 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    if(process.env.KINETTA_LIFT_CAPTURE_ONLY==='1'){await c.close();continue;}
    const clipped=await p.locator('.lift-in').evaluateAll(es=>es.flatMap(e=>{const s=getComputedStyle(e),g=document.createElement('canvas').getContext('2d');g.font=s.font;const max=e.dataset.k==='kg'?'2204.6':e.dataset.k==='secs'?'86400':'1000',space=e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight),needed=g.measureText(max).width;return needed>space+1?[{field:e.dataset.k,space,needed}]:[];}));
    assert.deepEqual(clipped,[],'Supported numeric values must fit without hiding decimals');
-   await p.locator('.lift-ex').first().locator('[data-tick="0"]').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saving…');
+   await p.evaluate(()=>{window.liftHapticCalls=[];Native.haptic=kind=>window.liftHapticCalls.push(kind);});
+   await p.locator('.lift-ex').first().locator('[data-tick="0"]').click();
+   assert.deepEqual(await p.evaluate(()=>liftHapticCalls),['light'],'logging a valid completed set gives one light haptic when the native bridge is present');
+   await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saving…');
    await p.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await p.locator('#lf-finish').click();await p.locator('#ff-yes').click();
    assert.equal(await p.locator('#lf-sum').count(),0,'Finish waits for its outstanding write');release();await p.locator('#lf-sum').waitFor();
    assert.equal(writes.length,2);assert.equal(writes[0].exercises[0].sets[0].kg,60);assert.equal(writes[1].finish,true);
