@@ -3,13 +3,14 @@
 // Fictional data only; blocks device/provider calls and all UI writes.
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',project=process.env.KINETTA_PROJECT||'kinettatest',password='green teapot on the hill';
+const NOTIFICATION_LOADING_ONLY=process.env.KINETTA_NOTIFICATION_LOADING_ONLY==='1';
 const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);};
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:{...process.env,KINETTA_URL:base,KINETTA_PROJECT:project},encoding:'utf8'});
  const ids=JSON.parse(output.trim().split('\n').at(-1)),id=ids.run;
  cp.execFileSync('docker',['exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],{input:`INSERT INTO notifications(user_id,actor_id,kind,activity_id) SELECT user_id,user_id,'activity_ready',id FROM activities WHERE id=${Number(id)};`});
  const browser=await chromium.launch();let count=0;
- async function open(theme,size,{native=false,friend=false,pending=''}={}){
+ async function open(theme,size,{native=false,friend=false,pending='',holdFeed=false}={}){
   const context=await browser.newContext({viewport:size,colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block'});
   const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password,app:native}});assert.equal(login.status(),200);
   const token=native?(await login.json()).token:null;if(native)await context.clearCookies();
@@ -27,10 +28,23 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
   },{root:size.root,native,base,token,pending});
   const page=await context.newPage(),errors=[],writes=[],responses=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(new URL(r.url()).pathname===`/api/activities/${id}`)responses.push(r.status());});
-  await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(request.method()==='POST'&&url.pathname==='/api/milestones/celebrate')return route.fulfill({json:{items:[],pending:false}});if(!['GET','HEAD'].includes(request.method())){writes.push(url.pathname);return route.fulfill({json:{unread:0}});}return route.continue();});
-  return {context,page,errors,writes,responses};
+  let releaseFeed,markFeedStarted;const feedGate=new Promise(resolve=>releaseFeed=resolve),feedStarted=new Promise(resolve=>markFeedStarted=resolve);
+  await context.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(holdFeed&&request.method()==='GET'&&url.pathname==='/api/notifications'){markFeedStarted();await feedGate;}if(request.method()==='POST'&&url.pathname==='/api/milestones/celebrate')return route.fulfill({json:{items:[],pending:false}});if(!['GET','HEAD'].includes(request.method())){writes.push(url.pathname);return route.fulfill({json:{unread:0}});}return route.continue();});
+  return {context,page,errors,writes,responses,feedStarted,releaseFeed};
+ }
+ async function checkNotificationLoading(theme){
+  const size={width:390,height:844,root:16},f=await open(theme,size,{holdFeed:true}),p=f.page;
+  try{
+   await p.goto(base+'/notifications');await f.feedStarted;
+   const status=p.locator('#nt-list [role=status]');await status.waitFor();assert.equal(await status.getAttribute('aria-busy'),'true');assert.equal(await status.locator('.vh').innerText(),'Loading notifications…');assert.equal(await status.locator('.note-loading[aria-hidden=true]').count(),3);assert.equal(await status.locator('.note-loading .sk').count(),15);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)));
+   if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`notifications-loading-390-${theme}.png`)});}
+   await p.emulateMedia({reducedMotion:'reduce'});assert.equal(await p.locator('.note-loading .sk').first().evaluate(el=>getComputedStyle(el).animationName),'none','notification skeleton stops for Reduce Motion');
+   f.releaseFeed();await p.locator('#nt-list .notes-group .note').first().waitFor();assert.deepEqual(f.errors,[]);
+  }finally{f.releaseFeed();await f.context.close();}
  }
  try{
+  if(NOTIFICATION_LOADING_ONLY){for(const theme of ['light','dark'])await checkNotificationLoading(theme);console.log('Notification feed loading 390 light/dark PASS');return;}
+  for(const theme of ['light','dark'])await checkNotificationLoading(theme);
   for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:16}])for(const entry of ['direct','list','native']){
    const f=await open(theme,size,{native:entry==='native',pending:entry==='native'?`/activity/${id}?edit=1`:''}),p=f.page;
    try{
