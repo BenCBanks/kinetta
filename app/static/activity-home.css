@@ -176,17 +176,18 @@
 /* Feed cards keep identity and stats on the card surface; the map/photo rail stays quiet. */
 .activity-home .activity-card { overflow:hidden; border-radius:18px; box-shadow:none; }
 .activity-card.post .post-hd.post-profile.feed-card-header { position:relative; inset:auto; display:block; grid-template-columns:none; padding:12px 16px 0; color:var(--tx); background:var(--card); text-shadow:none; pointer-events:auto; }
-.activity-card .post-identity { display:flex; align-items:center; gap:12px; min-width:0; }
-.activity-card .post-av { display:grid; place-items:center; width:44px; min-width:44px; height:44px; min-height:44px; margin:0; }
-.activity-card .post-av .av { width:36px; height:36px; transform:none; background:var(--card2); color:var(--tx); }
-.activity-card .post-identity-copy { position:relative; min-width:0; }
-.activity-card.post .post-name { position:relative; display:flex; align-items:flex-start; width:max-content; max-width:100%; min-width:44px; min-height:22px; color:var(--tx); font-size:15px; font-weight:600; line-height:22px; }
+.activity-card .post-identity { display:flex; align-items:center; gap:12px; width:100%; min-height:44px; min-width:0; }
+.activity-card .post-av { display:grid; place-items:center; flex:0 0 44px; width:44px; min-width:44px; height:44px; min-height:44px; margin:0; }
+.activity-card.post .post-av .av { width:40px; height:40px; aspect-ratio:1; transform:none; overflow:hidden; border-radius:50%; background:var(--card2); color:var(--tx); }
+.activity-card.post .post-av .av img { display:block; width:100%; height:100%; border-radius:inherit; object-fit:cover; }
+.activity-card .post-identity-copy { position:relative; display:flex; flex:1 1 auto; flex-direction:column; justify-content:center; gap:0; min-width:0; }
+.activity-card.post .post-name { position:relative; display:flex; align-items:flex-start; width:100%; max-width:100%; min-width:44px; min-height:22px; color:var(--tx); font-size:15px; font-weight:600; line-height:19px; white-space:normal; overflow-wrap:anywhere; }
 .activity-card.post .post-name::before { content:""; position:absolute; z-index:2; inset:-2px auto auto 0; width:100%; height:44px; }
-.activity-card .post-meta { position:relative; z-index:1; display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; margin-top:0; color:var(--tx2); font-size:13px; font-weight:400; line-height:18px; }
+.activity-card .post-meta { position:relative; z-index:1; display:flex; align-items:center; flex-wrap:nowrap; gap:8px; min-width:0; margin-top:0; color:var(--tx2); font-size:13px; font-weight:400; line-height:18px; white-space:nowrap; }
 .activity-card .post-meta-date { white-space:nowrap; }
 .activity-card .post-meta-icon { display:inline-flex; flex:none; align-items:center; justify-content:center; width:16px; height:18px; color:var(--tx2); }
 .activity-card .post-meta-icon svg { width:14px; height:14px; }
-.activity-card.post .post-hd.post-profile .post-title-link { position:relative; display:block; box-sizing:border-box; min-height:44px; margin-top:8px; padding:4px 0 16px; color:var(--tx); }
+.activity-card.post .post-hd.post-profile .post-title-link { position:relative; display:block; box-sizing:border-box; min-height:44px; margin-top:12px; padding:0 0 16px; color:var(--tx); }
 .activity-card.post .post-title { color:inherit; font-size:20px; font-weight:700; line-height:24px; }
 .activity-home .activity-card.post-led .activity-picture,.activity-home .activity-card.post-led .activity-media { position:relative; margin:0; }
 .activity-home .activity-card.post-led .media-track { border-radius:0; }
