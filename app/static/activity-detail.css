@@ -126,6 +126,13 @@
 .activity-detail .detail-link-end { display:flex; align-items:center; gap:8px; flex:none; color:var(--tx3); }
 .activity-detail .detail-link-end svg { width:16px; height:16px; }
 .activity-detail .detail-compare { color:var(--accent); font-size:15px; font-weight:600; }
+.activity-detail .detail-route-comparison { margin-top:12px; border-top:1px solid var(--line); }
+.activity-detail .detail-route-context { margin:0; padding:12px 0 4px; color:var(--tx2); font-size:14px; line-height:1.4; overflow-wrap:anywhere; }
+.activity-detail .detail-route-result { display:grid; gap:3px; padding:0 0 6px; }
+.activity-detail .detail-route-result > b { color:var(--tx); font-size:16px; line-height:1.35; font-weight:600; overflow-wrap:anywhere; }
+.activity-detail .detail-route-result > span { color:var(--tx3); font-size:13px; line-height:1.35; }
+.activity-detail .detail-route-action { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; color:var(--accent); font-size:15px; line-height:1.35; font-weight:600; text-decoration:none; }
+.activity-detail .detail-route-action svg { width:16px; height:16px; flex:none; }
 .activity-detail .detail-text-action { display:flex; align-items:center; width:100%; min-height:44px; padding:0; border:0; background:transparent; color:var(--accent); font:500 15px/1.35 var(--font); text-align:left; text-decoration:none; cursor:pointer; }
 .activity-detail .detail-action-row { display:flex; align-items:center; min-height:44px; gap:16px; margin-top:8px; border-top:1px solid var(--line); }
 .activity-detail .detail-action-row #d-photos { min-width:44px; flex:1; }

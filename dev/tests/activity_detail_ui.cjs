@@ -54,7 +54,7 @@ const timingCases={
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
  const b=await chromium.launch(),contexts=[];
 async function open(kind,theme,size,mouse=false,comments=false,reaction=false,loadOptions={}){
-  const friend=kind==='friend'||kind==='friend-close',timingOverride=Object.hasOwn(timingCases,kind),reviewOverride=['long-splits','no-hr-no-map'].includes(kind),missingElapsed=kind.startsWith('missing-elapsed'),id=ids[friend||timingOverride||reviewOverride?'run':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
+  const friend=kind==='friend'||kind==='friend-close',timingOverride=Object.hasOwn(timingCases,kind),reviewOverride=['long-splits','no-hr-no-map'].includes(kind),comparisonOverride=kind==='compare',missingElapsed=kind.startsWith('missing-elapsed'),id=ids[friend||timingOverride||reviewOverride||comparisonOverride?'run':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password:pw}})).status(),200);
   if(reaction)assert.equal((await c.request.post(base+`/api/activities/${id}/reaction`,{headers:{Origin:base,'Content-Type':'application/json'},data:{kind:'clap'}})).status(),200,'fictional detail reaction fixture');
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
@@ -79,6 +79,22 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    if(kind==='long-splits')return r.fulfill({response,json:{...activity,route_count:1,efforts:[effort],zones:[80,100,120,1000,700],splits_mi:splits,splits_km:splits.map(s=>({...s,distance_m:s.distance_m/1.609344}))}});
    return r.fulfill({response,json:{...activity,route_count:1,efforts:[effort],photos:[],line:null,track_lines:[],geom:null,avg_hr:null,max_hr:null,chart:{...activity.chart,hr:null}}});
   });
+  if(comparisonOverride){
+   await c.route(`**/api/activities/${id}`,async r=>{
+    if(r.request().method()!=='GET')return r.fallback();
+    const response=await r.fetch(),activity=await response.json();
+    return r.fulfill({response,json:{...activity,route_count:3}});
+   });
+   await c.route('**/api/routes/*',r=>{
+    const routeId=Number(new URL(r.request().url()).pathname.split('/').at(-1));
+    if(r.request().method()!=='GET')return r.fallback();
+    return r.fulfill({json:{id:routeId,name:'Fictional river loop',sport:'run',activities:[
+     {id:Number(id),elapsed_s:3600,distance_m:10000},
+     {id:Number(id)+1,elapsed_s:3900,distance_m:10000},
+     {id:Number(id)+2,elapsed_s:3720,distance_m:10000}
+    ]}});
+   });
+  }
   await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));if(!loadOptions.noWait)await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend,detailAssets,routeScriptOrder};
  }
  async function assertDetailActionRow(p,label){
@@ -261,10 +277,10 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    for(const tab of await buttons.all()){if(!(await tab.isVisible())){assert(await p.locator(`[data-pane="${await tab.getAttribute('data-dt')}"]`).isVisible(),'single section is already open');continue;}const key=await tab.getAttribute('data-dt');await tab.click();assert(await p.locator(`[data-pane="${key}"]`).isVisible());assert.equal(await tab.getAttribute('aria-selected'),'true');}
    if(kind==='run'){
     assert.equal(await p.locator('.detail-highlights').isVisible(),false,'mapped detail keeps route and record links in their detail sections');
-    await p.locator('[data-dt=overview]').click();assert.match(await p.locator('[data-pane=overview]').innerText(),/Fictional river loop/,'matched route remains in Overview');
+    await p.locator('[data-dt=overview]').click();assert.equal(await p.locator('[data-pane=overview] .detail-link-row').count(),0,'matched route no longer uses the old small row');
     await p.locator('[data-dt=efforts]').click();assert(await p.locator('[data-pane=efforts]').isVisible());assert.match(await p.locator('[data-pane=efforts]').innerText(),/Best efforts/,'personal records remain in Efforts');
    }
-   if(!friend){const details=p.locator('[data-dt=overview]');if(await details.isVisible())await details.click();assert.equal(await p.locator('[data-phadd]').count(),1,'photo action retained in Details');assert(await p.locator('#d-comment-open').isVisible(),'first comment remains reachable without zero counts');await p.evaluate(()=>scrollTo(0,0));await bar.locator('[data-detail-edit]').click();await p.waitForSelector('#e-form');assert(await p.locator('#e-form').isVisible());await p.keyboard.press('Escape');}
+   if(!friend){const details=p.locator('[data-dt=overview]');if(await details.isVisible())await details.click();assert.equal(await details.locator('.detail-action-row,[data-phadd],#d-photos,#d-comment-open').count(),0,'Details has no photo-add/comment action row');await p.evaluate(()=>scrollTo(0,0));await bar.locator('[data-detail-edit]').click();await p.waitForSelector('#e-form');assert(await p.locator('#e-form').isVisible());await p.keyboard.press('Escape');}
    if(kind==='run'&&size.width===330){await p.evaluate(()=>scrollTo(0,600));await until(p,()=>!document.querySelector('.detail-sticky')?.hidden,'sticky detail chrome');await p.waitForTimeout(80);const stickyTitle=p.locator('.detail-sticky .detail-bar-title');const geometry=await stickyTitle.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);return{width:n.clientWidth,scroll:n.scrollWidth,height:n.clientHeight,scrollHeight:n.scrollHeight,text:n.textContent,font:getComputedStyle(n).fontSize,lineRects:range.getClientRects().length};});assert(geometry.scroll<=geometry.width+1&&geometry.scrollHeight<=geometry.height+1&&geometry.lineRects===1,'sticky title fits one untruncated line at 330px: '+JSON.stringify(geometry));await p.evaluate(()=>scrollTo(0,0));}
    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'layout/actions do not write private data');console.log(`Activity detail ${name}: layout/actions/tabs/empty/permitted fields/map modal PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
@@ -308,7 +324,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
   if(!medalKind&&!process.env.KINETTA_DETAIL_CASE){const {c,p,errors}=await open('lifting','dark',{width:330,height:667,root:16},false,false,true);await until(p,()=>!!document.querySelector('#d-soc [data-detail-share]'),'detail Share action');await assertDetailActionRow(p,'Activity detail 330px dark');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log('Activity detail action row 330px/16px dark PASS');}
   if(!process.env.KINETTA_DETAIL_CASE||process.env.KINETTA_DETAIL_CASE==='actions'){
    const {c,p,errors}=await open('run','light',{width:390,height:844,root:16},true);await until(p,()=>!!document.querySelector('.leaflet-container'),'mouse map');assert.equal(await p.locator('#d-map .leaflet-control-zoom').count(),0,'photo rail starts still');await p.locator('#d-map .map-full').click();assert(await p.locator('.map.full .leaflet-control-zoom').isVisible(),'expanded photo map supports mouse zoom');await p.locator('.map.full .leaflet-control-zoom-in').click();await p.keyboard.press('Escape');await until(p,()=>!document.querySelector('.map.full'),'mouse map closed');assert.equal(await p.locator('#d-map .leaflet-control-zoom').count(),0,'inline rail restored');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);
-   const item=await open('empty','light',{width:390,height:844,root:16},false,true);await item.p.waitForSelector('.c-form');assert.equal(await item.p.locator('#d-soc').isVisible(),false,'an empty private activity hides its social footer');await item.p.keyboard.press('Escape');await item.p.locator('#d-comment-open').click();await item.p.waitForSelector('.c-form');await item.p.locator('.c-form textarea').fill('Fictional private workout note');await item.p.locator('.c-send').click();await until(item.p,()=>document.querySelector('.social-read-status')?.textContent==='Comment posted.','own comment saved');await item.p.keyboard.press('Escape');assert(await item.p.locator('#d-soc').isVisible(),'the owner footer appears when the activity has a comment');assert(await item.p.locator('#d-soc .reaction-more').isVisible());assert.match(await item.p.locator('#d-soc [data-ttalk]').getAttribute('aria-label'),/1/);assert.deepEqual(item.errors,[]);await item.c.close();contexts.splice(contexts.indexOf(item.c),1);
+   const item=await open('empty','light',{width:390,height:844,root:16},false,true);await item.p.waitForSelector('.c-form');assert.equal(await item.p.locator('#d-soc').isVisible(),false,'an empty private activity hides its social footer');await item.p.locator('.c-form textarea').fill('Fictional private workout note');await item.p.locator('.c-send').click();await until(item.p,()=>document.querySelector('.social-read-status')?.textContent==='Comment posted.','own comment saved');await item.p.keyboard.press('Escape');assert(await item.p.locator('#d-soc').isVisible(),'the owner footer appears when the activity has a comment');assert(await item.p.locator('#d-soc .reaction-more').isVisible());assert.match(await item.p.locator('#d-soc [data-ttalk]').getAttribute('aria-label'),/1/);assert.deepEqual(item.errors,[]);await item.c.close();contexts.splice(contexts.indexOf(item.c),1);
    console.log('Activity detail actions: mouse zoom/keyboard restoration, empty-owner comment deep link and live social update PASS');
   }
   if(detailCases.includes('tabs-polish')){
@@ -346,7 +362,8 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
       for(const icon of [record,hard])assert.deepEqual(await icon.evaluate(n=>{const r=n.getBoundingClientRect();return[Math.round(r.width),Math.round(r.height)];}),[28,28],'insight icon uses a 28px tinted circle');
       for(const title of ['New personal record','Hard session'])assert.equal(await pane.locator('.insight').filter({hasText:title}).locator('b').evaluate(n=>getComputedStyle(n).fontWeight),'700',`${title} title is strong`);
       if(await pane.locator('.insight').filter({hasText:'Hard session'}).count())assert.match(await pane.locator('.insight').filter({hasText:'Hard session'}).innerText(),/% of the time in zones 4–5/,'hard-session copy reports the share in zones 4–5');
-      assert.equal(await pane.locator('.detail-link-row[href^="/route/"]').count(),1,'matched route remains a single hairline row');
+      assert.equal(await pane.locator('.detail-link-row[href^="/route/"]').count(),0,'Details does not retain the old small route row');
+      assert.equal(await pane.locator('.detail-insight').filter({hasText:'done this route'}).count(),0,'Details drops the redundant route-count insight');
      }
      if(key==='efforts'){
       assert.match(await pane.innerText(),/Best efforts[\s\S]*5K[\s\S]*25:00[\s\S]*PR/,'Efforts keeps a concise personal record row');
@@ -368,7 +385,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     const {c,p,errors,writes}=await open(kind,theme,{width:detailWidth,height:844,root:16},false),details=p.locator('#activity-pane-overview');
     await p.getByRole('tab',{name:'Details',exact:true}).click();await details.waitFor({state:'visible'});
     if(kind==='long-splits'){
-     const route=details.locator('.detail-link-row small');assert.equal(await route.innerText(),'Matched route · 1 activity','single route count is grammatically singular');
+     assert.equal(await details.locator('.detail-link-row').count(),0,'a single-activity route has no misleading compare row');
      const hard=details.locator('.insight').filter({hasText:'Hard session'});assert.match(await hard.innerText(),/% of the time in zones 4–5/,'hard-session copy describes the high-zone share');
      await p.getByRole('tab',{name:'Splits',exact:true}).click();const pane=p.locator('#activity-pane-splits'),rows=pane.locator('tbody tr');assert.equal(await rows.count(),13,'long split fixture reaches the lower navigation edge');
      assert.equal(await rows.nth(12).locator('.bar').evaluate(n=>n.closest('tr').classList.contains('best')),false,'a short final partial split is never marked fastest');
@@ -383,6 +400,25 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     console.log(`Activity detail ${kind} ${theme}: edge layout and serious/critical accessibility PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
    }
    console.log(`Activity Charts, Splits, Efforts and Details ${detailWidths.join('/')}px light/dark: tab height and nav clearance PASS`);
+  }
+  if(!detailCases.length||detailCases.includes('route-compare'))for(const width of detailWidths)for(const theme of ['light','dark']){
+   const {c,p,errors,writes,id}=await open('compare',theme,{width,height:width===330?667:844,root:16},false);
+   try{
+    const details=p.locator('#activity-pane-overview');await p.getByRole('tab',{name:'Details',exact:true}).click();
+    const comparison=details.locator('.detail-route-comparison');await comparison.waitFor({state:'visible'});
+    assert.equal(await comparison.locator('.detail-route-context').innerText(),'Compared with your 2 earlier runs on this route',`${width}px ${theme}: comparison counts earlier runs only`);
+    assert.match(await comparison.locator('.detail-route-result > b').innerText(),/3:30 faster than your earlier average/,`${width}px ${theme}: current time is compared with earlier average`);
+    assert.equal(await comparison.locator('.detail-route-result > span').innerText(),'Best earlier time · 1:02:00',`${width}px ${theme}: best earlier time is clear`);
+    const action=comparison.getByRole('link',{name:'Compare'}),box=await action.boundingBox();assert(box&&box.height>=44,`${width}px ${theme}: Compare action meets the 44px target`);await comparison.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));
+    const clearance=await action.evaluate(n=>{const r=n.getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect();return nav.top-r.bottom;});assert(clearance>=15,`${width}px ${theme}: Compare stays clear of the floating navigation: ${clearance}px`);
+    assert.equal(await details.locator('.detail-link-row').count(),0,'comparison replaces the old route row');
+    assert.equal(await details.locator('.detail-action-row,[data-phadd],#d-photos,#d-comment-open').count(),0,'Details has no photo or comment action row');
+    const rect=await comparison.evaluate(n=>{const r=n.getBoundingClientRect();return{left:r.left,right:r.right,width:r.width,scroll:n.scrollWidth,client:n.clientWidth};});assert(rect.left>=0&&rect.right<=width+1&&rect.scroll<=rect.client+1,`${width}px ${theme}: comparison wraps without horizontal overflow: ${JSON.stringify(rect)}`);
+    const axe=await new AxeBuilder({page:p}).analyze(),serious=axe.violations.filter(v=>['serious','critical'].includes(v.impact));assert.deepEqual(serious.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)})),[],`${width}px ${theme}: no serious/critical accessibility findings`);
+    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'comparison remains read-only');
+    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-detail-compare-${width}-${theme}.png`),animations:'disabled'});}
+    console.log(`Activity route comparison ${width}px ${theme}: average, best time, 44px action PASS`);
+   }finally{await c.close();contexts.splice(contexts.indexOf(c),1);}
   }
   if(loadCases.length)console.log(`ActivityDetail lazy loading: ${loadCases.join(', ')} PASS`);
   if(!medalKind&&!process.env.KINETTA_DETAIL_CASE)cp.execFileSync(process.execPath,[path.join(__dirname,'activity_map_transition_ui.cjs')],{env:process.env,stdio:'inherit'});
