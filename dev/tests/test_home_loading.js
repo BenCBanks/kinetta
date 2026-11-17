@@ -15,17 +15,18 @@ async function run(){
  const selectors=['#t-today','#t-required','#t-start','#t-setup','#t-recap','#t-checkin','#t-combined-week','#t-goals','#t-form','#t-insights'];
  const nodes=new Map(selectors.map(selector=>[selector,{innerHTML:'',hidden:false,dataset:{},isConnected:true}]));
  const todaySkeleton={hidden:true,isConnected:true};nodes.set('[data-today-skeleton]',todaySkeleton);
- const pending=new Map(),timers=[],el={innerHTML:'',isConnected:true};
+ const pending=new Map(),timers=[],el={innerHTML:'',isConnected:true,closest:()=>null};
  const read=path=>{const value=deferred();pending.set(path,value);return value.promise;};
  const ctx={
   console,Date:FixtureDate,Promise,Set,Intl,URLSearchParams,location:{search:''},
   document:{hidden:false,addEventListener(){},removeEventListener(){}},
   window:{addEventListener(){},removeEventListener(){}},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(id){timers[id-1]=null;},
   $:selector=>nodes.get(selector)||null,$$:()=>[],
-  App:{me:{id:1,name:'Fictional user',setup_hidden:true,kcal_target:null,friend_count:1}},
+  App:{me:{id:1,name:'Fictional user',setup_hidden:true,kcal_target:null,friend_count:1},cache:new Map()},
   MeCard:{header:()=>'<section class="me-card">Shared profile</section>',mount(){}},
+  PaintGate:{begin:()=>({finish:promise=>Promise.resolve(promise)})},
   Native:{on:false,healthOn:()=>Promise.resolve(false)},viewResources:{set(){}},
-  readOwner:()=>1,api:read,
+  readOwner:()=>1,api:read,kept:()=>null,keep(){},screenHit:()=>null,
   load:(path,paint)=>{const value=path.includes('/fitness?')?{days:[]}:[];paint(value);return Promise.resolve(value);},
   getStarted:()=>'',esc:String,svg:()=>'',SPORT_NAMES:{run:'Run'},IC:{run:'run'},
   U:{du:()=> 'mi',dist:value=>String(value)},meInsights(){},
@@ -38,7 +39,8 @@ async function run(){
  assert.equal(todaySkeleton.hidden,true,'Today does not flash a skeleton during a fast read');
  timers[0]();assert.equal(todaySkeleton.hidden,false,'Today reveals its shaped skeleton only after the delay');
  assert.equal(today.dataset.loading,'true','the loading token remains active while sources are pending');
- assert.deepEqual([...pending.keys()],['/api/activities?limit=1','/api/plans/current','/api/food/history?days=30',`/api/food/day?d=${fixtureDay}`]);
+ const todayRowsPath=`/api/activities?limit=100&after=${encodeURIComponent(new Date(fixtureDay+'T00:00:00').toISOString())}`;
+ assert.deepEqual([...pending.keys()],['/api/activities?limit=1','/api/plans/current','/api/food/history?days=30',`/api/food/day?d=${fixtureDay}`,todayRowsPath]);
 
  const zone=fixtureZone;
  const day=fixtureDay;
@@ -46,6 +48,7 @@ async function run(){
  pending.get('/api/plans/current').resolve({today:day,plan:{id:9101,unit:'mi'},today_workout:{type:'run',title:'Easy run',minutes:30,day}});
  pending.get('/api/food/history?days=30').resolve([]);
  pending.get(`/api/food/day?d=${day}`).resolve({day,entries:[],totals:{},unknown_nutrients:{},targets:{},has_history:false,food_user:false});
+ pending.get(todayRowsPath).resolve([]);
  await done;
  assert.equal(today.dataset.loadedDay,day,'Today records the completed local date');
  assert.equal(today.dataset.loading,undefined,'the loading state ends after source reads settle');
