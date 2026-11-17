@@ -3,8 +3,10 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 python3 dev/tests/ui_contracts.py --validate
 core_contracts="$(python3 dev/tests/ui_contracts.py --tests-for app/static/pages.js)"
+core_dispatch="$(dev/tests/changed.sh --check-files app/static/pages.js)"
 for expected in activity_home_ui.cjs me_card_ui.cjs activity_detail_ui.cjs progress_ui.cjs fitness_ui.cjs track_home_ui.cjs tracking_ui.cjs; do
   [[ "$(printf '%s\n' "$core_contracts" | grep -Fx "$expected" || true)" == "$expected" ]] || { echo "pages.js does not schedule its $expected screen contract." >&2; exit 1; }
+  [[ "$core_dispatch" == *"contract test -> $expected"* ]] || { echo "The changed-screen runner would omit $expected for pages.js." >&2; exit 1; }
 done
 bad_manifest="$(mktemp)"
 trap 'rm -f "${probe:-}" "$bad_manifest"' EXIT
