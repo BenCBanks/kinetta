@@ -9,6 +9,7 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   await page.route('**/*',r=>r.abort());
   await page.setContent(`<style>
    body{margin:8px;font:16px sans-serif}button,input,summary{min-height:44px;min-width:44px}
+   .paint-gate-placeholder{position:fixed;inset:0;background:white;pointer-events:none}.paint-gate-placeholder button{width:120px}
    button{font:16px sans-serif}#faded{opacity:0}.hidden{height:1px;overflow:hidden}
    .rail{width:100px;overflow:auto}.wide{width:300px}.clip{height:12px;overflow:hidden}
    .hero-number{font-size:36px}.hero-number i{font-size:14px}
@@ -17,6 +18,7 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   <details id="outer"><summary id="outer-summary">Review</summary>
    <details id="inner"><summary id="inner-summary">Hidden nested choice</summary><button id="hidden-button">Hidden</button></details>
   </details>
+  <div class="paint-gate-placeholder" aria-hidden="true"><button id="gate-action">Loading action</button><span id="gate-copy">Fictional loading content</span></div>
   <div id="faded"><button id="faded-button">Not visible</button></div>
   <label id="check-label"><input id="check" type="checkbox">Reminders</label>
   <button id="number-action" data-type="body">30 days</button>
@@ -38,6 +40,8 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
    <div class="range-text"><button id="progress-range" style="font-size:13px">Week</button></div></div>`);
   const snapshot=(rules=[])=>page.evaluate(collectSpacing,{screen:'collector fixture',rules});
   let s=await snapshot();
+  assert(!s.targets.some(t=>t.key==='#gate-action'),'PaintGate skeleton controls are not measured as real targets');
+  assert(!s.texts.some(t=>t.key==='#gate-copy'),'PaintGate skeleton labels are not measured as real screen content');
   const pseudoTarget=s.targets.find(t=>t.key.includes('.post-name'));assert(pseudoTarget&&pseudoTarget.rect.width>=44&&pseudoTarget.rect.height>=44&&pseudoTarget.hit,'A profile link pseudo-element contributes its actual44px hit area');
   assert(s.targets.some(t=>t.key==='#outer-summary'));
   for(const key of ['#inner-summary','#hidden-button','#faded-button'])assert(!s.targets.some(t=>t.key===key),'Invisible controls stay out of measurements: '+key);

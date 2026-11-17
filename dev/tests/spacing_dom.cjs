@@ -17,6 +17,7 @@ function collectSpacing({screen,rules=[]}){
   return{x:r.x+insetLeft,y:r.y+insetTop,width:Math.max(0,r.width-insetLeft-right),height:Math.max(0,r.height-insetTop-bottom)};
  };
  const visible=el=>{
+  if(el.closest('.paint-gate-placeholder'))return false;
   const r=el.getBoundingClientRect(),s=getComputedStyle(el);if(!r.width||!r.height||s.visibility==='hidden'||s.display==='none'||+s.opacity===0)return false;
   if((r.width<=1&&r.height<=1)||el.closest('[hidden],[inert]'))return false;
   for(let p=el;p;p=p.parentElement)if(p.matches('details:not([open])')&&!p.querySelector(':scope > summary')?.contains(el))return false;

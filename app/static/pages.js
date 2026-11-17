@@ -553,7 +553,7 @@ async function meOverview(el) {
   const foodMarkup=(data,day,{error=false}={})=>{
     if(error)return `<button type="button" class="me-today-row" data-today-food data-today-retry><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup('Retry',true)}${svg('chev','me-today-chevron')}</button>`;
     const href='/food?d='+encodeURIComponent(day);
-    if(!data.entries.length)return `<button type="button" class="me-today-row" data-today-food data-today-add aria-label="Add food for today"><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup('Add',true)}${svg('chev','me-today-chevron')}</button>`;
+    if(!data.entries.length)return `<button type="button" class="me-today-row" data-today-food data-today-add><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup('Add',true)}${svg('chev','me-today-chevron')}</button>`;
     const estimate=data.entries.some(e=>e.source==='ai'||e.origin==='ai'||e.ref?.origin==='ai'),unknown=(data.unknown_nutrients?.kcal||0)>=data.entries.length;
     const target=data.targets?.kcal_target,value=unknown?'Unknown':(estimate?'≈ ':'')+r0(homeCalories(data.totals.kcal))+(target!=null?' of '+r0(target):'')+(target==null?' kcal':'');
     return `<a class="me-today-row" data-today-food href="${href}"><span class="me-today-icon me-today-food-icon">${svg('food')}</span><span class="me-today-title">Nutrition</span>${valueMarkup(value)}${svg('chev','me-today-chevron')}</a>`;
@@ -646,7 +646,9 @@ route(/^\/activity$/, 'activity', async el=>{
   const q=new URLSearchParams(location.search);
   if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.toString()?'?'+q:''),{replace:true});}
   if(q.get('view')==='groups')return homeGroups(el);
-  return homeFeed(el);
+  const cached=!!(App.cache.get('feed:home')?.data||kept('feed:home'));
+  const pending=homeFeed(el),paint=PaintGate.begin(el,'home',{cached});
+  return paint.finish(pending);
 });
 route(/^\/me\/activities$/, 'me', () => go(profileHref(App.me)+location.search+location.hash,{replace:true}));
 
@@ -1450,6 +1452,9 @@ async function progressHome(el, q) {
   el.innerHTML = `<div class="top progress-heading progress-home-heading"><h1>Progress</h1><div class="acts"><button type="button" class="icon-btn" id="progress-share" aria-label="Share a progress picture">${svg('share')}</button>${bellBtn()}</div></div>
     <div class="progress-home"><div id="p-combined-week"></div><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
     <h2 class="sec-head">Explore your progress</h2><div class="progress-grid explore-list progress-inset-list" id="p-explore"></div></div>`;
+  const progressReads=[`/api/progress/volume?period=${period}`,'/api/progress/overview','/api/fitness?days=60','/api/activity-food'];
+  const cached=progressReads.every(path=>App.cache.has(path)||!!kept(path));
+  const paint=PaintGate.begin(el,'progress',{cached});
   wireProgressFocus(el); wireProgressPeriods(el);
   const heading=$('.progress-home-heading',el),compactHeading=()=>heading?.classList.toggle('is-compact',window.scrollY>28);
   window.addEventListener('scroll',compactHeading,{passive:true});compactHeading();viewResources.set(el,()=>window.removeEventListener('scroll',compactHeading));
@@ -1459,7 +1464,7 @@ async function progressHome(el, q) {
   progressFilters(el,totals,`<div class="progress-totals-header">${sportBtn(viewSport)}<div class="totals-view-toggle"><button type="button" data-progress-view="${showTable?'chart':'table'}" ${showTableToggle?'':'hidden'} aria-pressed="${showTable}" aria-label="${showTable?'Show chart':'Show table'}" aria-controls="m-chart m-table" title="${showTable?'Show chart':'Show table'}">${svg(showTable?'chart':'list')}</button></div></div>${progressMetrics(viewSport,metric)}`);
   wireSport(el,viewSport);
   q.set('sport',viewSport);q.set('period',period);if(q.has('metric'))q.set('metric',metric);
-  if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
+  const weekRead=$('#p-combined-week',el)?combinedWeek($('#p-combined-week',el)):null;
   const owner=readOwner(), valid=()=>el.isConnected&&owner===readOwner();
   let fitnessValue=null,recordValue=null;
   const refreshProgressTiles=(overview,ready)=>{
@@ -1467,7 +1472,8 @@ async function progressHome(el, q) {
     if(fitnessValue)$('[data-progress-fitness]',el).textContent=fitnessValue;
     if(recordValue)$('[data-progress-record]',el).textContent=recordValue;
   };
-  await Promise.allSettled([
+  const initial=Promise.allSettled([
+    weekRead,
     pMileage(totals,q,{home:true}).catch(()=>{if(valid())progressMileageError(totals,q);}),
     load('/api/progress/overview',o=>{
       if(!valid())return;recordValue=o.record?`${o.record.label} · ${dur(o.record.elapsed_s)}`:null;refreshProgressTiles(o,true);
@@ -1479,6 +1485,7 @@ async function progressHome(el, q) {
       if(fitnessValue)$('[data-progress-fitness]',el).textContent=fitnessValue;
     }).catch(()=>{})
   ]);
+  await paint.finish(initial);
 }
 // each view takes the sports it can show: the shared choice, mapped to the nearest one it has
 const forView = (sport, view) => ({totals: {hike: 'walk'}, records: {all: 'run'}, trends: {hike: 'walk', all: 'run'}, heatmap: {all: ''}}[view] || {})[sport] ?? sport;

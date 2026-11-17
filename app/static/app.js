@@ -378,7 +378,7 @@ async function api(path, opts = {}) {
     const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
     const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
     e.status = r.status; e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;
-    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { (Native.pauseSession||Native.pauseHealth)?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
+    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { (Native.pauseSession||Native.pauseHealth)?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { forgetKept(); App.me = null; showLogin('Please log in again.'); } }
     throw e;
   }
 
@@ -448,7 +448,7 @@ function refreshMe(me) {
 }
 
 // ---------- offline: kept screens + a send queue for food and weight (2026-10-10) ----------
-const KEEP = [/^\/api\/recaps\?/,/^\/api\/friends$/,/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/plans\/current$/,
+const KEEP = [/^\/api\/recaps\?/,/^\/api\/friends$/,/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/activity-food$/, /^\/api\/progress\/overview$/, /^\/api\/plans\/current$/,
   /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=(?:1|3)$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
   /^\/api\/progress\/volume\?period=week$/, /^feed:home$/, /^\/api\/feed\/friends\?limit=3$/];   // 2026-10-16: Activity and Progress open from the saved copy too; 2026-10-18: all of Me
 const store = {
@@ -457,9 +457,9 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) { /* blocked */ } },
 };
 const serverKey = () => Native.base || location.origin;
-function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, server: serverKey(), data}); }
-function kept(path) { const v = store.get('fit.c:' + path); return v && (v.server === serverKey() || (!v.server && !Native.on)) && (!App.me || v.who === App.me.login) ? v.data : null; }
-function forgetKept() { try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
+function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {account: App.me.id, server: serverKey(), data}); }
+function kept(path) { const v = store.get('fit.c:' + path); return App.me && v && v.account === App.me.id && (v.server === serverKey() || (!v.server && !Native.on)) ? v.data : null; }
+function forgetKept() { App.cache?.clear();globalThis.PaintGate?.clearAll?.();try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
 
 // Fold a generated note without redrawing the page, map or inputs. Remember only its fingerprint on this device.
 function coachKey(key) { return 'fit.coach.hidden:' + JSON.stringify([Native.base || location.origin, App.me.id, key]); }
@@ -1116,6 +1116,7 @@ function go(path, {replace = false} = {}) {
   const nav=BackNavigation.transition(history.state,location.pathname+location.search,path,readOwner(),{replace,fromKnown});
   if(nav)history.replaceState(nav.current,'',location.href);
   history[replace ? 'replaceState' : 'pushState'](nav?nav.next:null, '', path);
+  globalThis.PaintGate?.routeChanged?.(location.pathname + location.search);
   slide(replace ? null : 'push', from);
 }
 // Opening something slides it in a little; Back slides the other way (owner, 23 October 2026). The browser animates
@@ -1268,6 +1269,7 @@ function render(options) {
   const globalSyncDone = options?.globalSyncDone === true;
   App.pageReady = false;
   const key=location.pathname+location.search,routePosition=options?.routePosition;
+  globalThis.PaintGate?.routeChanged?.(key);
   const useRoutePosition=routePosition?.key===key&&routePosition.owner===readOwner();
   const targetY=useRoutePosition?routePosition.y:pagePosition(key);
   const path = location.pathname.replace(/\/+$/, '') || '/activity';
