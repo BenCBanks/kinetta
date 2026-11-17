@@ -63,6 +63,15 @@ async function run(){
  const snapshot=savedToday.get(`me:today:${day}`);assert.equal(snapshot.foodHistoryCount,0,'Me Today stores only the food-history count');assert.equal(Object.hasOwn(snapshot,'foodHistory'),false,'Me Today does not persist the 30-day food-history rows');assert.deepEqual(Object.keys(snapshot.todayRows[0]).sort(),['distance_m','elapsed_s','id','sport','sport_label','start_time'].sort(),'Me Today retains only fields drawn by its activity row');assert.equal(ctx.App.cache.has(oldTodayPath),false,'writing today removes prior in-memory date buckets');assert.equal(localStorage.getItem('fit.c:'+oldTodayPath),null,'writing today removes prior persisted date buckets');
  const todayPath=`me:today:${day}`;ctx.App.cache.set(todayPath,{data:{activities:[],foodHistory:[{day:'2026-11-08'},{day:'2026-11-09'}],todayRows:[{id:8,sport:'run',start_time:fixtureNow.toISOString(),route:{secret:'fictional'},map:'fictional'}]},at:1});ctx.meOverview({...el,innerHTML:''});const migrated=ctx.App.cache.get(todayPath).data;assert.equal(migrated.foodHistoryCount,2,'legacy Today cache is reduced to a history count on read');assert.equal(Object.hasOwn(migrated,'foodHistory'),false,'legacy 30-day food-history rows are removed');assert.deepEqual(Object.keys(migrated.todayRows[0]).sort(),['id','sport','start_time'].sort(),'legacy cached activity rows drop map and route payloads');
  assert.doesNotMatch(el.innerHTML,/Your dashboard|t-plan|t-food/,'the removed dashboard and plan/food cards stay absent');
+
+ // An empty cached snapshot must not flash Today, and failed refreshes cannot invent an applicable row.
+ pending.clear();ctx.App.me={id:1,name:'Fictional user',setup_hidden:true,kcal_target:null,recentActivityUser:false,recentFoodUser:false,hasFoodHistory:false,hasActivePlan:false};
+ ctx.App.cache.set(todayPath,{data:{activities:[],plan:null,foodHistoryCount:0,foodHistoryFailed:false,foodData:null,todayRows:[]},at:1});
+ const emptyRoot={innerHTML:'',isConnected:true,closest:()=>null},emptyRead=ctx.meOverview(emptyRoot),emptyToday=nodes.get('#t-today');
+ assert.equal(emptyToday.innerHTML,'','cached data with no applicable rows keeps Today hidden while refresh is pending');
+ for(const read of pending.values())read.reject(new Error('offline'));
+ await emptyRead;
+ assert.equal(emptyToday.innerHTML,'','failed refresh with an empty cached snapshot keeps Today hidden');
  console.log('Me Today first paint: two reserved skeleton rows, pending read barrier, planned row after reads, no food row for a non-food user PASS');
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

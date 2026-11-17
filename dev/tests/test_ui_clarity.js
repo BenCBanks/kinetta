@@ -51,7 +51,7 @@ console.log('Food chat: Search tool label PASS');
  const profile=fs.readFileSync('app/static/profile.js','utf8');
  assert.match(pages,/MeCard\.header\(me\)/);
  assert.match(pages,/if\(activityUser\)rows\.push/,'activity users get a Today row');assert.match(pages,/if\(todayFoodUser\)rows\.push/,'food users get a Today row');
- assert.match(pages,/todayRoot\.innerHTML=rows\.length\?/,'Today is shown only when at least one applicable row exists');assert.match(pages,/id="t-today-title">Today/,'Today replaces the old dashboard heading');assert.doesNotMatch(pages,/Your dashboard/);
+ assert.match(pages,/const markup=rows\.length\?'<section class="me-today"/,'Today markup exists only when at least one applicable row exists');assert.match(pages,/if\(todayRoot\.innerHTML!==markup\)todayRoot\.innerHTML=markup/,'the empty Today state clears both the cached and refreshed markup');assert.match(pages,/id="t-today-title">Today/,'Today replaces the old dashboard heading');assert.doesNotMatch(pages,/Your dashboard/);
  assert.doesNotMatch(profile,/class="me-divider"/,'no hairline above Today');assert.doesNotMatch(profile,/Only you below this line/);assert.match(profile,/Hi, \$\{/);
  assert.match(profile,/data-card-edit/);assert.match(profile,/aria-label="Share your profile"/);assert.match(profile,/profile_hidden/);assert.match(profile,/Private workouts count, but stay hidden/);
  assert.match(profile,/Totals include your private workouts\. Friends see the totals, not the workouts\./);
