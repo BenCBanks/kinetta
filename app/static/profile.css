@@ -368,9 +368,9 @@
   :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="6"] .profile-achievement-value[data-type="secondary"] { color:#000; text-shadow:none; }
   :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="8"] .profile-achievement-value[data-type="secondary"] { color:#000; text-shadow:none; }
 }
-:root[data-theme="light"] .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"] { color:#fff; text-shadow:none; }
+:root[data-theme="light"] .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; }
 @media (prefers-color-scheme:light) {
-  :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"] { color:#fff; text-shadow:none; }
+  :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; }
 }
 :root[data-theme="light"] .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level="8"] .profile-achievement-value[data-type="secondary"],
 :root[data-theme="light"] .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level="9"] .profile-achievement-value[data-type="secondary"] { color:#fff; text-shadow:none; }
@@ -820,22 +820,21 @@
 .me-card-banner [data-person-report] { box-sizing:border-box; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; border-radius:50%; background:rgba(255,255,255,.14); box-shadow:none; }
 .me-card-banner [data-person-report]:active { background:rgba(255,255,255,.24); }
 .me-card-name { padding-top:2px; }
-.me-card-name h2 { font-size:1.0625rem; line-height:1.2; font-weight:500; letter-spacing:-.01em; white-space:nowrap; overflow:visible; text-overflow:clip; }
+.me-card-name h2 { font-size:20px; line-height:1.2; font-weight:700; letter-spacing:-.01em; overflow-wrap:anywhere; }
 .me-showcase-streak { min-width:0; font-size:.9375rem; font-weight:400; line-height:1.2; white-space:nowrap; }
-.me-card-preview-row { margin:0; }
-.me-card-preview-action { min-height:44px; padding:0; font-size:15px; font-weight:500; }
+.me-card-preview-row { margin:0; border-bottom:1px solid var(--line); }
+.me-card-preview-action { display:flex; width:100%; min-height:44px; padding:0; font-size:15px; font-weight:600; }
 .me-featured-slot:not(:empty) { margin-block:-8px; }
 .me-featured-achievements .me-featured-title { font-size:.875rem; }
 .me-featured-achievements .me-featured-title a { font-size:.875rem; }
 .me-featured-achievements .profile-achievement-list { padding-top:8px; }
 .me-featured-achievements .profile-achievement-medallion { margin-top:4px; }
 .me-featured-achievements .me-featured-caption { font-size:13px; }
-.me-card .me-card-weekly .me-metric-value { font-size:clamp(20px,6.2cqw,21px); }
+.me-card .me-card-weekly .me-metric-value { font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
 .me-card .me-metric-value { font-size:clamp(16px,6.2cqw,21px); }
 .me-dashboard-divider span:last-child { font-size:.9375rem; }
 
 /* #1006 Fable review: bare weekly bars, compact featured medals and clear milestones. */
-.me-card-name h2 { font-size:17px; font-weight:500; letter-spacing:-.01em; }
 @media (max-width:350px) {
   .me-card-id-link { flex-wrap:wrap; }
   .me-card-profile-link { flex:1 1 100%; gap:8px; }
@@ -845,9 +844,6 @@
 .me-card-id-link .me-card-profile-link { gap:10px; }
 .me-showcase-streak svg { color:var(--color-achievement); }
 .me-showcase-streak { font-size:14px; font-weight:500; }
-.me-card-preview-row { margin:0 0 -4px; border-bottom:1px solid var(--line); }
-.me-card-weekly .me-card-preview-row { margin-bottom:8px; border-bottom:0; }
-.me-card-preview-action { font-weight:500; }
 .me-card-weekly .me-card-bars { width:100%; max-width:none; height:calc(64px + 1.2em + 6px); padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; overflow:visible; }
 .me-card-weekly .me-week { min-height:calc(64px + 1.2em + 6px); border-radius:0; }
 .me-card-weekly .me-week > span:first-child { width:18px; margin:0 auto calc(1.2em + 6px); border-radius:4px 4px 0 0; }

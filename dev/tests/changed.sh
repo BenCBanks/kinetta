@@ -14,6 +14,7 @@ map_path() {
     done
   done <<'MAP'
 app/static/app.js,app/static/pages.js,app/static/index.html,app/static/boot.js,app/static/style.css,app/static/theme.css,app/static/fonts/*,app/static/appearance.js,app/static/back-navigation.js,app/static/keyboard.js,app/static/native.js,app/static/refresh.js,app/static/haptics.js,app/static/kit.js;core;all
+app/static/paint-gate.*;core;Home,Progress
 app/static/food*.js,app/static/thread*.js,app/static/cook.js,app/static/recipe-import.js,app/static/food-entry.css,app/static/food-route.css,app/static/nutrition.css,app/static/recipes-ui.css,app/static/insights-ui.css,app/static/vendor/zxing.min.js;food;Nutrition day,Add food,Recipes and foods,Nutrition Insights
 app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/static/activity-home.css,app/static/friends-ui.*,app/static/contacts-ui.*,app/static/challenges.*,app/static/challenge-public.js,app/static/media.js;social;Activity,Activity detail,Friends,Groups,Group create,Group empty roster,Group full roster,Invite acceptance,Activity photo viewer,Activity full map,Sharing & privacy
 app/static/challenge-summary.js;challenges;Activity
@@ -150,5 +151,6 @@ for group in $group_order; do
     *) echo "No changed-screen checks for group $group." >&2; exit 1 ;;
   esac
   for test in $tests; do run_ui "$test"; done
+  if [[ "$group" == core ]]; then KINETTA_LOADING_SCREENS="Home,Progress" KINETTA_LOADING_THEMES="light,dark" NODE_PATH="$browser" node dev/tests/loading_audit.cjs; fi
 done
 echo "Native WebView layout remains a Ready-PR iPhone CI check for app/static changes (macOS Simulator)."

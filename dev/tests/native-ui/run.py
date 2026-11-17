@@ -182,12 +182,12 @@ for device in preferred:
      assert cards['own']['name']=='You' and cards['friend']['name']=='River Friend 1 With a Long Fictional Name',metrics
      for label,card in cards.items():
       header,box=card['header'],card['card'];assert header['x']>=box['x'] and header['right']<=box['right']+.5 and header['y']>=box['y'] and header['bottom']<=box['bottom']+.5,metrics
-      assert card['target']['width']>=44 and card['target']['height']>=44 and card['namePadding']=='0px' and card['nameMargin']=='0px',metrics
+      assert card['target']['width']>=44 and card['target']['height']>=44 and card['target']['receivesProfileTap'] and card['namePadding']=='0px' and card['nameMargin']=='0px',metrics
       assert not card['dateText'].startswith('·') and not card['kindText'].startswith('·'),metrics
       assert card['dateRects'] and card['kindRects'],metrics
       for part in card['nameText']+card['dateRects']+card['kindRects']:
        assert part['x']>=header['x']-.5 and part['right']<=header['right']+.5 and part['y']>=header['y']-.5 and part['bottom']<=header['bottom']+.5,metrics
-      date=card['dateRects'][0];target=card['target'];assert target['right']<=date['x']+.5 or target['y']+target['height']<=date['y']+.5 or date['bottom']<=target['y']+.5,metrics
+      target=card['target'];assert target['x']>=header['x']-.5 and target['right']<=header['right']+.5 and target['y']>=header['y']-.5 and target['bottom']<=header['bottom']+.5,metrics
     if stage.startswith('friends-'):
      friends=metrics['friends'];assert friends['title']=='Friends' and friends['backLabel']=='Back to Me',metrics
      expected_friends=40 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0
