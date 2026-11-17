@@ -1143,11 +1143,11 @@ const MeCard=(()=>{
     if(!['week','all-time'].includes(cardPeriod))throw new TypeError(`Unknown profile card period: ${cardPeriod}`);
     const ownerView=viewer==='owner';
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
-    let data=given?viewerData(given,viewer):null,editing=false,editRevision=0,chartCleanup=()=>{};
+    let data=given?viewerData(given,viewer):null,editing=false,editRevision=0,chartCleanup=()=>{},initialLoad=Promise.resolve();
     const chartPositions=new Map();
     const fitProfileName=()=>{
       const heading=$('.me-card-name h2',card);if(!heading)return;
-      const full=heading.dataset.fullName||heading.textContent.trim();heading.dataset.fullName=full;heading.title=full;heading.setAttribute('aria-label',full);heading.textContent=full;
+      const full=heading.dataset.fullName||heading.textContent.trim();heading.dataset.fullName=full;heading.title=full;heading.setAttribute('aria-label',full);if(heading.textContent!==full)heading.textContent=full;
     };
     const nameObserver=new ResizeObserver(()=>requestAnimationFrame(fitProfileName));nameObserver.observe(card);viewResources.set(card,()=>nameObserver.disconnect());
     function chartScroll(){
@@ -1205,15 +1205,23 @@ const MeCard=(()=>{
       const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);wrap.removeEventListener('click',onClick);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);document.removeEventListener('click',outside,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);
     };
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
-    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,period:cardPeriod,preview});box.setAttribute('aria-busy','false');box.innerHTML=view.html;requestAnimationFrame(fitProfileName);bars();if(view.period==='week'){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}else{weekTaps();periods();}};
+    const draw=()=>{if(!live()||editing||!data)return Promise.resolve();chartCleanup();const view=profileView(data,{viewer,period:cardPeriod,preview});box.setAttribute('aria-busy','false');box.innerHTML=view.html;requestAnimationFrame(fitProfileName);bars();if(view.period==='week'){weeklyTaps();return ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}weekTaps();periods();return Promise.resolve();};
     const loadCard=async()=>{
       try{
         if(!ownerView)throw new TypeError('A shared profile view requires its filtered profile payload.');
-        const profileRead=api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');
-        const statsRead=cardPeriod==='week'?load('/api/stats',()=>{}).catch(()=>null):Promise.resolve(null);
-        const [profile,stats]=await Promise.all([profileRead,statsRead]);
+        let profile=null,stats=null;
+        const profilePath='/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1';
+        const cachedProfile=screenHit(profilePath)?.data||kept(profilePath),cachedStats=screenHit('/api/stats')?.data||kept('/api/stats');
+        let showcaseRead=Promise.resolve();
+        if(cachedProfile){profile=cachedProfile;stats=cachedStats;data=viewerData(stats?{...profile,day_streak:stats.day_streak,week_streak:stats.week_streak,close_to:stats.close_to}:profile,viewer);showcaseRead=draw();}
+        const profileRead=load(profilePath,value=>{profile=value;},{maxAge:30000});
+        const statsRead=cardPeriod==='week'?load('/api/stats',value=>{stats=value;}).catch(()=>{stats=null;}):Promise.resolve(null);
+        await Promise.all([profileRead,statsRead]);
         if(!live())return;
-        data=viewerData(stats?{...profile,day_streak:stats.day_streak,week_streak:stats.week_streak,close_to:stats.close_to}:profile,viewer);draw();
+        if(!profile)throw new Error('Profile data is not available.');
+        const next=viewerData(stats?{...profile,day_streak:stats.day_streak,week_streak:stats.week_streak,close_to:stats.close_to}:profile,viewer);
+        if(JSON.stringify(next)!==JSON.stringify(data)){await showcaseRead;data=next;showcaseRead=draw();}
+        await showcaseRead;
         const closeTo=root.querySelector('[data-me-close-to]');if(closeTo){closeTo.textContent=cardPeriod==='week'&&typeof data.close_to==='string'?data.close_to:'';closeTo.hidden=!closeTo.textContent;}
         if(editOnLoad&&live()){editOnLoad=false;edit({focusName:true,fromSettings:true});}
       }
@@ -1331,8 +1339,8 @@ const MeCard=(()=>{
     $('[data-card-edit]',card).onclick=edit;
     $('[data-card-share]',card).onclick=shareSheet;
     card.addEventListener('click',event=>{if(event.target.closest('[data-card-preview]'))viewAsFriend();});
-    if(data)draw();else loadCard();
-    return {edit};
+    if(data)draw();else initialLoad=loadCard();
+    return {edit,ready:initialLoad};
   }
   const card=(person,opts={})=>profileCard({person,...opts});
   return {header,card,profileCard,ownPills,ownFriends,mount,profileView,firstName,openEditor:()=>go('/me?edit=profile')};
