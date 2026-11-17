@@ -218,6 +218,64 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # A canceled Compact job is retryable only when GitHub shows it waited in queue
+  # without a runner for at least ten minutes. This avoids spending a second Mac
+  # run on simulator failures, runner-started cancellations, or quick manual cancels.
+  compact-retry-gate:
+    needs: [changes, native-ui]
+    if: >-
+      ${{ always() && needs.changes.result == 'success' &&
+          needs.changes.outputs.native == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      retry_compact: ${{ steps.gate.outputs.retry_compact }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test the Compact queue-retry decision
+        run: python3 -m unittest dev.tests.test_compact_retry
+      - name: Check whether Compact was canceled while still queued
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+            > "$RUNNER_TEMP/ios-jobs.json"
+          python3 dev/ci/compact_retry.py "$RUNNER_TEMP/ios-jobs.json" >> "$GITHUB_OUTPUT"
+
+  # This is a separate, single Compact run using the existing unsigned app artifact.
+  # It deliberately has no second retry step, so queue cancellation cannot loop.
+  compact-retry:
+    needs: [build, compact-retry-gate]
+    if: needs.compact-retry-gate.outputs.retry_compact == 'true'
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: actions/download-artifact@v4
+        with:
+          name: Kinetta-simulator
+          path: ${{ runner.temp }}/simulator
+      - name: Unpack the unsigned universal Simulator app
+        run: unzip -q "$RUNNER_TEMP/simulator/Kinetta-simulator.zip" -d "$RUNNER_TEMP/simulator"
+      - name: Retry the Compact simulator check once
+        timeout-minutes: 23
+        run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/native-ui-compact-retry" --device compact --startup-timing
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ui-fictional-evidence-compact-retry
+          path: |
+            ${{ runner.temp }}/native-ui-compact-retry/*.png
+            ${{ runner.temp }}/native-ui-compact-retry/*.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   store-ui:
     needs: [changes, build]
     if: >-
@@ -265,11 +323,13 @@ jobs:
           retention-days: 14
 
   testflight:
-    needs: [changes, build, native-ui, store-ui]
+    needs: [changes, build, native-ui, compact-retry-gate, compact-retry, store-ui]
     # An optional skipped Store job must not skip signing; a required failed job must block it.
     if: >-
       ${{ !cancelled() && needs.changes.result == 'success' && needs.build.result == 'success' &&
-          needs.native-ui.result == 'success' &&
+          (needs.native-ui.result == 'success' ||
+           (needs.compact-retry-gate.outputs.retry_compact == 'true' &&
+            needs.compact-retry.result == 'success')) &&
           ((needs.changes.outputs.store == 'true' && needs.store-ui.result == 'success') ||
            (needs.changes.outputs.store == 'false' && needs.store-ui.result == 'skipped')) &&
           needs.changes.outputs.release == '1' && github.ref == 'refs/heads/main' }}
