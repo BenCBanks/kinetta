@@ -705,7 +705,6 @@ function insights(a) {
       `${Math.round((easy < .4 ? hard : easy) * 100)}% of the time in zones ${easy < .4 ? '4–5' : '1–2'}${a.effort ? ` · effort ${Math.round(a.effort)}` : ''}.`]);
   }
   if (a.vo2max) out.push(['', `VO₂max estimate ${a.vo2max}`, 'From pace (hills adjusted) versus heart rate. Trends matter more than one run.']);
-  if (a.route_count > 1) out.push(['', `You've done this route ${a.route_count} times`, 'See how you compare over time below.']);
   return out;
 }
 function sportStats(a, asRows = false) {
@@ -865,15 +864,14 @@ function drawDetail(el, a) {
     overview: `<div class="card activity-detail-list">
       ${a.description ? `<p class="detail-description">${esc(a.description)}</p>` : ''}
       ${detailGroup('',`<div class="detail-kv-list">${detailRows(workoutRows)}</div>`)}
+      ${a.route_id && a.route_count > 1 ? '<div id="d-route-compare"></div>' : ''}
       ${a.has_intervals ? detailGroup('Intervals','<div id="activity-interval-history"></div>') : ''}
       ${a.lifts ? detailGroup('Lifting',liftCard(a)) : ''}
       ${a.power_curve && a.power_curve.length ? detailGroup('Power curve',`<table class="tbl detail-power-table"><tbody>${a.power_curve.map(p => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</tbody></table>`) : ''}
       ${ins.length ? detailGroup('Insights',ins.map(([k,t,d])=>{const icon=t.startsWith('New personal record')?'trophy':t==='Hard session'?'flame':'';return `<div class="insight detail-insight"><span class="${icon?'insight-icon':'dot'} ${k}">${icon?svg(icon):''}</span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`;}).join('')) : ''}
-      ${a.route_id ? `<a class="detail-link-row" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><span>${esc(a.route_name)}<small>Matched route · ${a.route_count} ${a.route_count === 1 ? 'activity' : 'activities'}</small></span><b class="detail-link-end"><span class="detail-compare">Compare</span>${svg('chev')}</b></a>` : ''}
       ${a.line && appFeatureEnabled('progress_segments') ? '<div id="d-segments"></div>' : ''}
       ${a.private_note ? detailGroup('Private note',`<p class="detail-note">${esc(a.private_note)}</p>`) : ''}
       ${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="detail-text-action" type="button" id="d-add-map">Add the map</button>':''}
-      <div class="detail-action-row"><div id="d-photos"></div><button type="button" class="detail-text-action" id="d-comment-open">Comment</button></div>
     </div>`,
     splits: `${splits && splits.length > 1 || a.laps && a.laps.length > 1 ? `<div class="card activity-detail-list">
       ${splits && splits.length > 1 ? splitsTable(a,splits) : ''}
@@ -894,6 +892,26 @@ function drawDetail(el, a) {
   let drawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; } });
   ActivityDetail.wire(el,a);
+  const routeCompare=$('#d-route-compare',el);
+  if(routeCompare)load(`/api/routes/${a.route_id}`,route=>{
+    if(!routeCompare.isConnected)return;
+    const prior=(route.activities||[]).filter(x=>Number(x.id)!==Number(a.id));
+    const times=prior.filter(x=>Number(x.elapsed_s)>0).map(x=>Number(x.elapsed_s));
+    const average=times.length?times.reduce((sum,n)=>sum+n,0)/times.length:null;
+    const best=times.length?Math.min(...times):null;
+    const earlierCount=prior.length||Math.max(0,Number(a.route_count)-1);
+    const noun=a.sport==='run'?'runs':a.sport==='ride'?'rides':a.sport==='walk'?'walks':'activities';
+    let result='Earlier times are available on this route.';
+    if(average!=null&&Number(a.elapsed_s)>0){
+      const delta=Math.round(Math.abs(average-Number(a.elapsed_s)));
+      result=delta<1?'Right around your earlier average':`${dur(delta)} ${Number(a.elapsed_s)<average?'faster':'slower'} than your earlier average`;
+    }
+    routeCompare.innerHTML=`<section class="detail-route-comparison" aria-label="Route comparison">
+      <p class="detail-route-context">Compared with your ${earlierCount} earlier ${noun} on this route</p>
+      <div class="detail-route-result"><b>${esc(result)}</b>${best!=null?`<span>Best earlier time · ${esc(dur(best))}</span>`:''}</div>
+      <a class="detail-route-action" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><span>Compare</span>${svg('chev')}</a>
+    </section>`;
+  },{maxAge:60000});
   const stickyTitle=$('.detail-sticky .detail-bar-title',el);
   if(stickyTitle){
     const fitTitle=()=>{if(!stickyTitle.clientWidth)return;for(let size=(innerWidth<=360?17:16);size>=11;size-=.5){stickyTitle.style.fontSize=`${size}px`;if(stickyTitle.scrollWidth<=stickyTitle.clientWidth+1)break;}};
@@ -903,8 +921,6 @@ function drawDetail(el, a) {
   const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to the Health app without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   if(a.has_intervals)globalThis.Intervals?.history($('#activity-interval-history',el),a.id);
   ownSocial(el, a);
-  $('#d-comment-open',el).onclick=()=>commentsSheet(a.id,SocialData.peek(a.id),()=>{});
-  photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
   if (a.lifts) fillLiftCard(el, a);
   const kb = $('#d-kit', el);
