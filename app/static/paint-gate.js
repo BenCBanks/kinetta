@@ -7,7 +7,21 @@
   const owner = () => JSON.stringify([Native.base || location.origin, App.me?.id ?? null]);
   const route = () => location.pathname + location.search;
 
-  const shell = kind => kind === 'progress'
+  const shell = kind => kind === 'nutrition'
+    ? `<div class="paint-gate-placeholder paint-gate-nutrition" aria-hidden="true">
+        <div class="paint-gate-heading"><i></i><span><i></i><i></i></span></div>
+        <div class="paint-gate-food-action"><i></i><i></i></div>
+        <div class="paint-gate-food-summary"><i></i><span><i></i><i></i><i></i></span></div>
+        <div class="paint-gate-food-meal"><i></i><span><i></i><i></i></span><i></i></div>
+        <div class="paint-gate-food-meal"><i></i><span><i></i><i></i></span><i></i></div>
+      </div>`
+    : kind === 'me'
+    ? `<div class="paint-gate-placeholder paint-gate-me" aria-hidden="true">
+        <div class="paint-gate-heading"><i></i><span><i></i></span></div>
+        <div class="paint-gate-profile"><i></i><span><i></i><i></i></span><div><i></i><i></i><i></i></div></div>
+        <div class="paint-gate-me-today"><i></i><span><i></i><i></i><i></i></span></div>
+      </div>`
+    : kind === 'progress'
     ? `<div class="paint-gate-placeholder paint-gate-progress" aria-hidden="true">
         <div class="paint-gate-heading"><i></i><span><i></i><i></i></span></div>
         <div class="paint-gate-summary"><i></i><i></i></div>
@@ -34,9 +48,10 @@
     }
     state.node.remove();
     if (!current || !el.isConnected || owner() !== state.account || route() !== state.route) return;
+    const waitedMs=Math.round(performance.now()-state.startedAt);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       if (el.isConnected && owner() === state.account && route() === state.route)
-        el.dispatchEvent(new CustomEvent('kinetta:screen-painted', {bubbles:true,detail:{screen:state.kind, waitedMs:Math.round(performance.now()-state.startedAt)}}));
+        el.dispatchEvent(new CustomEvent('kinetta:screen-painted', {bubbles:true,detail:{screen:state.kind, waitedMs}}));
     }));
   }
   function clearAll() {
@@ -59,7 +74,7 @@
     const state = {id, el, kind, account, route:route(), node, startedAt:performance.now(), done:false, timer:null};
     pending.set(el, state);
     active.add(state);
-    state.timer = setTimeout(() => show(el,state), 1500);
+    state.timer = setTimeout(() => show(el,state), 1450);
     return {
       finish: promise => Promise.resolve(promise).finally(() => show(el,state))
     };

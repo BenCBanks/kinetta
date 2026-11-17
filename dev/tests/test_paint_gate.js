@@ -33,7 +33,7 @@ const cleaned=({page,children})=>!page.dataset.paintGate&&!page.attrs.has('aria-
 
  f=fixture();work=deferred();gate=f.c.PaintGate.begin(f.page,'progress');let settled=false;
  const late=gate.finish(work.promise).finally(()=>{settled=true;});
- const [id,timer]=[...f.timers.entries()][0];assert.equal(timer.ms,1500);timer.fn();
+ const [id,timer]=[...f.timers.entries()][0];assert.equal(timer.ms,1450,'reveal stays below the 1.5 second cap with scheduler margin');timer.fn();
  await Promise.resolve();assert(cleaned(f),'the 1.5 second cap reveals the real screen');assert.equal(settled,false,'the cap reveals but does not resolve outstanding work');
  work.reject(Error('late API failure'));await assert.rejects(late,/late API failure/,'an error after the cap still reaches the router');assert.equal(f.events.length,1,'the owner still receives one first-paint event before the late error');
  console.log('Paint gate: account/route cleanup, cached rejection and 1.5s reveal preserve router errors PASS');

@@ -161,7 +161,7 @@ for group in $group_order; do
     *) echo "No changed-screen checks for group $group." >&2; exit 1 ;;
   esac
   for test in $tests; do run_ui "$test"; done
-  if [[ "$group" == core ]]; then KINETTA_LOADING_SCREENS="Home,Progress" KINETTA_LOADING_THEMES="light,dark" NODE_PATH="$browser" node dev/tests/loading_audit.cjs; fi
+  if [[ "$group" == core ]]; then KINETTA_LOADING_SCREENS="Home,Progress,Nutrition day,Me" KINETTA_LOADING_THEMES="light,dark" NODE_PATH="$browser" node dev/tests/loading_audit.cjs; fi
 done
 for test in "${contract_tests[@]}"; do
   [[ -n "$test" ]] || continue

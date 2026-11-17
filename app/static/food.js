@@ -231,11 +231,17 @@ route(/^\/food$/, 'food', async (el) => {
   if(photo)photo.onclick=()=>describeSheet(q.get('d'),null,'snap');
   if(scan)scan.onclick=()=>describeSheet(q.get('d'),null,'scan');
   let openedGoals=false;
-  await load(`/api/food/day?d=${day}`, (D) => {
+  const dayPath=`/api/food/day?d=${day}`;
+  const cached=!!((typeof screenHit==='function'&&screenHit(dayPath))||App.cache.has(dayPath)||kept(dayPath));
+  const paint=PaintGate.begin(el,'nutrition',{cached});
+  // The discovery list is below the first fold. Start it alongside the day read so its
+  // placeholder and any cached teaser exist before the gated Nutrition content is shown.
+  if(el.isConnected)foodDiscovery(el);
+  const dayRead=load(dayPath, (D) => {
     drawDay(el,D);
     if(q.get('goals')==='1'&&!openedGoals&&el.isConnected){openedGoals=true;Discovery.visit('nutrition','goals');goalSheet(D);}
   }, {maxAge:5000});
-  if(el.isConnected)foodDiscovery(el);
+  await paint.finish(dayRead);
   if (q.get('add') === '1' && el.isConnected) {
     history.replaceState(null, '', '/food'); describeSheet(q.get('d'),null);
   }

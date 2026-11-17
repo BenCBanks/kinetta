@@ -970,7 +970,7 @@ function shareFields(box, aid, s) {
     const changed = Object.keys(d).some((k) => d[k] !== s.details[k]), body = {visibility: vis};
     if (usual) body.usual_details = true; else if (changed) body.details = d;
     if (vis === s.visibility && !usual && !changed) return;
-    await api(`/api/activities/${aid}/sharing`, json('PUT', body)); socialChanged(aid);
+    await api(`/api/activities/${aid}/sharing`, json('PUT', body));socialChanged(aid);invalidate('/api/people/');MeCard.clearPreviewCache?.();
   };
 }
 
@@ -1013,7 +1013,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
         if(act.dataset.personAction==='cancel')await api(url,{method:'DELETE'});
         else if(act.dataset.personAction==='accept')await api(url+'/accept',json('POST',{}));
         else await api('/api/friends',json('POST',{login:p.login}));
-        invalidate('/api/friends');invalidate('/api/people/');invalidate('/api/me');invalidateFeed();if(active())await reload();
+        invalidate('/api/friends');invalidate('/api/people/');MeCard.clearPreviewCache?.();invalidate('/api/me');invalidateFeed();if(active())await reload();
       }catch(x){if(active()){toast(x.message);act.disabled=false;}}
     };
     const manage=$('[data-person-manage]',box);if(manage)manage.onclick=()=>friendshipSheet(p,({blocked})=>blocked?go('/me/friends',{replace:true}):reload());
@@ -1066,7 +1066,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   async function reload(initial=false,focus=null){
     const version=++revision;deferred=null;let pending;
     if(!focus&&document.activeElement?.matches('[data-card-edit]'))focus='[data-card-edit]';
-    if(!initial)invalidate('/api/people/');box.style.minHeight=box.getBoundingClientRect().height+'px';box.setAttribute('aria-busy','true');
+    if(!initial){invalidate('/api/people/');MeCard.clearPreviewCache?.();}box.style.minHeight=box.getBoundingClientRect().height+'px';box.setAttribute('aria-busy','true');
     // Clear the previous projection immediately, including any private owner feed.
     box.innerHTML=skel(2);
     try{await load(path(),r=>{if(active()&&version===revision)pending=draw(r);},{maxAge:0});await pending;
@@ -1092,7 +1092,7 @@ function friendChangeSheet(p, block, onChange) {
       try {
         await api(block?`/api/people/${encodeURIComponent(p.login)}/block`:`/api/friends/${encodeURIComponent(p.login)}`,block?json('POST',{}):{method:'DELETE'});
         if(owner!==readOwner())return;
-        invalidate('/api/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();
+        invalidate('/api/friends');invalidate('/api/people/');MeCard.clearPreviewCache?.();invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();
         close();toast(block?`${p.name} is blocked`:'Friend removed');await onChange?.({blocked:block,login:p.login});
       }catch(x){if(live()){$('.err',b).textContent=x.message;$$('button',b).forEach(x=>x.disabled=false);}}
     };
@@ -1184,7 +1184,7 @@ function peopleRow(box, people, {title = 'People you may know', onChange, invite
       const r = await api('/api/friends', json('POST', {login: b.dataset.add}));
       if(!live())return;
       b.outerHTML = `<span class="friend-status" role="status"><span aria-hidden="true">✓</span> ${r.status === 'friends' ? 'Friends' : 'Requested'}</span>`;
-      invalidate('/api/friends');invalidate('/api/people/');invalidateFeed();await onChange?.();
+      invalidate('/api/friends');invalidate('/api/people/');MeCard.clearPreviewCache?.();invalidateFeed();await onChange?.();
     } catch (x) { if(live()){toast(x.message);b.disabled=false;b.classList.remove('is-pending');b.removeAttribute('aria-busy');b.setAttribute('aria-label',label);b.innerHTML=compactAdd?svg('plus'):'＋ Add';} }
   });
 }
@@ -1541,7 +1541,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       if(body.default){s.default=body.default;App.me.share_default=body.default;keep('/api/me',App.me);}
       if(body.details)s.details=body.details;
       if(body.share_achievements!==undefined)s.share_achievements=body.share_achievements;
-      invalidate('/api/');if(box.isConnected)toast(msg);
+      invalidate('/api/');MeCard.clearPreviewCache?.();if(box.isConnected)toast(msg);
     }catch(x){
       if(sharingOwner===readOwner()&&box.isConnected){$$('[data-vis]',box).forEach(b=>{b.setAttribute('aria-checked',String(b.dataset.vis===s.default));b.tabIndex=b.dataset.vis===s.default?0:-1;b.innerHTML=`<span>${esc(VIS_SHORT[b.dataset.vis])}</span>${b.dataset.vis===s.default?svg('check'):''}`;});
         $$('input[name]',box).forEach(b=>{if(Object.hasOwn(s.details,b.name))b.checked=!!s.details[b.name];});$('#sh-achievements',box).checked=!!s.share_achievements;$('#sh-find',box).checked=!!s.findable;toast(x.message);}
@@ -1554,7 +1554,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   $('#sh-find', box).onchange = async (e) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
     const on = e.target.checked,input=e.target;input.disabled=true;
-    try { await api('/api/sharing', json('PUT', {findable: on}));if(sharingOwner!==readOwner()||!box.isConnected)return;s.findable=on;toast(on ? 'People can find you by name' : "You're hidden from friend search"); }
+    try { await api('/api/sharing', json('PUT', {findable: on}));if(sharingOwner!==readOwner()||!box.isConnected)return;s.findable=on;invalidate('/api/people/');MeCard.clearPreviewCache?.();toast(on ? 'People can find you by name' : "You're hidden from friend search"); }
     catch (x) { e.target.checked = !on; toast(x.message); }
     finally{if(sharingOwner===readOwner()&&box.isConnected)input.disabled=false;}
   };
@@ -1594,13 +1594,13 @@ route(/^\/me\/sharing\/routes$/, 'me', async (el) => {
   const s=await api('/api/sharing'),box=$('#sh-trim-options',el);if(!el.isConnected||owner!==readOwner())return;
   box.innerHTML=s.trims.map(m=>`<button type="button" class="sharing-choice" role="radio" tabindex="${m===s.trim_m?0:-1}" aria-checked="${m===s.trim_m}" data-trim="${m}"><span>${esc(trimName(m))}</span>${m===s.trim_m?svg('check'):''}</button>`).join('')+'<p class="settings-footnote">A route too short for this distance is shared without a map.</p>';
   const trimChoices=$$('[data-trim]',box);
-  trimChoices.forEach(b=>{b.onclick=async()=>{if(owner!==readOwner()||b.disabled)return;const previous=s.trim_m,next=Number(b.dataset.trim);trimChoices.forEach(o=>{o.disabled=true;o.tabIndex=o===b?0:-1;o.setAttribute('aria-checked',String(o===b));o.innerHTML=`<span>${esc(trimName(Number(o.dataset.trim)))}</span>${o===b?svg('check'):''}`;});try{await api('/api/sharing',json('PUT',{trim_m:next}));if(owner!==readOwner()||!el.isConnected)return;s.trim_m=next;invalidate('/api/');toast(next===0?'Maps show the whole route':`Maps hide the first and last ${trimName(next)}`);go('/me/sharing');}catch(error){trimChoices.forEach(o=>{o.disabled=false;o.tabIndex=Number(o.dataset.trim)===previous?0:-1;o.setAttribute('aria-checked',String(Number(o.dataset.trim)===previous));o.innerHTML=`<span>${esc(trimName(Number(o.dataset.trim)))}</span>${Number(o.dataset.trim)===previous?svg('check'):''}`;});toast(error.message);}};b.onkeydown=e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=trimChoices.indexOf(b),next=e.key==='Home'?0:e.key==='End'?trimChoices.length-1:(current+(e.key==='ArrowDown'?1:-1)+trimChoices.length)%trimChoices.length;trimChoices[next].focus();trimChoices[next].click();};});
+  trimChoices.forEach(b=>{b.onclick=async()=>{if(owner!==readOwner()||b.disabled)return;const previous=s.trim_m,next=Number(b.dataset.trim);trimChoices.forEach(o=>{o.disabled=true;o.tabIndex=o===b?0:-1;o.setAttribute('aria-checked',String(o===b));o.innerHTML=`<span>${esc(trimName(Number(o.dataset.trim)))}</span>${o===b?svg('check'):''}`;});try{await api('/api/sharing',json('PUT',{trim_m:next}));if(owner!==readOwner()||!el.isConnected)return;s.trim_m=next;invalidate('/api/');MeCard.clearPreviewCache?.();toast(next===0?'Maps show the whole route':`Maps hide the first and last ${trimName(next)}`);go('/me/sharing');}catch(error){trimChoices.forEach(o=>{o.disabled=false;o.tabIndex=Number(o.dataset.trim)===previous?0:-1;o.setAttribute('aria-checked',String(Number(o.dataset.trim)===previous));o.innerHTML=`<span>${esc(trimName(Number(o.dataset.trim)))}</span>${Number(o.dataset.trim)===previous?svg('check'):''}`;});toast(error.message);}};b.onkeydown=e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=trimChoices.indexOf(b),next=e.key==='Home'?0:e.key==='End'?trimChoices.length-1:(current+(e.key==='ArrowDown'?1:-1)+trimChoices.length)%trimChoices.length;trimChoices[next].focus();trimChoices[next].click();};});
 });
 
 route(/^\/me\/sharing\/blocked$/, 'me', async (el) => {
   const owner=readOwner();el.classList.add('sharing-settings','sharing-subpage');
   el.innerHTML=`<div class="top">${backBtn('Sharing & privacy')}</div><h1>Blocked people</h1><div class="settings-caption">People you’ve blocked</div><div class="social-settings-group" id="sh-blocked-list">${skel(2)}</div>`;
   wireBack(el,'/me/sharing');const box=$('#sh-blocked-list',el);
-  const render=rows=>{if(!box.isConnected||owner!==readOwner())return;box.innerHTML=rows.length?rows.map(p=>`<div class="sharing-person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small>@${esc(p.login)}</small></span><button type="button" class="linkbtn" data-unblk="${esc(p.login)}">Unblock</button></div>`).join(''):'<p class="settings-empty">No blocked people</p>';$$('[data-unblk]',box).forEach(button=>button.onclick=async()=>{if(owner!==readOwner()||button.disabled)return;button.disabled=true;try{await api(`/api/people/${encodeURIComponent(button.dataset.unblk)}/block`,{method:'DELETE'});if(owner!==readOwner())return;invalidate('/api/');render(await api('/api/blocks'));toast('Unblocked');}catch(error){if(owner===readOwner()){toast(error.message);button.disabled=false;}}});};
+  const render=rows=>{if(!box.isConnected||owner!==readOwner())return;box.innerHTML=rows.length?rows.map(p=>`<div class="sharing-person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small>@${esc(p.login)}</small></span><button type="button" class="linkbtn" data-unblk="${esc(p.login)}">Unblock</button></div>`).join(''):'<p class="settings-empty">No blocked people</p>';$$('[data-unblk]',box).forEach(button=>button.onclick=async()=>{if(owner!==readOwner()||button.disabled)return;button.disabled=true;try{await api(`/api/people/${encodeURIComponent(button.dataset.unblk)}/block`,{method:'DELETE'});if(owner!==readOwner())return;invalidate('/api/');MeCard.clearPreviewCache?.();render(await api('/api/blocks'));toast('Unblocked');}catch(error){if(owner===readOwner()){toast(error.message);button.disabled=false;}}});};
   try{render(await api('/api/blocks'));}catch(error){if(owner===readOwner()&&box.isConnected)box.innerHTML=`<p class="settings-empty">Blocked people couldn't load.</p><button type="button" class="linkbtn" id="sh-blocked-retry">Retry</button>`;const retry=$('#sh-blocked-retry',box);if(retry)retry.onclick=async()=>{retry.disabled=true;try{render(await api('/api/blocks'));}catch(x){toast(x.message);retry.disabled=false;}};}
 });

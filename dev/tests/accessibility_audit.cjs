@@ -9,8 +9,12 @@ const exceptions=JSON.parse(fs.readFileSync(path.join(__dirname,'accessibility_e
 const ids=new Set();for(const e of exceptions){assert(e.id&&!ids.has(e.id));ids.add(e.id);assert(e.rule&&/^[.#][\w-]+/.test(e.selector)&&!e.selector.includes('*'));assert(Number.isInteger(e.maximum)&&e.maximum>0&&e.maximum<=12);assert(e.reason?.length>=40,'Every narrow exception needs its written reason');}
 const output=process.env.KINETTA_ACCESSIBILITY_OUTPUT||'/tmp/'+project+'-accessibility';fs.mkdirSync(output,{recursive:true});
 const names=['Me','Activity','Activity detail','Track ready','Progress','Nutrition day','Add food','Settings'];
-const selected=scenes(fixtures).filter(s=>names.includes(s.name));assert.equal(selected.length,names.length);
-selected.push({name:'Sign-up',route:'/signup',ready:'input[name=age_ok]',signup:true});
+const requested=process.env.KINETTA_ACCESSIBILITY_SCREENS?process.env.KINETTA_ACCESSIBILITY_SCREENS.split(','):names;
+assert(requested.length>0&&requested.every(name=>names.includes(name)||name==='Sign-up'),'Accessibility audit scene selection is valid');
+const available=scenes(fixtures),selected=requested.filter(name=>name!=='Sign-up').map(name=>available.find(scene=>scene.name===name));
+assert(selected.every(Boolean),'Every requested accessibility scene has a fixture');
+if(requested.includes('Sign-up'))selected.push({name:'Sign-up',route:'/signup',ready:'input[name=age_ok]',signup:true});
+const expectedCases=selected.length*2;
 (async()=>{
  const browser=await chromium.launch(),results=[],errors=[];
  try{
@@ -36,8 +40,8 @@ selected.push({name:'Sign-up',route:'/signup',ready:'input[name=age_ok]',signup:
   }
  }finally{await browser.close();}
  fs.writeFileSync(path.join(output,'report.json'),JSON.stringify({axe:require('axe-core/package.json').version,results,errors},null,2));
- const failures=results.reduce((n,r)=>n+r.violations.length,0);assert.equal(results.length+errors.length,18,'All required screen/theme cases attempted');
- const summary=`Accessibility: ${results.length}/18 cases, ${failures} serious/critical violations, ${errors.length} guard/loading errors. Fictional screenshots, exceptions and incomplete/manual-review findings are in the accessibility artifact.\n`;
+ const failures=results.reduce((n,r)=>n+r.violations.length,0);assert.equal(results.length+errors.length,expectedCases,'All selected screen/theme cases attempted');
+ const summary=`Accessibility: ${results.length}/${expectedCases} cases, ${failures} serious/critical violations, ${errors.length} guard/loading errors. Fictional screenshots, exceptions and incomplete/manual-review findings are in the accessibility artifact.\n`;
  console.log(summary);if(process.env.GITHUB_STEP_SUMMARY)fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Accessibility audit\n\n'+summary);
  if(failures||errors.length)process.exitCode=1;
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

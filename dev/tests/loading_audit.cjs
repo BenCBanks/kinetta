@@ -41,7 +41,8 @@ async function state(page){
   feedTools:document.querySelector('#feed-tools')?{busy:document.querySelector('#feed-tools').getAttribute('aria-busy'),posts:document.querySelectorAll('#ff-list .post').length}:null,
   calmPaint:window.__loadingAudit?.paint||null,
   postPaintCls:window.__loadingAudit?.postPaintCls||0,
-  postPaintSectionMutations:window.__loadingAudit?.postPaintSectionMutations||0
+  postPaintSectionMutations:window.__loadingAudit?.postPaintSectionMutations||0,
+  postPaintMutations:window.__loadingAudit?.postPaintMutations||[]
  }));
 }
 
@@ -81,8 +82,8 @@ async function coldFixturePage(browser,base,scene,sessions,theme){
   const page=await context.newPage();page.on('pageerror',error=>pageErrors.push(error.message));page.on('requestfailed',request=>{const pathname=new URL(request.url()).pathname,error=request.failure()?.errorText||'failed';if(!(pathname.startsWith('/__loading_tiles/')&&error==='net::ERR_ABORTED'))failed.push(`${request.method()} ${pathname}: ${error}`);});
   await page.clock.setFixedTime(screenshotClock);
   await page.addInitScript(()=>{
-   window.__loadingAuditStart=performance.now();window.__loadingAudit={cls:0,shifts:[],postPaintCls:0,postPaintSectionMutations:0};
-   document.addEventListener('kinetta:screen-painted',event=>{const root=event.target,sections=event.detail.screen==='progress'?'#p-combined-week,#p-home-totals,#p-explore':'#weekly-recap,#feed-tools,#ff-list,#activity-groups-strip';window.__loadingAudit.paint={screen:event.detail.screen,waitedMs:event.detail.waitedMs};window.__loadingAudit.postPaintAt=performance.now();const observer=new MutationObserver(records=>{for(const record of records)if(record.type==='childList'){const target=record.target.nodeType===1?record.target:record.target.parentElement;if(target===root||target?.closest(sections))window.__loadingAudit.postPaintSectionMutations++;}});observer.observe(root,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),1800);});
+   window.__loadingAuditStart=performance.now();window.__loadingAudit={cls:0,shifts:[],postPaintCls:0,postPaintSectionMutations:0,postPaintMutations:[]};
+   document.addEventListener('kinetta:screen-painted',event=>{const root=event.target,sections={progress:'#p-combined-week,#p-home-totals,#p-explore',home:'#weekly-recap,#feed-tools,#ff-list,#activity-groups-strip',nutrition:'#fd-sum,#fd-meals',me:'#me-overview'}[event.detail.screen]||'';window.__loadingAudit.paint={screen:event.detail.screen,waitedMs:event.detail.waitedMs};window.__loadingAudit.postPaintAt=performance.now();const observer=new MutationObserver(records=>{for(const record of records)if(record.type==='childList'){const target=record.target.nodeType===1?record.target:record.target.parentElement,added=[...record.addedNodes].filter(node=>node.nodeType===1),removed=[...record.removedNodes].filter(node=>node.nodeType===1);if((target===root||target?.closest(sections))&&(added.length||removed.length)){window.__loadingAudit.postPaintSectionMutations++;const path=[];for(let node=target;node&&node!==root;node=node.parentElement)path.push(node.id||String(node.className||node.tagName||''));window.__loadingAudit.postPaintMutations.push({target:target?.id||String(target?.className||target?.tagName||''),path,added:added.length,removed:removed.length});}}});observer.observe(root,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),1800);});
    try{new PerformanceObserver(list=>{for(const entry of list.getEntries())if(!entry.hadRecentInput){window.__loadingAudit.cls+=entry.value;if(window.__loadingAudit.postPaintAt&&entry.startTime>window.__loadingAudit.postPaintAt)window.__loadingAudit.postPaintCls+=entry.value;window.__loadingAudit.shifts.push({at:Math.round(entry.startTime),value:entry.value,sources:(entry.sources||[]).slice(0,4).map(source=>({tag:source.node?.tagName||'',id:source.node?.id||'',className:String(source.node?.className||'').slice(0,80)}))});}}).observe({type:'layout-shift',buffered:true});}catch{}
   });
   return {context,page,auth,writes,pageErrors,failed};
@@ -122,21 +123,26 @@ async function main(){
     await p.waitForFunction(selector=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector(selector)?.getClientRects().length&&!document.querySelector('#app .boot'),firstUseful,{timeout:30000});
     const ready=await state(p);
     assert(ready.documentWidth<=ready.viewportWidth,`${scene.name} has no horizontal viewport overflow: ${ready.documentWidth} > ${ready.viewportWidth}`);
-    if(['Home','Progress'].includes(scene.name)){
-     await p.waitForFunction(screen=>window.__loadingAudit?.paint?.screen===screen,scene.name==='Home'?'home':'progress',{timeout:5000});
+    if(['Home','Progress','Nutrition day','Me'].includes(scene.name)){
+     const screen={Home:'home',Progress:'progress','Nutrition day':'nutrition',Me:'me'}[scene.name];
+     await p.waitForFunction(name=>window.__loadingAudit?.paint?.screen===name,screen,{timeout:5000});
      await p.waitForTimeout(1900);
      const calm=await state(p);
      assert(calm.calmPaint&&calm.calmPaint.waitedMs<=1500,`${scene.name} paints once after its first reads or the 1.5s cap: ${JSON.stringify(calm.calmPaint)}`);
      assert(calm.postPaintCls<=0.02,`${scene.name} has no visible post-paint layout shift: ${calm.postPaintCls}`);
      assert.equal(calm.postPaintSectionMutations,0,`${scene.name} has no screen section inserted after first paint`);
      await captureFrame(p,path.join(output,`${safe(scene.name)}-${width}-${theme}-painted.png`));
-     const home=scene.name==='Home',other=home?'/progress':'/activity',back=home?'/activity':'/progress',readySelector=home?'#ff-list':'#p-explore';
+     const home=scene.name==='Home',other=home?'/progress':scene.name==='Progress'?'/activity':scene.name==='Nutrition day'?'/me':'/food',back=home?'/activity':scene.name==='Progress'?'/progress':scene.name==='Nutrition day'?'/food':'/me',readySelector=home?'#ff-list':scene.name==='Progress'?'#p-explore':scene.name==='Nutrition day'?'#fd-sum':'.me-card-sections';
      await p.evaluate(path=>go(path),other);
      await p.waitForFunction(()=>typeof App!=='undefined'&&App.pageReady,{timeout:15000});
+     await p.evaluate(()=>{for(const value of App.cache.values())value.at=0;});
      await p.evaluate(path=>go(path),back);
+     const immediateSelector=scene.name==='Nutrition day'?'#fd-sum .nutrition-day-summary':scene.name==='Me'?'.me-card-sections[aria-busy="false"]':readySelector;
+     await p.waitForFunction(selector=>!document.querySelector('#page')?.hasAttribute('data-paint-gate')&&!!document.querySelector(selector)?.getClientRects().length,immediateSelector,{timeout:200});
      await p.waitForFunction(selector=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector(selector),readySelector,{timeout:15000});
-     const revisit=await p.evaluate(()=>({placeholder:!!document.querySelector('.paint-gate-placeholder'),busy:document.querySelector('#page')?.hasAttribute('aria-busy'),feedRows:document.querySelectorAll('#ff-list .post').length}));
+     const revisit=await p.evaluate(selector=>({placeholder:!!document.querySelector('.paint-gate-placeholder'),busy:document.querySelector('#page')?.hasAttribute('aria-busy'),ready:!!document.querySelector(selector)?.getClientRects().length,feedRows:document.querySelectorAll('#ff-list .post').length}),readySelector);
      assert(!revisit.placeholder&&!revisit.busy,`${scene.name} revisits paint its account-scoped cached screen immediately: ${JSON.stringify(revisit)}`);
+     assert(revisit.ready,`${scene.name} revisits keep the useful screen visible: ${JSON.stringify(revisit)}`);
      if(home&&width===390&&theme==='light'){
       await p.evaluate(()=>{window.__normalHomeFeed=homeFeed;homeFeed=()=>Promise.reject(Object.assign(Error('Fictional cached feed failure'),{status:503}));void go('/food');});
       await p.waitForFunction(()=>location.pathname==='/food'&&document.querySelector('#page')?.getBoundingClientRect().height>0,undefined,{timeout:10000});

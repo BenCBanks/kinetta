@@ -1098,11 +1098,12 @@ async function foodWarmupCase(browser){
 
   const foodNativeContext=await fixtureContext(browser);
   try{
-    await login(foodNativeContext);const page=await foodNativeContext.newPage(),errors=[],historyCalls=[],blockedWrites=[];page.on('pageerror',error=>errors.push(error.message));
+    await login(foodNativeContext);const nativeLogin=await foodNativeContext.request.post(base+'/api/login',{headers:{Origin:base},data:{login:user,password,app:true}});assert.equal(nativeLogin.status(),200,'fictional Native session is issued for the redirect check');const {token}=await nativeLogin.json();
+    const page=await foodNativeContext.newPage(),errors=[],historyCalls=[],blockedWrites=[];page.on('pageerror',error=>errors.push(error.message));
     await filterFoodRequests(page,route=>route.continue(),blockedWrites);
     await page.route('**/api/food/history**',route=>{const request=route.request(),url=new URL(request.url()),todayRead=request.method()==='GET'&&url.pathname==='/api/food/history'&&url.search==='?days=30';if(!todayRead)historyCalls.push(`${request.method()} ${url.pathname}`);return request.method()==='GET'?route.continue():route.abort();});
     await page.goto(base+'/me');await ready(page,meReady);
-    await page.evaluate(()=>{Native.on=true;});assert.equal(await page.evaluate(()=>Native.on),true,'native redirect fixture is enabled');
+    await page.evaluate(token=>{Native.token=token;Native.on=true;},token);assert.equal(await page.evaluate(()=>Native.on&&!!Native.token),true,'authenticated native redirect fixture is enabled');
     await page.evaluate(()=>go('/food/import'));
     await until(page,()=>location.pathname==='/food','native Food import redirects to Nutrition');
     assert.deepEqual(historyCalls,[],'native redirect makes no import history preview/day/summary calls');assert.deepEqual(blockedWrites,[]);assert.deepEqual(errors,[]);

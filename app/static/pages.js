@@ -490,11 +490,11 @@ async function meOverview(el) {
     '<div id="t-required"></div><div id="t-today"></div>'+
     '<div id="t-content"><div id="t-checkin"></div><div id="t-recap"></div><div id="t-goals"></div><div id="t-insights" hidden></div></div>'+
     '<div id="t-start"></div><div id="t-setup"></div>';
-  MeCard.mount(el,{viewer:'owner',period:'week',preview:true,reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'});
-  if(typeof Milestones!=='undefined')Milestones.mount($('[data-me-milestones]',el),{row:true});
+  const cardRead=MeCard.mount(el,{viewer:'owner',period:'week',preview:true,reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'})?.ready||Promise.resolve();
+  const milestoneRead=typeof Milestones!=='undefined'?Milestones.mount($('[data-me-milestones]',el),{row:true}):Promise.resolve();
   const setup=$('#t-setup',el),todayRoot=$('#t-today',el),owner=readOwner();
   if(me.needs_email_confirm)$('#t-required',el).innerHTML='<a class="card tap row-link" href="/me/settings?email=add"><span class="ri c-brand">'+svg('mail')+'</span><span class="grow"><b>Confirm your email</b><small class="muted">Your profile stays hidden until you confirm it.</small></span>'+svg('chev')+'</a>';
-  if(typeof Recaps!=='undefined')Recaps.offer($('#t-recap',el));
+  const recapRead=typeof Recaps!=='undefined'?Recaps.offer($('#t-recap',el)):Promise.resolve();
   let foodHistory=null,activityHistory=null,activePlan=null,healthConnected=false,checkinStarted=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null||activePlan===null)return;
@@ -563,46 +563,47 @@ async function meOverview(el) {
   const stopTodaySkeleton=()=>{if(todaySkeletonTimer!==null){clearTimeout(todaySkeletonTimer);todaySkeletonTimer=null;}};
   todayRoot.innerHTML='<section class="me-today" aria-label="Today" aria-busy="true"><div class="me-today-head"><h2>Today</h2><span class="me-today-date">'+esc(shortDate())+'</span></div><div class="me-today-list card list" data-today-skeleton hidden>'+skeletonRow+skeletonRow+skeletonRow+'</div></section>';
   todaySkeletonTimer=setTimeout(()=>{todaySkeletonTimer=null;const pending=$('[data-today-skeleton]',todayRoot);if(pending)pending.hidden=false;},200);
-  const refreshToday=async()=>{
-    if(!el.isConnected||owner!==readOwner())return;
-    const token=++todaySequence,day=dayNow();todayRoot.dataset.loadToken=String(token);todayRoot.dataset.loading='true';
-    const [activityResult,planResult,foodHistoryResult,foodDayResult]=await Promise.allSettled([
-      api('/api/activities?limit=1'),api('/api/plans/current'),api('/api/food/history?days=30'),api('/api/food/day?d='+encodeURIComponent(day))
-    ]);
+  const todayCachePath=day=>`me:today:${day}`;
+  const todaySnapshot=day=>{
+    const path=todayCachePath(day),saved=App.cache.get(path)?.data||kept(path);if(!saved)return null;
+    const safe={...saved};let changed=false;
+    if(Array.isArray(safe.foodHistory)){safe.foodHistoryCount=safe.foodHistory.length;delete safe.foodHistory;changed=true;}
+    if(Array.isArray(safe.todayRows)){const fields=['id','sport','sport_label','start_time','elapsed_s','distance_m'],rows=safe.todayRows.map(row=>Object.fromEntries(fields.filter(key=>row?.[key]!==undefined).map(key=>[key,row[key]])));if(JSON.stringify(rows)!==JSON.stringify(safe.todayRows)){safe.todayRows=rows;changed=true;}}
+    if(changed){App.cache.set(path,{data:safe,at:App.cache.get(path)?.at||0});keep(path,safe);}
+    return safe;
+  };
+  const drawToday=(snapshot,{activityFailed=false,planFailed=false,foodDayFailed=false,todayRowsFailed=false}={},token,day,fresh=false)=>{
     if(!el.isConnected||owner!==readOwner()||token!==todaySequence)return;
-    const activities=activityResult.status==='fulfilled'&&Array.isArray(activityResult.value)?activityResult.value:[];
+    const activities=Array.isArray(snapshot.activities)?snapshot.activities:[];
     const latestActivity=activities[0]||null,latestActivityDay=latestActivity?localDay(new Date(latestActivity.start_time)):null;
-    const todayActivityResult=latestActivityDay===day?((await Promise.allSettled([
-      api('/api/activities?limit=100&after='+encodeURIComponent(new Date(day+'T00:00:00').toISOString()))
-    ]))[0]):{status:'fulfilled',value:[]};
-    if(!el.isConnected||owner!==readOwner()||token!==todaySequence)return;
-    const todayRows=todayActivityResult.status==='fulfilled'&&Array.isArray(todayActivityResult.value)?todayActivityResult.value:[];
-    const noPlan=planResult.status==='rejected'&&planResult.reason?.status===404,planFailed=planResult.status==='rejected'&&!noPlan;
-    const plan=planResult.status==='fulfilled'?planResult.value:null,planActive=!!plan?.plan&&(!plan.plan.race_day||day<=plan.plan.race_day),activityFailed=activityResult.status==='rejected'||todayActivityResult.status==='rejected';
+    const todayRows=latestActivityDay===day&&Array.isArray(snapshot.todayRows)?snapshot.todayRows:[];
+    const plan=snapshot.plan||null,planActive=!!plan?.plan&&(!plan.plan.race_day||day<=plan.plan.race_day);
     const sinceDate=new Date(day+'T12:00:00');sinceDate.setDate(sinceDate.getDate()-29);const since=localDay(sinceDate);
     const recentActivity=!!latestActivity&&latestActivityDay>=since&&latestActivityDay<=day;
-    if(activityResult.status==='fulfilled')App.me.recentActivityUser=recentActivity;if(!planFailed)App.me.hasActivePlan=planActive;
-    const foodHistoryRows=foodHistoryResult.status==='fulfilled'&&Array.isArray(foodHistoryResult.value)?foodHistoryResult.value:[];
-    const foodData=foodDayResult.status==='fulfilled'?foodDayResult.value:null,recentFood=foodHistoryResult.status==='fulfilled'?foodHistoryRows.length>0:!!App.me.recentFoodUser;
-    if(foodHistoryResult.status==='fulfilled')App.me.recentFoodUser=foodHistoryRows.length>0;
+    if(!activityFailed)App.me.recentActivityUser=recentActivity;if(!planFailed)App.me.hasActivePlan=planActive;
+    const foodHistoryCount=Number.isFinite(snapshot.foodHistoryCount)?snapshot.foodHistoryCount:(Array.isArray(snapshot.foodHistory)?snapshot.foodHistory.length:0);
+    const foodData=snapshot.foodData||null,recentFood=!snapshot.foodHistoryFailed?foodHistoryCount>0:!!(App.me.recentFoodUser||App.me.hasFoodHistory);
+    if(!snapshot.foodHistoryFailed)App.me.recentFoodUser=foodHistoryCount>0;
     const todayFoodUser=App.me.kcal_target!=null||recentFood||!!foodData?.food_user;
     const planUser=planFailed?App.me.hasActivePlan===true:planActive;
-    const activityUser=activityFailed?!!App.me.recentActivityUser:recentActivity;
-    if(activityResult.status==='fulfilled'){activityHistory=activities.length>0;App.me.hasActivityHistory=activityHistory;}else if(App.me.hasActivityHistory!=null)activityHistory=!!App.me.hasActivityHistory;
+    const activityUser=(activityFailed||todayRowsFailed)?!!App.me.recentActivityUser:recentActivity;
+    if(!activityFailed){activityHistory=activities.length>0;App.me.hasActivityHistory=activityHistory;}else if(App.me.hasActivityHistory!=null)activityHistory=!!App.me.hasActivityHistory;
     if(foodData)foodHistory=!!foodData.has_history||foodData.entries?.length>0;
-    else if(foodHistoryResult.status==='fulfilled')foodHistory=foodHistoryRows.length>0;
+    else if(!snapshot.foodHistoryFailed)foodHistory=foodHistoryCount>0;
     else if(App.me.hasFoodHistory!=null)foodHistory=!!App.me.hasFoodHistory;
     if(foodHistory!==null)App.me.hasFoodHistory=foodHistory;
     activePlan=planFailed?App.me.hasActivePlan===true:planActive;drawSetup();
-    const activityError=activityUser&&activityFailed,planError=planUser&&planFailed,foodError=todayFoodUser&&foodDayResult.status==='rejected',hasError=activityError||planError||foodError;
-    if(!hasError)App.me.meTodayUpdatedAt=new Date().toISOString();
+    const showActivityError=(activityFailed||todayRowsFailed)&&activityUser;
+    const showPlanError=planFailed&&planUser,showFoodError=foodDayFailed&&todayFoodUser,hasError=showActivityError||showPlanError||showFoodError;
+    if(fresh&&!hasError)App.me.meTodayUpdatedAt=new Date().toISOString();
     const rows=[];
-    if(planUser)rows.push(planMarkup(plan,day,{error:planError}));
-    if(todayFoodUser)rows.push(foodMarkup(foodData,day,{error:foodError}));
-    if(activityUser)rows.push(activityMarkup({rows:todayRows,latest:latestActivity,error:activityError||todayActivityResult.status==='rejected'}));
+    if(planUser)rows.push(planMarkup(plan,day,{error:showPlanError}));
+    if(todayFoodUser)rows.push(foodMarkup(foodData,day,{error:showFoodError}));
+    if(activityUser)rows.push(activityMarkup({rows:todayRows,latest:latestActivity,error:showActivityError}));
     const updated=hasError&&App.me.meTodayUpdatedAt?' · updated '+new Date(App.me.meTodayUpdatedAt).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}):'';
     stopTodaySkeleton();
-    todayRoot.innerHTML=rows.length?'<section class="me-today" aria-labelledby="t-today-title"><div class="me-today-head"><h2 id="t-today-title">Today</h2><span class="me-today-date">'+esc(shortDate())+(updated?'<small>'+esc(updated)+'</small>':'')+'</span></div><div class="me-today-list card list">'+rows.join('')+'</div></section>':'';
+    const markup=rows.length?'<section class="me-today" aria-labelledby="t-today-title"><div class="me-today-head"><h2 id="t-today-title">Today</h2><span class="me-today-date">'+esc(shortDate())+(updated?'<small>'+esc(updated)+'</small>':'')+'</span></div><div class="me-today-list card list">'+rows.join('')+'</div></section>':'';
+    if(todayRoot.innerHTML!==markup)todayRoot.innerHTML=markup;
     todayRoot.dataset.loadedDay=day;todayRoot.dataset.loadedToken=String(token);delete todayRoot.dataset.loading;
     $$('[data-today-retry]',todayRoot).forEach(button=>button.onclick=()=>refreshToday());
     const add=$('[data-today-add]',todayRoot);if(add)add.onclick=()=>describeSheet(day,guessMeal());
@@ -610,15 +611,47 @@ async function meOverview(el) {
       if(!checkinStarted){checkinStarted=true;weeklyCheckinCard($('#t-checkin',el),{home:true}).catch(()=>{});}
     }else if(!todayFoodUser||foodData){$('#t-checkin',el).innerHTML='';checkinStarted=false;}
   };
+  const refreshToday=async()=>{
+    if(!el.isConnected||owner!==readOwner())return;
+    const token=++todaySequence,day=dayNow(),cachePath=todayCachePath(day);todayRoot.dataset.loadToken=String(token);todayRoot.dataset.loading='true';
+    const cached=todaySnapshot(day);if(cached)drawToday(cached,{},token,day,false);
+    const after=encodeURIComponent(new Date(day+'T00:00:00').toISOString());
+    const [activityResult,planResult,foodHistoryResult,foodDayResult,todayRowsResult]=await Promise.allSettled([
+      api('/api/activities?limit=1'),api('/api/plans/current'),api('/api/food/history?days=30'),api('/api/food/day?d='+encodeURIComponent(day)),api('/api/activities?limit=100&after='+after)
+    ]);
+    if(!el.isConnected||owner!==readOwner()||token!==todaySequence)return;
+    const noPlan=planResult.status==='rejected'&&planResult.reason?.status===404;
+    const snapshot={
+      activities:activityResult.status==='fulfilled'&&Array.isArray(activityResult.value)?activityResult.value:[],
+      plan:planResult.status==='fulfilled'?planResult.value:null,planMissing:noPlan,
+      foodHistoryCount:foodHistoryResult.status==='fulfilled'&&Array.isArray(foodHistoryResult.value)?foodHistoryResult.value.length:0,
+      foodHistoryFailed:foodHistoryResult.status==='rejected',
+      foodData:foodDayResult.status==='fulfilled'?foodDayResult.value:null,
+      todayRows:todayRowsResult.status==='fulfilled'&&Array.isArray(todayRowsResult.value)?todayRowsResult.value.map(row=>{const safe={};for(const key of ['id','sport','sport_label','start_time','elapsed_s','distance_m'])if(row?.[key]!==undefined)safe[key]=row[key];return safe;}):[]
+    };
+    const latest=snapshot.activities[0],latestDay=latest?localDay(new Date(latest.start_time)):null;
+    const errors={
+      activityFailed:activityResult.status==='rejected',
+      planFailed:planResult.status==='rejected'&&!noPlan,
+      foodDayFailed:foodDayResult.status==='rejected',
+      todayRowsFailed:latestDay===day&&todayRowsResult.status==='rejected'
+    };
+    drawToday(snapshot,errors,token,day,true);
+    const complete=activityResult.status==='fulfilled'&&(planResult.status==='fulfilled'||noPlan)&&foodHistoryResult.status==='fulfilled'&&foodDayResult.status==='fulfilled'&&todayRowsResult.status==='fulfilled';
+    if(complete){for(const key of [...App.cache.keys()])if(/^me:today:\d{4}-\d{2}-\d{2}$/.test(key)&&key!==cachePath)App.cache.delete(key);try{for(const key of Object.keys(localStorage))if(key.startsWith('fit.c:me:today:')&&key.slice(6)!==cachePath)localStorage.removeItem(key);}catch(e){/* cache is optional */}App.cache.set(cachePath,{data:snapshot,at:Date.now()});keep(cachePath,snapshot);}
+  };
   const onFoodChanged=()=>refreshToday(),onVisible=()=>{if(!document.hidden)refreshToday();};
   const scheduleMidnight=()=>{clearTimeout(midnightTimer);const now=new Date(),next=new Date(now);next.setHours(24,0,0,250);midnightTimer=setTimeout(()=>{refreshToday();scheduleMidnight();},Math.max(1000,next-now));};
   document.addEventListener('food:changed',onFoodChanged);document.addEventListener('visibilitychange',onVisible);window.addEventListener('pageshow',onVisible);
   scheduleMidnight();viewResources.set(todayRoot,()=>{stopTodaySkeleton();clearTimeout(midnightTimer);document.removeEventListener('food:changed',onFoodChanged);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('pageshow',onVisible);});
-  await Promise.allSettled([
-    refreshToday(),
+  const profileCachePath='/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1';
+  const cached=!!(todaySnapshot(dayNow())&&((typeof screenHit==='function'&&screenHit(profileCachePath))||App.cache.has(profileCachePath)));
+  const paint=PaintGate.begin(el.closest('#page')||el,'me',{cached});
+  return paint.finish(Promise.allSettled([
+    refreshToday(),cardRead,milestoneRead,recapRead,
     load('/api/stats',s=>{if(el.isConnected)meInsights($('#t-insights',el),s);}).catch(()=>{}),
     load('/api/goals',g=>{if(el.isConnected)$('#t-goals',el).innerHTML=g.length?'<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>'+g.map(goalRow).join('')+'</div>':'';}).catch(()=>{})
-  ]);
+  ]));
   Promise.resolve(Native.on?(Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()):false).catch(()=>false).then(connected=>{if(!el.isConnected)return;healthConnected=connected;drawSetup();});
 }
 
@@ -1817,7 +1850,7 @@ route(/^\/me$/, 'me', async (el) => {
   el.innerHTML = `<div id="me-overview"></div>
     <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'See full profile')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${row('a', 'href="/me/explore"', 'search', 'c-brand', 'Explore Kinetta')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}</div>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
-  meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
+  return meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });
 
 
