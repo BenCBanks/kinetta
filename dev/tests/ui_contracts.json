@@ -1,0 +1,58 @@
+{
+  "contracts": [
+    {
+      "screen": "Home feed",
+      "sources": ["app/static/pages.js", "app/static/activity-home.css"],
+      "tests": ["activity_home_ui.cjs"],
+      "assertions": ["challenge state copy", "feed card action selectors"]
+    },
+    {
+      "screen": "Me Today",
+      "sources": ["app/static/pages.js", "app/static/profile.js", "app/static/profile.css"],
+      "tests": ["me_card_ui.cjs"],
+      "assertions": ["Today date and stat labels", "profile card selectors"]
+    },
+    {
+      "screen": "Profile card",
+      "sources": ["app/static/profile.js", "app/static/profile.css"],
+      "tests": ["profile_card_ui.cjs"],
+      "assertions": ["sport chip labels", "profile card actions"]
+    },
+    {
+      "screen": "Activity detail",
+      "sources": ["app/static/pages.js", "app/static/activity-detail.*"],
+      "tests": ["activity_detail_ui.cjs"],
+      "assertions": ["detail tab labels", "detail action selectors"]
+    },
+    {
+      "screen": "Progress",
+      "sources": ["app/static/pages.js", "app/static/progress-routes.js", "app/static/progress-route.css"],
+      "tests": ["progress_ui.cjs", "fitness_ui.cjs"],
+      "assertions": ["period and metric labels", "fitness screen controls"]
+    },
+    {
+      "screen": "Track",
+      "sources": ["app/static/pages.js", "app/static/track*.js", "app/static/track-home.css", "app/static/track-route.css"],
+      "tests": ["track_home_ui.cjs", "tracking_ui.cjs"],
+      "assertions": ["recorder state labels", "tracking control selectors"]
+    },
+    {
+      "screen": "Nutrition",
+      "sources": ["app/static/food*.js", "app/static/nutrition.css", "app/static/food-route.css"],
+      "tests": ["food_entry_ui.cjs", "nutrition_ui.cjs"],
+      "assertions": ["meal and food labels", "nutrition action selectors"]
+    },
+    {
+      "screen": "Lifting",
+      "sources": ["app/static/lift*.js", "app/static/lift-ui.css", "app/static/lift-route.css"],
+      "tests": ["lift_ui.cjs"],
+      "assertions": ["set and workout labels", "lifting control selectors"]
+    },
+    {
+      "screen": "Plan",
+      "sources": ["app/static/plan*.js", "app/static/plan-ui.css"],
+      "tests": ["plan_ui.cjs"],
+      "assertions": ["plan state labels", "plan action selectors"]
+    }
+  ]
+}

@@ -36,7 +36,7 @@ MAP
 }
 
 check_paths() {
-  local path mapped group scenes name
+  local path mapped group scenes name contract_tests
   local scene_names=""
   for path in "$@"; do
     [[ "$path" == app/static/* ]] || continue
@@ -55,6 +55,10 @@ const known=new Set(require('./dev/tests/spacing_screens.cjs').scenes({detail:{r
 const missing=requested.filter(name=>!known.has(name));
 if(missing.length){console.error('Unknown spacing scenes: '+missing.join(', '));process.exit(1);}
 NODE
+  contract_tests="$(python3 dev/tests/ui_contracts.py --tests-for "$@")"
+  if [[ -n "$contract_tests" ]]; then
+    while IFS= read -r name; do [[ -z "$name" ]] || printf 'contract test -> %s\n' "$name"; done <<< "$contract_tests"
+  fi
 }
 
 case "${1:-}" in
@@ -67,6 +71,9 @@ git rev-parse --verify "$BASE" >/dev/null || { echo "Missing $BASE; fetch origin
 changed="$( { git diff --name-only --no-renames "$BASE...HEAD"; git diff --name-only --no-renames HEAD; git diff --name-only --cached --no-renames; git ls-files --others --exclude-standard; } | sort -u )"
 [[ -n "$changed" ]] || { echo "No changes from $BASE."; exit 0; }
 mapfile -t paths <<< "$changed"
+contract_output="$(python3 dev/tests/ui_contracts.py --tests-for "${paths[@]}")"
+contract_tests=()
+if [[ -n "$contract_output" ]]; then mapfile -t contract_tests <<< "$contract_output"; fi
 if [[ "${1:-}" == --check-map ]]; then check_paths "${paths[@]}"; echo "Changed app/static paths are mapped."; exit 0; fi
 
 declare -A selected=() seen_scene=()
@@ -111,7 +118,10 @@ if [[ $all_scenes == 1 || -n "$scenes" ]]; then
   fi
 fi
 
+declare -A ran_ui=()
 run_ui() {
+  [[ -z "${ran_ui[$1]:-}" ]] || return 0
+  ran_ui["$1"]=1
   case "$1" in
     inline_reactions_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     weight_progress_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
@@ -152,5 +162,10 @@ for group in $group_order; do
   esac
   for test in $tests; do run_ui "$test"; done
   if [[ "$group" == core ]]; then KINETTA_LOADING_SCREENS="Home,Progress" KINETTA_LOADING_THEMES="light,dark" NODE_PATH="$browser" node dev/tests/loading_audit.cjs; fi
+done
+for test in "${contract_tests[@]}"; do
+  [[ -n "$test" ]] || continue
+  echo "Running screen contract: $test"
+  run_ui "$test"
 done
 echo "Native WebView layout remains a Ready-PR iPhone CI check for app/static changes (macOS Simulator)."
