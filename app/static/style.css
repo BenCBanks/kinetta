@@ -1078,11 +1078,9 @@ html.keyboard-open nav.tabs { display: none; }
 .profile-actions > :is(button,a) { flex: 1 1 8rem; min-height: 44px; text-align: center; }
 .profile-tools { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: -8px 0 16px; }
 .profile-tools a { display: inline-flex; align-items: center; min-height: 44px; font-size: .875rem; }
-.profile-progress > .small { margin: 6px 0 12px; }
 .profile-progress .stats3 { margin: 14px 0; }
 .profile-progress .stat { min-width: 0; overflow-wrap: anywhere; }
 .profile-consistency { font-size: .875rem; color: var(--tx2); }
-.profile-progress > :last-child { margin-bottom: 0; }
 #pf-editor textarea { min-height: 6rem; }
 #pf-bio-count { margin: -8px 0 0; text-align: right; }
 .people-search input { padding-right: 48px; }
