@@ -2577,8 +2577,6 @@ html body .me-card-bars .me-week.now > span:first-child { background: var(--acce
   button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled]), a:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), [role="button"]:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), summary:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { background-color: color-mix(in srgb, currentColor 6%, var(--card)); }
   nav.tabs :is(a,button):is(:active,[data-touch-pressed]):not([data-touch-cancelled]) svg { transform: none; }
 }
-#fd-meals .fe:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transform: scale(.985); opacity: 1; }
-@media (prefers-reduced-motion: reduce) { #fd-meals .fe:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transform: none !important; transition: none !important; } }
 .scrim:has(.achievement-share-sheet) .sheet { width:100%; max-width:640px; max-height:92dvh; padding:8px 22px calc(env(safe-area-inset-bottom) + 16px); overflow:auto; }
 .scrim:has(.achievement-share-sheet) .sheet > header { min-height:44px; margin-bottom:8px; }
 .scrim:has(.achievement-share-sheet) .sheet > header h2 { font-size:17px; font-weight:600; letter-spacing:0; }

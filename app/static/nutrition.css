@@ -198,6 +198,8 @@
 .nutrition-meal-action { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:52px; padding:0 4px; border:0; border-top:1px solid var(--line); background:transparent; color:var(--tx); text-align:left; font:500 15px/1.3 var(--font); }
 .nutrition-meal-action:first-child { border-top:0; }
 .nutrition-meal-action svg { width:18px; height:18px; color:var(--tx3); flex:none; }
+#fd-meals .fe:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transform:scale(.985); opacity:1; }
+@media (prefers-reduced-motion:reduce) { #fd-meals .fe:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transform:none !important; transition:none !important; } }
 @media (max-width:360px) {
   .nutrition-home .nutrition-summary-link { grid-template-columns:96px minmax(0,1fr); gap:12px; }
   .nutrition-summary-link .calorie-ring-wrap { width:96px; height:96px; }
