@@ -53,7 +53,8 @@ function notificationDayGroups(items) {
   return {today:items.filter(item=>notificationDayKey(item.created)===today),earlier:items.filter(item=>notificationDayKey(item.created)!==today)};
 }
 route(/^\/notifications$/, null, async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
+  const loadingRows=Array.from({length:3},()=>`<div class="note-loading" aria-hidden="true"><span class="sk note-loading-dot"></span><span class="sk note-loading-avatar"></span><span class="note-loading-copy"><span class="sk note-loading-line"></span><span class="sk note-loading-line note-loading-detail"></span></span><span class="sk note-loading-time"></span></div>`).join('');
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notifications</h1><div id="nt-list"><div class="notification-loading" role="status" aria-busy="true"><span class="vh">Loading notifications…</span><div class="card list notes notification-loading-card" aria-hidden="true">${loadingRows}</div></div></div>`;
   wireBack(el, '/today');
   await load('/api/notifications', (r) => {
     const list = $('#nt-list', el); if (!list) return;
