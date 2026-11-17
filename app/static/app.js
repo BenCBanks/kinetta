@@ -448,7 +448,7 @@ function refreshMe(me) {
 }
 
 // ---------- offline: kept screens + a send queue for food and weight (2026-10-10) ----------
-const KEEP = [/^\/api\/recaps\?/,/^\/api\/friends$/,/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/activity-food$/, /^\/api\/progress\/overview$/, /^\/api\/plans\/current$/,
+const KEEP = [/^\/api\/recaps\?/,/^\/api\/friends$/,/^\/api\/me$/, /^\/api\/people\/[^/]+\/profile\?as_friend=true&preview=friend&limit=1$/, /^me:today:\d{4}-\d{2}-\d{2}$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/activity-food$/, /^\/api\/progress\/overview$/, /^\/api\/plans\/current$/,
   /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=(?:1|3)$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
   /^\/api\/progress\/volume\?period=week$/, /^feed:home$/, /^\/api\/feed\/friends\?limit=3$/];   // 2026-10-16: Activity and Progress open from the saved copy too; 2026-10-18: all of Me
 const store = {
