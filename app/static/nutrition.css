@@ -173,7 +173,7 @@
 #fd-sum .nutrition-summary-link .macro-line b { display:block; order:1; overflow:hidden; max-width:100%; color:var(--tx); font-size:15px; line-height:1.1; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
 #fd-sum .nutrition-summary-link .macro-line b::before { content:none; display:none; }
 #fd-sum .nutrition-summary-link .macro-line span { display:block; order:0; margin:0; color:var(--tx2); font-size:15px; line-height:1.1; font-weight:500; }
-.nutrition-summary-link .macro .track { height:2px; margin-top:4px; background:var(--line); }
+.nutrition-summary-link .macro .track { height:6px; margin-top:5px; }
 .nutrition-summary-link .macro .track .macro-target-bar { box-shadow:none; }
 .nutrition-home .nutrition-meals-group { display:flex; flex-direction:column; gap:8px; overflow:hidden; margin:12px 0 0; padding:8px 16px; border:1px solid var(--line); border-radius:18px; background:var(--card); }
 .nutrition-home .meal { display:flex; flex-direction:column; gap:8px; overflow:visible; margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; transition:none; }
