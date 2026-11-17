@@ -2571,6 +2571,8 @@ html body .me-card-bars .me-week.now > span:first-child { background: var(--acce
 @media (prefers-reduced-motion: reduce) {
   :root { --spring-smooth: var(--ease-in-out); --spring-snappy: var(--ease-in-out); --spring-bouncy: var(--ease-in-out); }
   .primary, .ghost, .icon-btn, .chip, .back, nav.tabs :is(a,button), .card.tap, .row-link, button:not(:disabled), a, [role="button"], summary { transition: none !important; }
+  .post[data-href], .activity-home .activity-card { transition: none !important; }
+  .post.press, .activity-home .activity-card.press { transform: none !important; }
   button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled]), a:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), [role="button"]:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), summary:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), .card.tap:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), .row-link:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transform: none !important; }
   button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled]), a:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), [role="button"]:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), summary:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { background-color: color-mix(in srgb, currentColor 6%, var(--card)); }
   nav.tabs :is(a,button):is(:active,[data-touch-pressed]):not([data-touch-cancelled]) svg { transform: none; }
