@@ -40,7 +40,7 @@ Choose what to share.
 
 ## home-sharing-description
 
-Choose who can see each activity. Shared maps hide where a route starts and ends.
+Choose who can see each activity, and hide where a route starts and ends when you share it.
 
 ## home-final-description
 
