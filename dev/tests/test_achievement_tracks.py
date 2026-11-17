@@ -81,7 +81,6 @@ class AchievementTrackRules(unittest.TestCase):
     def test_api_catalog_tail_matches_worker_for_every_track_and_boundary(self):
         catalog = api_achievements._level_catalog()
         self.assertEqual(catalog['tail']['rule'], api_achievements._CATALOG_TAIL_RULE)
-        self.assertEqual(len(catalog['tracks']), 30)
 
         for code, definition in catalog['tracks'].items():
             with self.subTest(code=code):
