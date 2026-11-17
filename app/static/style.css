@@ -789,6 +789,7 @@ tr.muted td { color: var(--tx3); }
 .pred { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .pred div { background: var(--card2); border-radius: var(--r3); padding: 14px 16px; } .pred b { display: block; font: 800 23px var(--numf); letter-spacing: -.02em; }
 /* Quiet current-fitness estimates leave room for the running charts below. */
+.card p.prediction-note { margin:16px 0 4px; }
 
 
 

@@ -386,7 +386,6 @@
 /* Fitness predictor details; this module loads with Progress routes. */
 #fi-pred > .card,#fi-body > .card { padding:16px; }
 #fi-pred .card h2,#fi-body .card h2 { font-size:max(17px,var(--text-app-card-title)); }
-.card p.prediction-note { margin:16px 0 4px; }
 .prediction-method { margin-top:4px; }
 .prediction-method summary { display:flex; align-items:center; gap:8px; min-height:44px; cursor:pointer; font-size:.875rem; color:var(--tx2); list-style:none; }
 .prediction-method summary::-webkit-details-marker { display:none; }
