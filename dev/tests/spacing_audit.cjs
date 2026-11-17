@@ -14,7 +14,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
 const collectVisualOverlaps=()=>{
  const selector=el=>{if(el.id)return'#'+CSS.escape(el.id);const parts=[];for(let n=el;n&&n!==document.body&&parts.length<5;n=n.parentElement){if(n.id){parts.unshift('#'+CSS.escape(n.id));break;}let part=n.tagName.toLowerCase();if(typeof n.className==='string'&&n.className.trim())part+='.'+n.className.trim().split(/\s+/).slice(0,2).map(CSS.escape).join('.');const same=n.parentElement?[...n.parentElement.children].filter(s=>s.tagName===n.tagName):[];if(same.length>1)part+=`:nth-of-type(${same.indexOf(n)+1})`;parts.unshift(part);}return parts.join(' > ');},
   rect=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};},
-  visible=el=>{const r=el.getBoundingClientRect();if(r.width<=0||r.height<=0)return false;for(let n=el;n&&n!==document.documentElement;n=n.parentElement){const s=getComputedStyle(n);if(n.hidden||s.display==='none'||s.visibility==='hidden'||Number(s.opacity)===0)return false;}return true;},
+  visible=el=>{const r=el.getBoundingClientRect();if(r.width<=0||r.height<=0||el.closest('.vh:not(.subpage-header .vh)'))return false;const ring=el.closest('.calorie-ring-wrap');if(ring&&ring!==el)return false;for(let n=el;n&&n!==document.documentElement;n=n.parentElement){const s=getComputedStyle(n);if(n.hidden||s.display==='none'||s.visibility==='hidden'||Number(s.opacity)===0)return false;}return true;},
   isVisual=el=>{const name=typeof el.className==='string'?el.className:el.className?.baseVal||'';return /(?:^|[\s_-])(?:badge|medal|medallion|ring|avatar)(?:$|[\s_-])/i.test(name)||el.classList.contains('av');},
   overlap=(a,b)=>({x:Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x),y:Math.min(a.y+a.height,b.y+b.height)-Math.max(a.y,b.y)}),
   candidates=[...document.querySelectorAll('body *')].filter(el=>visible(el)&&isVisual(el)),out=new Map(),add=(a,b,ar,br)=>{const d=overlap(ar,br);if(d.x<=1||d.y<=1)return;const key=[selector(a),selector(b)].sort().join('|');out.set(key,{metric:'badge-overlap',element:selector(a),neighbour:selector(b),actual:{horizontal:d.x,vertical:d.y},expected:'no intersection over 1px',box:ar,neighbourBox:br});};
@@ -38,8 +38,8 @@ const collectVisualOverlaps=()=>{
 async function verifyVisualOverlapCollector(browser){
  const page=await browser.newPage();
  try{
-  await page.setContent(`<style>body{margin:0}.profile-achievement-list{position:absolute;width:60px;height:30px}.profile-achievement{position:absolute;inset:0}.profile-achievement-medallion,.profile-achievement-name{position:absolute;top:0;height:20px}.profile-achievement-medallion{left:0;width:20px}.profile-achievement-name{font:12px/20px sans-serif;white-space:nowrap}.overlap .profile-achievement-name{left:18px}.one-pixel .profile-achievement-name{left:19px}</style><div class="profile-achievement-list overlap"><div class="profile-achievement"><span class="profile-achievement-medallion"></span><span class="profile-achievement-name">Run</span></div></div><div class="profile-achievement-list one-pixel" style="left:100px"><div class="profile-achievement"><span class="profile-achievement-medallion"></span><span class="profile-achievement-name">Run</span></div></div>`);
-  const overlaps=await page.evaluate(collectVisualOverlaps);assert.equal(overlaps.length,1,'visual overlap collector flags >1px and ignores a 1px touch');assert(overlaps[0].actual.horizontal>1&&overlaps[0].actual.vertical>1,'the synthetic badge-label overlap exceeds the threshold');
+  await page.setContent(`<style>body{margin:0}.profile-achievement-list{position:absolute;width:60px;height:30px}.profile-achievement{position:absolute;inset:0}.profile-achievement-medallion,.profile-achievement-name{position:absolute;top:0;height:20px}.profile-achievement-medallion{left:0;width:20px}.profile-achievement-name{font:12px/20px sans-serif;white-space:nowrap}.overlap .profile-achievement-name{left:18px}.one-pixel .profile-achievement-name{left:19px}.calorie-ring-wrap{position:absolute;left:0;top:60px;width:40px;height:40px}.calorie-ring{width:40px;height:40px}.calorie-ring-label{position:absolute;inset:0}.test-overlap .external-label{position:absolute;left:38px;top:70px;width:20px;height:20px}.test-clear .external-label{position:absolute;left:41px;top:70px;width:20px;height:20px}</style><div class="profile-achievement-list overlap"><div class="profile-achievement"><span class="profile-achievement-medallion"></span><span class="profile-achievement-name">Run</span></div></div><div class="profile-achievement-list one-pixel" style="left:100px"><div class="profile-achievement"><span class="profile-achievement-medallion"></span><span class="profile-achievement-name">Run</span></div></div><div class="test-overlap"><div class="calorie-ring-wrap"><svg class="calorie-ring"></svg><div class="calorie-ring-label">1,210 kcal</div></div><span class="vh">Accessible label</span><span class="external-label">Run</span></div><div class="test-clear" style="top:120px"><div class="calorie-ring-wrap"><svg class="calorie-ring"></svg><div class="calorie-ring-label">1,210 kcal</div></div><span class="vh">Accessible label</span><span class="external-label">Run</span></div>`);
+  const overlaps=await page.evaluate(collectVisualOverlaps);assert.equal(overlaps.length,2,'visual overlap collector flags >1px while ignoring a 1px touch and intentional ring internals');assert(overlaps.some(v=>v.element.includes('profile-achievement-medallion')&&v.neighbour.includes('profile-achievement-name')),'the synthetic badge-label overlap exceeds the threshold');assert(overlaps.some(v=>v.element.includes('calorie-ring-wrap')&&v.neighbour.includes('external-label')),'the ring wrapper still detects an overlapping external label');
  }finally{await page.close();}
 }
 async function waitForRouteStyles(p){
@@ -54,7 +54,14 @@ async function waitForPaintGate(p){
 }
 (async()=>{
  const browser=await chromium.launch(),results=[],errors=[];let sessions;
- let selected=scenes(fixtures).map(s=>s.name==='Home'?{...s,visualOverlapCheck:true}:s);
+ const overlapScenes=new Set([
+  'Me','Me Today plan','Sharing & privacy','Track ready','Lifting with sets','Lifting blank sets',
+  'Progress','Fitness','Nutrition day','Add food','Recipes and foods','Groups','Group create',
+  'Group empty roster','Group full roster','Invite acceptance','Settings','Notifications',
+  'Share progress','Nutrition Insights','Account name sheet','Pinned save sheet','Quick weight sheet',
+  'Share card choices','Public link confirmation'
+ ]);
+ let selected=scenes(fixtures).map(s=>s.name==='Home'?{...s,visualOverlapCheck:true}:overlapScenes.has(s.name)?{...s,visualOverlapCheck:true,visualOverlapOnly:true}:s);
  selected.push(
   {name:'Achievements',login:'alex',route:'/me/achievements#run',ready:'#profile-achievement-page[aria-busy="false"]',visualOverlapCheck:true,visualOverlapOnly:true},
   {name:'Your profile',login:'alex',route:'/people/alex?q=spacing-no-match',ready:'#person-profile .me-card-sections[aria-busy="false"]',visualOverlapCheck:true,visualOverlapOnly:true},
