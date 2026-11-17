@@ -205,7 +205,6 @@
 .group-title-summary,.group-title .group-note {margin:6px 0 0;color:var(--tx2);font-size:15px;line-height:1.45;overflow-wrap:anywhere;}
 .group-title .group-training-for {margin:4px 0 0;color:var(--tx3);font-size:14px;line-height:1.4;overflow-wrap:anywhere;}
 .group-title .group-note {color:var(--tx)!important;}
-.group-page > :is(.group-goal,.group-event-day,.group-recap,.group-updates) { box-shadow:var(--elevation-raised); }
 .group-page > .group-roster { box-shadow:none; }
 .group-goal {display:grid;gap:7px;}
 .group-goal>small {color:var(--tx3);font-size:13px;}
