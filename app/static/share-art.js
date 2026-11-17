@@ -33,10 +33,10 @@ const ShareArt=(()=>{
     try{return await Promise.race([load(),timeout]);}finally{clearTimeout(timer);}
   }
 
-  async function achievementPicture({root,live=()=>true,outputHeight,padding=48}={}){
+  async function achievementPicture({root,live=()=>true,outputWidth=1080,outputHeight,padding=48}={}){
     if(!root?.isConnected||!live())throw Error('The account changed.');
     const height=Math.max(400,Math.ceil(outputHeight||root.getBoundingClientRect().height+96));
-    return domPicture(root,{live,outputHeight:height,padding});
+    return domPicture(root,{live,outputWidth,outputHeight:height,padding});
   }
   async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null,routePoints=[],routeTrimmed=true}){
     const pictureOwner=readOwner();
