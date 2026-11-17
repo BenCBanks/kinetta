@@ -1,10 +1,8 @@
 """Fictional feed evidence on an explicitly guarded local project; no real accounts/devices."""
 from pathlib import Path
 import os,sys,uuid,math,base64,subprocess,datetime as dt
-import json
+from fixture_clock import load_fixture_clock
 
-FIXTURE_CLOCK=Path(__file__).resolve().parents[1] / 'screenshots' / 'fixture-time.json'
-fixture_data=json.loads(FIXTURE_CLOCK.read_text())
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 sys.path.insert(0,'dev/tests')
@@ -17,13 +15,15 @@ def ok(value):
  return value[1]
 names=['empty','typical','heavy','established']+['friend'+str(i) for i in range(6)]+['pending','blocked']
 clients={}
+statements=[]
 for who in names:
  name='zz_test_feed_'+who;c=person(name);ok(c.post('/api/account/delete',{'password':PW}));c=person(name,'River '+who.title());ok(c.put('/api/profile',{'tz':'America/New_York' if who=='typical' else 'UTC','ai_ok':False}));ok(c.put('/api/sharing',{'default':'friends','trim_m':400}));clients[who]=c
 for who,count in [('typical',2),('heavy',6),('established',3)]:
  for i in range(count):
   friend='friend'+str(i);ok(clients[friend].post('/api/friends',{'login':'zz_test_feed_'+who}));ok(clients[who].post('/api/friends/zz_test_feed_'+friend+'/accept'))
  ok(clients['pending'].post('/api/friends',{'login':'zz_test_feed_'+who}))
-now=dt.datetime.fromisoformat(fixture_data['instant'].replace('Z','+00:00'))
+now,_=load_fixture_clock(default='fixture')
+api_now=dt.datetime.now(dt.timezone.utc)
 activity_timezone=ZoneInfo('America/New_York')
 local_yesterday=now.astimezone(activity_timezone).date()-dt.timedelta(days=1)
 pinned_long_friend_time=dt.datetime.combine(local_yesterday,dt.time(12,59),tzinfo=activity_timezone).astimezone(dt.timezone.utc)
@@ -34,7 +34,11 @@ for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]
   when=now-dt.timedelta(hours=i*3+(1 if who.startswith('friend') else 0))
   if who=='friend1' and i==0: when=pinned_long_friend_time
   name=['Fictional short route','Fictional long route','Fictional formerly clipped route'][i] if i<3 else 'Fictional trail session '+str(i+1)
-  aid=ok(c.post('/api/activities/manual',{'sport':'run' if i%2==0 else 'walk','name':name,'start':when.isoformat(),'duration_s':1500+i*60,'distance_m':5000 if i%2==0 else 2400}))['id'];ids.append(aid)
+  api_when=min(when,api_now-dt.timedelta(hours=10+i*3))
+  result=c.post('/api/activities/manual',{'sport':'run' if i%2==0 else 'walk','name':name,'start':api_when.isoformat(),'duration_s':1500+i*60,'distance_m':5000 if i%2==0 else 2400})
+  assert result[0]==200, (who,i,api_when.isoformat(),result)
+  aid=result[1]['id'];ids.append(aid)
+  if api_when!=when:statements.append(f"UPDATE activities SET start_time='{when.isoformat()}'::timestamptz WHERE id={aid};")
   ok(c.put(f'/api/activities/{aid}/sharing',{'visibility':'me' if i==1 else 'friends'}))
  if who=='typical':
   for day,name in [('2026-10-29','Fictional River October first workout'),('2026-10-12','Fictional October second workout')]:
@@ -47,10 +51,11 @@ for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]
  for photo in photos if who in ('typical','heavy','established') else photos[:1] if who=='friend0' else []:
   raw=base64.b64encode((Path('dev/demo/photos')/photo).read_bytes()).decode();ok(c.post(f'/api/activities/{ids[0]}/photos',{'image':'data:image/jpeg;base64,'+raw}))
 # One mapless treadmill run and three fictional route scales exercise the compact row and route fitting.
-aid=ok(clients['heavy'].post('/api/activities/manual',{'sport':'run','name':'Fictional treadmill workout','start':(now-dt.timedelta(minutes=30)).isoformat(),'duration_s':2400,'distance_m':5000}))['id']
+heavy_time=now-dt.timedelta(minutes=30);api_heavy_time=min(heavy_time,api_now-dt.timedelta(hours=12))
+aid=ok(clients['heavy'].post('/api/activities/manual',{'sport':'run','name':'Fictional treadmill workout','start':api_heavy_time.isoformat(),'duration_s':2400,'distance_m':5000}))['id']
+if api_heavy_time!=heavy_time:statements.append(f"UPDATE activities SET start_time='{heavy_time.isoformat()}'::timestamptz WHERE id={aid};")
 ok(clients['heavy'].put(f'/api/activities/{aid}/sharing',{'visibility':'me'}))
 spans=[(.0008,.0005),(.018,.01),(.075,.05)]
-statements=[]
 for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]+['blocked']:
  # The first three rows for each persona are short, long and previously clipped routes.
  own=[int(row['id']) for row in ok(clients[who].get('/api/activities?limit=100')) if row['name']!='Fictional treadmill workout']
@@ -66,8 +71,8 @@ for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]
 for who in ('typical','heavy','established'):
  uid=ok(clients[who].get('/api/me'))['id'];aid=first[who];statements.append(f"WITH r AS (INSERT INTO routes(user_id,sport,name) VALUES({uid},'run','Fictional matched loop') RETURNING id) UPDATE activities SET route_id=(SELECT id FROM r) WHERE user_id={uid} AND id={aid};")
  ok(clients['friend0'].post(f'/api/activities/{aid}/reaction',{'kind':'strong'}));ok(clients['friend1'].post(f'/api/activities/{aid}/reaction',{'kind':'applause'}));ok(clients['friend0'].post(f'/api/activities/{aid}/comments',{'text':'Fictional encouragement'}))
- ok(clients[who].post('/api/food/entries',[{'day':str(now.date()),'meal':'lunch','name':'Fictional private noodles','kcal':999,'protein_g':37,'carbs_g':80,'fat_g':18}]))
- ok(clients[who].put('/api/food/weights',{'day':str(now.date()),'kg':121.7}))
+ ok(clients[who].post('/api/food/entries',[{'day':str(api_now.date()),'meal':'lunch','name':'Fictional private noodles','kcal':999,'protein_g':37,'carbs_g':80,'fat_g':18}]))
+ ok(clients[who].put('/api/food/weights',{'day':str(api_now.date()),'kg':121.7}))
 r=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],input='\n'.join(statements),text=True,capture_output=True);assert r.returncode==0,r.stderr
 ok(clients['heavy'].post('/api/people/zz_test_feed_blocked/block',{}))
 ok(clients['heavy'].post('/api/challenges',{'kind':'active_days','period':'this_week','target':4,'unit':'days','sports':[],'request_id':uuid.uuid4().hex}))

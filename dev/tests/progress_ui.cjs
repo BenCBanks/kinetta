@@ -3,6 +3,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),path=require('node:path');
 const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const assertTabFocus=require('./assert_pointer_keyboard_tab.cjs');
+const {instant:fixtureInstant}=require('./fixture-clock.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS,captureTotalsOnly=process.env.KINETTA_TOTALS_SHOTS_ONLY==='1';
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label+' '+JSON.stringify(await p.evaluate(target=>({url:location.href,...(typeof App==='undefined'?{}:{key:App.page?.key,ready:App.pageReady}),scrollY,scrollHeight:document.documentElement.scrollHeight,clientHeight:innerHeight,liftingTop:document.querySelector('[data-progress-feature="lifting"]')?.getBoundingClientRect().top,target,body:document.body.textContent.slice(0,200)}),arg)));}
 (async()=>{
@@ -15,7 +16,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  const offLogin=await b.newContext(),offSigned=await offLogin.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_runner',password:'green teapot on the hill'}});assert.equal(offSigned.status(),200,'feature-flag fixture login: '+await offSigned.text());
  const offState=await offLogin.storageState(),offRows=await offLogin.request.get(base+'/api/activities?limit=100').then(r=>r.json()),offActivity=offRows.find(a=>a.line);assert(offActivity,'feature-flag fixture needs a GPS activity');
  for(const theme of ['light','dark']){
-  const c=await b.newContext({storageState:offState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[];
+  const c=await b.newContext({storageState:offState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[];await p.clock.setFixedTime(fixtureInstant);
   p.on('pageerror',e=>errors.push(e.message));await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});if(!['GET','HEAD'].includes(q.method()))return r.fulfill({json:{}});return r.continue();});
   const ready=()=>until(p,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key===location.pathname+location.search,'feature flags ready');
   await p.goto(base+'/progress');await ready();await p.waitForSelector('#p-explore a');assert.deepEqual(await p.evaluate(()=>App.me.feature_flags),{progress_calendar:false,progress_segments:false});assert.equal(await p.locator('#p-explore a').count(),8,'Fitness and Records join the six enabled Explore rows');assert.equal(await p.locator('[data-progress-feature="calendar"],[data-progress-feature="segments"]').count(),0,'disabled Progress features have no links');
@@ -26,7 +27,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.goto(base+'/activity/'+offActivity.id);await ready();assert.equal(await p.locator('#d-segments').count(),0,'disabled Segments has no activity-detail card');if(out&&!captureTotalsOnly){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/activity-detail-${theme}.png`,fullPage:true});}assert.deepEqual(errors,[]);await c.close();
  }
  await offLogin.close();setProgressFlags(true);
- const onContext=await b.newContext({storageState:offState,viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),onPage=await onContext.newPage(),onErrors=[];
+ const onContext=await b.newContext({storageState:offState,viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),onPage=await onContext.newPage(),onErrors=[];await onPage.clock.setFixedTime(fixtureInstant);
  onPage.on('pageerror',e=>onErrors.push(e.message));await onContext.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});if(!['GET','HEAD'].includes(q.method()))return r.fulfill({json:{}});return r.continue();});
  const onReady=()=>until(onPage,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key===location.pathname+location.search,'enabled feature flags ready');
  await onPage.goto(base+'/progress');await onReady();await onPage.waitForSelector('#p-explore a');assert.deepEqual(await onPage.evaluate(()=>App.me.feature_flags),{progress_calendar:true,progress_segments:true});assert.equal(await onPage.locator('#p-explore a').count(),10,'Fitness and Records join all eight Explore rows');assert.equal(await onPage.locator('[data-progress-feature="calendar"],[data-progress-feature="segments"]').count(),2,'enabled Progress links return');
@@ -49,7 +50,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   const sizes=who==='runner'?[{width:390,height:844,root:16},{width:330,height:844,root:16}]:[{width:390,height:844,root:16}];
   for(const size of sizes)for(const theme of ['light','dark']){
    if(process.env.KINETTA_PROGRESS_CASE&&process.env.KINETTA_PROGRESS_CASE!==`${who}-${size.width}-${theme}`)continue;
-   const c=await b.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];let notificationCount=0;
+   const c=await b.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];await p.clock.setFixedTime(fixtureInstant);let notificationCount=0;
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    if(out)await c.addInitScript(()=>{window.__KINETTA_SCREENSHOT_MODE__=true;});
    p.on('pageerror',e=>errors.push(e.message));
