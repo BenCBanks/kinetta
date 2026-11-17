@@ -564,8 +564,15 @@ async function meOverview(el) {
   todayRoot.innerHTML='<section class="me-today" aria-label="Today" aria-busy="true"><div class="me-today-head"><h2>Today</h2><span class="me-today-date">'+esc(shortDate())+'</span></div><div class="me-today-list card list" data-today-skeleton hidden>'+skeletonRow+skeletonRow+skeletonRow+'</div></section>';
   todaySkeletonTimer=setTimeout(()=>{todaySkeletonTimer=null;const pending=$('[data-today-skeleton]',todayRoot);if(pending)pending.hidden=false;},200);
   const todayCachePath=day=>`me:today:${day}`;
-  const todaySnapshot=day=>App.cache.get(todayCachePath(day))?.data||kept(todayCachePath(day));
-  const drawToday=(snapshot,{activityFailed=false,planFailed=false,foodDayFailed=false,todayRowsFailed=false}={},token,day)=>{
+  const todaySnapshot=day=>{
+    const path=todayCachePath(day),saved=App.cache.get(path)?.data||kept(path);if(!saved)return null;
+    const safe={...saved};let changed=false;
+    if(Array.isArray(safe.foodHistory)){safe.foodHistoryCount=safe.foodHistory.length;delete safe.foodHistory;changed=true;}
+    if(Array.isArray(safe.todayRows)){const fields=['id','sport','sport_label','start_time','elapsed_s','distance_m'],rows=safe.todayRows.map(row=>Object.fromEntries(fields.filter(key=>row?.[key]!==undefined).map(key=>[key,row[key]])));if(JSON.stringify(rows)!==JSON.stringify(safe.todayRows)){safe.todayRows=rows;changed=true;}}
+    if(changed){App.cache.set(path,{data:safe,at:App.cache.get(path)?.at||0});keep(path,safe);}
+    return safe;
+  };
+  const drawToday=(snapshot,{activityFailed=false,planFailed=false,foodDayFailed=false,todayRowsFailed=false}={},token,day,fresh=false)=>{
     if(!el.isConnected||owner!==readOwner()||token!==todaySequence)return;
     const activities=Array.isArray(snapshot.activities)?snapshot.activities:[];
     const latestActivity=activities[0]||null,latestActivityDay=latestActivity?localDay(new Date(latestActivity.start_time)):null;
@@ -574,20 +581,21 @@ async function meOverview(el) {
     const sinceDate=new Date(day+'T12:00:00');sinceDate.setDate(sinceDate.getDate()-29);const since=localDay(sinceDate);
     const recentActivity=!!latestActivity&&latestActivityDay>=since&&latestActivityDay<=day;
     if(!activityFailed)App.me.recentActivityUser=recentActivity;if(!planFailed)App.me.hasActivePlan=planActive;
-    const foodHistoryRows=Array.isArray(snapshot.foodHistory)?snapshot.foodHistory:[];
-    const foodData=snapshot.foodData||null,recentFood=!snapshot.foodHistoryFailed?foodHistoryRows.length>0:!!App.me.recentFoodUser;
-    if(!snapshot.foodHistoryFailed)App.me.recentFoodUser=foodHistoryRows.length>0;
+    const foodHistoryCount=Number.isFinite(snapshot.foodHistoryCount)?snapshot.foodHistoryCount:(Array.isArray(snapshot.foodHistory)?snapshot.foodHistory.length:0);
+    const foodData=snapshot.foodData||null,recentFood=!snapshot.foodHistoryFailed?foodHistoryCount>0:!!(App.me.recentFoodUser||App.me.hasFoodHistory);
+    if(!snapshot.foodHistoryFailed)App.me.recentFoodUser=foodHistoryCount>0;
     const todayFoodUser=App.me.kcal_target!=null||recentFood||!!foodData?.food_user;
     const planUser=planFailed?App.me.hasActivePlan===true:planActive;
     const activityUser=(activityFailed||todayRowsFailed)?!!App.me.recentActivityUser:recentActivity;
     if(!activityFailed){activityHistory=activities.length>0;App.me.hasActivityHistory=activityHistory;}else if(App.me.hasActivityHistory!=null)activityHistory=!!App.me.hasActivityHistory;
     if(foodData)foodHistory=!!foodData.has_history||foodData.entries?.length>0;
-    else if(!snapshot.foodHistoryFailed)foodHistory=foodHistoryRows.length>0;
+    else if(!snapshot.foodHistoryFailed)foodHistory=foodHistoryCount>0;
+    else if(App.me.hasFoodHistory!=null)foodHistory=!!App.me.hasFoodHistory;
     if(foodHistory!==null)App.me.hasFoodHistory=foodHistory;
     activePlan=planFailed?App.me.hasActivePlan===true:planActive;drawSetup();
     const showActivityError=(activityFailed||todayRowsFailed)&&activityUser;
     const showPlanError=planFailed&&planUser,showFoodError=foodDayFailed&&todayFoodUser,hasError=showActivityError||showPlanError||showFoodError;
-    if(!hasError)App.me.meTodayUpdatedAt=new Date().toISOString();
+    if(fresh&&!hasError)App.me.meTodayUpdatedAt=new Date().toISOString();
     const rows=[];
     if(planUser)rows.push(planMarkup(plan,day,{error:showPlanError}));
     if(todayFoodUser)rows.push(foodMarkup(foodData,day,{error:showFoodError}));
@@ -606,7 +614,7 @@ async function meOverview(el) {
   const refreshToday=async()=>{
     if(!el.isConnected||owner!==readOwner())return;
     const token=++todaySequence,day=dayNow(),cachePath=todayCachePath(day);todayRoot.dataset.loadToken=String(token);todayRoot.dataset.loading='true';
-    const cached=todaySnapshot(day);if(cached)drawToday(cached,{},token,day);
+    const cached=todaySnapshot(day);if(cached)drawToday(cached,{},token,day,false);
     const after=encodeURIComponent(new Date(day+'T00:00:00').toISOString());
     const [activityResult,planResult,foodHistoryResult,foodDayResult,todayRowsResult]=await Promise.allSettled([
       api('/api/activities?limit=1'),api('/api/plans/current'),api('/api/food/history?days=30'),api('/api/food/day?d='+encodeURIComponent(day)),api('/api/activities?limit=100&after='+after)
@@ -616,10 +624,10 @@ async function meOverview(el) {
     const snapshot={
       activities:activityResult.status==='fulfilled'&&Array.isArray(activityResult.value)?activityResult.value:[],
       plan:planResult.status==='fulfilled'?planResult.value:null,planMissing:noPlan,
-      foodHistory:foodHistoryResult.status==='fulfilled'&&Array.isArray(foodHistoryResult.value)?foodHistoryResult.value:[],
+      foodHistoryCount:foodHistoryResult.status==='fulfilled'&&Array.isArray(foodHistoryResult.value)?foodHistoryResult.value.length:0,
       foodHistoryFailed:foodHistoryResult.status==='rejected',
       foodData:foodDayResult.status==='fulfilled'?foodDayResult.value:null,
-      todayRows:todayRowsResult.status==='fulfilled'&&Array.isArray(todayRowsResult.value)?todayRowsResult.value:[]
+      todayRows:todayRowsResult.status==='fulfilled'&&Array.isArray(todayRowsResult.value)?todayRowsResult.value.map(row=>{const safe={};for(const key of ['id','sport','sport_label','start_time','elapsed_s','distance_m'])if(row?.[key]!==undefined)safe[key]=row[key];return safe;}):[]
     };
     const latest=snapshot.activities[0],latestDay=latest?localDay(new Date(latest.start_time)):null;
     const errors={
@@ -628,16 +636,16 @@ async function meOverview(el) {
       foodDayFailed:foodDayResult.status==='rejected',
       todayRowsFailed:latestDay===day&&todayRowsResult.status==='rejected'
     };
-    drawToday(snapshot,errors,token,day);
+    drawToday(snapshot,errors,token,day,true);
     const complete=activityResult.status==='fulfilled'&&(planResult.status==='fulfilled'||noPlan)&&foodHistoryResult.status==='fulfilled'&&foodDayResult.status==='fulfilled'&&todayRowsResult.status==='fulfilled';
-    if(complete){App.cache.set(cachePath,{data:snapshot,at:Date.now()});keep(cachePath,snapshot);}
+    if(complete){for(const key of [...App.cache.keys()])if(/^me:today:\d{4}-\d{2}-\d{2}$/.test(key)&&key!==cachePath)App.cache.delete(key);try{for(const key of Object.keys(localStorage))if(key.startsWith('fit.c:me:today:')&&key.slice(6)!==cachePath)localStorage.removeItem(key);}catch(e){/* cache is optional */}App.cache.set(cachePath,{data:snapshot,at:Date.now()});keep(cachePath,snapshot);}
   };
   const onFoodChanged=()=>refreshToday(),onVisible=()=>{if(!document.hidden)refreshToday();};
   const scheduleMidnight=()=>{clearTimeout(midnightTimer);const now=new Date(),next=new Date(now);next.setHours(24,0,0,250);midnightTimer=setTimeout(()=>{refreshToday();scheduleMidnight();},Math.max(1000,next-now));};
   document.addEventListener('food:changed',onFoodChanged);document.addEventListener('visibilitychange',onVisible);window.addEventListener('pageshow',onVisible);
   scheduleMidnight();viewResources.set(todayRoot,()=>{stopTodaySkeleton();clearTimeout(midnightTimer);document.removeEventListener('food:changed',onFoodChanged);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('pageshow',onVisible);});
   const profileCachePath='/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1';
-  const cached=!!(todaySnapshot(dayNow())&&(screenHit(profileCachePath)||App.cache.has(profileCachePath)||kept(profileCachePath)));
+  const cached=!!(todaySnapshot(dayNow())&&((typeof screenHit==='function'&&screenHit(profileCachePath))||App.cache.has(profileCachePath)));
   const paint=PaintGate.begin(el.closest('#page')||el,'me',{cached});
   return paint.finish(Promise.allSettled([
     refreshToday(),cardRead,milestoneRead,recapRead,

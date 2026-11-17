@@ -944,6 +944,8 @@ if(typeof window!=='undefined'){window.openAchievementShare=options=>ProfileLayo
 // same server-filtered friend preview as the shared profile; Edit changes its sections in place.
 const MeCard=(()=>{
   const firstName=me=>(me.name||'').trim().split(/\s+/)[0]||me.login;
+  let profilePreviewEpoch=0;
+  const clearPreviewCache=()=>{profilePreviewEpoch++;const login=App.me?.login;if(!login)return;const path='/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=friend&limit=1';App.cache?.delete(path);try{localStorage.removeItem('fit.c:'+path);}catch(e){/* storage is optional */}};
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
@@ -1211,13 +1213,16 @@ const MeCard=(()=>{
         if(!ownerView)throw new TypeError('A shared profile view requires its filtered profile payload.');
         let profile=null,stats=null;
         const profilePath='/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1';
-        const cachedProfile=screenHit(profilePath)?.data||kept(profilePath),cachedStats=screenHit('/api/stats')?.data||kept('/api/stats');
+        const cachedProfile=typeof screenHit==='function'?screenHit(profilePath)?.data||null:App.cache.get(profilePath)?.data||null;
+        store.del('fit.c:'+profilePath); // Remove a persisted pre-hardening friend-preview copy, if present.
+        const cachedStats=(typeof screenHit==='function'?screenHit('/api/stats')?.data:null)||kept('/api/stats');
         let showcaseRead=Promise.resolve();
         if(cachedProfile){profile=cachedProfile;stats=cachedStats;data=viewerData(stats?{...profile,day_streak:stats.day_streak,week_streak:stats.week_streak,close_to:stats.close_to}:profile,viewer);showcaseRead=draw();}
-        const profileRead=load(profilePath,value=>{profile=value;},{maxAge:30000});
+        // This filtered view is privacy-sensitive: paint the in-memory snapshot if present, but always revalidate.
+        const previewEpoch=profilePreviewEpoch,profileRead=api(profilePath).then(value=>{profile=value;if(live()&&previewEpoch===profilePreviewEpoch)App.cache.set(profilePath,{data:value,at:Date.now()});});
         const statsRead=cardPeriod==='week'?load('/api/stats',value=>{stats=value;}).catch(()=>{stats=null;}):Promise.resolve(null);
         await Promise.all([profileRead,statsRead]);
-        if(!live())return;
+        if(!live()||previewEpoch!==profilePreviewEpoch)return;
         if(!profile)throw new Error('Profile data is not available.');
         const next=viewerData(stats?{...profile,day_streak:stats.day_streak,week_streak:stats.week_streak,close_to:stats.close_to}:profile,viewer);
         if(JSON.stringify(next)!==JSON.stringify(data)){await showcaseRead;data=next;showcaseRead=draw();}
@@ -1225,7 +1230,7 @@ const MeCard=(()=>{
         const closeTo=root.querySelector('[data-me-close-to]');if(closeTo){closeTo.textContent=cardPeriod==='week'&&typeof data.close_to==='string'?data.close_to:'';closeTo.hidden=!closeTo.textContent;}
         if(editOnLoad&&live()){editOnLoad=false;edit({focusName:true,fromSettings:true});}
       }
-      catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);loadCard();};}
+      catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');if(data){await draw();const note=document.createElement('p');note.className='small err me-card-load-error';note.setAttribute('role','alert');note.textContent='Your shared profile couldn’t refresh. Try again.';const retry=document.createElement('button');retry.type='button';retry.className='linkbtn';retry.dataset.cardRetry='';retry.textContent='Retry';retry.onclick=()=>{note.remove();retry.remove();loadCard();};box.append(note,retry);}else{box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);loadCard();};}}
     };
     const dim=on=>{
       const page=root.parentElement;card.classList.toggle('editing',on);$('.me-card-banner',card).classList.toggle('hidden-tools',on);
@@ -1309,7 +1314,7 @@ const MeCard=(()=>{
       rows();periodChoices();choices('stat','stats',stats,1);choices('sport','sports',Object.fromEntries(ProfileLayout.sports.map(k=>[k,SPORT_NAMES[k]||k])),0);
       name.oninput=()=>{nameError.textContent='';name.removeAttribute('aria-invalid');changed();};
       bio.oninput=()=>{$('[data-card-bio-count]',box).textContent=bio.value.length+'/280';sizeBio();changed();};
-      $('[data-card-photo]',box).onclick=()=>{if(!valid())return;profilePhotoSheet(()=>{if(!valid())return;const photo=$('[data-card-photo]',box);photo.innerHTML=avatar(App.me,'lg')+'<small>Change</small>';const original=$('.me-card-id .me-card-avatar',card);if(original)original.innerHTML=avatar(App.me,'lg');invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);status.textContent='Photo saved. Your other edits are kept.';});};
+      $('[data-card-photo]',box).onclick=()=>{if(!valid())return;profilePhotoSheet(()=>{if(!valid())return;const photo=$('[data-card-photo]',box);photo.innerHTML=avatar(App.me,'lg')+'<small>Change</small>';const original=$('.me-card-id .me-card-avatar',card);if(original)original.innerHTML=avatar(App.me,'lg');invalidate('/api/me');invalidate('/api/people/');clearPreviewCache();keep('/api/me',App.me);status.textContent='Photo saved. Your other edits are kept.';});};
       const close=()=>{finish();if(fromSettings&&live())go('/me',{replace:true});};
       const cancel=$('[data-card-cancel]',box);cancel.onclick=async()=>{if(!valid()||busy||featuredBusy)return;if(dirty()&&(!await confirmSheet('Discard your changes?',{body:'Your profile edits won’t be saved.',action:'Discard',cancel:'Keep editing'})||!valid()||busy||featuredBusy))return;close();};
       form.onsubmit=async e=>{
@@ -1322,7 +1327,7 @@ const MeCard=(()=>{
             const account=await api('/api/account',json('PUT',body));if(owner!==readOwner())return;
             App.me.name=account.name??body.name;App.me.bio=account.bio??body.bio;App.me.profile_layout=account.profile_layout||body.profile_layout;
             start.name=App.me.name;start.bio=App.me.bio;start.layout=ProfileLayout.singlePeriod(App.me.profile_layout||body.profile_layout);
-            invalidate('/api/me');invalidate('/api/people/');invalidateFeed();keep('/api/me',App.me);
+            invalidate('/api/me');invalidate('/api/people/');clearPreviewCache();invalidateFeed();keep('/api/me',App.me);
           }
           if(savePins){
             const result=await api('/api/achievements/showcase/pins',json('PUT',{pinned:featuredPins}));if(!valid())return;
@@ -1343,5 +1348,5 @@ const MeCard=(()=>{
     return {edit,ready:initialLoad};
   }
   const card=(person,opts={})=>profileCard({person,...opts});
-  return {header,card,profileCard,ownPills,ownFriends,mount,profileView,firstName,openEditor:()=>go('/me?edit=profile')};
+  return {header,card,profileCard,ownPills,ownFriends,mount,profileView,firstName,clearPreviewCache,openEditor:()=>go('/me?edit=profile')};
 })();
