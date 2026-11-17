@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated November 11, 2026
+Last updated November 17, 2026
 
 ## intro
 
@@ -32,7 +32,7 @@ What we keep
 
 ## collect-records
 
-**What you add or import:** workouts, activity files, routes, heart rate and other measurements, food, recipes, weight, goals, plans and settings. Body details like height and age are optional and only used for your own estimates.
+**What you add or import:** workouts, activity files, routes, heart rate and other measurements, food, recipes, weight, goals, plans and settings. Body details like height and age are optional and only used for your own estimates. On iPhone, Save to Photos uses iOS add-only permission: Kinetta can add the rendered activity picture you chose, but cannot browse your photo library through that permission. That save does not upload the picture to our server. Choosing a photo to attach or upload is a separate action.
 
 ## collect-contacts
 
@@ -52,7 +52,7 @@ Invite rows stay on your iPhone. If Kinetta shows an Invite option for a contact
 
 ## collect-other
 
-**Beta requests:** your name, email, device and message. **Technical records:** your login sessions, the device type they're on and the app version/build when a new iPhone sign-in supplies it, the device types you've signed in from (so we can optionally email you about a new sign-in), sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems. The request table excludes query values and message contents; separate web-server access logs may include requested URLs, including search text.
+**Beta requests:** your name, email, device and message. **Technical records:** your login sessions, the device type they're on and the app version/build when a new iPhone sign-in supplies it, the device types you've signed in from (so we can optionally email you about a new sign-in), sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems. The request table excludes query values and message contents; separate web-server access logs may include requested URLs, including search text. The app also stores selected screen responses locally for faster reopening and offline access. They are keyed by server and account ID, cleared on sign-out, account switch, account deletion or expired sign-in, and are not sent to another service.
 
 ## health-heading
 
@@ -89,6 +89,8 @@ New accounts share new activities with everyone on Kinetta. You can change this 
 ## sharing-maps
 
 Shared maps hide where a route starts and ends, but the rest of the route and its time can still hint at where you live or your routine. We strip location data from photos you upload.
+
+Groups are visible to their members. In each group you choose separately whether eligible workout totals contribute to its goal; Only me workouts are excluded. Combined totals appear only when a group has at least three active members. Your name appears in an event recap only if you opt in for that group. Monday recap alerts are optional in-app notices and start off; you can turn them off or mute notifications per group.
 
 ## sharing-fixed-courses
 
