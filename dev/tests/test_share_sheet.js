@@ -34,7 +34,7 @@ function harness({native=false,activityShareSupported=false,saveActivityPicture:
    esc:String,svg:()=>'',toast:message=>toasts.push(message),route:()=>{},col:()=> '#ffffff',getComputedStyle:()=>({getPropertyValue:()=> 'system-ui'}),
    setOwner:value=>{owner=value;},getObjects:()=>objects,getTimers:()=>timers,getState:()=>({html,anchorClicks,scrollHandler,revoked,toasts,apiCalls,nativeSaveCalls,body,choices,tabs,images,previewImage,previewFrame,actions,controls,note,description,status,send,sendLabel,linkButton,save,document})};
  vm.createContext(context);
- vm.runInContext(fs.readFileSync('app/static/share-art.js','utf8')+'\n'+fs.readFileSync('app/static/recaps.js','utf8')+'\n'+fs.readFileSync('app/static/cards.js','utf8')+'\nthis.shareSheetTest=ShareSheet;this.shareArtTest=ShareArt;this.kinettaCardTest=KinettaCard;',context);
+ vm.runInContext(fs.readFileSync('app/static/share-art.js','utf8')+'\n'+fs.readFileSync('app/static/recaps.js','utf8')+'\n'+fs.readFileSync('app/static/cards.js','utf8')+'\nthis.shareSheetTest=ShareSheet;this.shareArtTest=ShareArt;this.badgeExportRectsClear=ShareArt.badgeExportRectsClear;this.fitTrackBadgeDiameter=ShareArt.fitTrackBadgeDiameter;this.kinettaCardTest=KinettaCard;',context);
  context.openShare=value=>{options=value;context.shareSheetTest.open(value);};
  return context;
 }
@@ -81,4 +81,13 @@ function harness({native=false,activityShareSupported=false,saveActivityPicture:
 
  c=harness();c.Native.activityShareSupported=true;const nativePayload=[];c.Native.shareActivityPicture=async(...args)=>{nativePayload.push(args);return{handedOff:true};};assert.equal(await c.shareArtTest.deliver(new Blob(['image']),'fictional.png',()=>true,'https://example.test/people/demo'),true);assert.deepEqual(nativePayload,[['data:image/png;base64,fictional','system','https://example.test/people/demo']]);
  console.log('Share sheet: native payload carries only the picture, system destination and chosen link PASS');
+
+ const exportRects=(count,diameter,cell=158,gap=12,scale=1.03)=>Array.from({length:count},(_,index)=>{const column=index%4,row=Math.floor(index/4),left=column*(cell+gap)+(cell-diameter)/2,top=row*(diameter+16);return{left:left*scale,right:(left+diameter)*scale,top:top*scale,bottom:(top+diameter)*scale};});
+ for(const fixture of [{name:'8-badge Workouts',count:8},{name:'11x repeat Run',count:11}]){
+   const size=c.fitTrackBadgeDiameter(158),safe=exportRects(fixture.count,size),legacy=exportRects(fixture.count,178);
+   assert.equal(safe.length,fixture.count,`${fixture.name} fixture keeps every badge circle`);
+   assert(c.badgeExportRectsClear(safe,12),`${fixture.name} exported rects keep at least 12px horizontal clearance`);
+   assert.equal(c.badgeExportRectsClear(legacy,12),false,`${fixture.name} regression fixture catches the old overlapping 178px circles`);
+ }
+ console.log('Share art: exported badge circle bounds clear at 8 badges and 11x repeat; old 178px overlap is rejected PASS');
 })().catch(error=>{console.error(error);process.exit(1)});
