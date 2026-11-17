@@ -38,7 +38,9 @@ assert plan[0] == 200, plan
 assert plan[1]['today'] == fixture_today.isoformat(), plan[1]
 assert plan[1]['today_workout'] and plan[1]['today_workout']['status'] == 'today', plan[1]
 workout = plan[1]['today_workout']
-amount = f"{workout['minutes']} min" if workout.get('minutes') else f"{workout['dist']} {plan[1]['plan']['unit']}" if workout.get('dist') else 'Plan'
+distance = workout.get('dist')
+distance_text = str(int(distance)) if isinstance(distance, float) and distance.is_integer() else str(distance)
+amount = f"{workout['minutes']} min" if workout.get('minutes') else f"{distance_text} {plan[1]['plan']['unit']}" if distance else 'Plan'
 workout_title = str(workout.get('title') or 'Workout').strip()
 if amount and workout_title.lower().endswith(amount.lower()):
     workout_title = workout_title[:-len(amount)].rstrip(' ·–-')
