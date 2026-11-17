@@ -100,10 +100,10 @@ const ShareArt=(()=>{
   }
   // Activity exports with alpha contain only the selected, already-trimmed route or the explicitly shared stats.
   // Fit from the visible points so removing start/end segments also removes them from the export bounds.
-  async function routeSilhouette({routePoints=[],pace='',totalTime='',ink='blue'}={}){
+  async function routeSilhouette({routePoints=[],pace='',totalTime='',ink='dark'}={}){
     const pictureOwner=readOwner();if(routePoints.length<2)throw Error('There isn’t enough route left to share.');
     await document.fonts.ready;const W=1080,H=810,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d');
-    const color=ink==='blue'?'#1F55D0':ink==='light'?'#FFFFFF':'#151719',mean=routePoints.reduce((sum,p)=>sum+Number(p[0]),0)/routePoints.length,cos=Math.max(.05,Math.cos(mean*Math.PI/180));
+    const color=ink==='light'?'#FFFFFF':'#151719',mean=routePoints.reduce((sum,p)=>sum+Number(p[0]),0)/routePoints.length,cos=Math.max(.05,Math.cos(mean*Math.PI/180));
     const points=routePoints.map(([lat,lon])=>[Number(lon)*cos,-Number(lat)]);if(points.some(p=>!p.every(Number.isFinite)))throw Error('This route could not be drawn.');
     const bounds=points.reduce((b,p)=>({minX:Math.min(b.minX,p[0]),maxX:Math.max(b.maxX,p[0]),minY:Math.min(b.minY,p[1]),maxY:Math.max(b.maxY,p[1])}),{minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity}),{minX,maxX,minY,maxY}=bounds,spanX=maxX-minX,spanY=maxY-minY;
     if(spanX<1e-9&&spanY<1e-9)throw Error('There isn’t enough route left to share.');
@@ -115,8 +115,8 @@ const ShareArt=(()=>{
     drawMark(g,874,752,42,color);text(g,'Kinetta',921,765,42,{color,weight:700,max:170});
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:['Route',pace?'Pace '+pace:'',totalTime?'Total time '+totalTime:'','Kinetta'].filter(Boolean).join('. '),width:W,height:H};
   }
-  async function statsPicture({distance='',pace='',totalTime='',ink='blue'}={}){
-    const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=700,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='blue'?'#1F55D0':ink==='light'?'#FFFFFF':'#151719';
+  async function statsPicture({distance='',pace='',totalTime='',ink='dark'}={}){
+    const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=700,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='light'?'#FFFFFF':'#151719';
     const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[]),...(distance?[['Distance',distance]]:[])];
     if(!metrics.length)throw Error('There are no shared stats to show.');
     metrics.forEach(([label,value],i)=>{const y=150+i*170;text(g,value,72,y,108,{color,weight:700,max:520});text(g,label,640,y,48,{color,weight:500,max:360});});
@@ -233,7 +233,7 @@ const ShareSheet=(()=>{
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
       const buttons=()=>{const current=cache.get(selected),item=items[selected],disabled=busy||!current?.blob;send.disabled=disabled;sendLabel.textContent=item?.shareLabel||'Share';linkButton.hidden=!(current?.link&&item?.linkLabel);linkButton.textContent=item?.linkLabel||'';saveButton.disabled=disabled;$$('[data-share-action]',body).forEach(button=>button.disabled=busy);};
       const renderControls=index=>{
-        const item=items[index],inkLabels={blue:'Blue',dark:'Dark',light:'Light'};controls.innerHTML=(item.controls||[]).map(control=>`<label class="check"><input type="checkbox" data-share-control="${esc(control.key)}"${values[index][control.key]?' checked':''}>${esc(control.label)}</label>`).join('')+(item.inkChoices?`<div class="share-picture-ink" role="group" aria-label="Ink colour">${item.inkChoices.map(ink=>`<button type="button" data-share-ink="${ink}" aria-pressed="${values[index].ink===ink}">${inkLabels[ink]||ink}</button>`).join('')}</div>`:'');
+        const item=items[index],inkLabels={dark:'Dark ink',light:'Light ink'};controls.innerHTML=(item.controls||[]).map(control=>`<label class="check"><input type="checkbox" data-share-control="${esc(control.key)}"${values[index][control.key]?' checked':''}>${esc(control.label)}</label>`).join('')+(item.inkChoices?`<div class="share-picture-ink" role="group" aria-label="Ink colour">${item.inkChoices.map(ink=>`<button type="button" data-share-ink="${ink}" aria-pressed="${values[index].ink===ink}">${inkLabels[ink]||ink}</button>`).join('')}</div>`:'');
         $$('[data-share-control]',controls).forEach(input=>input.onchange=()=>{values[index][input.dataset.shareControl]=input.checked;load(index,true);});
         $$('[data-share-ink]',controls).forEach(button=>button.onclick=()=>{values[index].ink=button.dataset.shareInk;$$('[data-share-ink]',controls).forEach(option=>option.setAttribute('aria-pressed',String(option===button)));const frame=$('[data-share-preview-frame]',body);if(frame)frame.dataset.ink=values[index].ink;load(index,true);});
       };
