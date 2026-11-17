@@ -22,45 +22,33 @@ Review a workout
 
 The route, then the numbers.
 
-## home-food-heading
-
-Log what you eat
-
-## home-food-description
-
-Every food and amount, with daily totals.
-
-## home-progress-heading
-
-See your weeks add up.
-
-## home-progress-description
-
-Totals by week, month and year.
-
-## home-friends-heading
-
-Choose who sees your workouts.
-
-## home-friends-description
-
-Set a default, or change one workout.
-
-## home-trust-share
-
-[Privacy policy](privacy)
-
-## home-trust-export
-
-Export your data.
-
-## home-trust-ads
-
-No ads.
-
 ## home-final-heading
 
-Start tracking.
+Start with today.
+
+## home-achievements-heading
+
+Badges you earn step by step.
+
+## home-achievements-description
+
+Each sport has its own achievement tracks. Progress through named levels, then earn the track medal when you complete it.
+
+## home-sharing-heading
+
+Choose what to share.
+
+## home-sharing-description
+
+Choose who can see each activity. Shared maps hide where a route starts and ends.
+
+## home-final-description
+
+Log a meal or record a workout, then see how they add up.
+
+## home-final-action
+
+Create your account
 
 ## training-training-food-food-friends-friends-compare-co-17
 
