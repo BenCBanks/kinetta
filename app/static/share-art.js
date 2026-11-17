@@ -2,6 +2,18 @@
 'use strict';
 const ShareArt=(()=>{
   const palette=()=>({bg:col('--share-surface'),text:col('--share-text'),soft:col('--share-text-secondary'),muted:col('--share-text-muted'),line:col('--share-divider'),blue:col('--share-action'),tint:col('--share-soft')});
+  const fitTrackBadgeDiameter=cellWidth=>Math.max(48,Math.floor(Number(cellWidth)-8));
+  function badgeExportRectsClear(rects,minGap=12){
+    for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){
+      const a=rects[i],b=rects[j],xGap=Math.max(0,Math.max(a.left,b.left)-Math.min(a.right,b.right)),yGap=Math.max(0,Math.max(a.top,b.top)-Math.min(a.bottom,b.bottom));
+      if(xGap===0&&yGap===0)return false;
+      if(Math.abs((a.top+a.bottom)/2-(b.top+b.bottom)/2)<.5&&xGap<minGap)return false;
+    }
+    return true;
+  }
+  function badgeExportGeometryClear({circles=[],headerGap=0,ringLabelGap=0}={}){
+    return badgeExportRectsClear(circles,12)&&Number(headerGap)>=24&&Number(ringLabelGap)>=8;
+  }
   const family=()=>getComputedStyle(document.documentElement).getPropertyValue('--font-ui').trim()||'system-ui';
   function text(g,value,x,y,size=36,{color=palette().text,weight=600,max=936,align='left'}={}){
     let n=size;g.textAlign=align;g.textBaseline='alphabetic';g.fillStyle=color;
@@ -35,8 +47,49 @@ const ShareArt=(()=>{
 
   async function achievementPicture({root,live=()=>true,outputWidth=1080,outputHeight,padding=48}={}){
     if(!root?.isConnected||!live())throw Error('The account changed.');
+    const restore=[];let exportBadgeDiameter=null;
+    if(root.matches?.('.achievement-share-track-card')){
+      const grid=root.querySelector('.achievement-share-single-track .achievement-share-badges');
+      const firstBadge=grid?.querySelector('.achievement-share-badge');
+      const cellBox=firstBadge?.getBoundingClientRect();
+      if(cellBox?.width){
+        exportBadgeDiameter=fitTrackBadgeDiameter(cellBox.width);
+        for(const medal of grid.querySelectorAll('.profile-achievement-medallion')){
+          restore.push([medal,medal.getAttribute('style')]);
+          medal.style.setProperty('width',`${exportBadgeDiameter}px`);
+          medal.style.setProperty('height',`${exportBadgeDiameter}px`);
+          medal.style.setProperty('flex',`0 0 ${exportBadgeDiameter}px`);
+        }
+      }
+      const rows=root.querySelector('.achievement-share-sport-rows'),head=root.querySelector('.achievement-share-head'),firstMedal=firstBadge?.querySelector('.profile-achievement-medallion'),latest=root.querySelector('.achievement-share-badge.is-latest'),latestMedal=latest?.querySelector('.profile-achievement-medallion'),latestLabel=latest?.querySelector('b');
+      if(rows&&head&&firstMedal){
+        restore.push([rows,rows.getAttribute('style')]);
+        const width=Math.max(1,Math.floor(outputWidth)),exportHeight=()=>Math.max(400,Math.ceil(outputHeight||root.getBoundingClientRect().height+96)),scale=()=>Math.min((width-padding*2)/root.getBoundingClientRect().width,(exportHeight()-padding*2)/root.getBoundingClientRect().height);
+        for(let pass=0;pass<4;pass++){
+          const target=24/scale(),gap=firstMedal.getBoundingClientRect().top-head.getBoundingClientRect().bottom,extra=Math.max(0,target-gap);
+          if(extra<.1)break;
+          const current=parseFloat(getComputedStyle(rows).paddingTop)||0;rows.style.setProperty('padding-top',`${current+extra}px`);
+        }
+      }
+      if(latestMedal&&latestLabel){
+        restore.push([latestLabel,latestLabel.getAttribute('style')]);
+        const style=getComputedStyle(latestMedal),ringExtent=style.outlineStyle!=='none'?(parseFloat(style.outlineWidth)||0)+(parseFloat(style.outlineOffset)||0):0;
+        for(let pass=0;pass<4;pass++){
+          const width=Math.max(1,Math.floor(outputWidth)),height=Math.max(400,Math.ceil(outputHeight||root.getBoundingClientRect().height+96)),target=8/Math.min((width-padding*2)/root.getBoundingClientRect().width,(height-padding*2)/root.getBoundingClientRect().height),gap=latestLabel.getBoundingClientRect().top-latestMedal.getBoundingClientRect().bottom-ringExtent,extra=Math.max(0,target-gap);
+          if(extra<.1)break;
+          const current=parseFloat(getComputedStyle(latestLabel).marginTop)||0;latestLabel.style.setProperty('margin-top',`${current+extra}px`);
+        }
+      }
+    }
     const height=Math.max(400,Math.ceil(outputHeight||root.getBoundingClientRect().height+96));
-    return domPicture(root,{live,outputWidth,outputHeight:height,padding});
+    try{
+      const picture=await domPicture(root,{live,outputWidth,outputHeight:height,padding});
+      if(exportBadgeDiameter&&window.__sharePictureDiagnostic)window.__sharePictureDiagnostic.exportBadgeDiameter=exportBadgeDiameter;
+      return picture;
+    }
+    finally{
+      for(const [node,style] of restore){if(style===null)node.removeAttribute('style');else node.setAttribute('style',style);}
+    }
   }
   async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null,routePoints=[],routeTrimmed=true}){
     const pictureOwner=readOwner();
@@ -174,6 +227,11 @@ const ShareArt=(()=>{
     const bounds=root.getBoundingClientRect(),sourceNodes=[root,...root.querySelectorAll('*')],clone=root.cloneNode(true);prepareClone(clone);const cloneNodes=[clone,...clone.querySelectorAll('*')];
     if(!bounds.width||!bounds.height)throw Error('The card picture could not fit clearly.');
     const W=Math.max(1,Math.floor(outputWidth)),H=Math.max(1,Math.floor(outputHeight)),pad=Math.max(0,Number(padding)||48),scale=Math.min((W-pad*2)/bounds.width,(H-pad*2)/bounds.height),x=(W-bounds.width*scale)/2,y=(H-bounds.height*scale)/2;
+    if(root.matches?.('.achievement-share-track-card')){
+      const circles=[...root.querySelectorAll('.achievement-share-badge .profile-achievement-medallion')].map(node=>{const rect=node.getBoundingClientRect();return{left:x+(rect.left-bounds.left)*scale,right:x+(rect.right-bounds.left)*scale,top:y+(rect.top-bounds.top)*scale,bottom:y+(rect.bottom-bounds.top)*scale};});
+      const header=root.querySelector('.achievement-share-head')?.getBoundingClientRect(),first=circles[0],latest=root.querySelector('.achievement-share-badge.is-latest'),medal=latest?.querySelector('.profile-achievement-medallion')?.getBoundingClientRect(),label=latest?.querySelector('b')?.getBoundingClientRect(),style=latest?.querySelector('.profile-achievement-medallion')&&getComputedStyle(latest.querySelector('.profile-achievement-medallion')),ringExtent=style?.outlineStyle!=='none'?(parseFloat(style?.outlineWidth)||0)+(parseFloat(style?.outlineOffset)||0):0,headerGap=header&&first?first.top-(y+(header.bottom-bounds.top)*scale):0,ringLabelGap=medal&&label?(label.top-medal.bottom-ringExtent)*scale:0;
+      if(!badgeExportGeometryClear({circles,headerGap,ringLabelGap}))throw Error('The badge circles need more room in this picture.');
+    }
     const styleNames=['display','position','top','right','bottom','left','inset','z-index','box-sizing','width','height','min-width','min-height','max-width','max-height','margin','margin-top','margin-right','margin-bottom','margin-left','margin-inline','margin-inline-start','margin-inline-end','padding','padding-top','padding-right','padding-bottom','padding-left','color','background','background-color','background-image','background-position','background-size','background-repeat','background-origin','background-clip','border','border-top','border-right','border-bottom','border-left','border-radius','outline','outline-color','outline-style','outline-width','outline-offset','font','font-family','font-size','font-weight','font-style','line-height','letter-spacing','text-align','text-transform','text-decoration','text-decoration-color','text-decoration-style','text-decoration-thickness','text-shadow','white-space','word-break','overflow-wrap','text-overflow','text-indent','opacity','visibility','align-items','align-content','align-self','justify-content','justify-items','flex','flex-basis','flex-direction','flex-wrap','order','gap','column-gap','row-gap','grid-template-columns','grid-template-rows','grid-column','grid-row','overflow','overflow-x','overflow-y','object-fit','object-position','clip','clip-path','vertical-align','transform','transform-origin','filter','box-shadow'];
     const rules=[],shadowFilters=[],pillShadowFilters=[];for(let i=0;i<sourceNodes.length;i++){
       const source=sourceNodes[i],target=cloneNodes[i],style=getComputedStyle(source);if(!target)continue;const id=String(i),nodeBounds=source.getBoundingClientRect(),medalFilter=source.classList?.contains('profile-achievement-medallion')?medalShadowFilter(style.boxShadow,nodeBounds.width,nodeBounds.height,`share-medal-shadow-${i}`):null,pillFilter=source.matches?.('.profile-achievement-level,.profile-achievement-multiple')?medalShadowFilter(style.boxShadow,nodeBounds.width,nodeBounds.height,`share-pill-shadow-${i}`):null,css=styleNames.map(name=>{let value=i===0&&name.startsWith('margin')?'0px':style.getPropertyValue(name);if(value.includes('url('))value='none';if((medalFilter||pillFilter)&&name==='box-shadow')value='none';return `${name}:${value};`;}).join('');
@@ -209,7 +267,7 @@ const ShareArt=(()=>{
     try{const source='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);if(source.length>2_000_000)throw new Error('The card picture is too large to render safely.');window.__sharePictureDiagnostic.dataUrlBytes=source.length;const image=await imageFromDataUrl(source);if(pictureOwner!==readOwner()||!live())throw Error('The account changed.');const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const context=canvas.getContext('2d');context.fillStyle=background;context.fillRect(0,0,W,H);context.drawImage(image,0,0,W,H);const pictureBlob=await blob(canvas);window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,mode:'foreignObjectDataUrl',outputBytes:pictureBlob.size,exportedBlob:true};if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);return{blob:pictureBlob,alt:root.getAttribute('aria-label')||'Your Kinetta profile card.'};}
     catch(error){window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,mode:'canvasFallback',errorName:error.name,errorMessage:error.message};return canvasDomPicture(root,bounds,W,H,pad,scale,x,y,background,live,pictureOwner);}
   }
-  return{palette,family,text,lines,blob,deliver,photo,simplePicture,routeSilhouette,statsPicture,achievementPicture,domPicture};
+  return{palette,family,text,lines,blob,deliver,photo,simplePicture,routeSilhouette,statsPicture,achievementPicture,domPicture,fitTrackBadgeDiameter,badgeExportRectsClear,badgeExportGeometryClear};
 })();
 const ShareSheet=(()=>{
   const inlineDataUrl=picture=>new Promise((yes,no)=>{const reader=new FileReader();reader.onload=()=>yes(reader.result);reader.onerror=()=>no(Error('Couldn’t read this picture'));reader.readAsDataURL(picture);});
