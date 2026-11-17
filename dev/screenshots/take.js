@@ -495,8 +495,14 @@ async function closeCaptureContext(context) {
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);
-      await loadedMaps(page, {advanceMapFade: ['activity', 'activity-splits', 'feed', 'route'].includes(name)});
-      if(opt.tab){const content=page.locator(`#activity-pane-${opt.tab} .activity-splits-scroll tbody tr`).first();await content.waitFor({state:'visible'});await content.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));}
+      await loadedMaps(page, {advanceMapFade: MAP_SHOTS.has(name)});
+      if(opt.tab){
+        const pane=page.locator(`#activity-pane-${opt.tab}:visible`);
+        await pane.waitFor();
+        const content=pane.locator('.activity-splits-scroll tbody tr').first();
+        await content.waitFor({state:'visible'});
+        await content.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));
+      }
       await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
