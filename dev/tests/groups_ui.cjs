@@ -2,7 +2,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KINETTA_SHOTS;
-const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATE_TODAY=(()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:GROUP_UPDATE_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(GROUP_UPDATE_NOW),part=type=>parts.find(value=>value.type===type)?.value;return`${part('year')}-${part('month')}-${part('day')}`;})(),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1',GROUP_LIST_ONLY=process.env.KINETTA_GROUPS_LIST_ONLY==='1',GROUP_DETAIL_ONLY=process.env.KINETTA_GROUPS_DETAIL_ONLY==='1',GROUP_INVITE_ONLY=process.env.KINETTA_GROUPS_INVITE_ONLY==='1';
+const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATE_TODAY=(()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:GROUP_UPDATE_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(GROUP_UPDATE_NOW),part=type=>parts.find(value=>value.type===type)?.value;return`${part('year')}-${part('month')}-${part('day')}`;})(),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1',GROUP_LIST_ONLY=process.env.KINETTA_GROUPS_LIST_ONLY==='1',GROUP_LOADING_ONLY=process.env.KINETTA_GROUP_LOADING_ONLY==='1',GROUP_DETAIL_ONLY=process.env.KINETTA_GROUPS_DETAIL_ONLY==='1',GROUP_INVITE_ONLY=process.env.KINETTA_GROUPS_INVITE_ONLY==='1';
 const newUpdateText='Alex has the trail notes.';
 const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idTwo='00000000-0000-4000-8000-000000000002',idThree='00000000-0000-4000-8000-000000000004',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003',idLongOwnGoal='00000000-0000-4000-8000-000000000005',idSix='00000000-0000-4000-8000-000000000006',idTen='00000000-0000-4000-8000-000000000010';
 const idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013',idOngoing='00000000-0000-4000-8000-000000000014',idDetail='00000000-0000-4000-8000-000000000017',idEscaped='00000000-0000-4000-8000-000000000018';
@@ -53,17 +53,18 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
 }
 (async()=>{
  const browser=await chromium.launch(),contexts=[];
- async function open(theme,width=390,stripState='none',groupListState='none'){
+ async function open(theme,width=390,stripState='none',groupListState='none',holdGroupList=GROUP_LOADING_ONLY){
   const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:GROUP_UPDATE_CLOCK.timezone});contexts.push(context);
   const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(login.status(),200,'isolated demo account login');
   const postedGroups=[],postedUpdates=[],groupPreferences=[],stripPosts=[],groupDateChanges=[],planSaves=[],groupList=groupListState==='list'?[{...ongoingGroup,title:'Fictional trail club'}, {...ongoingGroup,id:'00000000-0000-4000-8000-000000000015',title:'Morning miles group',event_date:'2026-12-31',weeks_to_event:8,event_state:'upcoming',training_for:'Marathon',total:214}, {...ongoingGroup,id:'00000000-0000-4000-8000-000000000016',title:'Weekend movement'}]:groupListState==='ongoing'?[ongoingGroup]:[],updateCheers=[{login:'fictional_member',name:'Fictional member',photo:false,kind:'clap'}];let updateReactionPeopleReads=0,stripData={...stripFixtures[stripState]},updatesState={...updatesGroup,monday_recap_enabled:false,monday_recap:null,updates:updatesGroup.updates.map(row=>({...row}))},ongoingState={...ongoingGroup,updates:ongoingGroup.updates.map(row=>({...row}))};
+  let releaseGroupList,markGroupListStarted,markGroupListLoaded;const groupListGate=new Promise(resolve=>releaseGroupList=resolve),groupListStarted=new Promise(resolve=>markGroupListStarted=resolve),groupListLoaded=new Promise(resolve=>markGroupListLoaded=resolve);
   await context.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),method=req.method(),p=url.pathname;
    if(['/api/people/fictional_friend/photo','/api/people/fictional_member/photo','/api/people/alex/photo'].includes(p))return route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#4778b8"/><circle cx="32" cy="25" r="12" fill="#f2cfaa"/><path d="M8 64c2-17 11-25 24-25s22 8 24 25" fill="#243d5e"/></svg>'});
    if(p==='/api/groups/activity-strip'&&method==='GET')return route.fulfill({json:stripData});
    if(p==='/api/plans'&&method==='POST'){planSaves.push(req.postDataJSON());return route.continue();}
    if(p==='/api/groups/activity-strip'&&method==='POST'){stripPosts.push(req.postDataJSON());stripData={...stripData,muted:req.postDataJSON().muted};return route.fulfill({json:{muted:stripData.muted}});}
-   if(p==='/api/groups'&&method==='GET')return route.fulfill({json:groupList});
+   if(p==='/api/groups'&&method==='GET'){if(holdGroupList){markGroupListStarted();await groupListGate;const response=await route.fulfill({json:groupList});markGroupListLoaded();return response;}return route.fulfill({json:groupList});}
    if(p==='/api/groups'&&method==='POST'){const body=req.postDataJSON();postedGroups.push(body);const group=body.event_date===null?ongoingGroup:empty;return route.fulfill({json:{...group,invite_url:`https://example.test/group-invite/${token}`}});}
    if(p===`/api/group-invites/${token}`&&method==='GET')return route.fulfill({json:{available:true}});
    if(p===`/api/group-invites/${token}/accept`&&method==='POST')return route.fulfill({json:{...two,id:idEmpty}});
@@ -101,9 +102,26 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   });
   const page=await context.newPage(),errors=[];await page.clock.setFixedTime(GROUP_UPDATE_NOW);page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
-  return{context,page,errors,postedGroups,postedUpdates,groupPreferences,stripPosts,stripState:()=>stripData,updatesState:()=>updatesState,updateReactionPeopleReads:()=>updateReactionPeopleReads,groupDateChanges,ongoingState:()=>ongoingState,planSaves};
+  return{context,page,errors,postedGroups,postedUpdates,groupPreferences,stripPosts,stripState:()=>stripData,updatesState:()=>updatesState,updateReactionPeopleReads:()=>updateReactionPeopleReads,groupDateChanges,ongoingState:()=>ongoingState,planSaves,groupListStarted,groupListLoaded,releaseGroupList};
+ }
+ async function checkGroupLoading(theme,captureName=`group-loading-390-${theme}`){
+  const {context,page,errors,groupListStarted,groupListLoaded,releaseGroupList}=await open(theme,390,'none','none',true);
+  await page.goto(base+'/me/groups');await groupListStarted;
+  const status=page.locator('#group-list [role=status]');await status.waitFor();
+  assert.equal(await status.getAttribute('aria-busy'),'true','the loading state is announced as busy');
+  assert.equal(await status.locator('.vh').innerText(),'Loading your groups…','assistive tech gets a concise loading announcement');
+  assert.equal(await status.locator('.group-loading-row[aria-hidden=true]').count(),2,'two group-shaped placeholder rows are present and hidden from assistive tech');
+  const bounds=await status.boundingBox();assert(bounds&&bounds.width<=390&&bounds.height>=120,'the placeholder card is visible and fits the phone');
+  assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'Groups loading has no horizontal overflow');
+  if(shots)await capture(page,captureName,null,{fullPage:false});
+  await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await status.locator('.group-loading-glyph').first().evaluate(el=>getComputedStyle(el).animationName),'none','skeleton shimmer stops for Reduce Motion');
+  releaseGroupList();await groupListLoaded;assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
  }
  try{
+  if(GROUP_LOADING_ONLY){
+   for(const theme of ['light','dark'])await checkGroupLoading(theme);
+   console.log('Groups list loading 390 light/dark PASS');return;
+  }
   if(GROUP_INVITE_ONLY){
    for(const theme of ['light','dark'])for(const width of [390,330]){
     const {context,page,errors}=await open(theme,width);await page.goto(base+`/group-invite/${token}`);await page.locator('#group-accept').waitFor();
@@ -151,6 +169,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.equal(await page.locator('[data-group-update="7003"] .group-update-head .ph-txt small').innerText(),`Today at ${expectedTime}`,'the update timestamp uses the shared fixture instant and timezone');assert.deepEqual(errors,[]);
    await context.close();contexts.splice(contexts.indexOf(context),1);console.log('Group update fixed-clock Today label and post PASS');return;
   }
+  await checkGroupLoading('light');await checkGroupLoading('dark');
   for(const theme of ['light','dark']){
    let context,page,errors,postedGroups,postedUpdates,groupPreferences,updatesState,stripPosts,stripState,updateReactionPeopleReads,groupDateChanges,ongoingState,planSaves;
    ({context,page,errors}=await open(theme,390,'one'));await page.goto(base+'/activity');await waitActivity(page);
