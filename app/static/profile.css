@@ -765,7 +765,7 @@
 .profile-achievement-track-open { display:grid; flex:none; place-items:center; width:18px; height:22px; color:var(--tx3); }
 .profile-achievement-track-open svg { width:18px; height:18px; }
 .profile-achievement-sport-card .profile-achievement-track-share { flex:none; width:44px; height:44px; color:var(--color-text-muted); }
-.profile-achievement-ladder-scroll { gap:12px; padding:4px 2px 6px; -webkit-mask-image:none; mask-image:none; }
+.profile-achievement-ladder-scroll { gap:12px; padding:8px 8px 10px; -webkit-mask-image:none; mask-image:none; }
 .profile-achievement-ladder-scroll .profile-achievement-ladder-badge { flex:0 0 auto; width:max-content; min-width:64px; max-width:none; }
 .profile-achievement-ladder-scroll .profile-achievement-medallion { flex-basis:44px; width:44px; min-width:44px; max-width:44px; height:44px; }
 .profile-achievement-ladder-scroll .profile-achievement-icon { width:26px; height:26px; }
@@ -793,6 +793,8 @@
 /* Earned medals get a specular finish; next goals get a gradient rim; locked badges stay flat. */
 .profile-achievement-ladder-badge.is-earned .profile-achievement-medallion { background:radial-gradient(circle at 28% 18%,color-mix(in srgb,#fff 58%,transparent) 0,transparent 43%),var(--achievement-color); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--achievement-palette-base) 32%,#fff),inset 0 1px 0 rgba(255,255,255,.72),0 4px 9px -3px color-mix(in srgb,var(--achievement-palette-base) 52%,transparent); }
 .profile-achievement-ladder-badge.is-latest .profile-achievement-medallion { outline:2px solid var(--achievement-palette-base); outline-offset:3px; }
+/* The rim extends 5px beyond the disc. The 2px flex gap plus 11px margin leaves 8px before the label. */
+.profile-achievement-ladder-badge.is-latest .profile-achievement-ladder-name { margin-top:11px; }
 .profile-achievement-ladder-badge.is-earned .profile-achievement-medallion::before { position:absolute; inset:0; border-radius:inherit; background:linear-gradient(150deg,rgba(255,255,255,.48) 0%,rgba(255,255,255,.12) 24%,transparent 48%); content:""; pointer-events:none; }
 .profile-achievement-ladder-badge.is-earned .profile-achievement-medallion > * { position:relative; z-index:1; }
 .profile-achievement-ladder-badge.is-next .profile-achievement-medallion { border:3px solid transparent; background:linear-gradient(var(--achievement-color),var(--achievement-color)) padding-box,linear-gradient(120deg,color-mix(in srgb,var(--color-achievement) 62%,var(--card)),var(--color-achievement),color-mix(in srgb,var(--color-achievement) 70%,var(--tx2))) border-box; box-shadow:0 2px 7px -2px color-mix(in srgb,var(--color-achievement) 36%,transparent); }
