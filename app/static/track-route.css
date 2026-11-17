@@ -350,7 +350,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 .interval-row-actions button{border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);font:inherit;font-size:14px}.interval-row-actions button:disabled{color:var(--tx3);opacity:.55}.interval-save-status{color:var(--good)}.interval-history-table{overflow:auto;max-width:100%;margin:14px 0}.interval-history-table table{min-width:0;table-layout:fixed;width:100%;border-collapse:collapse;font-size:14px}.interval-history-table th,.interval-history-table td{overflow-wrap:anywhere;text-align:left;vertical-align:top;padding:12px 8px;border-bottom:1px solid var(--line)}.interval-history-table th{color:var(--tx2)}
 
 /* #1072 PR1: live recording is a fixed, full-viewport column; only the map yields space. */
-#page:has(#track-content > .track-live) { padding:0; }
+#page:has(#track-content > .track-live) { padding:0 !important; }
 .track-session.track-live {
   box-sizing:border-box; width:100vw; margin:0 0 0 calc(50% - 50vw); padding:0;
   border:0; border-radius:0; background:transparent; box-shadow:none; text-align:left;
@@ -466,7 +466,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 }
 
 /* #1072 PR2: Review owns the viewport so its back and save actions never scroll away. */
-#page:has(#track-content > .track-review) { padding:0; }
+#page:has(#track-content > .track-review) { padding:0 !important; }
 .track-session.track-review {
   box-sizing:border-box; display:flex; flex-direction:column; width:100vw; height:100dvh; min-height:0;
   margin:0 0 0 calc(50% - 50vw); padding:env(safe-area-inset-top,0px) 0 0;
