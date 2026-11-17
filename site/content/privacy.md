@@ -90,7 +90,7 @@ New accounts share new activities with everyone on Kinetta. You can change this 
 
 Shared maps hide where a route starts and ends, but the rest of the route and its time can still hint at where you live or your routine. We strip location data from photos you upload.
 
-Groups are visible to their members. In each group you choose separately whether eligible workout totals contribute to its goal; Only me workouts are excluded. Combined totals appear only when a group has at least three active members. Your name appears in an event recap only if you opt in for that group. Monday recap alerts are optional in-app notices and start off; you can turn them off or mute notifications per group.
+Groups are visible to their members. Workout totals are private by default, and the current app does not offer a control to include them in a group goal. Combined totals appear only when a group has at least three visible active members; blocked or otherwise ineligible members do not count toward that threshold. Your name appears in an event recap only if you opt in for that group. Monday recap alerts are optional in-app notices and start off; you can turn them off or mute notifications per group.
 
 ## sharing-fixed-courses
 
