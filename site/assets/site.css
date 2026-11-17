@@ -679,14 +679,8 @@ header.top .signup { display:flex;align-items:center; }
 .progress-demo { padding:100px 0; background:var(--paper); border-block:1px solid var(--line); }
 .progress-demo .wrap { display:grid; grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr); gap:clamp(32px,7vw,100px); align-items:center; }
 .progress-demo-mount { min-height:320px; }
-.progress-demo h2,.home-insights h2 { font-size:clamp(34px,4.2vw,54px); }
+.progress-demo h2 { font-size:clamp(34px,4.2vw,54px); }
 .progress-demo-copy > p { margin-top:14px; color:var(--ink2); }
-.home-insights { padding:100px 0; }
-.home-insights .wrap { display:grid; grid-template-columns:.75fr 1.25fr; gap:50px; align-items:end; }
-.insight-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
-.insight-grid div { display:grid; gap:4px; padding-top:16px; border-top:2px solid var(--line); }
-.insight-grid strong { font:700 clamp(28px,4vw,48px) var(--display); }
-.insight-grid span { color:var(--ink2); }
 [data-site-nav] { transition:box-shadow .25s ease,background .25s ease; }
 [data-site-nav].is-compact .wrap { padding-block:6px; }
 [data-site-nav].is-compact .logo img { width:116px; }
@@ -980,6 +974,15 @@ header.top .signup { display:flex;align-items:center; }
 .home-page .home-kit-prompts ul { margin:0; padding:0; list-style:none; }
 .home-page .home-kit-prompts li { min-height:44px; display:flex; align-items:center; border-bottom:1px solid var(--line); color:var(--ink); font-size:16px; font-weight:500; }
 .home-page .home-kit-prompts li:last-child { border-bottom:0; }
+.home-page .home-achievement-tracks { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); color:var(--ink2); font-size:15px; line-height:1.45; }
+.home-page .home-sharing { border-block:1px solid var(--line); padding-block:clamp(52px,8vw,96px); background:var(--paper); }
+.home-page .home-sharing .wrap { display:grid; grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr); gap:clamp(28px,7vw,96px); align-items:center; }
+.home-page .home-sharing h2 { max-width:12ch; font-size:clamp(34px,4.2vw,54px); line-height:1.06; letter-spacing:-.025em; text-wrap:balance; }
+.home-page .home-sharing p { max-width:46ch; color:var(--ink2); font-size:clamp(17px,2vw,20px); line-height:1.5; }
+.home-page .home-sharing-link { display:inline-flex; align-items:center; min-height:44px; margin-top:12px; color:var(--brand); font-size:15px; font-weight:600; text-decoration:none; }
+.home-page .home-sharing-link span { margin-left:7px; transition:transform .2s ease; }
+.home-page .home-sharing-link:hover span { transform:translateX(3px); }
+.home-page .tour-final p { max-width:42ch; margin:0 auto 20px; color:var(--ink2); }
 @media (max-width:700px) {
  .home-page .home-section-head { margin-bottom:28px; text-align:left; }
  .home-page .home-proof-grid { grid-template-columns:1fr; gap:18px; }
@@ -991,4 +994,7 @@ header.top .signup { display:flex;align-items:center; }
  .home-page .home-feature-split--reverse .home-feature-copy,.home-page .home-feature-split--reverse .home-feature-phone { grid-column:1; grid-row:auto; }
  .home-page .home-feature-phone .phone-frame { width:min(280px,78vw); }
  .home-page .home-feature-copy h2 { font-size:clamp(32px,9vw,42px); }
+ .home-page .home-sharing .wrap { grid-template-columns:1fr; gap:14px; }
+ .home-page .home-sharing h2 { max-width:15ch; font-size:clamp(34px,9vw,42px); }
+ .home-page .home-sharing p { font-size:16px; }
 }
