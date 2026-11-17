@@ -92,6 +92,9 @@
 .friends-page.friends-list-page .fr-friend-link::after { content:none; }
 .friends-page.friends-list-page #fr-empty-browse { display:none; }
 .friend-empty p { color:var(--tx2);font-size:.9375rem;margin:8px 0; }
+.friends-page.friends-list-page .friend-empty { padding:14px 16px; }
+.friends-page.friends-list-page .friend-empty > b { display:block;color:var(--tx);font-size:15px;font-weight:600;line-height:1.25; }
+.friends-page.friends-list-page .friend-empty > p { margin:4px 0 0;color:var(--tx2);font-size:14px;line-height:1.35; }
 .friend-empty .btnrow { margin:0; }
 .friend-empty .btnrow button { min-height:44px; }
 .friends-page .friend-more { margin:14px 0; }
