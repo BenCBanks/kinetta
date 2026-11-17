@@ -2085,14 +2085,6 @@ nav.tabs { view-transition-name: tabs; }
 .period-column .period-zero.current { stroke:var(--tx3); stroke-width:1; stroke-dasharray:2 2; opacity:.65; }
 .period-column.is-selected .period-zero, .period-column.is-selected .distance-empty { stroke:var(--accent); stroke-width:2; }
 .progress-totals-card { border:1px solid var(--line); box-shadow:none; }
-:root[data-theme="dark"] .progress-home-totals .period-column:not(.distance-column):has(.bar-seg.partial) .bar-seg { fill:url(#kinetta-accent-gradient); opacity:1; }
-:root[data-theme="dark"] .progress-home-totals .period-column.distance-column .distance-total.partial { fill:var(--color-brand); opacity:1; }
-@media (prefers-color-scheme:dark) {
-  :root:not([data-theme="light"]) .progress-home-totals .period-column:not(.distance-column):has(.bar-seg.partial) .bar-seg { fill:url(#kinetta-accent-gradient); opacity:1; }
-  :root:not([data-theme="light"]) .progress-home-totals .period-column.distance-column .distance-total.partial { fill:var(--color-brand); opacity:1; }
-}
-.progress-total-readout .readout-hint { color:var(--tx3); }
-.period-axis.inside { paint-order:stroke; stroke:var(--card); stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
 
 /* Account navigation and persistent return controls (owner cleanup, October 2026). */
 

@@ -409,3 +409,12 @@
 .fitness-inspect .readout > span:not(:first-child) {display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 .fitness-inspect .readout b {font-size:1rem;line-height:1.25;white-space:nowrap;margin-top:auto}
 .fitness-inspect .chartbox > svg {touch-action:none;cursor:crosshair}
+
+:root[data-theme="dark"] .progress-home-totals .period-column:not(.distance-column):has(.bar-seg.partial) .bar-seg { fill:url(#kinetta-accent-gradient); opacity:1; }
+:root[data-theme="dark"] .progress-home-totals .period-column.distance-column .distance-total.partial { fill:var(--color-brand); opacity:1; }
+@media (prefers-color-scheme:dark) {
+  :root:not([data-theme="light"]) .progress-home-totals .period-column:not(.distance-column):has(.bar-seg.partial) .bar-seg { fill:url(#kinetta-accent-gradient); opacity:1; }
+  :root:not([data-theme="light"]) .progress-home-totals .period-column.distance-column .distance-total.partial { fill:var(--color-brand); opacity:1; }
+}
+.progress-total-readout .readout-hint { color:var(--tx3); }
+.period-axis.inside { paint-order:stroke; stroke:var(--card); stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
