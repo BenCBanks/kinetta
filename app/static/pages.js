@@ -2176,19 +2176,19 @@ function garminCard(box,C,valid){
     catch(x){e.target.checked=!v;toast(x.message);}};
 }
 
-route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{replace:true}));
-route(/^\/track\/connections$/, 'track', async (el) => {
+route(/^\/(?:me\/connections|track\/connections)$/, 'me', async () => go('/me/settings/connections',{replace:true}));
+route(/^\/me\/settings\/connections$/, 'me', async (el) => {
   el.classList.add('connections-page');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1>
+  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Connections</h1>
     <section class="inset-section connections-list"><div class="inset-group" id="c-list">
       <div class="inset-row connection-status-row" id="c-health">${skel(1)}</div><div id="c-gc"></div>
       ${Native.on ? '<button type="button" class="inset-row has-detail connection-status-row" data-import-history><span class="inset-icon" aria-hidden="true">'+svg('upload')+'</span><span class="inset-label"><span>Import activity history</span><small>Upload files or a Strava export</small></span><span class="inset-value connection-row-action">Open</span></button>' : '<a class="inset-row has-detail connection-status-row" href="/track/import"><span class="inset-icon" aria-hidden="true">'+svg('upload')+'</span><span class="inset-label"><span>Import activity history</span><small>Upload files or a Strava export</small></span><span class="inset-value connection-row-action">Open</span></a>'}
     </div></section>
     <details class="inset-disclosure connection-other-disclosure" id="c-other"><summary class="connection-other-summary">Other connections</summary><div id="c-body" class="inset-group">${skel(2)}</div></details>`;
-  wireBack(el, '/track');
+  wireBack(el, '/me/settings');
   const importHistory=$('[data-import-history]',el);if(importHistory)importHistory.onclick=()=>sheet('Import history',`<p>Open Kinetta in your browser to import original activity files or a Strava export.</p><a class="primary wide" href="${esc((Native.base||location.origin)+'/track/import')}" target="_blank" rel="noopener">Open in browser</a>`);
-  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<span class="inset-icon" aria-hidden="true">${svg('heart')}</span><span class="inset-label"><span>Health</span><small${error?' class="connection-error"':''}>${error?esc(error):Native.on?isOn?`Connected${st?.at?` · synced ${esc(when(st.at))}`:''}`:'Not connected': 'Available in the iPhone app'}${!error&&!Native.on?'.':''}</small></span><a class="inset-value connection-row-action" href="/track/health">${Native.on?isOn?'Manage':'Connect':'About'}</a>${error?'<button type="button" class="connection-action" data-health-retry>Retry</button>':''}`;const retry=$('[data-health-retry]',el);if(retry)retry.onclick=()=>{retry.disabled=true;Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked.'));};};
+  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<span class="inset-icon" aria-hidden="true">${svg('heart')}</span><span class="inset-label"><span>Apple Health</span><small${error?' class="connection-error"':''}>${error?esc(error):Native.on?isOn?`Connected${st?.at?` · synced ${esc(when(st.at))}`:''}`:'Not connected': 'Available in the iPhone app'}${!error&&!Native.on?'.':''}</small></span><a class="inset-value connection-row-action" href="/me/settings/connections/apple-health">${Native.on?isOn?'Manage':'Connect':'About'}</a>${error?'<button type="button" class="connection-action" data-health-retry>Retry</button>':''}`;const retry=$('[data-health-retry]',el);if(retry)retry.onclick=()=>{retry.disabled=true;Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked.'));};};
   if(Native.on)Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open the Health app to review setup.'));
   else healthCard(false,null);
   let C;

@@ -445,6 +445,15 @@
     "reason": "Issue #1024 specifies touching Settings rows inside one InsetGroup card, separated by inset hairlines. Only zero-gap pairs among these rows and the Units choices are allowed; any remaining positive gap below 8px, overlap, undersized target or clipped text still fails."
   },
   {
+    "id": "health-connection-touching-rows",
+    "selector": ".health-sync-section > .inset-group > .health-connection-control > summary,#h-food > .health-food-card > summary",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 1,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1227",
+    "reason": "Issue #1227 specifies three plain Apple Health rows with 1px hairline dividers. Only the divider-width gap between these row summaries is allowed; target size, overlap, other gaps and clipping remain audited."
+  },
+  {
     "id": "settings-inset-caption-type",
     "selector": ".me-settings .inset-caption",
     "metric": "font-min",

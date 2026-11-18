@@ -154,22 +154,6 @@
       ]
     },
     {
-      "id": "native-1",
-      "source": "app/static/native.js",
-      "pattern": "/^\\/me\\/health$/",
-      "paths": [
-        "/me/health"
-      ]
-    },
-    {
-      "id": "native-2",
-      "source": "app/static/native.js",
-      "pattern": "/^\\/track\\/health$/",
-      "paths": [
-        "/track/health"
-      ]
-    },
-    {
       "id": "onboarding-1",
       "source": "app/static/onboarding.js",
       "pattern": "/^\\/food\\/setup$/",
@@ -294,22 +278,6 @@
       "pattern": "/^\\/track\\/import$/",
       "paths": [
         "/track/import"
-      ]
-    },
-    {
-      "id": "pages-15",
-      "source": "app/static/pages.js",
-      "pattern": "/^\\/me\\/connections$/",
-      "paths": [
-        "/me/connections"
-      ]
-    },
-    {
-      "id": "pages-16",
-      "source": "app/static/pages.js",
-      "pattern": "/^\\/track\\/connections$/",
-      "paths": [
-        "/track/connections"
       ]
     },
     {
@@ -551,6 +519,40 @@
       "paths": [
         "/me/activities",
         "/me/activities?sport=run&q=Morning"
+      ]
+    },
+    {
+      "id": "native-1",
+      "source": "app/static/native.js",
+      "pattern": "/^\\/(?:me\\/health|track\\/health)$/",
+      "paths": [
+        "/me/health",
+        "/track/health"
+      ]
+    },
+    {
+      "id": "native-2",
+      "source": "app/static/native.js",
+      "pattern": "/^\\/me\\/settings\\/connections\\/apple-health$/",
+      "paths": [
+        "/me/settings/connections/apple-health"
+      ]
+    },
+    {
+      "id": "pages-15",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/(?:me\\/connections|track\\/connections)$/",
+      "paths": [
+        "/me/connections",
+        "/track/connections"
+      ]
+    },
+    {
+      "id": "pages-16",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/settings\\/connections$/",
+      "paths": [
+        "/me/settings/connections"
       ]
     }
   ],

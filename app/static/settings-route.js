@@ -18,7 +18,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       ${row('a', 'href="/me/devices"', 'shield', 'Signed-in devices')}`)}
     ${InsetGroup('Profile &amp; sharing', `${row('button', 'id="m-profile"', 'user', 'Edit profile')}
       ${row('a', 'href="/me/sharing"', 'lock', 'Sharing &amp; privacy')}`)}
-    ${InsetGroup('Connections &amp; notifications', `${row('a', 'href="/track/connections"', 'watch', 'Connections')}
+    ${InsetGroup('Connections &amp; notifications', `${row('a', 'href="/me/settings/connections"', 'watch', 'Connections')}
       ${row('a', 'href="/me/notifications"', 'bell', 'Notifications')}`)}
     ${InsetGroup('Preferences', `<div class="inset-row inset-units"><span class="inset-icon" aria-hidden="true">${svg('ruler')}</span><span class="inset-label">Units</span><div class="me-period mileage-toggle units-toggle" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>

@@ -44,6 +44,18 @@ async function feedBack(f){
  assert(Math.abs(restored.top-position.top)<=4,`Same feed card stays in place: ${JSON.stringify(position)} → ${JSON.stringify(restored)}`);
  assert(Math.abs(restored.y-position.y)<=4,'Feed scroll position is restored after loaded tools');
 }
+async function appleHealthRows(f){
+ const p=f.p,controls=p.locator('.health-connection-control'),summaries=controls.locator(':scope>summary');
+ await summaries.first().waitFor({state:'visible'});assert.equal(await controls.count(),3,'Apple Health keeps one row per data direction');
+ const rows=await summaries.evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('.inset-label>span')?.textContent.trim(),action:n.querySelector('.inset-value')?.textContent.trim(),height:n.getBoundingClientRect().height,actionBox:(()=>{const r=n.querySelector('.inset-value').getBoundingClientRect();return{width:r.width,height:r.height};})()})));
+ assert.deepEqual(rows.map(row=>row.label),['Import workouts','Import weight','Export nutrition'],'Connections uses the three Apple Health rows');
+ assert.deepEqual(rows.map(row=>row.action),['Connect','Connect','Connect'],'each disconnected Health row exposes Connect');
+ assert(rows.every(row=>row.height>=44&&row.actionBox.width>=44&&row.actionBox.height>=44),'Health row and Connect action keep 44px targets '+JSON.stringify(rows));
+ for(let i=0;i<3;i++){
+  const control=controls.nth(i);await control.locator(':scope>summary').click();const how=control.locator('details.health-details>summary');
+  await how.waitFor({state:'visible'});await how.click();assert.equal(await control.locator('details.health-details[open]').count(),1,'row '+i+' opens its own syncing details');
+ }
+}
 (async()=>{
  boundary();const fixtures=JSON.parse(fs.readFileSync(fixturesFile)),all=journeys(fixtures);
  const theme=process.env.KINETTA_JOURNEY_THEME||'light';assert(['light','dark'].includes(theme),'Known journey theme');
@@ -67,6 +79,7 @@ async function feedBack(f){
     if(test.startReady)await f.p.locator(test.startReady).waitFor({state:'attached'});
     if(test.action==='record'||test.action==='uncertainSave')await recording(f,test.action==='uncertainSave');
     else if(test.action==='food')await food(f);
+    else if(test.action==='appleHealthRows')await appleHealthRows(f);
     else if(test.action==='feedBack')await feedBack(f);
     else for(const [index,selector] of test.taps.entries()){
      const position=test.tapPositions?.[index];
