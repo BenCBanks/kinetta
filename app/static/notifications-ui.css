@@ -16,6 +16,25 @@
 /* Keep the complete title readable on a narrow screen when text is enlarged. */
 @media (max-width:370px) { .notification-settings > h1 { font-size:max(28px,1.5rem); overflow-wrap:normal; } }
 
+/* Notification Center base list styles; later rules below preserve its current compact layout. */
+.notes-group + .notes-group { margin-top: 22px; }
+.notes-h { margin: 0 4px 8px; font: 700 13px/1.2 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--tx3); }
+/* Keep the existing card inset explicit now that this rule sits after shared .card styles. */
+.notes { padding: 4px 14px; }
+.note { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; color: inherit; position: relative; text-decoration: none; }
+.note + .note::before { content: ''; position: absolute; top: 0; left: 74px; right: 16px; border-top: 1px solid var(--line); }
+.note:active { background: var(--card2); }
+.note .grow { flex: 1; min-width: 0; display: grid; gap: 4px; padding-top: 1px; }
+.note-t { font-size: 15.5px; line-height: 1.4; font-weight: 450; overflow-wrap: anywhere; } .note-t b { font-weight: 700; }
+.note-q { color: var(--tx2); font-size: 15px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.note small { font-size: 13px; color: var(--tx3); }
+.note-dot { flex: none; width: 10px; height: 10px; margin-top: 7px; border-radius: 50%; background: var(--accent); }
+.note-av { position: relative; flex: none; }
+.note-av .av { width: 44px; height: 44px; font-size: 16px; }
+.note-k { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); color: var(--accent); box-shadow: 0 0 0 1.5px var(--line); }
+.note-k svg { width: 12px; height: 12px; }
+
 /* Notification Center uses date groups, not read-state groups. */
 .notes-group + .notes-group { margin-top:18px; }
 .notes-h { margin:18px 4px 8px;color:var(--tx3);font:500 13px/1.25 var(--font-ui);letter-spacing:0;text-transform:none; }
