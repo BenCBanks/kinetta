@@ -1056,7 +1056,7 @@ function sheet(title, html, onMount, opts = {}) {
     if (kb === lastKeyboardInset && availableHeight === lastKeyboardAvailableHeight) return;
     lastKeyboardInset = kb; lastKeyboardAvailableHeight = availableHeight;
     s.style.setProperty('--sheet-keyboard-inset', `${kb > 80 ? kb : 0}px`);
-    s.classList.toggle('keyboard-inset', kb > 80);
+    s.classList.toggle?.('keyboard-inset', kb > 80);
     if (opts.keyboardAttached) {
       s.style.bottom = kb > 80 ? `${kb}px` : '';
       s.style.paddingBottom = '';
