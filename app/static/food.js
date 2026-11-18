@@ -1165,6 +1165,46 @@ route(/^\/food\/trends$/, 'food', async () => go('/food?view=overview', {replace
 
 // ---------- Nutrition > progress views (2026-10-09; split into views 2026-10-12): one range, tiles, insights, charts ----------
 const ACTIVITY_LEVELS = [[1.2, 'Mostly sitting', 'desk job, little walking'], [1.3, 'Some walking & standing', 'errands, light chores, kids'], [1.45, 'On my feet a lot', 'retail, nursing, active job']];
+function bodyDetailsSummary(me) {
+  const sex = me.sex ? me.sex[0].toUpperCase() + me.sex.slice(1) : 'Sex not set';
+  const age = me.birth_year ? `Age ${Math.max(0, new Date().getUTCFullYear() - Number(me.birth_year))}` : 'Age not set';
+  let height = 'Height not set';
+  if (me.height_cm) {
+    if (imp()) { const inches = Math.round(Number(me.height_cm) / 2.54); height = `${Math.floor(inches / 12)}′${inches % 12}″`; }
+    else height = `${Math.round(Number(me.height_cm))} cm`;
+  }
+  const weight = me.weight_kg ? `${Math.round(Number(U.weight(me.weight_kg)))} ${imp() ? 'lb' : 'kg'}` : 'Weight not set';
+  return [sex, age, height, weight].join(' · ');
+}
+function bodyDetailsSheet(box) {
+  const me = App.me, owner = readOwner(), initialWeight = String(U.weight(me.weight_kg));
+  const initialHeight = me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '';
+  sheet('Body details', `<form class="form needs-body-form" id="needs-body-form">
+      <div class="two"><label>Sex<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
+      <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}" placeholder="1990"></label></div>
+      <div class="two"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" inputmode="decimal" value="${esc(initialWeight)}" placeholder="${imp() ? '150' : '68'}"></label>
+      <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" inputmode="decimal" value="${esc(initialHeight)}" placeholder="${imp() ? '5 8' : '173'}"></label></div>
+      <button class="needs-body-save" type="submit">Save body details</button>
+    </form>`, (b, close) => {
+    const form = $('#needs-body-form', b), save = $('button[type="submit"]', form);
+    form.onsubmit = async (event) => {
+      event.preventDefault(); if (owner !== readOwner()) return;
+      const n = value => value.trim() === '' ? null : Number(value);
+      const heightText = form.height.value.trim(), heightParts = heightText.match(/\d+(\.\d+)?/g) || [];
+      const height_cm = !heightParts.length ? null : imp() ? (heightParts.length > 1 ? +heightParts[0] * 12 + +heightParts[1] : +heightParts[0] < 9 ? +heightParts[0] * 12 : +heightParts[0]) * 2.54 : +heightParts[0];
+      const body = {sex: form.sex.value || null, birth_year: n(form.birth_year.value), height_cm};
+      if (form.weight.value !== initialWeight) { const weight = n(form.weight.value); body.weight_kg = weight == null ? null : imp() ? weight / 2.20462 : weight; }
+      save.disabled = true;
+      try {
+        await api('/api/profile', json('PUT', body)); if (owner !== readOwner()) return;
+        Object.assign(App.me, body); keep('/api/me', App.me);
+        const meHit = App.cache.get('/api/me'); if (meHit) meHit.data = App.me;
+        invalidate('/api/food/energy'); close(); toast('Body details saved');
+        if (box.isConnected && owner === readOwner()) energyCard(box);
+      } catch (error) { if (owner === readOwner() && b.isConnected) { toast(error.message || 'Could not save body details.'); save.disabled = false; } }
+    };
+  });
+}
 function energyCard(box) {
   // Food-target estimates are independent of the selected burn source and exclude workouts.
   load('/api/food/energy', (E) => {
@@ -1175,7 +1215,8 @@ function energyCard(box) {
     const baseFor = () => Math.round(E.bmr * activityFactor);
     const targetFor = () => Math.max(Math.ceil(E.bmr / 10) * 10, Math.round((baseFor() + goalDelta) / 10) * 10);
     box.innerHTML = `<div id="resting-source-card"></div>
-      <section class="card needs-estimate"><span class="small muted">Estimated calories/day</span><div class="needs-estimate-value"><b class="num" id="needs-estimate-value">${r0(E.base)}</b><span>kcal/day</span></div><p class="small muted">Kinetta estimate · from ${E.bmr_exact?'your height, age, sex and weight':'weight only'} · before workouts</p>${E.bmr_exact?'':'<a class="nutrition-body-prompt needs-estimate-hint" href="/me?setup=body">Based on weight only. Add height, birth year and sex for a better estimate.</a>'}</section>
+      <section class="card needs-estimate"><span class="small muted">Estimated calories/day</span><div class="needs-estimate-value"><b class="num" id="needs-estimate-value">${r0(E.base)}</b><span>kcal/day</span></div><p class="small muted">Kinetta estimate · from ${E.bmr_exact?'your height, age, sex and weight':'weight only'} · before workouts</p>
+      <button class="needs-body-row" id="needs-body-edit" type="button"><span class="needs-body-copy"><b>Body details</b><small>${esc(bodyDetailsSummary(App.me))}</small></span>${svg('chev')}</button>${E.bmr_exact?'':'<a class="small nutrition-body-prompt needs-estimate-hint" href="/me?setup=body">Based on weight only. Add height, birth year and sex for a better estimate.</a>'}</section>
       <details class="card food-target-calculator"><summary>Calculate food target<span class="chev">${svg('down')}</span></summary><div class="target-calculator-content">
         <fieldset class="choice-list" id="needs-activity"><legend>Everyday activity <small>(outside workouts)</small></legend>${ACTIVITY_LEVELS.map(([f,n,d])=>`<label><input type="radio" name="everyday-activity" value="${f}"${f===activityChoice?' checked':''}><span><b>${esc(n)}</b><small>${esc(d)}</small></span></label>`).join('')}</fieldset>
         <fieldset class="choice-list goal-choice-list" id="needs-goal"><legend>Weight goal</legend>${goals.map(([name,delta])=>`<label><input type="radio" name="weight-goal" value="${delta}"${delta===goalDelta?' checked':''}><span><b>${esc(name)}</b></span></label>`).join('')}</fieldset>
@@ -1184,6 +1225,7 @@ function energyCard(box) {
         <details class="estimate-disclosure"><summary>How it's calculated<span class="chev">${svg('down')}</span></summary><p class="small muted">The estimate multiplies resting calories by everyday activity. Your weight goal adjusts the food target; workouts are counted separately. Estimates can vary from day to day.</p>${E.bmr_exact?'':'<p class="small muted">Resting calories are a rough estimate from the profile details available. Add height, birth year and sex in Me settings to improve it.</p>'}</details>
       </div></details>`;
     restingSourceCard($('#resting-source-card',box));
+    $('#needs-body-edit', box).onclick = () => bodyDetailsSheet(box);
     const paintEstimate = () => {
       const base = baseFor(); $('#needs-estimate-value',box).textContent = r0(base); $('#suggested-target-value',box).textContent = r0(targetFor());
     };
