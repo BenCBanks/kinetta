@@ -8,7 +8,7 @@ const WELCOME_AUDIENCE = [
   ['me', 'Only me', 'Your activities stay private. You can share single ones later.'],
 ];
 route(/^\/welcome$/, 'me', async (el) => {
-  const owner = readOwner(),profileDraftKey='fit.welcome.profile-draft:'+JSON.stringify([serverKey(),owner]);let currentStep='';const here = (id=currentStep) => el.isConnected && readOwner() === owner && currentStep===id;
+  const owner = readOwner(),profileDraftKey='fit.welcome.profile-draft:'+JSON.stringify([Native.base || location.origin,owner]);let currentStep='';const here = (id=currentStep) => el.isConnected && readOwner() === owner && currentStep===id;
   const saveProfileDraft=(name,bio)=>{if(here('profile'))store.set(profileDraftKey,{name:String(name).slice(0,60),bio:String(bio).slice(0,280)});};
   const access = Object.values(App.me?.ai_access || {});
   const offerKit = !App.me?.ai_ok && (access.length ? access.some((a) => a.available && a.entitled) : !!App.me?.coach);
