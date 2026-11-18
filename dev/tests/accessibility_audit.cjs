@@ -8,7 +8,7 @@ assert.equal(fixtures.base,base);assert.equal(fixtures.project,project);
 const exceptions=JSON.parse(fs.readFileSync(path.join(__dirname,'accessibility_exceptions.json'),'utf8'));
 const ids=new Set();for(const e of exceptions){assert(e.id&&!ids.has(e.id));ids.add(e.id);assert(e.rule&&/^[.#][\w-]+/.test(e.selector)&&!e.selector.includes('*'));assert(Number.isInteger(e.maximum)&&e.maximum>0&&e.maximum<=12);assert(e.reason?.length>=40,'Every narrow exception needs its written reason');}
 const output=process.env.KINETTA_ACCESSIBILITY_OUTPUT||'/tmp/'+project+'-accessibility';fs.mkdirSync(output,{recursive:true});
-const names=['Me','Activity','Activity detail','Track ready','Progress','Nutrition day','Add food','Settings'];
+const names=['Me','Activity','Activity detail','Track ready','Progress','Nutrition day','Add food','Settings','Apple Health'];
 const requested=process.env.KINETTA_ACCESSIBILITY_SCREENS?process.env.KINETTA_ACCESSIBILITY_SCREENS.split(','):names;
 assert(requested.length>0&&requested.every(name=>names.includes(name)||name==='Sign-up'),'Accessibility audit scene selection is valid');
 const available=scenes(fixtures),selected=requested.filter(name=>name!=='Sign-up').map(name=>available.find(scene=>scene.name===name));

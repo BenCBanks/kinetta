@@ -590,6 +590,20 @@ const Native = (() => {
   return N;
 })();
 
+const healthKitConsentOn=()=>!!App.me?.health_ai_ok&&(!(App.me?.health_weight_read||App.me?.weight_health_derived)||!!App.me?.health_weight_ai_ok);
+function bindHealthKitConsent(page,valid){
+  const controls=()=>$$('[data-health-kit-consent]',page);
+  controls().forEach(input=>input.onchange=async()=>{
+    if(!valid())return;const enabled=input.checked;
+    controls().forEach(control=>{control.disabled=true;control.checked=enabled;});
+    try{
+      await api('/api/profile',json('PUT',{health_ai_ok:enabled,health_weight_ai_ok:enabled}));
+      if(!valid())return;App.me.health_ai_ok=enabled;App.me.health_weight_ai_ok=enabled;
+      toast(enabled?'Sharing health info with Kit enabled':'Sharing health info with Kit off');
+    }catch(error){if(valid())toast(error.message);}
+    finally{if(valid())controls().forEach(control=>{control.checked=healthKitConsentOn();control.disabled=false;});}
+  });
+}
 route(/^\/(?:me\/health|track\/health)$/, 'me', async () => go('/me/settings/connections/apple-health',{replace:true}));
 route(/^\/me\/settings\/connections\/apple-health$/, 'me', async (el) => {
   el.classList.add('health-page');
@@ -603,7 +617,7 @@ route(/^\/me\/settings\/connections\/apple-health$/, 'me', async (el) => {
   const pageOwner=readOwner(),valid=()=>box.isConnected&&pageOwner===readOwner();
   const [isOn, st, bg] = await Promise.all([Native.healthOn(), Native.healthStatus(), Native.backgroundStatus()]);
   if(!valid())return;
-  const ai = !!App.me.health_ai_ok && (!(App.me.health_weight_read||App.me.weight_health_derived)||!!App.me.health_weight_ai_ok);
+  const ai = healthKitConsentOn();
   box.innerHTML = `<section class="inset-section health-sync-section"><div class="inset-group">
       <details class="health-connection-control"><summary class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg('run')}</span><span class="inset-label"><span>Import workouts</span><small>${isOn?st?.error?'Needs attention':st?.at?`Connected · synced ${esc(when(st.at))}`:'Connected · not synced yet':'Not connected'}</small></span><span class="inset-value">${isOn?'Manage':'Connect'}</span></summary><div class="health-connection-body"><details class="inset-nested-disclosure health-details"><summary>How syncing works</summary>
       <p class="small muted">Choose only the categories you want to share. Apple keeps your read-permission choices private; enabling sync does not mean every category was allowed.</p>
@@ -623,8 +637,9 @@ route(/^\/me\/settings\/connections\/apple-health$/, 'me', async (el) => {
 
         <p class="small muted">In the Health app, tap your profile → Apps (or Apps and Services) → Kinetta to change individual switches. Settings may also list Health under Privacy & Security. Return here and tap Sync now.</p>
         <button class="ghost wide danger" id="h-off">Disconnect all Health sync</button>`
-      : '<button class="ghost wide" id="h-on">Connect to the Health app</button>'}<label class="inset-row switch-row health-kit-consent"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit use my health data</span><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}></label></div></details></div></section>
-    <div id="h-food">${skel(1)}</div><a class="primary wide health-done" href="/me/settings/connections">Done</a>`;
+      : '<button class="ghost wide" id="h-on">Connect to the Health app</button>'}<label class="inset-row switch-row health-kit-consent"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit use my health data</span><input type="checkbox" data-health-kit-consent${ai ? ' checked' : ''}></label></div></details></div></section>
+    <div id="h-food" class="inset-group">${skel(1)}</div>`;
+  bindHealthKitConsent(el,valid);
   healthFoodControls($('#h-food',box),valid);
   const err = $('#h-main-error', box);
   Native.onHealthProgress = (text) => { if (box.isConnected) $('#h-progress', box).textContent = text; };
@@ -645,11 +660,6 @@ route(/^\/me\/settings\/connections\/apple-health$/, 'me', async (el) => {
     if (!await confirmSheet('Disconnect Health?', {body: 'Health sync stops on this iPhone and weight and nutrition sharing turn off. Existing history stays. Change system permissions in the Health app.', action: 'Disconnect'}) || !valid()) return;
     return busy(off, 'Stopping…', async () => {await Native.disconnectAllHealth();if(valid())render();});
   };
-  $('#h-ai', box).onchange = async (e) => {
-    if(!valid())return;const v = e.target.checked;
-    try { await api('/api/profile', json('PUT', {health_ai_ok: v,health_weight_ai_ok:v})); if(!valid())return;App.me.health_ai_ok = v;App.me.health_weight_ai_ok=v;toast(v ? 'Sharing health info with Kit enabled' : 'Sharing health info with Kit off'); }
-    catch (x) { e.target.checked = !v; toast(x.message); }
-  };
 });
 
 // The controls are optional; each category needs its own deliberate permission action.
@@ -661,13 +671,13 @@ async function healthFoodControls(box,parentValid=()=>true) {
       const [weight,nutrition,weightLocal,nutritionLocal]=await Promise.all([api('/api/health/weights'),api('/api/health/nutrition'),Native.foodHealthOn('weight'),Native.foodHealthOn('nutrition')]);
       if(!valid())return;
       App.me.health_weight_read=weight.enabled;App.me.health_nutrition_write=nutrition.enabled;App.me.health_weight_ai_ok=weight.health_weight_ai_ok;
-      const ai=$('#h-ai',box.closest('#h-body'));if(ai)ai.checked=!!weight.health_ai_ok&&(!(weight.has_health_weight||weight.enabled)||!!weight.health_weight_ai_ok);
+      const page=box.closest('.health-page');$$('[data-health-kit-consent]',page).forEach(input=>input.checked=healthKitConsentOn());
       const result=Native.foodHealthResult?.owner===JSON.stringify([Native.base,App.me.id])?Native.foodHealthResult:null;
       const card=(kind,state,local,title,copy)=>{
         const r=result?.[kind],enabled=state.enabled&&local;
         const status=!state.enabled?'Off':!local?'Set up on this iPhone':kind==='weight'?(state.last_sync?`Last read ${when(state.last_sync)}. An empty read may mean no accessible samples.`:'Waiting for the first read.'):(r?.blocked?.length?`${r.allowed.length} of 5 nutrient types allowed. Change individual switches in Health; other types stay private.`:r?.at||result?.at?`Last pass ${when(result.at)}. Shares recorded totals for allowed types.`:'Waiting for the first pass.');
-        const label=kind==='weight'?'Import weight':'Export nutrition',icon=kind==='weight'?'weight':'food',how=kind==='nutrition'?'<details class="inset-nested-disclosure health-details"><summary>How syncing works</summary><p>Missing values stay unknown. Kinetta updates only nutrition samples it wrote for this account. Entries already written to Apple Health stay there after sharing stops.</p><p>Sync catches up when Kinetta opens or resumes. Unlock your phone and tap Sync now if a read or write is waiting. Turning weight reading off hides Health-derived points; raw samples remain private. Remove access in Health → your profile → Apps → Kinetta.</p></details>':'';
-        return `<details class="health-connection-control health-food-card"><summary class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg(icon)}</span><span class="inset-label"><span>${label}</span><small>${esc(status)}${r?.pending?' · More history is waiting':''}</small></span><span class="inset-value">${state.enabled?'Manage':'Connect'}</span></summary><div class="inset-group"><p class="health-summary">${copy}</p>${how}${r?.error?`<p class="err" role="alert">${esc(r.error)}</p>`:''}
+        const label=kind==='weight'?'Import weight':'Export nutrition',icon=kind==='weight'?'scale':'food',how=kind==='weight'?'<details class="inset-nested-disclosure health-details"><summary>How syncing works</summary><p>Only weight samples allowed in Apple Health are imported. Manual weigh-ins take priority on the same day. Turning this off hides Health-derived points; it does not remove samples from Apple Health.</p></details>':'<details class="inset-nested-disclosure health-details"><summary>How syncing works</summary><p>Missing values stay unknown. Kinetta updates only nutrition samples it wrote for this account. Entries already written to Apple Health stay there after sharing stops.</p><p>Sync catches up when Kinetta opens or resumes. Unlock your phone and tap Sync now if a read or write is waiting. Turning weight reading off hides Health-derived points; raw samples remain private. Remove access in Health → your profile → Apps → Kinetta.</p></details>';
+        return `<details class="health-connection-control health-food-card"><summary class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg(icon)}</span><span class="inset-label"><span>${label}</span><small>${esc(status)}${r?.pending?' · More history is waiting':''}</small></span><span class="inset-value">${state.enabled?'Manage':'Connect'}</span></summary><div class="inset-group"><p class="health-summary">${copy}</p>${how}<label class="inset-row switch-row health-kit-consent"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit use my health data</span><input type="checkbox" data-health-kit-consent${healthKitConsentOn()?' checked':''}></label>${r?.error?`<p class="err" role="alert">${esc(r.error)}</p>`:''}
           ${Native.foodHealthSupported?`<button class="ghost wide" data-h-food="${kind}" data-h-action="${enabled?'sync':'connect'}">${enabled?'Sync now':state.enabled&&!local?'Set up on this iPhone':kind==='weight'?'Read weight from Health':'Share nutrition with Health'}</button>${kind==='nutrition'&&enabled&&!state.include_older?`<button class="ghost wide" data-h-food="nutrition" data-h-action="older">Also add older days</button>`:''}${state.enabled||local?`<button class="ghost wide" data-h-food="${kind}" data-h-action="off">Turn off ${kind==='weight'?'weight reading':'nutrition sharing'}</button>`:''}`:'<p class="small muted">Install the latest Kinetta iPhone build to set this up.</p>'}
           <p class="err h-food-error" role="alert"></p></div></details>`;
       };
@@ -675,6 +685,7 @@ async function healthFoodControls(box,parentValid=()=>true) {
         card('nutrition',nutrition,nutritionLocal,'Nutrition to the Health app','Share daily totals from saved food, including reviewed estimates. Edits and deletions are reflected. Sharing starts today; older days are added only if you choose.')+
         (Native.foodHealthSupported?'<button class="ghost wide" id="h-food-settings">Manage Health permissions</button>':'')+
         '';
+      bindHealthKitConsent(box.closest('.health-page'),valid);
       const settings=$('#h-food-settings',box);if(settings)settings.onclick=async()=>{if(!valid())return;try{await Native.openHealthSettings();}catch(e){if(valid())toast(e.message);}};
       $$('[data-h-food]',box).forEach(button=>button.onclick=async()=>{
         if(!valid())return;const kind=button.dataset.hFood,action=button.dataset.hAction,section=button.closest('.health-food-card'),error=$('.h-food-error',section),was=button.textContent;
