@@ -233,9 +233,9 @@
 .activity-home .activity-card .post-ft:has(.emoji-reactions) { display:flex; flex-wrap:nowrap; align-items:center; gap:0; padding:0 16px; min-height:48px; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count { order:2; display:flex; flex:none; align-items:center; justify-content:flex-start; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 4px; color:var(--tx2); font-size:14px; font-weight:500; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary { display:flex; align-items:center; gap:4px; overflow:visible; white-space:nowrap; }
-.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji { display:inline-flex; flex:none; align-items:center; gap:0; white-space:nowrap; }
+.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji { display:inline-flex; flex:none; align-items:center; gap:3px; white-space:nowrap; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji .reaction-emoji { display:inline-flex; align-items:center; justify-content:center; font-size:16px; line-height:1; }
-.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-total,.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-more { font-size:14px; font-weight:500; line-height:1.2; font-variant-numeric:tabular-nums; color:var(--tx2); }
+.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-count,.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-more { font-size:14px; font-weight:500; line-height:1.2; font-variant-numeric:tabular-nums; color:var(--tx2); }
 .activity-home .activity-card .post-ft .activity-comments { order:3; margin-left:8px; }
 .activity-home .activity-card .post-ft .activity-comments>svg { width:22px; height:22px; }
 .activity-home .activity-card .post-ft .activity-comments .num { font-size:14px; font-weight:500; }
