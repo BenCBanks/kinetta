@@ -131,7 +131,6 @@ flowchart LR
   GuideEntry -->|"Open Food overview and weekly totals"| GuidePage7
   GuideEntry -->|"Open Import earlier food and weight"| GuidePage8
   GuideEntry -->|"Open Weekly review and calorie check-in"| Nutrition
-  GuideEntry -->|"Open Nutrition reminders and Health sync"| NoticePrefs
   GuideEntry -->|"Open Offline food entries and Undo"| AddFood
   GuideEntry -->|"Open Nutrient details"| Nutrition
   GuideEntry -->|"Open Training plans"| Plan

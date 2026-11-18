@@ -159,8 +159,6 @@ const bdOpen = () => { try { return localStorage.getItem('fit.bd') === '1'; } ca
 // Nutrition (2026-10-12 redesign, Ben: "like you did the Progress tab"): one row of small buttons. View ▾ holds the food
 // log and the progress views (each a short page instead of one long scroll); beside it, the day (log) or the time range.
 const NLOG = [['log', 'Food log', 'What you ate, day by day', 'food', 'c-green']];
-const NMORE = [['reminders', 'Meal reminders', 'Optional nudges at your usual meal times', 'bell', 'c-orange'],
-  ...(!Native.on ? [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']] : [])];
 const NRANGED = ['overview', 'energy', 'macros'];
 function nHead(el, view, filters) {
   const v = [...NLOG, ...NPROG].find(m => m[0] === view), inProgress = location.pathname === '/progress';
@@ -191,7 +189,6 @@ async function foodDiscovery(el) {
       {id:'goals',title:'Calorie & macro goals',description:'',icon:'target',href:'/food?goals=1'},
       {id:'needs',title:'Calorie needs',description:'',icon:'target',href:'/food?view=needs'},
       {id:'calendar',title:'Food calendar',description:'',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      {id:'reminders',title:'Meal reminders',description:'',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
       ...(Native.on?[{id:'health',title:'Health app sync',description:'',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'',icon:'upload',href:'/food/import'}])
     ];
     // These are established destinations. Only render a second line for account-specific facts;

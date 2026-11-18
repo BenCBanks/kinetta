@@ -779,8 +779,8 @@ Small changes so each screen says what it does, keeping the simple, one-home-per
 
 - **Track** offers one-tap Run, Ride, Walk, Hike and Lifting buttons in one row above the All activities list (the full
   list keeps every activity and stays in sync). The Connections row says what it covers.
-- **Nutrition** has one clear My recipes & foods link under Add food instead of a run-on line of four links. Meal
-  reminders live in the More menu (they also remain under notifications). Someone with no food history and no goal
+- **Nutrition** has one clear My recipes & foods link under Add food instead of a run-on line of four links. The stale
+  Meal reminders destination has been removed. Someone with no food history and no goal
   sees a three-step Start your food log card instead of a card of zeros. Same as yesterday, Your usuals and Copy
   yesterday appear only once there is food history. With no usual daily target, Set goal opens the full goal setup.
 - **Food chat** names its search tool Search foods.
@@ -1402,7 +1402,7 @@ Charts use named series, visible units and averages, subtle fills, restrained gr
 
 ## Optional personal notifications — 29 October 2026
 
-After the completed launch/lifting/chart review, #356 adds a compact Training & progress card under Notifications. Planned workouts and Weekly summary start off and remain separate from existing social, milestone, challenge and meal controls. Show the profile time zone, a clear plan reminder time and Monday9am summary schedule. Fold longer delivery details. Keep practical labels/controls readable at330/390px, enlarged text and both themes. Enable only by explicit choice with device/server readiness; retain Off when setup becomes unavailable. Serial pending saves, visible failure recovery and owner/view guards preserve trust. A native permission refresh waits behind a pending preference save. Weekly alerts open the existing private Progress summary expanded; its current dates remain visible and no AI review is implied. See [research, timing/privacy requirements and acceptance](notification-followup.md).
+After the completed launch/lifting/chart review, #356 adds a compact Training & progress card under Notifications. Planned workouts and Weekly summary start off and remain separate from existing social, milestone and challenge controls; meal reminders were removed. Show the profile time zone, a clear plan reminder time and Monday9am summary schedule. Fold longer delivery details. Keep practical labels/controls readable at330/390px, enlarged text and both themes. Enable only by explicit choice with device/server readiness; retain Off when setup becomes unavailable. Serial pending saves, visible failure recovery and owner/view guards preserve trust. A native permission refresh waits behind a pending preference save. Weekly alerts open the existing private Progress summary expanded; its current dates remain visible and no AI review is implied. See [research, timing/privacy requirements and acceptance](notification-followup.md).
 
 
 ## Floating frosted navigation · 29 October 2026 (updated for #700 on 7 November)
@@ -1564,7 +1564,7 @@ Put Add and the existing meal menu in meal headers; keep swipe removal, Undo and
 on a typical390px day should both clear the floating tabs. Keep44px controls,16px inputs and larger-text reflow.
 
 Explore your food reuses Progress's tile renderer, ordering, styles and account/server visit keys. Show only own
-saved recipes/foods, logged-day counts, last weight/trend and reminder state. No zero-count teasers or invented
+saved recipes/foods, logged-day counts and last weight/trend. No zero-count teasers or invented
 measurements. Health food appears only in the iPhone shell; Add past days stays in browsers. Details have their
 own title and a real Back link, with time range and further insight choices inside their chart card. Progress's
 Food & weight and old food addresses reach these same views; retain the food calendar and every old destination.

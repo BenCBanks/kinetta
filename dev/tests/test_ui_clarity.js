@@ -26,8 +26,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  assert.doesNotMatch(food,/data-yesterday-meal=/,'the old copy action is not restored inside every meal');
  assert.equal((food.match(/id="fd-copy"/g)||[]).length,0,'there is no global copy button outside the selected meal');
  assert.doesNotMatch(food,/Reminders · optional|edit or create/,'no run-on link line');
- assert.match(food,/\['reminders', 'Meal reminders'/,'reminders moved into More');
- console.log('Nutrition: optional goals, one entry action, history-bound copy shortcut and retained reminder destination PASS');
+ assert.doesNotMatch(food,/Meal reminders|reminders_on/,'removed meal reminders have no stale Nutrition destinations');
+ console.log('Nutrition: optional goals, one entry action, history-bound copy shortcut and no stale meal-reminder destination PASS');
 }
 // Food chat: a plain name for the search tool.
 assert.match(fs.readFileSync('app/static/thread.js','utf8'),/tile\('id="thread-search"','search','Search'\)/);
