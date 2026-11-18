@@ -407,7 +407,7 @@
 }
 .scrim:has(.social-sheet)::after { content:"";position:absolute;z-index:0;right:0;bottom:calc(-1 * var(--sheet-keyboard-inset,0px));left:0;height:var(--sheet-keyboard-inset,0px);background:var(--surface-sheet);pointer-events:none;transition:height 250ms cubic-bezier(.2,.8,.2,1),bottom 250ms cubic-bezier(.2,.8,.2,1); }
 .scrim:has(.social-sheet) { transition:bottom 250ms cubic-bezier(.2,.8,.2,1); }
-.scrim:has(.social-sheet).keyboard-inset .sheet { padding-bottom:0; }
+.scrim:has(.social-sheet).keyboard-inset .sheet { padding-bottom:0;border-bottom-right-radius:0;border-bottom-left-radius:0; }
 .scrim:has(.social-sheet).keyboard-inset .sheet { max-height:calc(100dvh - var(--sheet-keyboard-inset) - 8px); }
 .scrim:has(.social-sheet) .sheet > header { flex:none;margin-bottom:8px; }
 .scrim:has(.social-sheet) .sheet > .sbody { display:flex;flex:1;flex-direction:column;min-height:0; }
