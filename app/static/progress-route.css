@@ -386,11 +386,12 @@
 @media(max-width:370px) {
   .lifting-records .tbl thead { display:none; }
   .lifting-records .tbl,.lifting-records .tbl tbody { display:block; }
-  .lifting-records .tbl tr[data-strength-record] { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; }
-  .lifting-records .tbl td { padding:4px 2px; }
+  .lifting-records .tbl tr[data-strength-record] { position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; }
+  .lifting-records .tbl tr[data-strength-record]::after { content:""; position:absolute; right:0; bottom:0; left:0; height:1px; background:var(--line); pointer-events:none; }
+  .lifting-records .tbl td { padding:4px 2px; border-top:0; }
   .lifting-records .tbl td:first-child { grid-column:1; grid-row:1; width:auto; }
   .lifting-records .tbl td:nth-child(2) { grid-column:1; grid-row:2; width:auto; padding-top:0; text-align:left; }
-  .lifting-records .tbl td:nth-child(3) { grid-column:2; grid-row:1 / span 2; width:auto; }
+  .lifting-records .tbl td:nth-child(3) { grid-column:2; grid-row:2; width:auto; padding-block:0; }
   .lifting-record-value { font-size:.8125rem; }
   .lifting-record-date { font-size:.75rem !important; }
 }

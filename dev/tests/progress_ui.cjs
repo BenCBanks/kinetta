@@ -236,9 +236,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
         const targets=await recordRows.locator('.lifting-record-name').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
         assert(targets.every(height=>height>=44),`${state} exercise drill-down targets remain 44px: ${targets.join(',')}`);
         if(size.width<=370){
-         const firstName=await recordRows.first().locator('.lifting-record-name').boundingBox(),firstValue=await recordRows.first().locator('.lifting-record-value').boundingBox(),firstDate=await recordRows.first().locator('.lifting-record-date').boundingBox();
+         const firstName=await recordRows.first().locator('.lifting-record-name').boundingBox(),firstValue=await recordRows.first().locator('.lifting-record-value').boundingBox(),firstDate=await recordRows.first().locator('.lifting-record-date').evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);const r=range.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};});
          assert(Math.abs(firstName.x-firstValue.x)<=1&&firstValue.y>=firstName.y+firstName.height-1,`narrow Records places the value beneath the exercise name: ${JSON.stringify({firstName,firstValue,firstDate})}`);
-         assert(firstDate.x>firstName.x+firstName.width&&firstDate.height>0,'narrow Records keeps the date in a separate right-aligned column');
+         assert(Math.abs((firstDate.y+firstDate.height/2)-(firstValue.y+firstValue.height/2))<=2&&firstDate.x>firstValue.x+firstValue.width,`narrow Records aligns the date to the value on the same line: ${JSON.stringify({firstValue,firstDate})}`);
+         const dividers=await recordRows.evaluateAll(nodes=>nodes.map(row=>{const line=getComputedStyle(row,'::after');return{position:line.position,left:line.left,right:line.right,bottom:line.bottom,height:line.height,content:line.content,cellBorders:[...row.cells].map(cell=>getComputedStyle(cell).borderTopWidth)};}));
+         assert(dividers.every(line=>line.position==='absolute'&&line.left==='0px'&&line.right==='0px'&&line.bottom==='0px'&&line.height==='1px'&&line.content==='""'&&line.cellBorders.every(width=>width==='0px')),`narrow Records draws exactly one full-width divider per row: ${JSON.stringify(dividers)}`);
         }
         assert(await p.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),`${state} Lifting table has no horizontal page overflow`);
        }
