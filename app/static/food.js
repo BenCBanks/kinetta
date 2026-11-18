@@ -184,7 +184,7 @@ async function foodDiscovery(el) {
     const f=facts.food,change=f?.weight_change_kg;
     const items=[
       {id:'recipes',title:'Recipes & cooking',description:'',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
-      {id:'overview',title:'Insights',description:'',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
+      {id:'overview',title:'Insights',description:'',icon:'chart',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
       {id:'weight',title:'Weight',description:'',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
       {id:'goals',title:'Calorie & macro goals',description:'',icon:'target',href:'/food?goals=1'},
       {id:'needs',title:'Calorie needs',description:'',icon:'target',href:'/food?view=needs'},
@@ -1327,7 +1327,7 @@ function weightOrigin(query) {
   if(from==='me')return {label:'Me',href:'/me'};
   return {label:'Progress',href:App.progressHome?.owner===readOwner()?App.progressHome.href:'/progress'};
 }
-route(/^\/progress\/weight$/, 'progress', async el=>{
+route(/^\/progress\/weight$/, ()=>new URLSearchParams(location.search).get('from')==='nutrition'?'food':'progress', async el=>{
   const origin=weightOrigin(new URLSearchParams(location.search));
   Discovery.visit('progress','weight');Discovery.visit('nutrition','weight');
   el.classList.add('weight-page');

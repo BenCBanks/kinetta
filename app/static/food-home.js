@@ -2,7 +2,7 @@
 'use strict';
 
 const MEAL_NAMES = {breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snacks: 'Snacks'};
-const NPROG = [['overview', 'Insights', 'Averages, insights and Kit', 'sparkle', 'c-purple'],
+const NPROG = [['overview', 'Insights', 'Averages, insights and Kit', 'chart', 'c-purple'],
   ['energy', 'Calories & weight', 'Eaten vs burned, and your running deficit', 'flame', 'c-orange'],
   ['macros', 'Protein & macros', 'Protein, carbs and fat, and your top foods', 'progress', 'c-red'],
   ['weight', 'Weight', 'Log a weigh-in and see your trend', 'scale', 'c-purple'],
