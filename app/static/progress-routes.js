@@ -5,6 +5,28 @@
 async function pRecordsLoaded(body, q) {
   const sport = q.get('sport') || 'run';
   body.innerHTML = `<div id="r-body">${skel(2)}</div>`;
+  if (sport === 'lifting') {
+    await load('/api/lifts/records', (rows) => {
+      const records = rows.map((item) => {
+        const {exercise, records} = item, kind = exercise.kind;
+        const key = kind === 'time' ? 'secs' : kind === 'body' ? (records.reps ? 'reps' : 'heaviest') : 'heaviest';
+        const record = records[key];
+        if (!record) return '';
+        const label = key === 'secs' ? 'Longest hold' : key === 'reps' ? 'Most reps' : kind === 'body' ? 'Most weight added' : 'Heaviest set';
+        const value = key === 'secs' ? `${Math.round(record.value)} s`
+          : key === 'reps' ? `${record.value} reps`
+            : `${U.weight(record.value)} ${wUnit()} × ${record.reps}`;
+        const date = fdate(record.start_time, {month:'short', day:'numeric', year:'numeric'});
+        return `<tr data-strength-record><td><a class="lifting-record-name" href="/lift/ex/${exercise.id}"><b>${esc(exercise.name)}</b><small class="muted">${label}</small></a></td>
+          <td class="r"><span class="num lifting-record-value">${esc(value)}</span></td><td class="r lifting-record-date">${esc(date)}</td></tr>`;
+      }).filter(Boolean).join('');
+      const box = $('#r-body', body);
+      if (!box) return;
+      box.innerHTML = records ? `<div class="card lifting-records"><table class="tbl"><thead><tr><th>Exercise</th><th class="r">Best</th><th class="r">Date</th></tr></thead><tbody>${records}</tbody></table></div>`
+        : '<div class="card empty"><b>No lifting records yet</b>Completed lifting sets will build your strength records here.</div>';
+    });
+    return;
+  }
   await load(`/api/records?sport=${sport}`, (r) => {
     const yr = new Date().getFullYear();
     $('#r-body', body).innerHTML = r.efforts.length ? `<div class="card"><table class="tbl"><thead><tr><th>Distance</th><th class="r">Best</th><th class="r">${yr}</th></tr></thead><tbody>
@@ -14,28 +36,6 @@ async function pRecordsLoaded(body, q) {
       <p class="small muted">Tap a distance for its PR history. Best efforts are found inside every ${SPORT_NAMES[sport].toLowerCase()}, not just races.</p></div>
       ${r.power_curve.length ? `<div class="card"><h2>Best power</h2><table class="tbl">${r.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r num">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}`
       : `<div class="card empty"><b>No ${SPORT_NAMES[sport].toLowerCase()} records yet</b>They appear as soon as you upload activities with GPS or distance data.</div>`;
-  });
-  await load('/api/lifts/records', (rows) => {
-    const box = $('#r-body', body);
-    if (!box) return;
-    const summary = (item) => {
-      const {exercise, records} = item;
-      const kind = exercise.kind;
-      const key = kind === 'time' ? 'secs' : kind === 'body' ? 'reps' : 'heaviest';
-      const record = records[key];
-      if (!record) return '';
-      const value = kind === 'time' ? `${Math.round(record.value)} s`
-        : kind === 'body' ? `${record.value} reps`
-          : `${U.weight(record.value)} ${wUnit()} × ${record.reps}`;
-      return `<a class="row-link strength-record-row" data-strength-record href="/lift/ex/${exercise.id}">
-        <span class="grow"><b>${esc(exercise.name)}</b><small class="muted">${kind === 'time' ? 'Longest hold' : kind === 'body' ? 'Most reps in a set' : 'Heaviest set'} · ${esc(fdate(record.start_time, {month:'short', day:'numeric', year:'numeric'}))}</small></span>
-        <span class="num strength-record-value">${esc(value)}</span><span class="chev">${svg('chev')}</span></a>`;
-    };
-    const rowsHtml = rows.map(summary).filter(Boolean).join('');
-    box.insertAdjacentHTML('beforeend', `<section class="card strength-records" aria-labelledby="strength-records-title">
-      <h2 id="strength-records-title">Strength</h2>
-      ${rowsHtml ? `<div class="inset-group">${rowsHtml}</div>` : '<p class="small muted strength-records-empty">Completed lifting sets will build your strength records here.</p>'}
-    </section>`);
   });
 }
 async function pRecordHistoryLoaded(el, sport, dist) {

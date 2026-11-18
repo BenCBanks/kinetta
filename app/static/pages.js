@@ -1320,6 +1320,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
 
 // ---------- Progress: home of cards, with each view’s filters inside its first card ----------
 const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
+const RECORD_SPORTS = [...PSPORTS, ['lifting', 'Lifting']];
 const PVIEWS = [['fitness', 'Fitness', 'Run fitness', 'flame', 'c-orange'], ['records', 'Records', 'Personal bests', 'trophy', 'c-purple'],
   ['lifting', 'Lifting', 'Every exercise, your bests and its history', 'workout', 'c-brand']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
@@ -1328,23 +1329,23 @@ const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year
 const progressFeature = {calendar: 'progress_calendar', segments: 'progress_segments'};
 const progressItemEnabled = ([id]) => !progressFeature[id] || appFeatureEnabled(progressFeature[id]);
 const PPERIODS = [['week', 'Week'], ['month', 'Month'], ['year', 'Year']];
-function pSport(q) {
+function pSport(q, allowLifting = false) {
   let s = q.get('sport'); if (!s) try { s = localStorage.getItem('fit.psport'); } catch (e) { /* no storage */ }
-  return PSPORTS.some((p) => p[0] === s) ? s : 'run';
+  return (allowLifting ? RECORD_SPORTS : PSPORTS).some((p) => p[0] === s) ? s : 'run';
 }
 const pillBtn = (id, ico, name, label) => `<button type="button" class="range-btn" id="${id}" aria-label="${esc(label)}: ${esc(name)}. Change">${ico ? svg(ico) : ''}<span>${esc(name)}</span>${svg('down')}</button>`;
-const sportBtn = (cur) => { const k = cur || 'all'; return pillBtn('p-sport', k === 'all' ? 'activity' : k, k === 'all' ? 'All' : SPORT_NAMES[k] || PSPORTS.find((p) => p[0] === k)[1], 'Sport'); };
+const sportBtn = (cur, options = PSPORTS) => { const k = cur || 'all'; return pillBtn('p-sport', k === 'all' ? 'activity' : k === 'lifting' ? 'workout' : k, k === 'all' ? 'All' : SPORT_NAMES[k] || options.find((p) => p[0] === k)[1], 'Sport'); };
 // a sheet listing choices, the current one ticked; pick(key) is called with the chosen one
 const pickRows = (rows, cur) => `<div class="pick-list">${rows.map(([k, n, d, ic, c]) => `<button type="button" class="row-link" data-pk="${k}">${ic ? `<span class="ri ${c}">${svg(ic)}</span>` : ''}
   <span class="grow"><span>${esc(n)}</span>${d ? `<small class="muted">${esc(d)}</small>` : ''}</span>${k === cur ? `<span class="tick">${svg('check')}</span>` : ''}</button>`).join('')}</div>`;
 function pickSheet(title, html, pick) {
   sheet(title, html, (sb, close) => $$('[data-pk]', sb).forEach((x) => x.onclick = () => { close(); pick(x.dataset.pk); }));
 }
-function wireSport(el, cur) {
+function wireSport(el, cur, options = PSPORTS) {
   el.addEventListener('click', e => {
     if (!e.target.closest('#p-sport')) return;
-    pickSheet('Sport', pickRows(PSPORTS.map(([k,n])=>[k,n,'',k==='all'?'activity':k,'c-grey']),cur), k=>{
-      try { localStorage.setItem('fit.psport',k); } catch(e) { /* no storage */ }
+    pickSheet('Sport', pickRows(options.map(([k,n])=>[k,n,'',k==='all'?'activity':k==='lifting'?'workout':k,'c-grey']),cur), k=>{
+      if(k!=='lifting')try { localStorage.setItem('fit.psport',k); } catch(e) { /* no storage */ }
       const u=new URLSearchParams(location.search);u.set('sport',k);if(u.has('metric'))u.set('metric',progressMetricForSport(k,u.get('metric')));go(location.pathname+'?'+u,{replace:true});
     });
   });
@@ -1546,11 +1547,11 @@ route(/^\/progress$/, 'progress', async (el) => {
   if(['totals','mileage'].includes(v0)||!PVIEWS.some(p=>p[0]===v0)&&!PMORE.some(m=>progressItemEnabled(m)&&m[0]===v0)){q.delete('view');return go('/progress'+(q.size?'?'+q:''),{replace:true});}
   if (v0 === 'plan') return go('/plan', {replace: true});
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
-  const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
+  const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q, view === 'records');
   const period = PPERIODS.some((p) => p[0] === q.get('period')) ? q.get('period') : 'week';
   pHead(el, view, view === 'lifting' || view === 'fitness' ? ''
-    : sportBtn(forView(sport, view)) + (view === 'totals' ? progressPeriods(period) : ''));
-  wireSport(el, sport);
+    : sportBtn(forView(sport, view), view === 'records' ? RECORD_SPORTS : PSPORTS) + (view === 'totals' ? progressPeriods(period) : ''));
+  wireSport(el, sport, view === 'records' ? RECORD_SPORTS : PSPORTS);
   wireProgressPeriods(el);
   q.set('sport', forView(sport, view)); q.set('period', period);
   await ({totals: pMileage, fitness: pFitness, records: pRecords, lifting: pLifting}[view])($('#p-body', el), q);
