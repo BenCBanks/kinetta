@@ -440,7 +440,8 @@ const ProfileLayout=(()=>{
   function achievementShareLatestLine(tracks){
     const latest=achievementShareLatestBadge(tracks);if(!latest)return 'Latest: no earned badges yet';
     const {track,tier,day}=latest,title=isFastestAchievement(track.code)?(track.label||achievementLabels[track.code]||track.code):tier.name||track.label||track.code,date=day?fdate(day+'T12:00',{month:'short',day:'numeric'}):'';
-    return `Latest: ${title} · ${achievementShareEarnedValue(track,tier)}${date?` · ${date}`:''}`;
+    const value=achievementShareEarnedValue(track,tier),titleNumber=title.match(/\d[\d,]*(?:\.\d+)?/),valueNumber=value.match(/\d[\d,]*(?:\.\d+)?/),repeatsTitleNumber=!!titleNumber&&!!valueNumber&&Number(titleNumber[0].replace(/,/g,''))===Number(valueNumber[0].replace(/,/g,''));
+    return `Latest: ${title}${repeatsTitleNumber?'':` · ${value}`}${date?` · ${date}`:''}`;
   }
   function achievementShareRowTitle(track){
     const kind=shareTrackKind(track.code);
