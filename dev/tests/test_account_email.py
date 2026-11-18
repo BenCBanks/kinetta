@@ -3,7 +3,7 @@ import base64, hmac, json, os, re, time, unittest
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
-from app import db, auth, account_email, admin_mail
+from app import db, auth, account_email, admin_mail, api_account
 from app.main import app
 
 PW = 'test account private password'
@@ -220,6 +220,55 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(len(set(messages + [unknown.json()['message']])), 1, 'unknown and pending accounts get the same response')
         self.assertEqual(self.mail.call_count, 3, 'resend and reset share a three-link per-account hourly limit')
         self.assertEqual(self.messages()[-1]['to'], ['zz_resend@example.com'])
+
+    def test_open_signup_resend_sends_pending_email_without_enumeration(self):
+        login, email = 'zz_test_mail_resend', 'zz_resend_signup@example.com'
+        payload = {'name': 'Fictional Resend', 'login': login, 'email': email,
+                   'password': 'fictional long passphrase', 'age_ok': True, 'tz': 'UTC'}
+        creator = TestClient(app); creator.headers['Origin'] = BASE
+        original_reserved = api_account.reserved_login
+        self.mail.reset_mock()
+        with patch.dict(os.environ, {**ENV, 'KINETTA_SIGNUP': 'open', 'KINETTA_MAX_ACCOUNTS': ''}), \
+             patch.object(api_account, 'reserved_login', side_effect=lambda value, **kw: original_reserved(value, allow_test=True)):
+            created = creator.post('/api/signup', json=payload)
+        self.assertEqual(created.status_code, 200, created.text)
+        account = creator.get('/api/me').json()
+        self.assertTrue(account['needs_email_confirm'])
+        self.assertIsNone(account['email'], 'open signup keeps the address pending until the link is opened')
+        self.assertEqual(account['pending_email'], email)
+        self.assertEqual(self.mail.call_count, 1, 'signup sends the initial welcome message through the stub')
+        welcome = self.messages()[0]
+        first_link = re.search(r'https://example\.test/confirm-email/([\w-]+)', welcome['text']).group(1)
+
+        anon = TestClient(app); anon.headers['Origin'] = BASE
+        unknown_email = anon.post('/api/account/email/resend', json={'login': 'nobody@example.com'})
+        unknown_login = anon.post('/api/account/email/resend', json={'login': 'nobody_fixture'})
+        self.assertEqual(unknown_email.status_code, 200)
+        self.assertEqual(unknown_login.status_code, 200)
+        self.assertEqual(unknown_email.json(), unknown_login.json())
+        self.assertEqual(self.mail.call_count, 1, 'unknown accounts never receive mail')
+
+        known_username = anon.post('/api/account/email/resend', json={'login': login})
+        self.assertEqual(known_username.status_code, 200)
+        self.assertEqual(known_username.json(), unknown_email.json(), 'known and unknown accounts get the same response')
+        self.assertEqual(self.mail.call_count, 2, 'the pending token address receives a second message')
+        second_link = re.search(r'https://example\.test/confirm-email/([\w-]+)', self.messages()[1]['text']).group(1)
+        self.assertNotEqual(first_link, second_link, 'resend creates a fresh confirmation link')
+        self.assertEqual(self.messages()[1]['to'], [email])
+
+        known_email = anon.post('/api/account/email/resend', json={'login': email.upper()})
+        third_by_username = anon.post('/api/account/email/resend', json={'login': login})
+        limited = anon.post('/api/account/email/resend', json={'login': email})
+        self.assertEqual(known_email.json(), unknown_email.json())
+        self.assertEqual(third_by_username.json(), unknown_email.json())
+        self.assertEqual(limited.status_code, 200)
+        self.assertEqual(limited.json(), unknown_email.json(), 'rate-limited and unknown accounts stay indistinguishable')
+        self.assertEqual(self.mail.call_count, 4, 'signup plus three per-account recovery messages; later resends are limited')
+        self.assertEqual([m['to'] for m in self.messages()], [[email]] * 4)
+
+        latest_link = re.search(r'https://example\.test/confirm-email/([\w-]+)', self.messages()[-1]['text']).group(1)
+        confirmed = anon.post('/api/account/email/confirm', json={'token': latest_link})
+        self.assertEqual(confirmed.status_code, 200, confirmed.text)
 
     def test_signup_conflict_for_pending_email_offers_recovery_code(self):
         user = self.pending_account('zz_signup_pending@example.com')
