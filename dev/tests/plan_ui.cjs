@@ -2,6 +2,10 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',people=['empty','future','week3','race','first','paced'];
+const sharedCss=fs.readFileSync(path.join(__dirname,'../../app/static/style.css'),'utf8');
+const planCss=fs.readFileSync(path.join(__dirname,'../../app/static/plan-ui.css'),'utf8');
+assert(!sharedCss.includes('/* ---------- training plans ---------- */'),'Plan styles stay in the Plan-owned stylesheet');
+assert(planCss.includes('/* ---------- training plans ---------- */'),'Plan-owned stylesheet contains setup and workout primitives');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 async function headerMetrics(p){return p.locator('.plan-top').evaluate(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n),items=[...n.children].filter(x=>x.getBoundingClientRect().width&&x.getBoundingClientRect().height),centers=items.map(x=>x.getBoundingClientRect().top+x.getBoundingClientRect().height/2),children=[...n.children].map(x=>{const b=x.getBoundingClientRect(),c=getComputedStyle(x);return{tag:x.tagName,id:x.id,cls:x.className,display:c.display,x:b.x,y:b.y,width:b.width,height:b.height,flex:c.flex,position:c.position}});return{height:r.height,width:r.width,display:s.display,flexWrap:s.flexWrap,centers,children};});}
 (async()=>{
