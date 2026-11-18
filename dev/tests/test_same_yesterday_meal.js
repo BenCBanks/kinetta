@@ -6,7 +6,7 @@ vm.createContext(c);vm.runInContext(food.slice(start,end)+'\nglobalThis.markup=s
 const yesterday='2026-11-05',today='2026-11-06',items=[{name:'Oats',kcal:150},{name:'Coffee',kcal:5},{name:'Berries',kcal:70}];
 const current={day:today,entries:[],last_meals:{breakfast:{day:yesterday,items,kcal:225}}},html=c.markup(current,'breakfast',true);
 assert.match(html,/Same as yesterday · 225 kcal/,'uses the meal calories when available');
-assert.match(html,/data-repeat-yesterday="breakfast"/);assert.match(html,/aria-label="Repeat yesterday’s breakfast: 225 kcal\. Oats, Coffee, Berries"/);
+assert.match(html,/data-repeat-yesterday="breakfast"/);assert.match(html,/aria-label="Same as yesterday · 225 kcal\. Repeat yesterday’s breakfast: 225 kcal\. Oats, Coffee, Berries"/);
 const namesOnly=c.markup({...current,last_meals:{breakfast:{day:yesterday,items}}},'breakfast',true);
 assert.match(namesOnly,/Same as yesterday · Oats, Coffee \+1/,'keeps the item-name fallback when calories are unavailable');
 assert.equal(c.markup({...current,day:yesterday},'breakfast',false),'','a historical day never offers the action');
