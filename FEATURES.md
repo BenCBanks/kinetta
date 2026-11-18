@@ -1,6 +1,8 @@
 # Kinetta — features
 
-Release checkpoint — October 24, 2026: PRs #248–251 add welcome steps, account/device safety, in-app sign-up, filtered GPS distance, phone/watch matching, live pace, spoken splits and auto-pause. The hosted service has open sign-up with a 100-account cap and a waitlist when full; other installations configure their own mode. Physical-iPhone recording and locked-pocket speech acceptance remain pending. [ROADMAP.md](ROADMAP.md) records the current next steps.
+Current source checkpoint — November 18, 2026 (`e0aa41d8`): Progress includes Lifting records; Apple Health setup is under Me → Settings → Connections; activity comments use a send/retry/delete-confirmation sheet; Nutrition Insights handles sparse logs; and achievement exports are edge-to-edge images for one track or all-sports highlights. Meal-reminder notification behavior has been removed, though the Nutrition Explore row still opens general notification settings. Open-sign-up resend now replaces an unused confirmation link, and recovery explains the username fallback when email is unavailable. These are current-main source facts, not a claim that every change is deployed or physically accepted on iPhone. [ROADMAP.md](ROADMAP.md) records the current next steps.
+
+Release checkpoint — October 24, 2026 (historical): PRs #248–251 add welcome steps, account/device safety, in-app sign-up, filtered GPS distance, phone/watch matching, live pace, spoken splits and auto-pause. At that checkpoint, the hosted service had open sign-up with a 100-account cap and a waitlist when full; other installations configure their own mode. Physical-iPhone recording and locked-pocket speech acceptance remained pending.
 Some entries below describe the scope when an earlier foundation was introduced; later entries complete their
 integration. “Built” does not establish production/Apple processing, physical-device acceptance or public-launch
 readiness. Food chat, recipe links and the Health food UI are integrated; the native Share extension remains
@@ -8,7 +10,7 @@ storage-only, restaurant integration still requires licensed-provider approval, 
 remains open. No new implementation resumes automatically.
 
 
-Goal: everything the big fitness and food apps do, plus deeper analysis and optional AI — private to each person.
+Goal: one place for training and food, with account boundaries and clear choices for what to share, plus deeper analysis and optional AI.
 Status key: [x] built · [~] partly · [ ] planned. Keep this list current when you build something.
 
 ## Research summary (what the best apps do)
@@ -69,6 +71,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Records per exercise: heaviest set, estimated one-rep max (Epley, 1-12 reps), most reps, longest hold, biggest session; marked on the set
 - [x] Exercise page: records, a chart of the estimated 1RM per session, every session's sets, a note for next time ("seat on 4")
 - [x] Progress > Lifting: recent sessions and every exercise with its best; feed cards show sets, weight lifted and the exercises
+- [x] Progress > Records > Lifting: strength records grouped by exercise, alongside each exercise's history
 - [x] A watch strength workout (Apple Health, Garmin Connect, file) that overlaps a logged session joins it (heart rate, calories) instead of doubling
 - [x] Log a past session by hand, then add its sets; the AI coach note reads the sets and last time's; SQL view `v_lift_sets`
 
@@ -77,8 +80,8 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Optional goal-first setup (#122 A): five goals, private optional body details, everyday activity and bounded pace;
       review/edit calorie and protein estimates before an explicit Save. Skip writes nothing; existing macro targets,
       daily overrides and Health/resting choices are preserved. Available from Me and Nutrition without a watch or AI.
-- [x] Native Me setup restores optional Connect Apple Health until sync is enabled, including accounts with history;
-      finished setup never leaves an empty heading/card. Physical-iPhone permission/haptic/text checks remain separate.
+- [x] Apple Health is available under Me > Settings > Connections, with separate workout, weight and nutrition controls;
+      the connection remains available until sync is enabled. Physical-iPhone permission checks remain separate.
 - [x] Describe what you ate in your own words (several foods, amounts, day/meal, follow-up corrections): matched against your own meals, foods and history with no AI; only unknown foods go to Kit’s estimate, and without AI you search for them
 - [x] Log by search (USDA + Open Food Facts), barcode, quick add (cal/P/C/F), custom foods, saved meals, recipes
 - [x] Photo (+ optional description) -> Kit’s estimate (Gemini Flash-Lite; cost varies with input and retries, with durable caps) -> check -> logged
@@ -99,10 +102,10 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 
 ## Platform
 - [x] One-command Docker install; passwords generated on first start; first account becomes the admin
-- [x] Open sign-up with email confirmation, age 16+ check and an account cap; waitlist when full. Administrators can still invite members. Installations can choose invite-only or waitlist mode.
+- [x] Open sign-up with email confirmation, age 16+ check and an account cap; waitlist when full. Administrators can still invite members. Installations can choose invite-only or waitlist mode. Resending confirmation issues a fresh single-use link and invalidates the previous unused link (#1245).
 - [x] Invite links (one use, 7 days); each new account starts in its phone's time zone and units
 - [x] Four optional welcome steps: profile, who sees activities, bring in workouts and find friends. Pending name/bio/audience changes save on Continue; Skip/Not now do not undo photo uploads or requests already confirmed.
-- [x] Email or username login, password reset by email, and Create an account / Forgot password inside the iPhone app.
+- [x] Email or username login, password reset by email, and Create an account / Forgot password inside the iPhone app. If email recovery is unavailable, username sign-in remains available (#1246).
 - [x] Settings → Signed-in devices: device labels/dates without IP addresses; sign out one other login or all others. Optional New sign-in emails for confirmed addresses, initially on; first and known device types are silent.
 - [x] Private accounts, read-only SQL login per person with row-level security + friendly views, one-command database backups
 - [x] Notifications (2026-10-11, `notify.py`): friend requests, accepted requests, cheers, comments and shared meals in
@@ -110,6 +113,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
       (each kind can be switched off); the iPhone app gets them once it can use Apple's push service
 - [x] Sharing between people (new accounts default to Everyone on Kinetta, with welcome/per-activity/Settings choices; existing choices stay): friends found by name or username, a Feed of yours and your
       friends' activities (Mine for just yours), sharing per activity, hidden map ends, cheers and comments
+- [x] Activity comments open in a sheet with loading, send/retry and delete-confirmation states (#1220)
 - [x] Admin: separate /admin portal for invitations, password-reset emails, signing out sessions, suspension/restoration and account management, including removing an account and its data; members can also delete their own account in Settings → Your data
 
 ## Me and native activity tracking (issue #108; physical-device acceptance open)
@@ -176,9 +180,9 @@ See [Recording activities](docs/activity-tracking.md).
 
 - **Evening food summaries retired (20 October 2026):** the setting, shortcut and automatic generation are removed. Nutrition insights start through the Nutrition Kit icon. Historical notes remain readable/exportable.
 
-Connections shows Garmin Connect and Apple Health as ordinary connection choices, with Connect/Manage status. The iPhone app omits file imports; browser activity-history import remains available. Health Auto Export is under Other connections. Garmin Health sharing may be delayed and excludes GPS; direct Garmin can supply routes on new activities. Browser-only original-file import can enrich a matching own Health activity while preserving edits.
+Me > Settings > Connections shows Garmin Connect and Apple Health as ordinary connection choices, with Connect/Manage status. Apple Health workout, weight and nutrition controls are separate. The iPhone app omits file imports; browser activity-history import remains available. Health Auto Export is under Other connections. Garmin Health sharing may be delayed and excludes GPS; direct Garmin can supply routes on new activities. Browser-only original-file import can enrich a matching own Health activity while preserving edits.
 
-Nutrition insights distinguish logged food, a rough burn/energy model and recorded scale trends. A discrepancy names water changes, missed or underestimated food and burn-estimate error, then points to the weekly check-in; agreement is described as broad consistency rather than proof. Weight text uses the account's units. No per-bodyweight advice is inferred from a fallback weight. Energy captions identify Apple Health resting + activity, imported daily burn or formula sources, and never equate being under the food goal with a measured deficit or modelled energy with actual fat loss. These wording changes do not alter targets, calorie arithmetic or Health's passive-only rule.
+Nutrition insights distinguish logged food, a rough burn/energy model and recorded scale trends. The overview card handles sparse food history explicitly: unlogged days are not counted as zero, and the summary changes as complete days accumulate (#1233). A discrepancy names water changes, missed or underestimated food and burn-estimate error, then points to the weekly check-in; agreement is described as broad consistency rather than proof. Weight text uses the account's units. No per-bodyweight advice is inferred from a fallback weight. Energy captions identify Apple Health resting + activity, imported daily burn or formula sources, and never equate being under the food goal with a measured deficit or modelled energy with actual fat loss. These wording changes do not alter targets, calorie arithmetic or Health's passive-only rule.
 
 - **Weekly adaptive check-in:** own food and weight history can suggest a goal-based calorie target once a week, with the numbers, source/uncertainty and resting-burn floor visible. Accept is required; Not now hides the card on Me until next week. Progress retains decision history and shows one next action when data is insufficient. Works with no watch, workout or AI; macros and the selected resting source remain unchanged.
 
@@ -266,6 +270,10 @@ Progress → Share creates a reviewed 4:5 week/month/year picture with selectabl
 ## Kinetta sharing cards (#295)
 
 Me → Share your Kinetta offers a revocable card and link. Share card starts on for everyone, with profile photo, sports, distance this year, weekly activity streak and friend requests selected. Existing cards receive these defaults once; later personal changes persist. Sports use app icons and all-time completed counts, omitting unused sports. Change the photo, sports and up to two fixed activity/food-consistency stats; private names, individual food/activity details and locations stay out. Share the exact picture and link, copy it or show a bright, awake QR code. Requests stay pending for approval; signup, waitlist invitations and email confirmation retain the deliberate choice. Turning off/rotating the card immediately stops its public surfaces. Physical iPhone sharing, QR scanning and installation handoff remain separate acceptance checks.
+
+## Achievement share images (#1193, #1207, #1235)
+
+Me → Achievements can export a single sport/track card or a compact all-sports highlights card. The all-sports card summarizes earned totals by sport and includes up to eight highlight badges. PNG exports use the card bounds edge to edge, without an outer border or shadow. Physical-device sharing remains a separate acceptance check.
 
 ### GPS activity review (#358, draft PR359)
 

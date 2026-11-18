@@ -23,20 +23,23 @@ accounts keep their saved choices. Food and body records stay in the account unl
 **Activities**
 - Upload FIT, GPX or TCX files, or your whole Strava export, with duplicates detected automatically
 - Automatic sync of new Garmin activities after your watch syncs (Garmin Connect, through Garmin's developer program), and Apple Watch workouts (through the Health app in the iPhone app, or Health Auto Export). Import older history from a Strava export or the Health app; Garmin Starter access does not include history ([details](docs/garmin-history.md))
+- Manage Apple Health workout import, weight import and nutrition sharing separately in Me → Settings → Connections
 - Maps, splits, pace, heart rate, elevation, heart-rate zones, effort score and VO2max estimate
 - Matched routes: the same loop recognised automatically, with your pace on it over time
-- Personal records, race predictions, a fitness/fatigue/form chart, goals, gear mileage and a heatmap
+- Personal records, race predictions, a fitness/fatigue/form chart, goals, gear mileage and a heatmap. Strength records by exercise are in Progress → Records → Lifting
 - Training plans for 5K, 10K, half marathon and marathon, from first-timer to advanced
 - Lifting: log exercises, sets, reps and weight as you go, with last time beside every set; records and a history for each exercise
 
 **Food**
 - Search (USDA + Open Food Facts), barcode scanning, quick add, your own foods, meals and recipes
 - Optional photo logging: an AI estimate you check before it's saved
-- Calories and macros against your targets, a weight trend and a running calorie deficit
+- Calories and macros against your targets, a weight trend, and Nutrition Insights that summarize logged days without treating unlogged days as zero
 
 **For your people**
 - Each person has their own account. New accounts share activities and achievements with everyone signed in to their Kinetta server by default; change this in Settings → Sharing & privacy. Existing accounts keep their saved choices.
-- Invite someone with a link: they pick their own username and password
+- Invite someone with a link: they pick their own username and password. When open sign-up is enabled, new accounts confirm their email before becoming visible to others; resending replaces the previous unused link. If email recovery is unavailable, username sign-in remains an option. Installations can use invite-only, waitlist or open sign-up
+- Comment on shared activities, with retry and delete confirmation in the comments sheet
+- Share achievement images for a single sport or a compact all-sports highlights card
 - Works on any phone as an app on the home screen, also offline for logging food
 - Optional AI coach notes and food estimates (off until you turn them on)
 - Optional read-only SQL access to your own data (including every lifting set), if you like digging into numbers
