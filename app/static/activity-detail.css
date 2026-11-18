@@ -402,7 +402,7 @@
 /* Comments sheet: layout is ready before opening; list flexes above the keyboard, with one safe-area inset. */
 .scrim:has(.social-sheet) .sheet {
   position:relative;z-index:1;display:flex;flex-direction:column;overflow:hidden;max-height:calc(100dvh - env(safe-area-inset-top) - 8px);
-  border-radius:18px;background:var(--surface-sheet);transition:max-height 250ms cubic-bezier(.2,.8,.2,1),padding-bottom 250ms cubic-bezier(.2,.8,.2,1);
+  border-radius:18px;background:var(--surface-sheet);transition:max-height 250ms cubic-bezier(.2,.8,.2,1);
   padding:8px 16px calc(env(safe-area-inset-bottom) + 16px);
 }
 .scrim:has(.social-sheet)::after { content:"";position:absolute;z-index:0;right:0;bottom:calc(-1 * var(--sheet-keyboard-inset,0px));left:0;height:var(--sheet-keyboard-inset,0px);background:var(--surface-sheet);pointer-events:none;transition:height 250ms cubic-bezier(.2,.8,.2,1),bottom 250ms cubic-bezier(.2,.8,.2,1); }
