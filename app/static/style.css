@@ -220,6 +220,7 @@ details.fold-row[open] { padding-bottom: 12px; }
 .login-recovery a, .enrollment-email-links a { display: inline-flex; align-items: center; min-height: 44px; }
 .login-recovery-status:empty, .resend-status:empty { display: none; }
 .signup-login-note { overflow-wrap: anywhere; }
+.login .form > p.small > a[href="https://kinetta.app/"] { display:inline-flex; min-height:44px; align-items:center; }
 .signup-reset { justify-self: start; min-height: 44px; display: inline-flex; align-items: center; }
 .brand { display: block; margin: 0 0 22px; } .brand img { display: block; width: 190px; height: auto; }
 

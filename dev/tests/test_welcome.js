@@ -1,21 +1,23 @@
 // The welcome steps (#232 F): Skip and Not now never write; Continue writes only what changed.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-let route,calls=[],went=[];
+let route,calls=[],went=[];const drafts=new Map();
 const field=v=>({value:v});
 const el={isConnected:true,innerHTML:''},nodes={};
 const node=(sel)=>nodes[sel]||(nodes[sel]={onclick:null,disabled:false,textContent:'',innerHTML:'',remove(){}});
 const form={elements:{name:field('Sam Fictional'),bio:field('')},reportValidity:()=>true};
-const c={App:{me:{name:'Sam Fictional',bio:''}},Native:{on:false},readOwner:()=>'one',route:(re,tab,fn)=>route=fn,go:p=>went.push(p),
+const c={App:{me:{name:'Sam Fictional',bio:''}},Native:{on:false,base:''},readOwner:()=>'one',route:(re,tab,fn)=>route=fn,go:p=>went.push(p),
   $:(sel)=>sel==='#wc-form'?form:sel==='input[name="aud"]:checked'?{value:c.pick}:node(sel),
-  location:{search:''},URLSearchParams,replacePageAddress:(_el,href)=>{c.location.search=new URL(href,'https://example.test').search;},$$:()=>[node('#wc-next'),node('#wc-skip'),node('#wc-leave')],
+  location:{origin:'https://example.test',search:''},URLSearchParams,replacePageAddress:(_el,href)=>{c.location.search=new URL(href,'https://example.test').search;},$$:()=>[node('#wc-next'),node('#wc-skip'),node('#wc-leave')],
   phoneValue:null,api:async(path,opts)=>{calls.push([path,opts&&opts.body]);if(path==='/api/contacts/settings'){if(opts?.method==='PUT')c.phoneValue=opts.body.phone_e164;return{phone_e164:c.phoneValue};}return path==='/api/sharing'?{default:'everyone'}:path==='/api/account/inviter'?{inviter:null}:{name:'Sam Fictional'};},
-  json:(m,b)=>({method:m,body:b}),esc:String,svg:()=>'',avatar:()=>'',skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',keep(){},invalidate(){},toast(){},profilePhotoSheet(){},aiExplain:()=>'Kit sends what a feature needs.',aiAdultBox:()=>'<input name=ai_adult>',pick:'everyone'};
+  json:(m,b)=>({method:m,body:b}),esc:String,svg:()=>'',avatar:()=>'',skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',store:{get:key=>drafts.get(key)||null,set:(key,value)=>drafts.set(key,value),del:key=>drafts.delete(key)},keep(){},invalidate(){},toast(){},profilePhotoSheet(){},aiExplain:()=>'Kit sends what a feature needs.',aiAdultBox:()=>'<input name=ai_adult>',pick:'everyone'};
  c.ContactsUI={welcomeLink:()=>'<a class="contacts-welcome-link" href="/me/friends/contacts?return=welcome">Find friends with contacts</a>'};
 vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/welcome.js','utf8'),c);
 const tick=()=>new Promise(r=>setTimeout(r,0));
 (async()=>{
   c.location.search='';await route(el);assert.match(el.innerHTML,/1 of 4/);
+  const originDraftKey='fit.welcome.profile-draft:'+JSON.stringify(['https://example.test','one']);form.elements.bio.value='Fictional web draft';form.elements.bio.oninput();assert.deepEqual(JSON.parse(JSON.stringify(drafts.get(originDraftKey))),{name:'Sam Fictional',bio:'Fictional web draft'},'profile draft uses location.origin when the app-shell helper is absent');
+  c.Native.base='https://native.example.test';await route(el);const nativeDraftKey='fit.welcome.profile-draft:'+JSON.stringify(['https://native.example.test','one']);form.elements.bio.value='Fictional native draft';form.elements.bio.oninput();assert.deepEqual(JSON.parse(JSON.stringify(drafts.get(nativeDraftKey))),{name:'Sam Fictional',bio:'Fictional native draft'},'profile draft prefers the native server identity');assert.equal(drafts.size,2,'profile drafts remain isolated by server and owner');drafts.clear();form.elements.name.value='Sam Fictional';form.elements.bio.value='';c.Native.base='';
   await node('#wc-next').onclick();await tick();assert.deepEqual(calls.filter(([p])=>p==='/api/account'),[],'unchanged profile is not saved');
   assert.match(el.innerHTML,/2 of 4/);await tick();
   await node('#wc-next').onclick();assert.deepEqual(calls.filter(([p,b])=>p==='/api/sharing'&&b),[],'unchanged audience is not saved');
