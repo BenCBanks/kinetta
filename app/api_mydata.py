@@ -50,7 +50,7 @@ TABLES = {
     'health_weight_exclusions': "SELECT to_jsonb(t)" + DROP + " FROM health_weight_exclusions t WHERE user_id = %s ORDER BY day",
     'recipe_link_drafts': "SELECT to_jsonb(t)" + DROP + " FROM recipe_link_drafts t WHERE user_id = %s ORDER BY created",
     'nutrition_checkins': "SELECT to_jsonb(t)" + DROP + " FROM nutrition_checkins t WHERE user_id = %s ORDER BY week",
-    'profile': "SELECT to_jsonb(t)" + DROP + " FROM profile t WHERE user_id = %s",
+    'profile': "SELECT to_jsonb(t)" + DROP + " - 'food_reminders' FROM profile t WHERE user_id = %s",
     'activities': """SELECT to_jsonb(t)""" + DROP + """ - 'geom' - 'start_pt' - 'end_pt' - 'file_path' - 'file_sha256'
                        || jsonb_build_object('track', ST_AsGeoJSON(t.geom)::jsonb) FROM activities t WHERE user_id = %s ORDER BY start_time""",
     'activity_streams': "SELECT to_jsonb(t)" + DROP + " FROM activity_streams t WHERE user_id = %s ORDER BY activity_id",

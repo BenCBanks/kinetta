@@ -1,10 +1,13 @@
 """Real SQL/HTTP ownership, private history, honest teasers and no read-side effects."""
 import datetime as dt
+import io
 import json
 import os
 import subprocess
+import urllib.request
+import zipfile
 
-from kc import Client, PW, person
+from kc import BASE, Client, PW, person
 
 project = os.environ.get('KINETTA_PROJECT', 'kinettatest')
 assert project != 'kinetta' and (project.startswith('kt-') or project in ('kinettatest', 'shots'))
@@ -83,6 +86,13 @@ try:
     assert own_food['food']['protein_days'] == 1 and own_food['food']['weight_change_kg'] < 0
     assert own_food['food']['library_items']==2 and own_food['food']['weight_kg']==74 and own_food['food']['logged_days']==1
     assert 'reminders_on' not in own_food['food'], 'ignored legacy preference is not exposed in Progress'
+    with food.op.open(urllib.request.Request(BASE + '/api/account/export')) as response:
+        export = zipfile.ZipFile(io.BytesIO(response.read()))
+    exported_profile = json.loads(export.read('data/profile.jsonl').splitlines()[0])
+    assert 'food_reminders' not in exported_profile, 'legacy preference is omitted from profile export'
+    exported_names = set(export.namelist())
+    assert 'data/meal_reminder_attempts.jsonl' not in exported_names
+    assert {'data/profile.jsonl', 'data/activities.jsonl', 'data/personal_notification_attempts.jsonl'} <= exported_names, 'unrelated export sections retain their shape'
     assert own_food['mapped'] == 0 and own_food['record'] is None
     assert get(runner)['food'] == {'protein_days': None, 'weight_change_kg': None, 'library_items':1, 'weight_kg':None, 'logged_days':0}
     assert get(empty) == before
