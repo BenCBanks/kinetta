@@ -45,4 +45,5 @@ workout_title = str(workout.get('title') or 'Workout').strip()
 if amount and workout_title.lower().endswith(amount.lower()):
     workout_title = workout_title[:-len(amount)].rstrip(' ·–-')
 print('Me Today fixture ready:', fixture_today.isoformat(), workout_title, amount)
-print(json.dumps({'now': fixture_now.isoformat(), 'today': fixture_today.isoformat(), 'timezone': account_timezone, 'workout_title': workout_title, 'workout_amount': amount}))
+today_plan = {'today': plan[1]['today'], 'plan': {'race_day': plan[1]['plan']['race_day'], 'unit': plan[1]['plan']['unit']}, 'today_workout': plan[1]['today_workout']}
+print(json.dumps({'now': fixture_now.isoformat(), 'today': fixture_today.isoformat(), 'timezone': account_timezone, 'workout_title': workout_title, 'workout_amount': amount, 'plan': today_plan}))
