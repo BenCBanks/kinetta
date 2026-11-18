@@ -3,6 +3,11 @@
 'use strict';
 const {chromium,webkit}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
 const projectRoot=path.resolve(__dirname,'../..'),mobileBundle=path.join(projectRoot,'mobile/www/static');
+const sharedStyle=fs.readFileSync(path.join(projectRoot,'app/static/style.css'),'utf8'),profileStyle=fs.readFileSync(path.join(projectRoot,'app/static/profile.css'),'utf8');
+for(const selector of ['.profile-activity-tools {','.profile-list-filters {','#person-search-form {','.owner-profile-top.subpage-header .back {','.profile-actions > :is(button,a) {','.profile-tools {','.profile-progress .stats3 {','#pf-editor textarea {','.profile-mileage h2 {']){
+ assert(!sharedStyle.includes(selector),`profile-owned selector stays out of shared style.css: ${selector}`);
+ assert(profileStyle.includes(selector),`profile-owned selector lives in profile.css: ${selector}`);
+}
 const browserType=process.env.KINETTA_PROFILE_ENGINE==='webkit'?webkit:chromium;
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS,directOut=process.env.KINETTA_DIRECT_EXPORT_DIR,evidenceOut=process.env.KINETTA_PROFILE_EVIDENCE_DIR;
 const compositionOnly=process.env.KINETTA_PROFILE_VIEW_COMPOSITION_ONLY==='1';
