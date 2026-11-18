@@ -11,6 +11,7 @@ assert.equal(activityKitJourney.end.url,'/me/kit?from=activity&activity=17');ass
 assert.equal(activityKitJourney.back.ready,'#feed-tools[aria-busy="false"]');
 assert.equal(check('/progress','View progress').canonical,'/progress');
 assert.equal(check('/progress?view=fitness').heading,'Fitness');
+assert.equal(check('/food?view=needs').heading,'Food target');
 assert.throws(()=>check('/progress?view=training','View progress'),/Me: View progress.*unsupported view=training/);
 assert.throws(()=>check('/progress?view=fitness','View progress'),/Progress home/);
 assert.throws(()=>check('/not-a-page'),/unknown-route fallback/);
