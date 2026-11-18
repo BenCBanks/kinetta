@@ -817,7 +817,7 @@ function commentsSheet(aid, s, onChange) {
       finally{if(current()){if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
     };
     refresh();
-  },{keyboardAttached:true});
+  },{keyboardAttached:true,focusContainer:true});
 }
 function drawComments(box,aid,s,onChange){
   if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
