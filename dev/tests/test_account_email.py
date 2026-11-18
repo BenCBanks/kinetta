@@ -302,6 +302,15 @@ class AccountEmail(unittest.TestCase):
         with patch.dict(os.environ, {'KINETTA_RESEND_KEY': ''}):
             self.assertEqual(a.put('/api/account/email', json={'email': 'zz_x@example.com', 'password': PW}).status_code, 503)
             self.assertFalse(a.get('/api/me').json()['mail_ready'])
+            unknown = anon.post('/api/password/forgot', json={'login': 'nobody@example.com'})
+            known = anon.post('/api/password/forgot', json={'login': 'zz_limit@example.com'})
+            self.assertEqual(unknown.status_code, 200); self.assertEqual(known.status_code, 200)
+            self.assertEqual(known.json(), unknown.json(), 'unavailable-mail response does not reveal whether an account matched')
+            self.assertFalse(known.json()['email_available'])
+            self.assertIn('Email recovery isn’t available', known.json()['message'])
+            self.assertIn('Contact the server administrator', known.json()['message'])
+            self.assertNotIn('sent a link', known.json()['message'].lower())
+            self.assertEqual(self.mail.call_count, 3, 'unavailable mail does not send a reset message')
 
     def test_password_change_notice_and_privacy(self):
         a = self.client(); self.confirm(a, 'zz_notice@example.com'); self.mail.reset_mock()
