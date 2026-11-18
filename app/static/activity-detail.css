@@ -409,7 +409,7 @@
 .scrim:has(.social-sheet) { transition:bottom 250ms cubic-bezier(.2,.8,.2,1); }
 .scrim:has(.social-sheet).keyboard-inset .sheet { padding-bottom:0;border-bottom-right-radius:0;border-bottom-left-radius:0; }
 .scrim:has(.social-sheet).keyboard-inset .sheet { max-height:calc(100dvh - var(--sheet-keyboard-inset) - 8px); }
-.scrim:has(.social-sheet) .sheet > header { flex:none;margin-bottom:8px; }
+.scrim:has(.social-sheet) .sheet > header { flex:none;margin-bottom:12px; }
 .scrim:has(.social-sheet) .sheet > .sbody { display:flex;flex:1;flex-direction:column;min-height:0; }
 .social-sheet { display:flex;flex:1;flex-direction:column;min-height:0; }
 .social-sheet .social-reactions { display:flex;flex:none;align-items:center;min-height:44px;margin:0 0 8px; }
