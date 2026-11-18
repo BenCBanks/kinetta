@@ -1049,9 +1049,9 @@ header.top .signup { display:flex;align-items:center; }
   .home-page .home-sharing { padding-block:28px; }
 }
 @media (max-width:560px) {
-  .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { padding-block:14px; }
-  .home-page .kit-week-demo { padding-block:14px; }
-  .home-page .home-sharing { padding-block:24px; }
+  .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { padding-block:12px; }
+  .home-page .kit-week-demo { padding-block:12px; }
+  .home-page .home-sharing { padding-block:22px; }
   .home-page .home-hero { padding-top:24px; }
   .home-page .home-hero-grid { gap:16px; }
   .home-page .home-feature-split { gap:16px; }
