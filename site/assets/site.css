@@ -630,6 +630,7 @@ header.top .signup { display:flex;align-items:center; }
   .feature-reference .cmp td:first-child { font-weight: 600; color: var(--ink); margin-bottom: 4px; }
   .feature-reference .cmp td:last-child { color: var(--ink2); }
 }
+
 /* Sharp on 2x screens: 2x crops never display wider than half their pixels. */
 .tour-image, .tour-workout { max-width: 393px; }
 
@@ -1017,4 +1018,20 @@ header.top .signup { display:flex;align-items:center; }
  .home-page .home-sharing .wrap { grid-template-columns:1fr; gap:14px; }
  .home-page .home-sharing h2 { max-width:15ch; font-size:clamp(34px,9vw,42px); }
  .home-page .home-sharing p { font-size:16px; }
+}
+
+
+/* Compact Home proof sections for phone screens. */
+.home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { scroll-margin-top:72px; padding-block:clamp(48px,6vw,80px); }
+.home-page .home-badges { border-top:1px solid var(--line); background:var(--paper); }
+.home-page .home-kit-prompts { margin-top:16px; }
+@media (max-width:900px) {
+  .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { padding-block:28px; }
+  .home-page .home-proof-grid { display:flex; width:calc(100% + 40px); margin-inline:-20px; padding:0 20px 8px; gap:14px; overflow-x:auto; overscroll-behavior-inline:contain; scroll-snap-type:x mandatory; scrollbar-width:none; }
+  .home-page .home-proof-grid::-webkit-scrollbar { display:none; }
+  .home-page .home-proof-card { flex:0 0 min(300px,80vw); scroll-snap-align:start; gap:14px; padding:18px 16px; }
+  .home-page .home-section-head { margin-bottom:16px; }
+  .home-page .home-proof-phone .phone-frame,.home-page .home-feature-phone .phone-frame,.home-page .phone-frame--kit-week { width:min(200px,66vw); }
+  .home-page .phone-frame--hero { width:min(250px,68vw); }
+  .home-page .kit-week-demo { padding-block:36px; }
 }

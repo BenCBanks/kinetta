@@ -29,68 +29,40 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(base+'/'+name+'.html');await p.evaluate(()=>document.fonts.ready);
     await p.evaluate(()=>document.querySelectorAll('img').forEach(i=>i.loading='eager'));await until(p,()=>[...document.images].every(i=>i.complete&&i.naturalWidth));
     assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,name+' scrolls sideways');
-    assert.deepEqual(await p.locator('nav[aria-label="Primary"] a').allInnerTexts(),['Home','Features','iPhone beta']);
+    assert.deepEqual(await p.locator('nav[aria-label="Primary"] a').allInnerTexts(),name==='index'?['Features','Sign in']:['Home','Features','iPhone beta']);
     // Every tour picture is a complete, themed crop shown at no more than its natural width.
     const pics=await p.locator('main img[src*="assets/tour/"]').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,w:i.getBoundingClientRect().width,natural:i.naturalWidth/2,alt:i.alt})));
     assert(pics.every(i=>i.alt.length>20&&i.w<=i.natural*2/1.7+1&&i.src.includes(theme==='dark'?'-dark.':'-light.')),name+' tour picture theme, alt or upscaling');
     if(name==='index'){
-     // Home keeps one complete app screen in the hero and supplies a real Kit insight replay.
      assert.equal(await p.locator('.home-hero .phone-frame').count(),1);
-     assert.equal(await p.locator('.home-hero .btn').count(),2);
-     assert.equal(await p.locator('.home-hero .tour-access a').count(),2);
-     assert.deepEqual(await p.locator('.home-jumps a').allInnerTexts(),['Feed','Activity','Food','Progress','Achievements']);
-     assert.equal(await p.locator('.home-story [data-screen]').count(),5);
-     assert.match(await p.locator('.home-hero h1').innerText(),/Track workouts\. Log food\. See progress\./);
-     assert.equal(await p.locator('.progress-demo').count(),0,'The old interactive Progress demo is gone');
-     assert.match(fs.readFileSync(path.join(root,'index.html'),'utf8'),/href="#kit-week-demo"[^>]*>Progress</,'Progress jump now targets the Kit week section');
+     assert.equal(await p.locator('.home-hero .btn').count(),1,'Home has one primary hero action');
+     assert.equal(await p.locator('.home-beta-link').count(),1,'The beta link is secondary text');
+     assert.equal(await p.locator('.home-jumps').count(),0,'The hero has no feature-chip row');
+     assert.match(await p.locator('.home-hero h1').innerText(),/What you eat\. How you train\. One picture\./);
+     assert.deepEqual(await p.locator('.home-proof-card').count(),2,'Home pairs Nutrition and Activity proof screens');
+     assert.equal(await p.locator('.home-story').count(),0,'The oversized scroll story is removed');
+     const nutrition=await p.locator('#home-food img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
+     assert(nutrition.src.includes(`${theme}-nutrition-filled`));assert.match(nutrition.alt,/Fictional Nutrition day/);assert(nutrition.loaded,'filled Nutrition screenshot is loaded');
+     const activity=await p.locator('#home-activity img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
+     assert(activity.src.includes(`${theme}-activity-detail`));assert.match(activity.alt,/Fictional Activity detail/);assert(activity.loaded,'Activity map screenshot is loaded');
+     const foodChat=await p.locator('.home-kit-chat img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
+     assert(foodChat.src.includes(`${theme}-kit-food-chat`));assert.match(foodChat.alt,/Fictional Kit food review/);assert(foodChat.loaded,'Kit food chat screen is loaded inside its phone');
+     assert.equal(await p.locator('[data-kit-replay]').count(),0,'Kit food chat is in the phone, not a detached replay card');
      assert.equal(await p.locator('.kit-week-demo').count(),1,'Home shows the Kit week insight section');
-     assert.match(await p.locator('.kit-week-demo h2').innerText(),/Ask Kit about your week/);
-     assert.equal((await p.locator('[data-week-question]').innerText()).trim(),'Am I improving?');
-     assert.equal((await p.locator('[data-week-answer]').innerText()).trim(),'Your latest run total is below your recent average; this chart also shows stronger weeks. One week alone cannot establish a lasting trend.');
-     assert.equal((await p.locator('.kit-week-demo .eyebrow').innerText()).trim(),'KIT INSIGHTS');
-     assert.match((await p.locator('.kit-week-demo').innerText()),/Fictional week · sample response/i);
-     const insight=await p.locator('.kit-week-visual img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
-     assert(insight.src.includes(`${theme}-kit-insight-progress`),`Kit week section uses the real ${theme} insight image`);
-     assert.match(insight.alt,/Fictional Kit insight/);assert(insight.loaded,'Kit insight screenshot is loaded');
-     assert.match(fs.readFileSync(path.join(root,'index.html'),'utf8'),/data-story-screen[^>]*loading="eager"/,'Pinned story image is eager so it is ready before the sticky story begins');
-     assert.equal(await p.locator('.story-step .step-phone').count(),5,'Each Home story step has its own phone fallback');
-     if(width>900){
-      const active=p.locator('.story-step').first();await active.scrollIntoViewIfNeeded();
-      const firstPhone=await active.locator('.step-phone').evaluate(el=>getComputedStyle(el).display);
-      assert.notEqual(firstPhone,'none','Reduced-motion mode uses per-step phones at desktop width');
-      await p.evaluate(()=>scrollTo(0,0));
-     }
-     assert.equal(await p.locator('[data-kit-replay]').count(),1,'Kit chat can be replayed');
-     assert.equal(await p.locator('.home-achievement-tracks').count(),1,'Home explains the Run achievement tracks in its current text-led story');
-     assert.equal((await p.locator('.home-achievement-tracks').innerText()).trim(),'Run tracks include distance, workouts, longest and fastest efforts.');
-     const heroImage=await p.locator('.home-hero img').evaluate(i=>({src:i.currentSrc,alt:i.alt,srcset:i.getAttribute('srcset')}));
-     assert(heroImage.src.includes(`${theme}-feed`),`Home hero uses the ${theme} feed (${heroImage.src})`);
-     assert.match(heroImage.alt,/fictional Kinetta Home feed/i);
-     assert.match(heroImage.srcset,/feed-1x\.webp(?:\?[^ ]*)? 1x,.*feed\.webp(?:\?[^ ]*)? 2x/);
-     const header=await p.locator('[data-site-nav]').boundingBox();assert(header&&Math.abs(header.height-56)<=1,'Home keeps a one-row 56px header');
+     assert.equal(await p.locator('[data-week-question]').innerText(),'Am I improving?');
+     assert.equal(await p.locator('.home-kit-prompts li').count(),2,'Kit provides three one-line example questions including the replay question');
+     assert.equal(await p.locator('.home-badges img').count(),1,'The badge explainer uses a real Achievements screen');
+     assert.equal(await p.locator('.home-sharing .phone-frame').count(),0,'Sharing stays text-only');
+     assert.equal(await p.locator('.tour-final .btn').count(),1,'Home ends with one clear account action');
+     const heroImage=await p.locator('.home-hero img').evaluate(i=>({src:i.currentSrc,alt:i.alt}));
+     assert(heroImage.src.includes(`home-day-standin-${theme}`),`Home hero uses the ${theme} fictional full-day scene`);
+     assert.match(heroImage.alt,/fictional Kinetta day.*three meals.*Morning Run.*Kit note/i);
+     const header=await p.locator('[data-site-nav]').boundingBox();assert(header&&Math.abs(header.height-56)<=1,'Home keeps a one-row header');
      const phone=await p.locator('.home-hero .phone-frame').boundingBox();assert(phone&&phone.width<=320&&phone.x>=0&&phone.x+phone.width<=width,'Home hero phone stays fully in view');
-     const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .tour-access a').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
+     const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .home-beta-link').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
      assert(targets.every(r=>r.w>=44&&r.h>=44),`Home header and hero actions keep 44px hit areas: ${JSON.stringify(targets)}`);
      const replay=await p.locator('[data-week-replay]').boundingBox();assert(replay&&replay.width>=44&&replay.height>=44,'Kit week replay remains a 44px target');
      await p.locator('[data-week-replay]').click();await until(p,()=>document.querySelector('[data-week-answer]')?.textContent?.length>40);
-     if(width>900){
-      const noJs=await c.newPage();await noJs.route('**/assets/home.js*',route=>route.abort());await noJs.goto(base+'/index.html');
-      const fallback=await noJs.locator('.story-step').evaluateAll(nodes=>nodes.map(n=>({display:getComputedStyle(n.querySelector('.step-phone')).display,opacity:getComputedStyle(n).opacity})));
-      assert.equal(fallback.length,5);assert(fallback.every(item=>item.display!=='none'&&item.opacity==='1'),'Per-step phones and story text remain visible without JavaScript');await noJs.close();
-      const noSticky=await c.newPage();await noSticky.emulateMedia({reducedMotion:'no-preference'});await noSticky.addInitScript(()=>{const original=CSS.supports.bind(CSS);CSS.supports=(...args)=>args[0]==='position'&&args[1]==='sticky'?false:original(...args);});
-      await noSticky.goto(base+'/index.html');await noSticky.waitForFunction(()=>document.body.dataset.storyMode==='fallback');
-      const failedSticky=await noSticky.locator('.story-step').evaluateAll(nodes=>nodes.map(n=>({display:getComputedStyle(n.querySelector('.step-phone')).display,opacity:getComputedStyle(n).opacity})));
-      assert.equal(failedSticky.length,5);assert(failedSticky.every(item=>item.display!=='none'&&item.opacity==='1'),'Per-step phones and story text replace the pinned phone if sticky is unsupported');await noSticky.close();
-      const pinned=await c.newPage();await pinned.emulateMedia({reducedMotion:'no-preference'});await pinned.goto(base+'/index.html');await pinned.waitForFunction(()=>document.body.dataset.storyMode==='pinned');
-      for(const [step,shot] of [['progress','progress'],['achievements','achievements']]){
-       await pinned.locator(`#story-${step}`).evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
-       await pinned.waitForFunction(expected=>document.body.dataset.story===expected,step);
-       await pinned.waitForFunction(expected=>{const i=document.querySelector('[data-story-screen]');return i?.currentSrc?.includes(expected)&&i.complete&&i.naturalWidth>0;},`${theme}-${shot}`);
-       const pin=await pinned.locator('.story-pin').boundingBox();assert(pin&&pin.y<900&&pin.y+pin.height>0,`Desktop pinned phone remains in the viewport for ${step}`);
-       await pinned.waitForTimeout(250);assert.equal(await pinned.locator('body').getAttribute('data-story-mode'),'pinned',`Desktop keeps the pinned layout while ${step} image finishes loading`);
-      }
-      await pinned.close();
-     }
     }
     if(name==='food'){
      assert.equal(await p.locator('.food-story .story-steps > h2').count(),0,'Food has one page heading, not a second stacked story heading');
