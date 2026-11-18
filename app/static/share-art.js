@@ -45,9 +45,16 @@ const ShareArt=(()=>{
     try{return await Promise.race([load(),timeout]);}finally{clearTimeout(timer);}
   }
 
-  async function achievementPicture({root,live=()=>true,outputWidth=1080,outputHeight,padding=48}={}){
+  async function achievementPicture({root,live=()=>true,outputWidth=1080}={}){
     if(!root?.isConnected||!live())throw Error('The account changed.');
     const restore=[];let exportBadgeDiameter=null;
+    const head=root.querySelector('.achievement-share-head');
+    try{
+    for(const node of [root,head].filter(Boolean)){
+      restore.push([node,node.getAttribute('style')]);
+      if(node===root){node.style.setProperty('box-shadow','none','important');node.style.setProperty('border','0','important');node.style.setProperty('outline','none','important');}
+      node.style.setProperty('border-radius','0','important');
+    }
     if(root.matches?.('.achievement-share-track-card')){
       const grid=root.querySelector('.achievement-share-single-track .achievement-share-badges');
       const firstBadge=grid?.querySelector('.achievement-share-badge');
@@ -64,9 +71,9 @@ const ShareArt=(()=>{
       const rows=root.querySelector('.achievement-share-sport-rows'),head=root.querySelector('.achievement-share-head'),firstMedal=firstBadge?.querySelector('.profile-achievement-medallion'),latest=root.querySelector('.achievement-share-badge.is-latest'),latestMedal=latest?.querySelector('.profile-achievement-medallion'),latestLabel=latest?.querySelector('b');
       if(rows&&head&&firstMedal){
         restore.push([rows,rows.getAttribute('style')]);
-        const width=Math.max(1,Math.floor(outputWidth)),exportHeight=()=>Math.max(400,Math.ceil(outputHeight||root.getBoundingClientRect().height+96)),scale=()=>Math.min((width-padding*2)/root.getBoundingClientRect().width,(exportHeight()-padding*2)/root.getBoundingClientRect().height);
+        const width=Math.max(1,Math.floor(outputWidth)),scale=()=>width/root.getBoundingClientRect().width;
         for(let pass=0;pass<4;pass++){
-          const target=24/scale(),gap=firstMedal.getBoundingClientRect().top-head.getBoundingClientRect().bottom,extra=Math.max(0,target-gap);
+          const target=25/scale(),gap=firstMedal.getBoundingClientRect().top-head.getBoundingClientRect().bottom,extra=Math.max(0,target-gap);
           if(extra<.1)break;
           const current=parseFloat(getComputedStyle(rows).paddingTop)||0;rows.style.setProperty('padding-top',`${current+extra}px`);
         }
@@ -75,15 +82,15 @@ const ShareArt=(()=>{
         restore.push([latestLabel,latestLabel.getAttribute('style')]);
         const style=getComputedStyle(latestMedal),ringExtent=style.outlineStyle!=='none'?(parseFloat(style.outlineWidth)||0)+(parseFloat(style.outlineOffset)||0):0;
         for(let pass=0;pass<4;pass++){
-          const width=Math.max(1,Math.floor(outputWidth)),height=Math.max(400,Math.ceil(outputHeight||root.getBoundingClientRect().height+96)),target=8/Math.min((width-padding*2)/root.getBoundingClientRect().width,(height-padding*2)/root.getBoundingClientRect().height),gap=latestLabel.getBoundingClientRect().top-latestMedal.getBoundingClientRect().bottom-ringExtent,extra=Math.max(0,target-gap);
+          const width=Math.max(1,Math.floor(outputWidth)),target=9/(width/root.getBoundingClientRect().width),gap=latestLabel.getBoundingClientRect().top-latestMedal.getBoundingClientRect().bottom-ringExtent,extra=Math.max(0,target-gap);
           if(extra<.1)break;
           const current=parseFloat(getComputedStyle(latestLabel).marginTop)||0;latestLabel.style.setProperty('margin-top',`${current+extra}px`);
         }
       }
     }
-    const height=Math.max(400,Math.ceil(outputHeight||root.getBoundingClientRect().height+96));
-    try{
-      const picture=await domPicture(root,{live,outputWidth,outputHeight:height,padding});
+    const edgeToEdge=root.matches?.('.achievement-share-track-card,.achievement-share-all-card')===true;
+    const height=Math.max(1,Math.ceil(root.getBoundingClientRect().height*(Math.max(1,Math.floor(outputWidth))/root.getBoundingClientRect().width)));
+      const picture=await domPicture(root,{live,outputWidth,outputHeight:height,padding:edgeToEdge?0:64,edgeToEdge});
       if(exportBadgeDiameter&&window.__sharePictureDiagnostic)window.__sharePictureDiagnostic.exportBadgeDiameter=exportBadgeDiameter;
       return picture;
     }
@@ -221,12 +228,12 @@ const ShareArt=(()=>{
     context.restore();if(rootStyle.outlineStyle!=='none'&&parseFloat(rootStyle.outlineWidth)>0){context.save();context.translate(x,y);context.scale(scale,scale);context.strokeStyle=rootStyle.outlineColor;context.lineWidth=parseFloat(rootStyle.outlineWidth);context.beginPath();context.roundRect(-parseFloat(rootStyle.outlineOffset||0)-context.lineWidth/2,-parseFloat(rootStyle.outlineOffset||0)-context.lineWidth/2,bounds.width+2*(parseFloat(rootStyle.outlineOffset||0)+context.lineWidth/2),bounds.height+2*(parseFloat(rootStyle.outlineOffset||0)+context.lineWidth/2),rootRadius+parseFloat(rootStyle.outlineOffset||0));context.stroke();context.restore();}if(pictureOwner!==readOwner()||!live())throw Error('The account changed.');const pictureBlob=await blob(canvas),prior=window.__sharePictureDiagnostic||{};window.__sharePictureDiagnostic={...prior,mode,handledErrorName:prior.errorName||null,handledErrorMessage:prior.errorMessage||null,errorName:null,errorMessage:null,outputBytes:pictureBlob.size,exportedBlob:true};if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);return{blob:pictureBlob,alt:root.getAttribute('aria-label')||'Your Kinetta profile card.'};
   }
   const structureSignature=nodes=>nodes.map(node=>`${node.tagName.toLowerCase()}.${[...node.classList].join('.')}`).join('|');
-  async function domPicture(root,{live=()=>true,prepareClone=()=>{},outputWidth=1080,outputHeight=1350,padding=48}={}){
+  async function domPicture(root,{live=()=>true,prepareClone=()=>{},outputWidth=1080,outputHeight=1350,padding=48,edgeToEdge=false}={}){
     const pictureOwner=readOwner();if(!root?.isConnected||!live())throw Error('The account changed.');
     let fontTimer;await Promise.race([Promise.resolve(document.fonts?.ready).catch(()=>undefined),new Promise(resolve=>{fontTimer=setTimeout(resolve,1000);})]);clearTimeout(fontTimer);if(!root.isConnected||pictureOwner!==readOwner()||!live())throw Error('The account changed.');
     const bounds=root.getBoundingClientRect(),sourceNodes=[root,...root.querySelectorAll('*')],clone=root.cloneNode(true);prepareClone(clone);const cloneNodes=[clone,...clone.querySelectorAll('*')];
     if(!bounds.width||!bounds.height)throw Error('The card picture could not fit clearly.');
-    const W=Math.max(1,Math.floor(outputWidth)),H=Math.max(1,Math.floor(outputHeight)),pad=Math.max(0,Number(padding)||48),scale=Math.min((W-pad*2)/bounds.width,(H-pad*2)/bounds.height),x=(W-bounds.width*scale)/2,y=(H-bounds.height*scale)/2;
+    const W=Math.max(1,Math.floor(outputWidth)),pad=Math.max(0,Number.isFinite(Number(padding))?Number(padding):48),scale=edgeToEdge?W/bounds.width:Math.min((W-pad*2)/bounds.width,(Math.max(1,Math.floor(outputHeight))-pad*2)/bounds.height),H=edgeToEdge?Math.max(1,Math.ceil(bounds.height*scale)):Math.max(1,Math.floor(outputHeight)),x=edgeToEdge?0:(W-bounds.width*scale)/2,y=edgeToEdge?0:(H-bounds.height*scale)/2;
     if(root.matches?.('.achievement-share-track-card')){
       const circles=[...root.querySelectorAll('.achievement-share-badge .profile-achievement-medallion')].map(node=>{const rect=node.getBoundingClientRect();return{left:x+(rect.left-bounds.left)*scale,right:x+(rect.right-bounds.left)*scale,top:y+(rect.top-bounds.top)*scale,bottom:y+(rect.bottom-bounds.top)*scale};});
       const header=root.querySelector('.achievement-share-head')?.getBoundingClientRect(),first=circles[0],latest=root.querySelector('.achievement-share-badge.is-latest'),medal=latest?.querySelector('.profile-achievement-medallion')?.getBoundingClientRect(),label=latest?.querySelector('b')?.getBoundingClientRect(),style=latest?.querySelector('.profile-achievement-medallion')&&getComputedStyle(latest.querySelector('.profile-achievement-medallion')),ringExtent=style?.outlineStyle!=='none'?(parseFloat(style?.outlineWidth)||0)+(parseFloat(style?.outlineOffset)||0):0,headerGap=header&&first?first.top-(y+(header.bottom-bounds.top)*scale):0,ringLabelGap=medal&&label?(label.top-medal.bottom-ringExtent)*scale:0;
