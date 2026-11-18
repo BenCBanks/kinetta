@@ -95,8 +95,8 @@
     const question = weekDemo.querySelector('[data-week-question]');
     const answer = weekDemo.querySelector('[data-week-answer]');
     const replay = weekDemo.querySelector('[data-week-replay]');
-    const questionText = 'How did my week go?';
-    const answerText = 'Your latest run total is below your recent average. There are stronger weeks in the chart, so one week alone cannot establish a lasting trend.';
+    const questionText = 'Am I improving?';
+    const answerText = 'Your latest run total is below your recent average; this chart also shows stronger weeks. One week alone cannot establish a lasting trend.';
     let timers = [];
     const stopReplay = () => { timers.forEach(clearTimeout); timers = []; };
     const typeText = (node, text, done) => {
