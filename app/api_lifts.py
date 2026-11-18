@@ -168,13 +168,78 @@ def _records(sessions):
     return out
 
 
+def _strength_records(c, uid, eid=None):
+    """Lifetime strength records for this owner, from completed non-warm-up sets only."""
+    params = [uid]
+    exercise_filter = ''
+    if eid is not None:
+        exercise_filter = ' AND e.id = %s'
+        params.append(eid)
+    rows = c.execute(f"""
+        SELECT e.id AS exercise_id, e.name::text AS name, e.kind,
+               s.kg::double precision AS kg, s.reps, s.secs::double precision AS secs,
+               a.id AS activity_id, a.start_time
+        FROM exercises e
+        JOIN lift_sets s ON s.exercise_id = e.id AND s.user_id = e.user_id
+        JOIN activities a ON a.id = s.activity_id AND a.user_id = e.user_id
+        WHERE e.user_id = %s AND s.done AND NOT s.warmup AND NOT a.lift_open
+          {exercise_filter}
+        ORDER BY a.start_time DESC, a.id DESC, s.n
+    """, params).fetchall()
+    exercises = {}
+    volumes = {}
+
+    def consider(exercise, key, value, row, extra=None):
+        if value is None or value <= 0:
+            return
+        old = exercise['records'].get(key)
+        if old is None or value > old['value'] + 1e-9:
+            exercise['records'][key] = {
+                'value': value, 'activity_id': row['activity_id'],
+                'start_time': row['start_time'], **(extra or {})
+            }
+
+    for row in rows:
+        exercise = exercises.setdefault(row['exercise_id'], {
+            'exercise': {'id': row['exercise_id'], 'name': row['name'], 'kind': row['kind']},
+            'records': {}
+        })
+        kind, kg, reps, secs = row['kind'], row['kg'] or 0, row['reps'] or 0, row['secs'] or 0
+        if kind == 'time':
+            consider(exercise, 'secs', secs, row)
+            continue
+        if reps:
+            consider(exercise, 'reps', reps, row, {'kg': kg})
+        # Bodyweight work can have an added load, but it has no estimated 1RM or session-volume record.
+        if kg > 0 and reps:
+            consider(exercise, 'heaviest', kg, row, {'reps': reps})
+        if kind != 'weight' or kg <= 0 or not reps:
+            continue
+        estimate = e1rm(kg, reps)
+        consider(exercise, 'e1rm', estimate, row, {'kg': kg, 'reps': reps})
+        key = (row['exercise_id'], row['activity_id'])
+        volume = volumes.setdefault(key, {'value': 0, 'row': row})
+        volume['value'] += kg * reps
+
+    for (exercise_id, _), volume in volumes.items():
+        consider(exercises[exercise_id], 'volume', volume['value'], volume['row'])
+    return [item for item in exercises.values() if item['records']]
+
+
+@router.get('/lifts/records')
+def strength_records(user=Depends(current_user)):
+    with db.connect() as c:
+        return _strength_records(c, user['id'])
+
+
 @router.get('/lifts/exercises/{eid}')
 def exercise_history(eid: int, user=Depends(current_user)):
     with db.connect() as c:
         ex = next((m for m in _mine(c, user['id']) if m['id'] == eid), None)
         if not ex: raise HTTPException(404, 'Not found')
         sessions = _sessions(c, user['id'], eid)
-    return {'exercise': ex, 'sessions': sessions, 'records': _records(sessions)}
+        records = _strength_records(c, user['id'], eid)
+    return {'exercise': ex, 'sessions': sessions, 'records': records[0]['records'] if records else {}}
 
 
 # ---------- a session's sets ----------

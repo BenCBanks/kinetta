@@ -516,13 +516,14 @@ route(/^\/lift\/ex\/(\d+)$/, 'progress', async (el, id) => {
 });
 function drawExercise(el, h) {
   const e = h.exercise, R = h.records, kind = e.kind;
-  const W = (kg) => `${esc(toW(kg))}<i>${wUnit()}</i>`, E = (kg) => `${Math.round(imp() ? kg * LB : kg)}<i>${wUnit()}</i>`;
+  const W = (kg) => `${esc(toW(kg))} <i>${wUnit()}</i>`, E = (kg) => `${Math.round(imp() ? kg * LB : kg)} <i>${wUnit()}</i>`;
   const rec = (k, label, val, sub) => (R[k] ? `<a class="row-link lx-rec" href="/activity/${R[k].activity_id}"><span class="grow"><span>${esc(label)}</span><small class="muted">${esc(sub)} · ${esc(shortDay(R[k].start_time))}</small></span><b class="num">${val}</b></a>` : '');
   const recs = kind === 'time' ? rec('secs', 'Longest hold', `${R.secs?.value}<i>s</i>`, 'one set')
     : (kind === 'body' ? rec('reps', 'Most reps', R.reps?.value, 'in one set') + (R.heaviest ? rec('heaviest', 'Most weight added', W(R.heaviest.value), `× ${R.heaviest.reps}`) : '')
-      : rec('heaviest', 'Heaviest', R.heaviest ? W(R.heaviest.value) : '', R.heaviest ? `× ${R.heaviest.reps}` : '')
-        + rec('e1rm', 'Best one-rep max (estimate)', R.e1rm ? E(R.e1rm.value) : '', R.e1rm ? `from ${toW(R.e1rm.kg)} × ${R.e1rm.reps}` : '')
-        + rec('volume', 'Most in one session', R.volume ? `${Math.round(imp() ? R.volume.value * LB : R.volume.value).toLocaleString()}<i>${wUnit()}</i>` : '', 'weight × reps, added up'));
+      : rec('heaviest', 'Heaviest set', R.heaviest ? W(R.heaviest.value) : '', R.heaviest ? `× ${R.heaviest.reps}` : '')
+        + rec('e1rm', 'Estimated one-rep max', R.e1rm ? E(R.e1rm.value) : '', R.e1rm ? `Epley estimate from ${toW(R.e1rm.kg)} × ${R.e1rm.reps}` : '')
+        + rec('reps', 'Most reps in a set', R.reps?.value, R.reps ? `at ${R.reps.kg ? `${toW(R.reps.kg)} ${wUnit()}` : 'bodyweight'}` : '')
+        + rec('volume', 'Best volume session', R.volume ? `${Math.round(imp() ? R.volume.value * LB : R.volume.value).toLocaleString()} <i>${wUnit()}</i>` : '', 'weight × reps in one session'));
   // the chart: estimated 1RM for weighted lifts (it compares 5 heavy reps with 10 lighter ones), else reps or seconds
   const bestReps = s => s.best_reps ?? Math.max(0,...(s.sets||[]).filter(set=>set.done&&!set.warmup).map(set=>set.reps||0));
   const pick = (s) => (kind === 'time' ? s.secs : kind === 'body' ? bestReps(s) : s.e1rm || (s.top && s.top.kg));

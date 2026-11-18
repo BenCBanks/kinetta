@@ -41,12 +41,31 @@ ck('heaviest' in (bs['sets'][2].get('pr') or []) and 'heaviest' not in (bs['sets
 ck(bs['sets'][3].get('pr') is None, 'planned set is never a record')
 ck('secs' in (r['exercises'][1]['sets'][0].get('pr') or []), 'longer plank is a record')
 
+# Lifetime Records use completed work sets only, include per-session volume and keep the latest tied result.
+s, tied = a.post('/api/activities/manual', {'sport': 'workout', 'start': '2026-10-05T18:00', 'duration_s': 2400})
+ck(s == 200, 'tied-record workout')
+s, _ = a.put(f"/api/activities/{tied['id']}/lifts", {'exercises': [{'exercise_id': bench['id'], 'sets': [
+    {'reps': 5, 'kg': 80}, {'reps': 5, 'kg': 80}, {'reps': 3, 'kg': 90},
+    {'reps': 99, 'kg': 999, 'done': False}, {'reps': 99, 'kg': 999, 'warmup': True}
+]}]})
+ck(s == 200, 'save tied-record sets')
+s, strength = a.get('/api/lifts/records')
+ck(s == 200 and len(strength) == 2, f'only exercises with completed records are included {strength}')
+bench_records = next(item['records'] for item in strength if item['exercise']['id'] == bench['id'])
+ck(bench_records['heaviest']['value'] == 90 and bench_records['heaviest']['activity_id'] == tied['id'], 'latest tied heaviest set links to its session')
+ck(abs(bench_records['e1rm']['value'] - 85 * (1 + 5 / 30)) < 0.01, 'estimated 1RM ignores warm-up, unfinished and over-12-rep sets')
+ck(bench_records['reps']['value'] == 5 and bench_records['reps']['kg'] == 80, 'most reps reports the load from that set')
+ck(bench_records['volume']['value'] == 1070 and bench_records['volume']['activity_id'] == tied['id'], 'volume sums all completed working sets in one session')
+ck(bool(a.get('/api/lifts/records')[1]), 'owner sees their strength records')
+ck(b.get('/api/lifts/records') == (200, []), 'another owner cannot see those records')
+
 # history: records + sessions newest first; planned sets left out
 s, h = a.get(f"/api/lifts/exercises/{bench['id']}")
-ck(s == 200 and [x['activity_id'] for x in h['sessions']] == [two['id'], one['id']], 'history order')
-ck(h['records']['heaviest']['value'] == 90 and h['records']['heaviest']['activity_id'] == two['id'], f"heaviest record {h['records']}")
+ck(s == 200 and [x['activity_id'] for x in h['sessions']] == [tied['id'], two['id'], one['id']], 'history order')
+ck(h['records']['heaviest']['value'] == 90 and h['records']['heaviest']['activity_id'] == tied['id'], f"lifetime heaviest record {h['records']}")
 ck(abs(h['records']['e1rm']['value'] - 85 * (1 + 5 / 30)) < 0.01, 'best estimated 1RM (85 x 5)')
-ck(all(x['done'] for x in h['sessions'][0]['sets']) and len(h['sessions'][0]['sets']) == 3, 'planned set left out of history')
+session_two = next(session for session in h['sessions'] if session['activity_id'] == two['id'])
+ck(all(x['done'] for x in session_two['sets']) and len(session_two['sets']) == 3, 'planned set left out of history')
 
 # feed and detail carry the summary
 s, d = a.get(f"/api/activities/{two['id']}")
@@ -62,7 +81,7 @@ s, L = a.get(f"/api/activities/{live['id']}/lifts")
 ck(L['open'] and [e['name'] for e in L['exercises']] == ['Bench press', 'Plank'] and not any(x['done'] for e in L['exercises'] for x in e['sets']), 'copied as plan')
 ck(len(L['exercises'][0]['sets']) == 3, 'copied only the done sets')
 ck(all(x['reps'] is None and x['kg'] is None for x in L['exercises'][0]['sets']), 'copied sets are blank: the phone shows that day\'s numbers in grey')
-ck(L['exercises'][0]['last']['activity_id'] == two['id'], 'grey numbers come from the copied session')
+ck(L['exercises'][0]['last']['activity_id'] == tied['id'], 'grey numbers come from the copied session')
 ck(any(x['id'] == live['id'] and x['lift_open'] for x in a.get('/api/lifts/sessions')[1]), 'open session listed')
 sets = L['exercises'][0]['sets']; sets[1]['done'] = True
 s, r = a.put(f"/api/activities/{live['id']}/lifts", {'exercises': [{'exercise_id': bench['id'], 'sets': sets}]})
@@ -130,6 +149,11 @@ ck(status == 200 and [row['reps'] for row in rows] == [13, 15, 17, 19], 'session
 ck([row['best_reps'] for row in rows] == [7, 8, 9, 10], 'best single set ignores warm-up and unfinished sets')
 ck([row['top']['reps'] for row in rows] == [6, 7, 8, 9], 'heaviest weighted set is distinct from best reps')
 ck(history['records']['reps']['value'] == 10, 'bodyweight single-set record remains correct')
+body_records = next(item['records'] for item in a.get('/api/lifts/records')[1] if item['exercise']['id'] == mine['id'])
+ck(body_records['reps']['value'] == 10 and body_records['heaviest']['value'] == 30, 'bodyweight records lead with reps and retain only an explicitly added load')
+ck('e1rm' not in body_records and 'volume' not in body_records, 'bodyweight exercise has no unsupported estimated max or volume record')
+time_records = next(item['records'] for item in a.get('/api/lifts/records')[1] if item['exercise']['id'] == plank['id'])
+ck(time_records['secs']['value'] == 75 and set(time_records) == {'secs'}, 'timed exercise reports only its longest hold')
 ck(b.get(f"/api/lifts/exercises/{mine['id']}")[0] == 404, 'other person cannot read bodyweight best sets')
 
 # read-only workout history: same-name saved sessions, newest five, completed working sets only
@@ -155,7 +179,7 @@ ck(b.get(f"/api/lifts/sessions/{routine_ids[-1]}/history")[0] == 404, 'another p
 
 s, lst = a.get('/api/lifts/exercises')
 row = next(x for x in lst['mine'] if x['id'] == bench['id'])
-ck(row['sessions'] == 9 and row['best_kg'] == 90, f'list summary includes routine history {row}')
+ck(row['sessions'] == 10 and row['best_kg'] == 90, f'list summary includes routine history {row}')
 
 
 ck(a.delete(f"/api/lifts/exercises/{plank['id']}")[0] == 200 and a.get(f"/api/lifts/exercises/{plank['id']}")[0] == 404, 'delete exercise')

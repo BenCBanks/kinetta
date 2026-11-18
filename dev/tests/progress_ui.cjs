@@ -63,6 +63,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     else {const d=120000,t=52000;rows.push({p:'2026-01-01',s:'run',d,t,pace_d:d,pace_t:t,n:30,a:0});}
     return r.fulfill({json:{period,today:fixtureToday,rows}});
    });
+   if(who==='runner')await c.route('**/api/lifts/records',r=>r.fulfill({json:[
+    {exercise:{id:321,name:'Fictional bench press',kind:'weight'},records:{heaviest:{value:90,reps:3,activity_id:731,start_time:'2026-11-09T12:00:00Z'},e1rm:{value:99.2,kg:85,reps:5,activity_id:731,start_time:'2026-11-09T12:00:00Z'},reps:{value:8,kg:75,activity_id:731,start_time:'2026-11-09T12:00:00Z'},volume:{value:1070,activity_id:731,start_time:'2026-11-09T12:00:00Z'}}},
+    {exercise:{id:322,name:'Fictional push-up',kind:'body'},records:{reps:{value:32,kg:0,activity_id:732,start_time:'2026-11-08T12:00:00Z'}}},
+    {exercise:{id:323,name:'Fictional plank',kind:'time'},records:{secs:{value:95,activity_id:733,start_time:'2026-11-07T12:00:00Z'}}}
+   ]}));
    if(who==='runner')await c.route('**/api/activity-food',async r=>{const response=await r.fetch(),data=await response.json(),day=(offset)=>{const d=new Date(fixtureToday+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10);};data.week={...data.week,start:day(-7),end:day(-1),workouts:4,distance_m:12340,seconds:4420,days_logged:5,protein_target:110,protein_days_reached:3,protein_days_unknown:1};return r.fulfill({response,json:data});});
    const ready=()=>until(p,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key===location.pathname+location.search,'ready');
    const home=async()=>{if(p.url()==='about:blank')await p.goto(base+'/progress');else await p.evaluate(()=>go('/progress'));await p.waitForURL(base+'/progress');await ready();await p.waitForSelector('#p-explore a');};
@@ -195,6 +200,18 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
      const header=await heading.evaluate(n=>{const title=n.querySelector('h1'),back=n.querySelector('.progress-back'),button=n.querySelector('.acts > *'),a=title.getBoundingClientRect(),b=back.getBoundingClientRect(),c=button.getBoundingClientRect();return{titleFont:getComputedStyle(title).fontSize,titleWeight:getComputedStyle(title).fontWeight,titleCenter:a.x+a.width/2,headerCenter:n.getBoundingClientRect().x+n.getBoundingClientRect().width/2,backHeight:b.height,actionHeight:c.height,scrollWidth:n.scrollWidth,clientWidth:n.clientWidth};});
      assert.deepEqual({titleFont:header.titleFont,titleWeight:header.titleWeight,backHeight:header.backHeight,actionHeight:header.actionHeight},{titleFont:'17px',titleWeight:'600',backHeight:44,actionHeight:44},url+' uses the compact centered header with 44px controls');assert(Math.abs(header.titleCenter-header.headerCenter)<1,url+' centers its title');assert(header.scrollWidth<=header.clientWidth+1,url+' header has no horizontal overflow');if(trainingView==='fitness')await assertTabFocus(p,`.progress-subpage-tabs [data-progress-section="${trainingView}"]`,'Fitness section',{preventAction:true});
      if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/progress-subpage-${who}-${trainingView}-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
+     if(trainingView==='records'&&who==='runner'){
+      await until(p,()=>document.querySelectorAll('[data-strength-record]').length===3,'fictional Strength rows appear under Records');
+      assert.match(await p.locator('.strength-records').innerText(),/Strength[\s\S]*Fictional bench press[\s\S]*Heaviest set[\s\S]*Nov 9[\s\S]*Fictional push-up[\s\S]*Most reps in a set[\s\S]*Fictional plank[\s\S]*Longest hold/,'Records shows compact records for weighted, bodyweight and timed exercises');
+      assert.equal(await p.locator('[data-strength-record]').first().getAttribute('href'),'/lift/ex/321','a Strength row drills into the exercise history');
+      assert.equal(await p.locator('[data-strength-record]').first().locator('.strength-record-value').innerText(),'198.4 lb × 3','the Strength summary uses account units and includes reps');
+      const strengthRows=await p.locator('[data-strength-record]').evaluateAll(nodes=>nodes.map(n=>({height:n.getBoundingClientRect().height,scroll:n.scrollWidth,client:n.clientWidth})));
+      assert(strengthRows.every(row=>row.height>=56&&row.scroll<=row.client+1),`Strength rows stay complete and touch-friendly: ${JSON.stringify(strengthRows)}`);
+      if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/progress-strength-records-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
+      await p.evaluate(()=>{App.me.units='metric';go('/progress');});await ready();await p.evaluate(()=>go('/progress?view=records'));await ready();await until(p,()=>document.querySelector('[data-strength-record] .strength-record-value')?.textContent.includes('90.0 kg'),'metric Strength record value');
+      assert.equal(await p.locator('[data-strength-record]').first().locator('.strength-record-value').innerText(),'90.0 kg × 3','the same canonical lift weight converts to metric');
+      await p.evaluate(()=>{App.me.units='imperial';go('/progress');});await ready();await p.evaluate(url=>go(url),url);await ready();
+     }
      const next=['fitness','records','lifting'].find(view=>view!==trainingView);await p.locator(`[data-progress-section="${next}"]`).click();await p.waitForURL(`**/progress?view=${next}*`);await ready();assert.equal(await p.locator(`[data-progress-section="${next}"]`).getAttribute('aria-pressed'),'true','sibling navigation updates the selected view');
      await p.evaluate(url=>go(url),url);await ready();
     }

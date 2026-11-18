@@ -15,6 +15,28 @@ async function pRecordsLoaded(body, q) {
       ${r.power_curve.length ? `<div class="card"><h2>Best power</h2><table class="tbl">${r.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r num">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}`
       : `<div class="card empty"><b>No ${SPORT_NAMES[sport].toLowerCase()} records yet</b>They appear as soon as you upload activities with GPS or distance data.</div>`;
   });
+  await load('/api/lifts/records', (rows) => {
+    const box = $('#r-body', body);
+    if (!box) return;
+    const summary = (item) => {
+      const {exercise, records} = item;
+      const kind = exercise.kind;
+      const key = kind === 'time' ? 'secs' : kind === 'body' ? 'reps' : 'heaviest';
+      const record = records[key];
+      if (!record) return '';
+      const value = kind === 'time' ? `${Math.round(record.value)} s`
+        : kind === 'body' ? `${record.value} reps`
+          : `${U.weight(record.value)} ${wUnit()} × ${record.reps}`;
+      return `<a class="row-link strength-record-row" data-strength-record href="/lift/ex/${exercise.id}">
+        <span class="grow"><b>${esc(exercise.name)}</b><small class="muted">${kind === 'time' ? 'Longest hold' : kind === 'body' ? 'Most reps in a set' : 'Heaviest set'} · ${esc(fdate(record.start_time, {month:'short', day:'numeric', year:'numeric'}))}</small></span>
+        <span class="num strength-record-value">${esc(value)}</span><span class="chev">${svg('chev')}</span></a>`;
+    };
+    const rowsHtml = rows.map(summary).filter(Boolean).join('');
+    box.insertAdjacentHTML('beforeend', `<section class="card strength-records" aria-labelledby="strength-records-title">
+      <h2 id="strength-records-title">Strength</h2>
+      ${rowsHtml ? `<div class="inset-group">${rowsHtml}</div>` : '<p class="small muted strength-records-empty">Completed lifting sets will build your strength records here.</p>'}
+    </section>`);
+  });
 }
 async function pRecordHistoryLoaded(el, sport, dist) {
   el.innerHTML = `<div class="top">${backBtn('Records')}</div>${skel(2)}`;
