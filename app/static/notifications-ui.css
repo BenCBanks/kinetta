@@ -31,6 +31,11 @@
 .notification-settings .settings-footnote { margin:8px 0 0;color:var(--tx3);font-size:13px;line-height:1.4; }
 
 /* Notification feed rows keep their compact layout within this route's stylesheet. */
+.icon-btn.bell { position: relative; }
+.bell-dot { position: absolute; top: -2px; right: -2px; display: grid; place-items: center; box-sizing: border-box; width: 18px; min-width: 18px; height: 18px; padding: 0; border: 2px solid var(--bg); border-radius: 999px; background: var(--btn); color: var(--onbtn);
+  font: 700 13px/1 var(--numf); text-align: center; box-shadow: none; }
+.bell-dot.many { right: -6px; width: 22px; font-size:12px; }
+.bell-dot[hidden] { display:none; }
 .note { gap:10px; min-height:60px; padding:12px 16px; }
 .note + .note::before { left:78px; }
 .note-time { flex:none; margin:1px 0 0 2px; color:var(--tx3); font-size:13px; line-height:18px; text-align:right; white-space:nowrap; }
