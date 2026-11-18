@@ -22,6 +22,7 @@ from .auth import current_user
 router = APIRouter()
 VERIFY_HOURS, RESET_MINUTES = 24, 60
 SENT = 'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'
+RECOVERY_UNAVAILABLE = 'Email recovery isn’t available on this Kinetta. Contact the server administrator to regain access.'
 RESEND_SENT = 'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.'
 DOMAIN_TYPOS = {
     'gmai.com': 'gmail.com', 'gmial.com': 'gmail.com', 'gamil.com': 'gmail.com',
@@ -373,6 +374,7 @@ class ForgotIn(BaseModel):
 @router.post('/api/password/forgot')
 def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
     who = body.login.strip()
+    email_available = mail_ready()
     with db.connect() as c:
         if limited(c, 'forgot-ip:' + auth.client_ip(request), 10, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         col = 'email' if '@' in who else 'login'
@@ -382,9 +384,10 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
                       (who,)).fetchone()
         # Resend and reset share at most three links an hour per account; the answer never says why nothing arrived.
         can_reset = u and u['email'] and (u['email_confirmed'] or u['needs_email_confirm'])
-        if can_reset and not email_recovery_limited(c, u['id']) and mail_ready():
+        if can_reset and not email_recovery_limited(c, u['id']) and email_available:
             send_reset(background, c, u, pending=not u['email_confirmed'])
-    return {'ok': True, 'message': SENT}
+    return {'ok': True, 'email_available': email_available,
+            'message': SENT if email_available else RECOVERY_UNAVAILABLE}
 
 
 def send_reset(background, c, u, by_admin=False, pending=False):

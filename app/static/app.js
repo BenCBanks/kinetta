@@ -2561,8 +2561,9 @@ function showForgot(prefill = '') {
     b.disabled = true; err.textContent = '';
     try {
       const r = await api('/api/password/forgot', json('POST', {login}));
-      root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Check your email</h1><p>${esc(r.message)}</p>
-        <p class="small muted">The link works for an hour. If it doesn’t arrive, check your spam folder or try Resend confirmation from the login screen.</p>
+      const emailAvailable = r.email_available !== false;
+      root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${emailAvailable ? 'Check your email' : 'Email recovery unavailable'}</h1><p>${esc(r.message)}</p>
+        ${emailAvailable ? '<p class="small muted">The link works for an hour. If it doesn’t arrive, check your spam folder or try Resend confirmation from the login screen.</p>' : ''}
         <a class="primary wide" href="/" id="f-done">Back to log in</a></div></div>`;
       $('#f-done', root).onclick = (ev) => { ev.preventDefault(); backToLogin(); };
     } catch (x) { err.textContent = x.message; b.disabled = false; }
