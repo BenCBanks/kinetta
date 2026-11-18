@@ -5,6 +5,11 @@ import unittest
 spec=importlib.util.spec_from_file_location('content',Path(__file__).resolve().parents[1]/'design/build_content.py')
 content=importlib.util.module_from_spec(spec);spec.loader.exec_module(content)
 class CopyTests(unittest.TestCase):
+ def test_website_has_no_private_by_default_claim(self):
+  import re
+  root=content.ROOT/'site'
+  for path in [*root.glob('*.html'),*root.glob('templates/*.html'),*root.glob('content/*.md')]:
+   self.assertNotRegex(path.read_text().lower(),r'private\s+by\s+default',str(path.relative_to(root)))
  def test_normal_copy_and_safe_links(self):
   self.assertEqual(content.inline('Your **workouts** and *food*.'),'Your <strong>workouts</strong> and <em>food</em>.')
   self.assertEqual(content.inline('[Training](training)'),'<a href="training">Training</a>')

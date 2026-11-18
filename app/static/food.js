@@ -17,10 +17,9 @@ function foodStorage(entry){const missing=FOOD_NUTRIENTS.filter(k=>!nutrientKnow
 function extraCoverage(entries,targets={}){return Object.fromEntries(EXTRA_NUTRIENTS.map(([k,,,target])=>{const known=entries.filter(e=>nutrientKnown(e,k));return [k,{recorded:known.length?known.reduce((n,e)=>n+Number(e[k]),0):null,known_count:known.length,unknown_count:entries.length-known.length,complete:!!entries.length&&known.length===entries.length,target:targets[target]}];}));}
 function extraTotals(values,{period=false}={}){return `<details class="extra-nutrients"><summary>More nutrients${period?' · this range':''}</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>{const v=values?.[k]||{};return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Some foods are missing values</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}${!period&&v.target!=null?`<small>Your limit: ${nutrientNumber(v.target,unit)}</small>`:''}</dd></div>`;}).join('')}</dl><p class="small muted">${period?'Recorded totals across this date range. ':''}Missing values are unknown, not zero. Total sugar includes naturally occurring sugar.</p></details>`;}
 function extraFood(v){return `<details class="extra-nutrients"><summary>More nutrients</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>`<div><dt>${label}</dt><dd class="num">${nutrientNumber(nutrientKnown(v,k)?v[k]:null,unit)}</dd></div>`).join('')}</dl><p class="small muted">For this portion, using its recorded source values. Estimates stay estimates; missing values are unknown.</p></details>`;}
-const deviceTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || tz(); } catch (e) { return tz(); } };
 const foodDestination = w => { const zone=w.timeZone||tz();return `<p class="portion-context small muted">${esc([MEAL_NAMES[w.meal],dayLabel(w.day||isoDay(new Date(),zone),zone)].filter(Boolean).join(' · '))}</p>`; };
 function foodDestinationPicker(w,onSave,formId='food-destination'){
-  const zone=deviceTimeZone(),today=isoDay(new Date(),zone),yesterday=addDays(today,-1),day=w.day||today,meal=Object.hasOwn(MEAL_NAMES,w.meal)?w.meal:guessMeal(zone);
+  const zone=foodTimeZone(),today=isoDay(new Date(),zone),yesterday=addDays(today,-1),day=w.day||today,meal=Object.hasOwn(MEAL_NAMES,w.meal)?w.meal:guessMeal(zone);
   const mealRows=Object.entries(MEAL_NAMES).map(([key,name])=>{const label=key==='snacks'?'Snack':name;return `<button type="button" class="food-destination-option" data-meal="${esc(key)}" aria-pressed="${key===meal}"><span>${esc(label)}</span>${key===meal?'<span class="food-destination-check" aria-hidden="true">✓</span>':''}</button>`;}).join('');
   sheet('Meal and day',`<div class="food-destination-picker" id="${esc(formId)}"><div class="food-destination-group" role="group" aria-label="Meal">${mealRows}</div><div class="food-destination-group" role="group" aria-label="Day"><button type="button" class="food-destination-option" data-day="${today}" aria-pressed="${day===today}"><span>Today</span>${day===today?'<span class="food-destination-check" aria-hidden="true">✓</span>':''}</button><button type="button" class="food-destination-option" data-day="${yesterday}" aria-pressed="${day===yesterday}"><span>Yesterday</span>${day===yesterday?'<span class="food-destination-check" aria-hidden="true">✓</span>':''}</button><label class="food-destination-option food-destination-pick"><span>Pick a date…</span><input name="date" type="date" value="${esc(day)}" aria-label="Pick a date"></label></div></div>`,(b,close)=>{
     const root=$(`#${formId}`,b),apply=async next=>{try{await onSave(next);close();}catch(error){toast(error.message);}};
@@ -212,7 +211,7 @@ route(/^\/food$/, 'food', async (el) => {
   const view = v0 === 'trends' ? 'overview' : [...NLOG, ...NPROG].some((m) => m[0] === v0) ? v0 : 'log';   // "trends": the old address
   if(view==='weight')return go(weightAddress(q),{replace:true});
   if (view !== 'log') return nutritionView(el, view, q);
-  const day = q.get('d') || isoDay(new Date()), today = isoDay(new Date());
+  const day = q.get('d') || foodToday(), today = foodToday();
   const homeQuery=new URLSearchParams(q);homeQuery.delete('goals');
   App.nutritionHome = {owner:readOwner(),href:location.pathname+(homeQuery.size?'?'+homeQuery:'')};
   const body = nHead(el, 'log', `<button class="icon-btn" id="fd-prev" aria-label="Previous day">${svg('back')}</button><label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
@@ -362,7 +361,7 @@ function sameYesterdayMealMarkup(D,meal,today) {
 async function repeatYesterdayMeal(D,button) {
   const meal=button.dataset.repeatYesterday;
   const owner=readOwner(),source=D.last_meals?.[meal]?.items||[];
-  if(button.disabled||!source.length||D.day!==isoDay(new Date())||D.entries.some(entry=>entry.meal===meal))return;
+  if(button.disabled||!source.length||D.day!==foodToday()||D.entries.some(entry=>entry.meal===meal))return;
   button.disabled=true;
   const items=source.map(entry=>({...entry,day:D.day,meal,entry_method:'copy_yesterday'}));
   try{await addEntries(items,{toastText:`Added ${items.length} item${items.length===1?'':'s'}`});}
@@ -489,7 +488,7 @@ async function copyDay(from, to, meal) {
 // The meal plus opens the scoped action sheet; routine add, edit and copy actions stay together.
 function mealActionsSheet(D, meal) {
   const count=D.entries.filter(e=>e.meal===meal).length;
-  const yesterday=isoDay(new Date());
+  const yesterday=foodToday();
   sheet(MEAL_NAMES[meal], `<div class="nutrition-meal-actions">
     <button type="button" class="nutrition-meal-action" data-meal-action="add"><span>Add food</span>${svg('chev')}</button>
     ${count?`<button type="button" class="nutrition-meal-action" data-meal-action="edit"><span>Edit foods and meal</span>${svg('chev')}</button>`:''}
@@ -510,13 +509,13 @@ function mealMenu(D, meal) {
     ${nutGrid(totals)}<div class="card list mm-list">${list.map(e => `<div class="logged-food"><button class="fe" data-me="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[meal]}"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))} · Edit</small></div>
       <div class="r meal-calories"><b class="num">${r0(e.kcal)}</b> <small class="muted">kcal</small></div></button><button class="linkbtn danger remove-food" data-remove-food="${e.id}" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[meal]}">${svg('trash')}Remove</button></div>`).join('')}</div>
     <div class="btncol"><button class="ghost" id="mm-yesterday">Copy yesterday’s ${MEAL_NAMES[meal].toLowerCase()}</button><button class="primary" id="mm-add">${svg('plus')}Add food to ${MEAL_NAMES[meal]}</button>
-    ${D.day !== isoDay(new Date()) && list.length ? `<button class="ghost" id="mm-copy">Copy ${MEAL_NAMES[meal].toLowerCase()} to today</button>` : ''}
+    ${D.day !== foodToday() && list.length ? `<button class="ghost" id="mm-copy">Copy ${MEAL_NAMES[meal].toLowerCase()} to today</button>` : ''}
     <button class="ghost" id="mm-save"${list.length ? '' : ' disabled'}>Save these foods as a combination</button></div>`, (b, close) => {
     $$('[data-me]', b).forEach(x => x.onclick = () => { close(); entrySheet(list.find(e => String(e.id) === x.dataset.me), D.day); });
     $$('[data-remove-food]', b).forEach(x => x.onclick = () => removeFoodEntry(list.find(e => String(e.id) === x.dataset.removeFood), {button: x, after: close}));
-    $('#mm-yesterday', b).onclick = () => { close(); yesterdayMeal(isoDay(new Date()), meal); };
+    $('#mm-yesterday', b).onclick = () => { close(); yesterdayMeal(foodToday(), meal); };
     $('#mm-add', b).onclick = () => { close(); describeSheet(D.day, meal); };
-    const cp = $('#mm-copy', b); if (cp) cp.onclick = () => { close(); copyDay(D.day, isoDay(new Date()), meal); };
+    const cp = $('#mm-copy', b); if (cp) cp.onclick = () => { close(); copyDay(D.day, foodToday(), meal); };
     // naming happens right here (the phone's own pop-up box looked out of place in the iPhone app)
     $('#mm-save', b).onclick = () => {
       $('#mm-save', b).outerHTML = `<form class="form mm-name" id="mm-name"><label>Name this combination<input name="name" maxlength="80" value="${esc(MEAL_NAMES[meal])} favourite" enterkeyhint="done" autocomplete="off"></label>
@@ -597,7 +596,7 @@ function entrySheet(e, day) {
     $('#es-again', b).onclick = async () => {   // the same food and amount, today in the meal for now
       if(owner!==readOwner()){close();return;}
       const btn = $('#es-again', b); if (btn.disabled) return; btn.disabled = true;
-      try { const result=await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
+      try { const result=await addEntries([{day: foodToday(), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
         protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,e[k]??null])), source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Logged ${e.name} again today`,result.undo); }
       catch (x) { toast(x.message); if (btn.isConnected) btn.disabled = false; }
     };
@@ -622,7 +621,7 @@ const macroInputs = (e = {}) => `<div class="mac4">
 // ---------- add: usuals / saved dishes / search / quick ----------
 function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   const owner=readOwner();
-  const zone=deviceTimeZone(),destination={day:day||isoDay(new Date(),zone),meal:Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal(zone)};
+  const zone=foodTimeZone(),destination={day:day||isoDay(new Date(),zone),meal:Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal(zone)};
   const batchItems=[],queuedIds=new Set();let pendingAdds=0,batchClosed=false,batchFinished=false;
   // One suggestions list inside Add food; meal cards show only what was actually logged.
   sheet('Choose food', `<div class="choose-food-context-wrap"><button type="button" id="as-context" class="choose-food-context"></button></div>
@@ -869,7 +868,7 @@ route(/^\/food\/meals$/, 'food', async (el) => {
   el.classList.add('recipes-library');
   el.innerHTML = `<div class="top library-heading">${backBtn('Nutrition')}<h1>Recipes &amp; foods</h1><button type="button" class="ghost sm" id="tm-new" disabled>${svg('plus')} New</button></div><div id="meal-library"></div>`;
   wireBack(el, '/food');
-  await tSaved($('#meal-library', el), () => ({day: isoDay(new Date()), meal: guessMeal()}), () => {}, {manage:true});
+  await tSaved($('#meal-library', el), () => ({day: foodToday(), meal: guessMeal()}), () => {}, {manage:true});
 });
 // How much of a saved meal: grams (when every food in it is in grams) or servings. A saved meal is 1 serving as saved
 // ("½" or "2" scale every food in it).
@@ -1274,7 +1273,7 @@ const NRANGES = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '1 year'
 // Log your weight (2026-10-12: moved here from the Log view). Any day up to today, so old weigh-ins can be added too.
 let wcDay = null,wcOwner=null;   // selected days stay with the account/server that picked them
 function weightCard(box) {
-  const unit = imp() ? 'lb' : 'kg', today = isoDay(new Date()),owner=readOwner(),valid=()=>box.isConnected&&owner===readOwner();
+  const unit = imp() ? 'lb' : 'kg', today = foodToday(),owner=readOwner(),valid=()=>box.isConnected&&owner===readOwner();
   if(wcOwner!==owner){wcDay=null;wcOwner=owner;}
   let day = wcDay && wcDay < today ? wcDay : today, W = {points: []},draft=null;
   const draw = () => {
@@ -1342,7 +1341,7 @@ route(/^\/progress\/weight$/, 'progress', async el=>{
 });
 
 async function foodCalendar(root) {
-  const owner=readOwner(),today=isoDay(new Date());
+  const owner=readOwner(),today=foodToday();
   await load('/api/food/insights?days=90',I=>{
     if(!root.isConnected||owner!==readOwner())return;
     const logged=(I.rows||[]).filter(r=>r.entries>0||r.eaten!=null).sort((a,b)=>b.day.localeCompare(a.day));
@@ -1361,7 +1360,7 @@ async function nutritionView(el, view, q) {
   const root = nHead(el, view, (ranged ? pillBtn('n-range', null, r === 'since' ? 'Since…' : NRANGES.find((x) => String(x[0]) === r)[1], 'Time range') : ''));
   if(view==='calendar')return foodCalendar(root);
   const save = (v) => { try { localStorage.setItem('fit.nrange', v); } catch (e) { /* none */ } go(nutritionHref(view,`r=${v}`), {replace: true}); };
-  const startSheet = (cur) => sheet('Count from', `<form class="form" id="ds"><label>Start date<input type="date" class="datefield" name="since" value="${esc(cur || '')}" max="${isoDay(new Date())}"></label>
+  const startSheet = (cur) => sheet('Count from', `<form class="form" id="ds"><label>Start date<input type="date" class="datefield" name="since" value="${esc(cur || '')}" max="${foodToday()}"></label>
       <p class="small muted">For example the day you started your diet. Trends, the running deficit and the averages then cover everything since that day.</p>
       <div class="actions"><button class="primary">Use this date</button></div></form>`, (b, close) => {
     $('#ds', b).onsubmit = async (e) => { e.preventDefault(); const v = $('#ds', b).since.value; if (!v) return;
@@ -1388,7 +1387,7 @@ async function nutritionView(el, view, q) {
     since = I.deficit_start || since;
     const rb = $('#n-range span', el); if (rb && r === 'since' && since) rb.textContent = `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'})}`;
     const dateLine=$('#insights-range-dates',el);
-    if(view==='overview'&&dateLine){const first=I.rows[0]?.day||I.summary.start,last=I.rows.at(-1)?.day||isoDay(new Date());const fmt=d=>new Date(d+'T12:00').toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'});dateLine.textContent=first&&last?`${fmt(first)} – ${fmt(last)}`:'';}
+    if(view==='overview'&&dateLine){const first=I.rows[0]?.day||I.summary.start,last=I.rows.at(-1)?.day||foodToday();const fmt=d=>new Date(d+'T12:00').toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'});dateLine.textContent=first&&last?`${fmt(first)} – ${fmt(last)}`:'';}
     drawTrends($('#nt-body', root), I, I.summary.days, view, r);
   });
 }
