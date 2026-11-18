@@ -3,6 +3,11 @@
 Food targets remain independent of calories burned. A daily target or a target set for one date changes only when
 you explicitly edit it. Imported workouts keep their existing calorie values.
 
+**Resting calories** means calories your body burns at rest, plus everyday movement. Workout calories are added
+separately, once. Changing this source does not change your food target. The optional **Calculate food target**
+section estimates a daily target from everyday activity and a weight goal. Review the suggested amount and choose
+**Use this target** to apply it; workouts are counted separately.
+
 In **Nutrition → Explore your food → Calorie needs → Resting calories**, choose **Apple Health · Resting Energy**. In an installed iPhone
 build containing this feature, allow Kinetta to read Resting Energy and sync. Browsers can choose the source and view
 synced data, but cannot read Apple Health directly. Closing Apple's permission screen does not establish read access;
@@ -33,8 +38,9 @@ It preserves food targets, food logs and activities. Own-data exports include re
 them. Public profiles and feeds never receive them. Kit needs the existing explicit Apple Health AI consent before
 using balances derived from these totals.
 
-The optional target calculator remains labeled as a Kinetta estimate and requires an explicit button press to set a
-target; selecting an Apple Health burn source never applies its suggestions.
+The target calculator remains a Kinetta estimate. Its **How it's calculated** details explain the resting-calorie
+estimate, everyday-activity setting and weight-goal adjustment. Selecting an Apple Health burn source never changes
+or applies a food target.
 
 Implementation references: Apple's [Resting Energy type](https://developer.apple.com/documentation/healthkit/hkquantitytypeidentifier/basalenergyburned)
 and [daily statistics guide](https://developer.apple.com/documentation/healthkit/executing-statistics-collection-queries).
