@@ -86,6 +86,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.equal(await p.locator('.nutrition-date-row #fd-date').count(),1);assert.equal(await p.locator('#fq-add').count(),1);
    if(who!=='empty'){const facts=await(await c.request.get(base+'/api/progress/overview')).json();assert.match(await p.locator('[data-nutrition-feature=overview]').innerText(),new RegExp('Protein goal '+facts.food.protein_days+'/7'),'tile agrees with own facts after earlier confirmed food saves, including zero');}
    if(who==='empty'){
+    // Explore and the day summary load independently; wait for the fresh-day content before checking its first-use state.
+    await p.locator('#fd-sum .nutrition-start').waitFor({state:'attached'});
     assert.equal(await p.locator('.nutrition-start').count(),1);assert.equal(await p.locator('.nutrition-body-prompt').count(),1);assert.equal(await p.locator('#nutrition-explore .progress-new:not(.seen)').count(),0,'established destinations do not claim to be new');
     assert(!/0 (saved|logged)/.test(await p.locator('#nutrition-explore').innerText()));
    }else{
