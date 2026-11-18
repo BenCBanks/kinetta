@@ -1127,7 +1127,7 @@ const activityShareOpening=new WeakSet();
 function sharePicture(id, known, origin=null) {
   const owner=readOwner(),path=location.pathname+location.search,context=origin||document.querySelector('#d-body')||root,live=()=>context?.isConnected&&owner===readOwner()&&path===location.pathname+location.search,cached=known&&known.line!==undefined&&known.start_time?known:null;
   if(!live()||activityShareOpening.has(context))return;activityShareOpening.add(context);
-  const socialRequest=cached&&cached._social?Promise.resolve(cached._social):api(`/api/activities/${id}/social`).catch(()=>null);
+  const socialRequest=cached&&cached._social?Promise.resolve(cached._social):api(`/api/activities/${id}/social`).catch(error=>{if(error.status>=500)throw error;return null;});
   void(async()=>{
    try{
     const [activity,social]=await Promise.all([cached||api(`/api/activities/${id}`),socialRequest]);
@@ -1141,7 +1141,7 @@ function sharePicture(id, known, origin=null) {
       if(hasLine)items.push({label:'Route',filename:'kinetta-route.png',controls,initial:{ink:'dark'},inkChoices:['dark','light'],build:state=>ShareArt.routeSilhouette({routePoints:trimRoute(decode(line),trimValue(state)),pace,totalTime:activityElapsedText(activity),ink:state.ink})});
       items.push({label:'Stats',filename:'kinetta-stats.png',initial:{ink:'dark'},inkChoices:['dark','light'],build:state=>ShareArt.statsPicture({distance:activity.distance_m?`${U.dist(activity.distance_m)} ${U.du()}`:'',pace,totalTime:activityElapsedText(activity),ink:state.ink})});
       await loadShareArt();if(!live())return;ShareSheet.open({items,title:'Share activity',mode:'tabs'});
-   }catch(error){if(live())toast(error.message||'Couldn’t load this activity. Tap Share to try again.');}
+   }catch(error){if(live())toast(error.status>=500?'Couldn’t load sharing right now. Tap Share to try again.':error.message||'Couldn’t load this activity. Tap Share to try again.');}
    finally{activityShareOpening.delete(context);}
   })();
 }
