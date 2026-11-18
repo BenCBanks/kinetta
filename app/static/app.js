@@ -112,7 +112,7 @@ const lazyRouteBundles = [
   {re: /^\/food\/setup$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/onboarding.js?v=__ASSET_HASH__'], styles: [FOOD_ROUTE_STYLE]},
   {re: /^\/food\/describe(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, THREAD_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
   {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
-  {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/progress\/weight$/, tab: () => new URLSearchParams(location.search).get('from') === 'nutrition' ? 'food' : 'progress', scripts: [FOOD_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/me\/sharing(?:\/(?:routes|blocked))?$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},

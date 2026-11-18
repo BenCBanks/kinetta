@@ -77,7 +77,7 @@
 .nutrition-home .meal-empty .meal-yesterday-repeat { margin:0 0 8px 44px; }
 .nutrition-home #fd-explore { margin-top:16px; }
 .nutrition-home #fd-explore .sec-head { margin-bottom:8px; }
-.nutrition-home .progress-grid.explore-list { gap:8px; margin:0 0 16px; padding:4px 12px; background:var(--card); border:1px solid color-mix(in srgb,var(--line) 72%,transparent); border-radius:var(--r); box-shadow:var(--elevation-rest); overflow:hidden; }
+.nutrition-home .progress-grid.explore-list { gap:8px; margin:0 0 16px; padding:4px 12px; background:var(--card); border:1px solid var(--line); border-radius:var(--r); box-shadow:none; overflow:hidden; }
 .nutrition-home .progress-grid.explore-list .progress-tile { display:flex; flex-direction:row; align-items:center; gap:8px; padding:4px 0; min-height:44px; }
 .nutrition-home .progress-grid.explore-list .progress-tile .small:empty { display:none; }
 .nutrition-home .progress-grid.explore-list .progress-tile:last-child { border-bottom:0; }
@@ -263,3 +263,4 @@
   .nutrition-meals-group { padding-inline:12px; }
   .nutrition-home .meal .fe { width:calc(100% + 24px); margin-inline:-12px; padding-inline:12px; }
 }
+.nutrition-detail:not([data-nutrition-view="overview"]) [data-kit-entry] { display:none; }

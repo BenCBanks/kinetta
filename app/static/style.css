@@ -300,7 +300,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; trans
 nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: transparent; font-weight: 600; box-shadow: none; }
 nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
 nav.tabs :is(a,button):active { transform: scale(.97); }
-@media (prefers-color-scheme: dark) { nav.tabs { box-shadow: var(--elevation-raised); } }
+nav.tabs.material { box-shadow: none; }
 @media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs { left:8px; right:8px; } nav.tabs :is(a,button) { font-size: 11px; letter-spacing:-.02em; } }
 @media (max-height: 700px) { :root { --nav-height: 64px; --nav-padding: 5px; --nav-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); } }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
@@ -323,13 +323,13 @@ html.native-increase-contrast nav.tabs [aria-current="page"] { background: var(-
   background: var(--btn); color: var(--onbtn); font-size: 13px; font-weight: 700; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
 
 /* ---------- cards, rows, lists ---------- */
-.card { background: var(--card); border-radius: var(--r); padding: 18px; margin-bottom: 14px; box-shadow: var(--shadow); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; margin-bottom: 14px; box-shadow: none; }
 .card > h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; margin-bottom: 12px; min-height: 28px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card > h2 .more, .card a.more { font-size: 15px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; min-height: 44px; min-width:44px; padding-inline:8px; letter-spacing: 0; }
 .card > h2 .linkbtn, .card > h2 a.more { min-height: 44px; margin: 0; }
 .card p { margin: 0; color: var(--tx2); line-height: 1.5; }
-.card.tap { display: block; color: inherit; transition: transform var(--motion-press) ease-out, box-shadow var(--motion-settle) var(--motion-ease), background-color var(--motion-settle) var(--motion-ease); } .card.tap:active { transform: scale(.97); box-shadow: var(--elevation-raised); background: var(--surface-raised); }
+.card.tap { display: block; color: inherit; transition: transform var(--motion-press) ease-out, background-color var(--motion-settle) var(--motion-ease); } .card.tap:active { transform: scale(.97); background: var(--surface-raised); }
 .card.flat { box-shadow: none; background: var(--card2); }
 .card.flat .ghead:first-child { margin-top: 0; }
 .card.list { padding-top: 4px; padding-bottom: 4px; }
@@ -369,7 +369,7 @@ button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0
 /* a row with a value: the label keeps its one line and the value shortens with "…" (2026-10-13: "Body & heart rate" wrapped) */
 .row-link:has(> .val) > .grow { min-width: max-content; }
 .row-link.static:active { opacity: 1; }
-.card.tap.row-link { display: flex; padding: 12px 16px; border-top: 0; }
+.card.tap.row-link { display: flex; padding: 12px 16px; border: 0; }
 /* the row icon: a small rounded square in a soft colour (Me list) */
 .list .row-link { border-top: 0; position: relative; }
 .list .row-link + .row-link::before { content: ''; position: absolute; top: 0; left: 46px; right: 0; border-top: 1px solid var(--line); }
@@ -950,7 +950,7 @@ body.ph-open { overflow: hidden; }
 body { --text-app-title:max(28px,var(--app-page-title-preferred)); }
 .sec-head, .card > h2, .post-title, .sheet-head h2, .plan-hero h2 { font-family: var(--display); font-weight: var(--weight-title); }
 .sec-head { font-size: var(--text-app-section); margin-top: 20px; }
-.card { background: var(--surface-card); border: 1px solid color-mix(in srgb, var(--line) 75%, transparent); padding: 14px; margin-bottom: 12px; box-shadow: var(--elevation-rest); }
+.card { background: var(--surface-card); border: 1px solid var(--line); padding: 14px; margin-bottom: 12px; box-shadow: none; }
 .card > h2 { font-size: var(--text-app-card-title); }
 .primary { background: var(--accent-gradient); box-shadow: 0 2px 10px color-mix(in srgb, var(--color-action) 22%, transparent), var(--elevation-rest); min-height: 44px; }
 .ghost, .primary.sm, .ghost.sm { min-height: 44px; }
@@ -1078,8 +1078,8 @@ html.keyboard-open nav.tabs { display: none; }
   font-weight: 500; font-size: max(15px,.9375rem); }
 .insights-range {display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .insights-kit-entry {display:flex;flex:none;}
-:is(.top,.me-top,.insights-kit-entry) .kit-help {width:44px;height:44px;padding:0;border:0;display:grid;place-items:center;}
-:is(.top,.me-top,.insights-kit-entry) .kit-help::after {content:none;}
+:is(.top,.me-top,.insights-kit-entry) .kit-help {width:auto;min-width:64px;height:44px;padding:0 12px;border:1px solid var(--line);border-radius:999px;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+:is(.top,.me-top,.insights-kit-entry) .kit-help::after {content:'Kit';color:var(--accent);font-size:14px;font-weight:600;line-height:1;}
 :is(.top,.me-top,.insights-kit-entry) .kit-help svg {width:20px;height:20px;}
 .kit-help::after { content: 'Kit'; }
 .kit-help svg { width: 18px; height: 18px; color: var(--accent); }
@@ -1589,7 +1589,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 html:has(.food-thread, .recipe-page), html:has(.food-thread, .recipe-page) body { overflow: hidden; }
 .shell.food-thread, .shell.recipe-page { position: fixed; top: var(--chat-top, 0px); left: 0; right: 0;
   width: 100%; height: var(--chat-height, 100dvh); min-height: 0; overflow: hidden; }
-.shell.food-thread { padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
+.shell.food-thread { padding-bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 16px); }
 .food-thread > *, .recipe-page > * { min-width: 0; }
 .thread-heading { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
 .thread-heading .back { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
@@ -2445,9 +2445,8 @@ body .activity-card .post-summary .stat small { color:var(--tx3); font-size:13px
 
 
 /* Shared polish components (#971): consistent depth, type hierarchy and immediate press feedback. */
-.card.tap { box-shadow: var(--elevation-rest); }
 @media (hover: hover) and (pointer: fine) {
-  .card.tap:hover { transform: translateY(-1px); background: var(--surface-raised); box-shadow: var(--elevation-raised); }
+  .card.tap:hover { transform: translateY(-1px); background: var(--surface-raised); }
 }
 button:not(:disabled), a, [role="button"], summary, .card.tap, .row-link { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 button:not(:disabled), a, [role="button"], summary, .card.tap, .row-link { transition: transform var(--dur-spring) var(--spring-snappy), opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }

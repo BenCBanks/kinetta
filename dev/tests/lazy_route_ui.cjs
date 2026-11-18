@@ -841,6 +841,22 @@ async function foodWarmupCase(browser){
    assert.deepEqual(direct.errors,[],`${label} has no page errors`);
   }finally{await direct.context.close();}
  }
+ for(const [path,expected,label] of [
+  ['/progress/weight?from=nutrition','food','Nutrition-origin Weight'],
+  ['/progress/weight','progress','direct Weight'],
+ ]){
+  const cold=await foodRouteFixture(browser,{hold:true});
+  try{
+   await cold.page.goto(base+path,{waitUntil:'domcontentloaded'});
+   await cold.held;
+   await cold.page.locator('.lazy-route-loading').waitFor();
+   assert.equal(await cold.page.locator('nav.tabs a[aria-current="page"]').getAttribute('data-tab'),expected,`${label} selects the correct tab in the lazy loading shell`);
+   cold.release();
+   await ready(cold.page,'#nt-weight',`${label} resolved Weight page`);
+   assert.equal(await cold.page.locator('nav.tabs a[aria-current="page"]').getAttribute('data-tab'),expected,`${label} keeps the correct tab after route resolution`);
+   assert.deepEqual(cold.errors,[],`${label} loads without page errors`);
+  }finally{cold.release();await cold.context.close();}
+ }
  const threadDirect=await foodRouteFixture(browser);
  try{
    await threadDirect.page.goto(base+'/food/describe',{waitUntil:'domcontentloaded'});await ready(threadDirect.page,'#thread-plus','direct Food conversation');
