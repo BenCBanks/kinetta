@@ -127,12 +127,11 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    assert(await quick.isVisible(),`${label}: quick replies remain when they fit`);const quickGeometry=await quick.evaluate(node=>{const rects=[...node.children].map(child=>child.getBoundingClientRect());return{width:node.clientWidth,scrollWidth:node.scrollWidth,height:node.getBoundingClientRect().height,rows:new Set(rects.map(rect=>Math.round(rect.top))).size};});assert(quickGeometry.width>0&&quickGeometry.scrollWidth<=quickGeometry.width+1&&quickGeometry.height<=44&&quickGeometry.rows===1,`${label}: quick replies are one compact line at 330/390 ${JSON.stringify(quickGeometry)}`);
    const keyboardHeight=width===330?250:300;
    await p.locator('.c-form textarea').focus();
-   await c.route('**/__fixture_keyboard.css',route=>route.fulfill({contentType:'text/css',body:'#fixture-keyboard{position:fixed;z-index:4000;right:0;bottom:0;left:0;padding:10px 8px 14px;border-radius:18px 18px 0 0;background:#d3d5db;box-shadow:0 -1px 0 rgba(255,255,255,.8);display:grid;grid-template-rows:30px 1fr 1fr 1fr;gap:8px;color:#20242a;font:14px system-ui}#fixture-keyboard.height-250{height:250px}#fixture-keyboard.height-300{height:300px}#fixture-keyboard .row{display:flex;justify-content:space-around;gap:5px}#fixture-keyboard .row:first-child{align-items:center;color:#4b5059}#fixture-keyboard .key{background:#f8f8fa;border-radius:5px;flex:1;display:grid;place-items:center}'}));
+   await c.route('**/__fixture_keyboard.css',route=>route.fulfill({contentType:'text/css',body:'#fixture-keyboard{position:fixed;z-index:4000;right:0;bottom:0;left:0;border-radius:18px 18px 0 0;background:#d3d5db;box-shadow:0 -1px 0 rgba(255,255,255,.8)}#fixture-keyboard.height-250{height:250px}#fixture-keyboard.height-300{height:300px}'}));
    await p.evaluate(height=>{
     document.documentElement.classList.add('keyboard-open');window.KinettaKeyboard={height};dispatchEvent(new Event('kinetta:keyboard'));
     const css=document.createElement('link');css.rel='stylesheet';css.href='/__fixture_keyboard.css';document.head.append(css);
     const keyboard=document.createElement('div');keyboard.id='fixture-keyboard';keyboard.className=`height-${height}`;keyboard.setAttribute('aria-hidden','true');
-    keyboard.innerHTML='<div class="row"><span>•</span><span>•</span><span>•</span></div><div class="row"><span class="key">Q W E R T Y U I O P</span></div><div class="row"><span class="key">A S D F G H J K L</span></div><div class="row"><span class="key">⇧ Z X C V B N M ⌫</span></div>';
     document.body.append(keyboard);
    },keyboardHeight);
    await p.waitForTimeout(300);await capture('keyboard-open');
