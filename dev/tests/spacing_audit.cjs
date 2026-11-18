@@ -8,7 +8,7 @@ const {audit,validateExceptions,combineMeasurements}=require('./spacing_geometry
 const base=process.env.KINETTA_URL||'http://localhost:8798',project=process.env.KINETTA_PROJECT||'kinettatest';
 assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'Spacing evidence requires a disposable local server');
 const fixtures=JSON.parse(fs.readFileSync(process.env.KINETTA_SPACING_FIXTURES||'/tmp/'+project+'-spacing-fixtures.json','utf8'));
-assert.equal(fixtures.base,base);assert.equal(fixtures.project,project);
+assert.equal(fixtures.base,base);assert.equal(fixtures.project,project);if(fixtures.me_today?.plan)assert.equal(fixtures.me_today.plan.today,fixtures.me_today.today,'Me Today plan response and its shared-clock fixture use the same account day');
 const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'spacing_exceptions.json'),'utf8'));validateExceptions(rules);
 const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-spacing-report.json'),pictures=process.env.KINETTA_SPACING_SHOTS;
 const collectVisualOverlaps=()=>{
