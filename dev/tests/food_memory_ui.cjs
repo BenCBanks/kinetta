@@ -29,7 +29,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(fn))r
    assert(boxes.row.height<=46,'food chat header stays one 44 px row');assert(boxes.back.height>=44&&boxes.title.height>=44&&boxes.gear.height>=44,'all header actions meet the 44 px target');
    assert(boxes.title.y>=boxes.row.y-1&&boxes.title.bottom<=boxes.row.bottom+1,'title stays in the header row');assert(boxes.title.x>=boxes.back.right+7&&boxes.gear.x>=boxes.title.right+7,'center title keeps 8 px gaps from both sides');
    assert(boxes.label.scrollWidth<=boxes.label.width+1,'the destination title fits without truncation');assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
-   const today=await p.evaluate(()=>isoDay(new Date(),deviceTimeZone())),pickerDay=showOtherDay?'2026-11-03':today,pickerMeal=showOtherDay?'lunch':'breakfast';
+   const today=await p.evaluate(()=>foodToday()),pickerDay=showOtherDay?'2026-11-03':today,pickerMeal=showOtherDay?'lunch':'breakfast';
    await context.tap();const picker=p.getByRole('dialog');await picker.waitFor();assert.equal(await picker.locator('[data-meal="'+pickerMeal+'"]').getAttribute('aria-pressed'),'true');assert.equal(await picker.locator('input[name="date"]').inputValue(),pickerDay);await picker.locator('[data-close]').first().click();
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'food-header-'+width+'-'+theme+'.png')});}
    cases+=6;

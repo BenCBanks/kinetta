@@ -54,10 +54,13 @@ const r0 = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
 const isoDay = (d, timeZone = tz()) => d.toLocaleDateString('en-CA', {timeZone});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); };
 const dayLabel = (iso, timeZone = tz()) => { const t = isoDay(new Date(),timeZone); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00:00Z').toLocaleDateString([], {timeZone:'UTC',weekday: 'short', month: 'short', day: 'numeric', ...(iso.slice(0,4) !== t.slice(0,4) ? {year:'numeric'} : {})}); };
-function guessMeal(timeZone = tz()) {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
-  const h = Number(new Intl.DateTimeFormat('en-US',{timeZone,hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = timeZone === tz() && App.mealHours && App.mealHours[h]; // learned hours use the profile zone; while travelling, use the local clock instead
+function guessMeal(timeZone) {   // no argument means the account timezone; a passed zone is an explicit override
+  const profileZone=tz(),zone=timeZone||profileZone,h=Number(new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'2-digit',hourCycle:'h23'}).format(new Date())),mine=zone===profileZone&&App.mealHours&&App.mealHours[h]; // learned hours belong to the profile zone
   return mine || (h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snacks' : h < 21 ? 'dinner' : 'snacks');
 }
+// These are shared with Kit's eager thread route, which can load without Nutrition's food.js.
+const foodTimeZone = () => tz();
+const foodToday = () => isoDay(new Date(), foodTimeZone());
 // Displayed energy rounds to 5 kcal.
 const homeCalories = v => Math.round((v || 0) / 5) * 5;
 function syncCheckinPrimary(page){
