@@ -26,10 +26,6 @@ See how it works
 
 Join the iPhone beta
 
-## home-standin-caption
-
-Fictional day · example screens
-
 ## home-proof-kicker
 
 Food and training
@@ -84,7 +80,7 @@ Ask Kit about your week.
 
 ## home-kit-insight-description
 
-Ask one question and get a plain-language read on the training data you choose to review.
+Ask one question about your training week.
 
 ## home-kit-sample-caption
 
@@ -96,7 +92,7 @@ Am I improving?
 
 ## home-kit-answer
 
-Your latest run total is below your recent average; this chart also shows stronger weeks. One week alone cannot establish a lasting trend.
+Your latest run was below your recent average. Other weeks were stronger; one week alone does not show a lasting trend.
 
 ## home-kit-replay
 
@@ -108,11 +104,11 @@ Example questions
 
 ## home-kit-example-one
 
-Look at my consistency
+How consistent was I?
 
 ## home-kit-example-two
 
-Choose a focus
+What should I focus on?
 
 ## home-kit-phone-caption
 
