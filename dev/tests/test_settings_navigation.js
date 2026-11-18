@@ -1,7 +1,7 @@
 // Exercise the real settings route and logout safeguards with fictional local drafts.
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync('app/static/settings-route.js','utf8'),start=source.indexOf("route(/^\\/me\\/settings$/"),end=source.indexOf('// heart rate, body and time zone',start);
+const source=fs.readFileSync('app/static/settings-route.js','utf8'),start=source.indexOf("route(/^\\/me\\/settings$/"),end=source.indexOf('// heart rate, body and time zone',start),summaryStart=source.indexOf('function bodyProfileSummary('),summaryEnd=source.indexOf('\n}',summaryStart)+2;
 function fixture(pending=0,accept=true){
  let route,writes=[],forgot=0,login=0,erased=0,notices=[],editors=[],confirms=[];const nodes=new Map(),el={innerHTML:'',isConnected:true};
  const c={session:1,readOwner:()=>JSON.stringify([c.App.me?.id,c.session]),App:{me:{id:1,name:'Fictional Person',login:'zz_test_settings',units:'imperial'},cache:new Map()},
@@ -11,7 +11,7 @@ function fixture(pending=0,accept=true){
   FoodThread:{pendingCount:async()=>0,eraseDevice:async()=>{erased++}},KitChat:{eraseDevice(){},memorySettings(){},savedReviews(){editors.push('reviews')}},
   Native:{on:false,foodEntryPendingCount:async()=>0,forget:async()=>{forgot++}},Track:{pause:async()=>{}},
   confirmSheet:async(title,opts)=>{confirms.push(title+' '+opts.body);return accept},api:async(...args)=>writes.push(args),json:(method,body)=>({method,body}),store:{set:(...args)=>writes.push(args)},forgetKept(){},netbar(){},history:{replaceState(){}},showLogin:()=>{login++},toast:message=>notices.push(message)};
- vm.createContext(c);vm.runInContext(source.slice(start,end),c);
+ vm.createContext(c);vm.runInContext(source.slice(summaryStart,summaryEnd),c);vm.runInContext(source.slice(start,end),c);
  return {c,el,nodes,writes,notices,editors,confirms,run:()=>route(el),counts:()=>({forgot,login,erased})};
 }
 (async()=>{
