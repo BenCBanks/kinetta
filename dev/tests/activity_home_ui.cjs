@@ -99,7 +99,8 @@ async function verifyReactionSummary(card,page,out,theme){
   if(!state.total){assert(await count.isHidden(),'empty reactions hide the summary');}
   else{
    const countBox=await count.boundingBox(),reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footer=card.locator('.post-ft');
-   const expectedLabel=`${state.total} reaction${state.total===1?'':'s'}, see who reacted`;
+   const visible=await page.evaluate(fixture=>fixture.shown.map(kind=>{const row=App.me.reaction_choices.find(row=>row[0]===kind);return`${row[2]} ${fixture.reactions[kind]} (${row[1]})`;}).join(', ')+(fixture.extra?`, +${fixture.extra}`:''),state);
+   const expectedLabel=`${visible}; ${state.total} reaction${state.total===1?'':'s'}, see who reacted`;
    assert.equal(await count.getAttribute('aria-label'),expectedLabel,'the people-sheet button names the inclusive reaction total and action');
    assert(countBox.width>=44&&countBox.height===44,'the summary keeps a 44px-high target');assert(Math.abs(countBox.x-reactBox.x-reactBox.width-4)<1,'summary follows React');assert(commentBox.x-countBox.x-countBox.width>=7.99,'at least 8px separates summary and Comments');assert(Math.max(countBox.y,reactBox.y,commentBox.y)-Math.min(countBox.y,reactBox.y,commentBox.y)<=2.01,'all footer controls share one row');
    assert.equal(await group.getAttribute('data-mine'),state.mine||'','selected reaction stays independent of summary order');
