@@ -9,9 +9,9 @@ def ok(r):
  assert r[0]==200,(r[0],str(r[1])[:400])
  return r[1]
 today=dt.datetime.now(dt.timezone.utc).date();sql=[]
-for state in ('empty','low','typical','heavy','unknown'):
+for state in ('empty','low','three','typical','heavy','unknown'):
  c=person('zz_test_insights_'+state);ok(c.post('/api/account/delete',{'password':PW}));c=person('zz_test_insights_'+state,'Fictional '+state.title());uid=ok(c.get('/api/me'))['id'];ok(c.put('/api/profile',{'tz':'UTC','ai_ok':False,'weight_kg':70,'height_cm':174,'birth_year':1992,'sex':'female','activity_factor':1.3}));ok(c.put('/api/food/targets',{'kcal_target':2100,'protein_target':130,'carbs_target':None,'fat_target':None}));sql.append(f"UPDATE profile SET deficit_start='{today-dt.timedelta(days=70)}' WHERE user_id={uid};")
- n={'empty':0,'low':1,'typical':28,'heavy':365,'unknown':7}[state]
+ n={'empty':0,'low':1,'three':3,'typical':28,'heavy':365,'unknown':7}[state]
  for i in range(n):
   day=today-dt.timedelta(days=i+1)
   if state in ('typical','heavy') and i%11==5:continue

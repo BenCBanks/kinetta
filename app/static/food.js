@@ -170,7 +170,7 @@ function nHead(el, view, filters) {
   const home = saved?.owner === readOwner() ? saved.href : fromProgress ? '/progress' : '/food';
   const detail = view !== 'log', title = detail ? v?.[1] || 'Food calendar' : 'Nutrition';
   el.classList.add(detail ? 'nutrition-detail' : 'nutrition-home');
-  el.innerHTML = `<div class="top">${detail&&!inProgress?`<a class="back nutrition-back${fromProgress?' progress-back':''}" href="${esc(home)}" aria-label="Back to ${fromProgress?'Progress':'Nutrition'}">${svg('back')}${fromProgress?'Progress':'Nutrition'}</a>`:''}<h1>${esc(title)}</h1><div class="acts"><button class="icon-btn" id="n-help" aria-label="Nutrition help">${svg('help')}</button>${bellBtn()}</div></div>${view==='overview'?`<div class="insights-range">${filters}</div>`:detail?'':`<div class="nutrition-date-row">${filters}</div>`}<div id="n-body"><div id="nt-body">${skel(1)}</div></div>`;
+  el.innerHTML = `<div class="top">${detail&&!inProgress?`<a class="back nutrition-back${fromProgress?' progress-back':''}" href="${esc(home)}" aria-label="Back to ${fromProgress?'Progress':'Nutrition'}">${svg('back')}${fromProgress?'Progress':'Nutrition'}</a>`:''}<h1>${esc(title)}</h1><div class="acts"><button class="icon-btn" id="n-help" aria-label="Nutrition help">${svg('help')}</button>${bellBtn()}</div></div>${view==='overview'?`<div class="insights-range">${filters}</div><div id="insights-range-dates" class="insights-range-dates" aria-live="polite"></div>`:detail?'':`<div class="nutrition-date-row">${filters}</div>`}<div id="n-body"><div id="nt-body">${skel(1)}</div></div>`;
   const body = $('#n-body',el);
   if (detail) { Discovery.visit('nutrition',view); if(view!=='overview')progressFilters(el,body,filters,{selector:NRANGED.includes(view)?'#nt-body .card':'.card'}); }
   $('#n-help', el).onclick = () => sheet('About your nutrition', `<p>For more accurate calorie estimates, update your weight, height, birth year (age) and sex in <a href="/me?setup=body">Me → Body &amp; heart rate</a>.</p><p class="small muted">Your daily balance compares food logged with estimated burn for the whole day. It becomes useful when you’ve finished logging.</p><p class="small">Edit ingredients and totals in <a href="/food/meals">My Recipes</a>. Tap a logged food to change just that entry.</p>`, (b, close) => $$('a', b).forEach(a => a.addEventListener('click', close)));
@@ -1298,7 +1298,7 @@ async function nutritionView(el, view, q) {
   let r = q.get('r'); if (!r) { try { r = localStorage.getItem('fit.nrange'); } catch (e) { /* none */ } }
   if (r !== 'since' && !NRANGES.some((x) => String(x[0]) === r)) r = '30';
   const ranged = NRANGED.includes(view);
-  const root = nHead(el, view, (ranged ? pillBtn('n-range', 'calendar', r === 'since' ? 'Since…' : NRANGES.find((x) => String(x[0]) === r)[1], 'Time range') : ''));
+  const root = nHead(el, view, (ranged ? pillBtn('n-range', null, r === 'since' ? 'Since…' : NRANGES.find((x) => String(x[0]) === r)[1], 'Time range') : ''));
   if(view==='calendar')return foodCalendar(root);
   const save = (v) => { try { localStorage.setItem('fit.nrange', v); } catch (e) { /* none */ } go(nutritionHref(view,`r=${v}`), {replace: true}); };
   const startSheet = (cur) => sheet('Count from', `<form class="form" id="ds"><label>Start date<input type="date" class="datefield" name="since" value="${esc(cur || '')}" max="${isoDay(new Date())}"></label>
@@ -1315,9 +1315,9 @@ async function nutritionView(el, view, q) {
     (k) => (k === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(k)));
   // Keep Insights chart-first; old weekly links still lead with their open table.
   const weeklyFold=view==='overview'?`<details class="insights-review chev-row" id="nt-weeks-fold"${q.get('weeks')==='1'?' open':''}><summary>Week by week</summary><div id="nt-weeks"></div></details>`:'';
-  root.innerHTML = `${view==='overview'?'<div id="nt-coach"></div>':''}${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review chev-row"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?`<details class="insights-review chev-row"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details>`:''}${q.get('weeks')==='1'?weeklyFold:''}<div id="nt-body">${skel(3)}</div>${q.get('weeks')==='1'?'':weeklyFold}`;
+  root.innerHTML = `${view==='overview'?'<div id="nt-coach"></div>':''}${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review chev-row"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${q.get('weeks')==='1'?weeklyFold:''}<div id="nt-body">${skel(3)}</div>${q.get('weeks')==='1'?'':weeklyFold}`;
   if(view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress'))weeklyCheckinCard($('#nt-checkin',root));   // the numbers first, then the coach
-  if (view === 'overview') {weeklyFoodReviewCard($('#nt-weekly-food',root));dietCoach($('#nt-coach', root));}
+  if (view === 'overview') dietCoach($('#nt-coach', root));
   if(view==='overview'){const fold=$('#nt-weeks-fold',root);let loaded=false;const open=()=>{if(fold.open&&!loaded){loaded=true;weeksCard($('#nt-weeks',fold));}};fold.addEventListener('toggle',open);open();}
   const url = r === 'since' ? '/api/food/insights?days=30&since=' : `/api/food/insights?days=${r}`;
   if (r === 'since') {   // need the saved start date first
@@ -1327,16 +1327,17 @@ async function nutritionView(el, view, q) {
   await load((r === 'since' ? url + since : url)+(view==='overview'?'&brief=1':''), (I) => {
     since = I.deficit_start || since;
     const rb = $('#n-range span', el); if (rb && r === 'since' && since) rb.textContent = `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'})}`;
-    drawTrends($('#nt-body', root), I, I.summary.days, view);
+    const dateLine=$('#insights-range-dates',el);
+    if(view==='overview'&&dateLine){const first=I.rows[0]?.day||I.summary.start,last=I.rows.at(-1)?.day||isoDay(new Date());const fmt=d=>new Date(d+'T12:00').toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'});dateLine.textContent=first&&last?`${fmt(first)} – ${fmt(last)}`:'';}
+    drawTrends($('#nt-body', root), I, I.summary.days, view, r);
   });
 }
-function drawTrends(box, I, days, part) {   // part: overview | energy | macros
+function drawTrends(box, I, days, part, rangeKey) {   // part: overview | energy | macros
   if (!box || !box.isConnected) return;
   const S = I.summary, T = I.targets, lb = imp(), wu = lb ? 'lb' : 'kg', wconv = (kg) => (lb ? kg * 2.20462 : kg);
   const past = I.rows.filter((r) => !r.today);
   if (part!=='overview'&&!I.rows.some((r) => r.eaten != null)) { box.innerHTML = `<div class="card empty"><b>Nothing logged in this range</b><p>Start with something you ate to build your food and weight picture.</p><a class="primary wide" href="/food">Log food</a>${Native.on ? '' : '<p class="small muted">Have older records? <a href="/food/import">Add past days</a>.</p>'}</div>`;syncCheckinPrimary(box.closest?.('#page')); return; }
   const tile = (label, value, unit, sub, cls = '', href = '') => `<${href ? `a href="${href}"` : 'div'} class="ntile ${cls}"><small>${esc(label)}</small><b class="num">${value}<i>${esc(unit)}</i></b>${sub ? `<span>${sub}</span>` : ''}</${href ? 'a' : 'div'}>`;
-  const sgn = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
   const weekly = days > 90;   // a year of daily bars is too thin: average by week
   const dlabel = (d, o) => new Date(d + 'T12:00').toLocaleDateString([], o);
   let cols;
@@ -1346,14 +1347,13 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
     cols = Object.entries(W).map(([k, rs], i, arr) => { const c = rs.filter((r) => r.counted), a = (f) => { const v=c.map(r=>r[f]).filter(x=>x!=null);return v.length?v.reduce((s,x)=>s+x,0)/v.length:null; };
       const prev = arr[i - 1] && new Date(arr[i - 1][0] + 'T12:00'), d = new Date(k + 'T12:00');
       const ws = rs.filter((r) => r.weight != null), lastT = [...rs].reverse().find((r) => r.trend != null);
-      return {label: 'Week of ' + dlabel(k, {month: 'short', day: 'numeric'}), tick: !prev || prev.getMonth() !== d.getMonth() ? (i === 0 || d.getMonth() % 2 === 0 ? dlabel(k, {month: 'short'}) : '') : '', tickLabel: dlabel(k, {month: 'short', day: 'numeric'}), eaten: a('eaten'), burned: a('burned'), goal: a('goal'), protein_g: a('protein_g'), partial: rs.some((r) => r.today),
+      return {label: 'Week of ' + dlabel(k, {month: 'short', day: 'numeric'}), tick: !prev || prev.getMonth() !== d.getMonth() ? (i === 0 || d.getMonth() % 2 === 0 ? dlabel(k, {month: 'short'}) : '') : '', tickLabel: dlabel(k, {month: 'short', day: 'numeric'}), eaten: a('eaten'), burned: a('burned'), goal: a('goal'), protein_g: a('protein_g'), partial: rs.some((r) => r.today), countedDays:c.length, entries:rs.reduce((n,r)=>n+r.entries,0),day:k,isWeek:true,
         weight: ws.length ? wconv(ws.reduce((x, r) => x + r.weight, 0) / ws.length) : null, trend: lastT ? wconv(lastT.trend) : null}; });
   } else {
     const every = days <= 7 ? 1 : days <= 30 ? 7 : 14;
     cols = I.rows.map((r, i) => ({label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}), tick: (I.rows.length - 1 - i) % every === 0 ? dlabel(r.day, days <= 7 ? {weekday: 'short'} : {month: 'short', day: 'numeric'}) : '', tickLabel: dlabel(r.day, days <= 7 ? {weekday: 'short'} : {month: 'short', day: 'numeric'}),
       eaten: r.eaten, burned: r.eaten == null ? null : r.burned, goal: r.goal, protein_g: r.protein_g, partial: r.today, day: r.day, counted: r.counted, weight: r.weight == null ? null : wconv(r.weight), trend: r.trend == null ? null : wconv(r.trend)}));
   }
-  const pDef = S.predicted_kg, pTr = S.trend_change_kg;
   const burnNote=I.rows.some(r=>r.burn_source==='apple_health')
     ? 'Burn uses synced Health app resting calories plus recorded activity calories, counted once. Missing resting data stays missing. These are source estimates, not a measurement of your exact needs.'
     : I.rows.some(r=>r.burn_source==='imported')
@@ -1362,21 +1362,24 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   const kcalP = (S.avg_protein_g || 0) * 4, kcalC = (S.avg_carbs_g || 0) * 4, kcalF = (S.avg_fat_g || 0) * 9, kcalM = kcalP + kcalC + kcalF || 1;
   const pct = (v) => Math.round(v / kcalM * 100);
   const overviewLinks=()=>`<div class="insights-links" aria-label="Nutrition details">${NPROG.filter(v=>!['overview','weeks'].includes(v[0])).map(([key,name,,icon])=>`<a href="${esc(nutritionHref(key))}">${svg(icon)}<span>${esc(name)}</span>${svg('chev')}</a>`).join('')}</div>`;
-  const hasFood=I.rows.some(r=>r.eaten!=null),low=S.logged<7||(S.past_days>0&&S.logged/S.past_days<.25);
-  const from=low&&S.logged?` · from ${S.logged} ${S.logged===1?'day':'days'}`:'';
-  const fact=(label,value,unit,sub,view)=>`<a class="insights-figure" href="${esc(nutritionHref(view))}"><span>${esc(label)}</span><b class="num">${value}${unit?`<small>${esc(unit)}</small>`:''}</b><span class="muted">${sub}</span></a>`;
-  const coverage=`<div class="insights-coverage${low?' low-data':''}"><p><b>Logged ${S.logged} of ${S.past_days} days</b>${low?'<span>More complete days help show a pattern.</span>':''}<span>Days you didn’t log aren’t counted as zero.</span></p>${low?'<a class="me-chip" href="/food">Log food</a>':''}</div>`;
-  const html = {overview: `${hasFood?`<section class="card insights-summary">
-      <a class="insights-chart" href="${esc(nutritionHref('energy'))}" aria-label="Calories eaten versus goal; open Calories and weight"><div class="insights-chart-heading"><h2>Eaten vs goal</h2><span>${weekly?'Weekly averages':'Daily calories'} ${svg('chev')}</span></div><div id="nt-overview-chart"></div><span class="insights-chart-note">${weekly?'Complete days, averaged by week':'Faded: today or partly logged'}</span></a>
-      <div class="insights-figures">
-      ${fact('Average logged',S.avg_eaten==null?'—':r0(homeCalories(S.avg_eaten)),S.avg_eaten==null?'':'kcal/day',S.avg_goal?`goal ${r0(homeCalories(S.avg_goal))}${from}`:S.logged?`Logged days${from}`:'No complete days yet','energy')}
-      ${fact('Estimated balance',S.avg_deficit==null?'—':r0(homeCalories(Math.abs(S.avg_deficit))),S.avg_deficit==null?'':'kcal/day',S.avg_deficit==null?(S.missing_burn_days?'Resting data missing':'No complete days yet'):`${S.avg_deficit>=0?'Deficit':'Surplus'}${from}`,'energy')}
-      ${fact('Average protein',S.avg_protein_g==null?'—':r0(S.avg_protein_g),S.avg_protein_g==null?'':'g/day',S.avg_protein_g==null?(S.logged?'Protein data missing':'No complete days yet'):T.protein_target?`goal ${r0(T.protein_target)} g${from}`:`Logged days${from}`,'macros')}
-      ${pTr==null?`<a class="insights-figure insights-log-weight" href="${esc(nutritionHref('weight'))}"><span>Weight trend</span><b>${svg('scale')}Log weight</b><span class="muted">Add a weigh-in</span></a>`:fact('Weight trend',sgn(pTr)+wconv(Math.abs(pTr)).toFixed(1),wu,'In this range','weight')}
-      </div>${coverage}</section>`:`<section class="card empty insights-empty"><h2>Nothing logged in this range</h2><p>Log food to start your food and weight picture.</p><a class="primary wide" href="/food">Log food</a><a class="linkbtn" href="${esc(nutritionHref('weight'))}">${svg('scale')}Log weight</a></section>`}
-      ${I.insights.length&&hasFood?`<div class="insights-copy">${I.insights.map(([kind,text])=>`<div class="insight"><span class="dot ${kind==='good'?'good':kind==='warn'?'warn':'info'}"></span><span>${esc(text)}</span></div>`).join('')}</div>`:''}
-      ${overviewLinks()}
-      ${I.extra_nutrients?`<div class="card">${extraTotals(I.extra_nutrients,{period:true})}</div>`:''}`,
+  const complete=S.logged||0,partialRows=I.rows.filter(r=>r.entries>0&&!r.counted),partial=partialRows.length;
+  const rangeTitle=rangeKey==='since'?`Since ${new Date(S.start+'T12:00').toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'})}`:days===7?'This week':days===30?'Last 30 days':days===90?'Last 90 days':days===365?'Last year':`Last ${days} days`;
+  const partialText=partial?`${partial} ${partial===1?'day':'days'} partly logged`:'';
+  const countLine=`Logged ${complete} of ${days} days`;
+  const rowsForChart=weekly?cols:I.rows.map(r=>({label:dlabel(r.day,{month:'short',day:'numeric'}),tickLabel:dlabel(r.day,{month:'short',day:'numeric'}),tick:true,day:r.day,eaten:r.eaten,goal:r.goal,counted:r.counted,entries:r.entries,partial:r.entries>0&&!r.counted,padded:false}));
+  const fmtKcal=v=>`${r0(homeCalories(v))} kcal`;
+  const detailRows=`<details class="insights-detail-row"><summary>Protein across meals</summary><div class="insights-detail-content">${Object.entries(S.meals||{}).filter(([,v])=>v>0).map(([meal,v])=>`<div><span>${esc(MEAL_NAMES[meal])}</span><b class="num">${v}%</b></div>`).join('')||'<p class="muted">No complete-day meal breakdown yet.</p>'}</div></details>
+    <details class="insights-detail-row"><summary>Fiber and more nutrients</summary><div class="insights-detail-content">${(()=>{const fiber=I.rows.map(r=>r.fiber_g).filter(v=>v!=null),items=[fiber.length?`<div><span>Fiber</span><b class="num">${r1(fiber.reduce((a,b)=>a+b,0))} g</b></div>`:''];for(const [key,label,unit] of EXTRA_NUTRIENTS){const v=I.extra_nutrients?.[key];if(v?.recorded!=null)items.push(`<div><span>${label}${v.unknown_count?` · ${v.unknown_count} missing`:''}</span><b class="num">${nutrientNumber(v.recorded,unit)}</b></div>`);}return items.join('')||'<p class="muted">No nutrient totals recorded in this range.</p>';})()}</div></details>
+    <details class="insights-detail-row"><summary>Top recorded calorie sources</summary><div class="insights-detail-content"><ol>${(I.top_foods||[]).slice(0,5).map(f=>`<li><span>${esc(f.name)}</span><b class="num">${fmtKcal(f.kcal)}</b></li>`).join('')||'<li>No recorded foods yet.</li>'}</ol></div></details>`;
+  const overviewCard=`<section class="card insights-summary${complete<3?' is-sparse':''}" data-complete-days="${complete}" data-partial-days="${partial}">
+      <div class="insights-card-heading"><h2>${esc(rangeTitle)}</h2><a href="${esc(nutritionHref('energy'))}" class="insights-daily-link">Daily calories ${svg('chev')}</a></div>
+      <div class="insights-coverage"><b>${countLine}</b><span>Unlogged days aren’t counted as zero.${partialText?` ${partialText}.`:''}</span></div>
+      ${complete===0?`<div class="insights-empty-state"><strong class="num">—</strong><span>0 complete days${partial?` · ${partial} ${partial===1?'day':'days'} partly logged`:''}</span></div>`:
+        complete<3?`<div class="insights-sparse-metric"><span>Average logged</span><b class="num">${S.avg_eaten==null?'—':fmtKcal(S.avg_eaten)}</b><small>Based on ${complete} complete ${complete===1?'day':'days'}</small></div><div class="insights-chart-wrap"><div id="nt-overview-chart"></div></div>`:
+        `<div class="insights-filled-metrics"><a href="${esc(nutritionHref('energy'))}"><span>Average calories</span><b class="num">${S.avg_eaten==null?'—':fmtKcal(S.avg_eaten)}</b></a><a href="${esc(nutritionHref('macros'))}"><span>Average protein</span><b class="num">${S.avg_protein_g==null?'—':`${r0(S.avg_protein_g)} g`}</b></a></div><div class="insights-chart-wrap"><div id="nt-overview-chart"></div></div>`}
+      ${complete>=3?detailRows:''}</section>${complete<3?'<a class="primary wide insights-log-food" href="/food">Log food</a>':''}`;
+  const html = {overview: `${overviewCard}
+      ${overviewLinks()}`,
 
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
       <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">${esc(burnNote)} The goal line is your food target; eating below it does not by itself establish a calorie deficit.</p></details></div>
@@ -1390,15 +1393,19 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
     ${I.top_foods.length ? `<div class="card"><h2>Top foods by calories</h2><p class="small muted">Recorded totals in this range, excluding today · includes partly logged days.</p>${I.top_foods.map((f) => `<div class="mrow topf"><span title="${esc(f.name)}">${esc(f.name)}</span><div class="track"><div class="bar meal-bar" data-w="${(f.kcal / I.top_foods[0].kcal).toFixed(3)}"></div></div><b class="num">${r0(homeCalories(f.kcal))} kcal<i> · ${f.n}×</i></b></div>`).join('')}</div>` : ''}`};
   box.innerHTML = html[part];syncCheckinPrimary(box.closest?.('#page'));
   requestAnimationFrame(() => {
-    if(part==='overview'&&hasFood){
-      // Three dated ticks stay readable in the small overview; the detail keeps every existing tick.
-      const labelled=cols.map((c,i)=>c.tick?i:-1).filter(i=>i>=0),ticks=new Set([labelled[0],labelled[Math.floor((labelled.length-1)/2)],labelled.at(-1)]);
-      energyChart($('#nt-overview-chart',box),cols.map((c,i)=>({...c,tick:ticks.has(i)?c.tick:'',partial:c.partial||(!weekly&&c.counted===false&&c.eaten!=null)})),{height:145,burned:false,interactive:false,topPadding:14});
+    if(part==='overview'&&complete>0){
+      const chart=$('#nt-overview-chart',box),compact=complete<3;
+      periodBars(chart,rowsForChart.map(c=>({label:c.label,tick:c.tickLabel, tickLabel:c.tickLabel,partial:!!c.partial,padded:false,segs:[{k:'brand',v:c.eaten||0}],readoutValue:c.eaten,counted:c.counted,entries:c.entries,day:c.day})),{
+        keys:[{k:'brand',name:'Calories'}],fmt:fmtKcal,yfmt:v=>v>=1000?`${(v/1000).toFixed(v%1000?1:0)}k`:String(Math.round(v)),axisUnit:'kcal',yTicks:3,
+        avg:T.kcal_target||null,avgLabel:'Goal',height:compact?118:window.innerWidth<=360?145:160,inlineSelection:true,ariaLabel:'Recorded calories by day',
+        onSelectPeriod:index=>{const c=rowsForChart[index];if(!c)return;const status=c.isWeek?`${c.countedDays} complete days${c.entries>c.countedDays?` · ${c.entries-c.countedDays} other food days`:''}`:c.counted?'complete day':c.entries>0?'partly logged':'no food logged',hasRecordedFood=c.entries>0,label=`${c.label} · ${status}${hasRecordedFood&&c.eaten!=null?` · ${fmtKcal(c.eaten)}`:''}`;const readout=$('.readout',chart);if(readout)readout.innerHTML=`<span>${esc(label)}</span>`;const group=$(`[data-period-index="${index}"]`,chart);if(group)group.setAttribute('aria-label',label);}
+      });
+      $$('.period-column',chart).forEach((node,index)=>{const c=rowsForChart[index];if(!c)return;const status=c.isWeek?`${c.countedDays} complete days`:c.counted?'complete day':c.entries>0?'partly logged':'no food logged';node.setAttribute('aria-label',`${c.label} · ${status}${c.eaten!=null?` · ${fmtKcal(c.eaten)}`:''}`);});
     }
     if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, tickLabel: c.tickLabel, partial: c.partial, readoutValue: c.protein_g, segs: [{k: 's3', v: c.protein_g || 0}]})),
       {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150, initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}});
     if (part !== 'energy') return;
-    energyChart($('#nt-energychart', box), cols, {initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}, weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
+    energyChart($('#nt-energychart', box), weekly ? cols.map(c=>({...c,day:null})) : cols, {initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}, weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
     const cum = S.logged ? past.filter((r) => r.eaten != null) : [];   // no fully logged day yet: nothing to add up
     dayLine($('#nt-cum', box), cum.map((r) => ({y: r.total, tick: dlabel(r.day, {month: 'short', day: 'numeric'}), label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}),
       sub: r.counted && r.deficit == null ? 'resting calories not synced' : r.counted ? {prefix: 'Day: ', value: r0(Math.abs(r.deficit)), suffix: ` kcal ${r.deficit >= 0 ? 'deficit' : 'surplus'}`} : 'partly logged, not counted'})),

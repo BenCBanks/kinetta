@@ -110,9 +110,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const checkinFold=p.locator('.insights-review').filter({hasText:'Your weekly check-in'});await checkinFold.locator('summary').click();
     const checkinRetry=p.locator('[data-checkin-retry]');await checkinRetry.waitFor({state:'visible'});assert.match(await checkinFold.innerText(),/Couldn’t load your weekly check-in\. Your food log is still available\./);assert.equal(await checkinRetry.innerText(),'Try again');
     await checkinRetry.click();await checkinRetry.waitFor({state:'visible'});
-    const weeklyFold=p.locator('.insights-review').filter({hasText:'Your week in food'});await weeklyFold.locator('summary').click();
-    const weeklyRetry=p.locator('[data-weekly-retry]');await weeklyRetry.waitFor({state:'visible'});assert.match(await weeklyFold.innerText(),/Couldn’t load your weekly food review\./);assert.equal(await weeklyRetry.innerText(),'Try again');
-    await weeklyRetry.click();await weeklyRetry.waitFor({state:'visible'});await c.unroute('**/api/food/check-in');await c.unroute('**/api/food/weekly-review');await home();
+    assert.equal(await p.locator('#nt-weekly-food,.insights-review:has-text("Your week in food")').count(),0,'Insights replaces the fixed seven-day review fold with the selected-range card');
+    await c.unroute('**/api/food/check-in');await c.unroute('**/api/food/weekly-review');await home();
    }
    if(who!=='empty'){
     const details=p.locator('#fd-details details.bd');
