@@ -942,6 +942,7 @@ function sheet(title, html, onMount, opts = {}) {
   const inherited=SheetHistory.top(),flow=opts.flow==='new'?SheetHistory.create():opts.flow==='auto'?(inherited||SheetHistory.create()):null;
   const flowStep=flow?SheetHistory.depth(flow)+1:-1;
   const s = document.createElement('div'); s.className = 'scrim material';
+  if (opts.keyboardAttached) s.classList.add('keyboard-attached');
   const head = opts.save ? `<button type="button" class="sheet-text-btn" data-close>Cancel</button><h2>${esc(title)}</h2><button type="submit" class="sheet-text-btn save" form="${esc(opts.save)}">Save</button>`
     : `${flowStep>0?`<button type="button" class="icon-btn sheet-flow-back" data-sheet-back aria-label="Back">${svg('back')}</button>`:''}<h2>${esc(title)}</h2>${opts.noClose ? '' : `<button class="icon-btn" data-close aria-label="Close">${svg('close')}</button>`}`;
   s.innerHTML = SheetChrome(title,head,html,opts);
@@ -1043,14 +1044,26 @@ function sheet(title, html, onMount, opts = {}) {
   // the keyboard (2026-10-13, Ben): iOS slides it over the page, so the sheet would sit under it. Lift the sheet by the
   // keyboard's height and keep it inside what is still visible, so a text box being typed in stays in view.
   const vv = window.visualViewport;
+  let lastKeyboardInset = null, lastKeyboardAvailableHeight = null;
   // In the iPhone app the WebView keeps its size (#194), so use the keyboard height the app announces (keyboard.js).
   const fit = () => {
-    const native = window.KinettaKeyboard?.height || 0;
-    const kb = native || (vv ? Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) : 0);
-    s.style.paddingBottom = kb > 80 ? kb + 'px' : '';
-    sh.style.maxHeight = kb > 80 ? `${Math.round((native ? innerHeight - native : vv.height) - 8)}px` : '';
+    // Native keyboard events are authoritative in the iPhone WebView. visualViewport can
+    // also fire while the same keyboard is animating, so don't apply that inset twice.
+    const hasNativeKeyboard = Object.prototype.hasOwnProperty.call(window, 'KinettaKeyboard');
+    const native = Math.max(0, Math.round(Number(window.KinettaKeyboard?.height) || 0));
+    const kb = hasNativeKeyboard ? native : (vv ? Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) : 0);
+    const availableHeight = Math.max(0, Math.round(native ? innerHeight - native : (vv?.height ?? innerHeight)));
+    if (kb === lastKeyboardInset && availableHeight === lastKeyboardAvailableHeight) return;
+    lastKeyboardInset = kb; lastKeyboardAvailableHeight = availableHeight;
+    s.style.setProperty('--sheet-keyboard-inset', `${kb > 80 ? kb : 0}px`);
+    s.classList.toggle('keyboard-inset', kb > 80);
+    if (opts.keyboardAttached) {
+      s.style.bottom = kb > 80 ? `${kb}px` : '';
+      s.style.paddingBottom = '';
+    } else s.style.paddingBottom = kb > 80 ? kb + 'px' : '';
+    sh.style.maxHeight = kb > 80 ? `${Math.max(0, availableHeight - 8)}px` : '';
     const el = document.activeElement;
-    if (kb > 80 && el && sh.contains(el)) requestAnimationFrame(() => el.scrollIntoView?.({block: 'nearest'}));
+    if (kb > 80 && !opts.keyboardAttached && el && sh.contains(el)) requestAnimationFrame(() => el.scrollIntoView?.({block: 'nearest'}));
   };
   const unfit = () => { if (vv) { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); } removeEventListener('kinetta:keyboard', fit); };
   if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }

@@ -786,14 +786,16 @@ function commentsSheet(aid, s, onChange) {
   sheet('Comments', `<div class="social social-sheet"><div class="social-reactions">${reactionButtons(aid,cached||s||{cheers:[],my_reaction:null},false,true)}</div><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':`<div class="comments-skeleton" aria-hidden="true"><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div></div>`}</div>
     <p class="social-read-status small muted" role="status" aria-live="polite"></p>
     <div class="c-quick" aria-label="Quick replies" hidden>${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
-    <form class="c-form"><span class="c-me" aria-hidden="true">${avatar(App.me)}</span><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Send comment" disabled>${commentArrowIcon}</button></form></div>`,b=>{
+    <form class="c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Send comment" disabled>${commentArrowIcon}</button></form></div>`,b=>{
     const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box),send=$('.c-send',f),quick=$('.c-quick',box);
     const current=()=>box.isConnected&&account===readOwner();
     wireReactionGroup($('[data-reaction-group]',box),aid);
     box._sync=()=>{const empty=!f.text.value.trim(),posting=send.dataset.posting==='1',failed=send.dataset.failed==='1';send.disabled=!!box._denied||posting||empty;
       send.setAttribute('aria-label',posting?'Sending comment':failed?'Retry sending comment':'Send comment');
       send.innerHTML=posting?'<span class="c-send-spinner" aria-hidden="true"></span>':failed?commentRetryIcon:commentArrowIcon;
-      quick.hidden=!empty||!box._social?.comments?.length||!!box._denied;
+      const showQuick=empty&&!!box._social?.comments?.length&&!box._denied;
+      quick.hidden=!showQuick;
+      if(showQuick&&quick.scrollWidth>quick.clientWidth+1)quick.hidden=true;
       f.text.style.height='auto';f.text.style.height=Math.min(f.text.scrollHeight+2,112)+'px';};
     box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(!current())return;if(send.dataset.failed){delete send.dataset.failed;status.textContent='';}SocialData.draft(aid,f.text.value);box._sync();};
     $$('[data-quick]',quick).forEach(b=>b.onclick=()=>{if(!current())return;f.text.value=b.textContent;SocialData.draft(aid,f.text.value);box._sync();f.text.focus();});
@@ -814,7 +816,7 @@ function commentsSheet(aid, s, onChange) {
       finally{if(current()){if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
     };
     refresh();
-  });
+  },{keyboardAttached:true});
 }
 function drawComments(box,aid,s,onChange){
   if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
@@ -828,7 +830,7 @@ function drawComments(box,aid,s,onChange){
     if(!node){node=document.createElement('div');node.className='comment';node.setAttribute('role','listitem');node.dataset.commentId=id;}
     if(node===anchor)anchor=anchor.nextElementSibling;else list.insertBefore(node,anchor);
     if(node._signature===signature)continue;node._signature=signature;
-    node.innerHTML=`<a href="${profileHref(comment)}" data-close aria-label="View ${esc(comment.name)}'s profile">${avatar(comment)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(comment)}" data-close><b>${esc(comment.name)}</b></a><small class="muted">${esc(when(comment.created))}</small></div><p>${esc(comment.text)}</p><div class="c-acts">${comment.can_delete?`<button type="button" class="c-comment-options" data-comment-options aria-label="Comment options">${svg('more')}</button>`:''}${comment.login!==App.me.login?`<button class="linkbtn muted" data-rep="${comment.id}" aria-label="Report comment from ${esc(comment.name)}">Report</button>`:''}</div></div>`;
+    node.innerHTML=`<a href="${profileHref(comment)}" data-close aria-label="View ${esc(comment.name)}'s profile">${avatar(comment)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(comment)}" data-close><b>${esc(comment.name)}</b></a><small class="muted">${esc(when(comment.created))}</small>${comment.can_delete?`<button type="button" class="c-comment-options" data-comment-options aria-label="Comment options">${svg('more')}</button>`:''}</div><p>${esc(comment.text)}</p><div class="c-acts">${comment.login!==App.me.login?`<button class="linkbtn muted" data-rep="${comment.id}" aria-label="Report comment from ${esc(comment.name)}">Report</button>`:''}</div></div>`;
     const after=fresh=>{if(box._owner!==readOwner())return;socialChanged(aid);SocialData.remember(aid,fresh);if(box.isConnected)drawComments(box,aid,fresh,onChange);onChange?.(fresh);};
     const options=$('[data-comment-options]',node);if(options)options.onclick=()=>{if(box._owner!==readOwner())return;sheet('Comment options','<div class="comment-options-menu"><button type="button" class="comment-delete-action" data-comment-delete>Delete comment</button></div>',(menu,close)=>{
       $('[data-comment-delete]',menu).onclick=async()=>{close();if(box._owner!==readOwner()||!await confirmSheet('Delete this comment?',{body:'This comment will be removed.',action:'Delete'})||box._owner!==readOwner())return;options.disabled=true;
