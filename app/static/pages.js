@@ -407,7 +407,7 @@ function setupChecklist(healthConnected) {
 }
 // Private insights under the Me card: each row comes from the signed-in person's own activity records.
 function meInsightRow(title, value, subtitle, href) {
-  return `<a class="me-insight me-insight-row" href="${esc(href)}"><span class="me-insight-copy"><b>${esc(title)}</b><small>${esc(subtitle)}</small></span><b class="me-insight-value num">${esc(value)}</b>${svg('chev')}</a>`;
+  return `<a class="me-insight me-insight-row${value ? '' : ' is-link-row'}" href="${esc(href)}"><span class="me-insight-copy"><b>${esc(title)}</b><small>${esc(subtitle)}</small></span>${value ? `<b class="me-insight-value num">${esc(value)}</b>` : ''}${svg('chev')}</a>`;
 }
 function meInsights(box, s) {
   const owner = readOwner(), live = () => box.isConnected && owner === readOwner();
@@ -453,8 +453,7 @@ function meInsights(box, s) {
     const best = (r.efforts || []).filter(e => e.top?.[0] && e.count > 1 && Number.isFinite(Date.parse(e.top[0].start_time)) && Date.parse(e.top[0].start_time) >= since)
       .sort((a, b) => Date.parse(b.top[0].start_time) - Date.parse(a.top[0].start_time)).slice(0, 2);
     if (best.length) {
-      const details = best.map(e => `${e.label} ${dur(e.top[0].elapsed_s)}`).join(' · ');
-      parts.bests = meInsightRow('New bests', String(best.length), details, `/progress?view=records&sport=${mainSport}`);
+      parts.bests = meInsightRow('New bests', '', 'Run Records', `/progress?view=records&sport=${mainSport}`);
     }
     paint();
   }).catch(() => {});
@@ -1865,7 +1864,8 @@ route(/^\/me$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'Profile')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target).toLocaleString('en-US')} kcal · ${me.protein_target ? Math.round(me.protein_target).toLocaleString('en-US') + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'search', 'c-brand', 'Explore Kinetta')}</div>`;
+    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'Profile')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target).toLocaleString('en-US')} kcal · ${me.protein_target ? Math.round(me.protein_target).toLocaleString('en-US') + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}</div>
+    <section class="me-help"><h2 class="sec-head">Help</h2><div class="card list me-help-tools">${row('a', 'href="/me/explore"', 'search', 'c-brand', 'Explore Kinetta')}</div></section>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
   return meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });
