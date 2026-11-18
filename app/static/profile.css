@@ -1026,3 +1026,25 @@
 .me-settings .settings-group .ri { color:var(--settings-accent); background:color-mix(in srgb,var(--settings-accent) 15%,transparent); }
 .me-settings .settings-group-data .c-green { --settings-accent:var(--color-success); }
 .me-settings .settings-group-data .c-red { --settings-accent:var(--color-error); }
+/* Profile activity filters and identity controls formerly lived in shared style.css. */
+.profile-activity-tools {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;}
+.profile-activity-tools h2 {flex:1;margin:0;font-size:max(17px,1.0625rem);}
+.profile-list-filters {display:flex;align-items:center;gap:8px;}
+.profile-activity-tools #person-month {min-height:44px;padding:0 2px;border:0;border-radius:0;background:none;box-shadow:none;color:var(--tx2);font-size:max(15px,.9375rem);font-weight:600;}
+.profile-activity-tools #person-sport {display:flex;gap:8px;align-items:center;max-width:calc(100% - 52px);min-height:44px;font-size:max(15px,.9375rem);background:none;}
+#person-sport svg {flex:none;width:16px;height:16px;transform:rotate(90deg);}
+.profile-sport-options {display:grid;gap:8px;}
+#person-search-form {margin:0 0 12px;}
+.owner-profile-top.subpage-header .back {width:auto;gap:4px;font-size:max(15px,.9375rem);}
+.owner-profile-top.subpage-header .back > .vh {position:static;width:auto;height:auto;margin:0;overflow:visible;clip:auto;clip-path:none;white-space:nowrap;}
+.profile-actions { flex-wrap: wrap; }
+/* Profile identity, visible progress and quick people search. */
+.profile-actions > :is(button,a) { flex: 1 1 8rem; min-height: 44px; text-align: center; }
+.profile-tools { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: -8px 0 16px; }
+.profile-tools a { display: inline-flex; align-items: center; min-height: 44px; font-size: .875rem; }
+.profile-progress .stats3 { margin: 14px 0; }
+.profile-progress .stat { min-width: 0; overflow-wrap: anywhere; }
+.profile-consistency { font-size: .875rem; color: var(--tx2); }
+#pf-editor textarea { min-height: 6rem; }
+#pf-bio-count { margin: -8px 0 0; text-align: right; }
+.profile-mileage h2 { margin: 0; }
