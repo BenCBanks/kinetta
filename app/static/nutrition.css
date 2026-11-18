@@ -81,7 +81,6 @@
 .nutrition-home .progress-grid.explore-list .progress-tile { display:flex; flex-direction:row; align-items:center; gap:8px; padding:4px 0; min-height:44px; }
 .nutrition-home .progress-grid.explore-list .progress-tile .small:empty { display:none; }
 .nutrition-home .progress-grid.explore-list .progress-tile:last-child { border-bottom:0; }
-#page.nutrition-detail [data-kit-entry] { display:none; }
 .nutrition-home .progress-grid.explore-list .progress-tile-name { display:flex; align-items:center; flex:1 1 auto; flex-wrap:nowrap; gap:8px; min-width:0; }
 .nutrition-home .progress-grid.explore-list .progress-tile-name > svg { width:20px; height:20px; padding:0; border-radius:0; color:var(--tx2); background:transparent; }
 .nutrition-home .progress-grid.explore-list .progress-tile-name > b { flex:1 1 auto; min-width:0; font-size:15px; line-height:1.2; white-space:nowrap; }
@@ -264,3 +263,4 @@
   .nutrition-meals-group { padding-inline:12px; }
   .nutrition-home .meal .fe { width:calc(100% + 24px); margin-inline:-12px; padding-inline:12px; }
 }
+.nutrition-detail:not([data-nutrition-view="overview"]) [data-kit-entry] { display:none; }

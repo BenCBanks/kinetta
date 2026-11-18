@@ -167,6 +167,7 @@ function nHead(el, view, filters) {
   const home = saved?.owner === readOwner() ? saved.href : fromProgress ? '/progress' : '/food';
   const detail = view !== 'log', title = detail ? view === 'needs' ? 'Food target' : v?.[1] || 'Food calendar' : 'Nutrition';
   el.classList.add(detail ? 'nutrition-detail' : 'nutrition-home');
+  if (detail) el.dataset.nutritionView = view;
   el.innerHTML = `<div class="top">${detail&&!inProgress?`<a class="back nutrition-back${fromProgress?' progress-back':''}" href="${esc(home)}" aria-label="Back to ${fromProgress?'Progress':'Nutrition'}">${svg('back')}${fromProgress?'Progress':'Nutrition'}</a>`:''}<h1>${esc(title)}</h1><div class="acts"><button class="icon-btn" id="n-help" aria-label="Nutrition help">${svg('help')}</button>${bellBtn()}</div></div>${view==='overview'?`<div class="insights-range">${filters}</div><div id="insights-range-dates" class="insights-range-dates" aria-live="polite"></div>`:detail?'':`<div class="nutrition-date-row">${filters}</div>`}<div id="n-body"><div id="nt-body">${skel(1)}</div></div>`;
   const body = $('#n-body',el);
   if (detail) { Discovery.visit('nutrition',view); if(view!=='overview')progressFilters(el,body,filters,{selector:NRANGED.includes(view)?'#nt-body .card':'.card'}); }
