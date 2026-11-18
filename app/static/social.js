@@ -37,8 +37,8 @@ function reactionSummary(state,feedFooter=false){
   const shown=visibleKinds.slice(0,3),extra=visibleKinds.length-shown.length;
   if(feedFooter){
     const html=shown.map(([kind])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
-    const names=all.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
-    const label=total?reactionNumber(total)+' reaction'+(total===1?'':'s')+', see who reacted':'See who reacted';
+    const visible=shown.map(([kind,name,emoji])=>`${emoji} ${reactionNumber(state.reactions[kind])} (${name})`).join(', ')+(extra?`${shown.length?', ':''}+${extra}`:'');
+    const label=total?`${visible}; ${reactionNumber(total)} reaction${total===1?'':'s'}, see who reacted`:'See who reacted';
     return{used:visibleKinds,html,label,total};
   }
   const html=shown.map(([kind,label])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
