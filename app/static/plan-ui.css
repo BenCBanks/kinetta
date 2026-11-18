@@ -1,4 +1,59 @@
 /* Plan: one race summary, the next action, then a quiet schedule. */
+/* Plan-owned setup, workout and schedule primitives formerly lived in shared style.css. */
+
+/* ---------- training plans ---------- */
+.lvl { display: block; width: 100%; text-align: left; padding: 14px 16px; margin-top: 10px; border: 0; border-radius: var(--r2); background: var(--card);
+  box-shadow: var(--shadow); min-height: 44px; }
+.sheet .lvl, .card .lvl { background: var(--card2); box-shadow: none; }
+.lvl[aria-pressed="true"] { background: var(--accent2); box-shadow: inset 0 0 0 2px var(--accent); }
+.lvl small { display: block; margin-top: 2px; }
+.lvl-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.pw { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); color: inherit; }
+.card > .pw:first-of-type, details > .pw:first-of-type { border-top: 0; }
+button.pw { width: 100%; background: none; border: 0; border-top: 1px solid var(--line); text-align: left; align-items: flex-start; padding: 12px 0; min-height: 56px; }
+.card > h2 + button.pw, .card > button.pw:first-of-type, details > button.pw:first-of-type, #ps-prev h3 + button.pw { border-top: 0; }
+button.pw:active { opacity: .6; }
+.pw-day { flex: none; width: 40px; text-align: center; }
+.pw-day small { display: block; font-size: 11px; color: var(--tx3); text-transform: uppercase; font-weight: 700; }
+.pw-day b { font: 750 19px var(--numf); }
+.pw-main { min-width: 0; } .pw-main > b { display: block; font-weight: 650; } .pw-main > small { display: block; color: var(--tx2); font-size: 13px; }
+.pw-hard { font-size: 11px; font-weight: 700; color: var(--run); text-transform: uppercase; letter-spacing: .04em; margin-left: 4px; }
+.pw.today { background: var(--accent2); margin: 0 -10px; padding: 12px 10px; border-radius: 12px; border-top-color: transparent; }
+.pw.before { opacity: .5; } .pw.missed .pw-main > b { color: var(--tx2); }
+.pw .chev { margin-left: auto; align-self: center; }
+/* today's workout in a soft run-orange box; green once it's done (2026-10-13) */
+.pt-w { --c: var(--run); display: grid; gap: 2px; margin-top: 12px; padding: 14px 16px; border-radius: var(--r3); background: var(--card2); }
+.pt-w.done, .pt-w.ran { --c: var(--prog); }
+.pt-w small { font-size: 13px; text-transform: uppercase; font-weight: 800; color: var(--tx3); letter-spacing: .05em; }
+.pt-w b { font-size: 17px; } .pt-w.done b::after { content: " ✓"; color: var(--good); }
+a.pt-w { color: inherit; text-decoration: none; } .pt-w.ran small { color: var(--tx3); display: inline-flex; align-items: center; gap: 4px; }
+.pt-w small svg { width: 13px; height: 13px; }
+button.pt-w { width: 100%; border: 0; text-align: left; }
+.plan-promo { display: block; } .plan-promo > a { flex: 1; display: grid; gap: 2px; color: inherit; }
+.plan-promo .btnrow .primary, .plan-promo .btnrow .ghost { width: 100%; }
+.pace-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.pace-row:first-of-type { border-top: 0; } .pace-row small { display: block; font-size: 12px; }
+details.pweek { border-top: 1px solid var(--line); }
+details.pweek > summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; list-style: none; color: var(--tx); }
+details.pweek > summary::-webkit-details-marker { display: none; }
+details.pweek > summary::after { content: "›" / ""; color: var(--tx3); font-size: 20px; transition: transform .15s; }
+details.pweek[open] > summary::after { transform: rotate(90deg); }
+.step { justify-content: flex-start !important; gap: 10px; }
+.stepn { width: 26px; height: 26px; border-radius: 50%; background: var(--accent2); color: var(--accent); display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; }
+/* Pinned, not sticky (2026-10-18): iPhone web views can draw a sticky bottom bar under the tab bar until the first
+   scroll. The page reserves room for it so the last choices stay reachable. */
+.startbar { position: fixed; z-index: 5; left: 16px; right: 16px; max-width: 728px; margin: 0 auto; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 12px); }
+.shell:has(.startbar) { padding-bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 96px); }
+.startbar .primary { width: 100%; min-height: 46px; font-size: 15px; border-radius: 999px; box-shadow: var(--lift); }
+.plan-hero .ph-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.plan-hero h2 { font-size: var(--text-app-section); letter-spacing: -.03em; margin: 2px 0; }
+.ph-ring .ring b { font-size: 18px; }
+.ph-week { font-weight: 700; margin: 12px 0; }
+.ptrack { height: 8px; border-radius: 999px; background: var(--card2); overflow: hidden; margin: 4px 0 8px; }
+.ptrack .bar { height: 100%; min-width: 0; border-radius: 999px; }
+.pchart { margin-top: 12px; } .pc-plan { fill: var(--card2); } .pc-plan.cur { stroke: var(--prog); stroke-width: 1.5; } .pc-done { fill: var(--prog); }
+.sw.pc-plan-sw { background: var(--card2); border: 1px solid var(--line); } .sw.pc-done-sw { background: var(--prog); }
+
 .plan-page .plan-top { display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:8px;margin-bottom:12px; }
 .plan-page .plan-top > h1 { min-width:0;margin:0;font-size:17px;font-weight:600;line-height:1.2;text-align:center;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere; }
 .plan-top .back-circle { width:44px;height:44px;justify-self:start; }
