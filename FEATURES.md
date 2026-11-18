@@ -76,7 +76,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Log a past session by hand, then add its sets; the AI coach note reads the sets and last time's; SQL view `v_lift_sets`
 
 ## Food
-- Pending food nutrition (#319, implementation branch): protein, carbs and fat before logging, with unknown values preserved; tap a food for source-serving and chosen-amount nutrition, source/brand/package details, amount changes, one-food label correction or removal. Scanned products with known calories can retain missing macros through explicit review; no AI prompt/model changes or provider calls are added. Physical-iPhone acceptance follows the next TestFlight build.
+- [x] Food nutrition review (#319): calories and macros before logging, source-serving and chosen-amount values, source/brand/package details and amount changes. Unknown values remain unknown; scanned products can retain missing macros through explicit review. Physical-iPhone acceptance is separate.
 - [x] Optional goal-first setup (#122 A): five goals, private optional body details, everyday activity and bounded pace;
       review/edit calorie and protein estimates before an explicit Save. Skip writes nothing; existing macro targets,
       daily overrides and Health/resting choices are preserved. Available from Me and Nutrition without a watch or AI.
@@ -87,7 +87,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Photo (+ optional description) -> Kit’s estimate (Gemini Flash-Lite; cost varies with input and retries, with durable caps) -> check -> logged
 - [x] Edit / move / copy / delete any entry; copy a day or a meal
 - [x] Daily totals vs targets (calories + macros), remaining
-- [x] Weight log + trend line; later: expenditure estimate from weight trend + food
+- [x] Weight log + trend line; a weekly adaptive check-in can suggest a calorie target from logged food and weight for explicit review
 - [x] Faster logging (2026-10-10): "Same as <day>" on empty meals, Your usuals with one-tap +, default meal learned from your log hours
 - [x] Offline (2026-10-10): app opens without signal (service worker), key screens kept on the phone, food/weight queue with
       client_id so resends never duplicate; Today food card (eaten/left/protein/weigh-in)
@@ -178,7 +178,7 @@ See [Recording activities](docs/activity-tracking.md).
 
 - **Shared Kit assistant (release gated):** one assistant across training, nutrition, strength, goals and progress, with a fresh chat each visit and manageable automatic memory of useful user statements, with contextual starting prompts, relevant own-record lookups, verified numeric evidence, explicit review/confirmation for changes, Retry and Start a new chat. Requires AI access/consent and a matching separately reviewed Kit report. Existing food-chat answers and reviews remain readable.
 
-- **Evening food summaries retired (20 October 2026):** the setting, shortcut and automatic generation are removed. Nutrition insights start through the Nutrition Kit icon. Historical notes remain readable/exportable.
+- **Evening food summaries retired (20 October 2026):** the setting, shortcut and scheduled generation are removed; historical notes remain readable/exportable. This is separate from data-based Nutrition > Insights and optional Kit food reviews.
 
 Me > Settings > Connections shows Garmin Connect and Apple Health as ordinary connection choices, with Connect/Manage status. Apple Health workout, weight and nutrition controls are separate. The iPhone app omits file imports; browser activity-history import remains available. Health Auto Export is under Other connections. Garmin Health sharing may be delayed and excludes GPS; direct Garmin can supply routes on new activities. Browser-only original-file import can enrich a matching own Health activity while preserving edits.
 
