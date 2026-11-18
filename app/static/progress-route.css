@@ -245,7 +245,7 @@
 .progress-home .combined-week-fact b { color:var(--tx); font-weight:600; }
 .progress-home .combined-week-unknown { color:var(--tx3); }
 .progress-home .combined-week-links { margin-top:8px; }
-.progress-home .combined-week-links .row-link { min-height:44px; padding:0 2px; border-top:1px solid var(--line); font-size:15px; font-weight:500; }
+.progress-home .combined-week-links .row-link { min-height:56px; padding:8px 0; border-top:1px solid var(--line); font-size:17px; font-weight:600; line-height:1.25; }
 .progress-home .combined-week-links .row-link:first-child { border-top:0; }
 .progress-home .combined-week-links .row-link > svg { color:var(--tx3); }
 .progress-home-totals .progress-totals-card { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:none; }

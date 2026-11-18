@@ -844,6 +844,13 @@
 .me-settings > .sec-head { margin:24px 6px 8px; font-size:17px; line-height:1.3; font-weight:700; letter-spacing:0; color:var(--tx); }
 .me-settings > .sec-head:first-child { margin-top:4px; }
 .me-settings > .card.list { margin:0 6px 0; padding:6px 12px; border-radius:16px; background:var(--surface-raised); border:1px solid color-mix(in srgb,var(--line) 75%,transparent); box-shadow:var(--elevation-rest); }
+.me-settings .inset-row { min-height:56px; gap:16px; }
+.me-settings .inset-group > .inset-row.switch-row { min-height:56px; }
+.me-settings .inset-row + .inset-row::before { left:56px; right:16px; }
+.me-settings .inset-icon { width:24px; height:24px; }
+.me-settings .inset-icon svg { width:20px; height:20px; }
+.me-settings .inset-label { font-size:17px; font-weight:600; line-height:1.25; }
+.me-settings .inset-label small { font-size:15px; font-weight:500; line-height:1.3; }
 .me-settings .row-link { min-height:52px; padding:8px 4px; border-radius:10px; transition:transform var(--motion-press) ease-out, opacity var(--motion-press) ease-out, background-color var(--motion-settle) var(--motion-ease); }
 .me-settings .row-link:active { opacity:1; transform:scale(.985); background:var(--surface-card); }
 .me-settings .ri { width:32px; height:32px; border-radius:10px; color:var(--c,var(--tx2)); background:color-mix(in srgb,var(--c,var(--tx3)) 14%,transparent); }
