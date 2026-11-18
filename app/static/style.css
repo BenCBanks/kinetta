@@ -893,12 +893,6 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .note-k { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
   background: var(--card); color: var(--accent); box-shadow: 0 0 0 1.5px var(--line); }
 .note-k svg { width: 12px; height: 12px; }
-/* Data badges use the shared achievement, friend, nutrition and sport tokens. */
-.note-k[data-kind="cheer"] { color: var(--react-cheer); }
-.note-k[data-kind^="friend"] { color: var(--color-row); }
-.note-k[data-kind="dish_shared"] { color: var(--color-nutrition); }
-.note-k[data-kind="activity_ready"] { color: var(--color-run); }
-.note-k[data-kind="report"] { color: var(--alert); }
 .checks.one { grid-template-columns: 1fr; }
 
 
