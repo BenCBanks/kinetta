@@ -24,7 +24,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
       <label class="inset-row switch-row"><span class="inset-icon" data-icon="info" aria-hidden="true">${svg('info')}</span><span class="inset-label">Show setup tips</span><input type="checkbox" role="switch" id="m-setup-tips"${me.setup_hidden?'':' checked'}></label>${(me.setup_skipped||[]).length?row('button', 'type="button" id="m-setup-unskip"', 'check', 'Bring back skipped setup steps'):''}
       ${row('button', 'type="button" id="m-kit"', 'sparkle', 'Kit', me.ai_paused?'Paused':me.ai_ok?'On':'Off')}`)}
-    ${InsetGroup('Body', row('button', 'id="m-body"', 'heart', 'Body &amp; heart rate', '', {detail: esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up')}))}
+    ${InsetGroup('Body', row('button', 'id="m-body"', 'heart', 'Body &amp; heart rate', '', {detail: esc([bodyProfileSummary(me), me.max_hr ? `Max HR ${me.max_hr}` : ''].filter(Boolean).join(' · '))}))}
     ${InsetGroup('Help', row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'Help &amp; contact'))}
     ${InsetGroup('Your data', `${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/terms" target="_blank" rel="noopener"', 'shield', 'Terms of Use')}
@@ -122,19 +122,20 @@ route(/^\/me\/settings$/, 'me', async (el) => {
 
 // heart rate, body and time zone (zones, effort, calorie needs) - a sheet, so the Me page stays a short list
 function bodySheet() {
-  const me = App.me,owner=readOwner(),initialWeight=String(U.weight(me.weight_kg));
+  const me = App.me,owner=readOwner(),initialWeight=String(U.weight(me.weight_kg)),weightDerived=!!me.weight_health_derived;
   sheet('Body, heart rate & time zone', `<form class="form" id="m-form">
         <div class="two"><label>Max heart rate<input name="max_hr" inputmode="numeric" value="${esc(me.max_hr || '')}" placeholder="auto"></label>
         <label>Resting heart rate<input name="rest_hr" inputmode="numeric" value="${esc(me.rest_hr || '')}" placeholder="60"></label></div>
         <div class="two"><label>Sex (for calorie & effort estimates)<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
         <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}"></label></div>
-        <div class="two"><div class="body-weight"><label for="body-weight">Weight (${imp() ? 'lb' : 'kg'})</label><div class="body-weight-input"><input id="body-weight" name="weight" inputmode="decimal" value="${esc(initialWeight)}"><button type="button" class="linkbtn" id="body-log-weight" aria-label="Log weight">Log</button></div></div>
+        <div class="two"><div class="body-weight"><label for="body-weight">Weight (${imp() ? 'lb' : 'kg'})</label><div class="body-weight-input"><input id="body-weight" name="weight" inputmode="decimal" value="${esc(initialWeight)}"${weightDerived?' readonly aria-readonly="true"':''}>${weightDerived?'':'<button type="button" class="linkbtn" id="body-log-weight" aria-label="Log weight">Log</button>'}</div>${weightDerived?'<a class="linkbtn needs-body-weight-link" id="body-weight-update" href="/progress/weight?from=nutrition">Update in Weight</a>':''}</div>
         <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" value="${esc(me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '')}" placeholder="${imp() ? '5 10' : '178'}"></label></div>
         <label>Time zone<select name="tz">${tzOptions(me.tz)}</select></label>
         <label>Everyday activity (outside workouts)<select name="activity_factor">${[[1.2, 'Mostly sitting'], [1.3, 'Some walking & standing'], [1.45, 'On my feet a lot']].map(([f, n]) => `<option value="${f}"${Math.abs((me.activity_factor || 1.2) - f) < .01 ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
         <p class="small muted">Logging a weigh-in updates this stored weight; daily calorie estimates prefer your weight trend. Height, age, sex and everyday activity complete the estimate, with workouts added each day. Heart rates set your zones; leave max HR blank to use your watch’s highest.</p>
         <div class="actions"><button class="primary wide">Save settings</button></div></form>`, (b, close) => {
-    $('#body-log-weight',b).onclick=()=>{close();quickWeighIn({afterSave:()=>{if(owner===readOwner()&&location.pathname==='/me/settings'&&!document.querySelector('.scrim:not(.is-closing)'))render();}});};
+    const logWeight=$('#body-log-weight',b);if(logWeight)logWeight.onclick=()=>{close();quickWeighIn({afterSave:()=>{if(owner===readOwner()&&location.pathname==='/me/settings'&&!document.querySelector('.scrim:not(.is-closing)'))render();}});};
+    const updateWeight=$('#body-weight-update',b);if(updateWeight)updateWeight.onclick=()=>close();
     $('#m-form', b).onsubmit = async (e) => {
       e.preventDefault(); if(owner!==readOwner())return;const f = e.target, n = (v) => (v.trim() === '' ? null : Number(v));
       const w = n(f.weight.value);
@@ -142,8 +143,20 @@ function bodySheet() {
       const height_cm = !hn.length ? null : imp() ? (hn.length > 1 ? +hn[0] * 12 + +hn[1] : +hn[0] < 9 ? +hn[0] * 12 : +hn[0]) * 2.54 : +hn[0];
       const body = {max_hr: n(f.max_hr.value), rest_hr: n(f.rest_hr.value), sex: f.sex.value || null, birth_year: n(f.birth_year.value), height_cm, activity_factor: +f.activity_factor.value, tz: f.tz.value || undefined};
       // An unchanged field must not overwrite a weigh-in synced while this sheet was open.
-      if(f.weight.value!==initialWeight)body.weight_kg=w==null?null:imp()?w/2.20462:w;
-      try { await api('/api/profile', json('PUT', body)); if(owner!==readOwner())return;Object.assign(App.me, body);keep('/api/me',App.me);close(); toast('Settings saved'); render(); } catch (x) { if(owner===readOwner()&&b.isConnected)toast(x.message); }
+      if(!weightDerived&&f.weight.value!==initialWeight)body.weight_kg=w==null?null:imp()?w/2.20462:w;
+      try { await api('/api/profile', json('PUT', body)); if(owner!==readOwner())return;Object.assign(App.me, body);keep('/api/me',App.me);App.cache.set('/api/me',{data:App.me,at:Date.now()});invalidate('/api/food/energy');close(); toast('Settings saved'); render(); } catch (x) { if(owner===readOwner()&&b.isConnected)toast(x.message); }
     };
   });
+}
+
+function bodyProfileSummary(me) {
+  const sex = me.sex ? me.sex === 'male' ? 'Male' : 'Female' : 'Sex not set';
+  const age = me.birth_year ? `Age ${Math.max(0, new Date().getUTCFullYear() - Number(me.birth_year))}` : 'Age not set';
+  const height = me.height_cm
+    ? imp()
+      ? `${Math.floor(me.height_cm / 2.54 / 12)}′${Math.round(me.height_cm / 2.54 % 12)}″`
+      : `${Math.round(Number(me.height_cm))} cm`
+    : 'Height not set';
+  const weight = me.weight_kg ? `${U.weight(me.weight_kg)} ${imp() ? 'lb' : 'kg'}` : 'Weight not set';
+  return [sex, age, height, weight].join(' · ');
 }
