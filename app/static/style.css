@@ -1135,7 +1135,7 @@ html.keyboard-open nav.tabs { display: none; }
 #t-review { flex-shrink: 0; }
 
 /* Contextual Kit: the visible mark stays small, the touch target stays comfortable. */
-/* Kit's button: the sparkle plus the word "Kit" in a pill, so it doesn't read as a stray star (2026-10-16, Ben) */
+/* Context actions keep a readable 44px target; Progress and Insights use plain Kit text. */
 .kit-help { flex: 0 0 auto; width: auto; min-width: 44px; min-height: 44px; padding: 0 14px 0 11px; gap: 5px; display: inline-flex; align-items: center;
   border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--tx);
   font-weight: 500; font-size: max(15px,.9375rem); }
@@ -1146,8 +1146,8 @@ html.keyboard-open nav.tabs { display: none; }
 :is(.top,.me-top,.insights-kit-entry) .kit-help svg {width:20px;height:20px;}
 .kit-help::after { content: 'Kit'; }
 .kit-help svg { width: 18px; height: 18px; color: var(--accent); }
-:is(.progress-home-heading,.insights-kit-entry) .kit-help[aria-label="Ask Kit"] { width:auto; min-width:44px; height:44px; padding:0 10px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border:1px solid var(--line); border-radius:999px; }
-:is(.progress-home-heading,.insights-kit-entry) .kit-help[aria-label="Ask Kit"]::after { content:'Kit'; font-size:14px; font-weight:600; line-height:1; }
+:is(.progress-home-heading,.insights-kit-entry) .kit-help[aria-label="Ask Kit"] { width:auto; min-width:44px; min-height:44px; height:44px; padding:0 4px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--accent); }
+:is(.progress-home-heading,.insights-kit-entry) .kit-help[aria-label="Ask Kit"]::after { content:'Kit'; color:var(--accent); font-size:14px; font-weight:600; line-height:1; }
 :is(.progress-home-heading,.insights-kit-entry) .kit-help[aria-label="Ask Kit"] svg { width:18px; height:18px; }
 
 /* Keep actions out of the loading layout until the conditional cards above them have their first result. */
