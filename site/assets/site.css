@@ -630,6 +630,7 @@ header.top .signup { display:flex;align-items:center; }
   .feature-reference .cmp td:first-child { font-weight: 600; color: var(--ink); margin-bottom: 4px; }
   .feature-reference .cmp td:last-child { color: var(--ink2); }
 }
+
 /* Sharp on 2x screens: 2x crops never display wider than half their pixels. */
 .tour-image, .tour-workout { max-width: 393px; }
 
@@ -941,7 +942,6 @@ header.top .signup { display:flex;align-items:center; }
 .home-page .home-hero-art { display:grid; justify-items:center; gap:10px; }
 .home-page .phone-frame--hero { position:relative; width:min(320px,100%); transform:none; }
 .home-page .phone-frame--hero picture,.home-page .phone-frame--hero img { display:block; width:100%; }
-.home-page .standin-caption { color:var(--ink3); font-size:12px; line-height:1.3; text-align:center; }
 .home-page .home-story,.home-page .kit-week-demo,.home-page .home-insights { scroll-margin-top:72px; padding-block:var(--home-section-space); }
 .home-page .story-step { min-height:auto; padding-block:var(--home-section-space); opacity:1; transform:none; animation:none; }
 @media (max-width:900px) {
@@ -1017,4 +1017,48 @@ header.top .signup { display:flex;align-items:center; }
  .home-page .home-sharing .wrap { grid-template-columns:1fr; gap:14px; }
  .home-page .home-sharing h2 { max-width:15ch; font-size:clamp(34px,9vw,42px); }
  .home-page .home-sharing p { font-size:16px; }
+}
+
+
+/* Compact Home proof sections for phone screens. */
+.home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { scroll-margin-top:72px; padding-block:clamp(48px,6vw,80px); }
+.home-page .home-badges { border-top:1px solid var(--line); background:var(--paper); }
+.home-page .home-kit-prompts { margin-top:16px; }
+@media (max-width:900px) {
+  .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { padding-block:28px; }
+  .home-page .home-proof-grid { display:flex; width:calc(100% + 40px); margin-inline:-20px; padding:0 20px 8px; gap:14px; overflow-x:auto; overscroll-behavior-inline:contain; scroll-snap-type:x mandatory; scrollbar-width:none; }
+  .home-page .home-proof-grid::-webkit-scrollbar { display:none; }
+  .home-page .home-proof-card { flex:0 0 min(300px,80vw); scroll-snap-align:start; gap:14px; padding:18px 16px; }
+  .home-page .home-section-head { margin-bottom:16px; }
+  .home-page .home-proof-phone .phone-frame,.home-page .home-feature-phone .phone-frame,.home-page .phone-frame--kit-week { width:min(200px,66vw); }
+  .home-page .phone-frame--hero { width:min(250px,68vw); }
+  .home-page .kit-week-demo { padding-block:36px; }
+}
+
+/* Keep the Home story focused on phone screens without letting the page sprawl. */
+@media (max-width:900px) {
+  .home-page .home-hero { padding-bottom:28px; }
+  .home-page .phone-frame--hero { width:min(210px,58vw); }
+  .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { padding-block:16px; }
+  .home-page .home-proof-card { gap:10px; padding:14px 16px; }
+  .home-page .home-proof-phone .phone-frame,.home-page .home-feature-phone .phone-frame,.home-page .phone-frame--kit-week { width:min(160px,52vw); }
+  .home-page .kit-week-demo { padding-block:16px; }
+  .home-page .home-kit-prompts { margin-top:8px; }
+  .home-page .home-kit-prompts li { min-height:34px; }
+  .home-page .home-achievement-tracks { margin-top:12px; padding-top:10px; }
+  .home-page .home-sharing { padding-block:28px; }
+}
+@media (max-width:560px) {
+  .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { padding-block:12px; }
+  .home-page .kit-week-demo { padding-block:12px; }
+  .home-page .home-sharing { padding-block:22px; }
+  .home-page .home-hero { padding-top:24px; }
+  .home-page .home-hero-grid { gap:16px; }
+  .home-page .home-feature-split { gap:16px; }
+  .home-page .kit-week-grid { gap:14px; }
+  .home-page .kit-week-copy > p { margin-top:8px; }
+  .home-page .kit-week-replay { margin-top:12px; }
+  .home-page .kit-week-conversation { margin-top:6px; }
+  .home-page .kit-week-question,.home-page .kit-week-answer { padding-block:8px; }
+  .home-page .tour-final { padding-block:30px 36px; }
 }

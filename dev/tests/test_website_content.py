@@ -56,7 +56,8 @@ class CopyTests(unittest.TestCase):
    nav=re.search(r'<nav class="tabs" aria-label="Primary">(.*?)</nav>',header,re.S)
    self.assertIsNotNone(nav,template.name)
    links=re.findall(r'<a href="([^"]+)"[^>]*>([^<]+)</a>',nav.group(1))
-   self.assertEqual(links,[('./','Home'),('compare','Features'),('https://testflight.apple.com/join/YAX1JnwB','iPhone beta')],template.name)
+   expected=[('compare','Features'),('https://login.kinetta.app/','Sign in')] if template.name=='index.html' else [('./','Home'),('compare','Features'),('https://testflight.apple.com/join/YAX1JnwB','iPhone beta')]
+   self.assertEqual(links,expected,template.name)
    self.assertNotIn('Guide',nav.group(1),template.name)
   legacy=(content.ROOT/'site/404.html').read_text()
   self.assertIn("'/guide', '/guide.html'",legacy)
