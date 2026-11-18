@@ -70,7 +70,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const rest=await p.evaluate(()=>JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('fit.lift:')))).lastTick);
    await c.route('**/api/activities/'+ids.live+'/lifts',r=>r.fulfill({status:503,json:{detail:'Fictional delete save unavailable'}}),{times:1});
    await first.locator('[data-set="1"]').click();await p.locator('[data-pk=del]').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Not saved','failed delete visible');
-   assert.equal(await first.locator('[data-row]').count(),original.length-1);assert(await p.locator('#toast.on button').isVisible(),'save failure retains Undo');assert.match(await p.locator('#toast').innerText(),/Fictional delete save unavailable/);await shot(p,`delete-error-undo-${size.width}-${theme}`);
+   assert.equal(await first.locator('[data-row]').count(),original.length-1);assert(await p.locator('#toast.on button').isVisible(),'save failure retains Undo');assert.match(await p.locator('#toast').innerText(),/Kinetta is having trouble right now\. Please try again\./,'failed delete uses safe copy and retains Undo');await shot(p,`delete-error-undo-${size.width}-${theme}`);
    assert.deepEqual(values((await session()).exercises[0].sets),original,'failed delete leaves server unchanged');
    await first.locator('[data-row="0"] [data-k=reps]').fill(String(edited));await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saved','newer neighbour edit saved');
    await p.locator('#toast.on button').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saved'&&document.querySelectorAll('.lift-ex:first-child [data-row]').length===4,'Undo saved');
