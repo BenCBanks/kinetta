@@ -168,7 +168,7 @@ function nHead(el, view, filters) {
   const q = new URLSearchParams(location.search), fromProgress = q.get('from') === 'progress';
   const saved = fromProgress ? App.progressHome : App.nutritionHome;
   const home = saved?.owner === readOwner() ? saved.href : fromProgress ? '/progress' : '/food';
-  const detail = view !== 'log', title = detail ? v?.[1] || 'Food calendar' : 'Nutrition';
+  const detail = view !== 'log', title = detail ? view === 'needs' ? 'Food target' : v?.[1] || 'Food calendar' : 'Nutrition';
   el.classList.add(detail ? 'nutrition-detail' : 'nutrition-home');
   el.innerHTML = `<div class="top">${detail&&!inProgress?`<a class="back nutrition-back${fromProgress?' progress-back':''}" href="${esc(home)}" aria-label="Back to ${fromProgress?'Progress':'Nutrition'}">${svg('back')}${fromProgress?'Progress':'Nutrition'}</a>`:''}<h1>${esc(title)}</h1><div class="acts"><button class="icon-btn" id="n-help" aria-label="Nutrition help">${svg('help')}</button>${bellBtn()}</div></div>${view==='overview'?`<div class="insights-range">${filters}</div><div id="insights-range-dates" class="insights-range-dates" aria-live="polite"></div>`:detail?'':`<div class="nutrition-date-row">${filters}</div>`}<div id="n-body"><div id="nt-body">${skel(1)}</div></div>`;
   const body = $('#n-body',el);
@@ -1175,7 +1175,7 @@ function energyCard(box) {
     const baseFor = () => Math.round(E.bmr * activityFactor);
     const targetFor = () => Math.max(Math.ceil(E.bmr / 10) * 10, Math.round((baseFor() + goalDelta) / 10) * 10);
     box.innerHTML = `<div id="resting-source-card"></div>
-      <section class="card needs-estimate"><span class="small muted">Estimated calories/day</span><div class="needs-estimate-value"><b class="num" id="needs-estimate-value">${r0(E.base)}</b><span>kcal/day</span></div><p class="small muted">Kinetta estimate · before workouts. Workouts are added on the day you do them.</p></section>
+      <section class="card needs-estimate"><span class="small muted">Estimated calories/day</span><div class="needs-estimate-value"><b class="num" id="needs-estimate-value">${r0(E.base)}</b><span>kcal/day</span></div><p class="small muted">Kinetta estimate · before workouts</p></section>
       <details class="card food-target-calculator"><summary>Calculate food target<span class="chev">${svg('down')}</span></summary><div class="target-calculator-content">
         <fieldset class="choice-list" id="needs-activity"><legend>Everyday activity <small>(outside workouts)</small></legend>${ACTIVITY_LEVELS.map(([f,n,d])=>`<label><input type="radio" name="everyday-activity" value="${f}"${f===activityChoice?' checked':''}><span><b>${esc(n)}</b><small>${esc(d)}</small></span></label>`).join('')}</fieldset>
         <fieldset class="choice-list goal-choice-list" id="needs-goal"><legend>Weight goal</legend>${goals.map(([name,delta])=>`<label><input type="radio" name="weight-goal" value="${delta}"${delta===goalDelta?' checked':''}><span><b>${esc(name)}</b></span></label>`).join('')}</fieldset>
