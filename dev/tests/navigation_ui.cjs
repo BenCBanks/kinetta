@@ -2,6 +2,8 @@
 'use strict';
 const {chromium}=require(process.env.KINETTA_PLAYWRIGHT||'playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_EVIDENCE,styleFile=process.env.NAV_STYLE_FILE;
+function assertBellStylesOwned(){const shared=fs.readFileSync('app/static/style.css','utf8'),notifications=fs.readFileSync('app/static/notifications-ui.css','utf8');assert.match(notifications,/\.icon-btn\.bell\s*\{/,'Bell positioning belongs to notifications-ui.css');assert.match(notifications,/\.bell-dot\s*\{/,'Unread badge styling belongs to notifications-ui.css');assert.doesNotMatch(shared,/\.icon-btn\.bell\b|\.bell-dot\b/,'Shared stylesheet has no bell selectors');assert.match(shared,/\.tab-n\s*\{\s*background:\s*var\(--btn\);\s*color:\s*var\(--onbtn\);\s*\}/,'Shared tab badge keeps its independent colors');}
+assertBellStylesOwned();
 async function until(page,fn,label){for(let n=0;n<150;n++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error(label);}
 async function ready(p){await until(p,()=>App.pageReady&&!document.querySelector('#page[data-home-loading]'),'view settles');}
 async function assertSettingsRows(p,size,theme,out){
