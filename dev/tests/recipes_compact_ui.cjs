@@ -77,7 +77,7 @@ async function assertImportFits(p,label){assert.equal(await p.evaluate(()=>docum
   if(runCase('import-failure'))for(const theme of ['light','dark']){
    const {c,p,errors,writes,enableDishCreate}=await open('empty',theme,{width:390,height:844,root:16});await p.goto(base+'/food/recipe-link');await p.locator('#recipe-url-form').waitFor();
    await p.route('**/api/recipe-links/read',r=>r.fulfill({status:503,json:{detail:'Fictional recipe reader unavailable'}}));await p.locator('input[name="url"]').fill('https://recipes.invalid/fictional');await p.locator('#recipe-url-form button[type="submit"]').click();await p.locator('#recipe-enter-manual').waitFor();
-   assert.equal(await p.locator('[role="status"]').innerText(),'Fictional recipe reader unavailable');assert.equal(await p.locator('#recipe-enter-manual').innerText(),'Enter by hand');await capture(p,`1023-import-failure-390-${theme}`);
+   assert.equal(await p.locator('[role="status"]').innerText(),'Kinetta is having trouble right now. Please try again.');assert.equal(await p.locator('#recipe-enter-manual').innerText(),'Enter by hand');await capture(p,`1023-import-failure-390-${theme}`);
    enableDishCreate();await p.locator('#recipe-enter-manual').click();await p.waitForURL(/\/food\/cook\/\d+$/);await p.locator('#dk-name').waitFor();assert.equal(await p.locator('#dk-name').inputValue(),'','manual entry opens an empty recipe editor');assert(writes.some(x=>/^\/api\/recipe-links\/.+/.test(x)),'failed import draft is cleared before manual entry');assert(writes.includes('/api/dishes'),'manual recipe draft is an explicit saveable draft');assert.equal(await p.locator('#dk-log').count(),0,'manual recipe fallback never logs food');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log(`Recipe import failure ${theme}: inline error, hand-entry recovery and no food log PASS`);
   }
   if(runCase('keyboard'))for(const theme of ['light','dark']){
@@ -179,7 +179,7 @@ async function assertImportFits(p,label){assert.equal(await p.evaluate(()=>docum
    if(width===390||width===330&&theme==='light')await capture(p,`1023-import-preview-${width}-${theme}`);
    assert.deepEqual(calls.map(x=>x.split(' ')[0]),['POST','POST'],'only fictional read and review requests were intercepted');
    await p.goto(base+'/food/recipe-link?url='+encodeURIComponent('https://recipes.example/fictional-soup'));await until(p,()=>!!document.querySelector('.recipe-import-error'),'saved import draft error recovery');
-   assert(await p.locator('#recipe-enter-manual').isVisible());assert.equal(await p.locator('.recipe-import-error').innerText(),'Could not reopen this recipe. Try again or enter it by hand.');assert.equal(await p.locator('#recipe-enter-manual').innerText(),'Enter by hand');
+   assert(await p.locator('#recipe-enter-manual').isVisible());assert.equal(await p.locator('.recipe-import-error').innerText(),'Kinetta is having trouble right now. Please try again.');assert.equal(await p.locator('#recipe-enter-manual').innerText(),'Enter by hand');
    await assertImportFits(p,`import error ${width}/${theme}`);
    const recovery=await p.locator('#recipe-enter-manual').boundingBox();assert(recovery.height>=44&&recovery.width>=44,'manual-entry recovery is touch-sized');
    if(width===390&&theme==='light')await capture(p,'1023-import-error-390-light');

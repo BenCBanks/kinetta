@@ -376,8 +376,10 @@ async function api(path, opts = {}) {
   if (!r.ok) {
     const d = body && body.detail;
     const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
-    const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
-    e.status = r.status; e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;
+    const serverFailure=r.status>=500;
+    const e = new Error(serverFailure ? 'Kinetta is having trouble right now. Please try again.' : typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
+    e.status = r.status;
+    if(!serverFailure){e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;}
     if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { (Native.pauseSession||Native.pauseHealth)?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { forgetKept(); App.me = null; showLogin('Please log in again.'); } }
     throw e;
   }
@@ -2226,7 +2228,7 @@ function showLogin(msg = '') {
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = ''; recovery.hidden=true;recovery.replaceChildren();recoveryStatus.textContent='';
     try { const r=Native.on?await Native.login(f.server.value, login, password):await api('/api/login', json('POST', {login, password}));if(r.password_change_required){showTemporaryPassword(r.change_token);return;}store.del('kinetta.getApp');await start(); }
     catch (x) {
-      err.textContent = x.message;
+      err.textContent = x.status>=500 ? 'Sign-in is temporarily unavailable. Please try again.' : x.message;
       if(x.code==='email_waiting_for_confirmation'){
         recovery.hidden=false;
         recovery.innerHTML='<button type="button" class="text-link" id="l-resend">Resend confirmation email</button><a href="/forgot-password" id="l-reset">Reset password</a>';
