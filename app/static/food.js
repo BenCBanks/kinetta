@@ -1405,7 +1405,7 @@ function drawTrends(box, I, days, part, rangeKey) {   // part: overview | energy
     if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, tickLabel: c.tickLabel, partial: c.partial, readoutValue: c.protein_g, segs: [{k: 's3', v: c.protein_g || 0}]})),
       {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150, initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}});
     if (part !== 'energy') return;
-    energyChart($('#nt-energychart', box), cols, {initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}, weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
+    energyChart($('#nt-energychart', box), weekly ? cols.map(c=>({...c,day:null})) : cols, {initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}, weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
     const cum = S.logged ? past.filter((r) => r.eaten != null) : [];   // no fully logged day yet: nothing to add up
     dayLine($('#nt-cum', box), cum.map((r) => ({y: r.total, tick: dlabel(r.day, {month: 'short', day: 'numeric'}), label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}),
       sub: r.counted && r.deficit == null ? 'resting calories not synced' : r.counted ? {prefix: 'Day: ', value: r0(Math.abs(r.deficit)), suffix: ` kcal ${r.deficit >= 0 ? 'deficit' : 'surplus'}`} : 'partly logged, not counted'})),
