@@ -459,7 +459,7 @@ const store = {
 const serverKey = () => Native.base || location.origin;
 function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {account: App.me.id, server: serverKey(), data}); }
 function kept(path) { const v = store.get('fit.c:' + path); return App.me && v && v.account === App.me.id && (v.server === serverKey() || (!v.server && !Native.on)) ? v.data : null; }
-function forgetKept() { App.cache?.clear();globalThis.PaintGate?.clearAll?.();try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
+function forgetKept() { App.cache?.clear();globalThis.PaintGate?.clearAll?.();try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')||k.startsWith('fit.welcome.profile-draft:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
 
 // Fold a generated note without redrawing the page, map or inputs. Remember only its fingerprint on this device.
 function coachKey(key) { return 'fit.coach.hidden:' + JSON.stringify([Native.base || location.origin, App.me.id, key]); }
