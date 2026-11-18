@@ -22,7 +22,7 @@ async function pRecordsLoaded(body, q) {
       }).filter(Boolean).join('');
       const box = $('#r-body', body);
       if (!box) return;
-      box.innerHTML = records ? `<div class="card lifting-records"><table class="tbl"><thead><tr><th>Exercise</th><th class="r">Best</th><th class="r">Date</th></tr></thead><tbody>${records}</tbody></table></div>`
+      box.innerHTML = records ? `<div class="card lifting-records"><table class="tbl"><thead><tr><th>Record</th><th class="r">Value</th><th class="r">Date</th></tr></thead><tbody>${records}</tbody></table></div>`
         : '<div class="card empty"><b>No lifting records yet</b>Completed lifting sets will build your strength records here.</div>';
     });
     return;
