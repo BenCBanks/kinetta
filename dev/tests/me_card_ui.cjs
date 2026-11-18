@@ -126,7 +126,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const retrySave=p.locator('[data-card-save]');
    await p.locator('[data-featured-toggle="climbing"]').click();assert.equal(await retrySave.isDisabled(),false);
    failFeatureSave=true;response=waitSave();await retrySave.click();assert.equal((await response).status(),503);
-   await p.waitForFunction(()=>document.querySelector('[data-card-status]')?.textContent==='Fictional save failure');
+   await p.waitForFunction(()=>document.querySelector('[data-card-status]')?.textContent==='Kinetta is having trouble right now. Please try again.');
    assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run','climbing'],'a failed Save keeps the pending selection for retry');
    assert.equal(await retrySave.isDisabled(),false,'a failed Save leaves the retry enabled');
    await p.locator('[data-card-cancel]').click();await p.locator('[data-confirm-ok]').click();await p.locator('[data-card-edit]').click();await p.locator('[data-featured-list][aria-busy="false"]').waitFor();
