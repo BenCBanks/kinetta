@@ -183,7 +183,7 @@
 .insights-detail-content ol { margin:0; padding:0; list-style:none; }
 .insights-detail-content b { flex:none; color:var(--tx); font-weight:500; font-variant-numeric:tabular-nums; }
 .insights-detail-content p { margin:0; }
-.insights-log-food { min-height:48px; margin:8px 0 0; border:0; border-radius:22px; box-shadow:none; font-size:15px; font-weight:600; text-align:center; }
+.insights-log-food { min-height:48px; margin:8px 0 0; border:0; border-radius:22px; background-color:var(--btn); background-image:none; color:var(--onbtn); box-shadow:none; font-size:15px; font-weight:600; text-align:center; }
 @media(max-width:360px) {
   .insights-card-heading { align-items:flex-start; }
   .insights-card-heading h2 { font-size:19px; }
