@@ -225,7 +225,7 @@ class Launch(unittest.TestCase):
             c.execute("INSERT INTO account_tokens(token_hash,user_id,kind,email,expires) VALUES ('zz-old',%s,'verify_email','zz_test_launch_plain@example.test',now()-interval '1 hour')",(self.ids['plain'],))
         b=action(confirm='zz_test_launch_plain');url=f"/api/admin/manage/{self.ids['plain']}/confirm-email"
         r=self.a.post(url,json=b);self.assertEqual(r.status_code,200,r.text)
-        self.assertEqual(len(self.sent),1);self.assertEqual(self.sent[0]['to'],['zz_test_launch_plain@example.test']);self.assertIn('/confirm-email/',self.sent[0]['text'])
+        self.assertEqual(len(self.sent),1);self.assertEqual(self.sent[0]['to'],['zz_test_launch_plain@example.test']);self.assertIn('/confirm-email#',self.sent[0]['text'])
         self.assertEqual(self.a.post(url,json=b).json(),r.json());self.assertEqual(len(self.sent),1,'a retried request sends once')
         with db.connect() as c:
             self.assertEqual(c.execute("SELECT count(*) AS n FROM account_tokens WHERE user_id=%s AND kind='verify_email' AND used_at IS NULL AND expires>now()",(self.ids['plain'],)).fetchone()['n'],1)

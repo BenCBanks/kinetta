@@ -1,5 +1,5 @@
 """Email on accounts and Forgot password (#232 A–C) against a disposable database; the mail provider is a stand-in."""
-import base64, hmac, json, os, re, time, unittest
+import base64, datetime, hmac, json, os, re, time, unittest
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
@@ -61,7 +61,8 @@ class AccountEmail(unittest.TestCase):
 
     def link(self, kind):
         text = self.messages()[-1]['text']
-        return re.search(rf'https://example\.test/{kind}/([\w-]+)', text).group(1)
+        route = r'confirm-email#' if kind == 'confirm-email' else re.escape(kind) + r'/'
+        return re.search(rf'https://example\.test/{route}([\w-]+)', text).group(1)
 
     def confirm(self, c, email):
         self.assertEqual(c.put('/api/account/email', json={'email': email, 'password': PW}).status_code, 200)
@@ -238,7 +239,7 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(account['pending_email'], email)
         self.assertEqual(self.mail.call_count, 1, 'signup sends the initial welcome message through the stub')
         welcome = self.messages()[0]
-        first_link = re.search(r'https://example\.test/confirm-email/([\w-]+)', welcome['text']).group(1)
+        first_link = re.search(r'https://example\.test/confirm-email#([\w-]+)', welcome['text']).group(1)
 
         anon = TestClient(app); anon.headers['Origin'] = BASE
         unknown_email = anon.post('/api/account/email/resend', json={'login': 'nobody@example.com'})
@@ -252,9 +253,16 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(known_username.status_code, 200)
         self.assertEqual(known_username.json(), unknown_email.json(), 'known and unknown accounts get the same response')
         self.assertEqual(self.mail.call_count, 2, 'the pending token address receives a second message')
-        second_link = re.search(r'https://example\.test/confirm-email/([\w-]+)', self.messages()[1]['text']).group(1)
+        second_link = re.search(r'https://example\.test/confirm-email#([\w-]+)', self.messages()[1]['text']).group(1)
         self.assertNotEqual(first_link, second_link, 'resend creates a fresh confirmation link')
         self.assertEqual(self.messages()[1]['to'], [email])
+        stale = anon.post('/api/account/email/confirm', json={'token': first_link})
+        self.assertEqual(stale.status_code, 404, 'resending invalidates the earlier unused link')
+        with db.connect() as c:
+            token_row = c.execute('SELECT expires-created AS lifetime FROM account_tokens WHERE token_hash=%s',
+                                   (auth.token_hash(second_link),)).fetchone()
+        self.assertEqual(token_row['lifetime'], datetime.timedelta(hours=account_email.VERIFY_HOURS),
+                         'replacement confirmation links retain the 24-hour expiry')
 
         known_email = anon.post('/api/account/email/resend', json={'login': email.upper()})
         third_by_username = anon.post('/api/account/email/resend', json={'login': login})
@@ -266,9 +274,11 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(self.mail.call_count, 4, 'signup plus three per-account recovery messages; later resends are limited')
         self.assertEqual([m['to'] for m in self.messages()], [[email]] * 4)
 
-        latest_link = re.search(r'https://example\.test/confirm-email/([\w-]+)', self.messages()[-1]['text']).group(1)
+        latest_link = re.search(r'https://example\.test/confirm-email#([\w-]+)', self.messages()[-1]['text']).group(1)
         confirmed = anon.post('/api/account/email/confirm', json={'token': latest_link})
         self.assertEqual(confirmed.status_code, 200, confirmed.text)
+        self.assertEqual(anon.post('/api/account/email/confirm', json={'token': latest_link}).status_code, 404,
+                         'the newest confirmation link is single-use')
 
     def test_signup_conflict_for_pending_email_offers_recovery_code(self):
         user = self.pending_account('zz_signup_pending@example.com')
@@ -368,7 +378,7 @@ class AccountEmail(unittest.TestCase):
         first = self.messages()[-1]
         self.assertEqual(first['to'], ['zz_reminders@example.com'])
         self.assertEqual(first['subject'], 'Please confirm your Kinetta email')
-        self.assertIn('/confirm-email/', first['text'])
+        self.assertIn('/confirm-email#', first['text'])
         with db.connect() as c:
             typo = c.execute('SELECT email_confirmation_reminder_count,email_confirmation_reminder_at FROM users WHERE id=%s', (typo_user['id'],)).fetchone()
             self.assertEqual(typo['email_confirmation_reminder_count'], 0, 'addresses with a recognized typo get no reminder')

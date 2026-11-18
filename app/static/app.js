@@ -2635,7 +2635,15 @@ async function start() {
   if(challengeCode&&/^[A-Za-z0-9_-]{1,60}$/.test(challengeCode)){store.set('kinetta.challengeLink',challengeCode);store.del('kinetta.cardLink');store.del('kinetta.friendLink');}
   // emailed links work whether or not this browser is logged in
   const link = location.pathname.match(/^\/(reset-password|confirm-email)\/([\w-]+)$/);
-  if (link) return link[1] === 'reset-password' ? showReset(link[2]) : showConfirmEmail(link[2]);
+  if (link?.[1] === 'reset-password') return showReset(link[2]);
+  // New confirmation links keep the bearer token in the fragment, which is never sent
+  // to the server or recorded in HTTP access logs. Keep the path form for older emails.
+  const confirmToken = link?.[1] === 'confirm-email' ? link[2]
+    : location.pathname === '/confirm-email' ? location.hash.slice(1) : '';
+  if (/^[\w-]{1,100}$/.test(confirmToken)) {
+    if (location.hash) history.replaceState(null, '', '/confirm-email');
+    return showConfirmEmail(confirmToken);
+  }
   if (location.pathname === '/forgot-password' && !kept('/api/me')) return showForgot();
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {

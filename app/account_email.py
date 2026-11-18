@@ -229,7 +229,9 @@ def confirmation(background, c, uid, name, email, welcome=False):
     require_available(c, email, uid)
     token = _token(c, uid, 'verify_email', VERIFY_HOURS * 60, email)
     token_hash = auth.token_hash(token)
-    link = f"{_base()}/confirm-email/{token}"
+    # Keep bearer tokens out of HTTP request paths and access logs. Fragments stay in the
+    # browser; the client submits the token to the confirmation API in the request body.
+    link = f"{_base()}/confirm-email#{token}"
     app = iphone_app() if welcome else None
     # Written the way Ben talks (2026-10-24): short, plain, signed by the team, always "we". No stock phrases.
     beta = (f"\n\nKinetta is in beta, and the iPhone app is the best way to use it. It records your runs, rides and walks "
@@ -262,7 +264,7 @@ def send_due_confirmation_reminders(limit=100):
             if email_suggestion(user['email']): continue
             token = _token(c, user['id'], 'verify_email', VERIFY_HOURS * 60, user['email'])
             token_hash = auth.token_hash(token)
-            link = f"{_base()}/confirm-email/{token}"
+            link = f"{_base()}/confirm-email#{token}"
             c.execute("""UPDATE users SET email_confirmation_reminder_count=email_confirmation_reminder_count+1,
                          email_confirmation_reminder_at=now()
                        WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (user['id'],))
@@ -356,6 +358,7 @@ def resend_confirmation(body: ResendConfirmationIn, request: Request, background
                           WHERE {lookup} AND u.email_verified_at IS NULL
                             AND u.needs_email_confirm AND u.suspended_at IS NULL
                             AND COALESCE(u.email::text, pending.email::text) IS NOT NULL
+                          ORDER BY u.id
                           FOR UPDATE OF u''', (who,)).fetchone()
         if u and not email_recovery_limited(c, u['id']) and mail_ready():
             confirmation(background, c, u['id'], u['name'], u['email'], welcome=True)

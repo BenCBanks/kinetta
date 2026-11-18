@@ -96,7 +96,7 @@ class Signup(unittest.TestCase):
         self.assertEqual(new.post(f'/api/activities/{oid}/comments', json={'text': 'hello'}).status_code, 403)
         self.assertEqual(new.post(f'/api/activities/{oid}/reaction', json={'kind': 'cheer'}).status_code, 403)
         # opening the link lifts every restriction
-        token = re.search(r'/confirm-email/([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
+        token = re.search(r'/confirm-email#([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
         self.assertEqual(client().post('/api/account/email/confirm', json={'token': token}).status_code, 200)
         self.assertFalse(new.get('/api/me').json()['needs_email_confirm'])
         self.assertEqual(old.get(f'/api/shared/{aid}').status_code, 200)
@@ -297,7 +297,7 @@ class Signup(unittest.TestCase):
         r2 = b.post('/api/signup', json={**body, 'name': 'Zzsütest Other', 'email': 'zz_test_su_n2@example.com'}).json()
         self.assertEqual((r1['login'], r2['login']), ('zzsutest', 'zzsutest2'), 'from the first name, accents dropped, then numbered')
         # confirm, then the email is the login and the username can change freely
-        token = re.search(r'/confirm-email/([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
+        token = re.search(r'/confirm-email#([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
         client().post('/api/account/email/confirm', json={'token': token})
         self.assertEqual(a.put('/api/account', json={'login': 'zz_test_su_gamertag'}).json()['login'], 'zz_test_su_gamertag')
         self.assertEqual(a.put('/api/account', json={'login': 'zz_test_su_gamertag2'}).status_code, 200, 'again, whenever they like')
@@ -351,7 +351,7 @@ class Signup(unittest.TestCase):
     def actor(self):
         self.env(KINETTA_SIGNUP='open');person=client()
         r=person.post('/api/signup',json=form('zz_test_su_guard'));self.assertEqual(r.status_code,200,r.text)
-        token=re.search(r'/confirm-email/([\w-]+)',self.mail.call_args.kwargs['json']['text']).group(1)
+        token=re.search(r'/confirm-email#([\w-]+)',self.mail.call_args.kwargs['json']['text']).group(1)
         self.assertEqual(client().post('/api/account/email/confirm',json={'token':token}).status_code,200)
         return person,person.get('/api/me').json()['id']
 
