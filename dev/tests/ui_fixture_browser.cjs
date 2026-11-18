@@ -49,7 +49,6 @@ async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
      if(u.pathname.startsWith('/__spacing_tiles/'))return r.fulfill({contentType:'image/png',body:tile});
      if(scene.recap&&u.pathname==='/api/recaps')return r.fulfill({json:fixtures.recaps.matrix.typical[u.searchParams.get('period')]});
      if(scene.notifications&&u.pathname==='/api/notifications/personal')return r.fulfill({json:{plan:true,weekly:true,plan_time:'08:00',tz:'UTC',push_ready:true,device_ready:true}});
-     if(scene.notifications&&u.pathname==='/api/food/reminders')return r.fulfill({json:{enabled:true,tz:'UTC',push_ready:true,device_ready:true,times:['breakfast','lunch','dinner'].map(meal=>({meal,ready:true,time:'12:15'}))}});
      return r.continue();
     });
     const p=await c.newPage();p.on('pageerror',e=>pageErrors.push(e.message));

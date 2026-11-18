@@ -9,14 +9,9 @@
 .notification-settings .personal-notice-choice { padding:0; border:0; }
 .notification-settings .personal-notice-time { margin-top:8px; font-size:max(15px,.9375rem); }
 .notification-settings .personal-notice-time select { font-size:max(16px,1rem); }
-.notification-settings .reminder-how { margin-top:8px; }
-.notification-settings .reminder-how summary { font-size:max(15px,.9375rem); }
-.notification-settings .meal-reminders dl { margin:8px 0; }
-.notification-settings .meal-reminders dl > div { gap:8px; font-size:max(15px,.9375rem); }
 .notification-settings .err:empty { display:none; }
 .notification-settings .notification-phone-action { display:flex; justify-content:center; margin-top:8px; }
 .notification-settings .notification-phone-action button { font-size:max(15px,.9375rem); }
-.notification-settings [data-meal-status]:empty { display:none; }
 
 /* Keep the complete title readable on a narrow screen when text is enlarged. */
 @media (max-width:370px) { .notification-settings > h1 { font-size:max(28px,1.5rem); overflow-wrap:normal; } }

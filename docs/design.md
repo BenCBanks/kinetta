@@ -686,13 +686,9 @@ Server/account/token/settings checks precede every read/upload/write/ack. Native
 
 From the Health page, Read weight or Share nutrition then Apple's Done is two taps excluding individual system permission choices; the app's Done returns to Connections. No change to food targets or resting-energy source. Native behavior in browser review uses labelled stand-ins; permissions, real Health samples, lock behavior, VoiceOver, Dynamic Type and cross-device Health reconciliation still need a physical iPhone.
 
-### Optional logging reminders (#122 K)
+### Empty-meal shortcuts
 
-Meal-time reminders are a separate explicit opt-in, off by default, under Settings → Notifications and linked from Nutrition. They use native APNs only, require the existing server/device setup, and are easy to turn off even if that setup later becomes unavailable. No launch prompt, automatic subscription or guilt streak. Show the person's proposed usual times, with unavailable patterns described as building rather than invented. Fold the explanation behind How times work.
-
-Learn from the first same-day daytime log per meal on each of the last28 completed profile-local days; at least3 distinct days are needed, rounded to15 minutes. Late past-day imports and night-time logs cannot create an artificial daytime median. Reminders only run7am–9pm, within5minutes after that usual time, and skip a meal already logged. One attempt per local meal/day prevents duplicate alerts across retries/workers. Current preference, logged meal, device/session ownership, quiet hours and claim age are rechecked before delivery. APNs expires optional reminders in5minutes; an already delivered alert cannot be recalled. Lock-screen text contains only a generic meal invitation, with no food, calorie, target, weight or Health details; no feed/bell row is created.
-
-The current empty meal in today's Nutrition log offers Same as yesterday and Your usuals; other dates/meals stay quiet. Use the profile's timezone for the meal guess. Yesterday is a preview and needs an explicit Log this meal tap, preserving all8 nutrients, sources and unknown/zero values. Existing online toast Undo remains. The weekly days-logged count is the existing private Your week in food review; no competing streak tile. Physical APNs delivery remains pending #98 configuration/device acceptance.
+The current empty meal in today's Nutrition log offers Same as yesterday and Your usuals; other dates/meals stay quiet. Use the profile's timezone for the meal guess. Yesterday is a preview and needs an explicit Log this meal tap, preserving all8 nutrients, sources and unknown/zero values. Existing online toast Undo remains. The weekly days-logged count is the existing private Your week in food review; no competing streak tile.
 
 ### iPhone quick action and Shortcuts food entry (#122 T1)
 
@@ -748,8 +744,6 @@ Native Health review: stable server-issued account identity avoids duplicate nut
 
 Health session review: deletion first pauses uploads while preserving setup; a rejected password resumes the same setup. Confirmed deletion runs all local cleanup steps independently. Expired sessions pause Health without awaiting callbacks or clearing opt-ins. Logout stops once through native forget with bounded independent cleanup. Disconnect stops locally before server preference updates; owner-scoped pending updates retry online. Manual weight sync follows an in-flight nutrition-only pass, per-kind errors persist, and only food invalidation schedules nutrition sharing.
 
-Reminder review: each account claims immediately before its own delivery in an isolated transaction; a corrupt profile cannot block others. Validate stored zones with a safe default, skip quiet hours before history work, cache timing per account/local day, and hold only the device lock during delivery. The shared native delivery boundary preserves session/account transfer and invalid-token handling. Reminder links retain their explicit meal even across a meal-time boundary. Browser notification guidance points to the iPhone app. Pure timing filters remain defensive for standalone callers.
-
 Native food-entry review: session expiry/failed sign-in pause delivery without clearing the owner-bound inbox; the same account can stage a draft offline and posting still requires authentication. Deletion pauses setup until the password succeeds; logout clears once after the unsent-message warning and successful local chat erasure. Separate expiring receipt journals prevent Shortcut replay or a full-storage failure from restoring sent drafts. Oversized entries are skipped with feedback so later entries continue. Corrupt inbox contents recover; locked files remain retryable. Share to Kinetta photo/link extension remains deferred T2/T3 work, not delivered by this PR.
 
 Activity/food review: known protein that already reaches the target counts as reached even with an unknown side. Daily burn is shared without loading complete food/chat detail. The native sync disclosure updates text in place; progress reads no Preferences, manual imports refresh the list, and completion timestamps prevent immediate render-triggered resync. Past and other-owner activities do not fetch the current-day food link; the food card keeps one workout breakdown.
@@ -776,7 +770,7 @@ don't track food don't see food outside the Nutrition tab.
   week; their last choice is remembered per account on this device. Explicit `/progress?section=food` links still open
   and show the switch. Food progress also remains in Nutrition.
 - **Food entry points:** the Nutrition tab (main), the single Log food button on Me for food users, and the optional
-  iPhone quick action/Shortcut and meal reminders, which are off unless turned on.
+  iPhone quick action/Shortcut, which is available after explicit setup.
 
 
 ## Clarity pass (18 October, after #164)
@@ -1791,16 +1785,12 @@ Food Insights review: Eaten bars and their legend use calorie action blue in bot
 
 ## Notification preference switches (31 October2026, #417 part1)
 
-Notifications leads with labelled switch rows: meal reminders, planned workouts, weekly summaries and available
+Notifications leads with labelled switch rows for planned workouts, weekly summaries, streak reminders and available
 phone alert types. Each row has a56px or taller label target, the existing iPhone-shaped switch face,15–16px default
 text and8px separation. Cards keep16px padding. Phone status uses one short instruction plus its existing action;
-the browser instruction remains because no direct installed-app opening action exists in this flow.
-
-Meal times and How times work appear only when reminders are on. Learned meals retain their times, with one
-Learning your usual times message for the rest; no time is invented. The planned reminder time and delivery details
-also appear only for enabled choices. Off-by-default meal/training choices, timezone, no streak/calorie nudges,
-explicit confirmation and device/server readiness remain. Previously enabled choices can always be switched off
-when delivery becomes unavailable. Basic social preferences retain their existing defaults.
+the browser instruction remains because no direct installed-app opening action exists in this flow. Personal alerts
+retain their existing explicit opt-in, timezone and device/server readiness rules. Basic social preferences retain
+their existing defaults.
 
 Pending controls and failure feedback survive phone-status refreshes; stale account/view/older reads cannot update
 them. Saving retains control focus and failure restores the previous value. Rendered tests use fictional preferences

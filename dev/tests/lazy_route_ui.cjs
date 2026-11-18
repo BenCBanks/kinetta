@@ -169,7 +169,6 @@ async function notificationRoutes(context,{failFirst=false,hold=false,recordOwne
     if(url.pathname==='/api/notifications/count'&&request.method()==='GET')return route.fulfill({json:{unread:3,friend_requests:0}});
     if(url.pathname==='/api/challenges/signup/continue'&&request.method()==='POST')return route.fulfill({json:{}});
     if(url.pathname==='/api/notifications/personal')return route.fulfill({json:{plan:false,weekly:false,plan_time:'08:00',tz:'UTC',push_ready:true,device_ready:true}});
-    if(url.pathname==='/api/food/reminders')return route.fulfill({json:{enabled:false,tz:'UTC',push_ready:true,device_ready:true,times:[]}});
     if(url.pathname==='/api/account/signin-email')return route.fulfill({json:{on:false}});
     if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.fulfill({status:204,body:''});}
     return route.continue();
@@ -1127,7 +1126,7 @@ async function foodWarmupCase(browser){
     await normal.page.locator('[data-summary-type="year"]').click();
     assert.deepEqual(await normal.page.evaluate(()=>window.__notificationSummaryCalls.at(-1)),{period:'year',offset:1},'the year row opens its exact period');
     await normal.page.evaluate(()=>go('/me/settings'));await ready(normal.page,'a[href="/me/notifications"]','Settings route');
-    await normal.page.locator('a[href="/me/notifications"]').click();await normal.page.locator('[data-meal-reminders]').waitFor();
+    await normal.page.locator('a[href="/me/notifications"]').click();await normal.page.locator('.notification-alerts').waitFor();assert.equal(await normal.page.locator('[data-meal-reminders],.meal-reminders').count(),0,'notification settings have no meal reminder card');
     assert.equal(normal.routes.scriptRequests.length,1,'Settings reuses the already loaded notification bundle');
     assert.deepEqual(normal.errors,[]);assert.deepEqual(normal.routes.writes,[]);
   }finally{await normal.context.close();}
@@ -1176,7 +1175,7 @@ async function foodWarmupCase(browser){
     const meResponse=await staleOwner.context.request.get(base+'/api/me');assert.equal(meResponse.status(),200);
     const me=await meResponse.json();await staleOwner.page.evaluate(profile=>refreshMe(profile),me);
     await until(staleOwner.page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new account owns the pending notification shell');
-    staleOwner.routes.release();await staleOwner.routes.done;await staleOwner.page.locator('[data-meal-reminders]').waitFor();
+    staleOwner.routes.release();await staleOwner.routes.done;await staleOwner.page.locator('.notification-alerts').waitFor();assert.equal(await staleOwner.page.locator('[data-meal-reminders],.meal-reminders').count(),0,'late route load never mounts a meal reminder card');
     assert.deepEqual(await staleOwner.page.evaluate(()=>window.__notificationRouteOwners),['zz_test_explore_typical'],'the deferred settings route mounts only for the current fictional owner');
     assert(staleOwner.routes.apiOwners.length>=1&&staleOwner.routes.apiOwners.every(id=>id===String(me.id)),'notification data is requested for the current owner only');
     assert.deepEqual(staleOwner.errors,[]);assert.deepEqual(staleOwner.routes.writes,[]);

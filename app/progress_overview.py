@@ -14,7 +14,7 @@ router = APIRouter(prefix='/api/progress')
 def overview(user=Depends(current_user)):
     uid = user['id']
     with db.connect() as c:
-        profile = c.execute('SELECT tz, protein_target, food_reminders FROM profile WHERE user_id=%s', (uid,)).fetchone() or {}
+        profile = c.execute('SELECT tz, protein_target FROM profile WHERE user_id=%s', (uid,)).fetchone() or {}
         tz = db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ
         today = dt.datetime.now(ZoneInfo(tz)).date()
         week = today - dt.timedelta(days=today.weekday())
@@ -66,4 +66,4 @@ def overview(user=Depends(current_user)):
         active = {'week': plan['this_week'], 'weeks': active['weeks'], 'unit': active['unit'], 'next': next_workout}
     return {'today': today.isoformat(), **counts, 'routes': routes, 'segments': segments,
             'lifting': dict(lift) if lift else None, 'record': dict(best) if best else None,
-            'plan': active, 'food': {'protein_days': protein_days, 'weight_change_kg': change, 'library_items':library_items, 'weight_kg':weights[-1]['kg'] if weights else None, 'logged_days':logged_days, 'reminders_on':bool(profile.get('food_reminders'))}}
+            'plan': active, 'food': {'protein_days': protein_days, 'weight_change_kg': change, 'library_items':library_items, 'weight_kg':weights[-1]['kg'] if weights else None, 'logged_days':logged_days}}

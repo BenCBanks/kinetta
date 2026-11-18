@@ -439,7 +439,7 @@ Twelve canonical owned route/view families; day/origin parameters and import/set
 
 ### Log, insights and targets
 
-Weight has a direct one-tap entrance from the log and Insights; meal reminders link to Me in one tap. Expanded energy breakdown links to its Activity source.
+Weight has a direct one-tap entrance from the log and Insights. Expanded energy breakdown links to its Activity source.
 
 ```mermaid
 flowchart TD

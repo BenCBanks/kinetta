@@ -50,7 +50,7 @@ try:
     before = get(empty)
     assert before['activities'] == before['mapped'] == before['active_days'] == before['routes'] == before['segments'] == 0
     assert before['record'] is before['lifting'] is before['plan'] is None
-    assert before['food'] == {'protein_days': None, 'weight_change_kg': None, 'library_items':0, 'weight_kg':None, 'logged_days':0, 'reminders_on':False}
+    assert before['food'] == {'protein_days': None, 'weight_change_kg': None, 'library_items':0, 'weight_kg':None, 'logged_days':0}
     today = dt.date.fromisoformat(before['today'])   # just after midnight in UTC+14, so today's runs stay within the 1-hour future allowance at any UTC hour
     aid = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T00:00:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional private run'})[1]['id']
     assert runner.put(f'/api/activities/{aid}/sharing', {'visibility': 'me'})[0] == 200
@@ -81,9 +81,10 @@ try:
     assert food.post('/api/food/foods', {'name':'Fictional saved food','kcal':100})[0] == 200
     own_food = get(food)
     assert own_food['food']['protein_days'] == 1 and own_food['food']['weight_change_kg'] < 0
-    assert own_food['food']['library_items']==2 and own_food['food']['weight_kg']==74 and own_food['food']['logged_days']==1 and own_food['food']['reminders_on'] is True
+    assert own_food['food']['library_items']==2 and own_food['food']['weight_kg']==74 and own_food['food']['logged_days']==1
+    assert 'reminders_on' not in own_food['food'], 'ignored legacy preference is not exposed in Progress'
     assert own_food['mapped'] == 0 and own_food['record'] is None
-    assert get(runner)['food'] == {'protein_days': None, 'weight_change_kg': None, 'library_items':1, 'weight_kg':None, 'logged_days':0, 'reminders_on':False}
+    assert get(runner)['food'] == {'protein_days': None, 'weight_change_kg': None, 'library_items':1, 'weight_kg':None, 'logged_days':0}
     assert get(empty) == before
     assert Client().get('/api/progress/overview')[0] == 401
     assert empty.get('/api/progress/overview?user_id='+str(uid))[1] == before, 'a caller cannot choose another account'

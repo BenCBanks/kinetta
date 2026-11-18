@@ -72,6 +72,7 @@ node --check dev/tests/recaps_ui.cjs
 node dev/tests/test_milestones.js
 node dev/tests/test_activity_milestone_loading.js
 node dev/tests/test_notification_edit.js
+python3 dev/tests/test_notification_removal.py
 node --check dev/tests/notification_edit_ui.cjs
 node dev/tests/test_activity_detail.js
 node --check dev/tests/activity_detail_ui.cjs
@@ -202,8 +203,7 @@ node dev/tests/test_food_entry.js
 node dev/tests/test_food_numbers_ui.js
 node dev/tests/test_food_upload_undo.js
 python3 dev/tests/test_food_number_parser.py
-node dev/tests/test_meal_reminders_ui.js
-python3 dev/tests/test_meal_reminder_times.py
+python3 dev/tests/test_notification_removal.py
 node dev/tests/test_health_session.js
 node dev/tests/test_weekly_food_review.js
 node dev/tests/test_thread_sources.js
@@ -321,7 +321,6 @@ docker compose -p "$P" exec -T app python - < dev/tests/community_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weights_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weight_dst_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_nutrition_incontainer.py
-docker compose -p "$P" exec -T app python - < dev/tests/meal_reminders_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/personal_notifications_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_numbers_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_incontainer.py
