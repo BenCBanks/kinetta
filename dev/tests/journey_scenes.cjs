@@ -7,7 +7,7 @@ function journeys(fixtures){
  const ownList={...destination(profile,'Your profile',`#person-activities[aria-busy="false"] .post[data-href="/activity/${f.activity}"] .post-title`),text:'Fictional journey run 1'};
  // Calendar and Segments default off; progress_ui.cjs exercises their enabled routes.
  const progress=[['fitness','Fitness','?view=fitness','#fi-pred > .card'],['records','Records','?view=records','#r-body > .card'],['lifting','Lifting','?view=lifting','#lv-body > .card'],['routes','Routes','/routes','#p-body > .card'],['heatmap','Heatmap','/heatmap','#h-map.leaflet-container'],['trends','Years','/trends','#g-body > .card'],['weight','Weight','/weight','#nt-weight .wform'],['plan','Training plan','plan','#ps-f']];
- const settings=[['/me/devices','Signed-in devices','#dv-list .device-row'],['/me/sharing','Sharing & privacy','#sh-find'],['/track/connections','Connections','#page a'],['/me/notifications','Notifications','#nt-push']];
+ const settings=[['/me/devices','Signed-in devices','#dv-list .device-row'],['/me/sharing','Sharing & privacy','#sh-find'],['/me/settings/connections','Connections','#c-list .connection-status-row'],['/me/notifications','Notifications','#nt-push']];
  const sheets=[['#m-name','Your name','#ac'],['#m-login','Username','#ac'],['#m-email','Email','.sheet[aria-label="Email"]'],['#m-pw','Change password','#pw'],['#m-body','Body, heart rate & time zone','#m-form'],['#m-kit','Kit','#kit-settings-panel'],['#m-del','Delete my account','#del']];
  const cases=[
   // Open the full profile from the visible avatar/name identity link.
@@ -26,6 +26,7 @@ function journeys(fixtures){
  ];
  for(const [id,title,suffix,ready] of progress)cases.push({id:'progress-'+id,start:'/progress',taps:[`[data-progress-feature="${id}"]`],end:destination(suffix==='plan'?'/plan':'/progress'+suffix,title,ready),back:destination('/progress','Progress','#p-explore')});
  for(const [url,title,ready] of settings)cases.push({id:'settings-'+url.split('/').at(-1),start:'/me/settings',taps:[`a[href="${url}"]`],end:destination(url,title,ready),back:destination('/me/settings','Settings','#logout')});
+ cases.push({id:'settings-apple-health',start:'/me/settings/connections/apple-health',native:true,action:'appleHealthRows',end:destination('/me/settings/connections/apple-health','Apple Health','.health-page .health-connection-control>summary')});
  for(const [tap,title,ready] of sheets)cases.push({id:'settings-'+tap.slice(1),start:'/me/settings',taps:[tap],end:destination('/me/settings',title,ready),close:true});
  for(const [tap,title,ready] of [['#m-kit-memory','What Kit remembers','#kit-memory-on'],['#m-kit-history','Earlier Kit reviews','#kit-saved-reviews'],['#m-ai-info','Kit & data','.sheet[aria-label="Kit & data"]']])cases.push({id:'settings-'+tap.slice(1),start:'/me/settings',taps:['#m-kit',tap],end:destination('/me/settings',title,ready),close:true});
  for(const [tab,from,title] of [['progress','progress','Progress'],['food','nutrition','Nutrition']])cases.push({id:'kit-'+tab,start:'/'+tab,kit:true,taps:[`a[href="/me/kit?from=${from}"]`],end:destination('/me/kit?from='+from,'Ask Kit','#kit-text'),back:destination('/'+tab,title,'#page')});
