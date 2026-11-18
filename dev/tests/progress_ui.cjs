@@ -228,13 +228,20 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
        assert.equal(await recordRows.count(),rows.length,`${state} Lifting Records contains the expected rows`);
        if(state==='empty')assert.match(await p.locator('.card.empty').innerText(),/No lifting records yet/,'empty Lifting state explains how records appear');
        else{
-        assert.deepEqual(await p.locator('.lifting-records th').allInnerTexts(),['Exercise','Best','Date'],'Lifting uses the Records table columns');
+        assert.deepEqual(await p.locator('.lifting-records th').allInnerTexts(),['Record','Value','Date'],'Lifting Records names the record, value and date columns');
         assert.equal(await recordRows.first().locator('.lifting-record-name').getAttribute('href'),'/lift/ex/321','exercise name drills into its history');
-        assert.match(await recordRows.first().innerText(),/Fictional bench press[\s\S]*Heaviest set[\s\S]*198\.4 lb × 3[\s\S]*Nov 9, 2026/,'table row pairs exercise, best and date');
+        assert.match(await recordRows.first().innerText(),/Fictional bench press[\s\S]*Heaviest set[\s\S]*198\.4 lb × 3[\s\S]*Nov 9, 2026/,'record row names the exercise and record type, with value and date');
         const measured=await recordRows.evaluateAll(nodes=>nodes.map(n=>({height:n.getBoundingClientRect().height,scroll:n.scrollWidth,client:n.clientWidth})));
         assert(measured.every(row=>row.height>=56&&row.scroll<=row.client+1),`${state} rows stay readable and touch friendly: ${JSON.stringify(measured)}`);
         const targets=await recordRows.locator('.lifting-record-name').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
         assert(targets.every(height=>height>=44),`${state} exercise drill-down targets remain 44px: ${targets.join(',')}`);
+        if(size.width<=370){
+         const firstName=await recordRows.first().locator('.lifting-record-name').boundingBox(),firstValue=await recordRows.first().locator('.lifting-record-value').boundingBox(),firstDate=await recordRows.first().locator('.lifting-record-date').evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);const r=range.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};});
+         assert(Math.abs(firstName.x-firstValue.x)<=1&&firstValue.y>=firstName.y+firstName.height-1,`narrow Records places the value beneath the exercise name: ${JSON.stringify({firstName,firstValue,firstDate})}`);
+         assert(Math.abs((firstDate.y+firstDate.height/2)-(firstValue.y+firstValue.height/2))<=2&&firstDate.x>firstValue.x+firstValue.width,`narrow Records aligns the date to the value on the same line: ${JSON.stringify({firstValue,firstDate})}`);
+         const dividers=await recordRows.evaluateAll(nodes=>nodes.map(row=>{const line=getComputedStyle(row,'::after');return{position:line.position,left:line.left,right:line.right,bottom:line.bottom,height:line.height,content:line.content,cellBorders:[...row.cells].map(cell=>getComputedStyle(cell).borderTopWidth)};}));
+         assert(dividers.every(line=>line.position==='absolute'&&line.left==='0px'&&line.right==='0px'&&line.bottom==='0px'&&line.height==='1px'&&line.content==='""'&&line.cellBorders.every(width=>width==='0px')),`narrow Records draws exactly one full-width divider per row: ${JSON.stringify(dividers)}`);
+        }
         assert(await p.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),`${state} Lifting table has no horizontal page overflow`);
        }
        assert.equal(liftingRecordReads,1+(['empty','one','many'].indexOf(state)),'only selecting Lifting reads its records endpoint');

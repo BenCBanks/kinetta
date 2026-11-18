@@ -86,15 +86,15 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert(await first.locator('[data-addset]').evaluate(n=>document.activeElement===n),'deleting only remaining set focuses Add set');await p.locator('#toast.on button').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saved'&&document.querySelectorAll('.lift-ex:first-child [data-row]').length===1,'only-set Undo');assert(await first.locator('[data-set="0"]').evaluate(n=>document.activeElement===n));assert.deepEqual(errors,[]);console.log('Only-set delete/Undo and Add set/restored focus '+theme+' PASS');await c.close();contexts.splice(contexts.indexOf(c),1);
   }
   if(!process.env.KINETTA_LIFT_CASE||process.env.KINETTA_LIFT_CASE==='history'){
-   for(const theme of ['light','dark']){
-    const {c,p,errors,writes}=await open('exercise',theme,{width:390,height:844,root:16});
+   for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark']){
+    const {c,p,errors,writes}=await open('exercise',theme,size);
     await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.lift:'))localStorage.removeItem(k);});
     const draftsBefore=await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.lift:')).sort());
     await p.evaluate(()=>startLiftSheet());await until(p,()=>!!document.querySelector('.sl-routine'),'saved workout rows');
     assert.equal(await p.locator('.sl-routine').count(),1,'one saved workout row for the fixture name');
     assert.equal(await p.locator('.sl-repeat .chev').count(),0,'repeat action has no second-destination chevron');
     const historyAction=p.locator('.sl-history').first(),historyBox=await historyAction.boundingBox();assert.equal(await historyAction.innerText(),'History');assert(historyBox.width>=44&&historyBox.height>=44,'History stays the single trailing 44px action');
-    await p.waitForTimeout(450);await shot(p,`start-sheet-390-${theme}`);
+    await p.waitForTimeout(450);await shot(p,`start-sheet-${size.width}-${theme}`);
     await p.locator('.sl-history').click();await until(p,()=>/^\/lift\/history\/workout\/\d+$/.test(location.pathname),'workout history route');
     await p.locator('.lift-history').waitFor();assert.equal(await p.locator('.lift-history-list > li').count(),2,'last two saved sessions are visible');
     assert.equal(await p.locator('.lift-history-best').count(),0,'workout history has no repeated per-session best labels');
@@ -106,15 +106,15 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     assert.match(await p.locator('.lift-history-sets').first().innerText(),/^3 × 5 @ \d+(?:\.\d+)? lb$/,'first exercise uses the familiar compact set format');
     assert.equal(await p.locator('#lx-chart').count(),0,'history stays a plain list');
     await p.waitForTimeout(450);assert.equal(await p.locator('.scrim:not([inert])').count(),0,'repeat sheet closes before history is read');
-    await shot(p,`history-workout-390-${theme}`);
+    await shot(p,`history-workout-${size.width}-${theme}`);
     await p.locator('.lift-history-name').first().click();await until(p,()=>/^\/lift\/history\/exercise\/\d+$/.test(location.pathname),'exercise history route');
     await until(p,()=>document.querySelector('.lift-history h1')?.textContent==='Squat','exercise history content');assert.equal(await p.locator('.lift-history-list > li').count(),2);
     assert.equal(await p.locator('.lift-history-name').count(),0,'exercise history does not repeat its title under each date');
     assert.equal(await p.locator('.lift-history-best').count(),1,'best is summarized once below the exercise title');
-    assert.match(await p.locator('.lift-history-best').innerText(),/^Best · 5 × \d+(?:\.\d+)? lb · [A-Z][a-z]{2} \d{1,2}$/,'best summary includes the set and date in one muted line');
+    assert.match(await p.locator('.lift-history-best').innerText(),/^Heaviest set · 5 × \d+(?:\.\d+)? lb · [A-Z][a-z]{2} \d{1,2}$/,'history names the record type, set and date in one muted line');
     assert.equal(await p.locator('.lift-history').evaluate(n=>n.classList.contains('card')),false);
     await p.waitForTimeout(450);
-    await shot(p,`history-exercise-390-${theme}`);
+    await shot(p,`history-exercise-${size.width}-${theme}`);
     await p.locator('.top .back').click();await until(p,()=>/^\/lift\/history\/workout\/\d+$/.test(location.pathname),'exercise history returns to workout history');
     const draftsAfter=await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.lift:')).sort());
     assert.deepEqual(draftsAfter,draftsBefore,'opening history creates no local workout draft');

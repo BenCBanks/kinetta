@@ -34,13 +34,18 @@ function liftHistoryBestText(kind, set) {
   if (kind === 'body') return `${set.reps || 0} reps${set.kg ? ` + ${toW(set.kg)} ${wUnit()}` : ''}`;
   return `${set.reps || 0} × ${toW(set.kg) || 0} ${wUnit()}`;
 }
+function liftHistoryBestLabel(kind) {
+  if (kind === 'time') return 'Longest hold';
+  if (kind === 'body') return 'Most reps';
+  return 'Heaviest set';
+}
 function liftHistoryMarkup(data, backTo) {
   const sessions = (data.sessions || []).slice(0, 5), best = liftHistoryBest(sessions);
   const exerciseId = data.exercise?.id;
   const bestSet = exerciseId == null ? null : best.get(exerciseId);
   const bestSession = bestSet && sessions.find((s) => s.activity_id === bestSet.activity_id);
   const summary = bestSet && bestSession
-    ? `Best · ${liftHistoryBestText(bestSet.kind, bestSet.set)} · ${fdate(bestSession.start_time, {month: 'short', day: 'numeric'})}`
+    ? `${liftHistoryBestLabel(bestSet.kind)} · ${liftHistoryBestText(bestSet.kind, bestSet.set)} · ${fdate(bestSession.start_time, {month: 'short', day: 'numeric'})}`
     : `Last ${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
   const rows = sessions.map((session) => `<li class="lift-history-session"><h2 class="lift-history-date">${esc(fdate(session.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}</h2>
     ${(session.exercises || []).map((ex) => {
