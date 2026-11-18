@@ -178,7 +178,7 @@ async function foodDiscovery(el) {
   const box=$('#fd-explore',el),owner=readOwner();
   if(!box)return;
   box.innerHTML='<h2 class="sec-head">Explore your food</h2><div class="progress-grid explore-list" id="nutrition-explore"></div>';
-  const grid=$('#nutrition-explore',box),facts={food:null,health:undefined};let ready=false;
+  const grid=$('#nutrition-explore',box),facts={food:null};let ready=false;
   const valid=()=>box.isConnected&&owner===readOwner();
   const draw=()=>{
     if(!valid())return;
@@ -190,7 +190,8 @@ async function foodDiscovery(el) {
       {id:'goals',title:'Calorie & macro goals',description:'',icon:'target',href:'/food?goals=1'},
       {id:'needs',title:'Calorie needs',description:'',icon:'target',href:'/food?view=needs'},
       {id:'calendar',title:'Food calendar',description:'',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      ...(Native.on?[{id:'health',title:'Health app sync',description:'',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'',icon:'upload',href:'/food/import'}])
+      {id:'health',title:'Apple Health',description:'',icon:'heart',href:'/me/settings/connections/apple-health?from=nutrition'},
+      ...(!Native.on?[{id:'import',title:'Add past days',description:'',icon:'upload',href:'/food/import'}]:[])
     ];
     // These are established destinations. Only render a second line for account-specific facts;
     // generic unvisited links are not new features and should not get a blue dot.
@@ -198,10 +199,7 @@ async function foodDiscovery(el) {
     grid.querySelectorAll('.progress-new').forEach(node=>node.remove());
   };
   Discovery.wire(grid,'nutrition',{attribute:'data-nutrition-feature'});draw();
-  await Promise.allSettled([
-    load('/api/progress/overview',o=>{if(valid()){facts.food=o.food;draw();}},{maxAge:30000}),
-    ...(Native.on?[Promise.all([api('/api/health/nutrition'),Native.foodHealthOn('nutrition')]).then(([server,local])=>{if(valid()){facts.health=server.enabled?(local?'On for this iPhone':'Set up on this iPhone'):null;draw();}}).catch(()=>{if(valid())facts.health='unavailable';})]:[])
-  ]);
+  await Promise.allSettled([load('/api/progress/overview',o=>{if(valid()){facts.food=o.food;draw();}},{maxAge:30000})]);
   ready=true;draw();
 }
 route(/^\/food$/, 'food', async (el) => {

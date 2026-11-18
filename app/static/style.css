@@ -1497,6 +1497,17 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .health-page .health-connection-control>summary::-webkit-details-marker { display:none; }
 .health-page .health-connection-control>summary .inset-label>span { font-size:16px; font-weight:600; }
 .health-page .health-connection-control>summary .inset-label>small { font-size:14px; }
+.health-page .health-connection-control>summary .health-row-status { color:var(--tx3); font-size:14px; font-weight:400; }
+.health-page .health-connection-control>summary .health-row-status.needs-permission { color:var(--alert); }
+.health-page .health-readonly-row { min-height:56px; }
+.health-page .health-readonly-row .health-row-status { color:var(--tx3); font-size:14px; font-weight:400; }
+.health-page .health-row-chevron { display:grid; place-items:center; flex:none; width:24px; height:44px; min-width:24px; max-width:none; color:var(--tx3); }
+.health-page .health-row-chevron svg { width:18px; height:18px; }
+.health-page .health-how { margin:14px 16px 0; border-top:1px solid var(--line); }
+.health-page .health-how>summary { padding:12px 0; }
+.health-page .health-how>p { padding:0 0 12px; }
+.health-page .health-kit-consent { margin-top:12px; border-top:1px solid var(--line); }
+.health-page .health-upload-link { margin-top:12px; }
 .health-page .health-connection-control>summary .inset-value { display:flex; min-width:44px; min-height:44px; align-items:center; justify-content:flex-end; color:var(--accent); font-size:15px; font-weight:600; }
 .health-page .health-connection-body { padding:0 16px 16px; }
 .health-page .health-food-card>.inset-group { padding:8px 16px 16px; border:0; border-radius:0; background:transparent; box-shadow:none; }
