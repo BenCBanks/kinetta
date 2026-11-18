@@ -960,7 +960,7 @@ async function foodWarmupCase(browser){
   try{
     await login(context);const page=await context.newPage(),errors=[],requests=[];page.on('pageerror',error=>errors.push(error.message));
     await filterRequests(page,route=>{requests.push(route.request().url());return route.continue();});
-    await page.goto(base+'/me');await ready(page,meReady);assert.equal(requests.length,0,'Explore is absent from the initial Me load');assert.equal(await page.locator('.me-tools a[href="/me/explore"]').count(),1,'Explore remains available from Me');
+    await page.goto(base+'/me');await ready(page,meReady);assert.equal(requests.length,0,'Explore is absent from the initial Me load');assert.equal(await page.locator('.me-help a[href="/me/explore"]').count(),1,'Explore remains available in Me Help');
     await page.goto(base+'/me/explore');await ready(page,'.guide-hint','cold direct Explore route');assert.equal(requests.length,1,'cold direct links load Explore once');
     const lazyURL=new URL(requests[0]);assert.match(lazyURL.searchParams.get('v')||'',/^[0-9a-f]{32}$/,'the deferred bundle has its own build-stamped URL');
     assert.equal(new URL(page.url()).pathname,'/me/explore');assert.equal(await page.locator('nav.tabs a[data-tab="track"][aria-current="page"]').count(),1,'legacy Explore opens under Track');assert.deepEqual(await page.evaluate(()=>[typeof aiCan,typeof aiOffer,typeof kitChatOn]),['function','function','function'],'shared AI/Kit helpers stay eager');
@@ -982,7 +982,7 @@ async function foodWarmupCase(browser){
     await page.goto(base+'/track');await ready(page,'#track-start');assert.equal(await page.locator('#track-explore a[href="/me/explore"]').count(),0,'Track no longer duplicates Explore');
     await page.goto(base+'/me');await ready(page,meReady,'Me entry for Explore');
     await page.evaluate(()=>{App.scroll['/me/explore']=120;});
-    await page.locator('.me-tools a[href="/me/explore"]').click();
+    await page.locator('.me-help a[href="/me/explore"]').click();
     await ready(page,'.guide-hint','deferred Explore with saved scroll');
     assert.equal(await page.evaluate(()=>scrollY),await page.evaluate(()=>Math.min(120,Math.max(0,document.documentElement.scrollHeight-innerHeight))),'the deferred render restores the saved route position once');
   }finally{await scrollContext.close();}
@@ -997,7 +997,7 @@ async function foodWarmupCase(browser){
       viewResources.set(old,()=>{window.delayedOldPageCleaned=true;});
       window.finishDelayedOldPage=()=>{if(old.isConnected)old.innerHTML='<p id="stale-old-page">Late former page response</p>';};
     });
-    await page.locator('.me-tools a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
+    await page.locator('.me-help a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
     assert.deepEqual(await page.evaluate(()=>[window.delayedOldPage.isConnected,window.delayedOldPageCleaned]),[false,true],'the prior main is unmounted through normal view cleanup before the bundle wait');
     await page.evaluate(()=>window.finishDelayedOldPage());
     assert.equal(await page.locator('#stale-old-page').count(),0,'a delayed former-page response cannot write into the loading shell');
@@ -1020,7 +1020,7 @@ async function foodWarmupCase(browser){
         return original(options);
       };
     });
-    await page.locator('.me-tools a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
+    await page.locator('.me-help a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
     await login(accountContext,'zz_test_explore_typical');
     const meResponse=await accountContext.request.get(base+'/api/me');assert.equal(meResponse.status(),200,'second fictional account profile loads');
     await page.evaluate(me=>refreshMe(me),await meResponse.json());
