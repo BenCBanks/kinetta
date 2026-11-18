@@ -8,7 +8,8 @@ const WELCOME_AUDIENCE = [
   ['me', 'Only me', 'Your activities stay private. You can share single ones later.'],
 ];
 route(/^\/welcome$/, 'me', async (el) => {
-  const owner = readOwner();let currentStep='';const here = (id=currentStep) => el.isConnected && readOwner() === owner && currentStep===id;
+  const owner = readOwner(),profileDraftKey='fit.welcome.profile-draft:'+JSON.stringify([serverKey(),owner]);let currentStep='';const here = (id=currentStep) => el.isConnected && readOwner() === owner && currentStep===id;
+  const saveProfileDraft=(name,bio)=>{if(here('profile'))store.set(profileDraftKey,{name:String(name).slice(0,60),bio:String(bio).slice(0,280)});};
   const access = Object.values(App.me?.ai_access || {});
   const offerKit = !App.me?.ai_ok && (access.length ? access.some((a) => a.available && a.entitled) : !!App.me?.coach);
   const k = offerKit ? 1 : 0, total = 4 + k;
@@ -26,24 +27,25 @@ route(/^\/welcome$/, 'me', async (el) => {
     catch (x) { if (here(id)) { $('#wc-err', el).textContent = x.message;controls.forEach(button=>button.disabled=false); } }
   };
   function profile() {
-    const me = App.me;
+    const me = App.me,draft=store.get(profileDraftKey),draftName=typeof draft?.name==='string'?draft.name:me.name,draftBio=typeof draft?.bio==='string'?draft.bio:(me.bio||'');
     frame('profile',1, 'Your profile', 'Shown with your name to friends and people who find you. Your photo and bio are optional. Skip keeps your current profile.',
       `<div class="welcome-photo"><button type="button" class="av-edit" id="wc-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'xl')}<span class="av-cam">${svg('camera')}</span></button></div>
-      <form class="form" id="wc-form"><label>Name<input name="name" value="${esc(me.name)}" maxlength="60" required autocomplete="name" enterkeyhint="next"></label>
-      <label>Bio · optional<textarea name="bio" rows="3" maxlength="280" placeholder="What you enjoy, what you’re working toward…">${esc(me.bio || '')}</textarea></label>
-      <p class="small muted" id="wc-count">${(me.bio || '').length}/280</p></form>`);
+      <form class="form" id="wc-form"><label>Name<input name="name" value="${esc(draftName)}" maxlength="60" required autocomplete="name" enterkeyhint="next"></label>
+      <label>Bio · optional<textarea name="bio" rows="3" maxlength="280" placeholder="What you enjoy, what you’re working toward…">${esc(draftBio)}</textarea></label>
+      <p class="small muted" id="wc-count">${draftBio.length}/280</p></form>`);
     const f = $('#wc-form', el);
-    $('#wc-photo', el).onclick = () => profilePhotoSheet(() => { keep('/api/me', App.me); if (here('profile')) { const keepName = f.elements.name.value, keepBio = f.elements.bio.value; profile(); const g = $('#wc-form', el); g.elements.name.value = keepName; g.elements.bio.value = keepBio; } });
-    f.elements.bio.oninput = () => { $('#wc-count', el).textContent = `${f.elements.bio.value.length}/280`; };
+    $('#wc-photo', el).onclick = () => profilePhotoSheet(() => { keep('/api/me', App.me); if (here('profile')) { const keepName = f.elements.name.value, keepBio = f.elements.bio.value; saveProfileDraft(keepName,keepBio); profile(); const g = $('#wc-form', el); g.elements.name.value = keepName; g.elements.bio.value = keepBio; $('#wc-count',el).textContent=`${keepBio.length}/280`; } });
+    f.elements.name.oninput = () => saveProfileDraft(f.elements.name.value,f.elements.bio.value);
+    f.elements.bio.oninput = () => { $('#wc-count', el).textContent = `${f.elements.bio.value.length}/280`;saveProfileDraft(f.elements.name.value,f.elements.bio.value); };
     f.onsubmit = (e) => { e.preventDefault(); $('#wc-next', el).click(); };
     const after = offerKit ? kit : audience;
-    $('#wc-skip', el).onclick = after;
+    $('#wc-skip', el).onclick = () => { store.del(profileDraftKey);after(); };
     $('#wc-next', el).onclick = step(async () => {
       if (!f.reportValidity()) throw new Error('Add your name to continue.');
       const name = f.elements.name.value.trim(), bio = f.elements.bio.value.trim();
-      if (name === me.name && bio === (me.bio || '')) return;
+      if (name === me.name && bio === (me.bio || '')) { store.del(profileDraftKey);return; }
       const r = await api('/api/account', json('PUT', {name, bio}));
-      if(!here('profile'))return;App.me.name = r.name || name; App.me.bio = bio; keep('/api/me', App.me); invalidate('/api/people/');
+      if(!here('profile'))return;store.del(profileDraftKey);App.me.name = r.name || name; App.me.bio = bio; keep('/api/me', App.me); invalidate('/api/people/');
     }, after);
   }
   function kit() {
