@@ -2530,3 +2530,20 @@ html body .me-card-bars .me-week.now > span:first-child { background: var(--acce
 .achievement-share-preview[aria-busy="true"] img { opacity:.5; }
 @media (prefers-reduced-motion:reduce) { .achievement-share-preview-skeleton { animation:none; } }
 @media (max-width:350px) { .scrim:has(.achievement-share-sheet) .sheet { padding-right:16px; padding-left:16px; } }
+
+/* Progress > Lifting: clear record names and compact exercise rows. */
+.lift-exercise-row { min-height:56px; gap:8px; }
+.lift-exercise-name { display:grid; min-width:0; gap:2px; }
+.lift-exercise-name > b,.lift-exercise-meta { overflow-wrap:anywhere; }
+.lift-exercise-row > .chev { flex:none; }
+.lv-best { display:grid; flex:none; gap:2px; text-align:right; }
+.lv-best b { font:600 17px var(--numf); }
+@media(max-width:390px) {
+  .lift-exercise-row { display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"name chevron" "best chevron"; gap:2px 8px; padding-block:8px; }
+  .lift-exercise-name { grid-area:name; }
+  .lift-exercise-meta { display:none; }
+  .lift-exercise-row .lv-best { grid-area:best; display:flex; align-items:baseline; justify-content:flex-start; gap:8px; text-align:left; }
+  .lift-exercise-row .lv-best small { color:var(--tx3); }
+  .lift-exercise-row .lv-best b { font-size:15px; }
+  .lift-exercise-row > .chev { grid-area:chevron; }
+}

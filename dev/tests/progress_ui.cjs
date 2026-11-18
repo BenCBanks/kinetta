@@ -51,6 +51,14 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   for(const size of sizes)for(const theme of ['light','dark']){
    if(process.env.KINETTA_PROGRESS_CASE&&process.env.KINETTA_PROGRESS_CASE!==`${who}-${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];await p.clock.setFixedTime(fixtureInstant);let notificationCount=0;
+   const liftingFixtures={
+    one:[{exercise:{id:321,name:'Fictional bench press',kind:'weight'},records:{heaviest:{value:90,reps:3,activity_id:731,start_time:'2026-11-09T12:00:00Z'},e1rm:{value:99.2,kg:85,reps:5,activity_id:731,start_time:'2026-11-09T12:00:00Z'},reps:{value:8,kg:75,activity_id:731,start_time:'2026-11-09T12:00:00Z'},volume:{value:1070,activity_id:731,start_time:'2026-11-09T12:00:00Z'}}}],
+    many:[
+     {exercise:{id:321,name:'Fictional bench press',kind:'weight'},records:{heaviest:{value:90,reps:3,activity_id:731,start_time:'2026-11-09T12:00:00Z'},e1rm:{value:99.2,kg:85,reps:5,activity_id:731,start_time:'2026-11-09T12:00:00Z'},reps:{value:8,kg:75,activity_id:731,start_time:'2026-11-09T12:00:00Z'},volume:{value:1070,activity_id:731,start_time:'2026-11-09T12:00:00Z'}}},
+     {exercise:{id:322,name:'Fictional push-up',kind:'body'},records:{reps:{value:32,kg:0,activity_id:732,start_time:'2026-11-08T12:00:00Z'}}},
+     {exercise:{id:323,name:'Fictional plank',kind:'time'},records:{secs:{value:95,activity_id:733,start_time:'2026-11-07T12:00:00Z'}}}
+    ]};
+   let liftingRows=liftingFixtures.many,liftingRecordReads=0;
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    if(out)await c.addInitScript(()=>{window.__KINETTA_SCREENSHOT_MODE__=true;});
    p.on('pageerror',e=>errors.push(e.message));
@@ -63,6 +71,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     else {const d=120000,t=52000;rows.push({p:'2026-01-01',s:'run',d,t,pace_d:d,pace_t:t,n:30,a:0});}
     return r.fulfill({json:{period,today:fixtureToday,rows}});
    });
+   if(who==='runner')await c.route('**/api/lifts/records',r=>{liftingRecordReads++;return r.fulfill({json:liftingRows});});
    if(who==='runner')await c.route('**/api/activity-food',async r=>{const response=await r.fetch(),data=await response.json(),day=(offset)=>{const d=new Date(fixtureToday+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10);};data.week={...data.week,start:day(-7),end:day(-1),workouts:4,distance_m:12340,seconds:4420,days_logged:5,protein_target:110,protein_days_reached:3,protein_days_unknown:1};return r.fulfill({response,json:data});});
    const ready=()=>until(p,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key===location.pathname+location.search,'ready');
    const home=async()=>{if(p.url()==='about:blank')await p.goto(base+'/progress');else await p.evaluate(()=>go('/progress'));await p.waitForURL(base+'/progress');await ready();await p.waitForSelector('#p-explore a');};
@@ -195,6 +204,50 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
      const header=await heading.evaluate(n=>{const title=n.querySelector('h1'),back=n.querySelector('.progress-back'),button=n.querySelector('.acts > *'),a=title.getBoundingClientRect(),b=back.getBoundingClientRect(),c=button.getBoundingClientRect();return{titleFont:getComputedStyle(title).fontSize,titleWeight:getComputedStyle(title).fontWeight,titleCenter:a.x+a.width/2,headerCenter:n.getBoundingClientRect().x+n.getBoundingClientRect().width/2,backHeight:b.height,actionHeight:c.height,scrollWidth:n.scrollWidth,clientWidth:n.clientWidth};});
      assert.deepEqual({titleFont:header.titleFont,titleWeight:header.titleWeight,backHeight:header.backHeight,actionHeight:header.actionHeight},{titleFont:'17px',titleWeight:'600',backHeight:44,actionHeight:44},url+' uses the compact centered header with 44px controls');assert(Math.abs(header.titleCenter-header.headerCenter)<1,url+' centers its title');assert(header.scrollWidth<=header.clientWidth+1,url+' header has no horizontal overflow');if(trainingView==='fitness')await assertTabFocus(p,`.progress-subpage-tabs [data-progress-section="${trainingView}"]`,'Fitness section',{preventAction:true});
      if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/progress-subpage-${who}-${trainingView}-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
+     if(trainingView==='records'&&who==='runner'){
+      const originalProgressSport=await p.evaluate(()=>localStorage.getItem('fit.psport'));
+      assert.equal(await p.locator('[data-strength-record]').count(),0,'Run Records contains no lifting entries');
+      assert.equal(await p.locator('.strength-records').count(),0,'Run Records has no separate Strength card');
+      assert.equal(liftingRecordReads,0,'Run Records does not request lifting records');
+      for(const [state,rows] of [['empty',[]],['one',liftingFixtures.one],['many',liftingFixtures.many]]){
+       liftingRows=rows;
+       await p.locator('#p-sport').click();await p.locator(`[data-pk="lifting"]`).waitFor();
+       assert.equal(await p.locator('[data-pk="lifting"] .grow > span').innerText(),'Lifting','Lifting is an option in the Records sport selector');
+       await p.locator('[data-pk="lifting"]').click();await ready();
+       await until(p,()=>document.querySelector('#p-sport span')?.textContent==='Lifting','Lifting Records selected');
+       assert.equal(await p.locator('#p-sport').getAttribute('aria-label'),'Sport: Lifting. Change','selected sport control names Lifting accessibly');
+       assert.equal(await p.evaluate(()=>localStorage.getItem('fit.psport')),originalProgressSport,'Records-only Lifting selection does not alter the general Progress sport');
+       await p.waitForFunction(()=>document.querySelector('.lifting-records,.card.empty'),'Lifting Records state renders');
+       const recordRows=p.locator('[data-strength-record]');
+       assert.equal(await recordRows.count(),rows.length,`${state} Lifting Records contains the expected rows`);
+       if(state==='empty')assert.match(await p.locator('.card.empty').innerText(),/No lifting records yet/,'empty Lifting state explains how records appear');
+       else{
+        assert.deepEqual(await p.locator('.lifting-records th').allInnerTexts(),['Exercise','Best','Date'],'Lifting uses the Records table columns');
+        assert.equal(await recordRows.first().locator('.lifting-record-name').getAttribute('href'),'/lift/ex/321','exercise name drills into its history');
+        assert.match(await recordRows.first().innerText(),/Fictional bench press[\s\S]*Heaviest set[\s\S]*198\.4 lb × 3[\s\S]*Nov 9, 2026/,'table row pairs exercise, best and date');
+        const measured=await recordRows.evaluateAll(nodes=>nodes.map(n=>({height:n.getBoundingClientRect().height,scroll:n.scrollWidth,client:n.clientWidth})));
+        assert(measured.every(row=>row.height>=56&&row.scroll<=row.client+1),`${state} rows stay readable and touch friendly: ${JSON.stringify(measured)}`);
+        const targets=await recordRows.locator('.lifting-record-name').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
+        assert(targets.every(height=>height>=44),`${state} exercise drill-down targets remain 44px: ${targets.join(',')}`);
+        assert(await p.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),`${state} Lifting table has no horizontal page overflow`);
+       }
+       assert.equal(liftingRecordReads,1+(['empty','one','many'].indexOf(state)),'only selecting Lifting reads its records endpoint');
+       if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/progress-strength-records-${state}-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
+       if(state!=='many'){
+        await p.evaluate(()=>{App.cache.delete('/api/lifts/records');go('/progress?view=records&sport=run');});await ready();
+        assert.equal(await p.locator('[data-strength-record]').count(),0,'other sports do not render lifting records');
+       }
+      }
+      for(const sport of ['run','ride','walk','hike']){
+       if(await p.locator('#p-sport span').innerText()!==({run:'Run',ride:'Ride',walk:'Walk',hike:'Hike'}[sport])){
+        await p.locator('#p-sport').click();await p.locator(`[data-pk="${sport}"]`).click();await ready();
+       }
+       assert.equal(await p.locator('[data-strength-record]').count(),0,`${sport} Records contains no lifting entries`);
+      }
+      await p.evaluate(()=>{App.me.units='metric';go('/progress?view=records&sport=lifting');});await ready();await until(p,()=>document.querySelector('[data-strength-record] .lifting-record-value')?.textContent.includes('90.0 kg'),'metric Lifting record value');
+      assert.equal(await p.locator('[data-strength-record]').first().locator('.lifting-record-value').innerText(),'90.0 kg × 3','the same canonical lifting value converts to metric');
+      await p.evaluate(sport=>{App.me.units='imperial';if(sport===null)localStorage.removeItem('fit.psport');else localStorage.setItem('fit.psport',sport);go('/progress');},originalProgressSport);await ready();await p.evaluate(url=>go(url),url);await ready();
+     }
      const next=['fitness','records','lifting'].find(view=>view!==trainingView);await p.locator(`[data-progress-section="${next}"]`).click();await p.waitForURL(`**/progress?view=${next}*`);await ready();assert.equal(await p.locator(`[data-progress-section="${next}"]`).getAttribute('aria-pressed'),'true','sibling navigation updates the selected view');
      await p.evaluate(url=>go(url),url);await ready();
     }

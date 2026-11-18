@@ -217,7 +217,7 @@ button.lift-prev:active { background: var(--card2); }
 .lift-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .lift-card-head h2 { margin: 0; }
 .ls-row .grow small { font-size: 14px; } .ls-row .grow small.num { color: var(--tx); }
-.lv-best { display: grid; text-align: right; flex: none; } .lv-best b { font: 700 17px var(--numf); }
+.lv-best { display: grid; text-align: right; flex: none; gap:2px; } .lv-best b { font: 700 17px var(--numf); }
 .lv-names { white-space: normal; overflow-wrap: anywhere; }
 .lx-head h1 { font-size: 26px; letter-spacing: -.02em; margin: 2px 0 4px; }
 .lx-note { display: block; width: 100%; text-align: left; margin-top: 12px; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--card2); color: var(--tx2); font-size: 14px; }

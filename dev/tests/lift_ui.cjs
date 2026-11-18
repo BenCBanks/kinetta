@@ -17,14 +17,23 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    await p.goto(base+'/me');await until(p,()=>App.pageReady);
    const exerciseFixture={mine:Array.from({length:9},(_,i)=>({id:998800+i,name:`Fictional exercise ${i+1}`,sessions:2,last:'2026-10-30',kind:'weight',best_kg:20+i,best_reps:8}))};
    await c.route(url=>url.origin===base&&url.pathname==='/api/lifts/exercises',r=>r.fulfill({json:exerciseFixture}));
-   await c.route(url=>url.origin===base&&url.pathname==='/api/lifts/sessions'&&url.searchParams.get('limit')==='5',r=>r.fulfill({json:[]}));
+   await c.route(url=>url.origin===base&&url.pathname==='/api/lifts/sessions'&&url.searchParams.get('limit')==='5',r=>r.fulfill({json:[{id:998899,name:'Fictional strength session',start_time:'2026-10-30T12:00:00Z',sets:2,volume:90.7184,exercises:['Fictional bench press']}]}));
    await p.goto(base+'/progress?view=lifting');await p.locator('#lv-q').waitFor();
+   assert.equal(await p.locator('#lv-body .count').count(),0,'exercise count is omitted from the section title');
+   assert.match(await p.locator('#lv-body').innerText(),/2 sets · 200 lb total volume/,'recent session labels its converted sum as total volume');
+   const liftRows=p.locator('#lv-ex .lift-exercise-row');assert.equal(await liftRows.count(),9);
+   assert.equal(await liftRows.first().locator('.lv-best small').innerText(),'Heaviest set');assert.equal(await liftRows.first().locator('.lv-best b').innerText(),'44.1 lb');
+   assert.equal(await liftRows.first().locator('.chev').count(),1,'each exercise row exposes a drill-down chevron');
+   assert(await liftRows.evaluateAll(rows=>rows.every(row=>row.getBoundingClientRect().height>=56)),'exercise rows have at least 56px height');
+   if(size.width<=390){const stacked=await liftRows.first().evaluate(row=>{const name=row.querySelector('.lift-exercise-name').getBoundingClientRect(),best=row.querySelector('.lv-best').getBoundingClientRect();return{nameTop:name.top,nameBottom:name.bottom,bestTop:best.top,bestBottom:best.bottom,rowBottom:row.getBoundingClientRect().bottom,layout:getComputedStyle(row).display,grid:getComputedStyle(row).gridTemplateAreas};});assert(stacked.bestTop>=stacked.nameBottom-1&&stacked.bestTop<stacked.rowBottom,`record label/value sit under the exercise name on narrow screens: ${JSON.stringify(stacked)}`);}
+   if(shots&&size.width<=390){require('node:fs').mkdirSync(shots,{recursive:true});await p.screenshot({path:require('node:path').join(shots,`lift-records-${size.width}-${theme}.png`),fullPage:true,animations:'disabled'});}
    await p.locator('#lv-q').fill('Fictional name with no match');assert(await p.locator('#lv-search-empty').isVisible(),'a no-match exercise search explains the blank result');
    const clearSearch=p.locator('#lv-search-clear');assert.equal(await clearSearch.innerText(),'Clear search');assert((await clearSearch.boundingBox()).height>=44,'clear-search action is at least 44px');
    if(shots&&size.width===390){require('node:fs').mkdirSync(shots,{recursive:true});await p.screenshot({path:require('node:path').join(shots,`lift-exercise-search-empty-${theme}.png`),fullPage:true,animations:'disabled'});}
    await clearSearch.click();assert.equal(await p.locator('#lv-ex .row-link:visible').count(),9,'clearing search restores all exercise rows');
    // The logger now lives in the guarded lift-routes bundle; load it through a real deferred route before
    // exercising its controls directly below. The eager Me/Track summary seam has already been checked above.
+   await c.route(url=>url.origin===base&&url.pathname==='/api/lifts/exercises/999905',r=>r.fulfill({json:{exercise:{id:999905,name:'Fictional push-up',kind:'body',sessions:4,last:'2026-10-30',note:''},records:{reps:{value:10,activity_id:999914,start_time:'2026-10-30T12:00:00Z'}},sessions:[]}}));
    await p.goto(base+'/lift/ex/999905');await until(p,()=>App.pageReady);
    const fixtureNow=fixtureInstant;
    const fixtureDay=daysAgo=>{const d=new Date(fixtureNow);d.setUTCDate(d.getUTCDate()-daysAgo);return d.toISOString().slice(0,10);};
@@ -115,6 +124,9 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
     const history={exercise:{id:999905,name:'Fictional push-up',kind:'body',sessions:4,last:days[0],note:''},records:{reps:{value:10,activity_id:999914,start_time:days[0]}},sessions:[10,9,8,7].map((best,i)=>({activity_id:999914-i,start_time:`${days[i]}T12:00:00Z`,reps:best*2-1,best_reps:best,top:{kg:30,reps:best-1},sets:[{reps:best,kg:0,done:true},{reps:best-1,kg:30,done:true}]}))};window.bodyChartHistory=history;drawExercise(document.querySelector('#page'),history);
    },chartDays);
    await until(p,()=>!!document.querySelector('#lx-chart svg')&&!!window.bodyChartPoints);assert.deepEqual(await p.evaluate(()=>bodyChartPoints),[7,8,9,10],'bodyweight chart plots the best single set, not session totals');assert(await p.getByRole('heading',{name:'Most reps in a set',exact:true}).isVisible());assert((await p.locator('.lx-rec').innerText()).includes('10'),'single-set record stays10');await p.evaluate(()=>{for(const s of bodyChartHistory.sessions){delete s.best_reps;s.sets.push({reps:90,done:true,warmup:true},{reps:99,done:false});}window.bodyChartPoints=null;drawExercise(document.querySelector('#page'),bodyChartHistory);});await until(p,()=>!!window.bodyChartPoints);assert.deepEqual(await p.evaluate(()=>bodyChartPoints),[7,8,9,10],'older-server fallback ignores warm-up and unfinished sets');await p.evaluate(()=>restoreBodyChart());
+   await p.evaluate(day=>drawExercise(document.querySelector('#page'),{exercise:{id:999906,name:'Fictional bench press',kind:'weight',sessions:3,last:day,note:''},records:{heaviest:{value:90,reps:3,activity_id:999920,start_time:day},e1rm:{value:99.2,kg:85,reps:5,activity_id:999920,start_time:day},reps:{value:8,kg:75,activity_id:999920,start_time:day},volume:{value:1070,activity_id:999920,start_time:day}},sessions:[]}),fixtureStamp(1));
+   const weightedRecordRows=await p.locator('.lx-rec').allTextContents();assert.equal(weightedRecordRows.length,4,`weighted exercise shows heaviest, estimated 1RM, most reps and session volume: ${JSON.stringify(weightedRecordRows)}`);assert.match(await p.locator('.lx-rec').nth(1).innerText(),/Epley estimate from 187\.4 × 5/,'estimated one-rep max names its calculation method and set');
+   assert.match(await p.locator('.lx-rec').nth(2).innerText(),/Most reps in a set[\s\S]*at 165\.3 lb/,'the highest-rep record includes its load');
    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)));assert.deepEqual(errors,[]);await c.close();console.log(`Lifting writes/values/summary: ${size.width}px/${size.root}px ${theme} PASS`);
   }
  }finally{await browser.close();}

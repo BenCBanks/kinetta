@@ -373,6 +373,23 @@
 .record-history-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
 .record-history-heading h2 { margin:0; }
 .record-history-heading .me-period { gap:8px; }
+.lifting-records .tbl { table-layout:fixed; }
+.lifting-records .tbl th:first-child,.lifting-records .tbl td:first-child { width:40%; }
+.lifting-records .tbl th:nth-child(2),.lifting-records .tbl td:nth-child(2) { width:32%; }
+.lifting-records .tbl th:nth-child(3),.lifting-records .tbl td:nth-child(3) { width:28%; }
+.lifting-records .tbl td { padding:6px 4px; vertical-align:middle; }
+.lifting-record-name { display:flex; min-height:44px; flex-direction:column; justify-content:center; gap:2px; color:var(--tx); text-decoration:none; overflow-wrap:anywhere; }
+.lifting-record-name b { font-weight:600; }
+.lifting-record-name small { color:var(--tx2); font-size:.8125rem; }
+.lifting-record-value { white-space:nowrap; font-size:.875rem; }
+.lifting-record-date { white-space:nowrap; font-size:.8125rem !important; }
+@media(max-width:370px) {
+  .lifting-records .tbl th,.lifting-records .tbl td { padding-right:2px; padding-left:2px; }
+  .lifting-records .tbl th:first-child,.lifting-records .tbl td:first-child { width:38%; }
+  .lifting-records .tbl th:nth-child(2),.lifting-records .tbl td:nth-child(2) { width:34%; }
+  .lifting-record-value { font-size:.8125rem; }
+  .lifting-record-date { font-size:.75rem !important; }
+}
 .progress-segment-controls .mileage-toggle { min-width:0; max-width:100%; gap:8px; }
 .progress-segment-controls [data-f] { min-width:44px; min-height:44px; }
 

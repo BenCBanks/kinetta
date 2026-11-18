@@ -73,14 +73,15 @@ async function pLifting(body) {
     $('#lv-start', box).onclick = startLiftSheet;
     return;
   }
-  const best = (x) => (x.kind === 'time' ? `${x.best_secs || 0} s` : x.kind === 'body' && !x.best_kg ? `${x.best_reps || 0} reps` : `${toW(x.best_kg)} ${wUnit()}`);
+  const best = (x) => x.kind === 'time' ? `${x.best_secs || 0} s` : x.kind === 'body' ? `${x.best_reps || 0} reps` : `${toW(x.best_kg)} ${wUnit()}`;
+  const bestLabel = (x) => x.kind === 'time' ? 'Longest hold' : x.kind === 'body' ? 'Most reps' : 'Heaviest set';
   box.innerHTML = `<div class="card"><h2>Recent sessions</h2>${ses.map((s) => `<a class="row-link" href="/activity/${s.id}" data-prefetch="/api/activities/${s.id}"><span class="grow"><b>${esc(s.name)}</b>
-      <small class="muted">${esc(shortDay(s.start_time))} · ${s.sets} sets${s.volume ? ' · ' + esc(volText(s.volume)) : ''}</small><small class="muted lv-names">${esc((s.exercises || []).join(', '))}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>
-    <div class="card"><h2>Your exercises <span class="count">${mine.length}</span></h2>
+      <small class="muted">${esc(shortDay(s.start_time))} · ${s.sets} sets${s.volume ? ' · ' + esc(volText(s.volume)) + ' total volume' : ''}</small><small class="muted lv-names">${esc((s.exercises || []).join(', '))}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>
+    <div class="card"><h2>Your exercises</h2>
       ${mine.length > 8 ? '<input type="search" id="lv-q" placeholder="Find an exercise" autocomplete="off">' : ''}
-      <div id="lv-ex">${mine.map((x) => `<a class="row-link" href="/lift/ex/${x.id}" data-n="${esc(x.name.toLowerCase())}"><span class="grow"><b>${esc(x.name)}</b>
-        <small class="muted">${x.sessions} session${x.sessions > 1 ? 's' : ''} · last ${esc(shortDay(x.last))}</small></span>
-        <span class="lv-best"><small class="muted">Best</small><b class="num">${esc(best(x))}</b></span></a>`).join('')}<div class="lv-search-empty" id="lv-search-empty" hidden><p class="small muted">No matching exercises. Try another name.</p><button type="button" class="linkbtn" id="lv-search-clear">Clear search</button></div></div></div>`;
+      <div id="lv-ex">${mine.map((x) => `<a class="row-link lift-exercise-row" href="/lift/ex/${x.id}" data-n="${esc(x.name.toLowerCase())}"><span class="lift-exercise-name"><b>${esc(x.name)}</b>
+        <small class="muted lift-exercise-meta">${x.sessions} session${x.sessions > 1 ? 's' : ''} · last ${esc(shortDay(x.last))}</small></span>
+        <span class="lv-best"><small class="muted">${bestLabel(x)}</small><b class="num">${esc(best(x))}</b></span><span class="chev">${svg('chev')}</span></a>`).join('')}<div class="lv-search-empty" id="lv-search-empty" hidden><p class="small muted">No matching exercises. Try another name.</p><button type="button" class="linkbtn" id="lv-search-clear">Clear search</button></div></div></div>`;
   const q = $('#lv-q', box);
   if (q) {
     const empty=$('#lv-search-empty',box),clear=$('#lv-search-clear',box);
