@@ -41,6 +41,8 @@ async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
     await c.addInitScript(initialize,{root:size.root,native:!!scene.native,base,token:auth.token,id:auth.id,lift:scene.lift,liftData});
     if(scene.dismissWeeklyRecap)await seedWeeklyRecapDismissal(c,{id:auth.id,tz:auth.tz},base,clockTime);
     await c.route('**/*',r=>{const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();if(scene.signup&&request.method()==='GET'&&u.pathname==='/api/signup')return r.fulfill({json:{open:true,full:false}});if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(request.method()==='POST'&&u.pathname==='/api/milestones/celebrate')return r.fulfill({json:{items:[],pending:false}});if(!['GET','HEAD'].includes(request.method())){writes.push(u.pathname);return r.abort();}
+     // Keep the Today card and its pinned browser clock on the same plan day, even across local midnight.
+     if(scene.todayPlan&&u.pathname==='/api/plans/current')return r.fulfill({json:fixtures.me_today.plan});
      if(scene.groups&&u.pathname==='/api/groups')return r.fulfill({json:[]});
      if(scene.group==='empty'&&u.pathname==='/api/groups/00000000-0000-4000-8000-000000000001')return r.fulfill({json:require('./spacing_screens.cjs').GROUP_EMPTY});
      if(scene.group==='full'&&u.pathname==='/api/groups/00000000-0000-4000-8000-000000000050')return r.fulfill({json:require('./spacing_screens.cjs').GROUP_FULL});
