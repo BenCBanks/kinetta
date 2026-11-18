@@ -135,6 +135,63 @@
 .nutrition-secondary summary small { font-size:.8125rem; }
 .nutrition-home .meal .swipe + .swipe { margin-top:8px; }
 
+/* Range-aware Nutrition Insights (Ben, 17 Nov 2026): sparse logs stay honest and quiet. */
+.insights-range #n-range { min-width:44px; min-height:44px; padding:0 4px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--tx); font-size:15px; font-weight:600; }
+.insights-range #n-range::before { content:none; }
+.insights-range #n-range svg { width:14px; height:14px; color:var(--tx2); }
+.insights-range-dates { min-height:20px; margin:-4px 0 12px; color:var(--tx3); font-size:14px; line-height:20px; font-variant-numeric:tabular-nums; }
+.nutrition-detail #nt-body .insights-coverage { align-items:flex-start; flex-direction:column; text-align:left; }
+.insights-summary.card { padding:16px; border:1px solid var(--line); border-radius:20px; background:var(--card); box-shadow:none; }
+.insights-card-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+.insights-card-heading h2 { min-width:0; margin:0; color:var(--tx); font-size:20px; line-height:1.25; font-weight:600; }
+.insights-daily-link { display:inline-flex; align-items:center; justify-content:flex-end; gap:3px; flex:none; min-width:44px; min-height:44px; margin:-6px -6px -6px 0; color:var(--accent); font-size:14px; font-weight:500; text-decoration:none; }
+.insights-daily-link svg { width:16px; height:16px; }
+.insights-coverage { display:flex; flex-direction:column; align-items:flex-start; gap:3px; margin:8px 0 0; color:var(--tx2); font-size:15px; line-height:1.4; text-align:left; }
+.insights-coverage b { color:var(--tx); font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; }
+.insights-empty-state { display:flex; flex-direction:column; align-items:flex-start; gap:2px; margin:12px 0 4px; }
+.insights-empty-state strong { color:var(--tx); font-size:36px; line-height:1.1; font-weight:600; }
+.insights-empty-state span { color:var(--tx2); font-size:15px; }
+.insights-sparse-metric { display:flex; flex-direction:column; gap:2px; margin-top:14px; }
+.insights-sparse-metric span { color:var(--tx2); font-size:15px; }
+.insights-sparse-metric b { color:var(--tx); font-size:22px; line-height:1.2; font-weight:600; font-variant-numeric:tabular-nums; }
+.insights-sparse-metric small,.insights-covered-days { color:var(--tx3); font-size:13px; }
+.insights-chart-wrap { margin:8px 0 0; }
+.insights-summary .chartbox { margin:0; }
+.insights-summary .chartbox svg { touch-action:pan-y; }
+.insights-summary .chartbox .yl { font-size:12px; fill:var(--tx3); }
+.insights-summary .chartbox .gl { stroke:var(--line); }
+.insights-summary .chartbox .bar-seg.k-brand { fill:var(--accent); stroke:var(--accent); }
+.insights-summary .chartbox .bar-seg.k-brand.partial { fill:var(--card); stroke:var(--accent); stroke-width:1.5; opacity:1; }
+.insights-summary .chartbox .avgline { stroke:var(--tx2); stroke-dasharray:4 4; }
+.insights-summary .period-zero { stroke:var(--line); }
+.insights-summary .readout { position:static; min-height:32px; padding:4px 0; margin:0; border:0; border-radius:0; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; color:var(--tx2); font-size:13px; }
+.insights-summary .readout:empty { display:none; }
+.insights-filled-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
+.insights-filled-metrics a { display:flex; flex-direction:column; align-items:flex-start; gap:3px; min-width:0; min-height:44px; color:var(--tx); text-decoration:none; }
+.insights-filled-metrics a + a { padding-left:12px; border-left:1px solid var(--line); }
+.insights-filled-metrics span { color:var(--tx2); font-size:14px; }
+.insights-filled-metrics b { font-size:20px; line-height:1.2; font-weight:600; font-variant-numeric:tabular-nums; }
+.insights-covered-days { margin:8px 0 2px; }
+.insights-detail-row { border-top:1px solid var(--line); }
+.insights-detail-row:first-of-type { margin-top:8px; }
+.insights-detail-row summary { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; color:var(--tx2); font-size:15px; font-weight:500; cursor:pointer; list-style:none; }
+.insights-detail-row summary::-webkit-details-marker { display:none; }
+.insights-detail-row summary::after { content:'›'; color:var(--tx3); font-size:22px; line-height:1; transform:rotate(0); }
+.insights-detail-row[open] summary::after { transform:rotate(90deg); }
+.insights-detail-content { padding:0 0 10px; color:var(--tx2); font-size:14px; }
+.insights-detail-content > div,.insights-detail-content li { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:4px 0; }
+.insights-detail-content ol { margin:0; padding:0; list-style:none; }
+.insights-detail-content b { flex:none; color:var(--tx); font-weight:500; font-variant-numeric:tabular-nums; }
+.insights-detail-content p { margin:0; }
+.insights-log-food { min-height:48px; margin:8px 0 0; border:0; border-radius:22px; box-shadow:none; font-size:15px; font-weight:600; text-align:center; }
+@media(max-width:360px) {
+  .insights-card-heading { align-items:flex-start; }
+  .insights-card-heading h2 { font-size:19px; }
+  .insights-daily-link { font-size:13px; }
+  .insights-filled-metrics { grid-template-columns:minmax(0,1fr); gap:8px; }
+  .insights-filled-metrics a + a { padding:8px 0 0; border-top:1px solid var(--line); border-left:0; }
+}
+
 /* Food history keeps one row per logged day and dates visible while reading columns. */
 .food-history-date { display:grid;gap:8px;font-size:max(15px,.9375rem); }
 .food-history-date input { flex:1;min-width:0;font-size:max(16px,1rem);min-height:44px; }
