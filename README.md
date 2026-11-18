@@ -37,7 +37,7 @@ accounts keep their saved choices. Food and body records stay in the account unl
 
 **For your people**
 - Each person has their own account. New accounts share activities and achievements with everyone signed in to their Kinetta server by default; change this in Settings → Sharing & privacy. Existing accounts keep their saved choices.
-- Invite someone with a link: they pick their own username and password. When open sign-up is enabled, new accounts confirm their email before becoming visible to others; resending replaces the previous unused link. If email recovery is unavailable, username sign-in remains an option. Installations can use invite-only, waitlist or open sign-up
+- Invite someone with a link: they pick their own username and password. When open sign-up is enabled, new accounts confirm their email before becoming visible to others; resending replaces the previous unused link. If email recovery is unavailable, you can still sign in with your username and password. Installations can use invite-only, waitlist or open sign-up
 - Comment on shared activities, with retry and delete confirmation in the comments sheet
 - Share achievement images for a single sport or a compact all-sports highlights card
 - Works on any phone as an app on the home screen, also offline for logging food
