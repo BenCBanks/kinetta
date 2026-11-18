@@ -126,25 +126,24 @@ const saveAchievementExport=async(page,scope)=>{
 const waitForShareScope=async(page,scope)=>{try{await page.waitForFunction(expected=>[...document.querySelectorAll('.sheet [data-achievement-preview]')].some(preview=>preview.getAttribute('aria-busy')==='false'&&(preview.querySelector(`[data-achievement-preview-image][data-achievement-preview-scope="${expected}"]`)||preview.closest('.sheet')?.querySelector('[data-achievement-share-state][data-state="error"]'))),scope,{timeout:10000});}catch(_){}const state=await page.locator('.sheet').evaluateAll(sheets=>({all:sheets.map(sheet=>{const preview=sheet.querySelector('[data-achievement-preview]');return{busy:preview?.getAttribute('aria-busy'),scope:preview?.querySelector('[data-achievement-preview-image]')?.dataset.achievementPreviewScope||null,images:[...(preview?.querySelectorAll('img')||[])].map(image=>({complete:image.complete,width:image.naturalWidth,height:image.naturalHeight})),error:sheet.querySelector('[data-achievement-share-state]')?.innerText||null};}),mode:window.__sharePictureDiagnostic?.mode,errorName:window.__sharePictureDiagnostic?.errorName,errorMessage:window.__sharePictureDiagnostic?.errorMessage}));assert(state.all.some(item=>item.scope===scope),`${scope} achievement preview rendered: ${JSON.stringify(state)}`);};
 const assertLatestBadgeRingGeometry=async(page,width,theme,expectedRank)=>{
  const selector='#profile-achievement-page .profile-achievement-sport-card[data-achievement-code="sport:run"]';
- try{
-  await page.waitForFunction(({selector,expectedRank})=>{
-   const root=document.querySelector('#profile-achievement-page'),card=document.querySelector(selector),latest=card?.querySelector('.profile-achievement-ladder-badge.is-latest'),disc=latest?.querySelector('.profile-achievement-medallion'),label=latest?.querySelector('.profile-achievement-ladder-name');
-   if(root?.getAttribute('aria-busy')!=='false'||card?.querySelector('.profile-achievement-track-repeat')?.textContent.trim()!=='1,000 miles, earned 11 times (11,000 mi)'||card?.querySelectorAll('.profile-achievement-ladder-badge.is-latest').length!==1||latest?.dataset.level!==String(expectedRank)||!disc?.isConnected||!label?.isConnected)return false;
-   const d=disc.getBoundingClientRect(),l=label.getBoundingClientRect();if(![d.left,d.top,d.width,d.height,l.top,l.width,l.height].every(Number.isFinite)||d.width<=0||d.height<=0||l.width<=0||l.height<=0)return false;
-   const signature=[d.left,d.top,d.width,d.height,l.top,l.width,l.height].join(':');
-   if(window.__stableLatestBadge===latest&&window.__stableLatestBadgeGeometry===signature)return true;
-   window.__stableLatestBadge=latest;window.__stableLatestBadgeGeometry=signature;return false;
-  },{selector,expectedRank},{timeout:10000,polling:'raf'});
- }catch(error){
-  const state=await page.evaluate(selector=>{const root=document.querySelector('#profile-achievement-page'),card=document.querySelector(selector),latest=card?.querySelector('.profile-achievement-ladder-badge.is-latest'),disc=latest?.querySelector('.profile-achievement-medallion'),label=latest?.querySelector('.profile-achievement-ladder-name'),rect=node=>{const r=node?.getBoundingClientRect();return r?{x:r.x,y:r.y,width:r.width,height:r.height}:null;};return{busy:root?.getAttribute('aria-busy')??'missing',runCard:!!card,repeat:card?.querySelector('.profile-achievement-track-repeat')?.textContent.trim()??'missing',latestCount:card?.querySelectorAll('.profile-achievement-ladder-badge.is-latest').length??0,latestLevel:latest?.dataset.level??'missing',latestConnected:!!latest?.isConnected,medallion:rect(disc),label:rect(label)};},selector);
-  throw Error(`${width}px ${theme} latest Run badge did not settle with attached, nonzero geometry; expected fixture level ${expectedRank}. DOM: ${JSON.stringify(state)}. Wait error: ${error.message}`);
- }
- const box=await page.evaluate(selector=>{
-  const card=document.querySelector(selector),badge=card?.querySelector('.profile-achievement-ladder-badge.is-latest'),disc=badge?.querySelector('.profile-achievement-medallion'),label=badge?.querySelector('.profile-achievement-ladder-name'),row=badge?.closest('.profile-achievement-ladder-scroll');
-  if(!card?.isConnected||!badge?.isConnected||!disc?.isConnected||!label?.isConnected||!row?.isConnected)throw Error('latest Run badge was detached between the stable wait and geometry read');
-  row.scrollLeft=row.scrollWidth;const d=disc.getBoundingClientRect(),style=getComputedStyle(disc),outset=parseFloat(style.outlineOffset)+parseFloat(style.outlineWidth),l=label.getBoundingClientRect(),r=row.getBoundingClientRect();
-  return{ring:{left:d.left-outset,right:d.right+outset,top:d.top-outset,bottom:d.bottom+outset},label:{top:l.top},row:{left:r.left,right:r.right,top:r.top,bottom:r.bottom}};
- },selector);
+ const box=await page.evaluate(async({selector,expectedRank})=>{
+  const rect=node=>{const r=node?.getBoundingClientRect();return r?{left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}:null;};
+  let previousBadge=null,previousSnapshot=null,last={};
+  for(let attempt=0;attempt<5;attempt++){
+   const root=document.querySelector('#profile-achievement-page'),card=document.querySelector(selector),badge=card?.querySelector('.profile-achievement-ladder-badge.is-latest'),disc=badge?.querySelector('.profile-achievement-medallion'),label=badge?.querySelector('.profile-achievement-ladder-name'),row=badge?.closest('.profile-achievement-ladder-scroll');
+   if(row?.isConnected)row.scrollLeft=row.scrollWidth;
+   const valid=root?.getAttribute('aria-busy')==='false'&&card?.querySelector('.profile-achievement-track-repeat')?.textContent.trim()==='1,000 miles, earned 11 times (11,000 mi)'&&card?.querySelectorAll('.profile-achievement-ladder-badge.is-latest').length===1&&badge?.dataset.level===String(expectedRank)&&badge?.isConnected&&disc?.isConnected&&label?.isConnected&&row?.isConnected;
+   const d=rect(disc),l=rect(label),r=rect(row),signature=valid?JSON.stringify({d,l,r}):null;
+   last={busy:root?.getAttribute('aria-busy')??'missing',repeat:card?.querySelector('.profile-achievement-track-repeat')?.textContent.trim()??'missing',latestCount:card?.querySelectorAll('.profile-achievement-ladder-badge.is-latest').length??0,latestLevel:badge?.dataset.level??'missing',connected:!!badge?.isConnected,disc:d,label:l,row:r,attempt:attempt+1};
+   if(valid&&badge===previousBadge&&signature===previousSnapshot&&[d.left,d.top,d.width,d.height,l.top,l.width,l.height,r.left,r.right,r.top,r.bottom].every(Number.isFinite)&&d.width>0&&d.height>0&&l.width>0&&l.height>0){
+    const style=getComputedStyle(disc),outset=parseFloat(style.outlineOffset)+parseFloat(style.outlineWidth);
+    return{ring:{left:d.left-outset,right:d.right+outset,top:d.top-outset,bottom:d.bottom+outset},label:{top:l.top},row:{left:r.left,right:r.right,top:r.top,bottom:r.bottom},stableAttempts:attempt+1};
+   }
+   previousBadge=badge;previousSnapshot=signature;
+   if(attempt<4)await new Promise(resolve=>setTimeout(resolve,200));
+  }
+  throw Error(`latest Run badge did not yield two identical snapshots of the same connected node within 1s: ${JSON.stringify(last)}`);
+ },{selector,expectedRank});
  assert(box.label.top-box.ring.bottom>=8,`${width}px ${theme} latest ring leaves 8px before its label: ${JSON.stringify(box)}`);
  assert(box.ring.left>=box.row.left-0.5&&box.ring.right<=box.row.right+0.5&&box.ring.top>=box.row.top-0.5&&box.ring.bottom<=box.row.bottom+0.5,`${width}px ${theme} latest ring remains inside its scroll-row bounds: ${JSON.stringify(box)}`);
 };
