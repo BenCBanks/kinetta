@@ -72,13 +72,13 @@ class FriendLinks(unittest.TestCase):
         new = self.person('zz_test_fl_new', confirmed=False, friend_link=code)
         self.assertEqual(new.post('/api/friend-links/' + code, json={}).status_code, 403, 'unconfirmed accounts cannot use links yet')
         self.assertNotIn('zz_test_fl_new', self.friends(ann), 'not friends before the email is confirmed')
-        token = re.search(r'/confirm-email/([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
+        token = re.search(r'/confirm-email#([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
         self.assertEqual(client().post('/api/account/email/confirm', json={'token': token}).status_code, 200)
         self.assertIn('zz_test_fl_new', self.friends(ann))
         with db.connect() as d: self.assertIsNone(d.execute("SELECT p.friend_link FROM profile p JOIN users u ON u.id = p.user_id WHERE u.login = 'zz_test_fl_new'").fetchone()['friend_link'])
         # a bad link at signup never blocks the account
         self.mail.reset_mock(); self.person('zz_test_fl_odd', confirmed=False, friend_link='no-such-link')
-        token = re.search(r'/confirm-email/([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
+        token = re.search(r'/confirm-email#([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
         self.assertEqual(client().post('/api/account/email/confirm', json={'token': token}).status_code, 200)
 
     def test_app_links_and_preview(self):

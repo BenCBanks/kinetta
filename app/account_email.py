@@ -229,7 +229,9 @@ def confirmation(background, c, uid, name, email, welcome=False):
     require_available(c, email, uid)
     token = _token(c, uid, 'verify_email', VERIFY_HOURS * 60, email)
     token_hash = auth.token_hash(token)
-    link = f"{_base()}/confirm-email/{token}"
+    # Keep bearer tokens out of HTTP request paths and access logs. Fragments stay in the
+    # browser; the client submits the token to the confirmation API in the request body.
+    link = f"{_base()}/confirm-email#{token}"
     app = iphone_app() if welcome else None
     # Written the way Ben talks (2026-10-24): short, plain, signed by the team, always "we". No stock phrases.
     beta = (f"\n\nKinetta is in beta, and the iPhone app is the best way to use it. It records your runs, rides and walks "
@@ -262,7 +264,7 @@ def send_due_confirmation_reminders(limit=100):
             if email_suggestion(user['email']): continue
             token = _token(c, user['id'], 'verify_email', VERIFY_HOURS * 60, user['email'])
             token_hash = auth.token_hash(token)
-            link = f"{_base()}/confirm-email/{token}"
+            link = f"{_base()}/confirm-email#{token}"
             c.execute("""UPDATE users SET email_confirmation_reminder_count=email_confirmation_reminder_count+1,
                          email_confirmation_reminder_at=now()
                        WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (user['id'],))
@@ -342,10 +344,22 @@ def resend_confirmation(body: ResendConfirmationIn, request: Request, background
     with db.connect() as c:
         if limited(c, 'confirm-resend-ip:' + auth.client_ip(request), 10, 15):
             raise HTTPException(429, 'Too many tries - wait 15 minutes')
+        reservation_lock(c)
         col = 'email' if '@' in who else 'login'
-        u = c.execute(f'''SELECT id, name, email FROM users WHERE {col} = %s
-                          AND email_verified_at IS NULL AND needs_email_confirm AND email IS NOT NULL
-                          AND suspended_at IS NULL''', (who,)).fetchone()
+        lookup = ('lower(COALESCE(u.email::text, pending.email::text)) = lower(%s)'
+                  if col == 'email' else 'u.login = %s')
+        u = c.execute(f'''SELECT u.id, u.name, COALESCE(u.email::text, pending.email::text) AS email
+                          FROM users u
+                          LEFT JOIN LATERAL (
+                            SELECT t.email FROM account_tokens t
+                            WHERE t.user_id = u.id AND t.kind = 'verify_email' AND t.used_at IS NULL
+                            ORDER BY t.created DESC LIMIT 1
+                          ) pending ON true
+                          WHERE {lookup} AND u.email_verified_at IS NULL
+                            AND u.needs_email_confirm AND u.suspended_at IS NULL
+                            AND COALESCE(u.email::text, pending.email::text) IS NOT NULL
+                          ORDER BY u.id
+                          FOR UPDATE OF u''', (who,)).fetchone()
         if u and not email_recovery_limited(c, u['id']) and mail_ready():
             confirmation(background, c, u['id'], u['name'], u['email'], welcome=True)
     return {'ok': True, 'message': RESEND_SENT}
