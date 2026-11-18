@@ -1,46 +1,158 @@
 # Index website copy
 
-Edit the text below each heading. Keep the section keys unchanged.
+Edit the text below each heading. Keep section keys stable unless the matching template is updated.
+
+## home-page-title
+
+What you eat. How you train. One picture.
 
 ## home-hero-kicker
 
-Training and food, one app
+Food and training, one app
 
-## your-workouts-and-your-food-in-one-app-1
+## home-hero-title
 
-Track workouts. Log food. See progress.
+What you eat. How you train. One picture.
 
-## runs-rides-lifting-and-meals-tracked-together-and-kept-2
+## home-hero-description
 
-Runs, rides, lifting and meals in one place.
+Kinetta logs your meals and your workouts together, and Kit, your coach, tells you what the numbers mean.
 
-## home-workout-heading
+## home-hero-action
 
-Review a workout
+See how it works
 
-## home-workout-description
+## home-beta-action
 
-The route, then the numbers.
+Join the iPhone beta
 
-## home-final-heading
+## home-standin-caption
 
-Start with today.
+Fictional day · example screens
 
-## home-achievements-heading
+## home-proof-kicker
+
+Food and training
+
+## home-proof-title
+
+A full day, from meal to mile.
+
+## home-nutrition-kicker
+
+Nutrition
+
+## home-nutrition-title
+
+Log a meal in a sentence.
+
+## home-nutrition-description
+
+See meals, calories and macros together as the day fills in.
+
+## home-activity-kicker
+
+Training
+
+## home-activity-title
+
+Every run, with its map and splits.
+
+## home-activity-description
+
+Open a saved workout to see its route, time and pace.
+
+## home-kit-food-kicker
+
+Kit food chat
+
+## home-kit-food-title
+
+Tell Kit what you ate.
+
+## home-kit-food-description
+
+Describe food and weight in one message. Review both before adding them.
+
+## home-kit-insight-kicker
+
+Kit insights
+
+## home-kit-insight-title
+
+Ask Kit about your week.
+
+## home-kit-insight-description
+
+Ask one question and get a plain-language read on the training data you choose to review.
+
+## home-kit-sample-caption
+
+Fictional week · sample response
+
+## home-kit-question
+
+Am I improving?
+
+## home-kit-answer
+
+Your latest run total is below your recent average; this chart also shows stronger weeks. One week alone cannot establish a lasting trend.
+
+## home-kit-replay
+
+Replay answer
+
+## home-kit-examples-label
+
+Example questions
+
+## home-kit-example-one
+
+Look at my consistency
+
+## home-kit-example-two
+
+Choose a focus
+
+## home-kit-phone-caption
+
+Fictional Kit insight screen · sample week
+
+## home-badges-kicker
+
+Achievements
+
+## home-badges-title
 
 Badges you earn step by step.
 
-## home-achievements-description
+## home-badges-description
 
-Each sport has its own achievement tracks. Progress through named levels, then earn the track medal when you complete it.
+Each sport has its own tracks. Progress through named levels, then earn a medal when you complete a track.
 
-## home-sharing-heading
+## home-badges-tracks
+
+Run tracks include distance, workouts, longest and fastest efforts.
+
+## home-sharing-kicker
+
+Sharing
+
+## home-sharing-title
 
 Choose what to share.
 
 ## home-sharing-description
 
 Choose who can see each activity, and hide where a route starts and ends when you share it.
+
+## home-sharing-action
+
+Read the privacy policy
+
+## home-final-title
+
+Start with today.
 
 ## home-final-description
 
@@ -52,7 +164,7 @@ Create your account
 
 ## training-training-food-food-friends-friends-compare-co-17
 
-[Training](training) · [Food](food) · [Friends](friends) · [Features](compare) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Features](compare) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta) · [About us](about)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-18
 
