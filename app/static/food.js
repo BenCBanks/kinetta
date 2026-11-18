@@ -168,7 +168,7 @@ function nHead(el, view, filters) {
   const q = new URLSearchParams(location.search), fromProgress = q.get('from') === 'progress';
   const saved = fromProgress ? App.progressHome : App.nutritionHome;
   const home = saved?.owner === readOwner() ? saved.href : fromProgress ? '/progress' : '/food';
-  const detail = view !== 'log', title = detail ? v?.[1] || 'Food calendar' : 'Nutrition';
+  const detail = view !== 'log', title = detail ? view === 'needs' ? 'Food target' : v?.[1] || 'Food calendar' : 'Nutrition';
   el.classList.add(detail ? 'nutrition-detail' : 'nutrition-home');
   el.innerHTML = `<div class="top">${detail&&!inProgress?`<a class="back nutrition-back${fromProgress?' progress-back':''}" href="${esc(home)}" aria-label="Back to ${fromProgress?'Progress':'Nutrition'}">${svg('back')}${fromProgress?'Progress':'Nutrition'}</a>`:''}<h1>${esc(title)}</h1><div class="acts"><button class="icon-btn" id="n-help" aria-label="Nutrition help">${svg('help')}</button>${bellBtn()}</div></div>${view==='overview'?`<div class="insights-range">${filters}</div><div id="insights-range-dates" class="insights-range-dates" aria-live="polite"></div>`:detail?'':`<div class="nutrition-date-row">${filters}</div>`}<div id="n-body"><div id="nt-body">${skel(1)}</div></div>`;
   const body = $('#n-body',el);
@@ -1166,33 +1166,43 @@ route(/^\/food\/trends$/, 'food', async () => go('/food?view=overview', {replace
 // ---------- Nutrition > progress views (2026-10-09; split into views 2026-10-12): one range, tiles, insights, charts ----------
 const ACTIVITY_LEVELS = [[1.2, 'Mostly sitting', 'desk job, little walking'], [1.3, 'Some walking & standing', 'errands, light chores, kids'], [1.45, 'On my feet a lot', 'retail, nursing, active job']];
 function energyCard(box) {
-  // daily needs = BMR x everyday activity (no exercise); workouts are added only on the days they happen
+  // Food-target estimates are independent of the selected burn source and exclude workouts.
   load('/api/food/energy', (E) => {
     if (!box.isConnected) return;
     const lb = imp(), step = lb ? 250 : 275;   // ~0.5 lb or ~0.25 kg a week
-    const opts = [[`Lose ${lb ? '1 lb' : '0.5 kg'}/week`, -2 * step], [`Lose ${lb ? '½ lb' : '0.25 kg'}/week`, -step], ['Maintain', 0], [`Gain ${lb ? '½ lb' : '0.25 kg'}/week`, step]];
-    const lvl = ACTIVITY_LEVELS.reduce((b, l) => (Math.abs(l[0] - E.activity_factor) < Math.abs(b[0] - E.activity_factor) ? l : b));
-    const check = E.observed == null ? '' : Math.abs(E.check_diff) < 150
-      ? `Your food log and weight change over the last 4 weeks match this (you burned about ${r0(E.observed)} a day including workouts).`
-      : `Your food log and weight change suggest you actually burned about ${r0(E.observed)} a day including workouts, ${r0(Math.abs(E.check_diff))} ${E.check_diff > 0 ? 'more' : 'less'} than this estimate${E.check_diff > 0 ? ' - you may be more active than the setting below' : ' - try a lower activity level, or check that every snack is logged'}.`;
-    box.innerHTML = `<div id="resting-source-card"></div><details class="card"${E.resting_source === 'apple_health' ? '' : ' open'}><summary>Optional calorie-target calculator · Kinetta estimate</summary><h2>Your daily calorie needs<span class="muted small">without workouts</span></h2>
-      <div class="needs-eq"><div><small>Resting burn (BMR)</small><b class="num">${r0(E.bmr)}</b></div><span>×</span><div><small>Everyday activity</small><b class="num">${E.activity_factor}</b></div><span>=</span><div class="hi"><small>Daily needs</small><b class="num">${r0(E.base)}</b></div></div>
-      ${E.bmr_exact ? '' : '<p class="small warn-text">BMR is a rough guess from your weight. Add your height, birth year and sex under <a href="/me">Me &gt; Settings</a> for a more personalized estimate.</p>'}
-      <p class="small muted">Everyday activity outside workouts:</p>
-      <div class="seg wide actlvl" role="group" aria-label="Everyday activity">${ACTIVITY_LEVELS.map(([f, n, d]) => `<button data-f="${f}" aria-pressed="${f === lvl[0]}" title="${esc(d)}">${esc(n)}</button>`).join('')}</div>
-      <p class="small muted">Workouts are not included here. They are added to the day you do them, which deepens that day's deficit${E.avg_exercise ? ` (lately about ${r0(E.avg_exercise)} kcal a day on average)` : ''}.</p>
-      ${check ? `<p class="small">${esc(check)}</p>` : ''}
-      <h3 class="sub">Set your daily calorie target</h3>
-      <div class="tdee-opts">${opts.map(([n, d]) => `<button class="ghost" data-k="${E.base + d}"><small>${esc(n)}</small><b class="num">${r0(E.base + d)}</b></button>`).join('')}</div>
-      <p class="small muted">Based on daily needs alone, so any workout adds to your deficit${App.me.kcal_target ? `. Now ${r0(App.me.kcal_target)}` : ''}.</p></details>`;
+    const goals = [[`Lose ${lb ? '1 lb' : '0.5 kg'} a week`, -2 * step], [`Lose ${lb ? '½ lb' : '0.25 kg'} a week`, -step], ['Maintain', 0], [`Gain ${lb ? '½ lb' : '0.25 kg'} a week`, step]];
+    let activityFactor = E.activity_factor, activityChoice = ACTIVITY_LEVELS.reduce((best, option) => Math.abs(option[0] - E.activity_factor) < Math.abs(best[0] - E.activity_factor) ? option : best)[0], goalDelta = goals.reduce((best, option) => Math.abs((App.me.kcal_target ?? E.base) - (E.base + option[1])) < Math.abs((App.me.kcal_target ?? E.base) - (E.base + best[1])) ? option : best, goals[2])[1];
+    const baseFor = () => Math.round(E.bmr * activityFactor);
+    const targetFor = () => Math.max(Math.ceil(E.bmr / 10) * 10, Math.round((baseFor() + goalDelta) / 10) * 10);
+    box.innerHTML = `<div id="resting-source-card"></div>
+      <section class="card needs-estimate"><span class="small muted">Estimated calories/day</span><div class="needs-estimate-value"><b class="num" id="needs-estimate-value">${r0(E.base)}</b><span>kcal/day</span></div><p class="small muted">Kinetta estimate · from ${E.bmr_exact?'your height, age, sex and weight':'weight only'} · before workouts</p>${E.bmr_exact?'':'<a class="nutrition-body-prompt needs-estimate-hint" href="/me?setup=body">Based on weight only. Add height, birth year and sex for a better estimate.</a>'}</section>
+      <details class="card food-target-calculator"><summary>Calculate food target<span class="chev">${svg('down')}</span></summary><div class="target-calculator-content">
+        <fieldset class="choice-list" id="needs-activity"><legend>Everyday activity <small>(outside workouts)</small></legend>${ACTIVITY_LEVELS.map(([f,n,d])=>`<label><input type="radio" name="everyday-activity" value="${f}"${f===activityChoice?' checked':''}><span><b>${esc(n)}</b><small>${esc(d)}</small></span></label>`).join('')}</fieldset>
+        <fieldset class="choice-list goal-choice-list" id="needs-goal"><legend>Weight goal</legend>${goals.map(([name,delta])=>`<label><input type="radio" name="weight-goal" value="${delta}"${delta===goalDelta?' checked':''}><span><b>${esc(name)}</b></span></label>`).join('')}</fieldset>
+        <div class="suggested-target" aria-live="polite"><span>Suggested food target</span><b class="num" id="suggested-target-value">${r0(targetFor())}</b><span>kcal/day</span></div>
+        <button class="primary wide" id="use-food-target">Use this target</button>
+        <details class="estimate-disclosure"><summary>How it's calculated<span class="chev">${svg('down')}</span></summary><p class="small muted">The estimate multiplies resting calories by everyday activity. Your weight goal adjusts the food target; workouts are counted separately. Estimates can vary from day to day.</p>${E.bmr_exact?'':'<p class="small muted">Resting calories are a rough estimate from the profile details available. Add height, birth year and sex in Me settings to improve it.</p>'}</details>
+      </div></details>`;
     restingSourceCard($('#resting-source-card',box));
-    $$('.actlvl button', box).forEach((b) => b.onclick = async () => {
-      try { await api('/api/profile', json('PUT', {activity_factor: +b.dataset.f})); App.me.activity_factor = +b.dataset.f; invalidate('/api/food'); render(); } catch (x) { toast(x.message); }
-    });
-    $$('.tdee-opts button', box).forEach((b) => b.onclick = async () => {
-      const m = App.me, body = {kcal_target: +b.dataset.k, protein_target: m.protein_target ?? null, carbs_target: m.carbs_target ?? null, fat_target: m.fat_target ?? null, fiber_target: m.fiber_target ?? null};
-      try { await api('/api/food/targets', json('PUT', body)); m.kcal_target = body.kcal_target; invalidate('/api/food'); toast(`Calorie target set to ${r0(body.kcal_target)}`); render(); } catch (x) { toast(x.message); }
-    });
+    const paintEstimate = () => {
+      const base = baseFor(); $('#needs-estimate-value',box).textContent = r0(base); $('#suggested-target-value',box).textContent = r0(targetFor());
+    };
+    $('#needs-activity',box).onchange = async (event) => {
+      const fieldset = event.currentTarget, next = Number(event.target.value); if (!Number.isFinite(next)) return;
+      fieldset.disabled = true;
+      try {
+        await api('/api/profile', json('PUT', {activity_factor: next}));
+        App.me.activity_factor = activityFactor = activityChoice = next; E.activity_factor = next; E.base = baseFor(); invalidate('/api/food'); paintEstimate();
+      } catch (x) { event.target.checked = false; fieldset.querySelector(`input[value="${activityChoice}"]`).checked = true; toast(x.message); }
+      finally { fieldset.disabled = false; }
+    };
+    $('#needs-goal',box).onchange = (event) => { const next = Number(event.target.value); if (Number.isFinite(next)) { goalDelta = next; paintEstimate(); } };
+    $('#use-food-target',box).onclick = async () => {
+      const m = App.me, body = {kcal_target: targetFor(), protein_target: m.protein_target ?? null, carbs_target: m.carbs_target ?? null, fat_target: m.fat_target ?? null, fiber_target: m.fiber_target ?? null};
+      const button = $('#use-food-target',box); button.disabled = true;
+      try { await api('/api/food/targets', json('PUT', body)); m.kcal_target = body.kcal_target; invalidate('/api/food'); toast(`Calorie target set to ${r0(body.kcal_target)}`); render(); }
+      catch (x) { toast(x.message); button.disabled = false; }
+    };
   });
 }
 function weeksCard(box) {
@@ -1476,8 +1486,8 @@ function dietCoach(box) {
 async function restingSourceCard(box) {
   if (!box?.isConnected) return;
   const account=readOwner(),watch=App.me.resting_source==='apple_health';
-  box.innerHTML=`<section class="card"><h2>Resting calories</h2><p class="small muted">Choose where passive calories come from. Your food goal stays the same. Activity calories already in Kinetta are added once.</p>
-    <label>Source<select id="resting-source"><option value="formula"${watch?'':' selected'}>Kinetta estimate</option><option value="apple_health"${watch?' selected':''}>Health app · Resting Energy</option></select></label>
+  box.innerHTML=`<section class="card resting-source-card"><h2>Resting calories</h2><p class="small muted">Calories your body burns at rest, plus everyday movement. Workout calories are added separately, once. Changing this source won't change your food target.</p>
+    <label class="resting-source-select"><span>Current source</span><select id="resting-source"><option value="formula"${watch?'':' selected'}>Kinetta estimate</option><option value="apple_health"${watch?' selected':''}>Health app · Resting Energy</option></select></label>
     <p class="small muted">${watch ? 'Uses synced Resting Energy, without an everyday-activity multiplier. Today shows the amount so far; missing days stay blank until synced.' : 'Uses calculated BMR and your everyday activity setting.'}</p>
     ${watch ? `<p class="small" id="resting-status" role="status">Checking resting-energy sync…</p>${Native.on ? `<button class="primary wide" id="resting-sync">Connect / sync resting calories</button>` : '<p class="small muted">Open the latest Kinetta iPhone app to allow Resting Energy and sync. Synced totals also appear here in your browser.</p>'}<button class="ghost wide danger" id="resting-remove">Remove synced resting calories</button>` : ''}
     <p class="small err" id="resting-error" role="alert"></p></section>`;
