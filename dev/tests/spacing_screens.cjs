@@ -24,7 +24,7 @@ const scenes=fixtures=>[
  {name:'Group full roster',login:'alex',route:'/groups/'+GROUP_FULL.id,entryReady:'.group-roster',ready:'.group-member:nth-child(50)',modal:'group-full',group:'full'},
  {name:'Invite acceptance',login:'alex',route:'/group-invite/'+GROUP_INVITE_TOKEN,ready:'#group-accept',invite:true},
  {name:'Settings',login:'alex',route:'/me/settings',ready:'#logout'},
- {name:'Notifications',login:'alex',route:'/me/notifications',ready:'[data-meal-reminders]',notifications:true,native:true},
+ {name:'Notifications',login:'alex',route:'/me/notifications',ready:'#nt-push',notifications:true,native:true},
  {name:'Share progress',login:'zz_test_recap_ui_typical',route:'/progress',ready:'#progress-share',shareButton:'#progress-share',recap:true},
  {name:'Nutrition Insights',login:'zz_test_insights_typical',route:'/food?view=overview&r=30',ready:'#nt-body .insights-summary'},
  {name:'My friends',login:'zz_test_fc_typical',route:'/me/friends',ready:'#fr-own-list'},

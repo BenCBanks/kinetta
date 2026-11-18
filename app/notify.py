@@ -516,7 +516,7 @@ def _push_words(r, facts=None, c=None):
 
 def _push_log(kind, reason, devices, accepted=0):
     # Only fixed kinds/reasons and counts: exception messages can contain token URLs or private text.
-    kind = 'streak_reminder' if streak_reminder_parts(kind) else kind if kind in (*KINDS, 'meal', 'plan', 'weekly') else 'unknown'
+    kind = 'streak_reminder' if streak_reminder_parts(kind) else kind if kind in (*KINDS, 'plan', 'weekly') else 'unknown'
     if reason:
         log.info('push skipped: kind=%s reason=%s devices=%d', kind, reason, devices)
     else:
@@ -659,20 +659,3 @@ def _deliver_native(uid,payload,prepare,send):
     for reason in reasons: _push_log(kind, reason, len(subs))
     if count: _push_log(kind, None, len(subs), count)
     return _DeliveryCount(count, bool(subs) and reasons == {'token_retired':len(subs)})
-
-
-def private_meal_push(uid,day,meal,payload,send=None):
-    """Private nudge with a final non-locking preference/date/meal check per device."""
-    if send is None and not apns.ready():
-        log_unconfigured(uid, 'meal')
-        return 0
-    def prepare(c):
-        p=c.execute("""SELECT tz FROM profile WHERE user_id=%s AND food_reminders
-          AND NOT EXISTS(SELECT 1 FROM food_entries WHERE user_id=%s AND day=%s AND meal=%s)
-          AND EXISTS(SELECT 1 FROM meal_reminder_attempts WHERE user_id=%s AND day=%s AND meal=%s AND attempted_at>now()-interval '5 minutes')""",(uid,uid,day,meal,uid,day,meal)).fetchone()
-        if not p:return None
-        local=dt.datetime.now(dt.timezone.utc).astimezone(ZoneInfo(db.valid_tz(p['tz']) or db.DEFAULT_TZ))
-        if local.date()!=day or not 7<=local.hour<21:return None
-        return {**payload,'badge':unread(c,uid),'expires_at':int(dt.datetime.now(dt.timezone.utc).timestamp())+300}
-    prepare.kind = 'meal'
-    return _deliver_native(uid,payload,prepare,send)

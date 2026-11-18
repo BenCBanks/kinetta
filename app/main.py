@@ -14,7 +14,7 @@ from . import db, auth, api_activities, api_food, api_connections, api_account, 
 import threading
 from .auth import current_user
 from . import request_log
-from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread
+from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread
 from . import api_routes_plan, api_segments, segments, route_sharing, map_config, api_contacts
 
 @asynccontextmanager
@@ -22,7 +22,6 @@ async def lifespan(app):
     community_terms.active_version()  # Refuse an unpublished or mismatched legal version.
     db.migrate()     # nightly database copies: host timer fit-db-backup.timer (pg_dump), see README
     threading.Thread(target=coach.weekly_scheduler, daemon=True).start()      # Sunday 6 PM weekly reviews (if an AI key is set)
-    threading.Thread(target=meal_reminders.scheduler,daemon=True).start()
     threading.Thread(target=account_email.reminder_scheduler, daemon=True).start()
     recipe_stop=threading.Event()
     recipe_worker=threading.Thread(target=recipe_import.cleanup,args=(recipe_stop,),daemon=True);recipe_worker.start()
@@ -81,7 +80,6 @@ app.include_router(api_dishes.router)
 app.include_router(cook_chat.router)
 app.include_router(food_coach.router)
 app.include_router(notify.router)
-app.include_router(meal_reminders.router)
 app.include_router(api_coach.router)
 app.include_router(kit_thread.router)
 app.include_router(meal_chat.router)

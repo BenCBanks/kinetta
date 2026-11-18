@@ -20,7 +20,12 @@ function collectRenderedLinks(mutation){
 const collect=p=>p.evaluate(collectRenderedLinks);
 (async()=>{
  boundary();const started=Date.now(),fixtures=JSON.parse(fs.readFileSync(process.env.KINETTA_JOURNEY_FIXTURES||'/tmp/'+project+'-journeys.json'));
- const selected=scenes(fixtures),recursive=new Set(['alex',fixtures.journey.login]);
+ const sceneFilter=process.env.KINETTA_LINK_SCENES?.split(',').map(name=>name.trim()).filter(Boolean);
+ const allScenes=scenes(fixtures),selected=sceneFilter?allScenes.filter(scene=>sceneFilter.includes(scene.name)):allScenes;
+ assert(selected.length>0&&(!sceneFilter||selected.length===sceneFilter.length),'Every selected link-check scene exists');
+ const widths=(process.env.KINETTA_LINK_WIDTHS||'390').split(',').map(Number);
+ assert(widths.length>0&&widths.every(width=>[330,390].includes(width)),'Link-check widths are 330 and/or 390');
+ const recursive=sceneFilter?new Set():new Set(['alex',fixtures.journey.login]);
  const remaining=Number(process.env.KINETTA_JOURNEY_DEADLINE_MS||started+240000)-started;assert(remaining>0,'Journey batch deadline already expired');
  const browser=await chromium.launch(),targets=new Map(),contexts=new Map(),outcomes=[];let registry,broken,discovered=0,probe;
  let expired=false;const watchdog=setTimeout(()=>{expired=true;console.error('Link check exceeded its deadline at '+checking);browser.close().catch(()=>{});},Math.min(remaining,240000));
@@ -30,9 +35,10 @@ const collect=p=>p.evaluate(collectRenderedLinks);
   if(!targets.has(key)){assert(targets.size<1000,'Link graph exceeded 1000 destinations; inspect its growth instead of truncating coverage');targets.set(key,{link,login,result});}
  };
  try{
-  const sessions=await fixtureSessions(browser,base,[...selected,...selected.map(scene=>({...scene,native:false})),...journeys(fixtures)]);
-  for(const scene of selected){
-   const f=await fixturePage(browser,base,fixtures,sessions,scene,{width:390,height:844,root:16},'light');
+  const sessionScenes=sceneFilter?[...selected,...selected.map(scene=>({...scene,native:false}))]:[...selected,...selected.map(scene=>({...scene,native:false})),...journeys(fixtures)];
+  const sessions=await fixtureSessions(browser,base,sessionScenes);
+  for(const scene of selected)for(const width of widths){
+   const f=await fixturePage(browser,base,fixtures,sessions,scene,{width,height:844,root:16},'light');
    try{
     // Deferred routes are declared by the eager router but intentionally do not
     // enter App.pages until their bundle loads. Recognize those exact patterns
@@ -55,9 +61,9 @@ const collect=p=>p.evaluate(collectRenderedLinks);
     assert.deepEqual(f.pageErrors,[],'No collection page exception');
    }finally{await f.c.close();}
   }
-  assert(broken,'Broken View progress browser proof ran');
+  if(!sceneFilter)assert(broken,'Broken View progress browser proof ran');
   const directory=path.resolve(__dirname,'../../app/static');
-  for(const name of fs.readdirSync(directory).filter(name=>name.endsWith('.js'))){
+  for(const name of (sceneFilter?[]:fs.readdirSync(directory).filter(name=>name.endsWith('.js')))){
    for(const href of literalTargets(fs.readFileSync(path.join(directory,name),'utf8')))add({href,label:'',source:name+' go()'},href==='/segments/review'?fixtures.journey.login:'alex');
   }
   if(!partial){

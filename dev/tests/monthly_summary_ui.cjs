@@ -85,7 +85,6 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
     const data=request.postDataJSON();settingsPuts.push(data);settingsPush={...settingsPush,...data};return route.fulfill({json:{push:{...settingsPush}}});
    }
    if(pathname==='/api/notifications/personal')return route.fulfill({json:{plan:true,weekly:false,plan_time:'08:00',tz:zone,push_ready:true,device_ready:true}});
-   if(pathname==='/api/food/reminders')return route.fulfill({json:{enabled:false,tz:zone,push_ready:true,device_ready:true,times:[]}});
    if(!['GET','HEAD','OPTIONS'].includes(request.method())){settingsWrites.push(`${request.method()} ${pathname}`);return route.fulfill({status:204,body:''});}
    return route.continue();
   });

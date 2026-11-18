@@ -7,13 +7,18 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, StrictBool
-from . import apns, db, meal_reminders, notify, plans
-from .auth import current_user
+from . import apns, db, notify, plans
+from .auth import current_user, SESSION_DAYS
 from .activity_metrics import week_streak as activity_week_streak
 
 router = APIRouter(prefix='/api/notifications/personal')
 TIMES = ('07:00', '08:00', '12:00', '18:00', '20:00')
 WINDOW = dt.timedelta(minutes=15)
+
+
+def device_ready(c, uid):
+    return c.execute(f'''SELECT 1 FROM native_push_devices d JOIN sessions s ON s.token_hash=d.session_hash
+      WHERE d.user_id=%s AND s.user_id=d.user_id AND s.last_seen>now()-interval '{SESSION_DAYS} days' LIMIT 1''', (uid,)).fetchone() is not None
 
 
 def clock():
@@ -40,7 +45,7 @@ def status_data(c, uid):
     cfg = preferences(p['notify'])
     return {k: cfg[k] for k in ('plan', 'weekly', 'streak', 'plan_time')} | {
         'tz': db.valid_tz(p['tz']) or db.DEFAULT_TZ,
-        'push_ready': apns.ready(), 'device_ready': meal_reminders.devices(c, uid)}
+        'push_ready': apns.ready(), 'device_ready': device_ready(c, uid)}
 
 
 @router.get('')
@@ -73,7 +78,7 @@ def settings(body: Preference, user=Depends(current_user)):
             if value and (not cfg[key] or not cfg.get(key + '_after')):
                 if not body.confirmed:
                     raise HTTPException(400, 'Choose this notification explicitly before enabling it')
-                if key != 'streak' and (not apns.ready() or not meal_reminders.devices(c, user['id'])):
+                if key != 'streak' and (not apns.ready() or not device_ready(c, user['id'])):
                     raise HTTPException(409, 'Turn on iPhone notifications after server setup is complete')
                 cfg[key + '_after'] = now
             cfg[key] = value
@@ -229,9 +234,9 @@ def tick(now=None, send=None):
                         continue
                     if kind == 'streak':
                         nid = notify.record_streak_reminder(c, uid, period, actual_now)
-                        devices = meal_reminders.devices(c, uid)
+                        devices = device_ready(c, uid)
                     else:
-                        if not meal_reminders.devices(c, uid):
+                        if not device_ready(c, uid):
                             continue
                         nid = None
                         stored_kind = kind

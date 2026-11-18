@@ -105,12 +105,7 @@ async function pushCard(box, r, message='') {
   personalNotificationCard($('#nt-personal',box.parentElement), '', r.push);
   const render=(content,kinds='')=>{
     if(!valid())return;
-    const meal=$('#np-meal-reminders',box);
-    box.innerHTML=`<section class="card"><h2>iPhone notifications</h2>${content}</section>${kinds}<div id="np-meal-reminders"></div>`;
-    const placeholder=$('#np-meal-reminders',box);
-    // Keep a pending meal preference's controls and generation alive through phone-status refreshes.
-    if(meal&&placeholder)placeholder.replaceWith(meal);
-    mealReminderCard(meal||placeholder);
+    box.innerHTML=`<section class="card"><h2>iPhone notifications</h2>${content}</section>${kinds}`;
   };
   const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.'};
   const alertTypes=(disabled=false)=>{
@@ -241,42 +236,4 @@ async function personalNotificationCard(box,message='',pushPreferences=null){
     catch(error){if(valid()){box.innerHTML='<section class="card"><h2>Training & progress</h2><p>Notification settings could not load.</p><button class="ghost wide">Retry</button></section>';$('button',box).onclick=loadSettings;}}
   };
   box.innerHTML=skel(1);await loadSettings();
-}
-
-async function mealReminderCard(box,message=''){
-  if(!box)return;
-  const account=readOwner();
-  if(box.mealSaving===account){box.mealRefresh=true;return;}
-  const generation=Symbol();box.mealGeneration=generation;
-  const valid=()=>box.isConnected&&account===readOwner()&&box.mealGeneration===generation;
-  const timeLabel=time=>new Date('2000-01-01T'+time+':00Z').toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:'UTC'});
-  const draw=(state,error=message)=>{
-    if(!valid())return;
-    const unavailable=!state.push_ready||!state.device_ready,learned=state.times.filter(row=>row.ready);
-    box.innerHTML=`<section class="card meal-reminders"><label class="switch-row"><span>Meal-time reminders<small>A quiet invitation to log.</small></span><input type="checkbox" role="switch" data-meal-reminders${state.enabled?' checked':''}${unavailable&&!state.enabled?' disabled':''}></label>
-      <p class="small muted">Off by default · ${esc(state.tz)}. No streaks or calorie nudges.</p>
-      ${unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':Native.on?'Turn on iPhone notifications above.':'Turn on notifications in the Kinetta iPhone app first.'}</p>`:''}
-      ${state.enabled?`<div class="meal-reminder-details">${learned.length?`<dl>${learned.map(row=>`<div><dt>${esc(MEAL_NAMES[row.meal])}</dt><dd>Around ${esc(timeLabel(row.time))}</dd></div>`).join('')}</dl>`:''}
-      ${state.times.some(row=>!row.ready)?'<p class="small muted">Learning your usual times.</p>':''}
-      <p class="small muted">7 am–9 pm · A meal already logged stays quiet.</p><p class="settings-footnote">Based on first meal logs over 28 days; needs 3 daytime logging days.</p></div>`:''}
-      <p class="small muted" role="status" data-meal-status></p><p class="err" role="alert">${esc(error)}</p></section>`;
-    const toggle=$('[data-meal-reminders]',box);toggle.onchange=async()=>{
-      if(!valid()||toggle.disabled)return;
-      const enabled=toggle.checked,focused=globalThis.document?.activeElement===toggle;
-      box.mealSaving=account;toggle.disabled=true;$('.err',box).textContent='';$('[data-meal-status]',box).textContent='Saving…';let failure='';
-      const focus=()=>{const input=$('[data-meal-reminders]',box);if(focused&&!input?.disabled)input?.focus?.({preventScroll:true});};
-      try{
-        await api('/api/food/reminders',json('PUT',{enabled,confirmed:enabled}));if(!valid())return;
-        Native.haptic('light');await loadSettings();focus();
-      }catch(error){failure=error.message||'Reminder setting could not be saved.';if(valid()){toggle.checked=!enabled;toggle.disabled=false;draw(state,failure);focus();}}
-      finally{
-        if(box.mealSaving===account)box.mealSaving=null;
-        if(valid()&&box.mealRefresh){box.mealRefresh=false;await mealReminderCard(box,failure);}
-      }
-    };
-  };
-  const loadSettings=async()=>{
-    try{const state=await api('/api/food/reminders');if(valid())draw(state);}
-    catch(error){if(valid()){box.innerHTML='<section class="card"><h2>Meal-time reminders</h2><p>Reminder settings could not load.</p><button class="ghost wide">Try again</button></section>';$('button',box).onclick=loadSettings;}}
-  };box.innerHTML=skel(1);await loadSettings();
 }

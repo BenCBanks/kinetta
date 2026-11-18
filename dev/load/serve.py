@@ -12,7 +12,7 @@ import urllib.request
 sys.path.insert(0, '/srv')
 assert os.environ.get('KINETTA_LOAD_FIXTURE') == '1'
 assert os.environ.get('GEMINI_API_KEY') == 'load-standin'
-from app import api_food, coach, account_email, apns, notify, meal_reminders, personal_notifications
+from app import api_food, coach, account_email, apns, notify, personal_notifications
 from app.main import app
 
 database_ips = {x[4][0] for x in socket.getaddrinfo('db', 5432)}
@@ -75,7 +75,6 @@ urllib.request.urlopen = transport
 api_food._get = catalog  # Preserve normalization, cache and OFF's six-second pacing.
 coach.after_import = lambda *a, **k: None
 coach.weekly_scheduler = lambda: None
-meal_reminders.scheduler = lambda: None
 personal_notifications.start_worker = idle_worker
 notify._push_later = lambda *a, **k: None
 apns.deliver = lambda *a, **k: None
