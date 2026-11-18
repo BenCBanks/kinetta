@@ -780,10 +780,11 @@ function socialChanged(aid) {
 const QUICK_REPLIES=['Nice work!','Great effort','Way to go'];
 const commentArrowIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
 const commentRetryIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5M20 4v7h-7"/></svg>';
+const commentSkeletonMarkup='<div class="comments-skeleton" aria-hidden="true"><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div></div>';
 function commentsSheet(aid, s, onChange) {
   cleanViews();
   const account=readOwner();if(s&&!SocialData.peek(aid))SocialData.remember(aid,s);const cached=SocialData.peek(aid);
-  sheet('Comments', `<div class="social social-sheet"><div class="social-reactions">${reactionButtons(aid,cached||s||{cheers:[],my_reaction:null},false,true)}</div><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':`<div class="comments-skeleton" aria-hidden="true"><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div></div>`}</div>
+  sheet('Comments', `<div class="social social-sheet"><div class="social-reactions">${reactionButtons(aid,cached||s||{cheers:[],my_reaction:null},false,true)}</div><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':commentSkeletonMarkup}</div>
     <p class="social-read-status small muted" role="status" aria-live="polite"></p>
     <div class="c-quick" aria-label="Quick replies" hidden>${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
     <form class="c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Send comment" disabled>${commentArrowIcon}</button></form></div>`,b=>{
@@ -803,7 +804,7 @@ function commentsSheet(aid, s, onChange) {
     const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
     if(cached)drawComments(box,aid,cached,onChange);
     viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}}));
-    const refresh=async()=>{try{const fresh=await SocialData.read(aid);update(fresh);}
+    const refresh=async()=>{if(!cached){status.textContent='Loading comments';list.setAttribute('aria-busy','true');if(!list.querySelector('.comments-skeleton'))list.innerHTML=commentSkeletonMarkup;}try{const fresh=await SocialData.read(aid);update(fresh);}
       catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}
         list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
@@ -816,7 +817,7 @@ function commentsSheet(aid, s, onChange) {
       finally{if(current()){if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
     };
     refresh();
-  },{keyboardAttached:true});
+  },{keyboardAttached:true,focusContainer:true});
 }
 function drawComments(box,aid,s,onChange){
   if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
