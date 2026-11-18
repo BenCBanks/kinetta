@@ -4,6 +4,8 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',project=process.env.KINETTA_PROJECT||'kinettatest',password='green teapot on the hill';
 const NOTIFICATION_LOADING_ONLY=process.env.KINETTA_NOTIFICATION_LOADING_ONLY==='1';
+function assertNotificationStylesOwned(){const shared=fs.readFileSync(path.resolve(__dirname,'../../app/static/style.css'),'utf8'),owned=fs.readFileSync(path.resolve(__dirname,'../../app/static/notifications-ui.css'),'utf8');assert.doesNotMatch(shared,/\.notes(?:-group|-h)?\b|\.note(?:[-\s.:#\[])/,'Notification Center list selectors stay out of shared style.css');assert.match(owned,/\.notes\s*\{/,'Notification list container styles belong to notifications-ui.css');assert.match(owned,/\.note\s*\{/,'Notification row styles belong to notifications-ui.css');}
+assertNotificationStylesOwned();
 const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);};
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:{...process.env,KINETTA_URL:base,KINETTA_PROJECT:project},encoding:'utf8'});
