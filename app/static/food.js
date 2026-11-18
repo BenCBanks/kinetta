@@ -1179,7 +1179,7 @@ function bodyDetailsSheet(box) {
   const me = App.me, owner = readOwner(), initialWeight = String(U.weight(me.weight_kg)), weightDerived = !!me.weight_health_derived;
   const initialHeight = me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '';
   sheet('Body details', `<form class="form needs-body-form" id="needs-body-form">
-      <div class="two"><label>Sex (for calorie &amp; effort estimates)<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
+      <div class="two"><label>Sex<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
       <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}" placeholder="1990"></label></div>
       <div class="two"><div class="needs-body-weight"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" inputmode="decimal" value="${esc(initialWeight)}" placeholder="${imp() ? '150' : '68'}"${weightDerived ? ' readonly aria-readonly="true"' : ''}></label>${weightDerived?'<a class="linkbtn needs-body-weight-link" href="/progress/weight?from=nutrition">Update in Weight</a>':''}</div>
       <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" inputmode="decimal" value="${esc(initialHeight)}" placeholder="${imp() ? '5 8' : '173'}"></label></div>
