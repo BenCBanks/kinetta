@@ -39,7 +39,10 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
    const status=p.locator('#nt-list [role=status]');await status.waitFor();assert.equal(await status.getAttribute('aria-busy'),'true');assert.equal(await status.locator('.vh').innerText(),'Loading notifications…');assert.equal(await status.locator('.note-loading[aria-hidden=true]').count(),3);assert.equal(await status.locator('.note-loading .sk').count(),15);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)));
    if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`notifications-loading-390-${theme}.png`)});}
    await p.emulateMedia({reducedMotion:'reduce'});assert.equal(await p.locator('.note-loading .sk').first().evaluate(el=>getComputedStyle(el).animationName),'none','notification skeleton stops for Reduce Motion');
-   f.releaseFeed();await p.locator('#nt-list .notes-group .note').first().waitFor();assert.deepEqual(f.errors,[]);
+   f.releaseFeed();await p.locator('#nt-list .notes-group .note').first().waitFor();
+   const badge=p.locator('#nt-list .note-k[data-kind="activity_ready"]').first();await badge.waitFor();
+   assert(await badge.evaluate(node=>{const probe=document.createElement('i');probe.style.color='var(--color-run)';document.body.append(probe);const expected=getComputedStyle(probe).color;probe.remove();return getComputedStyle(node).color===expected;}),'activity notification badge keeps the Run token color');
+   if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`notifications-list-390-${theme}.png`)});}assert.deepEqual(f.errors,[]);
   }finally{f.releaseFeed();await f.context.close();}
  }
  try{

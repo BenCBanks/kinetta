@@ -38,6 +38,13 @@
 .note-dot.is-read { visibility:hidden; }
 .note-av .av { width:36px; height:36px; font-size:14px; }
 
+/* Data badges use shared tokens; this route-owned color map stays out of style.css. */
+.note-k[data-kind="cheer"] { color: var(--react-cheer); }
+.note-k[data-kind^="friend"] { color: var(--color-row); }
+.note-k[data-kind="dish_shared"] { color: var(--color-nutrition); }
+.note-k[data-kind="activity_ready"] { color: var(--color-run); }
+.note-k[data-kind="report"] { color: var(--alert); }
+
 /* Notification Center loading rows mirror the final dot/avatar/copy/time layout. */
 .notification-loading-card { overflow:hidden; padding:4px 0; }
 .note-loading { position:relative;display:flex;align-items:flex-start;gap:10px;min-height:60px;padding:12px 16px; }
