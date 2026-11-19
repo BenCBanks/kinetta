@@ -247,13 +247,14 @@ const ContactsUI = (() => {
             const link = await api('/api/friends/link');
             if (!live()) return;
             const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
+            const shareText = `Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: ${url}`;
             const name = button.dataset.inviteName;
             button.disabled = false;
-            sheet(`Invite ${name}`, `<p>Anyone who opens this link becomes your friend on Kinetta. Share it only with someone you’d add yourself.</p><button type="button" class="primary wide" id="contacts-share-invite">Share invite link</button><p class="small muted" id="contacts-share-status" role="status"></p>`, async (body, close) => {
+            sheet(`Invite ${name}`, `<p>Your friend invitation lasts 30 days. When someone opens it while signed in, they become your friend.</p><button type="button" class="primary wide" id="contacts-share-invite">Share invite</button><p class="small muted" id="contacts-share-status" role="status"></p>`, async (body, close) => {
               $('#contacts-share-invite', body).onclick = async () => {
                 try {
-                  if (navigator.share) await navigator.share({title:'Find friends on Kinetta',text:'Join me on Kinetta so we can follow each other’s workouts.',url});
-                  else await navigator.clipboard.writeText(`Join me on Kinetta so we can follow each other’s workouts. ${url}`);
+                  if (navigator.share) await navigator.share({title:'Connect on Kinetta',text:shareText});
+                  else await navigator.clipboard.writeText(shareText);
                   close();
                 } catch (error) {
                   if (error.name === 'AbortError') return;

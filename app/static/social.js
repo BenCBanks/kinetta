@@ -574,7 +574,7 @@ async function homeGroups(el) {
   const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner();
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('groups')}<section class="home-groups"><div class="home-groups-heading"><h2>Groups</h2><button type="button" class="linkbtn" id="home-group-new">Create</button></div><div id="home-group-list"><div class="card empty">Loading your groups…</div></div></section>`;
   wireHomeChallengeLink(el);
-  const create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url);});
+  const create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url,group.title);});
   $('#home-group-new',el).onclick=create;
   try{
     const groups=await api('/api/groups');if(!live())return;
@@ -1123,24 +1123,24 @@ async function inviteFriends() {
   try { link = await api('/api/friends/link'); } catch (x) { if(same())toast(x.message); return; }
   if(!same())return;
   const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
-  const text = `Join me on Kinetta so we can follow each other's workouts.`;
-  const copySheet = () => sheet('Invite friends', `<p>Anyone who opens this link becomes your friend on Kinetta. It lasts 30 days, so share it only with people you’d add yourself.</p>
+  const text = `Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: ${url}`;
+  const copySheet = () => sheet('Invite friends', `<p>Your friend invitation lasts 30 days. When someone opens it while signed in, they become your friend.</p>
     <label class="form">Your invite link<input readonly value="${esc(url)}" aria-label="Invite link"></label>
-    <div class="btncol"><button type="button" class="primary wide" id="iv-share">Share invite link</button><button type="button" class="ghost wide" id="iv-copy">Copy link</button><button type="button" class="ghost wide" id="iv-qr">Show QR code</button></div>
+    <div class="btncol"><button type="button" class="primary wide" id="iv-share">Share invite</button><button type="button" class="ghost wide" id="iv-copy">Copy invite text</button><button type="button" class="ghost wide" id="iv-qr">Show QR code</button></div>
     <div class="invite-qr-code" id="iv-qr-code" hidden></div><p class="small muted" id="iv-status" role="status"></p><button type="button" class="linkbtn muted" id="iv-new">Make a new link (the old one stops working)</button>`, (b, close) => {
     const live=()=>same()&&b.isConnected;
     const input = $('input', b); input.onclick = () => input.select();
     $('#iv-share',b).onclick = async () => {
       if(!live())return;
       try {
-        if(navigator.share)await navigator.share({title:'Find friends on Kinetta',text,url});
-        else {await navigator.clipboard.writeText(`${text} ${url}`);}
+        if(navigator.share)await navigator.share({title:'Connect on Kinetta',text});
+        else {await navigator.clipboard.writeText(text);}
         if(live())$('#iv-status',b).textContent=navigator.share?'Invite shared':'Link copied';
       } catch(e) { if(live()&&e.name!=='AbortError')$('#iv-status',b).textContent='Select and copy the invite link above.'; }
     };
     $('#iv-copy', b).onclick = async () => {
       if(!live())return;
-      try { await navigator.clipboard.writeText(`${text} ${url}`); if(live())$('#iv-status', b).textContent = 'Link copied'; }
+      try { await navigator.clipboard.writeText(text); if(live())$('#iv-status', b).textContent = 'Link copied'; }
       catch { if(live()){input.select();$('#iv-status', b).textContent = 'Select and copy the link above.';} }
     };
     $('#iv-qr',b).onclick=async()=>{
@@ -1265,16 +1265,16 @@ function groupTimeZoneOptions(current){
   if(!zones.includes(current))zones.push(current);
   return [...new Set(zones)].sort((a,b)=>groupTimeZonePickerLabel(a).localeCompare(groupTimeZonePickerLabel(b))).map(zone=>`<option value="${esc(zone)}"${zone===current?' selected':''}>${esc(groupTimeZonePickerLabel(zone))}</option>`).join('');
 }
-function groupInviteSheet(url){
-  const owner=readOwner();sheet('Invite to this group',`<p>People who open this link see only that they’re invited to a private group. They must sign in and accept.</p><p class="group-invite-link" tabindex="0">${esc(url)}</p>
-    <div class="group-invite-actions"><button type="button" class="primary wide" data-group-copy>Copy invite link</button><button type="button" class="ghost wide" data-group-share>Share invite link</button></div>
+function groupInviteSheet(url,title='group'){
+  const owner=readOwner(),groupName=String(title||'group').replace(/\s+/g,' ').trim(),shareText=`You're invited to '${groupName}' on Kinetta, the workout and food app: ${url}`;sheet('Invite to this group',`<p>People who open this link see only that they’re invited to a private group. They must sign in and accept.</p><p class="group-invite-link" tabindex="0">${esc(url)}</p>
+    <div class="group-invite-actions"><button type="button" class="primary wide" data-group-copy>Copy invite text</button><button type="button" class="ghost wide" data-group-share>Share invite</button></div>
     <button type="button" class="linkbtn wide" data-close>Done</button>`,(body,close)=>{
       const live=()=>owner===readOwner()&&body.isConnected;
       $('[data-group-copy]',body).onclick=async()=>{
-        try{await navigator.clipboard.writeText(url);if(live())toast('Invite link copied');}
-        catch{const field=document.createElement('textarea');field.value=url;field.setAttribute('readonly','');body.append(field);field.select();try{document.execCommand('copy');toast('Invite link copied');}catch{toast('Couldn’t copy the invite link');}field.remove();}
+        try{await navigator.clipboard.writeText(shareText);if(live())toast('Invite text copied');}
+        catch{const field=document.createElement('textarea');field.value=shareText;field.setAttribute('readonly','');body.append(field);field.select();try{document.execCommand('copy');toast('Invite text copied');}catch{toast('Couldn’t copy the invite text');}field.remove();}
       };
-      $('[data-group-share]',body).onclick=async()=>{try{if(navigator.share)await navigator.share({title:'Join my Kinetta group',url});else await navigator.clipboard.writeText(url);if(live()&&!navigator.share)toast('Invite link copied');}catch(e){if(e.name!=='AbortError'&&live())toast('Couldn’t share the invite link');}};
+      $('[data-group-share]',body).onclick=async()=>{try{if(navigator.share)await navigator.share({title:`Join ${groupName} on Kinetta`,text:shareText});else{await navigator.clipboard.writeText(shareText);if(live())toast('Invite text copied');}}catch(e){if(e.name!=='AbortError'&&live())toast('Couldn’t share the invite text');}};
       $('[data-close]',body).onclick=close;
     });
 }
@@ -1329,7 +1329,7 @@ function groupEventDateSheet(group,reload){
 route(/^\/me\/groups$/, 'me', async el=>{
   const createRequested=new URLSearchParams(location.search).get('create')==='1';
   el.classList.add('groups-page');el.innerHTML=`<div class="top">${backBtn('Friends')}<h1>Groups</h1><button type="button" class="linkbtn" id="group-new">Create</button></div><div id="group-list"><div class="card group-list-card group-list-loading" role="status" aria-busy="true"><span class="vh">Loading your groups…</span>${[0,1].map(()=>'<div class="group-loading-row" aria-hidden="true"><span class="sk group-loading-glyph"></span><span class="group-loading-copy"><span class="sk group-loading-title"></span><span class="sk group-loading-summary"></span></span><span class="sk group-loading-value"></span></div>').join('')}</div></div>`;wireBack(el,'/me/friends');
-  const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url);});
+  const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url,group.title);});
   $('#group-new',el).onclick=create;
   if(createRequested){const address=new URL(location.href);address.searchParams.delete('create');replacePageAddress(el,address.pathname+address.search+address.hash);create();}
   try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groupListMarkup(groups);
@@ -1450,7 +1450,7 @@ function groupMenu(group,reload){
   groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
     const run=async(path,method='POST',payload={})=>{try{await api(path,json(method,payload));close();toast('Group updated');reload();}catch(error){toast(error.message);}};
     $$('[data-gact]',body).forEach(button=>button.onclick=()=>{const action=button.dataset.gact;close();
-      if(action==='invite'||action==='reopen')api('/api/groups/'+encodeURIComponent(group.id)+'/invites',json('POST',{})).then(r=>groupInviteSheet(r.invite_url)).catch(e=>toast(e.message));
+      if(action==='invite'||action==='reopen')api('/api/groups/'+encodeURIComponent(group.id)+'/invites',json('POST',{})).then(r=>groupInviteSheet(r.invite_url,group.title)).catch(e=>toast(e.message));
       else if(action==='event-date')groupEventDateSheet(group,reload);
       else if(action==='stop')run('/api/groups/'+encodeURIComponent(group.id)+'/stop-joining');
       else if(action==='leave')groupConfirm('Leave group?','Your contribution will disappear from the group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/leave'));

@@ -32,6 +32,10 @@ def title(row):
     start,end=row['start_day'],row['end_day'];period=start.strftime('%B %Y') if start.day==1 and (end+dt.timedelta(days=1)).day==1 else start.strftime('%b %d')+' – '+end.strftime('%b %d, %Y')
     return f"{period} · {KINDS[row['kind']].lower()}: {row['target']:g} {row['unit']}"
 
+def public_date_range(start,end):
+    if start.year==end.year and start.month==end.month:return f'{start.strftime("%b")} {start.day}–{end.day}, {end.year}'
+    return f'{start.strftime("%b")} {start.day} – {end.strftime("%b")} {end.day}, {end.year}'
+
 def link(code,request=None):
     base=os.environ.get('KINETTA_PUBLIC_URL','').rstrip('/') or (str(request.base_url).rstrip('/') if request else '')
     return base+'/challenge/'+code
@@ -250,19 +254,24 @@ def public_page(code:str,request:Request):
             row=accessible(c,code,uid);data=preview(c,row,uid,request);state=signup.state(c)
     except HTTPException as e:
         if e.status_code!=404:raise
-        return HTMLResponse('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/static/theme.css"><link rel="stylesheet" href="/static/style.css"><main class="shell"><h1>This challenge is no longer available</h1><p>Ask for a current invitation.</p><a href="/">Open Kinetta</a></main></html>',status_code=404,headers=HEADERS)
+        return HTMLResponse('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/static/theme.css"><link rel="stylesheet" href="/static/style.css"><main class="shell"><h1>This challenge link isn’t available anymore</h1><p>Ask the person who shared it to send you a current challenge link.</p><a href="/">Open Kinetta</a></main></html>',status_code=404,headers=HEADERS)
     esc=html.escape;name=esc(data['title']);creator='@'+esc(data['creator']) if data['creator'] else 'A Kinetta member'
+    target=esc(f"{data['target']:g} {data['unit']}")
+    sport_names={'run':'Running','walk':'Walking','hike':'Hiking','ride':'Cycling'}
+    sports=', '.join(sport_names[s] for s in data.get('sports',[]) if s in sport_names)
+    dates=esc(public_date_range(data['start'],data['end']))
     if viewer:
         action=f'<a class="primary wide" href="/me/challenges/{esc(code)}">Open challenge</a>' if data['member'] else '<p>This challenge has finished.</p>' if data['joining_closed'] else f'<button class="primary wide" id="challenge-public-join" data-code="{esc(code)}">Join challenge</button>'
     else:
         from . import api_beta
         if data['joining_closed']:action='<p>This challenge has finished.</p>'
-        elif state['open']:action=f'<a class="primary wide" href="/signup?challenge={esc(code)}">Join Kinetta to take part</a>'
-        elif api_beta.enabled():action=f'<a class="primary wide" href="/beta?challenge={esc(code)}">Join the waitlist to take part</a><p>Kinetta is invite-only. An invitation is needed before you can join.</p>'
-        else:action='<p>Kinetta is invite-only. Ask the server owner for an invitation, then reopen this challenge link.</p>'
+        elif state['open']:action=f'<a class="primary wide" href="/signup?challenge={esc(code)}">Create an account to join</a>'
+        elif api_beta.enabled():action=f'<a class="primary wide" href="/beta?challenge={esc(code)}">Join the waitlist</a><p>Sign-up is currently closed. You can return to this link if an account becomes available.</p>'
+        else:action='<p>Account creation is currently closed. Ask the person who shared this link for an account invitation.</p>'
         action+=f'<a class="ghost wide" href="/?challenge={esc(code)}">Already a member? Log in</a>'
     app=account_email.iphone_app();install=f'<a class="ghost wide" href="{esc(app)}">Get the iPhone app</a><p class="small muted">After installing, reopen this challenge link.</p>' if app else ''
-    body=f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>{name} · Kinetta</title><meta property="og:title" content="{name}"><meta property="og:description" content="A small, friendly challenge on Kinetta. Joining is your choice and never adds friends automatically."><link rel="stylesheet" href="/static/theme.css"><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/challenges.css?v=1"></head><body><main class="shell challenge-public"><p class="eyebrow">A Kinetta challenge</p><h1>{name}</h1><p>Started by {creator}</p><p>{data['start']} – {data['end']} · {data['participants']} participants</p><p>Only your username, permitted photo and challenge progress are visible to participants. Only me workouts count toward progress; individual workouts, food entries and your protein target stay private. Joining does not add anyone as a friend.</p>{action}<p id="challenge-public-status" role="status"></p>{install}<a href="https://kinetta.app/privacy">Privacy policy</a></main><script src="/static/challenge-public.js?v=1" defer></script></body></html>'''
+    sports_line=f'<p><strong>Sports:</strong> {esc(sports)}</p>' if sports else ''
+    body=f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>{name} · Kinetta</title><meta property="og:title" content="{name}"><meta property="og:description" content="Join {name} on Kinetta. Track workouts and food in one app; joining is always your choice."><link rel="stylesheet" href="/static/theme.css"><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/challenges.css?v=1"></head><body><main class="shell challenge-public"><p class="eyebrow">A Kinetta challenge</p><h1>{name}</h1><p>Started by {creator}</p><p>{dates} · {data['participants']} participants</p><p><strong>Goal:</strong> {target}</p>{sports_line}<p>Your workouts and your food, in one app.</p><p>Only your username, permitted photo and challenge progress are visible to participants. Only me workouts count toward progress; individual workouts, food entries and your protein target stay private. Joining does not add anyone as a friend.</p>{action}<p id="challenge-public-status" role="status"></p>{install}<a href="https://kinetta.app/privacy">Privacy policy</a></main><script src="/static/challenge-public.js?v=1" defer></script></body></html>'''
     return HTMLResponse(body,headers=HEADERS)
 
 class Remove(BaseModel):

@@ -300,6 +300,7 @@ def summary_tick(now=None):
 
 # ---------- reading: the words are made here ----------
 _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,
+             q.kind AS challenge_kind, q.target AS challenge_target, q.unit AS challenge_unit, q.start_day, q.end_day,
              n.group_id,g.title AS group_title,
              u.login::text AS login, u.name, u.photo_v AS photo, recipient.name AS recipient_name,
              a.name AS activity, a.user_id AS activity_owner, a.updated, a.start_time, a.lift_open, a.distance_m::double precision AS distance_m, a.moving_s, a.elapsed_s, a.sport, a.sub_sport, a.sport_label,
@@ -323,7 +324,15 @@ def _words(r):
     if r['kind']=='signup_admin':return 'Sign-up capacity needs attention. Review accounts and the waitlist in Administration.', '/me/people'
     if r['kind']=='milestone':return notification_words.clean(r.get('milestone_title') or 'A milestone is ready to review',100), '/me/milestones'
     if r['kind'].startswith('challenge_'):
-        text={'challenge_join':'@'+r['login']+' joined your challenge','challenge_reminder':'Three days left in your challenge','challenge_finished':'Your challenge finish picture is ready'}[r['kind']]
+        from .challenges import title as challenge_title
+        challenge=notification_words.clean(challenge_title({'kind':r['challenge_kind'],'target':r['challenge_target'],
+            'unit':r['challenge_unit'],'start_day':r['start_day'],'end_day':r['end_day']}),100)
+        handle=notification_words.clean(r.get('login') or 'Someone',30)
+        day=r.get('end_day')
+        date=f'{day.strftime("%b")} {day.day}, {day.year}' if day else ''
+        text={'challenge_join':f"@{handle} joined '{challenge}'.",
+              'challenge_reminder':f"'{challenge}' ends in three days, on {date}.",
+              'challenge_finished':f"'{challenge}' has ended. View your progress and share a finish picture."}[r['kind']]
         return text,'/me/challenges/'+r['challenge_code']
     if r['kind'] == 'group_monday_recap':
         title = notification_words.clean(r.get('group_title') or 'your group',80)
