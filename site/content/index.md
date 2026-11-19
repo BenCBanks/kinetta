@@ -52,11 +52,11 @@ Training
 
 ## home-activity-title
 
-Every run, with its map and splits.
+Every run, ride and lift, with the details.
 
 ## home-activity-description
 
-Open a saved workout to see its route, time and pace.
+See a route and splits for a run or ride, or set-by-set history and records for a lift.
 
 ## home-kit-food-kicker
 
