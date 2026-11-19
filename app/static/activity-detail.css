@@ -9,6 +9,25 @@
 /* The activity map/photos run to the very top, under the status bar (Ben, 2026-10-23); the map is light in light mode
    and dark in dark mode, so the clock stays readable. */
 @media (min-width: 900px) { .map-head .detail-media { --media-height: calc(480px + env(safe-area-inset-top)); } }
+/* Activity Detail photo gallery and viewer; declarations moved unchanged from shared style.css. */
+.ph-strip { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 14px -16px 0; padding: 0 16px; }
+.ph-strip::-webkit-scrollbar { display: none; }
+.ph-th { flex: none; width: 96px; height: 96px; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--card2); }
+.ph-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ph-add { flex: none; width: 96px; height: 96px; border: 1.5px dashed color-mix(in srgb, var(--tx3) 55%, transparent); border-radius: 12px; background: none; color: var(--tx2);
+  display: grid; place-content: center; justify-items: center; gap: 4px; font-size: 13px; font-weight: 600; }
+.ph-add svg { width: 22px; height: 22px; color: var(--accent); }
+.ph-strip.empty .ph-add { width: 100%; height: 48px; grid-auto-flow: column; gap: 8px; }
+.ph-view { position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; display: flex; flex-direction: column; touch-action: pan-y; }
+.ph-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(env(safe-area-inset-top) + 8px) 12px 8px; }
+.ph-bar .icon-btn { background: rgba(255, 255, 255, .14); color: #fff; box-shadow: none; } .ph-sp { width: 44px; }
+.ph-stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 0 0 calc(env(safe-area-inset-bottom) + 12px); }
+.ph-stage img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+.ph-nav { position: absolute; top: 50%; width: 44px; height: 44px; margin-top: -22px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .14);
+  color: #fff; display: grid; place-items: center; }
+.ph-nav.prev { left: 10px; } .ph-nav.next { right: 10px; } .ph-nav.next svg { transform: scaleX(-1); }
+.ph-nav svg { width: 22px; height: 22px; }
+body.ph-open { overflow: hidden; }
 .activity-detail { --detail-edge:22px; }
 .detail-map-hero { position:relative; margin:calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) calc(-1 * var(--detail-edge)) 8px; }
 .detail-map-hero .detail-media { --media-height:clamp(264px,46dvh,408px); margin:0; }
