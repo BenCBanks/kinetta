@@ -26,6 +26,14 @@
       ]
     },
     {
+      "id": "challenges-past",
+      "source": "app/static/challenges.js",
+      "pattern": "/^\\/me\\/challenges\\/past$/",
+      "paths": [
+        "/me/challenges/past"
+      ]
+    },
+    {
       "id": "cook-1",
       "source": "app/static/cook.js",
       "pattern": "/^\\/food\\/cook\\/(\\d+)$/",
