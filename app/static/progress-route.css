@@ -440,3 +440,20 @@
 }
 .progress-total-readout .readout-hint { color:var(--tx3); }
 .period-axis.inside { paint-order:stroke; stroke:var(--card); stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
+
+/* Progress > Lifting: clear record names and compact exercise rows. */
+.lift-exercise-row { min-height:56px; gap:8px; }
+.lift-exercise-name { display:grid; min-width:0; gap:2px; }
+.lift-exercise-name > b,.lift-exercise-meta { overflow-wrap:anywhere; }
+.lift-exercise-row > .chev { flex:none; }
+.lv-best { display:grid; flex:none; gap:2px; text-align:right; }
+.lv-best b { font:600 17px var(--numf); }
+@media(max-width:390px) {
+  .lift-exercise-row { display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"name chevron" "best chevron"; gap:2px 8px; padding-block:8px; }
+  .lift-exercise-name { grid-area:name; }
+  .lift-exercise-meta { display:none; }
+  .lift-exercise-row .lv-best { grid-area:best; display:flex; align-items:baseline; justify-content:flex-start; gap:8px; text-align:left; }
+  .lift-exercise-row .lv-best small { color:var(--tx3); }
+  .lift-exercise-row .lv-best b { font-size:15px; }
+  .lift-exercise-row > .chev { grid-area:chevron; }
+}

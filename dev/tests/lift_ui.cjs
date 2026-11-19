@@ -1,10 +1,13 @@
 // Real logger and CSS with fictional API replies; no session is written to the server.
 // NODE_PATH=<Playwright install> KINETTA_URL=http://localhost:8798 node dev/tests/lift_ui.cjs
 'use strict';
-const{chromium}=require('playwright'),assert=require('node:assert/strict');
+const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant);
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const shots=process.env.KINETTA_LIFT_SHOTS;
+const sharedCss=fs.readFileSync(path.join(__dirname,'../../app/static/style.css'),'utf8'),progressCss=fs.readFileSync(path.join(__dirname,'../../app/static/progress-route.css'),'utf8');
+assert.doesNotMatch(sharedCss,/\.lift-exercise-row|\.lift-exercise-name|\.lift-exercise-meta|\.lv-best\b/,'Progress/Lifting history row rules stay out of shared style.css');
+assert.match(progressCss,/\.lift-exercise-row \{ min-height:56px; gap:8px; \}/,'Progress/Lifting history rules live in the Progress route stylesheet');
 async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error('Lifting UI did not settle');}
 (async()=>{
  const browser=await chromium.launch();
