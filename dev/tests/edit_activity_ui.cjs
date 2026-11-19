@@ -2,8 +2,10 @@
 // common choices first, Delete sits alone at the bottom, and closing with changes asks first. Fictional demo account;
 // every write is intercepted, so nothing is saved or deleted.
 'use strict';
-const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+function assertActivityStylesOwned(){const shared=fs.readFileSync(path.resolve(__dirname,'../../app/static/style.css'),'utf8'),owned=fs.readFileSync(path.resolve(__dirname,'../../app/static/activity-detail.css'),'utf8');assert.doesNotMatch(shared,/\.activity-edit-/,'Edit Activity selectors stay out of shared style.css');assert.doesNotMatch(shared,/\.sheet\.pinned header/,'Pinned activity editor header stays out of shared style.css');assert.match(owned,/\.activity-edit-form\s*\{/,'Edit Activity form styles belong to activity-detail.css');assert.match(owned,/\.sheet\.pinned header\s*\{/,'Pinned activity header styles belong to activity-detail.css');}
+assertActivityStylesOwned();
 // Poll with page.evaluate: the app's Content Security Policy forbids the string evaluation waitForFunction uses.
 async function until(page,fn,label,arg){for(let i=0;i<150;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);}
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
