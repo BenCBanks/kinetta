@@ -40,7 +40,7 @@ class Challenges(unittest.TestCase):
   with patch('app.notify._push_later'):r=self.clients[who].post('/api/challenges/'+code+'/join',json={})
   self.assertEqual(r.status_code,200,r.text);return r.json()
  def assert_aggregate_only(self,result):
-  self.assertEqual(set(result),{'code','kind','title','sports','target','unit','start','end','creator','participants','member','owner','joining_closed','ended_early','url','self','people','manual','garmin_sources'})
+  self.assertEqual(set(result),{'code','kind','title','sports','target','unit','start','end','creator','participants','member','owner','joining_closed','ended_early','ended_on','url','self','people','manual','garmin_sources'})
   self.assertEqual(set(result['self']),{'value','complete','manual','garmin_sources','days_left','finished','needs_target'})
   for person in result['people']:self.assertEqual(set(person),{'username','photo','value','complete'})
   for facts in [result['self'],*result['people']]:self.assertIn(type(facts['value']),(int,float))
@@ -67,6 +67,13 @@ class Challenges(unittest.TestCase):
   self.assertIn('Goal:</strong> 80 km',page.text);self.assertIn('Sports:</strong> Running, Walking',page.text)
   self.assertIn('Your workouts and your food, in one app.',page.text);self.assertIn('Create an account to join',page.text)
   self.assertIn('<meta property="og:title"',page.text);self.assertIn('<meta property="og:description"',page.text)
+ def test_ended_day_is_available_to_members_only_and_in_their_timezone(self):
+  q,_=self.make();code=q['code'];self.join(code);ended=self.now-dt.timedelta(hours=3)
+  with db.connect() as c:c.execute('UPDATE challenges SET ended_at=%s WHERE code=%s',(ended,code))
+  result=self.get(code);expected=ended.astimezone(C.ZoneInfo('America/New_York')).date().isoformat()
+  self.assertEqual(result['ended_on'],expected,'member history receives only the local ending day, not an exact timestamp')
+  self.assertNotIn('ended_on',self.clients[2].get('/api/challenges/'+code).json(),'a nonmember does not receive the ended day')
+  rows=self.clients[0].get('/api/challenges').json();self.assertEqual(next(row for row in rows if row['code']==code)['ended_on'],expected,'the list and detail use the same ended day')
  def test_fixed_templates_and_create_replay_are_validated(self):
   q,body=self.make();again=self.clients[0].post('/api/challenges',json=body);self.assertEqual(again.status_code,200);self.assertEqual(again.json()['code'],q['code']);body['target']=99;self.assertEqual(self.clients[0].post('/api/challenges',json=body).status_code,409)
   for body in [{'kind':'weight','target':1},{'kind':'distance','target':1,'name':'arbitrary name'},{'kind':'distance','target':1,'sports':[]}]:

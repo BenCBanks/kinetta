@@ -124,6 +124,7 @@ def preview(c,row,uid=None,request=None):
 def answer(c,row,uid,request=None):
     out=preview(c,row,uid,request)
     if not out['member']:return out
+    out['ended_on']=row['ended_at'].astimezone(zone_of(c,uid)).date().isoformat() if row.get('ended_at') else None
     from .api_social import _blocked_pair
     people=c.execute("SELECT m.user_id,u.login::text AS username,u.photo_v FROM challenge_members m JOIN users u ON u.id=m.user_id WHERE m.challenge_id=%s AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL ORDER BY m.joined,m.user_id",(row['id'],)).fetchall()
     table=[];sources=set();manual=False
@@ -237,7 +238,7 @@ def continue_signup(user=Depends(current_user)):
 def own(request:Request,user=Depends(current_user)):
     with db.connect() as c:
         rows=c.execute("SELECT q.*,u.login::text AS creator FROM challenge_members m JOIN challenges q ON q.id=m.challenge_id JOIN users u ON u.id=q.user_id WHERE m.user_id=%s AND (m.status='active' OR q.user_id=%s) AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND coalesce(q.ended_at,((q.end_day+1)::timestamp AT TIME ZONE 'Etc/GMT+12'))>now()-interval '90 days' ORDER BY q.end_day DESC,q.created DESC",(user['id'],user['id'])).fetchall()
-        return [{**preview(c,row,user['id'],request),'self':progress(c,row,user['id'])} for row in rows]
+        return [{**preview(c,row,user['id'],request),'ended_on':row['ended_at'].astimezone(zone_of(c,user['id'])).date().isoformat() if row.get('ended_at') else None,'self':progress(c,row,user['id'])} for row in rows]
 
 @router.get('/api/challenges/{code}')
 def detail(code:str,request:Request):
