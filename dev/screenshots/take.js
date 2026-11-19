@@ -381,10 +381,10 @@ async function closeCaptureContext(context) {
         const emojiNodes=summary.locator('.reaction-summary-emoji .reaction-emoji');
         await react.waitFor({state:'visible'});await emojiNodes.first().waitFor({state:'visible'});
         const kinds=(await group.getAttribute('data-reaction-order')||'').split(',').filter(Boolean);
-        const shown=await emojiNodes.allTextContents(),totals=summary.locator('.reaction-summary-total');
+        const shown=await emojiNodes.allTextContents(),summaryCounts=summary.locator('.reaction-summary-count');
         const reactLabel=await react.getAttribute('aria-label'),reactIcon=react.locator('.reaction-add-icon');
-        const summaryTotal=await totals.allTextContents(),legacyCount=await summaryButton.locator('.num').count(),summaryVisible=await summaryButton.isVisible();
-        if(reactLabel!=='React'||!await reactIcon.isVisible()||!summaryVisible||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||summaryTotal.length!==1||summaryTotal[0].trim()!=='3'||legacyCount)throw Error('Demo feed reaction footer mismatch: '+JSON.stringify({reactLabel,reactIconVisible:await reactIcon.isVisible(),summaryVisible,kinds,shown,summaryTotal,legacyCount}));
+        const renderedCounts=await summaryCounts.allTextContents(),legacyCount=await summaryButton.locator('.num').count(),summaryVisible=await summaryButton.isVisible();
+        if(reactLabel!=='React'||!await reactIcon.isVisible()||!summaryVisible||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||renderedCounts.length!==3||renderedCounts.map(value=>value.trim()).join(',')!=='1,1,1'||legacyCount)throw Error('Demo feed reaction footer mismatch: '+JSON.stringify({reactLabel,reactIconVisible:await reactIcon.isVisible(),summaryVisible,kinds,shown,renderedCounts,legacyCount}));
         // The Home scene has a large Today card before the feed. Align the featured
         // post below the fixed header so the complete post and its footer fit together.
         // The standalone feed scene keeps the prior footer clearance for taller layouts.
