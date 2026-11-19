@@ -18,6 +18,14 @@ function assertDetailPhotoStylesOwned(){
  }
 }
 assertDetailPhotoStylesOwned();
+function assertDetailReactionStylesOwned(){
+ const shared=fs.readFileSync(path.join(__dirname,'../../app/static/style.css'),'utf8'),owned=fs.readFileSync(path.join(__dirname,'../../app/static/activity-detail.css'),'utf8');
+ for(const selector of [/^\.detail-social:has\(\.emoji-reactions\)\s*\{/m,/^\.detail-social:has\(\.emoji-reactions\) \.activity-share\s*\{/m,/^\.detail-social:has\(\.emoji-reactions\) \.activity-share>svg\s*\{/m,/^\.t-row:has\(\.activity-reactions\)\s*\{/m,/^\.t-soc:has\(\.activity-reactions\)\s*\{/m]){
+  assert.doesNotMatch(shared,selector,'Activity Detail reaction styles stay out of shared style.css: '+selector);
+  assert.match(owned,selector,'Activity Detail reaction styles belong to activity-detail.css: '+selector);
+ }
+}
+assertDetailReactionStylesOwned();
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 async function screenshotShareImageOnPhoto(p,{out,width,theme,tab}){
  const photoName=theme==='dark'?'freedom-park-bridge.jpg':'freedom-park-lake.jpg',photo='data:image/jpeg;base64,'+fs.readFileSync(path.join(__dirname,'../demo/photos',photoName),'base64');
