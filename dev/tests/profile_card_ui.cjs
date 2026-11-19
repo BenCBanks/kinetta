@@ -191,12 +191,12 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||b
   assert(geometry.every(row=>row.height>=56&&row.icon.width===24&&row.icon.height===24&&Math.abs(row.labelX-row.icon.x-row.icon.width-16)<.1&&row.labelScroll<=row.labelWidth+1&&Math.abs(row.arrow.right-row.rowRight)<.1&&Math.abs(row.icon.y+row.icon.height/2-row.labelY-row.labelHeight/2)<.5&&Math.abs(row.arrow.y+row.arrow.height/2-row.labelY-row.labelHeight/2)<.5),`rows fit, share one label start and align icon/chevron with the complete text block: ${JSON.stringify(geometry)}`);
   assert(geometry.every(row=>Math.abs(row.labelX-geometry[0].labelX)<.1&&Math.abs(row.arrow.right-geometry[0].arrow.right)<.1),'all labels and chevrons share aligned columns');
   assert(geometry.every(row=>row.labelSize===17&&row.labelWeight===700),'row labels use the stronger 17px/700 type');
-  assert.equal(geometry[2].small,'2,011 kcal · 100 g protein','Nutrition goal keeps both current targets in its secondary line');assert.equal(geometry[2].smallSize,15,'Nutrition target uses the quieter 15px secondary style');
+  assert.equal(geometry[0].small,'Your activities and achievements','Profile adds a short, destination-specific subtitle');assert.equal(geometry[0].smallSize,15,'Profile subtitle uses the quieter 15px secondary style');assert.equal(geometry[2].small,'2,011 kcal · 100 g protein','Nutrition goal keeps both current targets in its secondary line');assert.equal(geometry[2].smallSize,15,'Nutrition target uses the quieter 15px secondary style');
   assert.equal(geometry[1].dividerLeft,'40px','dividers begin on the shared label edge');
   assert(await rows.nth(0).getAttribute('href')==='/people/alex','Profile opens the owner profile');assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'the aligned rows do not cause horizontal overflow');
-  await p.waitForSelector('.me-insights .me-insight-row');const bests=rows.page().locator('.me-insights .me-insight-row').filter({hasText:'New bests'});assert.equal(await bests.locator('.me-insight-value').count(),0,'New bests does not repeat a result count');assert.equal((await bests.locator('.me-insight-copy small').innerText()).trim(),'Run Records','New bests links through to Run Records');assert.match(await bests.getAttribute('href'),/^\/progress\?view=records&sport=/);
+  const weeklyInsight=p.locator('.me-insights .me-insight-row');await weeklyInsight.waitFor();assert.equal(await weeklyInsight.count(),1,'Me keeps one compact weekly summary instead of duplicating Progress details');assert.equal((await weeklyInsight.locator('.me-insight-copy b').innerText()).trim(),'This week');assert.match(await weeklyInsight.locator('.me-insight-copy small').innerText(),/usual week/);
   if(out){fs.mkdirSync(out,{recursive:true});await p.locator('.me-tools').screenshot({path:path.join(out,`me-tools-${size.width}-${theme}.png`),animations:'disabled'});await p.locator('.me-help').screenshot({path:path.join(out,`me-help-${size.width}-16-${theme}.png`),animations:'disabled'});await p.locator('.me-insights').screenshot({path:path.join(out,`me-insights-${size.width}-16-${theme}.png`),animations:'disabled'});}
-  assert.deepEqual(errors,[],'Me tool rows have no browser errors');console.log(`Me tools ${size.width}px ${theme}: order, alignment, 56px targets and Nutrition subtitle PASS`);await c.close();continue;
+  assert.deepEqual(errors,[],'Me tool rows have no browser errors');console.log(`Me tools ${size.width}px ${theme}: order, alignment, 56px targets and Profile subtitle PASS`);await c.close();continue;
  }
  if(unitsOnly){await unitsCheck();assert.deepEqual(errors,[],'unit selection, failure rollback and restore have no browser errors');console.log('Settings units: intercepted PUT, pressed rerender, failure rollback, and no persisted write PASS');await c.close();continue;}
  if(size.width===390&&theme==='light')await unitsCheck();
@@ -262,9 +262,8 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||b
  assert.equal(await p.locator('#me-distance, .mileage-heading').count(),0,'no second distance chart on Me');
  assert.equal(await p.locator('.me-form').count(),0,'Fitness & freshness has moved off Me');
  assert.match(await p.locator('.me-insights').innerText(),/This week[\s\S]*of [\d.,]+ (?:mi|km) usual week/);
- const insightRows=p.locator('.me-insight-row');assert(await insightRows.count()>0&&await insightRows.count()<=4,'Me shows only applicable insights, capped at four');
- assert(await insightRows.evaluateAll(rows=>rows.every(row=>row.getAttribute('href')?.startsWith('/progress')&&row.querySelector('.me-insight-copy b')?.textContent.trim()&&row.querySelector('.me-insight-copy small')?.textContent.trim()&&(row.querySelector('.me-insight-copy b').textContent.trim()==='New bests'?!row.querySelector('.me-insight-value')&&row.querySelector('.me-insight-copy small').textContent.trim()==='Run Records':row.querySelector('.me-insight-value')?.textContent.trim()))), 'insight rows link to Progress; New bests uses a Run Records link without repeating values');
- const bests=insightRows.filter({hasText:'New bests'});if(await bests.count()){assert.match(await bests.getAttribute('href'),/^\/progress\?view=records&sport=/,'New bests opens Run Records');assert.equal(await bests.locator('.me-insight-value').count(),0,'New bests does not repeat result counts');}
+ const insightRows=p.locator('.me-insight-row');assert.equal(await insightRows.count(),1,'Me keeps one weekly summary and leaves pace/record detail to Progress');
+ assert.equal((await insightRows.first().locator('.me-insight-copy b').innerText()).trim(),'This week');assert.match(await insightRows.first().getAttribute('href'),/^\/progress\?sport=all/);
  assert(await insightRows.evaluateAll(rows=>rows.every(row=>row.getBoundingClientRect().height>=44)),'insight rows retain 44px tap targets');
  const insightGaps=await insightRows.evaluateAll(rows=>rows.slice(1).map((row,i)=>row.getBoundingClientRect().top-rows[i].getBoundingClientRect().bottom));assert(insightGaps.every(gap=>Math.abs(gap-8)<.5),'insight rows keep 8px gaps between tap targets');
  await shot('me-insights');
@@ -346,7 +345,7 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||b
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
  console.log(`Profile card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
  if(unitsOnly){await l.close();await b.close();return;}
- if(meToolsOnly){await l.close();await b.close();console.log('Me account rows, Help group and New bests Run Records link: 390/330 light/dark PASS');return;}
+ if(meToolsOnly){await l.close();await b.close();console.log('Me account rows, Help group and single weekly insight: 390/330 light/dark PASS');return;}
  if(profileClockOnly){await b.close();console.log('Profile card clock: fixed 390px Me, full profile, friend and preview PASS');return;}
  if(badgeOnly||achievementCardOnly){await b.close();return;}
  await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});
