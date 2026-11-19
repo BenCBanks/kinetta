@@ -48,7 +48,7 @@ const Native = (() => {
   N.signInSheet = on && !!P.KinettaWebSignIn;
   N.webSignIn = (url) => P.KinettaWebSignIn.open({url});
   N.activityShareSupported = on && !!P.KinettaActivityShare;
-  N.shareActivityPicture = (image, destination, url = null) => P.KinettaActivityShare.share({image, destination, ...(url ? {url} : {})});
+  N.shareActivityPicture = (image, destination, url = null, caption = null) => P.KinettaActivityShare.share({image, destination, ...(url ? {url} : {}), ...(caption ? {caption} : {})});
   N.saveActivityPicture = (image) => P.KinettaActivityShare.saveToPhotos({image});
   N.keepScreenAwake = (enabled) => P.KinettaActivityShare?.keepAwake?.({enabled}) || Promise.resolve();
   N.stopActivityShare = () => P.KinettaActivityShare?.cancel?.() || Promise.resolve();
