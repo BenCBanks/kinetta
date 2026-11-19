@@ -5,6 +5,7 @@ import datetime as dt
 import hashlib
 import json
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 from fastapi import HTTPException
@@ -161,9 +162,14 @@ def resolve_outside(uid,work,body):
         deadline=api_food.catalog_deadline()
         def lookup_part(part):
             with api_food.catalog_budget(deadline):
-                try:return meal_chat.lookup(part['text'])
-                except api_food.CatalogUnavailable as exc:return exc
-                except Exception:return {'kind':'none','foods':[]}
+                for attempt in range(2):
+                    try:return meal_chat.lookup(part['text'])
+                    except api_food.CatalogUnavailable as exc:
+                        # A transient 503/DNS result can recover quickly. Never
+                        # extend the shared per-message catalog deadline.
+                        if attempt or time.monotonic() >= deadline:return exc
+                    except Exception:return {'kind':'none','foods':[]}
+                return {'kind':'none','foods':[]}
         with ThreadPoolExecutor(max_workers=4) as pool:
             lookups=dict(zip((p['index'] for p in short),pool.map(lookup_part,short)))
         ai_ok=None
@@ -171,6 +177,8 @@ def resolve_outside(uid,work,body):
             lookup=lookups.get(part['index']) or {'kind':'none','foods':[]}
             if isinstance(lookup,api_food.CatalogUnavailable):
                 catalog_error=lookup
+                if ai_ok is None:ai_ok=coach.allowed(uid,'food')
+                if ai_ok:estimate.append(part)
                 continue
             if has_link or re.search(r'https?://|www\.',part['text'],re.I):
                 updates.append({'indices':[part['index']],'part':{**part,'looked_up':True,'recipe_url':True,
@@ -216,7 +224,7 @@ def resolve_outside(uid,work,body):
                     estimate.append(part);fallback.append(update)
                 else:updates.append(update)
             else:estimate.append(part)
-    if catalog_error:return updates+fallback,catalog_error
+    if catalog_error and not ai_ok:return updates+fallback,catalog_error
     if estimate:
         text='\n'.join(p['text'] for p in estimate)
         if media['kind']=='photo':text=message['body'] if message['body']!='Photo of food' else ''
@@ -230,12 +238,15 @@ def resolve_outside(uid,work,body):
             with ai_budget.scope(uid,message['client_id']):
                 found=food_photo.estimate(estimate_body,user={'id':uid},strict=True)
             drafts=S.model_drafts(found)
-        except Exception as error:return updates+fallback,error
+        except Exception as error:
+            if catalog_error:
+                error.food_lookup_retry=True
+            return updates+fallback,error
         uncertain=bool(re.search(r"unclear|cannot tell|can't tell|portion (?:is )?(?:unknown|uncertain)|not visible",found.get('notes',''),re.I))
         merged={'index':min(p['index'] for p in estimate),'text':'\n'.join(p['text'] for p in estimate),
                 'status':'quantity' if uncertain else 'ready','drafts':drafts,'entries':S.draft_entries(drafts),
                 'logged':False,'looked_up':True,'source':'ai','learn_phrase':'\n'.join(p['text'] for p in estimate) if media['kind']=='text' else None,
-                'estimated':True,'photo_description':text if media['kind']=='photo' else None,'photo_itemized':bool(itemize),'question':'Does this estimated amount look right? Choose an amount below.' if uncertain else None,
+                'estimated':True,'catalog_fallback':bool(catalog_error),'photo_description':text if media['kind']=='photo' else None,'photo_itemized':bool(itemize),'question':'Does this estimated amount look right? Choose an amount below.' if uncertain else None,
                 'scale_options':[{'label':'Smaller','factor':.5},{'label':'As estimated','factor':1},{'label':'Larger','factor':1.5}] if uncertain else []}
         updates.append({'indices':[p['index'] for p in estimate],'part':merged,'model':True})
     return updates,None
@@ -293,6 +304,9 @@ def complete(uid,mid,work,updates,error=None):
             if replacing:result['parts']=copy.deepcopy(work['photo_previous']['parts'])
             detail=error.detail if isinstance(error,HTTPException) else 'The food could not be checked. Your text is kept; search or enter nutrition instead.'
             result['error']={'message':str(detail)[:500],'retryable':True}
+            if isinstance(error,api_food.CatalogUnavailable) or getattr(error,'food_lookup_retry',False):
+                result['error']={'message':'We couldn’t check this food just now. Your food is kept; try again or choose another option.',
+                                 'retryable':True,'kind':'food_lookup_retry'}
             for part in _unknown(result):part.update({'looked_up':True,'question':'Which food and portion should I use?'})
         # Persist the successful source result before the separate atomic food
         # transaction. A failed food save can retry this stored result at no AI cost.

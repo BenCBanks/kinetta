@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const food=fs.readFileSync('app/static/food.js','utf8'),foodHome=fs.readFileSync('app/static/food-home.js','utf8'),thread=fs.readFileSync('app/static/thread.js','utf8');
-const c={svg:()=>'<svg></svg>',esc:s=>String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x])),fmtAmount:e=>`${e.amount} ${e.unit}`,source:()=> 'Open Food Facts',homeCalories:Math.round};
+const c={svg:()=>'<svg></svg>',esc:s=>String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x])),fmtAmount:e=>`${e.amount} ${e.unit}`,source:e=>e.ref?.origin==='ai'?"Kit’s estimate":'Open Food Facts',homeCalories:Math.round};
 vm.createContext(c);vm.runInContext(foodHome.slice(foodHome.indexOf('const r0 ='),foodHome.indexOf('const isoDay')),c);vm.runInContext(foodHome.match(/const MEAL_NAMES = [^;]+;/)[0],c);vm.runInContext(food.slice(food.indexOf('const MACROS ='),food.indexOf('function foodStorage(')),c);
 vm.runInContext(fs.readFileSync('app/static/food-nutrition.js','utf8')+'\nglobalThis.preview=FoodNutrition;',c);
 vm.runInContext(thread.slice(thread.indexOf('  function food('),thread.indexOf('  function choices(')),c);
@@ -23,6 +23,7 @@ assert.equal(c.preview.basis(label).factor,2);assert.equal(c.preview.basis(c.pre
 const part={index:0,status:'ready',entries:[pasta],entry_drafts:[0],drafts:[{}],remove_entries:[0],remove_token:'a'.repeat(64)};
 html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[part]})[0]);assert.match(html,/Protein 14 g · Carbs 84 g · Fat 2 g/);assert.match(html,/aria-label="Nutrition for Fictional &lt;penne&gt;, Protein 14 g/);assert.match(html,/data-food-nutrition=/);assert.match(html,/data-step="-1"/);assert.match(html,/data-step="1"/);assert.doesNotMatch(html,/data-remove-food=/,'a multi-portion card uses its stepper before trash is available');
 const atOne={...part,entries:[{...pasta,amount:1}]};html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[atOne]})[0]);assert.match(html,/aria-label="Remove Fictional &lt;penne&gt;"/);assert.match(html,/class="icon-btn thread-remove"/);assert.match(html,/data-remove-food=/);assert.doesNotMatch(html,/data-step="-1"/,'at one portion, the minus control becomes trash');
+const lookupEstimate={...part,catalog_fallback:true,entries:[{...pasta,source:'ai',ref:{origin:'ai'}}]};html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[lookupEstimate]})[0]);assert.match(html,/class="tf-source">Kit’s estimate<\/small>/,'a catalog-outage fallback is identified as Kit’s estimate on its review row');
 assert.match(c.food({...pasta,id:undefined},0),/tf-macros/,'typed/manual/photo pending rows share the macro line');
 console.log('Pending nutrition: source serving vs chosen amount, unknown/zero, fallback weight honesty, label correction scale, escaped compact cards and accessible macros PASS');
 
