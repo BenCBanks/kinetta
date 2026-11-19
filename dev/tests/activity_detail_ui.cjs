@@ -4,6 +4,12 @@ const {chromium}=require('playwright'),{AxeBuilder}=require('@axe-core/playwrigh
 const spacingRules=require('./spacing_exceptions.json'),{audit}=require('./spacing_geometry.cjs'),{collectSpacing}=require('./spacing_dom.cjs');
 const {instant:fixtureInstant}=require('./fixture-clock.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390,detailWidth=Number(process.env.KINETTA_DETAIL_WIDTH)||390,detailWidths=(process.env.KINETTA_DETAIL_WIDTHS||String(detailWidth)).split(',').map(Number),detailCases=(process.env.KINETTA_DETAIL_CASE||'').split(',').filter(Boolean),loadCases=(process.env.KINETTA_DETAIL_LOAD_CASE??'cold-me,retry,repeat,track-done,track-failure,track-unmount,track-owner,track-owner-original').split(',').filter(Boolean);
+function assertDetailMediaStylesOwned(){
+ const shared=fs.readFileSync(path.join(__dirname,'../../app/static/style.css'),'utf8'),owned=fs.readFileSync(path.join(__dirname,'../../app/static/activity-detail.css'),'utf8');
+ assert.doesNotMatch(shared,/\.detail-media\s*\{|\.map-head\s+\.detail-media|\.map-head\s+\.media-track|\.map-head\s+\.media-item\s+\.map\.lead|\.map-head\s+\.media-controls/,'Activity Detail media rules stay out of shared style.css');
+ for(const selector of [/\.detail-media\s*\{/,/\.map-head\s+\.detail-media\s*\{/,/\.map-head\s+\.media-track\s*\{/,/\.map-head\s+\.media-item\s+\.map\.lead\s*\{/,/\.map-head\s+\.media-controls\s*\{/])assert.match(owned,selector,'Activity Detail media rules belong to activity-detail.css: '+selector);
+}
+assertDetailMediaStylesOwned();
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 async function screenshotShareImageOnPhoto(p,{out,width,theme,tab}){
  const photoName=theme==='dark'?'freedom-park-bridge.jpg':'freedom-park-lake.jpg',photo='data:image/jpeg;base64,'+fs.readFileSync(path.join(__dirname,'../demo/photos',photoName),'base64');
