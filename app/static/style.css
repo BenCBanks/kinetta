@@ -487,6 +487,10 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
 .sheet { width: 100%; max-width: 640px; max-height: 92dvh; overflow: auto; overflow-x: hidden; background: var(--surface-sheet); box-shadow: var(--sheet-shadow); border-radius: 18px 18px 0 0;
   padding: 8px 18px calc(env(safe-area-inset-bottom) + 20px); overscroll-behavior: contain; animation: sheet-in var(--motion-settle) var(--spring-smooth); }
+.scrim.keyboard-inset { transition: bottom 250ms cubic-bezier(.2,.8,.2,1); }
+.scrim.keyboard-inset::after { content:"";position:absolute;z-index:0;right:0;bottom:0;left:0;height:var(--sheet-keyboard-inset,0px);background:var(--surface-sheet);pointer-events:none;transition:height 250ms cubic-bezier(.2,.8,.2,1),bottom 250ms cubic-bezier(.2,.8,.2,1); }
+.scrim.keyboard-attached.keyboard-inset::after { bottom:calc(-1 * var(--sheet-keyboard-inset,0px)); }
+.scrim.keyboard-inset:has(.sheet) .sheet { position:relative;z-index:1;padding-bottom:0;border-bottom-right-radius:0;border-bottom-left-radius:0; }
 @keyframes sheet-in { from { transform: translate3d(0,100%,0); opacity: .96; } to { transform: translate3d(0,0,0); opacity: 1; } }
 .sheet .grab { position: relative; width: 36px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--tx3) 45%, transparent); margin: 4px auto 12px; }
 .sheet .grab::after { content: ''; position: absolute; left: -60px; right: -60px; top: -14px; bottom: -14px; }

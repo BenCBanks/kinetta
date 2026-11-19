@@ -1173,12 +1173,17 @@ function bodyDetailsSummary(me) {
 }
 function bodyDetailsSheet(box) {
   const me = App.me, owner = readOwner(), initialWeight = String(U.weight(me.weight_kg)), weightDerived = !!me.weight_health_derived;
-  const initialHeight = me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '';
+  const totalHeightInches = me.height_cm ? Math.round(me.height_cm / 2.54) : null;
+  let initialFeet = totalHeightInches == null ? '' : String(Math.floor(totalHeightInches / 12)), initialInches = totalHeightInches == null ? '' : String(totalHeightInches % 12);
+  if (+initialInches === 12) { initialFeet = String(+initialFeet + 1); initialInches = '0'; }
+  const initialHeight = me.height_cm ? Math.round(me.height_cm) : '';
   sheet('Body details', `<form class="form needs-body-form" id="needs-body-form">
       <div class="two"><label>Sex<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
       <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}" placeholder="1990"></label></div>
       <div class="two"><div class="needs-body-weight"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" inputmode="decimal" value="${esc(initialWeight)}" placeholder="${imp() ? '150' : '68'}"${weightDerived ? ' readonly aria-readonly="true"' : ''}></label>${weightDerived?'<a class="linkbtn needs-body-weight-link" href="/progress/weight?from=nutrition">Update in Weight</a>':''}</div>
-      <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" inputmode="decimal" value="${esc(initialHeight)}" placeholder="${imp() ? '5 8' : '173'}"></label></div>
+      ${imp()
+        ? `<label>Height<div class="needs-height-imperial"><input name="height_feet" inputmode="numeric" pattern="[0-9]*" aria-label="Feet" value="${esc(initialFeet)}" placeholder="5"><span aria-hidden="true">'</span><input name="height_inches" inputmode="numeric" pattern="[0-9]*" aria-label="Inches" value="${esc(initialInches)}" placeholder="8"><span aria-hidden="true">&quot;</span></div></label>`
+        : `<label>Height (cm)<input name="height" inputmode="decimal" value="${esc(initialHeight)}" placeholder="173"></label>`}</div>
       <p class="small needs-body-error" id="needs-body-error" role="alert" hidden></p>
       <button class="needs-body-save" type="submit">Save body details</button>
     </form>`, (b, close) => {
@@ -1190,9 +1195,11 @@ function bodyDetailsSheet(box) {
       error.hidden = true; error.textContent = '';
       const birthText = form.birth_year.value.trim(), birthYear = n(birthText), maxBirthYear = new Date().getUTCFullYear() - 16;
       if (birthText && (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > maxBirthYear)) { fail(`Use a birth year from 1900 through ${maxBirthYear}.`); form.birth_year.focus(); return; }
-      const heightText = form.height.value.trim(), heightParts = heightText.match(/\d+(\.\d+)?/g) || [];
-      const height_cm = !heightParts.length ? null : imp() ? (heightParts.length > 1 ? +heightParts[0] * 12 + +heightParts[1] : +heightParts[0] < 9 ? +heightParts[0] * 12 : +heightParts[0]) * 2.54 : +heightParts[0];
-      if (heightText && (!heightParts.length || heightParts.length > 2 || !Number.isFinite(height_cm) || height_cm < 100 || height_cm > 250)) { fail('Height must be 100–250 cm (about 3′3″–8′2″).'); form.height.focus(); return; }
+      const heightInput = form.querySelector('[name="height"]'), feetInput = form.querySelector('[name="height_feet"]'), inchesInput = form.querySelector('[name="height_inches"]');
+      const heightText = imp() ? `${feetInput.value.trim()} ${inchesInput.value.trim()}`.trim() : heightInput.value.trim();
+      const feet = feetInput ? n(feetInput.value) : null, inches = inchesInput ? n(inchesInput.value) : null;
+      const height_cm = !heightText ? null : imp() ? (feet == null || inches == null || !Number.isInteger(feet) || !Number.isInteger(inches) || feet < 3 || feet > 8 || inches < 0 || inches > 11 ? NaN : (feet * 12 + inches) * 2.54) : n(heightInput.value);
+      if (heightText && (!Number.isFinite(height_cm) || height_cm < 100 || height_cm > 250)) { fail('Height must be 100–250 cm (about 3′3″–8′2″).'); (feetInput || heightInput).focus(); return; }
       const weightText = form.weight.value.trim(), weight = n(weightText), weight_kg = weight == null ? null : imp() ? weight / 2.20462 : weight;
       if (!weightDerived && weightText && (!Number.isFinite(weight_kg) || weight_kg < 25 || weight_kg > 300)) { fail(`Weight must be ${imp() ? '55–661 lb' : '25–300 kg'}.`); form.weight.focus(); return; }
       const body = {sex: form.sex.value || null, birth_year: n(form.birth_year.value), height_cm};
