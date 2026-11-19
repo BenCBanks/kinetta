@@ -233,6 +233,11 @@ button.lift-prev:active { background: var(--card2); }
 
 /* Lifting summary after Finish (28 October 2026): the run summary's title and stat card, then records and exercises. */
 .lift-review .track-review-when svg { width: 18px; height: 18px; color: var(--accent); }
+.lift-review .track-review-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 12px; margin:16px 0 12px; }
+.lift-review .track-review-stats b { display:block; overflow-wrap:anywhere; font-size:1.75rem; line-height:1.1; }
+.lift-review .track-review-stats b i { font-style:normal; font-size:.5em; font-weight:600; color:var(--tx2); margin-left:3px; }
+@media (max-width:400px) { .lift-review .track-review-stats { grid-template-columns:repeat(auto-fit,minmax(min(100%,7rem),1fr)); } }
+.lift-review .track-review-stats small { display:block; margin-top:4px; color:var(--tx2); font-size:.8125rem; font-weight:600; }
 .lift-review-records h3, .lift-review-ex h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
 .lift-review-records h3 svg { width: 20px; height: 20px; color: var(--accent); }
 .lift-review-records > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }

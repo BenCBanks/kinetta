@@ -5,8 +5,10 @@ const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=re
 const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant);
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const shots=process.env.KINETTA_LIFT_SHOTS;
-const sharedCss=fs.readFileSync(path.join(__dirname,'../../app/static/style.css'),'utf8'),progressCss=fs.readFileSync(path.join(__dirname,'../../app/static/progress-route.css'),'utf8');
+const sharedCss=fs.readFileSync(path.join(__dirname,'../../app/static/style.css'),'utf8'),progressCss=fs.readFileSync(path.join(__dirname,'../../app/static/progress-route.css'),'utf8'),liftCss=fs.readFileSync(path.join(__dirname,'../../app/static/lift-route.css'),'utf8');
 assert.doesNotMatch(sharedCss,/\.lift-exercise-row|\.lift-exercise-name|\.lift-exercise-meta|\.lv-best\b/,'Progress/Lifting history row rules stay out of shared style.css');
+assert.doesNotMatch(sharedCss,/\.lift-review \.track-review-stats/,'Lift summary stats stay out of shared style.css');
+assert.match(liftCss,/\.lift-review \.track-review-stats b \{ display:block;/,'Lift summary stats keep block metric values in lift-route.css');
 assert.match(progressCss,/\.lift-exercise-row \{ min-height:56px; gap:8px; \}/,'Progress/Lifting history rules live in the Progress route stylesheet');
 async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error('Lifting UI did not settle');}
 (async()=>{
@@ -113,6 +115,7 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    assert.deepEqual(overlap,[],'Enlarged summary numbers must fit their own cell');
    await p.evaluate(async()=>{await liftSummary(document.querySelector('#page'),999901,{exercises:[{name:'Squat',kind:'weight',sets:[{kg:20,reps:8,warmup:true},{kg:30,reps:5,warmup:true},{kg:40,reps:5,warmup:true,done:false}]}]});});
    assert((await p.locator('.lift-review').innerText()).includes('Warm-up only'));assert.equal(await p.locator('.track-review-stats > div').filter({hasText:'Exercise'}).innerText(),'1\nExercise');assert.equal(await p.locator('.track-review-stats > div').filter({hasText:'Warm-up sets'}).innerText(),'2\nWarm-up sets');assert.equal(await p.locator('.track-review-stats').getByText('Working sets',{exact:true}).count(),0,'warm-up-only summary never claims zero working sets');assert((await p.locator('.lift-review-ex').innerText()).includes('2 warm-up sets'),'exercise detail labels its completed warm-ups');
+   if(shots&&size.width<=390){fs.mkdirSync(shots,{recursive:true});await p.screenshot({path:path.join(shots,`lift-summary-${size.width}-${theme}.png`),fullPage:true,animations:'disabled'});}
    // The paired day/time fields use the same responsive form layout as other app sheets.
    await p.evaluate(()=>addActivitySheet(null,'workout'));await p.locator('#ma').waitFor();
    const daySelect=p.locator('#ma select[name=day]'),yesterday=await daySelect.locator('option').evaluateAll(options=>options.find(option=>option.textContent.trim()==='Yesterday')?.value);
