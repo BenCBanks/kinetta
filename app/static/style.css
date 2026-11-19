@@ -287,7 +287,7 @@ nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: var(--
   display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; height: var(--nav-height); padding: var(--nav-padding);
   border: 1px solid var(--line); border-color: color-mix(in srgb, var(--card) 80%, var(--line)); border-radius: calc(var(--nav-height) / 2);
   transition: height var(--motion-settle) var(--motion-ease), border-radius var(--motion-settle) var(--motion-ease), padding var(--motion-settle) var(--motion-ease); }
-nav.tabs.material { background: color-mix(in srgb, var(--card) 88%, transparent); box-shadow: var(--elevation-sheet), inset 0 .5px 0 color-mix(in srgb, var(--tx) 8%, transparent); }
+nav.tabs.material { background: color-mix(in srgb, var(--card) 88%, transparent); box-shadow: none; }
 nav.tabs.compact { height: max(56px, calc(var(--nav-height) * .75)); padding-block: 6px; border-radius: 28px; }
 nav.tabs.compact :is(a,button) { gap: 0; }
 nav.tabs.compact :is(a,button) > span:not(.tab-n) { max-height: 0; opacity: 0; overflow: hidden; }
