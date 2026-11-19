@@ -111,8 +111,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const name=`home-search-${width}-${theme}`;if(process.env.KINETTA_FRIEND_CASE&&process.env.KINETTA_FRIEND_CASE!=='home-search'&&process.env.KINETTA_FRIEND_CASE!==name)continue;
    const {c,p,errors,writes}=await open('empty',theme,{width,height:844},'/activity'),entry=p.locator('#feed-top a.home-find-friends');
    assert.equal(await entry.getAttribute('aria-label'),'Find friends','Home exposes a named friend-search action');assert.equal(await entry.innerText(),'','the magnifier has no visible text label');
-   const action=await entry.boundingBox(),header=await p.locator('#feed-top .top').boundingBox(),title=await p.locator('#feed-top h1').evaluate(el=>el.getBoundingClientRect().height);
-   assert(action&&action.width>=44&&action.height>=44,'the magnifier has a 44px touch target');assert(header&&action.x+action.width<=header.x+header.width+1,`Home actions fit the ${width}px header`);assert(title<=24,'Home title stays on one line');
+   const action=await entry.boundingBox(),header=await p.locator('#feed-top .top').boundingBox(),titleLines=await p.locator('#feed-top h1').evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getClientRects().length;});
+   assert(action&&action.width>=44&&action.height>=44,'the magnifier has a 44px touch target');assert(header&&action.x+action.width<=header.x+header.width+1,`Home actions fit the ${width}px header`);assert.equal(titleLines,1,'Home title stays on one line');
    assert.equal(await p.locator('#feed-tools .feed-find-friends').count(),0,'the header search is not duplicated in Feed tools');assert.equal(await p.locator('.feed-empty a[href="/me/friends?find=1"]').count(),1,'the existing empty-feed entry remains intact');
    await entry.click();await p.waitForURL('**/me/friends?find=1&from=home');
    const search=p.locator('#fr-find input');await search.waitFor({state:'visible'});assert.equal(await search.evaluate(el=>document.activeElement===el),true,'Find friends opens with the search field focused');
