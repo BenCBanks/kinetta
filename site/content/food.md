@@ -8,7 +8,7 @@ Log food in a few words.
 
 ## food-intro
 
-Calories, macros, meals and recipes.
+Calories, macros, meals and recipes, with optional Apple Health weight import and nutrition sharing on iPhone.
 
 ## food-quick-description
 
