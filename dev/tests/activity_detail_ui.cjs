@@ -10,6 +10,14 @@ function assertDetailMediaStylesOwned(){
  for(const selector of [/\.detail-media\s*\{/,/\.map-head\s+\.detail-media\s*\{/,/\.map-head\s+\.media-track\s*\{/,/\.map-head\s+\.media-item\s+\.map\.lead\s*\{/,/\.map-head\s+\.media-controls\s*\{/])assert.match(owned,selector,'Activity Detail media rules belong to activity-detail.css: '+selector);
 }
 assertDetailMediaStylesOwned();
+function assertDetailPhotoStylesOwned(){
+ const shared=fs.readFileSync(path.join(__dirname,'../../app/static/style.css'),'utf8'),owned=fs.readFileSync(path.join(__dirname,'../../app/static/activity-detail.css'),'utf8');
+ for(const selector of [/^\.ph-strip\s*\{/m,/^\.ph-strip::-webkit-scrollbar\s*\{/m,/^\.ph-th\s*\{/m,/^\.ph-add\s*\{/m,/^\.ph-view\s*\{/m,/^body\.ph-open\s*\{/m]){
+  assert.doesNotMatch(shared,selector,'Activity Detail photo gallery rules stay out of shared style.css: '+selector);
+  assert.match(owned,selector,'Activity Detail photo gallery rules belong to activity-detail.css: '+selector);
+ }
+}
+assertDetailPhotoStylesOwned();
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 async function screenshotShareImageOnPhoto(p,{out,width,theme,tab}){
  const photoName=theme==='dark'?'freedom-park-bridge.jpg':'freedom-park-lake.jpg',photo='data:image/jpeg;base64,'+fs.readFileSync(path.join(__dirname,'../demo/photos',photoName),'base64');
