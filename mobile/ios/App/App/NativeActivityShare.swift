@@ -115,6 +115,7 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     private var sending = false
     private var timeout: DispatchWorkItem?
     private static let maxBytes = 8 * 1024 * 1024
+    private static let maxCaptionCharacters = 1000
 
     override func load() {
         // A crashed/interrupted share must not retain activity pictures indefinitely.
@@ -142,6 +143,9 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     }
 
     @objc func share(_ call: CAPPluginCall) {
+        if let caption = call.getString("caption"), caption.count > Self.maxCaptionCharacters {
+            call.reject("The sharing caption is too long"); return
+        }
         guard let destination = call.getString("destination"), ["instagram", "system"].contains(destination),
               let text = call.getString("image"), text.count <= 12 * 1024 * 1024,
               text.hasPrefix("data:image/png;base64,"),
@@ -219,7 +223,9 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     private func shareWithSystem(_ image: UIImage, call: CAPPluginCall, controller: UIViewController) {
         begin(call)
         var items: [Any] = [image]
-        if let value = call.getString("url"), value.count <= 500,
+        if let caption = call.getString("caption"), !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            items.append(caption)
+        } else if let value = call.getString("url"), value.count <= 500,
            let link = URL(string: value), link.scheme == "https", link.host != nil,
            link.user == nil, link.password == nil { items.append(link) }
         let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)

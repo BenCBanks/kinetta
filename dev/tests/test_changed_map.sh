@@ -28,6 +28,17 @@ for mapping in 'explore.js:hints' 'username-availability.css:welcome' 'cards.css
   output="$(dev/tests/changed.sh --check-files "$path")"
   [[ "$output" == *"-> $group"* ]] || { echo "$path did not select $group." >&2; exit 1; }
 done
+caption_map="$(CHANGED_BASE=origin/main dev/tests/changed.sh --check-files app/static/challenges.js app/static/native.js app/static/share-art.js)"
+if [[ "$caption_map" == *"app/static/native.js -> challenge-share"* ]]; then
+  for path in app/static/challenges.js app/static/native.js app/static/share-art.js; do
+    [[ "$caption_map" == *"$path -> challenge-share"* ]] || { echo "Caption-only handoff did not use focused changed-screen coverage for $path." >&2; exit 1; }
+  done
+  for broad in '-> core' '-> social' '-> progress'; do
+    [[ "$caption_map" != *"$broad"* ]] || { echo "Caption-only handoff selected unrelated broad suite $broad." >&2; exit 1; }
+  done
+fi
+native_fallback="$(CHANGED_BASE=HEAD dev/tests/changed.sh --check-files app/static/native.js)"
+[[ "$native_fallback" == *"app/static/native.js -> core"* ]] || { echo "A general Native bridge change lost its broad core mapping." >&2; exit 1; }
 probe="$(mktemp app/static/.changed-map-untracked-probe.XXXXXX)"
 if output="$(CHANGED_BASE=HEAD dev/tests/changed.sh --check-map 2>&1)"; then
   echo "An untracked app/static path was invisible to the changed-screen gate." >&2

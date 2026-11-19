@@ -22,6 +22,7 @@ const ChallengeRoutes=(()=>{
     const sports=(q.sports||[]).map(s=>SPORT_NAMES[s]).filter(Boolean).join(', ');
     return `Join me for '${shareHeading(q)}' on Kinetta: ${number(q.target,q.unit)} ${q.unit}${sports?`, ${sports}`:''}, ${dateRange(q)}. View the challenge and join: ${q.url}`;
   }
+  function invitationCaption(q){return `Join my ${number(q.target,q.unit)} ${q.unit} challenge on Kinetta, ${dateRange(q)}: ${q.url}`;}
   const participants=q=>q.participants==null||!Number.isInteger(q.participants)||q.participants<0?'':q.participants+' '+(q.participants===1?'participant':'participants');
   const signature=(q,finish)=>JSON.stringify([q.title,q.start,q.end,q.target,q.unit,q.joining_closed,finish?q.self:null]);
   async function fetchOne(code){const owner=readOwner(),q=await api('/api/challenges/'+encodeURIComponent(code));if(owner!==readOwner())throw Error('The account changed.');return q;}
@@ -51,7 +52,7 @@ const ChallengeRoutes=(()=>{
       }
       identity.onchange=draw;$('#challenge-picture-retry',b).onclick=draw;
       send.onclick=async()=>{if(busy||!current)return;busy=true;send.disabled=true;identity.disabled=true;
-        try{const fresh=await fetchOne(q.code);if(!live())return;if(!fresh.member||(!finish&&fresh.joining_closed))throw Error('This invitation is no longer active.');if(signature(q,finish)!==signature(fresh,finish)){q=fresh;await draw();status.textContent='Your progress changed. Review this updated picture, then share again.';return;}await ShareArt.deliver(current.blob,finish?'kinetta-challenge-finish.png':'kinetta-challenge-invite.png',live,finish?null:q.url);}
+        try{const fresh=await fetchOne(q.code);if(!live())return;if(!fresh.member||(!finish&&fresh.joining_closed))throw Error('This invitation is no longer active.');if(signature(q,finish)!==signature(fresh,finish)){q=fresh;await draw();status.textContent='Your progress changed. Review this updated picture, then share again.';return;}await ShareArt.deliver(current.blob,finish?'kinetta-challenge-finish.png':'kinetta-challenge-invite.png',live,finish?null:q.url,finish?null:invitationCaption(q));}
         catch(e){if(live()&&e.name!=='AbortError')status.textContent=e.message;}finally{busy=false;if(live()){send.disabled=!current;identity.disabled=false;}}
       };
       const copy=$('#challenge-copy',b);if(copy)copy.onclick=async()=>{if(!live())return;const text=invitationText(q);try{await navigator.clipboard.writeText(text);if(live())toast('Invitation text copied');}catch(_){if(live())sheet('Challenge invitation',`<label>Copy this invitation text<textarea readonly aria-label="Challenge invitation text"></textarea></label>`,(root,done)=>{guardFoodSheet(root,done,owner);const field=$('textarea',root);field.value=text;field.select();});}};
@@ -122,7 +123,7 @@ const ChallengeRoutes=(()=>{
     viewResources.set(el,()=>{generation++;clearInterval(timer);clearHold();el.removeEventListener('pointerdown',down);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',cancel);el.removeEventListener('pointerleave',clearHold);el.removeEventListener('keydown',key);el.removeEventListener('contextmenu',context);window.removeEventListener('scroll',syncTitle);});
     await load(true);if(!live())return;timer=setInterval(()=>{if(live()&&!el._challengePress&&!document.hidden&&!document.querySelector('.scrim:not(.is-closing)'))load();},30000);
   }
-  return{create,createForm,mount,page,picture,activityBack,title,dateRange,invitationText,participants};
+  return{create,createForm,mount,page,picture,activityBack,title,dateRange,invitationText,invitationCaption,participants};
 })();
 Object.assign(Challenges,ChallengeRoutes);
 function challengeListRow(q,{past=false}={}){
