@@ -10,6 +10,10 @@ class CopyTests(unittest.TestCase):
   root=content.ROOT/'site'
   for path in [*root.glob('*.html'),*root.glob('templates/*.html'),*root.glob('content/*.md')]:
    self.assertNotRegex(path.read_text().lower(),r'private\s+by\s+default',str(path.relative_to(root)))
+ def test_home_training_proof_includes_routes_and_lifting_records(self):
+  home=(content.ROOT/'site/index.html').read_text()
+  self.assertIn('Every run, ride and lift, with the details.',home)
+  self.assertIn('See a route and splits for a run or ride, or set-by-set history and records for a lift.',home)
  def test_normal_copy_and_safe_links(self):
   self.assertEqual(content.inline('Your **workouts** and *food*.'),'Your <strong>workouts</strong> and <em>food</em>.')
   self.assertEqual(content.inline('[Training](training)'),'<a href="training">Training</a>')
