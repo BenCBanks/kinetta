@@ -14,14 +14,22 @@ const ChallengeRoutes=(()=>{
     const first=new Date(q.start+'T12:00:00Z'),last=new Date(q.end+'T12:00:00Z');if(!Number.isFinite(+first)||!Number.isFinite(+last)||first>last)return '';
     const f=new Intl.DateTimeFormat(undefined,{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'});return f.formatRange?f.formatRange(first,last):f.format(first)+' – '+f.format(last);
   }
+  function shareHeading(q){
+    const month=new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'long'});
+    return `${month} ${(kinds[q.kind]||'challenge').toLowerCase()}`;
+  }
+  function invitationText(q){
+    const sports=(q.sports||[]).map(s=>SPORT_NAMES[s]).filter(Boolean).join(', ');
+    return `Join me for '${shareHeading(q)}' on Kinetta: ${number(q.target,q.unit)} ${q.unit}${sports?`, ${sports}`:''}, ${dateRange(q)}. View the challenge and join: ${q.url}`;
+  }
   const participants=q=>q.participants==null||!Number.isInteger(q.participants)||q.participants<0?'':q.participants+' '+(q.participants===1?'participant':'participants');
   const signature=(q,finish)=>JSON.stringify([q.title,q.start,q.end,q.target,q.unit,q.joining_closed,finish?q.self:null]);
   async function fetchOne(code){const owner=readOwner(),q=await api('/api/challenges/'+encodeURIComponent(code));if(owner!==readOwner())throw Error('The account changed.');return q;}
   async function picture(q,finish=false,identity=false,live=()=>true){
     const owner=readOwner(),picturePath=location.pathname+location.search;
-    const own=q.self||{},facts=finish?(own.manual?['Includes manual entries']:[]):[q.sports.map(s=>SPORT_NAMES[s]).join(' · ')].filter(Boolean);
+    const own=q.self||{};
     await loadShareArt();if(owner!==readOwner()||picturePath!==location.pathname+location.search||!live())throw Error('The account changed.');
-    return ShareArt.simplePicture({kicker:finish?'Your challenge':'Join this challenge',title:q.title,date:date(q.start)+' – '+date(q.end),value:finish?number(own.value,q.unit)+' / '+number(q.target,q.unit):number(q.target,q.unit),unit:q.unit,facts,sources:finish?own.garmin_sources||[]:[],identity,qrLink:finish?null:q.url});
+    return ShareArt.challengePicture({kind:q.kind,start:q.start,end:q.end,target:number(q.target,q.unit),unit:q.unit,sports:q.sports||[],value:number(own.value,q.unit),finished:own.finished===true,identity,handle:App.me.login||'',photo:App.me.photo||null,sources:finish?own.garmin_sources||[]:[],manual:finish&&own.manual===true,finish});
   }
   function confirmation(title,copy,action,onDone){
     const owner=readOwner();sheet(title,`<p>${esc(copy)}</p><p class="err" role="status"></p><div class="btncol"><button type="button" class="primary wide" id="challenge-confirm">${esc(action.label)}</button><button type="button" class="ghost wide" id="challenge-keep">Cancel</button></div>`,(b,close)=>{
@@ -34,7 +42,7 @@ const ChallengeRoutes=(()=>{
     catch(e){if(sourceLive())toast(e.message);return;}
     if(!sourceLive())return;
     let current=null,url='',generation=0,busy=false;
-    sheet(finish?'Your finish picture':'Invite to your challenge',`<div class="challenge-share-body"><p>${finish?'Only your challenge progress appears. Photo and username start off.':'People see this challenge’s dates and target before choosing to join. Joining never adds friends.'}</p><label class="check"><input type="checkbox" id="challenge-identity">Photo and username</label><div class="challenge-picture"><img id="challenge-picture" alt="Loading challenge picture"></div><p class="small" role="status" id="challenge-share-status"></p><button class="ghost wide" id="challenge-picture-retry" hidden>Retry picture</button></div><div class="challenge-share-actions"><button type="button" class="primary wide" id="challenge-send" disabled>Share picture${finish?'':' and link'}</button>${finish?'':'<button type="button" class="ghost wide" id="challenge-copy">Copy invitation link</button>'}</div>`,(b,close)=>{
+    sheet(finish?'Your finish picture':'Invite to your challenge',`<div class="challenge-share-body"><p>${finish?'Your picture includes your challenge progress and any source credits. Photo and username start off.':'This challenge’s goal, sports and dates help people decide whether to join. Joining is optional and never sends a friend request.'}</p><label class="check"><input type="checkbox" id="challenge-identity">Photo and username</label><div class="challenge-picture"><img id="challenge-picture" alt="Loading challenge picture"></div><p class="small" role="status" id="challenge-share-status"></p><button class="ghost wide" id="challenge-picture-retry" hidden>Retry picture</button></div><div class="challenge-share-actions"><button type="button" class="primary wide" id="challenge-send" disabled>Share picture${finish?'':' and link'}</button>${finish?'':'<button type="button" class="ghost wide" id="challenge-copy">Copy invite text</button>'}</div>`,(b,close)=>{
       const live=()=>b.isConnected&&sourceLive(),status=$('#challenge-share-status',b),send=$('#challenge-send',b),identity=$('#challenge-identity',b),image=$('#challenge-picture',b);
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;viewResources.set(b,()=>{generation++;if(url)URL.revokeObjectURL(url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
       async function draw(){const stamp=++generation;send.disabled=true;current=null;status.textContent='Creating picture…';$('#challenge-picture-retry',b).hidden=true;
@@ -46,7 +54,7 @@ const ChallengeRoutes=(()=>{
         try{const fresh=await fetchOne(q.code);if(!live())return;if(!fresh.member||(!finish&&fresh.joining_closed))throw Error('This invitation is no longer active.');if(signature(q,finish)!==signature(fresh,finish)){q=fresh;await draw();status.textContent='Your progress changed. Review this updated picture, then share again.';return;}await ShareArt.deliver(current.blob,finish?'kinetta-challenge-finish.png':'kinetta-challenge-invite.png',live,finish?null:q.url);}
         catch(e){if(live()&&e.name!=='AbortError')status.textContent=e.message;}finally{busy=false;if(live()){send.disabled=!current;identity.disabled=false;}}
       };
-      const copy=$('#challenge-copy',b);if(copy)copy.onclick=async()=>{if(!live())return;try{await navigator.clipboard.writeText(q.url);if(live())toast('Invitation link copied');}catch(_){if(live())sheet('Challenge link',`<label>Copy this invitation<input readonly value="${esc(q.url)}" aria-label="Challenge link"></label>`,(root,done)=>{guardFoodSheet(root,done,owner);$('input',root).select();});}};
+      const copy=$('#challenge-copy',b);if(copy)copy.onclick=async()=>{if(!live())return;const text=invitationText(q);try{await navigator.clipboard.writeText(text);if(live())toast('Invitation text copied');}catch(_){if(live())sheet('Challenge invitation',`<label>Copy this invitation text<textarea readonly aria-label="Challenge invitation text"></textarea></label>`,(root,done)=>{guardFoodSheet(root,done,owner);const field=$('textarea',root);field.value=text;field.select();});}};
       draw();
     });
   }
@@ -110,7 +118,7 @@ const ChallengeRoutes=(()=>{
     viewResources.set(el,()=>{generation++;clearInterval(timer);clearHold();el.removeEventListener('pointerdown',down);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',cancel);el.removeEventListener('pointerleave',clearHold);el.removeEventListener('keydown',key);el.removeEventListener('contextmenu',context);window.removeEventListener('scroll',syncTitle);});
     await load(true);if(!live())return;timer=setInterval(()=>{if(live()&&!el._challengePress&&!document.hidden&&!document.querySelector('.scrim:not(.is-closing)'))load();},30000);
   }
-  return{create,createForm,mount,page,picture,activityBack,title,dateRange,participants};
+  return{create,createForm,mount,page,picture,activityBack,title,dateRange,invitationText,participants};
 })();
 Object.assign(Challenges,ChallengeRoutes);
 route(/^\/me\/challenges$/,'activity',async el=>{

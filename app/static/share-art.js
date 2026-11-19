@@ -98,6 +98,58 @@ const ShareArt=(()=>{
       for(const [node,style] of restore){if(style===null)node.removeAttribute('style');else node.setAttribute('style',style);}
     }
   }
+  async function challengePicture({kind,start,end,target,unit,sports=[],value='0',finished=false,identity=false,handle='',photo:photoVersion=null,sources=[],manual=false,finish=false}){
+    const pictureOwner=readOwner();await document.fonts.ready;
+    const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const g=canvas.getContext('2d');
+    const C={bg:'#171B1F',text:'#F1F3F5',soft:'#B4BCC4',muted:'#929BA4',line:'#2A3137',blue:'#2F64D8',success:'#4CC98A'};
+    const M=72,W=936;g.fillStyle=C.bg;g.fillRect(0,0,1080,1350);
+    const numberWidth=(value,size,weight)=>{g.font=`${weight} ${size}px ${family()}`;const digit=Math.max(...Array.from('0123456789',d=>g.measureText(d).width));return Array.from(String(value)).reduce((sum,char)=>sum+(/[0-9]/.test(char)?digit:g.measureText(char).width),0);};
+    const tabularNumber=(value,cx,baseline,size,weight,color,max)=>{let width=numberWidth(value,size,weight);while(width>max&&size>48){size-=2;width=numberWidth(value,size,weight);}g.font=`${weight} ${size}px ${family()}`;g.fillStyle=color;g.textBaseline='alphabetic';let x=cx-width/2;const digit=Math.max(...Array.from('0123456789',d=>g.measureText(d).width));for(const char of String(value)){const cell=/[0-9]/.test(char)?digit:g.measureText(char).width;if(/[0-9]/.test(char)){g.textAlign='center';g.fillText(char,x+cell/2,baseline);}else{g.textAlign='left';g.fillText(char,x,baseline);}x+=cell;}return width;};
+    let y=150;
+    if(identity){
+      const image=photoVersion&&handle?await photo(`/api/people/${encodeURIComponent(handle)}/photo?v=${encodeURIComponent(photoVersion)}`):null;
+      if(image){g.save();g.beginPath();g.arc(M+32,72+32,32,0,Math.PI*2);g.clip();g.drawImage(image,M,72,64,64);g.restore();}
+      text(g,'@'+handle,M+(image?84:0),116,32,{color:C.soft,max:W-84});y=254;
+    }
+    const kinds={distance:'distance',active_days:'active days',activities:'activities',food_days:'food days',protein_days:'protein days'};
+    const month=new Date(start+'T12:00:00Z').toLocaleDateString('en-US',{timeZone:'UTC',month:'long'});
+    text(g,finish?'Your challenge':'Join my challenge',M,y,30,{color:C.muted});
+    const headline=`${month} ${kinds[kind]||'challenge'}`;const titleLines=lines(g,headline,W,76);let headlineSize=76;
+    if(titleLines.length>3){headlineSize=60;titleLines.splice(0,titleLines.length,...lines(g,headline,W,60));}
+    let headlineY=y+90;for(const line of titleLines){text(g,line,M,headlineY,headlineSize,{weight:700,color:C.text,max:W});headlineY+=headlineSize+8;}
+    const dateFmt=new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}),first=new Date(start+'T12:00:00Z'),last=new Date(end+'T12:00:00Z');
+    let dateLabel=dateFmt.formatRange?dateFmt.formatRange(first,last):`${dateFmt.format(first)} - ${dateFmt.format(last)}`;dateLabel=dateLabel.replace(' – ',' - ');
+    text(g,dateLabel,M,headlineY+24,34,{weight:500,color:C.soft});const dateBottom=headlineY+24;
+    const sportNames={run:'Running',walk:'Walking',hike:'Hiking',ride:'Cycling'},sportColors={run:'#4CC98A',walk:'#A9C24E',hike:'#E9A04E',ride:'#4BC0CF'};
+    const selected=(sports||[]).filter(s=>sportNames[s]);const sportRows=[];
+    if(!finish&&selected.length){let row=[],rowWidth=0;for(const sport of selected){const label=sportNames[sport],w=g.measureText(label).width+70+(row.length?40:0);g.font=`600 34px ${family()}`;const measured=g.measureText(label).width+70+(row.length?40:0);if(row.length&&rowWidth+measured>W){sportRows.push(row);row=[];rowWidth=0;}row.push({sport,label});rowWidth+=g.measureText(label).width+70+(row.length>1?40:0);}if(row.length)sportRows.push(row);}
+    const sportsTop=1150-Math.max(0,sportRows.length-1)*46,ringTop=dateBottom+50,ringBottom=sportsTop-(sportRows.length?56:0),diameter=Math.min(560,ringBottom-ringTop);
+    if(diameter<420)throw Error('The challenge picture needs more room. Try without photo and username.');
+    const cx=540,cy=ringTop+diameter/2,r=diameter/2-18,stroke=36;
+    g.save();g.lineWidth=stroke;g.lineCap='round';
+    if(finish){
+      g.beginPath();g.strokeStyle=C.line;g.arc(cx,cy,r,0,Math.PI*2);g.stroke();
+      const current=Number(String(value).replace(/,/g,''))||0,goal=Number(String(target).replace(/,/g,''))||0,reached=goal>0&&current>=goal,portion=goal>0?Math.min(1,current/goal):0;
+      if(portion>0){g.beginPath();g.strokeStyle=reached?C.success:C.blue;g.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+Math.PI*2*portion);g.stroke();}
+      const numberSize=96,unitSize=54,numericWidth=numberWidth(value,numberSize,700);g.font=`600 ${unitSize}px ${family()}`;const unitWidth=g.measureText(unit).width,totalWidth=numericWidth+20+unitWidth,left=cx-totalWidth/2;
+      tabularNumber(value,left+numericWidth/2,cy-4,numberSize,700,C.text,diameter-100-unitWidth-20);text(g,unit,left+numericWidth+20,cy-4,unitSize,{weight:600,color:C.soft,max:unitWidth+4});
+      const outcome=reached?'Goal reached':`of ${target} ${unit} · You took part`;text(g,outcome,cx,cy+52,26,{align:'center',weight:500,color:C.soft,max:diameter-72});
+    }else{
+      const startDate=new Date(start+'T12:00:00Z'),endDate=new Date(end+'T12:00:00Z'),days=Math.max(3,Math.min(62,Math.round((endDate-startDate)/86400000)+1)),segmentStroke=Math.min(stroke,Math.max(8,2*Math.PI*r/days-8)),gap=(8+segmentStroke)/r,part=(Math.PI*2-days*gap)/days;
+      g.lineWidth=segmentStroke;g.strokeStyle=C.blue;for(let i=0;i<days;i++){const a=-Math.PI/2+i*(part+gap);g.beginPath();g.arc(cx,cy,r,a,a+part);g.stroke();}
+      const numberText=String(target),unitText=unit==='days'?'days':unit;let numberSize=150,unitSize=64;
+      let nw=numberWidth(numberText,numberSize,700);g.font=`600 ${unitSize}px ${family()}`;let uw=g.measureText(unitText).width;
+      const goalMax=diameter-116;while(nw+24+uw>goalMax&&numberSize>48){numberSize=Math.max(48,numberSize-4);unitSize=Math.max(28,unitSize-2);nw=numberWidth(numberText,numberSize,700);g.font=`600 ${unitSize}px ${family()}`;uw=g.measureText(unitText).width;}
+      if(nw+24+uw>goalMax)throw Error('The challenge goal will not fit inside the ring.');
+      const left=cx-(nw+24+uw)/2;tabularNumber(numberText,left+nw/2,cy+20,numberSize,700,C.text,nw+2);text(g,unitText,left+nw+24,cy+16,unitSize,{weight:600,color:C.soft,max:uw+2});
+      text(g,`${days} days`,cx,cy+84,34,{align:'center',weight:500,color:C.soft,max:diameter-80});
+    }
+    g.restore();
+    if(sportRows.length){let sy=1150-(sportRows.length-1)*46;for(const row of sportRows){let total=0;for(const item of row){g.font=`600 34px ${family()}`;total+=20+24+g.measureText(item.label).width;}total+=(row.length-1)*40;let x=(1080-total)/2;for(const item of row){g.beginPath();g.fillStyle=sportColors[item.sport];g.arc(x+10,sy-12,10,0,Math.PI*2);g.fill();x+=34;text(g,item.label,x,sy,34,{weight:600,color:C.text,max:W});g.font=`600 34px ${family()}`;x+=g.measureText(item.label).width+40;}sy+=46;}}
+    if(finish){const credits=[...(manual?['Includes manual entries']:[]),...(sources.length?['Includes data from '+[...new Set(sources)].slice(0,2).join(', ')]:[])];if(credits.length)text(g,credits.join(' · '),M,1224,22,{weight:500,color:C.muted,max:W});}
+    g.strokeStyle=C.line;g.lineWidth=2;g.beginPath();g.moveTo(M,1275);g.lineTo(1008,1275);g.stroke();g.fillStyle=C.blue;g.beginPath();g.arc(M+13,1313,12,0,Math.PI*2);g.fill();text(g,'Kinetta',M+40,1323,28,{weight:600,color:C.soft});text(g,'kinetta.app',1008,1322,24,{weight:500,color:C.muted,max:W,align:'right'});
+    if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,width:1080,height:1350,alt:finish?`Your Kinetta challenge result. ${kinds[kind]||'Challenge'}: ${value} of ${target} ${unit}. ${Number(String(value).replace(/,/g,''))>=Number(String(target).replace(/,/g,''))?'Goal reached':'You took part'}.`:`Kinetta challenge invitation. ${month} ${kinds[kind]||'challenge'}, ${target} ${unit}, ${dateLabel}${selected.length?'. '+selected.map(s=>sportNames[s]).join(' and ')+' count':''}.`};
+  }
   async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null,routePoints=[],routeTrimmed=true}){
     const pictureOwner=readOwner();
     await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
@@ -274,7 +326,7 @@ const ShareArt=(()=>{
     try{const source='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);if(source.length>2_000_000)throw new Error('The card picture is too large to render safely.');window.__sharePictureDiagnostic.dataUrlBytes=source.length;const image=await imageFromDataUrl(source);if(pictureOwner!==readOwner()||!live())throw Error('The account changed.');const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const context=canvas.getContext('2d');context.fillStyle=background;context.fillRect(0,0,W,H);context.drawImage(image,0,0,W,H);const pictureBlob=await blob(canvas);window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,mode:'foreignObjectDataUrl',outputBytes:pictureBlob.size,exportedBlob:true};if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);return{blob:pictureBlob,alt:root.getAttribute('aria-label')||'Your Kinetta profile card.'};}
     catch(error){window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,mode:'canvasFallback',errorName:error.name,errorMessage:error.message};return canvasDomPicture(root,bounds,W,H,pad,scale,x,y,background,live,pictureOwner);}
   }
-  return{palette,family,text,lines,blob,deliver,photo,simplePicture,routeSilhouette,statsPicture,achievementPicture,domPicture,fitTrackBadgeDiameter,badgeExportRectsClear,badgeExportGeometryClear};
+  return{palette,family,text,lines,blob,deliver,photo,simplePicture,challengePicture,routeSilhouette,statsPicture,achievementPicture,domPicture,fitTrackBadgeDiameter,badgeExportRectsClear,badgeExportGeometryClear};
 })();
 const ShareSheet=(()=>{
   const inlineDataUrl=picture=>new Promise((yes,no)=>{const reader=new FileReader();reader.onload=()=>yes(reader.result);reader.onerror=()=>no(Error('Couldn’t read this picture'));reader.readAsDataURL(picture);});

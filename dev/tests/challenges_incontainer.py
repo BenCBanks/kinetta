@@ -62,7 +62,11 @@ class Challenges(unittest.TestCase):
   leaked=json.loads(json.dumps(result));leaked['people'][1]['kcal']=1
   with self.assertRaises(AssertionError):self.assert_aggregate_only(leaked)
   with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM friendships WHERE requester=ANY(%s) OR addressee=ANY(%s)',(self.ids,self.ids)).fetchone()['n'],0)
-  page=self.anon.get('/challenge/'+code);self.assertEqual(page.status_code,200);self.assertIn('noindex',page.text);self.assertNotIn('PRIVATE',page.text);self.assertIn('invite-only',page.text)
+  with patch.object(C.signup,'state',return_value={'open':True,'full':False,'mode':'open'}):page=self.anon.get('/challenge/'+code)
+  self.assertEqual(page.status_code,200);self.assertIn('noindex',page.text);self.assertNotIn('PRIVATE',page.text)
+  self.assertIn('Goal:</strong> 80 km',page.text);self.assertIn('Sports:</strong> Running, Walking',page.text)
+  self.assertIn('Your workouts and your food, in one app.',page.text);self.assertIn('Create an account to join',page.text)
+  self.assertIn('<meta property="og:title"',page.text);self.assertIn('<meta property="og:description"',page.text)
  def test_fixed_templates_and_create_replay_are_validated(self):
   q,body=self.make();again=self.clients[0].post('/api/challenges',json=body);self.assertEqual(again.status_code,200);self.assertEqual(again.json()['code'],q['code']);body['target']=99;self.assertEqual(self.clients[0].post('/api/challenges',json=body).status_code,409)
   for body in [{'kind':'weight','target':1},{'kind':'distance','target':1,'name':'arbitrary name'},{'kind':'distance','target':1,'sports':[]}]:
@@ -137,7 +141,8 @@ class Challenges(unittest.TestCase):
   self.assertEqual(self.clients[0].post('/api/challenges/'+code+'/end',json={}).status_code,200);self.assertTrue(self.get(code)['self']['finished']);self.assertEqual(self.clients[2].post('/api/challenges/'+code+'/join',json={}).status_code,409)
   with db.connect() as c:
    cid=C.accessible(c,code)['id'];self.assertEqual(C.purge(c,self.now+dt.timedelta(days=89)),0);self.assertEqual(C.purge(c,self.now+dt.timedelta(days=91)),1);self.assertEqual(c.execute('SELECT count(*) AS n FROM challenge_members WHERE challenge_id=%s',(cid,)).fetchone()['n'],0)
-  self.assertEqual(self.anon.get('/challenge/'+code).status_code,404)
+  expired=self.anon.get('/challenge/'+code);self.assertEqual(expired.status_code,404)
+  self.assertIn('Ask the person who shared it to send you a current challenge link.',expired.text)
  def test_naturally_finished_totals_stay_live_without_rechecking_finished_notices(self):
   q,_=self.make();food,_=self.make(kind='food_days');today=self.now.astimezone(C.ZoneInfo('America/New_York')).date();day=today-dt.timedelta(days=1)
   with db.connect() as c:
@@ -188,8 +193,14 @@ class Challenges(unittest.TestCase):
    with db.connect() as c:
     row=C.accessible(c,code);c.execute('UPDATE challenges SET end_day=%s WHERE id=%s',(self.now.astimezone(C.ZoneInfo('America/New_York')).date()+dt.timedelta(days=3),row['id']));C.process(c,row['id'],self.now);C.process(c,row['id'],self.now)
    notes=self.clients[0].get('/api/notifications').json()['items'];challenge=[x for x in notes if x['kind'].startswith('challenge_')];self.assertEqual(len(challenge),2);self.assertNotIn('PRIVATE',json.dumps(challenge))
+   current_title=self.get(code)['title'];joined=next(x for x in challenge if x['kind']=='challenge_join');reminder=next(x for x in challenge if x['kind']=='challenge_reminder')
+   self.assertEqual(joined['text'],f"@{self.clients[2].get('/api/me').json()['login']} joined '{current_title}'.")
+   end_day=self.now.astimezone(C.ZoneInfo('America/New_York')).date()+dt.timedelta(days=3)
+   self.assertEqual(reminder['text'],f"'{current_title}' ends in three days, on {end_day.strftime('%b')} {end_day.day}, {end_day.year}.")
    with db.connect() as c:c.execute('UPDATE challenges SET ended_at=now() WHERE id=%s',(row['id'],));C.process(c,row['id'],self.now+dt.timedelta(seconds=5));C.process(c,row['id'],self.now+dt.timedelta(seconds=5))
   with db.connect() as c:self.assertEqual(c.execute("SELECT count(*) AS n FROM notifications WHERE challenge_id=%s AND kind='challenge_finished'",(row['id'],)).fetchone()['n'],1)
+  finished=next(x for x in self.clients[0].get('/api/notifications').json()['items'] if x['kind']=='challenge_finished')
+  self.assertEqual(finished['text'],f"'{current_title}' has ended. View your progress and share a finish picture.")
  def test_native_push_uses_stand_in_and_respects_live_opt_out_and_leave(self):
   q,_=self.make();code=q['code'];self.clients[0].put('/api/notifications/settings',json={'challenge_joins':True})
   self.join(code);sent=[]
@@ -253,7 +264,7 @@ class Challenges(unittest.TestCase):
     r=client.post('/api/account/email/confirm',json={'token':tokens[uid]});self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['challenge_joined'],q['code'] if want else None)
     with db.connect() as c:self.assertEqual(bool(C.member(c,C.accessible(c,q['code'])['id'],uid)),want)
     self.assertEqual(client.post('/api/challenges/signup/continue',json={}).json(),{'joined':None})
-   self.assertIn('/signup?challenge=',self.anon.get('/challenge/'+q['code']).text)
+   open_page=self.anon.get('/challenge/'+q['code']).text;self.assertIn('/signup?challenge=',open_page);self.assertIn('Create an account to join',open_page)
    with patch.dict(os.environ,{'KINETTA_MAX_ACCOUNTS':'0'}):self.assertIn('/beta?challenge=',self.anon.get('/challenge/'+q['code']).text)
   # A stale intent cannot undo successful confirmation or create a friendship.
   with db.connect() as c:
@@ -272,7 +283,7 @@ class Challenges(unittest.TestCase):
    self.assertEqual(client.post('/api/account/email/confirm',json={'token':tokens[uid]}).status_code,200)
    with db.connect() as c:self.assertTrue(C.member(c,C.accessible(c,q['code'])['id'],uid))
   with patch.dict(os.environ,{'KINETTA_SIGNUP':'invite','KINETTA_BETA_SIGNUP':'0'}):
-   page=self.anon.get('/challenge/'+q['code']).text;self.assertIn('Ask the server owner',page);self.assertNotIn('/beta?challenge=',page)
+   page=self.anon.get('/challenge/'+q['code']).text;self.assertIn('Ask the person who shared this link for an account invitation',page);self.assertNotIn('/beta?challenge=',page)
  def test_worker_retries_when_a_join_commits_during_account_lock_acquisition(self):
   q,_=self.make();code=q['code']
   with db.connect() as c:cid=C.accessible(c,code)['id']
