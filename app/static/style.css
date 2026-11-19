@@ -1499,7 +1499,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .health-page .health-readonly-row .health-row-status { color:var(--tx3); font-size:14px; font-weight:400; }
 .health-page .health-row-chevron { display:grid; place-items:center; flex:none; width:24px; height:44px; min-width:24px; max-width:none; color:var(--tx3); }
 .health-page .health-row-chevron svg { width:18px; height:18px; }
-.health-page .health-how { margin:14px 16px 0; border-top:1px solid var(--line); }
+.health-page .health-how { margin:14px 16px 8px; border-top:1px solid var(--line); }
 .health-page .health-how>summary { padding:12px 0; }
 .health-page .health-how>p { padding:0 0 12px; }
 .health-page .health-kit-consent { margin-top:12px; border-top:1px solid var(--line); }
@@ -1507,7 +1507,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .health-page .health-connection-control>summary .inset-value { display:flex; min-width:44px; min-height:44px; align-items:center; justify-content:flex-end; color:var(--accent); font-size:15px; font-weight:600; }
 .health-page .health-connection-body { padding:0 16px 16px; }
 .health-page .health-food-card>.inset-group { padding:8px 16px 16px; border:0; border-radius:0; background:transparent; box-shadow:none; }
-.health-page .inset-nested-disclosure { margin:0 16px; border-top:1px solid var(--line); }
+.health-page .inset-nested-disclosure:not(.health-how) { margin:0 16px; border-top:1px solid var(--line); }
 .health-page .inset-nested-disclosure > summary { padding:0; }
 .health-page .inset-nested-disclosure > p { padding:0 0 12px; }
 .health-page .health-sync-status { margin:0; padding:12px 16px; color:var(--tx3); font-size:13px; line-height:1.4; overflow-wrap:anywhere; }
@@ -2026,8 +2026,8 @@ nav.tabs { view-transition-name: tabs; }
 @media (max-width:360px) {.shell .top.subpage-header.weight-heading {grid-template-columns:116px minmax(0,1fr) max-content;}.shell .top.subpage-header.weight-heading > .back {width:116px;white-space:normal;}.shell .top.subpage-header.weight-heading > .back > .vh {max-width:calc(100% - 24px);overflow:visible;text-overflow:clip;white-space:normal;line-height:1.1;}}
 
 .has-back > .top.subpage-header {border-bottom:0;}
-.shell .top.subpage-header.health-heading > .back > .vh {font-size:14px;}
-@media (max-width:360px) {.shell .top.subpage-header.health-heading {padding-inline:0;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);}.shell .top.subpage-header.health-heading > h1 {position:static;top:auto;left:auto;width:auto;max-width:100%;overflow:hidden;font-size:17px;text-overflow:ellipsis;transform:none;}.shell .top.subpage-header.health-heading > .back {margin-left:0;}.shell .top.subpage-header.health-heading > .back,.shell .top.subpage-header.health-heading > .back > .vh {font-size:13px;}}
+.shell .top.subpage-header.health-heading > .back > .vh {font-size:15px;}
+@media (max-width:360px) {.shell .top.subpage-header.health-heading {padding-inline:0;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);}.shell .top.subpage-header.health-heading > h1 {position:static;top:auto;left:auto;width:auto;max-width:100%;overflow:hidden;font-size:17px;text-overflow:ellipsis;transform:none;}.shell .top.subpage-header.health-heading > .back {margin-left:0;}.shell .top.subpage-header.health-heading > .back,.shell .top.subpage-header.health-heading > .back > .vh {font-size:15px;}}
 .chart-reset {display:block;min-height:44px;margin:4px auto}
 .chartbox .ln.k-brand {stroke:var(--accent);fill:none}
 .pic-wrap:has(.pic) {aspect-ratio:auto;box-shadow:none;background:transparent;display:flex;justify-content:center}
