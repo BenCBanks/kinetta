@@ -40,10 +40,13 @@ food = ok(client.post('/api/food/foods', {'name': 'Fictional journey rice', 'ser
 dish = ok(client.post('/api/dishes', {'name': 'Fictional journey soup'}))['id']
 ok(client.post(f'/api/dishes/{dish}/items', {'name': 'Fictional lentils', 'grams': 100, 'source': 'quick',
               'per100': {'kcal': 100, 'protein_g': 8, 'carbs_g': 16, 'fat_g': 1}}))
-challenge = ok(client.post('/api/challenges', {'kind': 'activities', 'target': 3, 'period': 'custom',
-                   'start': str(now.date()), 'end': str(now.date()+dt.timedelta(days=6)), 'request_id': uuid.uuid4().hex}))['code']
+challenge_row = ok(client.post('/api/challenges', {'kind': 'activities', 'target': 3, 'period': 'custom',
+                        'start': str(now.date()), 'end': str(now.date()+dt.timedelta(days=6)), 'request_id': uuid.uuid4().hex}))
+challenge = challenge_row['code']
 me = ok(client.get('/api/me'))
-journey = {'login': login, 'uid': me['id'], 'activity': activities[0], 'dish': dish, 'challenge': challenge, 'food': food}
+journey = {'login': login, 'uid': me['id'], 'activity': activities[0], 'dish': dish, 'challenge': challenge, 'food': food,
+           'challenge_kind': challenge_row['kind'], 'challenge_target': challenge_row['target'], 'challenge_unit': challenge_row['unit'],
+           'challenge_start': challenge_row['start'], 'challenge_end': challenge_row['end']}
 segment = {'sport': 'run', 'line': encode([[45.30, 10.20], [45.3045, 10.20]]), 'source': 'map',
            'name': 'Fictional journey review', 'description': 'Made-up course for navigation checks.', 'audience': 'me'}
 journey['segment'] = {**segment, 'draftId': ok(client.post('/api/segment-drafts', {'data': segment}))['id']}
@@ -52,7 +55,10 @@ script = '''import datetime as dt,json,sys
 from app import notify
 f=json.load(sys.stdin);row={'name':'Fictional Journey','login':f['login'],'photo':None,'activity':'Fictional journey run 1',
 'activity_id':f['activity'],'sport':'run','distance_m':5000,'elapsed_s':1800,'dish':'Fictional journey soup','dish_id':f['dish'],
-'challenge_code':f['challenge'],'comment':'Fictional encouragement','created':dt.datetime.now(dt.timezone.utc).isoformat(),'read':True}
+'challenge_code':f['challenge'],'challenge_kind':f['challenge_kind'],'challenge_target':f['challenge_target'],
+'challenge_unit':f['challenge_unit'],'start_day':dt.date.fromisoformat(f['challenge_start']),
+'end_day':dt.date.fromisoformat(f['challenge_end']),'comment':'Fictional encouragement',
+'created':dt.datetime.now(dt.timezone.utc).isoformat(),'read':True}
 print(json.dumps([notify._item({**row,'id':index+1,'kind':kind}) for index,kind in enumerate(notify.KINDS)]))
 '''
 # The script and fixture JSON travel on stdin, without credentials or shell interpolation.
