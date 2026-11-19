@@ -640,8 +640,8 @@ route(/^\/me\/settings\/connections\/apple-health$/, () => healthFromNutrition()
         <button class="ghost wide" id="h-year">Also bring in the past year</button>
 
         <button class="ghost wide danger" id="h-off">Disconnect all Health sync</button>`
-      : '<button class="ghost wide" id="h-on">Connect to Health</button>'}<button class="ghost wide" id="h-settings">Manage Health permissions</button></div></details></div></section>
-    <div id="h-food" class="inset-group">${skel(1)}</div>${healthHowSyncs}<label class="inset-row switch-row health-kit-consent"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit use my health data</span><input type="checkbox" data-health-kit-consent${ai ? ' checked' : ''}></label>`;
+      : '<button class="ghost wide" id="h-on">Connect to Health</button>'}<button class="ghost wide" id="h-settings">Manage Health permissions</button></div></details>
+      <div id="h-food">${skel(1)}</div></div></section>${healthHowSyncs}<label class="inset-row switch-row health-kit-consent"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit use my health data</span><input type="checkbox" data-health-kit-consent${ai ? ' checked' : ''}></label>`;
   bindHealthKitConsent(el,valid);
   healthFoodControls($('#h-food',box),valid);
   const err = $('#h-main-error', box);
