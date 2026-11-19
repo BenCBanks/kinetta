@@ -4,6 +4,59 @@ import Photos
 import UIKit
 import WebKit
 
+// Instagram Stories accepts a transparent image as a movable sticker through its
+// documented pasteboard handoff. The activity is absent unless this app build has
+// a registered Meta App ID and Instagram is installed.
+private final class InstagramStoriesActivity: UIActivity {
+    private let stickerType = "com.instagram.sharedSticker.stickerImage"
+    private var sticker: UIImage?
+
+    private var metaAppID: String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: "KinettaMetaAppID") as? String else { return nil }
+        let id = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty, id.rangeOfCharacter(from: CharacterSet.decimalDigits.inverted) == nil else { return nil }
+        return id
+    }
+
+    override class var activityCategory: UIActivity.Category { .share }
+    override var activityType: UIActivity.ActivityType? { UIActivity.ActivityType("com.kinetta.activity-share.instagram-stories") }
+    override var activityTitle: String? { "Instagram Stories" }
+    override var activityImage: UIImage? { UIImage(systemName: "camera") }
+
+    override func canPerform(withActivityItems activityItems: [Any]) -> Bool {
+        guard metaAppID != nil,
+              let instagram = URL(string: "instagram://app"), UIApplication.shared.canOpenURL(instagram) else { return false }
+        return activityItems.contains { $0 is UIImage }
+    }
+
+    override func prepare(withActivityItems activityItems: [Any]) {
+        sticker = activityItems.compactMap { $0 as? UIImage }.first
+    }
+
+    override func perform() {
+        guard let image = sticker, let appID = metaAppID,
+              let png = image.pngData(), !png.isEmpty, png.count <= 8 * 1024 * 1024,
+              var components = URLComponents(string: "instagram-stories://share") else {
+            activityDidFinish(false); return
+        }
+        components.queryItems = [URLQueryItem(name: "source_application", value: appID)]
+        guard let destination = components.url else { activityDidFinish(false); return }
+
+        let pasteboard = UIPasteboard.general
+        let previousItems = pasteboard.items
+        pasteboard.setItems(
+            [[stickerType: png]],
+            options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(5 * 60)]
+        )
+        UIApplication.shared.open(destination, options: [:]) { opened in
+            if !opened, pasteboard.items.first?[self.stickerType] as? Data == png {
+                pasteboard.items = previousItems
+            }
+            self.activityDidFinish(opened)
+        }
+    }
+}
+
 // Exports only the picture the person previewed. No server access, account tokens or photo-library writes.
 @objc(KinettaActivitySharePlugin)
 class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteractionControllerDelegate {
@@ -228,7 +281,7 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
         } else if let value = call.getString("url"), value.count <= 500,
            let link = URL(string: value), link.scheme == "https", link.host != nil,
            link.user == nil, link.password == nil { items.append(link) }
-        let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let sheet = UIActivityViewController(activityItems: items, applicationActivities: [InstagramStoriesActivity()])
         sheet.completionWithItemsHandler = { [weak self, weak call] _, completed, _, _ in
             guard let self = self, let call = call, self.pending === call else { return }
             // A completed share is a handoff, never proof that another app published a post.
