@@ -123,7 +123,7 @@ const ShareArt=(()=>{
     const sportNames={run:'Running',walk:'Walking',hike:'Hiking',ride:'Cycling'},sportColors={run:'#4CC98A',walk:'#A9C24E',hike:'#E9A04E',ride:'#4BC0CF'};
     const selected=(sports||[]).filter(s=>sportNames[s]);const sportRows=[];
     if(!finish&&selected.length){let row=[],rowWidth=0;for(const sport of selected){const label=sportNames[sport],w=g.measureText(label).width+70+(row.length?40:0);g.font=`600 34px ${family()}`;const measured=g.measureText(label).width+70+(row.length?40:0);if(row.length&&rowWidth+measured>W){sportRows.push(row);row=[];rowWidth=0;}row.push({sport,label});rowWidth+=g.measureText(label).width+70+(row.length>1?40:0);}if(row.length)sportRows.push(row);}
-    const sportsTop=1150-Math.max(0,sportRows.length-1)*46,ringTop=dateBottom+80,ringBottom=sportsTop-(sportRows.length?56:0),diameter=Math.min(560,ringBottom-ringTop);
+    const sportsTop=1150-Math.max(0,sportRows.length-1)*46,ringTop=dateBottom+50,ringBottom=sportsTop-(sportRows.length?56:0),diameter=Math.min(560,ringBottom-ringTop);
     if(diameter<420)throw Error('The challenge picture needs more room. Try without photo and username.');
     const cx=540,cy=ringTop+diameter/2,r=diameter/2-18,stroke=36;
     g.save();g.lineWidth=stroke;g.lineCap='round';
@@ -135,10 +135,10 @@ const ShareArt=(()=>{
       tabularNumber(value,left+numericWidth/2,cy-4,numberSize,700,C.text,diameter-100-unitWidth-20);text(g,unit,left+numericWidth+20,cy-4,unitSize,{weight:600,color:C.soft,max:unitWidth+4});
       const outcome=reached?'Goal reached':`of ${target} ${unit} · You took part`;text(g,outcome,cx,cy+52,26,{align:'center',weight:500,color:C.soft,max:diameter-72});
     }else{
-      const startDate=new Date(start+'T12:00:00Z'),endDate=new Date(end+'T12:00:00Z'),days=Math.max(3,Math.min(62,Math.round((endDate-startDate)/86400000)+1)),gap=8/r,part=(Math.PI*2-days*gap)/days;
+      const startDate=new Date(start+'T12:00:00Z'),endDate=new Date(end+'T12:00:00Z'),days=Math.max(3,Math.min(62,Math.round((endDate-startDate)/86400000)+1)),gap=44/r,part=(Math.PI*2-days*gap)/days;
       g.strokeStyle=C.blue;for(let i=0;i<days;i++){const a=-Math.PI/2+i*(part+gap);g.beginPath();g.arc(cx,cy,r,a,a+part);g.stroke();}
       const numberText=String(target),unitText=unit==='days'?'days':unit;let numberSize=150,unitSize=64;
-      g.font=`600 ${unitSize}px ${family()}`;let nw=numberWidth(numberText,numberSize,700),uw=g.measureText(unitText).width;
+      let nw=numberWidth(numberText,numberSize,700);g.font=`600 ${unitSize}px ${family()}`;let uw=g.measureText(unitText).width;
       while(nw+24+uw>diameter-76&&numberSize>88){numberSize-=4;unitSize=Math.max(42,unitSize-2);nw=numberWidth(numberText,numberSize,700);g.font=`600 ${unitSize}px ${family()}`;uw=g.measureText(unitText).width;}
       const left=cx-(nw+24+uw)/2;tabularNumber(numberText,left+nw/2,cy+20,numberSize,700,C.text,nw+2);text(g,unitText,left+nw+24,cy+16,unitSize,{weight:600,color:C.soft,max:uw+2});
       text(g,`${days} days`,cx,cy+84,34,{align:'center',weight:500,color:C.soft,max:diameter-80});
@@ -146,7 +146,7 @@ const ShareArt=(()=>{
     g.restore();
     if(sportRows.length){let sy=1150-(sportRows.length-1)*46;for(const row of sportRows){let total=0;for(const item of row){g.font=`600 34px ${family()}`;total+=20+24+g.measureText(item.label).width;}total+=(row.length-1)*40;let x=(1080-total)/2;for(const item of row){g.beginPath();g.fillStyle=sportColors[item.sport];g.arc(x+10,sy-12,10,0,Math.PI*2);g.fill();x+=34;text(g,item.label,x,sy,34,{weight:600,color:C.text,max:W});g.font=`600 34px ${family()}`;x+=g.measureText(item.label).width+40;}sy+=46;}}
     if(finish){const credits=[...(manual?['Includes manual entries']:[]),...(sources.length?['Includes data from '+[...new Set(sources)].slice(0,2).join(', ')]:[])];if(credits.length)text(g,credits.join(' · '),M,1224,22,{weight:500,color:C.muted,max:W});}
-    g.strokeStyle=C.line;g.lineWidth=2;g.beginPath();g.moveTo(M,1275);g.lineTo(1008,1275);g.stroke();g.fillStyle=C.blue;g.beginPath();g.arc(M+13,1313,12,0,Math.PI*2);g.fill();text(g,'Kinetta',M+40,1323,28,{weight:600,color:C.soft});
+    g.strokeStyle=C.line;g.lineWidth=2;g.beginPath();g.moveTo(M,1275);g.lineTo(1008,1275);g.stroke();g.fillStyle=C.blue;g.beginPath();g.arc(M+13,1313,12,0,Math.PI*2);g.fill();text(g,'Kinetta',M+40,1323,28,{weight:600,color:C.soft});text(g,'kinetta.app',1008,1322,24,{weight:500,color:C.muted,max:W,align:'right'});
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,width:1080,height:1350,alt:finish?`Your Kinetta challenge result. ${kinds[kind]||'Challenge'}: ${value} of ${target} ${unit}. ${Number(String(value).replace(/,/g,''))>=Number(String(target).replace(/,/g,''))?'Goal reached':'You took part'}.`:`Kinetta challenge invitation. ${month} ${kinds[kind]||'challenge'}, ${target} ${unit}, ${dateLabel}${selected.length?'. '+selected.map(s=>sportNames[s]).join(' and ')+' count':''}.`};
   }
   async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null,routePoints=[],routeTrimmed=true}){
