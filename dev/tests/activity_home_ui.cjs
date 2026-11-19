@@ -155,6 +155,7 @@ async function verifyActivityMonthJump(p,out,theme,width){
 }
 async function assertSharedActivityCard(card,label,expectedPhoto=true){
  const header=card.locator('.feed-card-header'),identity=card.locator('.post-identity'),icons=header.locator('.post-meta-icon svg'),avatar=card.locator('.post-av .av'),name=header.locator('.post-name'),title=header.locator('.post-title');
+ if(expectedPhoto)await avatar.locator('img').evaluate(image=>image.decode());
  assert(!['absolute','fixed'].includes(await header.evaluate(n=>getComputedStyle(n).position)),`${label}: header remains in card flow`);
  assert((await icons.count())>=1,`${label}: metadata icons render`);
  const iconSizes=await icons.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height};}));
