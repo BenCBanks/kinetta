@@ -135,11 +135,12 @@ const ShareArt=(()=>{
       tabularNumber(value,left+numericWidth/2,cy-4,numberSize,700,C.text,diameter-100-unitWidth-20);text(g,unit,left+numericWidth+20,cy-4,unitSize,{weight:600,color:C.soft,max:unitWidth+4});
       const outcome=reached?'Goal reached':`of ${target} ${unit} · You took part`;text(g,outcome,cx,cy+52,26,{align:'center',weight:500,color:C.soft,max:diameter-72});
     }else{
-      const startDate=new Date(start+'T12:00:00Z'),endDate=new Date(end+'T12:00:00Z'),days=Math.max(3,Math.min(62,Math.round((endDate-startDate)/86400000)+1)),gap=44/r,part=(Math.PI*2-days*gap)/days;
-      g.strokeStyle=C.blue;for(let i=0;i<days;i++){const a=-Math.PI/2+i*(part+gap);g.beginPath();g.arc(cx,cy,r,a,a+part);g.stroke();}
+      const startDate=new Date(start+'T12:00:00Z'),endDate=new Date(end+'T12:00:00Z'),days=Math.max(3,Math.min(62,Math.round((endDate-startDate)/86400000)+1)),segmentStroke=Math.min(stroke,Math.max(8,2*Math.PI*r/days-8)),gap=(8+segmentStroke)/r,part=(Math.PI*2-days*gap)/days;
+      g.lineWidth=segmentStroke;g.strokeStyle=C.blue;for(let i=0;i<days;i++){const a=-Math.PI/2+i*(part+gap);g.beginPath();g.arc(cx,cy,r,a,a+part);g.stroke();}
       const numberText=String(target),unitText=unit==='days'?'days':unit;let numberSize=150,unitSize=64;
       let nw=numberWidth(numberText,numberSize,700);g.font=`600 ${unitSize}px ${family()}`;let uw=g.measureText(unitText).width;
-      while(nw+24+uw>diameter-76&&numberSize>88){numberSize-=4;unitSize=Math.max(42,unitSize-2);nw=numberWidth(numberText,numberSize,700);g.font=`600 ${unitSize}px ${family()}`;uw=g.measureText(unitText).width;}
+      const goalMax=diameter-116;while(nw+24+uw>goalMax&&numberSize>48){numberSize=Math.max(48,numberSize-4);unitSize=Math.max(28,unitSize-2);nw=numberWidth(numberText,numberSize,700);g.font=`600 ${unitSize}px ${family()}`;uw=g.measureText(unitText).width;}
+      if(nw+24+uw>goalMax)throw Error('The challenge goal will not fit inside the ring.');
       const left=cx-(nw+24+uw)/2;tabularNumber(numberText,left+nw/2,cy+20,numberSize,700,C.text,nw+2);text(g,unitText,left+nw+24,cy+16,unitSize,{weight:600,color:C.soft,max:uw+2});
       text(g,`${days} days`,cx,cy+84,34,{align:'center',weight:500,color:C.soft,max:diameter-80});
     }
