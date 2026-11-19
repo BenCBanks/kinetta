@@ -69,11 +69,12 @@ const FriendsUI=(()=>{
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);await loadFriends();
  }
  async function mountFind(el){
-  el.classList.add('friends-page');el.innerHTML=shell('Me');wireBack(el,'/me');bindLargeTitle(el);
+  const initial=new URLSearchParams(location.search),fromHome=initial.get('from')==='home';
+  el.classList.add('friends-page');el.innerHTML=shell(fromHome?'Home':'Me');wireBack(el,fromHome?'/activity':'/me');bindLargeTitle(el);
   const pageOwner=readOwner(),live=()=>pageOwner===readOwner()&&el.isConnected;
   let currentFriends=null,friendLoadVersion=0,searchVersion=0,timer,last=null,people=[],known=[];
   const requests=$('#fr-requests',el),found=$('#fr-found',el),form=$('#fr-find',el),input=form.elements.q,clear=$('#fr-clear',el),statusText=$('#fr-status',el),suggest=$('#fr-suggest',el),error=$('#fr-list-error',el),groupCount=$('#fr-groups-count',el);
-  const initial=new URLSearchParams(location.search);input.value=initial.get('q')||'';
+  input.value=initial.get('q')||'';
   const who=login=>(people.find(p=>p.login===login)||{}).name||login;
   $('#fr-invite',el).onclick=inviteFriends;
   async function loadGroupCount(){
