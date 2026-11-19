@@ -2,6 +2,10 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
 const fixture=require('../demo/track_session.cjs'),base=process.env.KINETTA_URL || 'http://localhost:8798',out=process.env.KINETTA_EVIDENCE,only=process.env.KINETTA_TRACKING_CASE||'';
+const sharedCss=fs.readFileSync(path.join(__dirname,'../../app/static/style.css'),'utf8'),trackCss=fs.readFileSync(path.join(__dirname,'../../app/static/track-route.css'),'utf8');
+assert.doesNotMatch(sharedCss,/\.track-session\.track-review|\.track-review-stats|\.track-review-dock|\.track-live-main|\.track-live-body/,'Track recording/review layout rules stay out of shared style.css');
+assert.match(trackCss,/\.track-session\.track-review \{ padding-top: 0; text-align: left; \}/,'Track review rules live in the Track route stylesheet');
+assert.match(trackCss,/html:has\(#track-content > \.track-live, #track-content > \.track-review\) \{ --tab-h:0px; \}/,'Track recording viewport rules live in the Track route stylesheet');
 async function until(page,fn,label){for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error(label);}
 async function recordingControls(p,ids){
  assert(await p.locator('nav.tabs').isHidden(),'recording hides the tab bar');
