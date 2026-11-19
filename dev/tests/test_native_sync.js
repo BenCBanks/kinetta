@@ -247,9 +247,15 @@ function device(background = null, push = null) {
   rich.ctx.App.me = {id:2};
   assert.equal(await rich.n.syncHealth(), null);
   assert.equal(refreshed.length, 1, 'account without consent cannot refresh another account queue');
+  // The presentation refresh must keep the legacy single-request category set and order intact.
+  const legacyHealth=device();await legacyHealth.n.ready;legacyHealth.n.base='https://example.test';legacyHealth.n.token='legacy';
+  const requested=[];legacyHealth.ctx.window.Capacitor.Plugins.HealthPlugin.requestHealthPermissions=async value=>requested.push(value);
+  await legacyHealth.n.connectHealth();
+  assert.deepEqual(JSON.parse(JSON.stringify(requested)),[{permissions:['READ_WORKOUTS','READ_HEART_RATE','READ_ROUTE','READ_DISTANCE','READ_ACTIVE_CALORIES','READ_STEPS']}],
+    'one explicit HealthKit request keeps its existing categories and order');
   // Returning from Done must not await background delivery or the first import.
   let permissionCalls = 0, legacyCalls = 0, settingsCalls = 0;
-  const stuck = device({requestPermissions: async () => { permissionCalls++; },
+  const stuck = device({requestPermissions: async (...args) => { permissionCalls++; assert.deepEqual(args,[],'the combined native permission request still receives no additional category arguments'); },
     connect: () => new Promise(() => {}), retry: async () => {}, status: async () => ({enabled:false}), disconnect: async () => {}});
   await stuck.n.ready; stuck.n.base = 'https://example.test'; stuck.n.token = 'test-token';
   stuck.n.healthBackgroundTimeout = 5; stuck.n.lastAuto = Date.now();

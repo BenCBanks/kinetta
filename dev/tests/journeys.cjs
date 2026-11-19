@@ -45,16 +45,31 @@ async function feedBack(f){
  assert(Math.abs(restored.y-position.y)<=4,'Feed scroll position is restored after loaded tools');
 }
 async function appleHealthRows(f){
- const p=f.p,controls=p.locator('.health-connection-control'),summaries=controls.locator(':scope>summary');
- await summaries.first().waitFor({state:'visible'});assert.equal(await controls.count(),3,'Apple Health keeps one row per data direction');
- const rows=await summaries.evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('.inset-label>span')?.textContent.trim(),action:n.querySelector('.inset-value')?.textContent.trim(),height:n.getBoundingClientRect().height,actionBox:(()=>{const r=n.querySelector('.inset-value').getBoundingClientRect();return{width:r.width,height:r.height};})()})));
- assert.deepEqual(rows.map(row=>row.label),['Import workouts','Import weight','Export nutrition'],'Connections uses the three Apple Health rows');
- assert.deepEqual(rows.map(row=>row.action),['Connect','Connect','Connect'],'each disconnected Health row exposes Connect');
- assert(rows.every(row=>row.height>=44&&row.actionBox.width>=44&&row.actionBox.height>=44),'Health row and Connect action keep 44px targets '+JSON.stringify(rows));
- for(let i=0;i<3;i++){
-  const control=controls.nth(i);await control.locator(':scope>summary').click();const how=control.locator('details.health-details>summary');
-  await how.waitFor({state:'visible'});await how.click();assert.equal(await control.locator('details.health-details[open]').count(),1,'row '+i+' opens its own syncing details');
+ const p=f.p,native=await p.evaluate(()=>Native.on),controls=p.locator('.health-connection-control');
+ if(!native){
+  const rows=p.locator('.health-readonly-row');await rows.first().waitFor({state:'visible'});assert.equal(await rows.count(),3,'web exposes the same three read-only rows');
+  assert.deepEqual(await rows.evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('.inset-label>span')?.textContent.trim(),status:n.querySelector('.health-row-status')?.textContent.trim()}))),[
+   {label:'Import workouts',status:'Available in the iPhone app'},{label:'Import weight',status:'Available in the iPhone app'},{label:'Export nutrition',status:'Available in the iPhone app'}]);
+  assert.equal(await rows.locator('button,input,a').count(),0,'web Health rows have no permission controls or toggles');
+ }else{
+  const summaries=controls.locator(':scope>summary');await summaries.first().waitFor({state:'visible'});assert.equal(await controls.count(),3,'Apple Health keeps one row per data direction');
+  const rows=await summaries.evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('.inset-label>span')?.textContent.trim(),status:n.querySelector('.health-row-status')?.textContent.trim(),action:n.querySelector('.inset-value')?.textContent.trim(),height:n.getBoundingClientRect().height,actionHeight:n.querySelector('.inset-value').getBoundingClientRect().height})));
+  assert.deepEqual(rows.map(row=>row.label),['Import workouts','Import weight','Export nutrition'],'Connections keeps the approved row order');
+  assert(rows.every(row=>['Connected','Off','Needs permission'].includes(row.status)),'native state maps only to the three approved statuses '+JSON.stringify(rows));
+  assert(rows.every(row=>row.action===''&&row.height>=44&&row.actionHeight>=44),'rows expand without duplicate Connect/Manage action labels '+JSON.stringify(rows));
+  assert.equal(await p.locator('.health-details').count(),1,'one shared syncing disclosure replaces repeated explanations');
+  assert.equal(await p.locator('.health-details summary').innerText(),'How syncing works');
+  await p.locator('.health-details summary').click();assert.match(await p.locator('.health-details').innerText(),/Missing values stay unknown/);assert.match(await p.locator('.health-details').innerText(),/samples it wrote for this account/);
+  assert.equal(await p.locator('[data-health-kit-consent]').count(),1,'shared Kit health-data consent appears once');
+  assert.equal(await p.getByText('Share daily nutrition totals from saved food, including reviewed estimates. Starts today.',{exact:true}).count(),1,'Astra Nutrition copy is verbatim');
+  assert.equal(await p.locator('.health-page .inset-caption').count(),0,'Health does not repeat Optional or a second heading');
  }
+}
+async function appleHealthFromNutrition(f){
+ const p=f.p,link=p.locator('a[href="/me/settings/connections/apple-health?from=nutrition"]');await link.waitFor({state:'visible'});await link.click();
+ await p.waitForURL(url=>url.pathname==='/me/settings/connections/apple-health'&&url.searchParams.get('from')==='nutrition');await ready(p);
+ assert.equal(await p.locator('.health-heading [data-back]').innerText(),'Nutrition','contextual entry gets a Nutrition back label');
+ assert.equal(await p.locator('nav.tabs [aria-current="page"]').count(),0,'contextual Nutrition back has no selected tab');
 }
 (async()=>{
  boundary();const fixtures=JSON.parse(fs.readFileSync(fixturesFile)),all=journeys(fixtures);
@@ -80,6 +95,7 @@ async function appleHealthRows(f){
     if(test.action==='record'||test.action==='uncertainSave')await recording(f,test.action==='uncertainSave');
     else if(test.action==='food')await food(f);
     else if(test.action==='appleHealthRows')await appleHealthRows(f);
+    else if(test.action==='appleHealthFromNutrition')await appleHealthFromNutrition(f);
     else if(test.action==='feedBack')await feedBack(f);
     else for(const [index,selector] of test.taps.entries()){
      const position=test.tapPositions?.[index];
