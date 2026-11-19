@@ -3,10 +3,38 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 BASE="${CHANGED_BASE:-origin/main}"
-group_order="core assets food social challenges track lift plan progress profile admin welcome hints community cards standalone"
+group_order="core assets food social challenge-share challenges track lift plan progress profile admin welcome hints community cards standalone"
+
+caption_handoff_only() {
+  local files expected file patch edits line
+  expected=$'app/static/challenges.js\napp/static/native.js\napp/static/share-art.js'
+  files="$(git diff --name-only --no-renames "$BASE...HEAD" -- app/static | sort)"
+  [[ "$files" == "$expected" ]] || return 1
+
+  patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/native.js)"
+  mapfile -t edits < <(grep -E '^[+-][^+-]' <<< "$patch" || true)
+  [[ ${#edits[@]} -eq 2 && "${edits[0]}" == '-  N.shareActivityPicture = (image, destination, url = null) => P.KinettaActivityShare.share({image, destination, ...(url ? {url} : {})});' && "${edits[1]}" == '+  N.shareActivityPicture = (image, destination, url = null, caption = null) => P.KinettaActivityShare.share({image, destination, ...(url ? {url} : {}), ...(caption ? {caption} : {})});' ]] || return 1
+
+  patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/share-art.js)"
+  mapfile -t edits < <(grep -E '^[+-][^+-]' <<< "$patch" || true)
+  [[ ${#edits[@]} -eq 6 ]] || return 1
+  for line in "${edits[@]}"; do [[ "$line" =~ (deliver\(|Native\.shareActivityPicture|navigator\.share) ]] || return 1; done
+
+  patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/challenges.js)"
+  mapfile -t edits < <(grep -E '^[+-][^+-]' <<< "$patch" || true)
+  [[ ${#edits[@]} -eq 5 ]] || return 1
+  for line in "${edits[@]}"; do [[ "$line" =~ (invitationCaption|ShareArt\.deliver|return\{create,createForm) ]] || return 1; done
+}
+caption_only=0
+if caption_handoff_only; then caption_only=1; fi
 
 map_path() {
   local path="$1" patterns pattern group scenes
+  # Only these exact caption-forwarding hunks can use the focused Activity check;
+  # any additional shared-file change falls through to the normal broad screen map.
+  if [[ "$caption_only" == 1 && ( "$path" == app/static/challenges.js || "$path" == app/static/native.js || "$path" == app/static/share-art.js ) ]]; then
+    printf 'challenge-share|Activity\n'; return 0
+  fi
   while IFS=';' read -r patterns group scenes; do
     IFS=',' read -ra candidates <<< "$patterns"
     for pattern in "${candidates[@]}"; do
@@ -147,6 +175,7 @@ for group in $group_order; do
     food) tests="food_entry_ui.cjs nutrition_ui.cjs nutrition_readout_ui.cjs food_memory_ui.cjs recipes_compact_ui.cjs insights_ui.cjs goals_ui.cjs" ;;
     social) tests="activity_home_ui.cjs test_weekly_recap.cjs activity_detail_ui.cjs edit_activity_ui.cjs media_routes_ui.cjs notification_edit_ui.cjs inline_reactions_ui.cjs inline_reactions_actions.cjs friends_ui.cjs groups_ui.cjs contacts_settings_ui.cjs contacts_ui.cjs back_navigation_ui.cjs" ;;
     challenges) tests="activity_home_ui.cjs" ;;
+    challenge-share) tests="activity_home_ui.cjs" ;;
     track) tests="track_home_ui.cjs track_review_recovery_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs interval_voice_ui.cjs map_ui.cjs tracking_ui.cjs edit_activity_ui.cjs map_feedback_ui.cjs" ;;
     lift) tests="lift_compact_ui.cjs lift_ui.cjs lift_lazy_route_ui.cjs" ;;
     plan) tests="plan_ui.cjs" ;;
