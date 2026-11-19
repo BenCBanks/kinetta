@@ -37,6 +37,18 @@ if [[ "$caption_map" == *"app/static/native.js -> challenge-share"* ]]; then
     [[ "$caption_map" != *"$broad"* ]] || { echo "Caption-only handoff selected unrelated broad suite $broad." >&2; exit 1; }
   done
 fi
+if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+  base_ref="origin/$GITHUB_BASE_REF"
+  if git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
+    detail_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/activity-detail.css app/static/style.css)"
+    [[ "$detail_map" == *"app/static/activity-detail.css -> activity-detail"* && "$detail_map" == *"app/static/style.css -> activity-detail"* ]] || { echo "Detail-only reaction CSS uses its focused Activity Detail mapping: $detail_map" >&2; exit 1; }
+  elif [[ "$(git rev-parse --is-shallow-repository)" == true ]]; then
+    echo "Skipping stacked-base diff assertion in shallow backend checkout; changed-screen-map checks the full PR diff."
+  else
+    echo "Expected base ref $base_ref is missing from a complete checkout." >&2
+    exit 1
+  fi
+fi
 native_fallback="$(CHANGED_BASE=HEAD dev/tests/changed.sh --check-files app/static/native.js)"
 [[ "$native_fallback" == *"app/static/native.js -> core"* ]] || { echo "A general Native bridge change lost its broad core mapping." >&2; exit 1; }
 probe="$(mktemp app/static/.changed-map-untracked-probe.XXXXXX)"
