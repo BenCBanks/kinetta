@@ -66,6 +66,7 @@ class Challenges(unittest.TestCase):
   self.assertEqual(page.status_code,200);self.assertIn('noindex',page.text);self.assertNotIn('PRIVATE',page.text)
   self.assertIn('Goal:</strong> 80 km',page.text);self.assertIn('Sports:</strong> Running, Walking',page.text)
   self.assertIn('Your workouts and your food, in one app.',page.text);self.assertIn('Create an account to join',page.text)
+  self.assertIn('/signup?challenge='+code,page.text);self.assertNotIn('account invitation',page.text.lower())
   self.assertIn('<meta property="og:title"',page.text);self.assertIn('<meta property="og:description"',page.text)
  def test_fixed_templates_and_create_replay_are_validated(self):
   q,body=self.make();again=self.clients[0].post('/api/challenges',json=body);self.assertEqual(again.status_code,200);self.assertEqual(again.json()['code'],q['code']);body['target']=99;self.assertEqual(self.clients[0].post('/api/challenges',json=body).status_code,409)
@@ -283,7 +284,7 @@ class Challenges(unittest.TestCase):
    self.assertEqual(client.post('/api/account/email/confirm',json={'token':tokens[uid]}).status_code,200)
    with db.connect() as c:self.assertTrue(C.member(c,C.accessible(c,q['code'])['id'],uid))
   with patch.dict(os.environ,{'KINETTA_SIGNUP':'invite','KINETTA_BETA_SIGNUP':'0'}):
-   page=self.anon.get('/challenge/'+q['code']).text;self.assertIn('Ask the person who shared this link for an account invitation',page);self.assertNotIn('/beta?challenge=',page)
+   page=self.anon.get('/challenge/'+q['code']).text;self.assertIn('New account creation is unavailable right now.',page);self.assertNotIn('account invitation',page.lower());self.assertNotIn('/beta?challenge=',page)
  def test_worker_retries_when_a_join_commits_during_account_lock_acquisition(self):
   q,_=self.make();code=q['code']
   with db.connect() as c:cid=C.accessible(c,code)['id']

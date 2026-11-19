@@ -267,7 +267,7 @@ def public_page(code:str,request:Request):
         if data['joining_closed']:action='<p>This challenge has finished.</p>'
         elif state['open']:action=f'<a class="primary wide" href="/signup?challenge={esc(code)}">Create an account to join</a>'
         elif api_beta.enabled():action=f'<a class="primary wide" href="/beta?challenge={esc(code)}">Join the waitlist</a><p>Sign-up is currently closed. You can return to this link if an account becomes available.</p>'
-        else:action='<p>Account creation is currently closed. Ask the person who shared this link for an account invitation.</p>'
+        else:action='<p>New account creation is unavailable right now. Existing members can sign in to join this challenge.</p>'
         action+=f'<a class="ghost wide" href="/?challenge={esc(code)}">Already a member? Log in</a>'
     app=account_email.iphone_app();install=f'<a class="ghost wide" href="{esc(app)}">Get the iPhone app</a><p class="small muted">After installing, reopen this challenge link.</p>' if app else ''
     sports_line=f'<p><strong>Sports:</strong> {esc(sports)}</p>' if sports else ''
