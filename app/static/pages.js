@@ -411,75 +411,21 @@ function meInsightRow(title, value, subtitle, href) {
 }
 function meInsights(box, s) {
   const owner = readOwner(), live = () => box.isConnected && owner === readOwner();
-  const stats = Array.isArray(s.years) ? s.years : [], supported = ['run', 'ride', 'walk'];
-  const today = String(s.chart_today || '').slice(0, 10), currentYear = Number(today.slice(0, 4)) || new Date().getFullYear();
-  const thisYear = stats.filter(y => +y.year === currentYear), countRows = thisYear.length ? thisYear : stats;
-  const counts = {run: 0, ride: 0, walk: 0};
-  for (const y of countRows) {
-    if (supported.includes(y.sport)) counts[y.sport] += Number(y.n) || 0;
-    else if (y.sport === 'hike') counts.walk += Number(y.n) || 0;
-  }
-  const mainSports = supported.filter(sport => counts[sport] > 0).sort((a, b) => counts[b] - counts[a]);
   const weekSeries = s.chart_weeks || [], now = weekSeries.at(-1), past = weekSeries.slice(0, -1).filter(w => +w.distance_m > 0);
-  let weekRow = '', consistencyRow = '';
+  let weekRow = '';
   if (now && past.length >= 3) {
     // Usual = the average full week among the previous six that had any distance.
     const usual = past.reduce((n, w) => n + (+w.distance_m || 0), 0) / past.length;
     weekRow = meInsightRow('This week', `${U.dist(+now.distance_m || 0, 1)} ${U.du()}`,
       `of ${U.dist(usual, 1)} ${U.du()} usual week`, '/progress?sport=all');
   }
-  // Count completed, owner-scoped activities of every sport, including sessions without distance.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(today)) {
-    const monday = new Date(`${today}T12:00:00Z`); monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
-    const starts = Array.from({length: 5}, (_, i) => { const d = new Date(monday); d.setUTCDate(d.getUTCDate() - (4 - i) * 7); return d.toISOString().slice(0, 10); });
-    const activityWeeks = new Map();
-    for (const w of s.weeks || []) { const key = String(w.week || '').slice(0, 10); activityWeeks.set(key, (activityWeeks.get(key) || 0) + (+w.n || 0)); }
-    const active = starts.filter(d => activityWeeks.get(d) > 0).length;
-    if (active) consistencyRow = meInsightRow('Consistency', `${active} of 5 weeks`, 'Weeks with an activity', appFeatureEnabled('progress_calendar') ? '/progress/calendar' : '/progress');
-  }
   box.innerHTML = '<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows></div></section>';
-  const list = $('[data-insight-rows]', box), parts = {bests: '', trends: {}};
+  const list = $('[data-insight-rows]', box);
   const paint = () => {
     if (!live()) return;
-    const rows = [weekRow, parts.bests, ...mainSports.map(sport => parts.trends[sport]), consistencyRow]
-      .filter(Boolean).slice(0, 3);
-    list.innerHTML = rows.length ? rows.join('') : '<p class="small muted me-insights-empty">Your training insights will appear as you build a history.</p>';
+    list.innerHTML = weekRow || '<p class="small muted me-insights-empty">Your training insights will appear as you build a history.</p>';
   };
   paint();
-  if (!mainSports.length) return;
-  const mainSport = mainSports[0];
-  load(`/api/records?sport=${mainSport}`, r => {
-    const since = Date.now() - 30 * 864e5;
-    const best = (r.efforts || []).filter(e => e.top?.[0] && e.count > 1 && Number.isFinite(Date.parse(e.top[0].start_time)) && Date.parse(e.top[0].start_time) >= since)
-      .sort((a, b) => Date.parse(b.top[0].start_time) - Date.parse(a.top[0].start_time)).slice(0, 2);
-    if (best.length) {
-      parts.bests = meInsightRow('New bests', '', 'Run Records', `/progress?view=records&sport=${mainSport}`);
-    }
-    paint();
-  }).catch(() => {});
-  for (const sport of mainSports) load(`/api/progress/trends?sport=${sport}`, r => {
-    const months = new Map((r.months || []).map(m => [m.m, m]));
-    const nowMonth = String(r.today || today).slice(0, 7), [year, monthNo] = nowMonth.split('-').map(Number);
-    if (!year || !monthNo) return;
-    const keyAt = offset => { const d = new Date(Date.UTC(year, monthNo - 1 + offset, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
-    const period = offsets => offsets.map(offset => months.get(keyAt(offset)) || {n: 0, pace_d: 0, pace_t: 0});
-    const recent = period([-2, -1, 0]), before = period([-5, -4, -3]);
-    const count = list => list.reduce((n, m) => n + (+m.n || 0), 0);
-    if (count(recent) < 3 || count(before) < 3) return;
-    const current=elapsedActivityRate(recent,sport).value,previous=elapsedActivityRate(before,sport).value;if(!(current>0&&previous>0))return;
-    let title, shown, subtitle, metric;
-    if (sport === 'ride') {
-      const delta = current - previous, unitDelta = U.speed(Math.abs(delta)), same = unitDelta < 0.1;
-      title = 'Ride speed'; shown = `${U.speed(current)} ${U.su()}`; metric = 'speed';
-      subtitle = same ? 'About the same as the prior three months' : `${unitDelta} ${U.su()} ${delta > 0 ? 'faster' : 'slower'} than before`;
-    } else {
-      const delta = Math.round((previous - current) * (U.du() === 'mi' ? 1.609344 : 1)), same = Math.abs(delta) < 3;
-      title = sport === 'run' ? 'Run pace' : 'Walk pace'; shown = `${U.pace(current)} ${U.pu()}`; metric = 'pace';
-      subtitle = same ? 'About the same as the prior three months' : `${Math.abs(delta)} sec/${U.du()} ${delta > 0 ? 'faster' : 'slower'} than before`;
-    }
-    parts.trends[sport] = meInsightRow(title, shown, subtitle, `/progress?sport=${sport}&metric=${metric}`);
-    paint();
-  }).catch(() => {});
 }
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // A person's shared identity leads; the overview below it is private.
@@ -1864,7 +1810,7 @@ route(/^\/me$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'Profile')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target).toLocaleString('en-US')} kcal · ${me.protein_target ? Math.round(me.protein_target).toLocaleString('en-US') + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}</div>
+    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'Profile<small class="muted">Your activities and achievements</small>')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target).toLocaleString('en-US')} kcal · ${me.protein_target ? Math.round(me.protein_target).toLocaleString('en-US') + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}</div>
     <section class="me-help"><h2 class="sec-head">Help</h2><div class="card list me-help-tools">${row('a', 'href="/me/explore"', 'search', 'c-brand', 'Explore Kinetta')}</div></section>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
   return meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));

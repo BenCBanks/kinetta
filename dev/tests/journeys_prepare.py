@@ -34,7 +34,7 @@ activities = []
 for index in range(12):
     activities.append(ok(client.post('/api/activities/manual', {
         'sport': 'run', 'name': 'Fictional journey run '+str(index+1), 'duration_s': 1800,
-        'distance_m': 5000, 'start': (now-dt.timedelta(hours=3, days=index)).isoformat()}))['id'])
+        'distance_m': 5000, 'start': (now-dt.timedelta(hours=3, days=index*7)).isoformat()}))['id'])
 food = ok(client.post('/api/food/foods', {'name': 'Fictional journey rice', 'serving_label': '1 serving',
               'serving_g': 100, 'kcal': 130, 'protein_g': 3, 'carbs_g': 28, 'fat_g': .3}))['id']
 dish = ok(client.post('/api/dishes', {'name': 'Fictional journey soup'}))['id']
