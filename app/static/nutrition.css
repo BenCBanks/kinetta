@@ -179,6 +179,8 @@
 .insights-detail-row[open] summary::after { transform:rotate(90deg); }
 .insights-detail-content { padding:0 0 10px; color:var(--tx2); font-size:14px; }
 .insights-detail-content > div,.insights-detail-content li { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:4px 0; }
+.insights-breakdown-content > h3 { margin:0 0 4px; color:var(--tx2); font-size:14px; font-weight:600; }
+.insights-breakdown-content > h3:not(:first-child) { margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
 .insights-detail-content ol { margin:0; padding:0; list-style:none; }
 .insights-detail-content b { flex:none; color:var(--tx); font-weight:500; font-variant-numeric:tabular-nums; }
 .insights-detail-content p { margin:0; }
