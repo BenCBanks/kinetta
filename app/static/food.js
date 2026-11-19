@@ -1533,7 +1533,7 @@ function dietCoach(box) {
 async function restingSourceCard(box) {
   if (!box?.isConnected) return;
   const account=readOwner(),watch=App.me.resting_source==='apple_health';
-  box.innerHTML=`<section class="card resting-source-card"><h2>Calories before workouts</h2><p class="small muted">An estimate of calories burned before workouts includes everyday movement. Workout calories are added separately, once. Changing this source won’t change your food target.</p>
+  box.innerHTML=`<section class="card resting-source-card"><h2>Resting calories</h2><p class="small muted">An estimate of calories you burn at rest, including everyday movement. Workout calories are added separately, once. Changing this source won't change your food target.</p>
     <label class="resting-source-select"><span>Current source</span><select id="resting-source"><option value="formula"${watch?'':' selected'}>Kinetta estimate</option><option value="apple_health"${watch?' selected':''}>Health app · Resting Energy</option></select></label>
     ${watch ? '<p class="small muted">Uses synced Resting Energy, without an everyday-activity multiplier. Today shows the amount so far; missing days stay blank until synced.</p>' : ''}
     ${watch ? `<p class="small" id="resting-status" role="status">Checking resting-energy sync…</p>${Native.on ? `<button class="primary wide" id="resting-sync">Connect / sync resting calories</button>` : '<p class="small muted">Open the latest Kinetta iPhone app to allow Resting Energy and sync. Synced totals also appear here in your browser.</p>'}<button class="ghost wide danger" id="resting-remove">Remove synced resting calories</button>` : ''}

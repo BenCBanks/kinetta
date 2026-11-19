@@ -1,5 +1,14 @@
 /* Food and Nutrition route-only styles. Loaded with Food/Kit leaves; shell and nav stay eager. */
 
+/* Keep the Nutrition parent label visible when Food target uses the compact 330px header. */
+@media (max-width:360px) {
+  .shell.nutrition-detail .top.subpage-header { grid-template-columns:96px minmax(0,1fr) 96px !important; }
+  .shell.nutrition-detail .top.subpage-header > .nutrition-back { grid-column:1 !important;grid-row:1 !important;gap:4px; }
+  .shell.nutrition-detail .top.subpage-header > h1 { grid-column:2 !important;grid-row:1 !important; }
+  .shell.nutrition-detail .top.subpage-header > .acts { grid-column:3 !important;grid-row:1 !important; }
+  .shell.nutrition-detail .top.subpage-header > .nutrition-back > .vh { display:block !important; }
+}
+
 /* A matching meal from yesterday sits inside the empty meal as a plain, wrapping action. */
 .meal-yesterday-repeat{display:flex;align-items:center;justify-content:flex-start;width:100%;min-width:0;min-height:44px;margin:8px 0 0;padding:4px 0;border:0;background:none;color:var(--accent);font:inherit;font-size:max(15px,.9375rem);font-weight:600;line-height:1.35;text-align:left;white-space:normal;overflow-wrap:anywhere}
 .meal-yesterday-repeat:disabled{opacity:.55}
