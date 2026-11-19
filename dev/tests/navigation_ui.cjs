@@ -46,9 +46,9 @@ async function pressVisualEvidence(p,out,size,theme){
  await p.evaluate(()=>document.querySelector('#press-evidence')?.remove());await p.emulateMedia({reducedMotion:'reduce'});
 }
 async function homeHeaderAndGroups(p,base,size,snap){
- const actions=await p.locator('#feed-top .shell-topbar-root .shell-topbar-actions').evaluate(el=>[...el.children].map(a=>({label:a.getAttribute('aria-label'),href:a.getAttribute('href'),box:a.getBoundingClientRect().toJSON()})));
- assert.match(actions[0].label,/^Notifications(?:, \d+ new)?$/,'Home exposes Notifications with the live unread count');assert.equal(actions[1].label,'Record or import a workout','Home exposes the recorder action');
- assert.deepEqual(actions.map(a=>a.href),['/notifications','/track']);assert(actions.every(a=>a.box.width>=44&&a.box.height>=44),'Home header targets are at least 44px');
+ const rootActions=p.locator('#feed-top .shell-topbar-root .shell-topbar-actions'),findAction=rootActions.getByRole('link',{name:'Find friends'}),notifications=rootActions.getByRole('link',{name:/^Notifications(?:, \d+ new)?$/}),recordAction=rootActions.getByRole('link',{name:'Record or import a workout'});
+ assert.equal(await findAction.count(),1,'Home exposes friend search by its accessible name');assert.equal(await notifications.count(),1,'Home exposes Notifications with the live unread count');assert.equal(await recordAction.count(),1,'Home exposes the recorder action by its accessible name');
+ assert.equal(await findAction.getAttribute('href'),'/me/friends?find=1&from=home');assert.equal(await notifications.getAttribute('href'),'/notifications');assert.equal(await recordAction.getAttribute('href'),'/track');const actions=await rootActions.locator(':is(a,button)').evaluateAll(nodes=>nodes.map(a=>a.getBoundingClientRect().toJSON()));assert.equal(actions.length,3,'Home has three named header actions');assert(actions.every(a=>a.width>=44&&a.height>=44),'Home header targets are at least 44px');
  await p.goto(base+'/people/alex?search=1');await ready(p);await p.locator('#person-search-form:not([hidden]) input').waitFor();assert.equal(new URL(p.url()).searchParams.has('search'),false,'people search stays open after its one-time URL flag is removed');
  await p.goBack();await p.waitForURL(base+'/activity');await ready(p);
  await p.locator('.home-view-switch a[href="/activity?view=groups"]').click();await p.waitForURL(base+'/activity?view=groups');await ready(p);await p.locator('#home-group-list .group-list-row').first().waitFor();
