@@ -1222,7 +1222,7 @@ function energyCard(box) {
     box.innerHTML = `<div id="resting-source-card"></div>
       <section class="card needs-estimate"><span class="small muted">Estimated calories/day</span><div class="needs-estimate-value"><b class="num" id="needs-estimate-value">${r0(E.base)}</b><span>kcal/day</span></div><p class="small muted">Kinetta estimate · from ${E.bmr_exact?'your height, age, sex and weight':'weight only'} · before workouts</p>
       <button class="needs-body-row" id="needs-body-edit" type="button"><span class="needs-body-copy"><b>Body details</b><small>${esc(bodyDetailsSummary(App.me))}</small></span>${svg('chev')}</button></section>
-      <details class="card food-target-calculator"><summary>Calculate food target<span class="chev">${svg('down')}</span></summary><div class="target-calculator-content">
+      <details class="card food-target-calculator"><summary>Calculate food target<span class="chev">${svg('down')}</span></summary><div class="target-calculator-content"><p class="small muted food-target-calculator-intro">Estimate a daily food target from your usual activity and weight goal. Review the suggestion before applying it. Workouts are counted separately.</p>
         <fieldset class="choice-list" id="needs-activity"><legend>Everyday activity <small>(outside workouts)</small></legend>${ACTIVITY_LEVELS.map(([f,n,d])=>`<label><input type="radio" name="everyday-activity" value="${f}"${f===activityChoice?' checked':''}><span><b>${esc(n)}</b><small>${esc(d)}</small></span></label>`).join('')}</fieldset>
         <fieldset class="choice-list goal-choice-list" id="needs-goal"><legend>Weight goal</legend>${goals.map(([name,delta])=>`<label><input type="radio" name="weight-goal" value="${delta}"${delta===goalDelta?' checked':''}><span><b>${esc(name)}</b></span></label>`).join('')}</fieldset>
         <div class="suggested-target" aria-live="polite"><span>Suggested food target</span><b class="num" id="suggested-target-value">${r0(targetFor())}</b><span>kcal/day</span></div>
@@ -1533,9 +1533,9 @@ function dietCoach(box) {
 async function restingSourceCard(box) {
   if (!box?.isConnected) return;
   const account=readOwner(),watch=App.me.resting_source==='apple_health';
-  box.innerHTML=`<section class="card resting-source-card"><h2>Resting calories</h2><p class="small muted">Calories your body burns at rest, plus everyday movement. Workout calories are added separately, once. Changing this source won't change your food target.</p>
+  box.innerHTML=`<section class="card resting-source-card"><h2>Calories before workouts</h2><p class="small muted">An estimate of calories you burn before workouts, including everyday movement. Workout calories are added separately, once. Changing this source won't change your food target.</p>
     <label class="resting-source-select"><span>Current source</span><select id="resting-source"><option value="formula"${watch?'':' selected'}>Kinetta estimate</option><option value="apple_health"${watch?' selected':''}>Health app · Resting Energy</option></select></label>
-    <p class="small muted">${watch ? 'Uses synced Resting Energy, without an everyday-activity multiplier. Today shows the amount so far; missing days stay blank until synced.' : 'Uses calculated BMR and your everyday activity setting.'}</p>
+    ${watch ? '<p class="small muted">Uses synced Resting Energy, without an everyday-activity multiplier. Today shows the amount so far; missing days stay blank until synced.</p>' : ''}
     ${watch ? `<p class="small" id="resting-status" role="status">Checking resting-energy sync…</p>${Native.on ? `<button class="primary wide" id="resting-sync">Connect / sync resting calories</button>` : '<p class="small muted">Open the latest Kinetta iPhone app to allow Resting Energy and sync. Synced totals also appear here in your browser.</p>'}<button class="ghost wide danger" id="resting-remove">Remove synced resting calories</button>` : ''}
     <p class="small err" id="resting-error" role="alert"></p></section>`;
   const error=$('#resting-error',box),select=$('#resting-source',box);
