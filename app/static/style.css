@@ -921,12 +921,7 @@ body.ph-open { overflow: hidden; }
 .media-map > .map, .post .media-map > .fmap { height: 100%; width: 100%; margin: 0; border-radius: 0; }
 .media-controls { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; }
 .media-controls [data-media-position] { flex: 1; text-align: center; }
-.detail-media { --media-height: 380px; margin: 0 0 12px; }
-.map-head .detail-media { --media-height: calc(380px + env(safe-area-inset-top)); margin: 0; }
-.map-head .media-track { border-radius: 0 0 var(--r) var(--r); }
-.map-head .media-item .map.lead { height: 100%; }
-.map-head .media-controls { padding: 0 16px; }
-@media (min-width: 900px) { .activity-media { --media-height: 240px; } .detail-media, .map-head .detail-media { --media-height: 480px; } .map-head .media-track { border-radius: var(--r); } }
+@media (min-width: 900px) { .activity-media { --media-height: 240px; } }
 
 /* ---------- Sky Blue · shared across every route and sheet ---------- */
 :root { --display: var(--font-display); --numf: var(--font); --shadow: var(--elevation-rest); --lift: var(--elevation-raised); --sheet-shadow: var(--elevation-sheet); --app-page-title-preferred:var(--text-app-title); --text-nav-title:17px; }
@@ -1030,9 +1025,6 @@ html.keyboard-open nav.tabs { display: none; }
 
 .bar.over { background: var(--warn); }
 
-/* The activity map/photos run to the very top, under the status bar (Ben, 2026-10-23); the map is light in light mode
-   and dark in dark mode, so the clock stays readable. */
-@media (min-width: 900px) { .map-head .detail-media { --media-height: calc(480px + env(safe-area-inset-top)); } }
 
 /* A personal greeting and one-tap Kit review keep Today concise. */
 #t-review { flex-shrink: 0; }
