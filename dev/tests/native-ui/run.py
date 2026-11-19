@@ -153,7 +153,7 @@ for device in preferred:
       assert all(item['label']['height']>=10 for item in metrics['navigation']['items']), f'{stage} Store nav must remain expanded: {metrics["navigation"]}'
      if stage=='header-me':
       me_text=metrics['bodyText']
-      assert re.search(r'\b5\.0\s+Distance\s+\(mi\)',me_text), 'Me screenshot must show the matching fictional 5.0 mi distance'
+      assert re.search(r'\b5\.0\s+mi\s+Distance\b',re.sub(r'\s+',' ',me_text)), 'Me screenshot must show the matching fictional 5.0 mi distance'
       assert not re.search(r'\bkm\b|/km\b',me_text), 'US App Store Me scene must not show metric distance or pace'
       assert re.search(r'\b2\s+Workouts\b',me_text) and re.search(r'\b48m\s+Time\b',me_text), 'Me screenshot must show its two fictional workouts and their 48 minutes'
       assert re.search(r'Featured achievements[\s\S]{0,220}\b134\s+(?:wkt|workouts)\b',me_text) and len(metrics.get('featuredAchievements',[]))==3, 'Me screenshot must show three earned featured achievements including lifetime workouts'
