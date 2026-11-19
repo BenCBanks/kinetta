@@ -446,39 +446,56 @@ class Resolution(unittest.TestCase):
   m=self.root('another garage beer');r=self.resolve(m);self.model.assert_not_called();self.assertEqual(self.result(r)['parts'][0]['status'],'choose')
  def test_40_confusion_without_food_never_looks_up_or_estimates_the_sentence(self):
   _,r=self.send('No idea what you mean');self.assertEqual(self.result(r)['intent'],'clarification_help');self.look.assert_not_called();self.model.assert_not_called();self.assertEqual(self.entries(),[])
- def test_42_catalog_unavailable_keeps_known_food_and_retries_once(self):
+ def test_42_catalog_unavailable_uses_kit_estimate_when_allowed(self):
   from app import api_food as F
-  self.own_food();m,_=self.send('rice and two bowls of mysterious curry');before=self.entries()
+  self.a.put('/api/food/thread/preferences',json={'auto_log':False})
+  text='two bowls of fictional curry';m=self.root(text)
   self.look.side_effect=F.CatalogUnavailable()
-  result=self.result(self.resolve(m));self.assertTrue(result['error']['retryable']);self.assertFalse(result['can_resolve'])
-  self.assertEqual(self.entries(),before);self.model.assert_not_called()
-  calls=self.look.call_count;self.resolve(m);self.assertEqual(self.look.call_count,calls)
-  self.post(f"/api/food/thread/messages/{m['id']}/resolve",client=self.b,status=404)
-  self.look.side_effect=lambda text:{'kind':'none','foods':[]};self.resolve(m,retry=True)
-  self.assertEqual(sorted(e['kcal'] for e in self.entries()),[130,540]);self.model.assert_called_once()
-  self.resolve(m);self.assertEqual(len(self.entries()),2);self.model.assert_called_once()
- def test_43_catalog_workers_share_deadline_and_preserve_other_successes(self):
+  result=self.result(self.resolve(m));self.assertNotIn('error',result)
+  part=result['parts'][0];self.assertTrue(part['estimated']);self.assertTrue(part['catalog_fallback']);self.assertEqual(part['source'],'ai')
+  self.assertEqual(part['status'],'ready');self.assertEqual(self.entries(),[],'Kit estimate waits for the usual Add confirmation')
+  self.assertEqual(self.model.call_count,1);self.assertEqual(self.model.call_args.args[0].note,text,'only the food words go to Kit')
+  self.assertEqual(self.look.call_count,2,'one silent retry stays inside the lookup deadline')
+ def test_43_catalog_retry_recovers_without_showing_failure(self):
   from app import api_food as F
+  m=self.root('200 g plain grain')
+  self.look.side_effect=[F.CatalogUnavailable(),{'kind':'plain','foods':[PLAIN]}]
+  result=self.result(self.resolve(m));self.assertNotIn('error',result)
+  self.assertEqual(self.look.call_count,2);self.model.assert_not_called()
+  self.assertEqual(result['parts'][0]['status'],'ready')
+ def test_44_mixed_catalog_success_and_failure_estimates_only_failed_part(self):
+  from app import api_food as F
+  self.a.put('/api/food/thread/preferences',json={'auto_log':False})
   deadlines=[]
   def lookup(text):
    deadlines.append(F.catalog_deadline())
    if 'grain' in text:return {'kind':'plain','foods':[PLAIN]}
    raise F.CatalogUnavailable()
-  self.look.side_effect=lookup;m=self.root('200 g plain grain and two bowls of mysterious curry');result=self.result(self.resolve(m))
-  self.assertEqual(len(deadlines),2);self.assertEqual(deadlines[0],deadlines[1]);self.assertIn('error',result)
-  self.assertEqual([e['kcal'] for e in self.entries()],[200]);self.model.assert_not_called()
-  self.look.side_effect=lambda text:{'kind':'none','foods':[]};self.resolve(m,retry=True)
-  self.assertEqual(sorted(e['kcal'] for e in self.entries()),[200,540]);self.model.assert_called_once()
- def test_44_review_only_unavailable_retains_drafts_without_logging(self):
+  self.look.side_effect=lookup;m=self.root('200 g plain grain and two bowls of fictional curry')
+  result=self.result(self.resolve(m));self.assertNotIn('error',result)
+  self.assertEqual(len(deadlines),3,'both retries use the same shared deadline')
+  self.assertEqual(len(set(deadlines)),1)
+  parts=result['parts'];self.assertTrue(any(p['status']=='ready' and not p.get('estimated') for p in parts))
+  self.assertTrue(any(p['status']=='ready' and p.get('estimated') and p.get('catalog_fallback') for p in parts))
+  self.assertIn('fictional curry',self.model.call_args.args[0].note.lower())
+  self.assertNotIn('plain grain',self.model.call_args.args[0].note.lower())
+  self.assertEqual(self.entries(),[],'both rows remain pending Add confirmation')
+ def test_45_review_only_catalog_failure_keeps_estimates_in_review(self):
   from app import api_food as F
   self.own_food();draft=str(uuid.uuid4());m=self.root('1 serving rice and two bowls of mysterious curry',review_only=True,draft_id=draft)
-  self.look.side_effect=F.CatalogUnavailable();result=self.result(self.resolve(m));self.assertIn('error',result)
-  self.assertTrue(any(p['status']=='ready' for p in result['parts']));self.assertEqual(self.entries(),[]);self.model.assert_not_called()
-  self.look.side_effect=lambda text:{'kind':'none','foods':[]};self.resolve(m,retry=True)
+  self.look.side_effect=F.CatalogUnavailable();result=self.result(self.resolve(m));self.assertNotIn('error',result)
+  self.assertTrue(any(p['status']=='ready' and p.get('catalog_fallback') for p in result['parts']));self.assertEqual(self.entries(),[]);self.model.assert_called_once()
   review=self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':draft,'messages':[m['id']]})
   self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch','day':self.a.get('/api/food/day').json()['day']})
   self.assertEqual(sorted(e['kcal'] for e in self.entries()),[130,540])
- def test_45_catalog_failure_preserves_each_owners_saved_search_results(self):
+ def test_46_catalog_failure_without_ai_shows_retryable_lookup_state(self):
+  from app import api_food as F
+  self.no_ai();m=self.root('one fictional granola bar')
+  self.look.side_effect=F.CatalogUnavailable()
+  result=self.result(self.resolve(m));self.assertEqual(result['error']['kind'],'food_lookup_retry')
+  self.assertTrue(result['error']['retryable']);self.assertIn('Your food is kept',result['error']['message'])
+  self.assertEqual(self.look.call_count,2);self.model.assert_not_called();self.assertEqual(self.entries(),[])
+ def test_47_catalog_failure_preserves_each_owners_saved_search_results(self):
   from app import api_food as F
   self.own_food('Fictional query',130)
   self.post('/api/food/foods',{'name':'Fictional query','kcal':900},client=self.b)
@@ -486,27 +503,28 @@ class Resolution(unittest.TestCase):
    a=self.a.get('/api/food/search?q=Fictional%20query').json();b=self.b.get('/api/food/search?q=Fictional%20query').json()
   self.assertEqual([f['per_serving']['kcal'] for f in a['mine']],[130]);self.assertEqual([f['per_serving']['kcal'] for f in b['mine']],[900])
   self.assertEqual(a['off'],[]);self.assertEqual(a['unavailable'],['off']);self.model.assert_not_called()
- def test_46_five_second_catalog_return_does_not_wait_for_late_fetch(self):
+ def test_48_five_second_catalog_return_does_not_wait_for_late_fetch(self):
   import time
   from app import api_food as F
-  self.own_food();m=self.root('rice and two bowls of mysterious curry');before=self.entries();release=threading.Event();key='zz_test_deadline_'+uuid.uuid4().hex
+  self.no_ai();self.own_food();m=self.root('rice and two bowls of mysterious curry');before=self.entries();release=threading.Event();key='zz_test_deadline_'+uuid.uuid4().hex
   self.look.side_effect=lambda text:F._cached(key,lambda:(release.wait(10),[])[1])
   started=time.monotonic()
   try:
    result=self.result(self.resolve(m));self.assertLess(time.monotonic()-started,6.5)
-   self.assertIn('error',result);self.assertEqual(self.entries(),before);self.model.assert_not_called()
+   self.assertEqual(result['error']['kind'],'food_lookup_retry');self.assertEqual(self.entries(),before);self.model.assert_not_called()
   finally:
    release.set();until=time.monotonic()+2
    while (key,30) in F._catalog_flights and time.monotonic()<until:time.sleep(.01)
- def test_47_unavailable_preserves_mass_only_catalog_fallback(self):
+ def test_49_unavailable_preserves_mass_only_catalog_fallback_when_kit_fails(self):
   from app import api_food as F
   def lookup(text):
    if 'taco' in text:return self.mass_catalog()
    raise F.CatalogUnavailable()
-  self.look.side_effect=lookup;m=self.root('2 chicken tacos and two bowls of mysterious curry');result=self.result(self.resolve(m))
-  self.assertIn('error',result);self.assertEqual(result['parts'][0]['status'],'quantity')
-  self.assertIn('weight',result['text']);self.model.assert_not_called();self.assertEqual(self.entries(),[])
- def test_48_barcode_alias_cache_survives_first_representation_failure(self):
+  self.look.side_effect=lookup;self.model.side_effect=HTTPException(503,'Fictional estimate unavailable')
+  m=self.root('2 chicken tacos and two bowls of mysterious curry');result=self.result(self.resolve(m))
+  self.assertEqual(result['error']['kind'],'food_lookup_retry');self.assertEqual(result['parts'][0]['status'],'quantity')
+  self.assertIn('weight',result['text']);self.model.assert_called_once();self.assertEqual(self.entries(),[])
+ def test_50_barcode_alias_cache_survives_first_representation_failure(self):
   from app import api_food as F
   code='012345678905';key='off-code:0'+code
   product={'code':'0'+code,'product_name':'Fictional oats','nutriments':{'energy-kcal_100g':380,'proteins_100g':13,'carbohydrates_100g':66,'fat_100g':7}}

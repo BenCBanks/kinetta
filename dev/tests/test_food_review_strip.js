@@ -127,6 +127,19 @@ const found=c.replyHtml(barcodeRoot,{entries:[],result:{kind:'preview',parts:[{i
 assert.match(found,/Fictional oats/,'a recognized barcode still shows its product name');
 console.log('barcode card: normal not-found copy, consent-aware primary action, manual/retry recovery, generic scan label and food-named menu PASS');
 
+const lookupRoot={id:12,state:'answered',body:'two bowls of fictional curry',result:{}};
+const lookupReply={body:'two bowls of fictional curry',entries:[],result:{kind:'needs',error:{message:'We couldn’t check this food just now. Your food is kept; try again or choose another option.',retryable:true,kind:'food_lookup_retry'},parts:[{index:0,status:'unknown',question:'Which food and portion should I use?'}]}};
+c.aiCan=()=>true;c.aiOffer=()=>false;
+let lookupHtml=c.replyHtml(lookupRoot,lookupReply);
+assert.match(lookupHtml,/Couldn't check this food yet/);assert.match(lookupHtml,/data-action="resolve">Retry lookup/);
+assert.match(lookupHtml,/data-estimate="0">Estimate with Kit/);assert.match(lookupHtml,/data-manual="0">Enter nutrition/);assert.match(lookupHtml,/data-portion="0">Change amount/);
+assert.doesNotMatch(lookupHtml,/thread-error|Which food and portion|The food database is busy/,'retryable catalog failures use the calm recovery card without the stale question');
+c.aiCan=()=>false;lookupHtml=c.replyHtml(lookupRoot,lookupReply);
+assert.match(lookupHtml,/data-action="resolve">Retry lookup/);assert.doesNotMatch(lookupHtml,/data-estimate/,'Kit alternative stays hidden without current consent');
+assert.match(lookupHtml,/Enter nutrition/);assert.match(lookupHtml,/Change amount/);
+const foodCss=fs.readFileSync('app/static/style.css','utf8');assert.match(foodCss,/thread-lookup-alternatives \.linkbtn \{[^}]*min-height: 44px/,'recovery alternatives keep 44px targets');
+console.log('food lookup failure: calm kept-food card, one retry action, consent-aware alternatives and 44px links PASS');
+
 vm.runInContext(source.slice(source.indexOf('  function pendingHtml('),source.indexOf('  function wirePending(')),c);
 c.navigator={onLine:false};let pending=c.pendingHtml({phase:'process',body:'Fictional tacos'});
 assert.match(pending,/Your food is waiting to send when you’re back online/);assert(!pending.includes('message'));
