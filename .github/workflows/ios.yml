@@ -109,6 +109,10 @@ jobs:
         run: |
           swiftc ios/App/App/NativePush.swift tests/notification/main.swift -o "$RUNNER_TEMP/notification-path-tests"
           "$RUNNER_TEMP/notification-path-tests"
+      - name: Test native challenge universal-link routing
+        run: |
+          swiftc ios/App/App/NativePush.swift tests/challenge-link/main.swift -o "$RUNNER_TEMP/challenge-link-tests"
+          "$RUNNER_TEMP/challenge-link-tests"
       - name: Test the durable Health queue
         run: |
           swiftc ios/App/App/HealthSyncState.swift tests/main.swift -o "$RUNNER_TEMP/health-state-tests"

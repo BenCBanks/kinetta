@@ -1,5 +1,26 @@
 import Foundation
 
+struct NativeWebLinkRoute: Equatable {
+    let path: String
+    let server: String
+}
+
+enum NativeWebLink {
+    static func pendingChallengeRoute(_ path: String?) -> String? {
+        guard let path = path,
+              path.range(of: #"^/challenge/[A-Za-z0-9_-]{1,60}$"#, options: .regularExpression) != nil else { return nil }
+        return path
+    }
+
+    static func resolve(_ url: URL?) -> NativeWebLinkRoute? {
+        guard let url = url, url.scheme?.lowercased() == "https", url.user == nil, url.password == nil,
+              let host = url.host, !host.isEmpty,
+              url.path.range(of: #"^/(?:add/[A-Za-z0-9_-]{1,40}|card/[A-Za-z0-9_-]{1,60}|challenge/[A-Za-z0-9_-]{1,60})$"#, options: .regularExpression) != nil else { return nil }
+        let server = "https://" + host + (url.port.map { ":\($0)" } ?? "")
+        return NativeWebLinkRoute(path: url.path, server: server)
+    }
+}
+
 // Keep old app builds on the ordinary detail URL; only a matching optional URL
 // can opt an updated app into the existing owner-only editor.
 enum NativeNotificationPath {
@@ -170,8 +191,11 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func unregister(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             UIApplication.shared.unregisterForRemoteNotifications()
-            NativePushCenter.shared.pendingURL = nil
-            NativePushCenter.shared.pendingServer = nil
+            // Signing in first unregisters the previous push token. Keep a challenge invitation
+            // through that transition so the new account can see its preview and choose Join.
+            let challenge = NativeWebLink.pendingChallengeRoute(NativePushCenter.shared.pendingURL)
+            NativePushCenter.shared.pendingURL = challenge
+            if challenge == nil { NativePushCenter.shared.pendingServer = nil }
             UNUserNotificationCenter.current().removeAllDeliveredNotifications()
             call.resolve()
         }

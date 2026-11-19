@@ -24,13 +24,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     // A friend's invite link (https://login.kinetta.app/add/<code>, 2026-10-26) opens here instead of Safari. It goes
     // through the same pending path a notification tap uses, so the app shows it once it's ready and signed in.
     private func openLink(_ activity: NSUserActivity) {
-        guard activity.activityType == NSUserActivityTypeBrowsingWeb, let url = activity.webpageURL,
-              url.scheme == "https",
-              url.path.range(of: "^(/add/[A-Za-z0-9_-]{1,40}|/card/[A-Za-z0-9_-]{1,60})$", options: .regularExpression) != nil else { return }
-        NativePushCenter.shared.pendingURL = url.path
-        if let host = url.host {
-            NativePushCenter.shared.pendingServer = "https://" + host + (url.port.map { ":\($0)" } ?? "")
-        }
+        guard activity.activityType == NSUserActivityTypeBrowsingWeb,
+              let route = NativeWebLink.resolve(activity.webpageURL) else { return }
+        NativePushCenter.shared.pendingURL = route.path
+        NativePushCenter.shared.pendingServer = route.server
         NativePushCenter.shared.plugin?.notifyListeners("notificationOpened", data: [:])
     }
 
