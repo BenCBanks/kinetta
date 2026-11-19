@@ -59,7 +59,9 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert.match(heroImage.alt,/Fictional Home feed.*completed 3-mile Morning Run.*route map and reactions/i);
      assert.equal(await p.locator('.standin-caption').count(),0,'Home hero has no composed-screen stand-in label');
      const header=await p.locator('[data-site-nav]').boundingBox();assert(header&&Math.abs(header.height-56)<=1,'Home keeps a one-row header');
-     const pageHeight=await p.evaluate(()=>document.documentElement.scrollHeight);if(width===390)assert(pageHeight<=4500,`Home stays near its 4,500px mobile target: ${pageHeight}px`);
+     // The second Home proof card added in #1303 adds one short text block. Keep
+     // the page within 100px of the original 4,500px target while allowing it.
+     const pageHeight=await p.evaluate(()=>document.documentElement.scrollHeight);if(width===390)assert(pageHeight<=4600,`Home stays near its 4,500px mobile target (4,600px ceiling): ${pageHeight}px`);
      const phone=await p.locator('.home-hero .phone-frame').boundingBox();assert(phone&&phone.width<=320&&phone.x>=0&&phone.x+phone.width<=width,'Home hero phone stays fully in view');
      const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .home-beta-link').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
      assert(targets.every(r=>r.w>=44&&r.h>=44),`Home header and hero actions keep 44px hit areas: ${JSON.stringify(targets)}`);
