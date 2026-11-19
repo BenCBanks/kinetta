@@ -8,7 +8,7 @@ Run, ride, walk and lift.
 
 ## training-intro
 
-Plans, lifting, routes and progress.
+Plans, lifting, routes and progress. Import supported workouts from Apple Health on iPhone.
 
 ## training-run-description
 
@@ -20,7 +20,7 @@ Totals for every sport, plus this week.
 
 ## training-lifting-description
 
-Last time’s weight and reps beside each set.
+Log sets, compare with last time and see each exercise’s best in Records.
 
 ## training-plans-description
 
@@ -28,7 +28,7 @@ Plans for a 5K up to a marathon.
 
 ## training-progress-description
 
-Weekly distance over time.
+Review weekly activity, sport totals and strength records.
 
 ## training-routes-description
 
