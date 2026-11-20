@@ -471,9 +471,11 @@ async function closeCaptureContext(context) {
           const actionRect=action.getBoundingClientRect(),commentRect=comments.getBoundingClientRect(),buttonRect=button.getBoundingClientRect(),shareRect=share?.getBoundingClientRect();
           const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
           const visible=r=>r.width>0&&r.height>=44&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit;
-          const hasSummary=!button.hidden,valid=visible(actionRect)&&visible(commentRect)&&(!hasSummary||visible(buttonRect))
-            &&(!hasSummary||Math.abs(buttonRect.left-actionRect.right-4)<1&&commentRect.left-buttonRect.right>=7.99)
-            &&(!share||visible(shareRect)&&Math.abs(shareRect.right-contentRight)<1&&shareRect.left>=commentRect.right);
+          const hasSummary=!button.hidden,afterActions=hasSummary?buttonRect:commentRect;
+          const valid=visible(actionRect)&&visible(commentRect)&&(!hasSummary||visible(buttonRect))
+            &&commentRect.left-actionRect.right>=7.99
+            &&(!hasSummary||buttonRect.left-commentRect.right>=7.99)
+            &&(!share||visible(shareRect)&&Math.abs(shareRect.right-contentRight)<1&&shareRect.left-afterActions.right>=7.99);
           return{valid,action:{x:actionRect.x,right:actionRect.right,top:actionRect.top,bottom:actionRect.bottom},comment:{x:commentRect.x,right:commentRect.right,top:commentRect.top,bottom:commentRect.bottom},summary:{x:buttonRect.x,right:buttonRect.right,top:buttonRect.top,bottom:buttonRect.bottom},share:shareRect&&{x:shareRect.x,right:shareRect.right,top:shareRect.top,bottom:shareRect.bottom},contentRight,limit,innerWidth,scrollY,scrollHeight:document.documentElement.scrollHeight};
         });
         if(!geometry.valid)throw Error('Demo feed React/summary/comments/share targets do not match the shipped footer layout: '+JSON.stringify(geometry));
