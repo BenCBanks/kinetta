@@ -851,9 +851,9 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
     $$('[data-library-name]',panel).forEach(n=>{n.hidden=!n.dataset.libraryName.includes(q);if(!n.hidden)count++;});
     $$('.library-section',panel).forEach(n=>{const rows=[...n.querySelectorAll('[data-library-name]')];if(rows.length)n.hidden=!rows.some(r=>!r.hidden);});
     const recentRows=$$('[data-recent-row]',panel);if(recentRows.length){for(const row of recentRows){const name=$('.recent-main b',row)?.textContent.toLowerCase()||'';row.hidden=!!q&&!name.includes(q);if(!row.hidden)count++;}}
+    const emptyState=$('.library-empty',panel);if(emptyState)emptyState.hidden=!!q;
     $('#tm-no-match',body).hidden=!q||count>0;
-    const hasContent=recent.length>0||dishes.length>0||foods.length>0||meals.length>0;
-    $('#tm-describe',body).hidden=!!q?count===0:!hasContent;
+    $('#tm-describe',body).hidden=count===0;
   };
   $$('[data-library-tab]',body).forEach(button=>button.onclick=()=>{activeTab=button.dataset.libraryTab;$$('[data-library-tab]',body).forEach(tab=>{const selected=tab===button;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});applyLibraryFilter();});
   const search=$('#tm-filter',body);search.oninput=applyLibraryFilter;

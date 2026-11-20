@@ -38,6 +38,9 @@ for state in ('empty','typical','heavy','recipe'):
   ids[state]['actions']=action_id
  for i in range(0 if state in ('empty','recipe') else 30 if state=='heavy' else 2):
   ok(c.post('/api/food/foods',{'name':('Protein yogurt' if i==0 else 'Oat bar' if i==1 else f'Pantry food {i+1:02}'),'brand':'River pantry','serving_label':'1 pot' if i==0 else '1 bar' if i==1 else '1 portion','serving_g':170 if i==0 else 50,'kcal':180,'protein_g':12,'carbs_g':20,'fat_g':6,'fiber_g':3}))
+ if state=='typical':
+  entry=ok(c.post('/api/food/entries',[{'day':'2026-01-15','meal':'lunch','name':'Fictional whole-grain soba','amount':1,'unit':'bowl','kcal':420,'protein_g':18,'carbs_g':58,'fat_g':12,'source':'manual'}]))
+  meal=ok(c.post('/api/food/meals',{'name':'Fictional sesame noodle bowl','entry_ids':entry['ids']}));ids[state]['meal']=meal['id']
  if state=='recipe':
   d=ok(c.post('/api/dishes',{}));ids[state]['draft']=d['id'];ok(c.post(f'/api/dishes/{d["id"]}/items',{'name':'Fictional unsaved-name ingredient','grams':100,'source':'quick','per100':{'kcal':100,'protein_g':10,'carbs_g':10,'fat_g':2,'fiber_g':0}}))
  assert len(ok(c.get('/api/dishes')))==n+(len(ids[state])-1 if state=='recipe' else 0)
