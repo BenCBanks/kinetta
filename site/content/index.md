@@ -111,7 +111,7 @@ Challenges
 
 ## home-challenges-title
 
-A goal to share, your way.
+A shared goal. Everyone's progress.
 
 ## home-challenges-description
 
