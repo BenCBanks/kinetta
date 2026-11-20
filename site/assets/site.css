@@ -1109,3 +1109,6 @@ header.top .signup { display:flex;align-items:center; }
 @media (max-width:560px) {
   .home-page .home-badges-visuals { grid-template-columns:1fr; gap:24px; }
 }
+@media (max-width:560px) {
+  .home-page .home-proof-grid #home-food.home-proof-card { flex-basis:calc(100% + 40px); }
+}

@@ -45,6 +45,7 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert(nutrition.src.includes(`1319-kit-food-chat-${theme}`));assert.match(nutrition.alt,/Chicken sandwich and an apple for lunch.*two matched foods.*calorie estimate.*confirmed Lunch log/i);assert(nutrition.loaded,'captured Kit meal is loaded');
      assert.equal(await p.locator('#home-food h3').innerText(),'Log a meal in a sentence.');
      const mealFrame=await p.locator('#home-food .phone-frame').boundingBox();if(width===390)assert(mealFrame&&Math.round(mealFrame.width)===350&&mealFrame.height<=541,'390px meal crop shows the sentence, result and confirmation together');
+     if(width===390){const nextCardLeft=await p.locator('#home-activity').evaluate(e=>e.getBoundingClientRect().left);assert(nextCardLeft>=width,`Food shows no clipped Activity text at the viewport edge (${nextCardLeft}px)`);}
      const activity=await p.locator('#home-activity img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
      assert(activity.src.includes(`${theme}-activity-detail`));assert.match(activity.alt,/Fictional Activity detail/);assert(activity.loaded,'Activity map screenshot is loaded');
      assert.equal(await p.locator('.home-kit-chat').count(),0,'The real Kit meal capture is not repeated in a second section');
