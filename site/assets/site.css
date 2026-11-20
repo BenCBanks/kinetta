@@ -1034,7 +1034,7 @@ header.top .signup { display:flex;align-items:center; }
  .home-page .home-challenges-copy > p { font-size:16px; }
  .home-page .home-challenges-visuals { grid-template-columns:1fr; gap:24px; }
  .home-page .home-challenge-preview picture,.home-page .home-challenge-preview--start picture,.home-page .home-challenge-preview--detail picture { width:100%; }
- .home-page .home-challenges { padding-top:48px; }
+ .home-page .home-challenges { padding-top:56px; }
  .home-page .home-challenges + .home-proof { padding-top:48px; }
  .home-page .home-feature-copy h2 { font-size:clamp(32px,9vw,42px); }
  .home-page .home-sharing .wrap { grid-template-columns:1fr; gap:14px; }

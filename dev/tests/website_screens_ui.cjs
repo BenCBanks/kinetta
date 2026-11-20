@@ -36,13 +36,14 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     if(name==='index'){
      const homeOrder=await p.locator('main > section').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('home-hero')?'hero':n.classList.contains('home-challenges')?'challenges':n.classList.contains('home-proof')?'food-and-activity':n.classList.contains('home-badges')?'achievements':'other'));
      assert.deepEqual(homeOrder.slice(0,3),['hero','challenges','food-and-activity'],'Challenges is the second Home hero, before Food and Achievements');
+     assert(homeOrder.indexOf('achievements')>homeOrder.indexOf('food-and-activity'),'Achievements follows the Food section');
      assert.equal(await p.locator('#home-challenges-title').innerText(),"A shared goal. Everyone's progress.");
      const challengeTitle=await p.locator('#home-challenges-title').evaluate(el=>({size:parseFloat(getComputedStyle(el).fontSize),left:el.getBoundingClientRect().left}));
-     assert(challengeTitle.size>=36&&challengeTitle.size<=40,`Challenges heading stays 36–40px: ${JSON.stringify(challengeTitle)}`);
+     assert(challengeTitle.size>=36&&challengeTitle.size<=40,`${width}px Challenges heading stays 36–40px: ${JSON.stringify(challengeTitle)}`);
      if(width===390)assert.equal(Math.round(challengeTitle.left),20,'Challenges keeps 20px phone gutters');
      const challengeSpacing=await p.locator('.home-hero,.home-challenges,.home-proof').evaluateAll(([hero,challenges,food])=>({heroBottom:getComputedStyle(hero).paddingBottom,challengeTop:getComputedStyle(challenges).paddingTop,foodTop:getComputedStyle(food).paddingTop}));
      assert.equal(challengeSpacing.heroBottom,'0px','hero and Challenges use one shared section gap');
-     assert(parseFloat(challengeSpacing.challengeTop)>=48&&parseFloat(challengeSpacing.challengeTop)<=64,`Challenges has 48–64px top spacing: ${JSON.stringify(challengeSpacing)}`);
+     assert(parseFloat(challengeSpacing.challengeTop)>=56&&parseFloat(challengeSpacing.challengeTop)<=64,`Challenges has 56–64px top spacing: ${JSON.stringify(challengeSpacing)}`);
      assert(parseFloat(challengeSpacing.foodTop)>=48&&parseFloat(challengeSpacing.foodTop)<=64,`Food follows Challenges with 48–64px spacing: ${JSON.stringify(challengeSpacing)}`);
      assert.equal(await p.locator('.home-hero .phone-frame').count(),1);
      assert.equal(await p.locator('.home-hero .btn').count(),1,'Home has one primary hero action');
@@ -80,8 +81,13 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
       const image=await p.locator(selector).evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
       assert(image.src.includes(`assets/tour/${asset}.webp`),`${asset} uses the ${theme} capture`);assert.match(image.alt,alt);assert(image.loaded,`${asset} loaded`);
      }
-     if(process.env.KINETTA_WEBSITE_SHOT_DIR&&width===390&&dpr===1){fs.mkdirSync(process.env.KINETTA_WEBSITE_SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`home-full-390-${theme}.png`),fullPage:true,animations:'disabled'});}
-     if(process.env.KINETTA_WEBSITE_SHOT_DIR&&dpr===1){fs.mkdirSync(process.env.KINETTA_WEBSITE_SHOT_DIR,{recursive:true});await p.locator('[data-site-nav],.skip-link').evaluateAll(nodes=>nodes.forEach(el=>el.style.visibility='hidden'));if(width===390){await p.locator('#home-food').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`food-390-${theme}.png`),animations:'disabled'});await p.locator('.home-badges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`badges-390-${theme}.png`),animations:'disabled'});}await p.locator('.home-challenges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`challenges-${width}-${theme}.png`),animations:'disabled'});}
+     if(process.env.KINETTA_WEBSITE_SHOT_DIR&&dpr===1){
+      fs.mkdirSync(process.env.KINETTA_WEBSITE_SHOT_DIR,{recursive:true});
+       if(width===390)await p.screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`home-full-390-${theme}.png`),fullPage:true,animations:'disabled'});
+      await p.locator('[data-site-nav],.skip-link').evaluateAll(nodes=>nodes.forEach(el=>el.style.visibility='hidden'));
+       if(width===390){await p.locator('#home-food').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`food-390-${theme}.png`),animations:'disabled'});await p.locator('.home-badges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`badges-390-${theme}.png`),animations:'disabled'});}
+      await p.locator('.home-challenges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`challenges-${width}-${theme}.png`),animations:'disabled'});
+     }
      assert.equal(await p.locator('.home-sharing .phone-frame').count(),0,'Sharing stays text-only');
      assert.equal(await p.locator('.tour-final .btn').count(),1,'Home ends with one clear account action');
      const heroImage=await p.locator('.home-hero img').evaluate(i=>({src:i.currentSrc,alt:i.alt}));
