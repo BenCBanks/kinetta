@@ -1,0 +1,5 @@
+/* ---------- sign-in recovery links and status spacing ---------- */
+.login-recovery { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; }
+.login-recovery a { display: inline-flex; align-items: center; min-height: 44px; }
+.login-recovery-status:empty { display: none; }
+.login-new { min-height: 1.4em; }

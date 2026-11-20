@@ -48,6 +48,20 @@ detail_reaction_css_only() {
 detail_reaction_only=0
 if detail_reaction_css_only; then detail_reaction_only=1; fi
 
+login_css_only() {
+  local files index_patch style_patch login_patch selector
+  files="$(git diff --name-only --no-renames "$BASE...HEAD" -- app/static | sort)"
+  [[ "$files" == $'app/static/index.html\napp/static/login.css\napp/static/style.css' ]] || return 1
+  index_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/index.html)"
+  [[ "$(grep -E '^[+-][^+-]' <<< "$index_patch" | sed 's/^[+-]//' )" == '<link rel="stylesheet" href="/static/login.css?v=__ASSET_HASH__">' ]] || return 1
+  style_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/style.css)"
+  login_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/login.css)"
+  for selector in '.login-recovery {' '.login-recovery a {' '.login-recovery-status:empty' '.login-new {'; do grep -Fq "$selector" <<< "$login_patch" || return 1; done
+  for selector in '-.login-recovery, .enrollment-email-links' '-.login-recovery a, .enrollment-email-links a' '-.login-recovery-status:empty, .resend-status:empty' '-.login-new {'; do grep -Fq -- "$selector" <<< "$style_patch" || return 1; done
+}
+login_css_only_change=0
+if login_css_only; then login_css_only_change=1; fi
+
 map_path() {
   local path="$1" patterns pattern group scenes
   # Only these exact caption-forwarding hunks can use focused Activity coverage.
@@ -57,6 +71,9 @@ map_path() {
   # Only the exact moved reaction selectors use focused Activity Detail coverage.
   if [[ "$detail_reaction_only" == 1 && ( "$path" == app/static/style.css || "$path" == app/static/activity-detail.css ) ]]; then
     printf 'activity-detail|Activity detail\n'; return 0
+  fi
+  if [[ "$login_css_only_change" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/login.css || "$path" == app/static/style.css ) ]]; then
+    printf 'welcome|\n'; return 0
   fi
   while IFS=';' read -r patterns group scenes; do
     IFS=',' read -ra candidates <<< "$patterns"
@@ -76,7 +93,7 @@ app/static/discovery.js,app/static/heatmap-ui.css,app/static/milestones.*,app/st
 app/static/profile.*,app/static/notifications-ui.css,app/static/password-visibility.*,app/static/push-invitation.js,app/static/social-notifications.js;profile;Me,Settings,Notifications
 app/static/settings-route.js;profile;Settings
 app/static/admin*,app/static/feature-usage.js;admin;
-app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*,app/static/email-account.*;welcome;
+app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*,app/static/email-account.*,app/static/login.css;welcome;
 app/static/explore.js,app/static/guide-ui.css;hints;
 app/static/community-terms.*;community;
 app/static/cards.*,app/static/card-public.js,app/static/vendor/qrcode.js;cards;Me,Share card choices,Public link confirmation

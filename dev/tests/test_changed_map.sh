@@ -49,6 +49,17 @@ if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
         [[ "$detail_map" == *"app/static/activity-detail.css -> activity-detail"* && "$detail_map" == *"app/static/style.css -> activity-detail"* ]] || { echo "Detail-only reaction CSS uses its focused Activity Detail mapping: $detail_map" >&2; exit 1; }
       fi
     fi
+    login_files="$(git diff --name-only --no-renames "$base_ref...HEAD" -- app/static | sort)"
+    if [[ "$login_files" == $'app/static/index.html\napp/static/login.css\napp/static/style.css' ]]; then
+      login_patch="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/login.css app/static/style.css app/static/index.html)"
+      if grep -Fq '+.login-recovery {' <<< "$login_patch" && grep -Fq -- '-.login-recovery, .enrollment-email-links' <<< "$login_patch"; then
+        login_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/index.html app/static/login.css app/static/style.css)"
+        for path in app/static/index.html app/static/login.css app/static/style.css; do
+          [[ "$login_map" == *"$path -> welcome"* ]] || { echo "Login-only CSS move uses focused sign-in coverage for $path: $login_map" >&2; exit 1; }
+        done
+        [[ "$login_map" != *'-> core'* ]] || { echo "Login-only CSS move selected unrelated core coverage: $login_map" >&2; exit 1; }
+      fi
+    fi
   elif [[ "$(git rev-parse --is-shallow-repository)" == true ]]; then
     echo "Skipping stacked-base diff assertion in shallow backend checkout; changed-screen-map checks the full PR diff."
   else
