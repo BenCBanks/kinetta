@@ -81,6 +81,11 @@ jobs:
           KINETTA_PROJECT: shots
         run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/screenshots/take.js" /tmp/png
+      - name: Restore the browser-validation account
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: shots
+        run: python3 dev/screenshots/restore_browser_test_owner.py
       - name: Validate maps
         env:
           KINETTA_PROJECT: shots
