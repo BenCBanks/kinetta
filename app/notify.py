@@ -330,9 +330,9 @@ def _words(r):
         handle=notification_words.clean(r.get('login') or 'Someone',30)
         day=r.get('end_day')
         date=f'{day.strftime("%b")} {day.day}, {day.year}' if day else ''
-        text={'challenge_join':f"@{handle} joined '{challenge}'.",
-              'challenge_reminder':f"'{challenge}' ends in three days, on {date}.",
-              'challenge_finished':f"'{challenge}' has ended. View your progress and share a finish picture."}[r['kind']]
+        text={'challenge_join':f"@{handle} joined ‘{challenge}’.",
+              'challenge_reminder':f"‘{challenge}’ ends in three days, on {date}.",
+              'challenge_finished':f"‘{challenge}’ has ended. View your progress and share a finish picture."}[r['kind']]
         return text,'/me/challenges/'+r['challenge_code']
     if r['kind'] == 'group_monday_recap':
         title = notification_words.clean(r.get('group_title') or 'your group',80)

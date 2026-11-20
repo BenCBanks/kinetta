@@ -1123,7 +1123,7 @@ async function inviteFriends() {
   try { link = await api('/api/friends/link'); } catch (x) { if(same())toast(x.message); return; }
   if(!same())return;
   const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
-  const text = `Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: ${url}`;
+  const text = `Connect with me on Kinetta, the workout and food app. This friendship invite lasts 30 days: ${url}`;
   const copySheet = () => sheet('Invite friends', `<p>Your friend invitation lasts 30 days. When someone opens it while signed in, they become your friend.</p>
     <label class="form">Your invite link<input readonly value="${esc(url)}" aria-label="Invite link"></label>
     <div class="btncol"><button type="button" class="primary wide" id="iv-share">Share invite</button><button type="button" class="ghost wide" id="iv-copy">Copy invite text</button><button type="button" class="ghost wide" id="iv-qr">Show QR code</button></div>
@@ -1266,7 +1266,7 @@ function groupTimeZoneOptions(current){
   return [...new Set(zones)].sort((a,b)=>groupTimeZonePickerLabel(a).localeCompare(groupTimeZonePickerLabel(b))).map(zone=>`<option value="${esc(zone)}"${zone===current?' selected':''}>${esc(groupTimeZonePickerLabel(zone))}</option>`).join('');
 }
 function groupInviteSheet(url,title='group'){
-  const owner=readOwner(),groupName=String(title||'group').replace(/\s+/g,' ').trim(),shareText=`You're invited to '${groupName}' on Kinetta, the workout and food app: ${url}`;sheet('Invite to this group',`<p>People who open this link see only that they’re invited to a private group. They must sign in and accept.</p><p class="group-invite-link" tabindex="0">${esc(url)}</p>
+  const owner=readOwner(),groupName=String(title||'group').replace(/\s+/g,' ').trim(),shareText=`You’re invited to ‘${groupName}’ on Kinetta, the workout and food app: ${url}`;sheet('Invite to this group',`<p>People who open this link see only that they’re invited to a private group. They must sign in and accept.</p><p class="group-invite-link" tabindex="0">${esc(url)}</p>
     <div class="group-invite-actions"><button type="button" class="primary wide" data-group-copy>Copy invite text</button><button type="button" class="ghost wide" data-group-share>Share invite</button></div>
     <button type="button" class="linkbtn wide" data-close>Done</button>`,(body,close)=>{
       const live=()=>owner===readOwner()&&body.isConnected;
