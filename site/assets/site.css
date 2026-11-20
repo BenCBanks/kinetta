@@ -1017,6 +1017,7 @@ header.top .signup { display:flex;align-items:center; }
 .home-page .home-challenge-preview picture { display:block; width:min(100%,340px); overflow:hidden; border:1px solid color-mix(in srgb,var(--ink) 8%,transparent); border-radius:24px; background:var(--card); box-shadow:0 12px 32px rgba(15,24,32,.12); }
 .home-page .home-challenge-preview img { display:block; width:100%; height:auto; }
 .home-page .home-challenge-preview--start picture,.home-page .home-challenge-preview--detail picture { width:min(100%,360px); }
+.home-page .home-challenges-attribution { grid-column:1 / -1; justify-self:center; margin:0; color:var(--ink2); font-size:13px; line-height:1.4; text-align:center; }
 .home-page .tour-final p { max-width:42ch; margin:0 auto 20px; color:var(--ink2); }
 @media (max-width:700px) {
  .home-page .home-section-head { margin-bottom:28px; text-align:left; }

@@ -78,6 +78,9 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      const challengeOrder=await p.locator('.home-challenges-visuals figure').evaluateAll(nodes=>nodes.map(n=>({kind:n.classList.contains('home-challenge-preview--detail')?'progress':'create',caption:n.querySelector('figcaption')?.textContent.trim()})));
      assert.deepEqual(challengeOrder,[{kind:'progress',caption:"See everyone’s progress"},{kind:'create',caption:'Choose your challenge'}],'populated progress comes first and the creation sheet is labelled');
      assert.equal(challengeOrder.length,2,'Challenges has one progress image and one creation sheet');
+     const attribution=p.locator('.home-challenges-attribution');assert.equal(await attribution.innerText(),'Fictional example members. Stock photos.');
+     const attributionStyle=await attribution.evaluate(el=>{const s=getComputedStyle(el);return{background:s.backgroundColor,border:s.borderWidth,shadow:s.boxShadow,fontSize:parseFloat(s.fontSize)};});
+     assert.equal(attributionStyle.background,'rgba(0, 0, 0, 0)','member attribution stays plain text without a box');assert.equal(attributionStyle.border,'0px');assert.equal(attributionStyle.shadow,'none');assert.equal(attributionStyle.fontSize,13);
      for(const [selector,asset,alt] of [['.home-challenge-preview--detail img',`challenge-detail-${theme}`,/Fictional challenge progress with a ring and participant totals/i],['.home-challenge-preview--start img',`challenge-start-${theme}`,/challenge creation sheet.*Distance.*Active days.*Activities.*Food logging days.*Protein goal days/i]]){
       const image=await p.locator(selector).evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
       assert(image.src.includes(`assets/tour/${asset}.webp`),`${asset} uses the ${theme} capture`);assert.match(image.alt,alt);assert(image.loaded,`${asset} loaded`);
@@ -97,7 +100,7 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert.equal(await p.locator('.standin-caption').count(),0,'Home hero has no composed-screen stand-in label');
      const header=await p.locator('[data-site-nav]').boundingBox();assert(header&&Math.abs(header.height-56)<=1,'Home keeps a one-row header');
      // The Challenges section includes two full app views in addition to the existing Home proof screens.
-     const pageHeight=await p.evaluate(()=>document.documentElement.scrollHeight);if(width===390)assert(pageHeight<=6400,`Home stays below the mobile page-height ceiling with full real Profile, Food, Achievements and challenge captures: ${pageHeight}px`);
+     const pageHeight=await p.evaluate(()=>document.documentElement.scrollHeight);if(width===390)assert(pageHeight<=6500,`Home stays below the mobile page-height ceiling with full real Profile, Food, Achievements, challenge captures and attribution: ${pageHeight}px`);
      const phone=await p.locator('.home-hero .phone-frame').boundingBox();assert(phone&&phone.width<=320&&phone.x>=0&&phone.x+phone.width<=width,'Home hero phone stays fully in view');if(width===390)assert.equal(Math.round(phone.width),250,'real-map hero phone is about 250px wide at 390px');
      const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .home-beta-link').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
      assert(targets.every(r=>r.w>=44&&r.h>=44),`Home header and hero actions keep 44px hit areas: ${JSON.stringify(targets)}`);
