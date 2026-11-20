@@ -14,8 +14,12 @@ def convert(source, output):
             image = captured.convert('RGB')
         if image.size != (786, 1704):
             raise ValueError(f'{path.name}: expected a whole786×1704 website capture')
+        # Keep the source PNG whole for pipeline validation. The website's Activity map
+        # card uses only the top 720 CSS px, before the fixed app tabs cover the Pace chart.
+        if path.stem in ('light-activity-detail', 'dark-activity-detail'):
+            image = image.crop((0, 0, 786, 1440))
         image.save(output / (path.stem + '.webp'), 'WEBP', quality=82, method=6)
-        image.resize((393, 852), Image.Resampling.LANCZOS).save(output / (path.stem + '-1x.webp'), 'WEBP', quality=82, method=6)
+        image.resize((image.width // 2, image.height // 2), Image.Resampling.LANCZOS).save(output / (path.stem + '-1x.webp'), 'WEBP', quality=82, method=6)
         print(path.name)
     write_manifest(output)
 

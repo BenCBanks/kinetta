@@ -572,16 +572,7 @@ async function closeCaptureContext(context) {
         await content.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));
       }
       await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-      const capture = {path: `${OUT}/${scheme}-${name}.png`};
-      if (name === 'activity-detail') {
-        // Keep the complete activity card inside a consistent crop before the fixed tab bar and Pace chart.
-        const summary = await page.locator('.compact-detail-title').boundingBox();
-        if (!summary) throw Error('Activity map capture needs its summary card.');
-        const height = Math.min(H, 720);
-        if (summary.y + summary.height > height) throw Error('Activity summary exceeds the crop before the fixed tab bar.');
-        capture.clip = {x: 0, y: 0, width: W, height};
-      }
-      await page.screenshot(capture);
+      await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
