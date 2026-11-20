@@ -78,7 +78,7 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      const challengeOrder=await p.locator('.home-challenges-visuals figure').evaluateAll(nodes=>nodes.map(n=>({kind:n.classList.contains('home-challenge-preview--detail')?'progress':'create',caption:n.querySelector('figcaption')?.textContent.trim()})));
      assert.deepEqual(challengeOrder,[{kind:'progress',caption:"See everyone’s progress"},{kind:'create',caption:'Choose your challenge'}],'populated progress comes first and the creation sheet is labelled');
      assert.equal(challengeOrder.length,2,'Challenges has one progress image and one creation sheet');
-     const attribution=p.locator('.home-challenges-attribution');assert.equal(await attribution.innerText(),'Fictional example members. Stock photos.');
+     const attribution=p.locator('.home-challenges-attribution');assert.equal(await attribution.innerText(),'Fictional example members.');
      const attributionStyle=await attribution.evaluate(el=>{const s=getComputedStyle(el);return{background:s.backgroundColor,border:s.borderWidth,shadow:s.boxShadow,fontSize:parseFloat(s.fontSize)};});
      assert.equal(attributionStyle.background,'rgba(0, 0, 0, 0)','member attribution stays plain text without a box');assert.equal(attributionStyle.border,'0px');assert.equal(attributionStyle.shadow,'none');assert.equal(attributionStyle.fontSize,13);
      for(const [selector,asset,alt] of [['.home-challenge-preview--detail img',`challenge-detail-${theme}`,/Fictional challenge progress with a ring and participant totals/i],['.home-challenge-preview--start img',`challenge-start-${theme}`,/challenge creation sheet.*Distance.*Active days.*Activities.*Food logging days.*Protein goal days/i]]){
