@@ -189,6 +189,16 @@ for theme in ('light', 'dark'):
         existing('POST', '/api/account/delete', {'password': weight_body['password']})
         alex('POST', '/api/admin/people', weight_body)
     person(weight_login, weight_body['password'])('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial', 'ai_ok': False, 'ai_adult': False})
+    confirmed_login = f'zz_test_1319_chat_{theme}'
+    confirmed_body = {'login': confirmed_login, 'name': f'Fictional meal example {theme}', 'password': 'green teapot on the hill'}
+    try:
+        alex('POST', '/api/admin/people', confirmed_body)
+    except urllib.error.HTTPError as error:
+        if error.code != 409: raise
+        existing = person(confirmed_login, confirmed_body['password'])
+        existing('POST', '/api/account/delete', {'password': confirmed_body['password']})
+        alex('POST', '/api/admin/people', confirmed_body)
+    person(confirmed_login, confirmed_body['password'])('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial', 'ai_ok': True, 'ai_adult': True})
 
 # A prepared three-food review keeps the browser screenshot deterministic. The
 # helper writes only to the disposable screenshot app and uses fictional values.
@@ -205,6 +215,12 @@ if copied_fixture:
     subprocess.run(['docker', 'cp', str(source), f'{apps[0]}:{fixture}'], check=True)
 try:
     subprocess.run(['docker', 'exec', apps[0], 'python', fixture, now.isoformat()], check=True)
+    confirmed_fixture = f'/tmp/kinetta-meal-example-fixture-{os.getpid()}.py'
+    subprocess.run(['docker', 'cp', str(Path(__file__).with_name('food_confirmed_chat_fixture.py')), f'{apps[0]}:{confirmed_fixture}'], check=True)
+    try:
+        subprocess.run(['docker', 'exec', apps[0], 'python', confirmed_fixture, now.isoformat()], check=True)
+    finally:
+        subprocess.run(['docker', 'exec', apps[0], 'rm', '-f', confirmed_fixture], check=False)
     weight_fixture = f'/tmp/kinetta-food-weight-fixture-{os.getpid()}.py'
     subprocess.run(['docker', 'cp', str(Path(__file__).with_name('food_weight_chat_fixture.py')), f'{apps[0]}:{weight_fixture}'], check=True)
     try:
