@@ -80,13 +80,14 @@ const FriendsUI=(()=>{
   const resultError=(row,message)=>{let note=row.nextElementSibling?.classList.contains('friend-row-error')?row.nextElementSibling:null;if(!note){note=document.createElement('small');note.className='friend-row-error';note.setAttribute('role','status');row.insertAdjacentElement('afterend',note);}note.textContent=message;};
   const availability=()=>$$('[data-add],[data-friend-accept],[data-request-menu],[data-request-cancel],[data-request-accept],[data-request-decline]',el).forEach(button=>{button.disabled=!navigator.onLine||button.getAttribute('aria-busy')==='true';});
   async function changeFriend(login,kind,button,row){
-    if(!live()||button.disabled||!navigator.onLine)return;button.disabled=true;button.setAttribute('aria-busy','true');
+    if(!live()||button.disabled||!navigator.onLine)return;const label=button.getAttribute('aria-label');button.disabled=true;button.setAttribute('aria-busy','true');
+    if(kind==='add'){button.classList.add('is-pending');if(label)button.setAttribute('aria-label',label.replace(/^Add /,'Sending request to '));}
     try{
       if(kind==='add')await api('/api/friends',json('POST',{login}));
       else if(kind==='accept')await api(`/api/friends/${encodeURIComponent(login)}/accept`,json('POST',{}));
       else await api(`/api/friends/${encodeURIComponent(login)}`,{method:'DELETE'});
       if(live())await refresh();
-    }catch(x){if(live()){button.disabled=false;button.removeAttribute('aria-busy');resultError(row,kind==='add'?"Couldn't send. Try again.":kind==='accept'?"Couldn't accept. Try again.":"Couldn't cancel. Try again.");availability();}}
+    }catch(x){if(live()){button.disabled=false;button.removeAttribute('aria-busy');if(kind==='add'){button.classList.remove('is-pending');if(label)button.setAttribute('aria-label',label);}resultError(row,kind==='add'?"Couldn't send. Try again.":kind==='accept'?"Couldn't accept. Try again.":"Couldn't cancel. Try again.");availability();}}
   }
   const showSearchError=()=>{statusText.textContent='';found.innerHTML='<p class="friend-state-message" role="alert">Search isn\'t working right now.</p><button type="button" class="friend-state-retry" data-retry>Try again</button>';found.setAttribute('aria-busy','false');$('[data-retry]',found).onclick=()=>find(true);};
   const showOfflineSearch=()=>{statusText.textContent='';found.innerHTML='<p class="friend-state-message" role="status">You’re offline. Reconnect to search.</p>';found.setAttribute('aria-busy','false');};
