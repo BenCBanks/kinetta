@@ -4,7 +4,7 @@ Edit the text below each heading. Keep section keys stable unless the matching t
 
 ## home-page-title
 
-What you eat. How you train. One picture.
+Your meals, workouts and Kit's coaching, together.
 
 ## home-hero-kicker
 
@@ -12,7 +12,7 @@ Food and training, one app
 
 ## home-hero-title
 
-What you eat. How you train. One picture.
+Your meals, workouts and Kit's coaching, together.
 
 ## home-hero-description
 
@@ -26,17 +26,9 @@ See how it works
 
 Join the iPhone beta
 
-## home-proof-kicker
-
-Food and training
-
 ## home-proof-title
 
-A full day, from meal to mile.
-
-## home-nutrition-kicker
-
-Nutrition
+Food
 
 ## home-nutrition-title
 
@@ -44,7 +36,7 @@ Log a meal in a sentence.
 
 ## home-nutrition-description
 
-See meals, calories and macros together as the day fills in.
+Tell Kit what you ate, review the matched foods and estimate, then confirm your log.
 
 ## home-activity-kicker
 
@@ -57,19 +49,6 @@ Every run, ride and lift, with the details.
 ## home-activity-description
 
 See a route and splits for a run or ride, or set-by-set history and records for a lift.
-
-## home-kit-food-kicker
-
-Kit food chat
-
-## home-kit-food-title
-
-Tell Kit what you ate.
-
-## home-kit-food-description
-
-Describe food and weight in one message. Review both before adding them.
-
 ## home-kit-insight-kicker
 
 Kit insights
@@ -125,10 +104,6 @@ Badges you earn step by step.
 ## home-badges-description
 
 Each sport has its own tracks. Progress through named levels, then earn a medal when you complete a track.
-
-## home-badges-tracks
-
-Run tracks include distance, workouts, longest and fastest efforts.
 
 ## home-challenges-kicker
 

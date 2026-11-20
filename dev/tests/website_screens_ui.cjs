@@ -18,8 +18,8 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
 (async()=>{
  for(const page of ['index','training','food','friends','compare','privacy']){
   const html=fs.readFileSync(path.join(root,page+'.html'),'utf8');assert(!html.includes('class="pshot"'));
-  const assets=[...html.matchAll(/assets\/shots\/([a-z-]+\.webp)/g)].map(m=>m[1]);
-  for(const theme of themes){const unique=[...new Set(assets.filter(f=>f.startsWith(theme+'-')&&!f.endsWith('-1x.webp')))];const bytes=unique.reduce((n,f)=>n+fs.statSync(path.join(root,'assets/shots',f)).size,0);assert(bytes<1500000,page+' '+theme+' images exceed1.5MB');}
+  const assets=[...html.matchAll(/assets\/shots\/([a-z0-9-]+\.webp)/g)].map(m=>m[1]);
+  for(const theme of themes){const unique=[...new Set(assets.filter(f=>(f.startsWith(theme+'-')||f.includes(`-${theme}-`))&&!f.endsWith('-1x.webp')))];const bytes=unique.reduce((n,f)=>n+fs.statSync(path.join(root,'assets/shots',f)).size,0);assert(bytes<1500000,page+' '+theme+' images exceed1.5MB');}
  }
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port,b=await chromium.launch();let checks=0;
   try{for(const width of widths)for(const theme of themes)for(const dpr of dprs){
@@ -38,20 +38,26 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert.equal(await p.locator('.home-hero .btn').count(),1,'Home has one primary hero action');
      assert.equal(await p.locator('.home-beta-link').count(),1,'The beta link is secondary text');
      assert.equal(await p.locator('.home-jumps').count(),0,'The hero has no feature-chip row');
-     assert.match(await p.locator('.home-hero h1').innerText(),/What you eat\. How you train\. One picture\./);
+     assert.equal(await p.locator('.home-hero h1').innerText(),"Your meals, workouts and Kit's coaching, together.");
      assert.deepEqual(await p.locator('.home-proof-card').count(),2,'Home pairs Nutrition and Activity proof screens');
      assert.equal(await p.locator('.home-story').count(),0,'The oversized scroll story is removed');
      const nutrition=await p.locator('#home-food img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
-     assert(nutrition.src.includes(`${theme}-nutrition-filled`));assert.match(nutrition.alt,/Fictional Nutrition day/);assert(nutrition.loaded,'filled Nutrition screenshot is loaded');
+     assert(nutrition.src.includes(`1319-kit-food-chat-${theme}`));assert.match(nutrition.alt,/Chicken sandwich and an apple for lunch.*two matched foods.*calorie estimate.*confirmed Lunch log/i);assert(nutrition.loaded,'captured Kit meal is loaded');
+     assert.equal(await p.locator('#home-food h3').innerText(),'Log a meal in a sentence.');
+     const mealFrame=await p.locator('#home-food .phone-frame').boundingBox();if(width===390)assert(mealFrame&&Math.round(mealFrame.width)===350&&mealFrame.height<=541,'390px meal crop shows the sentence, result and confirmation together');
+     if(width===390){const nextCardLeft=await p.locator('#home-activity').evaluate(e=>e.getBoundingClientRect().left);assert(nextCardLeft>=width,`Food shows no clipped Activity text at the viewport edge (${nextCardLeft}px)`);}
      const activity=await p.locator('#home-activity img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
      assert(activity.src.includes(`${theme}-activity-detail`));assert.match(activity.alt,/Fictional Activity detail/);assert(activity.loaded,'Activity map screenshot is loaded');
-     const foodChat=await p.locator('.home-kit-chat img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
-     assert(foodChat.src.includes(`${theme}-kit-food-chat`));assert.match(foodChat.alt,/Fictional Kit food review/);assert(foodChat.loaded,'Kit food chat screen is loaded inside its phone');
-     assert.equal(await p.locator('[data-kit-replay]').count(),0,'Kit food chat is in the phone, not a detached replay card');
+     assert.equal(await p.locator('.home-kit-chat').count(),0,'The real Kit meal capture is not repeated in a second section');
      assert.equal(await p.locator('.kit-week-demo').count(),1,'Home shows the Kit week insight section');
      assert.equal(await p.locator('[data-week-question]').innerText(),'Am I improving?');
      assert.equal(await p.locator('.home-kit-prompts li').count(),2,'Kit provides three one-line example questions including the replay question');
-     assert.equal(await p.locator('.home-badges img').count(),1,'The badge explainer uses a real Achievements screen');
+     assert.equal(await p.locator('.home-badges img').count(),2,'Profile leads into the Achievements screen');
+     const badgeExamples=await p.locator('.home-badges .home-badge-preview').evaluateAll(xs=>xs.map(x=>({caption:x.querySelector('figcaption')?.textContent.trim(),src:x.querySelector('img')?.currentSrc,width:x.querySelector('.phone-frame')?.getBoundingClientRect().width,loaded:x.querySelector('img')?.complete&&x.querySelector('img')?.naturalWidth>0})));
+     assert.deepEqual(badgeExamples.map(x=>x.caption),['Open Achievements from your profile','Follow your progress in each sport.']);
+     assert(badgeExamples[0].src.includes(`1319-profile-${theme}`)&&badgeExamples[0].loaded,'Profile capture uses Amber’s themed fictional Profile shot');
+     assert(badgeExamples[1].src.includes(`${theme}-achievements`)&&badgeExamples[1].loaded,'existing themed Achievements capture remains');
+     if(width===390){assert.equal(Math.round(badgeExamples[0].width),350,'Profile capture is 350px wide at 390px');assert(badgeExamples[1].width>=220&&badgeExamples[1].width<=240,'Achievements image stays 220–240px wide');}
      const challengeCopy=(await p.locator('.home-challenges').innerText()).replace(/\s+/g,' ').trim();
      assert.match(challengeCopy,/distance, active days, activities, food logging days or protein goal days/i,'Home names the challenge goal types');
      assert.match(challengeCopy,/Joining is optional and never sends a friend request/,'challenge joining is clearly optional and does not imply a friend request');
@@ -62,17 +68,18 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
       const image=await p.locator(selector).evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
       assert(image.src.includes(`assets/tour/${asset}.webp`),`${asset} uses the ${theme} capture`);assert.match(image.alt,alt);assert(image.loaded,`${asset} loaded`);
      }
-     if(process.env.KINETTA_WEBSITE_SHOT_DIR&&dpr===1){fs.mkdirSync(process.env.KINETTA_WEBSITE_SHOT_DIR,{recursive:true});await p.locator('[data-site-nav],.skip-link').evaluateAll(nodes=>nodes.forEach(el=>el.style.visibility='hidden'));await p.locator('.home-challenges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`challenges-${width}-${theme}.png`),animations:'disabled'});}
+     if(process.env.KINETTA_WEBSITE_SHOT_DIR&&width===390&&dpr===1){fs.mkdirSync(process.env.KINETTA_WEBSITE_SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`home-full-390-${theme}.png`),fullPage:true,animations:'disabled'});}
+     if(process.env.KINETTA_WEBSITE_SHOT_DIR&&dpr===1){fs.mkdirSync(process.env.KINETTA_WEBSITE_SHOT_DIR,{recursive:true});await p.locator('[data-site-nav],.skip-link').evaluateAll(nodes=>nodes.forEach(el=>el.style.visibility='hidden'));if(width===390){await p.locator('#home-food').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`food-390-${theme}.png`),animations:'disabled'});await p.locator('.home-badges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`badges-390-${theme}.png`),animations:'disabled'});}await p.locator('.home-challenges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`challenges-${width}-${theme}.png`),animations:'disabled'});}
      assert.equal(await p.locator('.home-sharing .phone-frame').count(),0,'Sharing stays text-only');
      assert.equal(await p.locator('.tour-final .btn').count(),1,'Home ends with one clear account action');
      const heroImage=await p.locator('.home-hero img').evaluate(i=>({src:i.currentSrc,alt:i.alt}));
-     assert(heroImage.src.includes(`home-tab-${theme}`),`Home hero uses the ${theme} real Home app capture`);
-     assert.match(heroImage.alt,/Fictional Home feed.*completed 3-mile Morning Run.*route map and reactions/i);
+     assert(heroImage.src.includes(`1319-activity-detail-${theme}`),`Home hero uses the ${theme} real-map Activity capture`);
+     assert.match(heroImage.alt,/Fictional Morning Run.*route through a city park.*streets and map attribution/i);
      assert.equal(await p.locator('.standin-caption').count(),0,'Home hero has no composed-screen stand-in label');
      const header=await p.locator('[data-site-nav]').boundingBox();assert(header&&Math.abs(header.height-56)<=1,'Home keeps a one-row header');
      // The Challenges section includes two full app views in addition to the existing Home proof screens.
-     const pageHeight=await p.evaluate(()=>document.documentElement.scrollHeight);if(width===390)assert(pageHeight<=5900,`Home stays below the mobile page-height ceiling with both challenge previews: ${pageHeight}px`);
-     const phone=await p.locator('.home-hero .phone-frame').boundingBox();assert(phone&&phone.width<=320&&phone.x>=0&&phone.x+phone.width<=width,'Home hero phone stays fully in view');
+     const pageHeight=await p.evaluate(()=>document.documentElement.scrollHeight);if(width===390)assert(pageHeight<=6400,`Home stays below the mobile page-height ceiling with full real Profile, Food, Achievements and challenge captures: ${pageHeight}px`);
+     const phone=await p.locator('.home-hero .phone-frame').boundingBox();assert(phone&&phone.width<=320&&phone.x>=0&&phone.x+phone.width<=width,'Home hero phone stays fully in view');if(width===390)assert.equal(Math.round(phone.width),250,'real-map hero phone is about 250px wide at 390px');
      const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .home-beta-link').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
      assert(targets.every(r=>r.w>=44&&r.h>=44),`Home header and hero actions keep 44px hit areas: ${JSON.stringify(targets)}`);
      const replay=await p.locator('[data-week-replay]').boundingBox();assert(replay&&replay.width>=44&&replay.height>=44,'Kit week replay remains a 44px target');
