@@ -16,12 +16,12 @@ const waitForActivityStyles=async p=>p.evaluate(async()=>{
 });
 async function assertCardActions(card,{share,width,label}){
  const footer=card.locator('.post-ft'),react=card.locator('.reaction-more'),comment=card.locator('.activity-comments'),shareButton=card.locator('.post-ft [data-share-picture]');
- const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox(),feed=await card.evaluate(n=>!!n.closest('.activity-home'));
+ const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox(),surface=await card.evaluate(n=>({feed:!!n.closest('.activity-home'),profile:!!n.closest('.profile-activities')})),feed=surface.feed,profile=surface.profile;
  assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
  const count=card.locator('.reaction-count'),hasSummary=await count.isVisible(),padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0),contentRight=footerBox.x+footerBox.width-padding;
  let summaryBox=null;
- if(feed){
-  if(hasSummary){summaryBox=await count.boundingBox();assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-8)<1,`${label}: Comments follows React`);assert(summaryBox.x>=commentBox.x+commentBox.width&&(share||Math.abs(summaryBox.x+summaryBox.width-contentRight)<1),`${label}: summary follows Comments`);assert(await count.locator('.reaction-summary-emoji').count()>=1,`${label}: summary shows the other reaction kinds`);assert.equal(await count.locator('.reaction-summary-count').count(),await count.locator('.reaction-summary-emoji').count(),`${label}: every feed emoji has its own count`);assert.equal(await count.locator('.reaction-summary-total').count(),0,`${label}: feed summary has no aggregate total`);}
+ if(feed||profile){
+  if(hasSummary){summaryBox=await count.boundingBox();assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-8)<1,`${label}: Comments follows React`);assert(summaryBox.x>=commentBox.x+commentBox.width&&(share||Math.abs(summaryBox.x+summaryBox.width-contentRight)<1),`${label}: summary follows Comments`);assert(await count.locator('.reaction-summary-emoji').count()>=1,`${label}: summary shows the other reaction kinds`);assert.equal(await count.locator('.reaction-summary-count').count(),await count.locator('.reaction-summary-emoji').count(),`${label}: every emoji has its own count`);assert.equal(await count.locator('.reaction-summary-total').count(),0,`${label}: no trailing aggregate total`);}
   else assert(commentBox.x-reactBox.x-reactBox.width>=7.5,`${label}: Comments stays at least 8px after React when no summary exists`);
   if(share){const shareBox=await shareButton.boundingBox();assert((Math.abs(shareBox.x+shareBox.width-contentRight)<1&&(!hasSummary||shareBox.x>=summaryBox.x+summaryBox.width+7.5)),`${label}: Share stays in the right-side action slot ${JSON.stringify({shareBox,footerBox,padding,contentRight,hasSummary,summaryBox})}`);}
  }else{

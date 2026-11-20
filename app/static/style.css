@@ -1503,6 +1503,26 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .post-ft:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
 .post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
 .post-hd .activity-share>svg {width:20px;height:20px;}
+/* Shared activity-card footer order: React, Comment, counts, then Share. */
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:3px 16px;min-height:48px;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more {order:1;display:flex;width:44px;min-width:44px;height:44px;min-height:44px;align-items:center;justify-content:center;gap:0;padding:0;margin:0;color:var(--tx2);}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:22px;height:22px;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:translateX(-11px);}
+.profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more {width:auto;justify-content:flex-start;gap:4px;font-size:14px;}
+.profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:18px;height:18px;}
+.profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:none;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:2;margin-left:8px;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments>svg {width:22px;height:22px;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments .num {font-size:14px;font-weight:500;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count {order:3;display:flex;flex:none;align-items:center;justify-content:flex-end;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 auto;color:var(--tx2);font-size:14px;font-weight:500;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {display:flex;align-items:center;gap:4px;overflow:visible;white-space:nowrap;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji {display:inline-flex;flex:none;align-items:center;gap:3px;white-space:nowrap;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-count,:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-more {font-size:14px;font-weight:500;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--tx2);}
+:is(.activity-home,.profile-activities) .activity-card .post-ft .activity-share {order:4;display:flex;align-items:center;justify-content:center;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 8px;background:none;border-color:transparent;box-shadow:none;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:not(:has(.reaction-count:not([hidden]))) .activity-share {margin-left:auto;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count {margin-left:auto;}
+@media(max-width:380px){:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions){padding-inline:12px;}}
 /* Full rows share the card's content edges; narrow cards use four columns. */
 .reaction-picker {position:fixed;z-index:2100;max-width:calc(100vw - 16px);padding:8px;border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
 .reaction-options {display:grid;grid-template-columns:repeat(var(--reaction-columns,4),minmax(44px,1fr));gap:8px;}

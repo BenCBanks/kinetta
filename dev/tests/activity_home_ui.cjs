@@ -80,6 +80,36 @@ async function assertCardActions(card,{share,width,label}){
  else assert(commentBox.x-reactBox.x-reactBox.width>=7.99,`${label}: Comments has an 8px gap after React when the summary is empty`);
  if(share){const shareBox=await shareButton.boundingBox();assert((Math.abs(shareBox.x+shareBox.width-contentRight)<1&&(!hasSummary||shareBox.x>=summaryBox.x+summaryBox.width+7.99)),`${label}: Share stays in the right-side action slot`);assert(shareBox.x>=commentBox.x+commentBox.width+7.99,`${label}: Share follows Comments`);}
 }
+async function assertProfileFooterOrder(card,{share,label}){
+ const group=card.locator('[data-reaction-group]'),react=card.locator('.reaction-more'),comment=card.locator('.activity-comments'),commentCount=comment.locator('.num'),summary=card.locator('.reaction-count'),shareButton=card.locator('.post-ft [data-share-picture]');
+ assert.equal(await shareButton.count(),share?1:0,`${label}: Share remains owner-only`);
+ const initial=await group.evaluate(el=>({order:(el.dataset.reactionOrder||'').split(',').filter(Boolean),mine:el.dataset.mine||null,reactions:Object.fromEntries([...el.attributes].filter(attr=>attr.name.startsWith('data-count-')).map(attr=>[attr.name.slice(11),Number(attr.value)||0]))}));
+ const initialComment=await commentCount.evaluate(node=>({hidden:node.hidden,text:node.textContent,label:node.closest('button').getAttribute('aria-label')}));
+ const states=[[],[['clap',1]],[['starstruck',1],['hands',1]],[['clap',1],['hands',1],['fire',1]]];
+ for(const kinds of states)for(const withCommentCount of [false,true]){
+  const reactions=Object.fromEntries(kinds),order=kinds.map(([kind])=>kind),total=kinds.reduce((sum,[,count])=>sum+count,0);
+  await group.evaluate((el,state)=>el._sync({my_reaction:null,reactions:state.reactions,reaction_order:state.order}),{reactions,order});
+  await commentCount.evaluate((node,present)=>{node.toggleAttribute('hidden',!present);node.textContent=present?'12':'';node.closest('button').setAttribute('aria-label',`Comments, ${present?'12':'0'}`);},withCommentCount);
+  const geometry=await card.evaluate(node=>{
+   const footer=node.querySelector('.post-ft'),r=footer.querySelector('.reaction-more').getBoundingClientRect(),c=footer.querySelector('.activity-comments').getBoundingClientRect(),s=footer.querySelector('.reaction-count'),sr=s.getBoundingClientRect(),share=footer.querySelector('[data-share-picture]'),sh=share?.getBoundingClientRect(),style=getComputedStyle(footer),contentRight=footer.getBoundingClientRect().right-(parseFloat(style.paddingRight)||0);
+   return{react:{left:r.left,right:r.right,width:r.width,height:r.height},comment:{left:c.left,right:c.right,width:c.width,height:c.height},summary:{hidden:s.hidden,left:sr.left,right:sr.right,width:sr.width,height:sr.height},share:sh&&{left:sh.left,right:sh.right,width:sh.width,height:sh.height},contentRight};
+  });
+  const prefix=`${label}: ${kinds.length} emoji kinds, comment count ${withCommentCount?'shown':'hidden'}`;
+  assert(geometry.react.width>=44&&geometry.react.height>=44&&geometry.comment.width>=44&&geometry.comment.height>=44,`${prefix}: React and Comment retain 44px targets: ${JSON.stringify(geometry)}`);
+  assert(Math.abs(geometry.comment.left-geometry.react.right-8)<1,`${prefix}: Comment follows React with an 8px gap: ${JSON.stringify(geometry)}`);
+  if(kinds.length){
+   assert(!geometry.summary.hidden&&geometry.summary.width>=44&&geometry.summary.height>=44,`${prefix}: reaction summary keeps its 44px target: ${JSON.stringify(geometry)}`);
+   assert(geometry.summary.left-geometry.comment.right>=7.99,`${prefix}: emoji counts follow Comment: ${JSON.stringify(geometry)}`);
+   assert.equal(await card.locator('.reaction-summary-emoji').count(),kinds.length,`${prefix}: every emoji kind remains visible`);
+  }else assert(geometry.summary.hidden,`${prefix}: empty reactions have no summary target`);
+  if(share){
+   assert(geometry.share.width>=44&&geometry.share.height>=44&&Math.abs(geometry.share.right-geometry.contentRight)<1,`${prefix}: Share stays 44px and flush to the card edge: ${JSON.stringify(geometry)}`);
+   assert(geometry.share.left-(kinds.length?geometry.summary.right:geometry.comment.right)>=7.99,`${prefix}: Share follows the last visible action: ${JSON.stringify(geometry)}`);
+  }else if(kinds.length)assert(Math.abs(geometry.summary.right-geometry.contentRight)<1,`${prefix}: a friend's final reaction target stays on the card edge`);
+ }
+ await group.evaluate((el,state)=>el._sync({my_reaction:state.mine,reactions:state.reactions,reaction_order:state.order}),initial);
+ await commentCount.evaluate((node,state)=>{node.toggleAttribute('hidden',state.hidden);node.textContent=state.text;node.closest('button').setAttribute('aria-label',state.label);},initialComment);
+}
 async function verifyReactionSummary(card,page,out,theme){
  const group=card.locator('[data-reaction-group]'),states=[
   {total:0,reactions:{},kinds:[],order:[],mine:null,shown:[],extra:0},
@@ -181,7 +211,7 @@ async function assertSharedActivityCard(card,label,expectedPhoto=true){
 }
 async function verifyActivityCardSurfaces(page,size,theme,out,ready){
  const places=[['home-photo',true,async()=>page.locator('#ff-list .post.activity-card[data-href^="/activity/"]:not([data-href^="/activity/friends/"])').first()],['home-initials',false,async()=>page.locator('#ff-list .post.activity-card:has(.post-av[href="/people/zz_test_feed_friend0"])').first()],['owner-profile',true,async()=>{await page.goto(base+'/people/zz_test_feed_typical');await page.locator('#person-activities .activity-card').first().waitFor();return page.locator('#person-activities .activity-card').first();}],['friend-profile',true,async()=>{await page.goto(base+'/people/zz_test_feed_friend1');await page.locator('#person-activities .activity-card').first().waitFor();return page.locator('#person-activities .activity-card').first();}]];
- for(const [name,expectedPhoto,getCard] of places){const card=await getCard();await card.waitFor();await card.scrollIntoViewIfNeeded();await assertSharedActivityCard(card,name,expectedPhoto);const href=await card.getAttribute('data-href');await until(page,key=>{const map=[...document.querySelectorAll('.activity-card')].find(node=>node.dataset.href===key)?.querySelector('.fmap');return !map||(map.classList.contains('ready')&&map.querySelectorAll('.leaflet-tile-loaded').length>0);},`${name} activity map ready`,href);if(out){fs.mkdirSync(out,{recursive:true});await page.evaluate(()=>document.fonts.ready);const tabs=page.locator('nav.tabs');await tabs.evaluate(n=>n.style.visibility='hidden');await page.screenshot({path:path.join(out,`1192-${name}-${size.width}-${theme}.png`),animations:'disabled'});await tabs.evaluate(n=>n.style.removeProperty('visibility'));}}
+ for(const [name,expectedPhoto,getCard] of places){const card=await getCard();await card.waitFor();await card.scrollIntoViewIfNeeded();await assertSharedActivityCard(card,name,expectedPhoto);if(name==='owner-profile'||name==='friend-profile')await assertProfileFooterOrder(card,{share:name==='owner-profile',label:`${name} ${size.width}px ${theme}`});const href=await card.getAttribute('data-href');await until(page,key=>{const map=[...document.querySelectorAll('.activity-card')].find(node=>node.dataset.href===key)?.querySelector('.fmap');return !map||(map.classList.contains('ready')&&map.querySelectorAll('.leaflet-tile-loaded').length>0);},`${name} activity map ready`,href);if(out){fs.mkdirSync(out,{recursive:true});await page.evaluate(()=>document.fonts.ready);const tabs=page.locator('nav.tabs');await tabs.evaluate(n=>n.style.visibility='hidden');await page.screenshot({path:path.join(out,`1192-${name}-${size.width}-${theme}.png`),animations:'disabled'});await tabs.evaluate(n=>n.style.removeProperty('visibility'));}}
  await page.goto(base+'/activity');await ready();
 }
 async function waitForCardMap(page,card,label){const href=await card.getAttribute('data-href');await until(page,key=>{const el=[...document.querySelectorAll('.activity-card')].find(node=>node.dataset.href===key)?.querySelector('.fmap'),tiles=[...(el?.querySelectorAll('.leaflet-tile')||[])];return !!el?.classList.contains('ready')&&tiles.length>0&&tiles.every(tile=>tile.classList.contains('leaflet-tile-loaded'))&&!el.querySelector('.map-unavailable:not([hidden])');},label,href);}
