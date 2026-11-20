@@ -64,6 +64,17 @@
 .friends-page .friend-inline-accept { color:var(--accent); }
 .friends-page .friend-inline-muted,.friends-page .friend-inline-actions .friend-inline-muted { color:var(--tx2);font-weight:500; }
 .friends-page .friend-inline-actions button:active,.friends-page .fr-request > .friend-inline-muted:active { transform:none;box-shadow:none;opacity:.7; }
+.friends-page .friend-result-accept { min-width:64px; }
+.friends-page .friend-request-control { display:flex;align-items:center;justify-content:flex-end;min-width:0; }
+.friends-page .friend-requested { min-width:44px;min-height:44px;padding:0 4px;border:0;border-radius:0;background:transparent;color:var(--tx2);font:500 14px/1.2 var(--font);white-space:nowrap; }
+.friends-page .friend-request-options { display:flex;align-items:center;gap:4px; }
+.friends-page .friend-request-options[hidden] { display:none!important; }
+.friends-page .friend-request-options button,.friends-page .friend-state-retry { display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 8px;border:0;border-radius:0;background:transparent;color:var(--accent);font:600 14px/1.2 var(--font);white-space:nowrap; }
+.friends-page .friend-state-message { margin:8px 12px;color:var(--tx2);font-size:15px;line-height:1.4;overflow-wrap:anywhere; }
+.friends-page .friend-state-retry { min-width:88px;padding:8px 12px; }
+.friends-page .friend-invite-primary[data-no-results-invite] { margin:4px 0 12px; }
+.friends-page .friend-row-error { display:block;margin:2px 14px 8px 56px;color:var(--color-error);font-size:13px;line-height:1.35; }
+.friends-page :is([data-add],[data-friend-accept],[data-request-menu],[data-request-cancel],[data-request-accept],[data-request-decline])[disabled] { opacity:.45;cursor:default; }
 .friends-page .sec-head { font-size:var(--text-app-section);margin:16px 0 8px; }
 .friends-page .person { gap:8px;padding:8px 12px;min-height:56px;border-top:0; }
 .friends-page .social-person-group > .person + .person { border-top:1px solid var(--line); }

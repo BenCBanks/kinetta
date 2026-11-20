@@ -70,16 +70,29 @@ const FriendsUI=(()=>{
  }
  async function mountFind(el){
   const initial=new URLSearchParams(location.search),fromHome=initial.get('from')==='home';
-  el.classList.add('friends-page');el.innerHTML=shell(fromHome?'Home':'Me');wireBack(el,fromHome?'/activity':'/me');bindLargeTitle(el);
+  el.classList.add('friends-page');el.innerHTML=shell(fromHome?'Home':'Me');wireBack(el,fromHome?'/activity':'/me');bindLargeTitle(el);const titleCleanup=viewResources.get(el);
   const pageOwner=readOwner(),live=()=>pageOwner===readOwner()&&el.isConnected;
   let currentFriends=null,friendLoadVersion=0,searchVersion=0,timer,last=null,people=[],known=[];
   const requests=$('#fr-requests',el),found=$('#fr-found',el),form=$('#fr-find',el),input=form.elements.q,clear=$('#fr-clear',el),statusText=$('#fr-status',el),suggest=$('#fr-suggest',el),error=$('#fr-list-error',el),sections=$('#fr-sections',el),sent=$('#fr-sent',el),sentToggle=$('#fr-sent-toggle',el);
   input.value=initial.get('q')||'';
   const who=login=>(people.find(p=>p.login===login)||{}).name||login;
   $('#fr-invite',el).onclick=inviteFriends;
+  const resultError=(row,message)=>{let note=row.nextElementSibling?.classList.contains('friend-row-error')?row.nextElementSibling:null;if(!note){note=document.createElement('small');note.className='friend-row-error';note.setAttribute('role','status');row.insertAdjacentElement('afterend',note);}note.textContent=message;};
+  const availability=()=>$$('[data-add],[data-friend-accept],[data-request-menu],[data-request-cancel],[data-request-accept],[data-request-decline]',el).forEach(button=>{button.disabled=!navigator.onLine||button.getAttribute('aria-busy')==='true';});
+  async function changeFriend(login,kind,button,row){
+    if(!live()||button.disabled||!navigator.onLine)return;button.disabled=true;button.setAttribute('aria-busy','true');
+    try{
+      if(kind==='add')await api('/api/friends',json('POST',{login}));
+      else if(kind==='accept')await api(`/api/friends/${encodeURIComponent(login)}/accept`,json('POST',{}));
+      else await api(`/api/friends/${encodeURIComponent(login)}`,{method:'DELETE'});
+      if(live())await refresh();
+    }catch(x){if(live()){button.disabled=false;button.removeAttribute('aria-busy');resultError(row,kind==='add'?"Couldn't send. Try again.":kind==='accept'?"Couldn't accept. Try again.":"Couldn't cancel. Try again.");availability();}}
+  }
+  const showSearchError=()=>{statusText.textContent='';found.innerHTML='<p class="friend-state-message" role="alert">Search isn\'t working right now.</p><button type="button" class="friend-state-retry" data-retry>Try again</button>';found.setAttribute('aria-busy','false');$('[data-retry]',found).onclick=()=>find(true);};
+  const showOfflineSearch=()=>{statusText.textContent='';found.innerHTML='<p class="friend-state-message" role="status">You’re offline. Reconnect to search.</p>';found.setAttribute('aria-busy','false');};
   function drawListError(x){
-    if(!live())return;error.innerHTML=`<p class="small muted">${currentFriends?'Requests may be out of date. ':''}${esc(x.message)}</p><button type="button" class="ghost" id="fr-list-retry">Retry</button>`;
-    $('#fr-list-retry',error).onclick=loadFriends;
+    if(!live())return;error.innerHTML=`<p class="friend-state-message" role="status">${!navigator.onLine?'You’re offline. Friend requests will update when you reconnect.':'Friend requests aren’t available right now.'}</p>${navigator.onLine?'<button type="button" class="friend-state-retry" id="fr-list-retry">Try again</button>':''}`;
+    $('#fr-list-retry',error)?.addEventListener('click',loadFriends);
   }
   async function loadFriends(){
     const request=++friendLoadVersion;
@@ -92,24 +105,26 @@ const FriendsUI=(()=>{
     await loadFriends();await drawSuggest();if(input.value.trim()&&found.isConnected)await find(true);
   }
   const person=(p,action)=>`<div class="person person-row">${personLink(p)}<span class="btnrow tight">${action}</span></div>`;
-  const btnFor=p=>p.status==='friends'?status('Friends'):p.status==='sent'||p.status==='incoming'?status('Requested'):`<button type="button" class="search-add" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">${svg('plus')}</button>`;
-  const drawResults=(rows,pending=false)=>{
+  const btnFor=p=>p.status==='friends'?status('Friends'):p.status==='incoming'?`<button type="button" class="friend-inline-accept friend-result-accept" data-friend-accept="${esc(p.login)}" aria-label="Accept friend request from ${esc(p.name)}">Accept</button>`:p.status==='sent'?`<span class="friend-request-control"><button type="button" class="friend-requested" data-request-menu="${esc(p.login)}" aria-label="Request sent to ${esc(p.name)}">Requested</button><span class="friend-request-options" hidden><button type="button" data-request-cancel="${esc(p.login)}">Cancel</button><button type="button" data-request-keep>Keep</button></span></span>`:`<button type="button" class="search-add" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">${svg('plus')}</button>`;
+  const drawResults=(rows,pending=false,query=input.value)=>{
     rows=rows.filter(p=>p.login!==App.me.login);
-    found.innerHTML=rows.length?rows.map(p=>person(p,btnFor(p))).join(''):pending?'<p class="small muted">Searching…</p>':'<p class="small muted">No people found. Try their full username, or check the spelling.</p>';
-    $$('[data-add]',found).forEach(button=>button.onclick=async()=>{
-      if(!live()||button.disabled)return;const label=button.getAttribute('aria-label');button.disabled=true;button.classList.add('is-pending');button.setAttribute('aria-busy','true');button.setAttribute('aria-label',label.replace(/^Add /,'Sending request to '));
-      try{const r=await api('/api/friends',json('POST',{login:button.dataset.add}));if(!live())return;toast(r.status==='friends'?`You and ${r.name} are friends now`:`Request sent to ${r.name}`);await refresh();}
-      catch(x){if(live()){toast(x.message);button.disabled=false;button.classList.remove('is-pending');button.removeAttribute('aria-busy');button.setAttribute('aria-label',label);button.innerHTML=svg('plus');}}
-    });
+    found.innerHTML=rows.length?rows.map(p=>person(p,btnFor(p))).join(''):pending?'<p class="small muted">Searching…</p>':`<p class="friend-state-message">No one found for “${esc(query.replace(/^@/,'').trim())}”. Check the spelling or invite them.</p><button type="button" class="friend-invite-primary" data-no-results-invite>Invite a friend</button>`;
+    $('[data-no-results-invite]',found)?.addEventListener('click',inviteFriends);
+    $$('[data-add],[data-friend-accept]',found).forEach(button=>button.onclick=()=>changeFriend(button.dataset.add||button.dataset.friendAccept,button.hasAttribute('data-add')?'add':'accept',button,button.closest('.person')));
+    $$('[data-request-menu]',found).forEach(button=>button.onclick=()=>{const actions=$('.friend-request-options',button.parentElement);button.hidden=true;actions.hidden=false;actions.querySelector('[data-request-keep]').focus();});
+    $$('[data-request-keep]',found).forEach(button=>button.onclick=()=>{const row=button.closest('.person');$('.friend-request-options',row).hidden=true;row.querySelector('[data-request-menu]').hidden=false;});
+    $$('[data-request-cancel]',found).forEach(button=>button.onclick=()=>changeFriend(button.dataset.requestCancel,'cancel',button,button.closest('.person')));
+    availability();
   };
   async function find(again){
     const q=input.value.trim(),query=q.replace(/^@/,'').trim();clear.hidden=!q;sections.hidden=query.length>=2;
     if(!q){last=null;found.innerHTML='';statusText.textContent='';found.setAttribute('aria-busy','false');return;}
     if(query.length<2){last=null;found.innerHTML='';statusText.textContent='Type at least 2 characters to search.';found.setAttribute('aria-busy','false');return;}
+    if(!navigator.onLine){showOfflineSearch();return;}
     if(q===last&&!again)return;last=q;const request=++searchVersion;found.setAttribute('aria-busy','true');statusText.textContent='Searching…';
     try{const rows=await api('/api/people/search?q='+encodeURIComponent(q));if(request!==searchVersion||!live()||!found.isConnected)return;
-      people=[...new Map(people.concat(rows).map(p=>[p.login,p])).values()];drawResults(rows);statusText.textContent=`${rows.length} ${rows.length===1?'person':'people'} found`;
-    }catch(x){if(request===searchVersion&&live()&&found.isConnected){last=null;statusText.textContent='';found.innerHTML=`<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" data-retry>Retry search</button>`;$('[data-retry]',found).onclick=()=>find(true);}}
+      people=[...new Map(people.concat(rows).map(p=>[p.login,p])).values()];drawResults(rows,false,q);statusText.textContent=rows.length?`${rows.length} ${rows.length===1?'person':'people'} found`:'';
+    }catch(x){if(request===searchVersion&&live()&&found.isConnected){last=null;if(x.offline||!navigator.onLine)showOfflineSearch();else showSearchError();}}
     finally{if(request===searchVersion)found.setAttribute('aria-busy','false');}
   }
   const queryHasResults=q=>q.replace(/^@/,'').trim().length>=2;
@@ -133,8 +148,9 @@ const FriendsUI=(()=>{
     $$('[data-request-accept],[data-request-decline],[data-request-cancel]',el).forEach(button=>button.onclick=async()=>{
       if(!live()||button.disabled)return;button.disabled=true;
       try{const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline||button.dataset.requestCancel);if(button.hasAttribute('data-request-accept'))await api(`/api/friends/${login}/accept`,json('POST',{}));else if(button.hasAttribute('data-request-decline'))await api(`/api/friends/${login}/decline`,json('POST',{}));else await api(`/api/friends/${login}`,{method:'DELETE'});if(live())await refresh();}
-      catch(x){if(live()){toast(x.message);button.disabled=false;}}
+      catch(x){if(live()){resultError(button.closest('.fr-request'),button.hasAttribute('data-request-accept')?"Couldn't accept. Try again.":button.hasAttribute('data-request-decline')?"Couldn't decline. Try again.":"Couldn't cancel. Try again.");button.disabled=false;}}
     });
+    availability();
   }
   sentToggle.onclick=()=>{const open=sentToggle.getAttribute('aria-expanded')!=='true';sentToggle.setAttribute('aria-expanded',String(open));sent.hidden=!open;};
   const draw=r=>{
@@ -143,13 +159,23 @@ const FriendsUI=(()=>{
     people=[...new Map(people.concat(known).map(p=>[p.login,p])).values()];drawDiscoverRequests(r);
   };
   async function drawSuggest(){
-    const rows=(await suggestedPeople()).slice(0,5);if(!live()||!suggest.isConnected)return;
-    suggest.parentElement.hidden=!rows.length;if(!rows.length){suggest.innerHTML='';return;}
-    peopleRow(suggest,rows,{title:'Suggested',invite:false,dismiss:false,compactAdd:true,onChange:loadFriends});
-    const card=$('.pym',suggest),title=$('.pym-head h2',card),list=$('.pym-list',card);title.className='friend-suggest-title';list.classList.add('social-person-group','friend-suggestion-group');
-    $$('.pym-row',list).forEach(row=>row.classList.add('person-row'));
-    suggest.replaceChildren(title,list);
+    try{
+      const hidden=hiddenPeople(),rows=(await api('/api/people/suggested')).filter(p=>!hidden.has(p.login)).slice(0,5);if(!live()||!suggest.isConnected)return;
+      suggest.parentElement.hidden=false;
+      if(!rows.length){suggest.innerHTML='<p class="friend-state-message">No suggestions yet. Search by name or invite a friend.</p>';return;}
+      people=[...new Map(people.concat(rows).map(p=>[p.login,p])).values()];
+      suggest.innerHTML=`<h2 class="friend-suggest-title">Suggested</h2><div class="pym-list social-person-group friend-suggestion-group">${rows.map(p=>`<div class="person person-row pym-row" data-login="${esc(p.login)}"><a class="person-link" href="${profileHref(p)}">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small><small class="muted">${esc(p.why||'')}</small></span></a><span class="pym-actions"><button type="button" class="suggestion-add friend-circle-add" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">${svg('plus')}</button></span></div>`).join('')}</div>`;
+      $$('[data-add]',suggest).forEach(button=>button.onclick=()=>changeFriend(button.dataset.add,'add',button,button.closest('.person')));availability();
+    }catch(x){
+      if(!live()||!suggest.isConnected)return;suggest.parentElement.hidden=false;
+      suggest.innerHTML=`<p class="friend-state-message" role="status">${x.offline||!navigator.onLine?'You’re offline. Suggestions will be available when you reconnect.':'Suggestions aren’t available right now.'}</p>${navigator.onLine?'<button type="button" class="friend-state-retry" data-suggest-retry>Try again</button>':''}`;
+      $('[data-suggest-retry]',suggest)?.addEventListener('click',drawSuggest);
+    }
   }
+  const onOffline=()=>{availability();if(input.value.trim())showOfflineSearch();else{suggest.parentElement.hidden=false;suggest.innerHTML='<p class="friend-state-message" role="status">You’re offline. Suggestions will be available when you reconnect.</p>';}};
+  const onOnline=()=>{availability();if(queryHasResults(input.value.trim()))find(true);else{drawSuggest();loadFriends();}};
+  window.addEventListener('offline',onOffline);window.addEventListener('online',onOnline);
+  viewResources.set(el,()=>{titleCleanup?.();window.removeEventListener('offline',onOffline);window.removeEventListener('online',onOnline);clearTimeout(timer);searchVersion++;});
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);
   const searching=find();
   await loadFriends();drawSuggest();await searching;
