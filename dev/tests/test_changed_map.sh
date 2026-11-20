@@ -84,6 +84,19 @@ if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
         [[ "$food_css_map" != *'-> core'* ]] || { echo "Pure Food CSS extraction selected unrelated core coverage: $food_css_map" >&2; exit 1; }
       fi
     fi
+    activity_import_files="$(git diff --name-only --no-renames "$base_ref...HEAD" -- app/static | sort)"
+    if [[ "$activity_import_files" == $'app/static/activity-import.css\napp/static/index.html\napp/static/style.css' ]]; then
+      activity_import_patch="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/activity-import.css app/static/index.html app/static/style.css)"
+      activity_style_removed="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/style.css | grep -E '^-[^-]' | sed 's/^-//' || true)"
+      activity_file_added="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/activity-import.css | grep -E '^[+][^+]' | sed 's/^+//' || true)"
+      if [[ -n "$activity_style_removed" && "$activity_style_removed" == "$activity_file_added" ]] && grep -Fq '+<link rel="stylesheet" href="/static/activity-import.css?v=__ASSET_HASH__">' <<< "$activity_import_patch"; then
+        activity_import_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/activity-import.css app/static/index.html app/static/style.css)"
+        for path in app/static/activity-import.css app/static/index.html app/static/style.css; do
+          [[ "$activity_import_map" == *"$path -> track"* ]] || { echo "Pure Activity import CSS extraction should use Track-only coverage for $path: $activity_import_map" >&2; exit 1; }
+        done
+        [[ "$activity_import_map" != *'-> core'* ]] || { echo "Activity import CSS extraction selected unrelated core coverage: $activity_import_map" >&2; exit 1; }
+      fi
+    fi
     detail_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/activity-detail.css app/static/style.css)"
     if [[ "$detail_map" == *"app/static/activity-detail.css -> activity-detail"* ]]; then
       [[ "$detail_map" == *"app/static/style.css -> activity-detail"* ]] || { echo "Detail-only reaction CSS lost its focused Activity Detail mapping: $detail_map" >&2; exit 1; }

@@ -94,6 +94,19 @@ food_css_only_change=0
 if food_css_only; then food_css_only_change=1; fi
 food_css_mapping_active=0
 
+activity_import_css_only() {
+  local files index_patch style_removed import_added
+  files="$(git diff --name-only --no-renames "$BASE...HEAD" -- app/static | sort)"
+  [[ "$files" == $'app/static/activity-import.css\napp/static/index.html\napp/static/style.css' ]] || return 1
+  index_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/index.html)"
+  [[ "$(grep -E '^[+-][^+-]' <<< "$index_patch" | sed 's/^[+-]//')" == '<link rel="stylesheet" href="/static/activity-import.css?v=__ASSET_HASH__">' ]] || return 1
+  style_removed="$(git diff --unified=0 "$BASE...HEAD" -- app/static/style.css | grep -E '^-[^-]' | sed 's/^-//' || true)"
+  import_added="$(git diff --unified=0 "$BASE...HEAD" -- app/static/activity-import.css | grep -E '^[+][^+]' | sed 's/^+//' || true)"
+  [[ -n "$style_removed" && "$style_removed" == "$import_added" ]]
+}
+activity_import_css_only_change=0
+if activity_import_css_only; then activity_import_css_only_change=1; fi
+
 map_path() {
   local path="$1" patterns pattern group scenes
   # Only these exact caption-forwarding hunks can use focused Activity coverage.
@@ -112,6 +125,9 @@ map_path() {
   fi
   if [[ "$food_css_mapping_active" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/style.css || "$path" == app/static/food.css ) ]]; then
     printf 'food|Nutrition day,Add food,Recipes and foods,Nutrition Insights\n'; return 0
+  fi
+  if [[ "$activity_import_css_only_change" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/style.css || "$path" == app/static/activity-import.css ) ]]; then
+    printf 'track|Track ready\n'; return 0
   fi
   while IFS=';' read -r patterns group scenes; do
     IFS=',' read -ra candidates <<< "$patterns"
