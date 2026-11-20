@@ -16,7 +16,7 @@ async function segmentReturn(page,context){
  await context.route('**/api/segment-drafts**',r=>r.fulfill({json:{id:999991}}));await context.route('**/api/segments',r=>{if(r.request().method()==='POST'){writes.push('publish');return r.abort();}return r.continue();});
  await page.evaluate(()=>go('/progress/segments'));await ready(page);
  draft=await page.evaluate(points=>{const d={sport:'ride',waypoints:[points[0],points.at(-1)],legs:[{mode:'path',line:Plan.enc(points),ready:true}],clientId:crypto.randomUUID(),at:Date.now()};store.set(planDraftKey('segment-new'),d);return d;},points);
- await page.evaluate(()=>go('/segments/new'));await page.locator('#pl-save:not(:disabled)').waitFor();
+ await page.evaluate(()=>go('/segments/new'));await page.locator('.plan-sports [data-sport="ride"][aria-pressed="true"]').waitFor();await page.locator('#pl-save:not(:disabled)').waitFor();
  const distance=await page.locator('#pl-total b').innerText(),parent=await page.locator('.top [data-back]').innerText(),sport=await page.locator('[data-sport][aria-pressed=true]').getAttribute('data-sport');assert.notEqual(distance,'0.00');assert.equal(sport,'ride','restored Ride draft highlights Ride');
  for(const link of ['.top [data-back]','#sr-form a[href="/segments/new"]','.plan-alert a[href="/segments/new"]']){
   problem=link.startsWith('.plan-alert');await page.locator('#pl-save').click();await page.locator('#sr-form').waitFor();if(problem)assert(await page.locator('#sr-create').isDisabled());
