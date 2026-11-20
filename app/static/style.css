@@ -296,8 +296,10 @@ nav.tabs :is(a,button) { position: relative; display: grid; justify-items: cente
   width: 100%; min-width: 0; min-height: 44px; height: 100%; padding: 3px 1px; border-radius: 30px; white-space: nowrap;
   color: var(--tx2); font-size: 11px; font-weight: 500; line-height: 1.15; letter-spacing: 0; transition: transform var(--motion-press) ease-out, color var(--motion-press) ease-out, background var(--motion-settle) var(--motion-ease), box-shadow var(--motion-settle) var(--motion-ease); }
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; transition: transform var(--dur-fast) var(--spring-snappy); }
-nav.tabs .tab-photo { display:grid; place-items:center; width:26px; height:26px; max-height:none; overflow:visible; border-radius:50%; transition:box-shadow var(--motion-settle) var(--motion-ease); }
-nav.tabs .tab-photo-image { display:block; width:26px; height:26px; border:1px solid var(--line); border-radius:50%; object-fit:cover; }
+nav.tabs .tab-photo { position:relative; display:grid; place-items:center; width:26px; height:26px; max-height:none; overflow:visible; border-radius:50%; transition:box-shadow var(--motion-settle) var(--motion-ease); }
+nav.tabs .tab-photo-fallback { position:absolute; inset:1.5px; }
+nav.tabs .tab-photo-image { position:absolute; inset:0; display:block; width:26px; height:26px; border:1px solid var(--line); border-radius:50%; object-fit:cover; opacity:0; transition:opacity var(--motion-settle) var(--motion-ease); }
+nav.tabs .tab-photo-image.loaded { opacity:1; }
 nav.tabs a[aria-current="page"] .tab-photo { box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 32%,transparent); }
 nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: transparent; font-weight: 600; box-shadow: none; }
 nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
@@ -321,7 +323,7 @@ html.native-increase-contrast nav.tabs [aria-current="page"] { background: var(-
   nav.tabs.material { background: Canvas; border-color: CanvasText; box-shadow: none; }
   nav.tabs :is(a,button)[aria-current="page"] { background:transparent;color:LinkText;box-shadow:none; }
 }
-@media (prefers-reduced-motion: reduce) { nav.tabs, nav.tabs :is(a,button), nav.tabs :is(a,button) > span { transition: none !important; } nav.tabs :is(a,button) { transform: none; } nav.tabs svg { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { nav.tabs, nav.tabs :is(a,button), nav.tabs :is(a,button) > span, nav.tabs .tab-photo-image { transition: none !important; } nav.tabs :is(a,button) { transform: none; } nav.tabs svg { animation: none !important; } }
 .tab-n { position: absolute; top: 3px; left: auto; right: max(0px, calc(50% - 24px)); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
   background: var(--btn); color: var(--onbtn); font-size: 13px; font-weight: 700; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
 
