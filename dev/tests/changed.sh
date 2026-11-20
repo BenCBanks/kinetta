@@ -126,7 +126,7 @@ map_path() {
   if [[ "$food_css_mapping_active" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/style.css || "$path" == app/static/food.css ) ]]; then
     printf 'food|Nutrition day,Add food,Recipes and foods,Nutrition Insights\n'; return 0
   fi
-  if [[ "$activity_import_css_only_change" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/style.css || "$path" == app/static/activity-import.css ) ]]; then
+  if [[ "$activity_import_css_mapping_active" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/style.css || "$path" == app/static/activity-import.css ) ]]; then
     printf 'track|Track ready\n'; return 0
   fi
   while IFS=';' read -r patterns group scenes; do
@@ -141,6 +141,7 @@ app/static/food*.js,app/static/thread*.js,app/static/cook.js,app/static/recipe-i
 app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/static/activity-home.css,app/static/friends-ui.*,app/static/contacts-ui.*,app/static/challenges.*,app/static/challenge-public.js,app/static/media.js;social;Activity,Activity detail,Friends,Groups,Group create,Group empty roster,Group full roster,Invite acceptance,Activity photo viewer,Activity full map,Sharing & privacy
 app/static/challenge-summary.js;challenges;Activity
 app/static/track*.js,app/static/track-home.css,app/static/track-route.css,app/static/intervals.js,app/static/segments.js,app/static/maps.*,app/static/vendor/leaflet.*,app/static/vendor/protomaps-leaflet.js;track;Track ready,Activity detail,Activity full map
+app/static/activity-import.css;track;Track ready
 app/static/lift*.js,app/static/lift-ui.css,app/static/lift-route.css;lift;Lifting with sets,Lifting blank sets
 app/static/plan*.js,app/static/plan-ui.css,app/static/planner.js;plan;Me,Me Today plan,Track ready
 app/static/discovery.js,app/static/heatmap-ui.css,app/static/milestones.*,app/static/recaps*,app/static/recap-editor.js,app/static/progress-routes.js,app/static/progress-route.css,app/static/share-art.js;progress;Progress,Fitness,Share progress
@@ -171,6 +172,11 @@ check_paths() {
     food_css_mapping_active=1
   else
     food_css_mapping_active=0
+  fi
+  if [[ "$activity_import_css_only_change" == 1 && "$static_paths" == $'app/static/activity-import.css\napp/static/index.html\napp/static/style.css' ]]; then
+    activity_import_css_mapping_active=1
+  else
+    activity_import_css_mapping_active=0
   fi
   for path in "$@"; do
     [[ "$path" == app/static/* ]] || continue
@@ -218,6 +224,9 @@ if [[ "$me_tools_css_only_change" == 1 && "$static_paths" == $'app/static/profil
 fi
 if [[ "$food_css_only_change" == 1 && "$static_paths" == $'app/static/food.css\napp/static/index.html\napp/static/style.css' ]]; then
   food_css_mapping_active=1
+fi
+if [[ "$activity_import_css_only_change" == 1 && "$static_paths" == $'app/static/activity-import.css\napp/static/index.html\napp/static/style.css' ]]; then
+  activity_import_css_mapping_active=1
 fi
 for path in "${paths[@]}"; do
   [[ "$path" == app/static/* ]] || continue
