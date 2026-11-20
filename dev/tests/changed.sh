@@ -78,6 +78,22 @@ me_tools_css_only_change=0
 if me_tools_css_only; then me_tools_css_only_change=1; fi
 me_tools_mapping_active=0
 
+food_css_only() {
+  local files index_patch style_patch food_patch removed added
+  files="$(git diff --name-only --no-renames "$BASE...HEAD" -- app/static | sort)"
+  [[ "$files" == $'app/static/food.css\napp/static/index.html\napp/static/style.css' ]] || return 1
+  index_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/index.html)"
+  [[ "$(grep -E '^[+-][^+-]' <<< "$index_patch" | sed 's/^[+-]//')" == '<link rel="stylesheet" href="/static/food.css?v=__ASSET_HASH__">' ]] || return 1
+  style_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/style.css)"
+  food_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/food.css)"
+  removed="$(grep -E '^-[^-]' <<< "$style_patch" | sed 's/^-//')"
+  added="$(grep -E '^[+][^+]' <<< "$food_patch" | sed 's/^+//')"
+  [[ -n "$removed" && "$removed" == "$added" ]] || return 1
+}
+food_css_only_change=0
+if food_css_only; then food_css_only_change=1; fi
+food_css_mapping_active=0
+
 map_path() {
   local path="$1" patterns pattern group scenes
   # Only these exact caption-forwarding hunks can use focused Activity coverage.
@@ -94,6 +110,9 @@ map_path() {
   if [[ "$me_tools_mapping_active" == 1 && ( "$path" == app/static/style.css || "$path" == app/static/profile.css ) ]]; then
     printf 'profile|Me\n'; return 0
   fi
+  if [[ "$food_css_mapping_active" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/style.css || "$path" == app/static/food.css ) ]]; then
+    printf 'food|Nutrition day,Add food,Recipes and foods,Nutrition Insights\n'; return 0
+  fi
   while IFS=';' read -r patterns group scenes; do
     IFS=',' read -ra candidates <<< "$patterns"
     for pattern in "${candidates[@]}"; do
@@ -102,7 +121,7 @@ map_path() {
   done <<'MAP'
 app/static/app.js,app/static/pages.js,app/static/index.html,app/static/boot.js,app/static/style.css,app/static/theme.css,app/static/fonts/*,app/static/appearance.js,app/static/back-navigation.js,app/static/keyboard.js,app/static/native.js,app/static/refresh.js,app/static/haptics.js,app/static/kit.js;core;all
 app/static/paint-gate.*;core;Home,Progress
-app/static/food*.js,app/static/thread*.js,app/static/cook.js,app/static/recipe-import.js,app/static/food-entry.css,app/static/food-route.css,app/static/nutrition.css,app/static/recipes-ui.css,app/static/insights-ui.css,app/static/vendor/zxing.min.js;food;Nutrition day,Add food,Recipes and foods,Nutrition Insights
+app/static/food*.js,app/static/thread*.js,app/static/cook.js,app/static/recipe-import.js,app/static/food-entry.css,app/static/food.css,app/static/food-route.css,app/static/nutrition.css,app/static/recipes-ui.css,app/static/insights-ui.css,app/static/vendor/zxing.min.js;food;Nutrition day,Add food,Recipes and foods,Nutrition Insights
 app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/static/activity-home.css,app/static/friends-ui.*,app/static/contacts-ui.*,app/static/challenges.*,app/static/challenge-public.js,app/static/media.js;social;Activity,Activity detail,Friends,Groups,Group create,Group empty roster,Group full roster,Invite acceptance,Activity photo viewer,Activity full map,Sharing & privacy
 app/static/challenge-summary.js;challenges;Activity
 app/static/track*.js,app/static/track-home.css,app/static/track-route.css,app/static/intervals.js,app/static/segments.js,app/static/maps.*,app/static/vendor/leaflet.*,app/static/vendor/protomaps-leaflet.js;track;Track ready,Activity detail,Activity full map
@@ -131,6 +150,11 @@ check_paths() {
     me_tools_mapping_active=1
   else
     me_tools_mapping_active=0
+  fi
+  if [[ "$food_css_only_change" == 1 && "$static_paths" == $'app/static/food.css\napp/static/index.html\napp/static/style.css' ]]; then
+    food_css_mapping_active=1
+  else
+    food_css_mapping_active=0
   fi
   for path in "$@"; do
     [[ "$path" == app/static/* ]] || continue
@@ -175,6 +199,9 @@ scenes=""; all_scenes=0; has_static=0
 static_paths="$(printf '%s\n' "${paths[@]}" | grep '^app/static/' | sort || true)"
 if [[ "$me_tools_css_only_change" == 1 && "$static_paths" == $'app/static/profile.css\napp/static/style.css' ]]; then
   me_tools_mapping_active=1
+fi
+if [[ "$food_css_only_change" == 1 && "$static_paths" == $'app/static/food.css\napp/static/index.html\napp/static/style.css' ]]; then
+  food_css_mapping_active=1
 fi
 for path in "${paths[@]}"; do
   [[ "$path" == app/static/* ]] || continue
