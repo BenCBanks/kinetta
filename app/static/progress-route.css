@@ -373,6 +373,9 @@
 .record-history-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
 .record-history-heading h2 { margin:0; }
 .record-history-heading .me-period { gap:8px; }
+.progress-records .record-link { display:flex; flex-direction:column; justify-content:center; gap:2px; width:100%; min-height:44px; box-sizing:border-box; text-decoration:none; }
+.progress-records .record-link small { font-size:.8125rem; font-weight:400; line-height:1.2; }
+.progress-records .record-link-best { align-items:flex-end; }
 .lifting-records .tbl { table-layout:fixed; }
 .lifting-records .tbl th:first-child,.lifting-records .tbl td:first-child { width:40%; }
 .lifting-records .tbl th:nth-child(2),.lifting-records .tbl td:nth-child(2) { width:32%; }
