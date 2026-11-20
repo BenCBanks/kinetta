@@ -150,7 +150,10 @@
 .friends-page .friend-suggest-section { margin:0; }
 .friends-page .friend-suggest-title { padding:0 12px 4px;color:var(--tx);font-size:17px;font-weight:600; }
 .friends-page .friend-suggestion-group { margin:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible; }
-.friends-page .friend-suggestion-group > .pym-row { min-height:60px;padding:6px 12px; }
+.friends-page .friend-suggestion-group > .pym-row { height:60px;min-height:60px;padding:4px 12px;box-sizing:border-box; }
+.friends-page .friend-suggestion-group .person-link .grow { line-height:1.1; }
+.friends-page .friend-suggestion-group .person-link b { line-height:1.2; }
+.friends-page .friend-suggestion-group .person-link small { margin:0;line-height:1.1; }
 .friends-page .friend-suggestion-group > .pym-row + .pym-row { border-top:1px solid var(--line); }
 .friends-page .friend-invite-primary { width:100%;min-height:48px;margin:0;padding:10px 16px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:600 16px/1.25 var(--font);text-align:center;box-shadow:none; }
 .friends-page .friend-invite-primary:active { transform:none;box-shadow:none;opacity:.82; }
