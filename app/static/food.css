@@ -1,0 +1,28 @@
+/* Intentional recipe creation uses the ingredient editor, with optional logging only after saving. */
+.recipe-page > .recipe-save {flex:none;margin:8px 0 0;min-height:44px;}
+.thread-quick-actions {margin:0 4px 10px;}
+.thread-quick-actions button {min-width:0;white-space:normal;text-align:center;line-height:1.3;padding:10px 14px;}
+html.keyboard-open .thread-quick-actions {display:none;}
+
+/* Chat starters sit at the page bottom, directly above the composer. */
+.chat-suggestions {display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-height:180px;margin:0 calc(0px - var(--space-5)) 8px;padding:0;overflow:hidden;opacity:1;transition:opacity .15s ease,max-height .15s ease,margin-bottom .15s ease;}
+.chat-suggestions[hidden] {display:none;}
+.chat-suggestions > button {position:relative;display:flex;align-items:center;justify-content:flex-start;gap:16px;width:100%;min-width:0;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font-size:15px;font-weight:500;line-height:1.35;text-align:left;white-space:normal;}
+.chat-suggestions > button::before {content:none!important;}
+.chat-suggestions > button::after {position:absolute;right:0;bottom:0;left:52px;height:1px;background:var(--line);content:'';}
+.chat-suggestions > button:last-child::after {content:none;}
+.chat-suggestions > button svg {flex:none;width:20px;height:20px;color:var(--tx2);}
+.chat-suggestions > button span {min-width:0;overflow-wrap:anywhere;}
+.food-thread.has-draft .chat-suggestions,.kit-chat.has-draft .chat-suggestions {max-height:0;margin-bottom:0;opacity:0;pointer-events:none;}
+.food-thread.has-review .thread-quick-actions {display:none;}
+.chat-suggestions.keyboard-hidden {max-height:0;margin-bottom:0;visibility:hidden;opacity:0;pointer-events:none;}
+.chat-suggestions:focus-within {overflow:visible;}
+.kit-chat #kit-intro {margin:0;padding:0;overflow:visible;animation:none;}
+.kit-chat #kit-intro[hidden] {display:none;}
+.kit-chat #kit-intro #kit-load-retry {margin:8px 0;}
+.kit-chat #kit-starters {flex:none;}
+.kit-chat #kit-composer {padding-top:0;margin-top:auto;}
+.kit-chat #kit-fine {margin-top:0;}
+@media(prefers-reduced-motion:reduce){.chat-suggestions{transition:none;}}
+@media(max-width:360px){.chat-suggestions{margin-inline:-16px;}}
+@media(min-width:1000px){.chat-suggestions{margin-inline:-32px;}}
