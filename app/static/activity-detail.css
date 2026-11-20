@@ -306,15 +306,15 @@ body.ph-open { overflow: hidden; }
 .activity-detail .detail-date-row { display: flex; align-items: center; gap: 8px; min-height: 20px; margin-top: 4px; }
 .activity-detail .detail-date-row .sp { width: 20px; height: 20px; flex: none; }
 .activity-detail .detail-date-row .detail-date { min-width: 0; margin: 0; color: var(--tx3); font-size: 14px; font-weight: 400; line-height: 1.35; white-space: normal; }
-.activity-detail .detail-stat-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 0; padding: 16px 0; }
+.activity-detail .detail-stat-stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; row-gap: 16px; margin-top: 0; padding: 16px 0; }
 .activity-detail .detail-primary,
 .activity-detail .detail-moving,
-.activity-detail .detail-secondary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; min-width: 0; margin: 0; }
+.activity-detail .detail-secondary { display: contents; }
 .activity-detail .detail-moving { align-items: start; }
-.activity-detail .detail-stat-empty { display: block; }
 .activity-detail .detail-stat-stack .stat { display: flex; flex-direction: column-reverse; align-items: flex-start; min-width: 0; gap: 2px; }
 .activity-detail .detail-stat-stack .stat small { color: var(--tx3); font-size: 13px; font-weight: 500; line-height: 1.2; }
 .activity-detail .detail-stat-stack .stat b { max-width: 100%; margin: 0; color: var(--tx); font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; white-space: normal; }
+.activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) .detail-stat-stack { padding-bottom:0; }
 .activity-detail .detail-stat-stack .stat b { font-variant-numeric: tabular-nums; }
 .activity-detail .detail-stat-stack .stat b i { color: var(--tx3); font-size: 13px; font-weight: 400; }
 .activity-detail .detail-social { border-top: 1px solid var(--line); }
@@ -397,8 +397,6 @@ body.ph-open { overflow: hidden; }
   background:var(--accent); content:"";
 }
 .activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) { padding-bottom:0; }
-.activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) .detail-stat-stack { padding-bottom:0; }
-.activity-detail .compact-detail-title:not(:has(.detail-milestone-row .milestone-banner)) .detail-stat-stack { padding-bottom:0; }
 .activity-detail .detail-milestone-row:has(.milestone-banner) {
   position:relative; height:44px; margin-top:17px; padding-top:0; border:0; box-sizing:content-box;
 }
