@@ -71,6 +71,11 @@ body.ph-open { overflow: hidden; }
 .detail-highlight:active { transform:scale(.97); }
 .detail-social { display:flex; align-items:center; gap:8px; margin-top:0; }
 .detail-social[hidden] { display:none; }
+.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:0;padding:0;margin-top:0;min-height:44px;width:100%;min-width:0;box-sizing:border-box;}
+.detail-social:has(.emoji-reactions) .activity-share {order:3;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;margin:0 0 0 8px;padding:0;display:flex;align-items:center;justify-content:center;}
+.detail-social:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
+.t-row:has(.activity-reactions) {flex-wrap:wrap;}
+.t-soc:has(.activity-reactions) {flex:1 0 100%;flex-wrap:nowrap;margin:0;max-width:100%;gap:8px;}
 .compact-detail-title .milestone-banner { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin:8px 0 0; padding:0; border:0; }
 .compact-detail-title .milestone-copy { flex:1; min-width:0; font-size:.9375rem; }
 .compact-detail-title .milestone-actions { display:flex; gap:8px; }

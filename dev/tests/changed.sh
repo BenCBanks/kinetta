@@ -3,10 +3,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 BASE="${CHANGED_BASE:-origin/main}"
-group_order="core assets food social challenge-share challenges track lift plan progress profile admin welcome hints community cards standalone"
+group_order="core assets food social challenge-share activity-detail challenges track lift plan progress profile admin welcome hints community cards standalone"
 
 caption_handoff_only() {
-  local files expected file patch edits line
+  local files expected patch edits line
   expected=$'app/static/challenges.js\napp/static/native.js\napp/static/share-art.js'
   files="$(git diff --name-only --no-renames "$BASE...HEAD" -- app/static | sort)"
   [[ "$files" == "$expected" ]] || return 1
@@ -28,12 +28,35 @@ caption_handoff_only() {
 caption_only=0
 if caption_handoff_only; then caption_only=1; fi
 
+detail_reaction_css_only() {
+  local files path patch edits line added removed
+  files="$(git diff --name-only --no-renames "$BASE...HEAD" -- app/static | sort)"
+  [[ "$files" == $'app/static/activity-detail.css\napp/static/style.css' ]] || return 1
+  for path in app/static/activity-detail.css app/static/style.css; do
+    patch="$(git diff --unified=0 "$BASE...HEAD" -- "$path")"
+    mapfile -t edits < <(grep -E '^[+-][^+-]' <<< "$patch" || true)
+    [[ ${#edits[@]} -eq 5 ]] || return 1
+    added=0; removed=0
+    for line in "${edits[@]}"; do
+      [[ "$line" =~ (detail-social:has\(\.emoji-reactions\)|t-row:has\(\.activity-reactions\)|t-soc:has\(\.activity-reactions\)) ]] || return 1
+      [[ "$line" == +* ]] && added=$((added + 1))
+      [[ "$line" == -* ]] && removed=$((removed + 1))
+    done
+    [[ "$path" == app/static/style.css && $removed -eq 5 && $added -eq 0 ]] || [[ "$path" == app/static/activity-detail.css && $added -eq 5 && $removed -eq 0 ]] || return 1
+  done
+}
+detail_reaction_only=0
+if detail_reaction_css_only; then detail_reaction_only=1; fi
+
 map_path() {
   local path="$1" patterns pattern group scenes
-  # Only these exact caption-forwarding hunks can use the focused Activity check;
-  # any additional shared-file change falls through to the normal broad screen map.
+  # Only these exact caption-forwarding hunks can use focused Activity coverage.
   if [[ "$caption_only" == 1 && ( "$path" == app/static/challenges.js || "$path" == app/static/native.js || "$path" == app/static/share-art.js ) ]]; then
     printf 'challenge-share|Activity\n'; return 0
+  fi
+  # Only the exact moved reaction selectors use focused Activity Detail coverage.
+  if [[ "$detail_reaction_only" == 1 && ( "$path" == app/static/style.css || "$path" == app/static/activity-detail.css ) ]]; then
+    printf 'activity-detail|Activity detail\n'; return 0
   fi
   while IFS=';' read -r patterns group scenes; do
     IFS=',' read -ra candidates <<< "$patterns"
@@ -174,6 +197,7 @@ for group in $group_order; do
     assets) tests="asset_cache_ui.cjs" ;;
     food) tests="food_entry_ui.cjs nutrition_ui.cjs nutrition_readout_ui.cjs food_memory_ui.cjs recipes_compact_ui.cjs insights_ui.cjs goals_ui.cjs" ;;
     social) tests="activity_home_ui.cjs test_weekly_recap.cjs activity_detail_ui.cjs edit_activity_ui.cjs media_routes_ui.cjs notification_edit_ui.cjs inline_reactions_ui.cjs inline_reactions_actions.cjs friends_ui.cjs groups_ui.cjs contacts_settings_ui.cjs contacts_ui.cjs back_navigation_ui.cjs" ;;
+    activity-detail) tests="activity_detail_ui.cjs" ;;
     challenges) tests="activity_home_ui.cjs" ;;
     challenge-share) tests="activity_home_ui.cjs" ;;
     track) tests="track_home_ui.cjs track_review_recovery_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs interval_voice_ui.cjs map_ui.cjs tracking_ui.cjs edit_activity_ui.cjs map_feedback_ui.cjs" ;;
