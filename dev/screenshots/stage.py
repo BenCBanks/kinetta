@@ -6,7 +6,7 @@
 # morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 from zoneinfo import ZoneInfo
-import datetime as dt, glob, http.cookiejar, json, os, re, subprocess, sys, time, urllib.request, uuid
+import base64, datetime as dt, glob, http.cookiejar, json, os, re, subprocess, sys, time, urllib.request, uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -69,6 +69,14 @@ for login, name in (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera'), ('casey', '
 jordan, sam = person('jordan', PW), person('sam', PW)
 jordan('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial'})
 jordan('PUT', '/api/sharing', {'default': 'friends'})
+# Small generated portraits belong to this disposable screenshot database only.
+# The public app bundle and live accounts never read these fixture files.
+portrait_dir = Path(__file__).with_name('portraits')
+for login in ('casey', 'alex', 'jordan', 'sam', 'taylor', 'morgan'):
+    fixture_person = alex if login == 'alex' else person(login, PW)
+    portrait = (portrait_dir / f'{login}.webp').read_bytes()
+    payload = 'data:image/webp;base64,' + base64.b64encode(portrait).decode('ascii')
+    fixture_person('PUT', '/api/me/photo', {'image': payload})
 cutoff = (screenshot_today - dt.timedelta(days=2)).strftime('%Y%m%d')   # moved 2 days on, they must still be in the past
 runs = [p for p in sorted(glob.glob(G + '/*.gpx')) if ('cycling' in p or 'walking' in p) and os.path.basename(p)[:8] < cutoff][-16:]
 print('jordan import', upload(jordan, [(os.path.basename(p), later(open(p, 'rb').read(), 2 * 1440 - 60)) for p in runs]).get('added'))
