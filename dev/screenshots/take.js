@@ -321,6 +321,59 @@ async function closeCaptureContext(context) {
         await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
       }
+      if (opt.foodChat === 'confirmed') {
+        const demo = await openFoodDemo(`zz_test_1319_chat_${scheme}`, scheme);
+        foodChatCtx = demo.context;
+        foodChatPage = demo.page;
+        await enableKitForDemo(foodChatPage);
+        await foodChatPage.goto(B + '/food/describe?meal=lunch');
+        await foodChatPage.locator('#thread-text').waitFor();
+        const fixtureDay = await foodChatPage.evaluate(async () => {
+          const payload = await fetch('/api/food/thread?limit=100').then(r => r.json());
+          const message = [...(payload.messages || [])].reverse().find(m => m.kind === 'user' && m.body === 'Chicken sandwich and an apple for lunch');
+          const reply = message && payload.messages.find(m => m.kind === 'reply' && m.reply_to === message.id);
+          const key = Object.keys(localStorage).find(name => name.startsWith('fit.food.review.draft:'));
+          if (!message?.result?.draft_id || reply?.result?.kind !== 'preview' || !key) {
+            throw Error('Missing the fictional #1319 meal review fixture.');
+          }
+          localStorage.setItem(key, JSON.stringify({id: message.result.draft_id, meal: 'lunch', day: message.local_day, explicitDay: true, active: true}));
+          return message.local_day;
+        });
+        await foodChatPage.goto(B + '/food/describe?meal=lunch');
+        const message = foodChatPage.locator('#thread-messages article').filter({hasText: 'Chicken sandwich and an apple for lunch'});
+        await message.waitFor({timeout: 15000});
+        const reply = foodChatPage.locator('.thread-card').filter({hasText: 'Chicken sandwich'});
+        await reply.waitFor({state: 'visible'});
+        for (const text of ['Chicken sandwich', 'Apple']) {
+          if (!await reply.getByText(text, {exact: true}).count()) throw Error('The Kit meal reply should contain the sandwich and apple.');
+        }
+        const add = foodChatPage.locator('#thread-review-add');
+        await add.waitFor({state: 'visible'});
+        if (await add.isDisabled()) throw Error('The Kit meal estimate must be complete before the Add to log confirmation.');
+        await add.click();
+        await foodChatPage.waitForFunction(async day => {
+          const data = await fetch('/api/food/day?d=' + day).then(r => r.json());
+          return data.entries.some(entry => entry.name === 'Chicken sandwich' && entry.meal === 'lunch') &&
+            data.entries.some(entry => entry.name === 'Apple' && entry.meal === 'lunch');
+        }, fixtureDay);
+        const logged = foodChatPage.locator('.thread-logged-summary').first();
+        await logged.waitFor({state: 'visible'});
+        await logged.click();
+        await foodChatPage.locator('.thread-logged-details').first().waitFor({state: 'visible'});
+        const history = await foodChatPage.locator('#thread-messages').innerText();
+        if (!history.includes('Chicken sandwich and an apple for lunch') || !history.includes('Chicken sandwich') || !history.includes('Apple')) {
+          throw Error('Confirmed meal capture needs the typed meal, Kit reply, and logged foods in the conversation.');
+        }
+        await foodChatPage.evaluate(() => document.activeElement.blur());
+        await foodChatPage.waitForFunction(() => {
+          const toast = document.querySelector('#toast');
+          return !toast || (!toast.classList.contains('on') && Number(getComputedStyle(toast).opacity) < 0.01);
+        }, {timeout: 10000});
+        await foodChatPage.evaluate(chrome, {dark: scheme === 'dark', width: W});
+        await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
       if (opt.foodChat === 'same-yesterday') {
         const demo = await openFoodDemo(`zz_test_658_food_${scheme}`, scheme);
         foodRepeatCtx = demo.context;
@@ -347,6 +400,10 @@ async function closeCaptureContext(context) {
       });
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
+      if(name==='profile'){
+        const entry=page.locator('.me-featured-title a');await entry.waitFor({state:'visible'});
+        if((await entry.innerText()).trim()!=='See all')throw Error('Profile example must show the entry to Achievements.');
+      }
       if (name === 'nutrition-filled') {
         await page.locator('.calorie-ring[aria-valuetext="1,650 of 1,800 calories"]').waitFor({state: 'visible', timeout: 12000});
         await page.getByText('Oats and berries', {exact: true}).waitFor({state: 'visible'});

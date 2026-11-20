@@ -4,6 +4,7 @@
 const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 const PAD = 12;   // page background kept around a card so its edge and shadow stay visible
 const ONLY = process.env.KINETTA_TOUR_ONLY ? new Set(process.env.KINETTA_TOUR_ONLY.split(',').filter(Boolean)) : null;
@@ -27,6 +28,7 @@ const CROPS = [
   ['friends-feed', '/activity', '.activity-card', '.activity-card', 'alex'],
   ['friends-photos', '/activity', '.activity-card', '.activity-card', 'alex', 'photo'],
   ['friends-profile', '/people/alex', '.me-card', '.me-card', 'alex'],
+  ['profile-achievements', '/people/alex', '.me-card', '.me-featured-achievements', 'alex', 'scroll-crop'],
   ['friends-find', '/me/friends?find=1&q=Morgan', '#fr-find', '#fr-found', 'alex', 'hide-friends-groups'],
   ['run-achievements', '/me/achievements', '.profile-achievement-group[aria-labelledby=\"profile-achievement-group-run\"]', '.profile-achievement-group[aria-labelledby=\"profile-achievement-group-run\"]', 'alex', 'scroll-crop'],
 ];
@@ -180,15 +182,31 @@ async function saveChallengeCrop(page, name, scheme) {
         member: true, owner: false, joining_closed: false, ended_early: false, manual: false, garmin_sources: [],
         self: {value: 18.6, complete: false, manual: false, garmin_sources: [], days_left: 10, finished: false, needs_target: false},
         people: [
-          {username: 'casey', photo: false, value: 26, complete: false},
-          {username: 'alex', photo: false, value: 18.6, complete: false},
-          {username: 'jordan', photo: false, value: 12, complete: false},
+          {username: 'casey', photo: 'fluent-emoji-mit-r1', value: 26, complete: false},
+          {username: 'alex', photo: 'fluent-emoji-mit-r1', value: 18.6, complete: false},
+          {username: 'jordan', photo: 'fluent-emoji-mit-r1', value: 12, complete: false},
         ],
+      };
+      const avatarFiles = {
+        casey: 'person_running_flat_default.svg',
+        alex: 'person_biking_flat_default.svg',
+        jordan: 'person_walking_flat_default.svg',
       };
       await page.route('**/api/challenges**', route => {
         const pathname = new URL(route.request().url()).pathname;
         if (pathname === '/api/challenges') return route.fulfill({json: []});
         if (pathname === `/api/challenges/${challenge.code}`) return route.fulfill({json: challenge});
+        const match = pathname.match(new RegExp(`^/api/challenges/${challenge.code}/photo/([^/]+)$`));
+        if (match) {
+          const username = decodeURIComponent(match[1]);
+          const file = avatarFiles[username];
+          if (!file) return route.fulfill({status: 404});
+          const source = fs.readFileSync(path.join(__dirname, '../../app/static/profile.fluent-emoji/flat', file), 'utf8');
+          const art = source.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+          const surface = {casey: '#e8eefb', alex: '#e3f4e9', jordan: '#fff0df'}[username];
+          const svg = `<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="16" fill="${surface}"/>${art}</svg>`;
+          return route.fulfill({status: 200, contentType: 'image/svg+xml', body: svg});
+        }
         return route.fallback();
       });
       await page.goto(B + '/me/challenges');
