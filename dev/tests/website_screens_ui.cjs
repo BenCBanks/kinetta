@@ -52,6 +52,17 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert.equal(await p.locator('[data-week-question]').innerText(),'Am I improving?');
      assert.equal(await p.locator('.home-kit-prompts li').count(),2,'Kit provides three one-line example questions including the replay question');
      assert.equal(await p.locator('.home-badges img').count(),1,'The badge explainer uses a real Achievements screen');
+     const challengeCopy=(await p.locator('.home-challenges').innerText()).replace(/\s+/g,' ').trim();
+     assert.match(challengeCopy,/distance, active days, activities, food logging days or protein goal days/i,'Home names the challenge goal types');
+     assert.match(challengeCopy,/Joining is optional and never sends a friend request/,'challenge joining is clearly optional and does not imply a friend request');
+     assert.match(challengeCopy,/not your food details or protein target/,'food details and protein targets remain private');
+     assert.doesNotMatch(challengeCopy,/private by default|free during beta/i);
+     assert.equal(await p.locator('.home-challenges-visuals figure').count(),2,'Challenges has one start sheet and one detail preview');
+     for(const [selector,asset,alt] of [['.home-challenge-preview--start img',`challenge-start-${theme}`,/Start a challenge sheet.*Distance.*Active days.*Activities.*Food logging days.*Protein goal days/],['.home-challenge-preview--detail img',`challenge-detail-${theme}`,/challenge detail.*progress ring.*three participant totals/i]]){
+      const image=await p.locator(selector).evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
+      assert(image.src.includes(`assets/tour/${asset}.webp`),`${asset} uses the ${theme} capture`);assert.match(image.alt,alt);assert(image.loaded,`${asset} loaded`);
+     }
+     if(process.env.KINETTA_WEBSITE_SHOT_DIR&&dpr===1){fs.mkdirSync(process.env.KINETTA_WEBSITE_SHOT_DIR,{recursive:true});await p.locator('[data-site-nav],.skip-link').evaluateAll(nodes=>nodes.forEach(el=>el.style.visibility='hidden'));await p.locator('.home-challenges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`challenges-${width}-${theme}.png`),animations:'disabled'});}
      assert.equal(await p.locator('.home-sharing .phone-frame').count(),0,'Sharing stays text-only');
      assert.equal(await p.locator('.tour-final .btn').count(),1,'Home ends with one clear account action');
      const heroImage=await p.locator('.home-hero img').evaluate(i=>({src:i.currentSrc,alt:i.alt}));
@@ -59,9 +70,8 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert.match(heroImage.alt,/Fictional Home feed.*completed 3-mile Morning Run.*route map and reactions/i);
      assert.equal(await p.locator('.standin-caption').count(),0,'Home hero has no composed-screen stand-in label');
      const header=await p.locator('[data-site-nav]').boundingBox();assert(header&&Math.abs(header.height-56)<=1,'Home keeps a one-row header');
-     // The second Home proof card added in #1303 adds one short text block. Keep
-     // the page within 100px of the original 4,500px target while allowing it.
-     const pageHeight=await p.evaluate(()=>document.documentElement.scrollHeight);if(width===390)assert(pageHeight<=4600,`Home stays near its 4,500px mobile target (4,600px ceiling): ${pageHeight}px`);
+     // The Challenges section includes two full app views in addition to the existing Home proof screens.
+     const pageHeight=await p.evaluate(()=>document.documentElement.scrollHeight);if(width===390)assert(pageHeight<=5900,`Home stays below the mobile page-height ceiling with both challenge previews: ${pageHeight}px`);
      const phone=await p.locator('.home-hero .phone-frame').boundingBox();assert(phone&&phone.width<=320&&phone.x>=0&&phone.x+phone.width<=width,'Home hero phone stays fully in view');
      const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .home-beta-link').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
      assert(targets.every(r=>r.w>=44&&r.h>=44),`Home header and hero actions keep 44px hit areas: ${JSON.stringify(targets)}`);

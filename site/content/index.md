@@ -130,6 +130,22 @@ Each sport has its own tracks. Progress through named levels, then earn a medal 
 
 Run tracks include distance, workouts, longest and fastest efforts.
 
+## home-challenges-kicker
+
+Challenges
+
+## home-challenges-title
+
+A goal to share, your way.
+
+## home-challenges-description
+
+Challenge friends to distance, active days, activities, food logging days or protein goal days.
+
+## home-challenges-privacy
+
+Joining is optional and never sends a friend request. The group sees challenge progress, not your food details or protein target.
+
 ## home-sharing-kicker
 
 Sharing
