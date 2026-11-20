@@ -11,10 +11,10 @@ const FriendsUI=(()=>{
  };
  const shell=back=>`<div class="top large-title">${backBtn(back)}<h1 id="fr-title">Find friends</h1></div><div class="large-title-heading" data-type="title" aria-hidden="true">Find friends</div>
    <section id="fr-discover" class="friend-discovery" aria-label="Find people"><form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Name or @username" aria-label="Search name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form><p class="small muted" id="fr-status" role="status" aria-live="polite"></p></section>
-   <div class="social-list-group friends-groups-shortcut" id="fr-groups-shortcut"><a class="list-row friend-action" id="fr-groups-discover" href="/me/groups"><span class="ri">${svg('people')}</span><span class="grow"><b>Groups</b><small id="fr-groups-count" aria-live="polite">Private groups and events</small></span></a><a class="linkbtn" id="fr-group-create" href="/me/groups?create=1" aria-label="Create a group">Create</a></div>
-   <div id="fr-found"></div><div id="fr-list-error" role="status"></div>
-   <div class="social-list-group friend-invite-group"><button type="button" class="list-row friend-action" id="fr-invite"><span class="ri">${svg('share')}</span><span class="grow"><b>Invite friends</b><small>Share a link or QR code</small></span>${svg('chev')}</button></div>
-   <div id="fr-requests"></div><section class="friend-more" hidden><div id="fr-suggest"></div></section>`;
+   <div id="fr-found"></div>
+   <div id="fr-sections"><div id="fr-list-error" role="status"></div><div id="fr-requests"></div><section class="friend-suggest-section friend-more" hidden><div id="fr-suggest"></div></section>
+   <button type="button" class="friend-invite-primary" id="fr-invite">Invite a friend</button>
+   <section class="friend-more-ways"><h2>More ways</h2><a class="friend-more-row" id="fr-contacts" href="/me/friends/contacts">Find from contacts</a><a class="friend-more-row" id="fr-groups-discover" href="/me/groups">Groups</a><button type="button" class="friend-more-row" id="fr-sent-toggle" aria-expanded="false" aria-controls="fr-sent">Sent requests</button><div id="fr-sent" hidden></div></section></div>`;
  const requestSections=r=>`${r.incoming.length?`<section class="friend-request-section"><h3>Waiting for you</h3><div class="friend-inline-request-list">${r.incoming.map(p=>`<div class="person person-row fr-request">${profile(p)}<span class="friend-inline-actions"><button type="button" class="friend-inline-accept" data-request-accept="${esc(p.login)}">Accept</button><button type="button" class="friend-inline-muted" data-request-decline="${esc(p.login)}">Decline</button></span>${p.via_card?'<small class="muted card-origin">via your card</small>':''}</div>`).join('')}</div></section>`:''}
    ${r.outgoing.length?`<section class="friend-request-section"><h3>Sent</h3><div class="friend-inline-request-list">${r.outgoing.map(p=>`<div class="person person-row fr-request">${profile(p)}<button type="button" class="friend-inline-muted" data-request-cancel="${esc(p.login)}">Cancel</button></div>`).join('')}</div></section>`:''}`;
  const requestRow=(r,expanded=false)=>{const total=r.incoming.length+r.outgoing.length;if(!total)return '';return `<div class="social-list-group friend-request-group"><button type="button" class="list-row friend-request-summary" id="fr-requests-open" aria-label="Review friend requests" aria-expanded="${expanded}" aria-controls="fr-requests-content"><span class="ri">${svg('people')}</span><span class="grow"><b>Friend requests</b></span>${r.incoming.length?`<span class="count">${r.incoming.length}</span>`:''}${svg('chev')}</button><div class="friend-inline-requests" id="fr-requests-content"${expanded?'':' hidden'}>${requestSections(r)}</div></div>`;};
@@ -73,15 +73,10 @@ const FriendsUI=(()=>{
   el.classList.add('friends-page');el.innerHTML=shell(fromHome?'Home':'Me');wireBack(el,fromHome?'/activity':'/me');bindLargeTitle(el);
   const pageOwner=readOwner(),live=()=>pageOwner===readOwner()&&el.isConnected;
   let currentFriends=null,friendLoadVersion=0,searchVersion=0,timer,last=null,people=[],known=[];
-  const requests=$('#fr-requests',el),found=$('#fr-found',el),form=$('#fr-find',el),input=form.elements.q,clear=$('#fr-clear',el),statusText=$('#fr-status',el),suggest=$('#fr-suggest',el),error=$('#fr-list-error',el),groupCount=$('#fr-groups-count',el);
+  const requests=$('#fr-requests',el),found=$('#fr-found',el),form=$('#fr-find',el),input=form.elements.q,clear=$('#fr-clear',el),statusText=$('#fr-status',el),suggest=$('#fr-suggest',el),error=$('#fr-list-error',el),sections=$('#fr-sections',el),sent=$('#fr-sent',el),sentToggle=$('#fr-sent-toggle',el);
   input.value=initial.get('q')||'';
   const who=login=>(people.find(p=>p.login===login)||{}).name||login;
   $('#fr-invite',el).onclick=inviteFriends;
-  async function loadGroupCount(){
-    try{const groups=await api('/api/groups');if(!live())return;const count=groups.filter(group=>!group.closed).length;groupCount.textContent=`${count} active ${count===1?'group':'groups'}`;}
-    catch{if(live())groupCount.textContent='Your private groups';}
-  }
-  loadGroupCount();
   function drawListError(x){
     if(!live())return;error.innerHTML=`<p class="small muted">${currentFriends?'Requests may be out of date. ':''}${esc(x.message)}</p><button type="button" class="ghost" id="fr-list-retry">Retry</button>`;
     $('#fr-list-retry',error).onclick=loadFriends;
@@ -108,7 +103,7 @@ const FriendsUI=(()=>{
     });
   };
   async function find(again){
-    const q=input.value.trim(),query=q.replace(/^@/,'').trim();clear.hidden=!q;suggest.hidden=!!q;
+    const q=input.value.trim(),query=q.replace(/^@/,'').trim();clear.hidden=!q;sections.hidden=query.length>=2;
     if(!q){last=null;found.innerHTML='';statusText.textContent='';found.setAttribute('aria-busy','false');return;}
     if(query.length<2){last=null;found.innerHTML='';statusText.textContent='Type at least 2 characters to search.';found.setAttribute('aria-busy','false');return;}
     if(q===last&&!again)return;last=q;const request=++searchVersion;found.setAttribute('aria-busy','true');statusText.textContent='Searching…';
@@ -117,10 +112,11 @@ const FriendsUI=(()=>{
     }catch(x){if(request===searchVersion&&live()&&found.isConnected){last=null;statusText.textContent='';found.innerHTML=`<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" data-retry>Retry search</button>`;$('[data-retry]',found).onclick=()=>find(true);}}
     finally{if(request===searchVersion)found.setAttribute('aria-busy','false');}
   }
+  const queryHasResults=q=>q.replace(/^@/,'').trim().length>=2;
   const search=()=>{
     clearTimeout(timer);last=null;searchVersion++;
     const q=input.value.trim(),url=new URL(location.href);if(q)url.searchParams.set('q',q);else url.searchParams.delete('q');url.searchParams.set('find','1');history.replaceState(history.state,'',url.pathname+url.search);
-    suggest.hidden=!!q;
+    sections.hidden=queryHasResults(q);
     if(!q){clear.hidden=true;found.innerHTML='';statusText.textContent='';found.setAttribute('aria-busy','false');return;}
     clear.hidden=false;const query=q.replace(/^@/,'').trim(),lower=query.toLocaleLowerCase();
     if(query.length<2){found.innerHTML='';found.setAttribute('aria-busy','false');statusText.textContent='Type at least 2 characters to search.';return;}
@@ -129,10 +125,22 @@ const FriendsUI=(()=>{
   };
   input.oninput=search;clear.onclick=()=>{input.value='';search();input.focus();};viewResources.set(form,()=>{clearTimeout(timer);searchVersion++;});
   form.onsubmit=e=>{e.preventDefault();clearTimeout(timer);find(true);};
+  function drawDiscoverRequests(r){
+    const incoming=r.incoming||[],outgoing=r.outgoing||[];
+    requests.innerHTML=incoming.length?`<section class="friend-request-section" aria-labelledby="fr-waiting-title"><h2 id="fr-waiting-title" class="friend-section-title">Waiting for you <span class="friend-request-count">${incoming.length}</span></h2><div class="friend-inline-request-list">${incoming.map(p=>`<div class="person person-row fr-request">${profile(p)}<span class="friend-inline-actions"><button type="button" class="friend-inline-accept" data-request-accept="${esc(p.login)}">Accept</button><button type="button" class="friend-inline-muted" data-request-decline="${esc(p.login)}">Decline</button></span>${p.via_card?'<small class="muted card-origin">via your card</small>':''}</div>`).join('')}</div></section>`:'';
+    sent.innerHTML=outgoing.length?`<div class="friend-inline-request-list">${outgoing.map(p=>`<div class="person person-row fr-request">${profile(p)}<button type="button" class="friend-inline-muted" data-request-cancel="${esc(p.login)}">Cancel</button></div>`).join('')}</div>`:'<p class="friend-sent-empty">No sent requests</p>';
+    sentToggle.textContent=`Sent requests${outgoing.length?` · ${outgoing.length}`:''}`;
+    $$('[data-request-accept],[data-request-decline],[data-request-cancel]',el).forEach(button=>button.onclick=async()=>{
+      if(!live()||button.disabled)return;button.disabled=true;
+      try{const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline||button.dataset.requestCancel);if(button.hasAttribute('data-request-accept'))await api(`/api/friends/${login}/accept`,json('POST',{}));else if(button.hasAttribute('data-request-decline'))await api(`/api/friends/${login}/decline`,json('POST',{}));else await api(`/api/friends/${login}`,{method:'DELETE'});if(live())await refresh();}
+      catch(x){if(live()){toast(x.message);button.disabled=false;}}
+    });
+  }
+  sentToggle.onclick=()=>{const open=sentToggle.getAttribute('aria-expanded')!=='true';sentToggle.setAttribute('aria-expanded',String(open));sent.hidden=!open;};
   const draw=r=>{
     currentFriends=r;App.me.friend_count=r.friends.length;Social.set(r.incoming.length);
     known=r.incoming.map(p=>({...p,status:'incoming'})).concat(r.friends.map(p=>({...p,status:'friends'})),r.outgoing.map(p=>({...p,status:'sent'})));
-    people=[...new Map(people.concat(known).map(p=>[p.login,p])).values()];drawRequests(requests,r,live,refresh);
+    people=[...new Map(people.concat(known).map(p=>[p.login,p])).values()];drawDiscoverRequests(r);
   };
   async function drawSuggest(){
     const rows=(await suggestedPeople()).slice(0,5);if(!live()||!suggest.isConnected)return;
@@ -143,7 +151,7 @@ const FriendsUI=(()=>{
     suggest.replaceChildren(title,list);
   }
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);
-  const searching=find();if(initial.has('find')||initial.has('q'))input.focus();
+  const searching=find();
   await loadFriends();drawSuggest();await searching;
  }
  async function mount(el){const q=new URLSearchParams(location.search);return q.has('find')||q.has('q')?mountFind(el):mountList(el);}
