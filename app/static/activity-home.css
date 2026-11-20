@@ -225,6 +225,7 @@
 .activity-home .feed-list .sk-card .d-ph-stats .sk:last-child { border-right:0; }
 /* Home feed footer follows the one-row social action spec; other activity lists keep shared defaults. */
 .activity-home .activity-card .post-ft .activity-share { order:4; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 8px; background:none; border-color:transparent; box-shadow:none; }
+.activity-home .activity-card .post-ft:not(:has(.reaction-count:not([hidden]))) .activity-share { margin-left:auto; }
 .activity-home .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:auto; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more { order:1; display:flex; width:44px; min-width:44px; height:44px; min-height:44px; align-items:center; justify-content:center; gap:0; padding:0; margin:0; color:var(--tx2); }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more>span:not(.reaction-emoji) { display:none; }
