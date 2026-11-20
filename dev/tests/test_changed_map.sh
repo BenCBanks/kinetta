@@ -71,6 +71,19 @@ if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
         [[ "$me_tools_map" != *'-> core'* ]] || { echo "Me-tools-only CSS move selected unrelated core coverage: $me_tools_map" >&2; exit 1; }
       fi
     fi
+    food_css_files="$(git diff --name-only --no-renames "$base_ref...HEAD" -- app/static | sort)"
+    if [[ "$food_css_files" == $'app/static/food.css\napp/static/index.html\napp/static/style.css' ]]; then
+      food_css_patch="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/food.css app/static/index.html app/static/style.css)"
+      food_style_removed="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/style.css | grep -E '^-[^-]' | sed 's/^-//' || true)"
+      food_file_added="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/food.css | grep -E '^[+][^+]' | sed 's/^+//' || true)"
+      if [[ -n "$food_style_removed" && "$food_style_removed" == "$food_file_added" ]] && grep -Fq '+<link rel="stylesheet" href="/static/food.css?v=__ASSET_HASH__">' <<< "$food_css_patch"; then
+        food_css_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/food.css app/static/index.html app/static/style.css)"
+        for path in app/static/food.css app/static/index.html app/static/style.css; do
+          [[ "$food_css_map" == *"$path -> food"* ]] || { echo "Pure Food CSS extraction should use Food-only coverage for $path: $food_css_map" >&2; exit 1; }
+        done
+        [[ "$food_css_map" != *'-> core'* ]] || { echo "Pure Food CSS extraction selected unrelated core coverage: $food_css_map" >&2; exit 1; }
+      fi
+    fi
     detail_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/activity-detail.css app/static/style.css)"
     if [[ "$detail_map" == *"app/static/activity-detail.css -> activity-detail"* ]]; then
       [[ "$detail_map" == *"app/static/style.css -> activity-detail"* ]] || { echo "Detail-only reaction CSS lost its focused Activity Detail mapping: $detail_map" >&2; exit 1; }
