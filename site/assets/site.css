@@ -1084,3 +1084,28 @@ header.top .signup { display:flex;align-items:center; }
   .home-page .kit-week-question,.home-page .kit-week-answer { padding-block:8px; }
   .home-page .tour-final { padding-block:30px 36px; }
 }
+
+/* #1319 PR2: real activity/food captures and the Profile-to-Achievements path. */
+.home-page #home-food .home-proof-phone .phone-frame { width:min(350px,100%); }
+.home-page .home-proof-card#home-food { gap:14px; }
+.home-page #home-food .phone-frame { max-height:480px; overflow:hidden; }
+.home-page #home-food .home-proof-copy h3 { font-size:clamp(20px,2.5vw,26px); }
+.home-page #home-food .home-proof-copy p { max-width:38ch; }
+.home-page .home-badges .home-feature-split { grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr); }
+.home-page .home-badges-visuals { display:grid; grid-template-columns:minmax(0,350px) minmax(0,240px); justify-content:center; align-items:start; gap:20px; }
+.home-page .home-badge-preview { display:grid; justify-items:center; align-content:start; gap:12px; min-width:0; margin:0; }
+.home-page .home-badge-preview--profile { width:min(350px,100%); }
+.home-page .home-badge-preview--achievements { width:min(240px,100%); }
+.home-page .home-badge-preview .phone-frame { width:100%; }
+.home-page .home-badge-preview figcaption { color:var(--ink2); font-size:14px; font-weight:600; line-height:1.35; text-align:center; }
+@media (max-width:900px) {
+  .home-page .phone-frame--hero { width:min(250px,78vw); }
+  .home-page #home-food.home-proof-card { flex-basis:min(350px,calc(100vw - 40px)); padding-inline:0; }
+  .home-page #home-food .home-proof-copy { padding-inline:16px; }
+  .home-page #home-food .home-proof-phone .phone-frame { width:min(350px,100%); }
+  .home-page .home-badges .home-feature-split { grid-template-columns:1fr; gap:22px; }
+  .home-page .home-badges-visuals { grid-template-columns:minmax(0,350px) minmax(0,240px); }
+}
+@media (max-width:560px) {
+  .home-page .home-badges-visuals { grid-template-columns:1fr; gap:24px; }
+}
