@@ -2257,3 +2257,10 @@ html body .me-card-bars .me-week.now > span:first-child { background: var(--acce
 .achievement-share-preview[aria-busy="true"] img { opacity:.5; }
 @media (prefers-reduced-motion:reduce) { .achievement-share-preview-skeleton { animation:none; } }
 @media (max-width:350px) { .scrim:has(.achievement-share-sheet) .sheet { padding-right:16px; padding-left:16px; } }
+
+/* Comments sheet: move its body, height limit and keyboard fill on the same keyboard frame. */
+body .scrim.keyboard-attached.keyboard-inset:has(.social-sheet) { transition:bottom 250ms cubic-bezier(.2,.8,.2,1); }
+body .scrim.keyboard-attached.keyboard-inset:has(.social-sheet)::after { transition:height 250ms cubic-bezier(.2,.8,.2,1),bottom 250ms cubic-bezier(.2,.8,.2,1); }
+body .scrim.keyboard-attached.keyboard-inset:has(.social-sheet) > .sheet { box-sizing:border-box; padding-right:16px; padding-left:16px; border-radius:18px 18px 0 0; background:var(--surface-sheet); transition:max-height 250ms cubic-bezier(.2,.8,.2,1); }
+/* The tap target stays 44px while its visible dots use only the small trailing slot. */
+body .social-sheet .comment .c-comment-options { margin-left:-12px; }
