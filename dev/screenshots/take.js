@@ -322,7 +322,7 @@ async function closeCaptureContext(context) {
         continue;
       }
       if (opt.foodChat === 'confirmed') {
-        const demo = await openFoodDemo(`zz_test_1319_chat_${scheme}`, scheme, Math.min(H, 540));
+        const demo = await openFoodDemo(`zz_test_1319_chat_${scheme}`, scheme);
         foodChatCtx = demo.context;
         foodChatPage = demo.page;
         await enableKitForDemo(foodChatPage);
@@ -369,7 +369,10 @@ async function closeCaptureContext(context) {
           const toast = document.querySelector('#toast');
           return !toast || (!toast.classList.contains('on') && Number(getComputedStyle(toast).opacity) < 0.01);
         }, {timeout: 10000});
+        await foodChatPage.locator('.shell.food-thread').evaluate(el => el.style.setProperty('--chat-height', '540px'));
+        await foodChatPage.waitForTimeout(50);
         await foodChatPage.evaluate(chrome, {dark: scheme === 'dark', width: W});
+        await foodChatPage.locator('#k-hb').evaluate((el, offset) => { el.style.bottom = `${offset}px`; }, H - 540);
         await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
