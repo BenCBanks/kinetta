@@ -62,6 +62,21 @@ login_css_only() {
 login_css_only_change=0
 if login_css_only; then login_css_only_change=1; fi
 
+me_tools_css_only() {
+  local files style_patch profile_patch removed added count
+  files="$(git diff --name-only --no-renames "$BASE...HEAD" -- app/static | sort)"
+  [[ "$files" == $'app/static/profile.css\napp/static/style.css' ]] || return 1
+  style_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/style.css)"
+  profile_patch="$(git diff --unified=0 "$BASE...HEAD" -- app/static/profile.css)"
+  removed="$(grep -E '^[+-][^+-]' <<< "$style_patch" | sed -n 's/^-//p')"
+  added="$(grep -E '^[+-][^+-]' <<< "$profile_patch" | sed -n 's/^+//p')"
+  count="$(grep -Ec '^[+-][^+-]' <<< "$style_patch")"
+  [[ "$count" == 11 && "$removed" == "$added" ]] || return 1
+  grep -Fq '.me-tools,.me-help-tools {' <<< "$added" || return 1
+}
+me_tools_css_only_change=0
+if me_tools_css_only; then me_tools_css_only_change=1; fi
+
 map_path() {
   local path="$1" patterns pattern group scenes
   # Only these exact caption-forwarding hunks can use focused Activity coverage.
@@ -74,6 +89,9 @@ map_path() {
   fi
   if [[ "$login_css_only_change" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/login.css || "$path" == app/static/style.css ) ]]; then
     printf 'welcome|\n'; return 0
+  fi
+  if [[ "$me_tools_css_only_change" == 1 && ( "$path" == app/static/style.css || "$path" == app/static/profile.css ) ]]; then
+    printf 'profile|Me\n'; return 0
   fi
   while IFS=';' read -r patterns group scenes; do
     IFS=',' read -ra candidates <<< "$patterns"

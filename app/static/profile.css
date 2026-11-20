@@ -1048,3 +1048,15 @@
 #pf-editor textarea { min-height: 6rem; }
 #pf-bio-count { margin: -8px 0 0; text-align: right; }
 .profile-mileage h2 { margin: 0; }
+
+.me-tools,.me-help-tools { padding-inline:16px; border:1px solid var(--line); box-shadow:none; }
+.me-tools { margin-top:24px; }
+.me-help-tools { margin-top:0; }
+.me-tools > .row-link,.me-help-tools > .row-link { min-height:56px; gap:16px; padding:10px 0; font-size:17px; font-weight:700; }
+.me-tools.card.list > .row-link + .row-link,.me-help-tools.card.list > .row-link + .row-link { margin-top:0; }
+.me-tools .row-link > .ri,.me-help-tools .row-link > .ri { flex:none; width:24px; height:24px; border-radius:8px; }
+.me-tools .row-link > .ri > svg,.me-help-tools .row-link > .ri > svg { width:20px; height:20px; }
+.me-tools .row-link .grow,.me-help-tools .row-link .grow { font-size:17px; font-weight:700; line-height:1.25; }
+.me-tools .row-link .grow small,.me-help-tools .row-link .grow small { margin-top:2px; font-size:15px; font-weight:500; line-height:1.3; }
+.me-tools .row-link > .chev,.me-help-tools .row-link > .chev { display:grid; flex:none; width:20px; height:20px; place-items:center; }
+.me-tools.card.list > .row-link + .row-link::before,.me-help-tools.card.list > .row-link + .row-link::before { left:40px; right:0; }
