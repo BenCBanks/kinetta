@@ -457,3 +457,5 @@
   .lift-exercise-row .lv-best b { font-size:15px; }
   .lift-exercise-row > .chev { grid-area:chevron; }
 }
+
+.progress-totals-card { border:1px solid var(--line); box-shadow:none; }

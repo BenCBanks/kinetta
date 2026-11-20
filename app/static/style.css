@@ -1949,7 +1949,6 @@ nav.tabs { view-transition-name: tabs; }
 .distance-empty { stroke:var(--line); stroke-width:1; }
 .period-column .period-zero.current { stroke:var(--tx3); stroke-width:1; stroke-dasharray:2 2; opacity:.65; }
 .period-column.is-selected .period-zero, .period-column.is-selected .distance-empty { stroke:var(--accent); stroke-width:2; }
-.progress-totals-card { border:1px solid var(--line); box-shadow:none; }
 
 /* Account navigation and persistent return controls (owner cleanup, October 2026). */
 

@@ -76,6 +76,14 @@ class AssetBuildTests(unittest.TestCase):
             for name in ('progress-route.css','track-route.css','food-route.css','lift-route.css'):
                 self.assertIn('/static/'+name+'?v='+result['assets'][name],built_app,'the route stylesheet has its own content hash: '+name)
                 self.assertNotIn('/static/'+name+'?v=',html,'route stylesheet is absent from the eager HTML shell: '+name)
+            shared_css=(ROOT/'app/static/style.css').read_text()
+            progress_css=(ROOT/'app/static/progress-route.css').read_text()
+            progress_totals_rules=(
+                '.progress-totals-card { border:1px solid var(--line); box-shadow:none; }',
+            )
+            for rule in progress_totals_rules:
+                self.assertNotIn(rule,shared_css,'Progress Totals SVG ownership stays out of shared style.css')
+                self.assertIn(rule,progress_css,'Progress Totals SVG ownership stays in progress-route.css')
             self.assertIn('/static/segments.js?v='+result['assets']['segments.js'],built_app,'the deferred Segments routes point at their own content hash')
             self.assertIn('/static/planner.js?v='+result['assets']['planner.js'],built_app,'the deferred Planner route points at its own content hash')
             self.assertIn('/static/recap-editor.js?v='+result['assets']['recap-editor.js'],built_app,'the action-loaded recap editor uses its own content hash')
