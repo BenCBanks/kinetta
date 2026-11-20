@@ -137,7 +137,7 @@ const ActivityDetail=(()=>{
   if(!a.distance_m||a.moving_s==null||!Number.isFinite(elapsed)||!Number.isFinite(moving)||elapsed-moving<60)return '';
   const r=rate({...a,elapsed_s:moving});
   if(r.label==='Time')return '';
-  return `<div class="detail-moving" aria-label="Moving workout numbers"><span class="detail-stat-empty" aria-hidden="true"></span>${stat('Moving time',activityMovingText(a))}${stat('Moving '+r.label.toLowerCase(),r.v,r.u)}</div>`;
+  return `<div class="detail-moving" aria-label="Moving workout numbers">${stat('Moving time',activityMovingText(a))}${stat('Moving '+r.label.toLowerCase(),r.v,r.u)}</div>`;
  }
  function title(a,hero,{shared=false,socialId=shared?'s-soc':'d-soc',backButton=''}={}){
   const kit=!shared&&(a.ai_note||kitChatOn())?`<button type="button" class="detail-kit" id="d-kit" aria-label="${kitChatOn()?'Ask Kit about this activity':'Kit’s workout note'}">${svg('sparkle')}<span>Kit</span></button>`:'';
