@@ -1957,6 +1957,20 @@ nav.tabs { view-transition-name: tabs; }
 @keyframes map-shared-new-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .launch svg { animation: none; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 
+/* Progress Totals bars (periodBars with inlineSelection): one muted fill for every sport, the accent for the selected
+   period. The muted fill keeps about 3:1 against the card in dark mode. Food and other charts keep their own data colours. */
+.period-select-chart svg { touch-action:manipulation; }
+.period-column { cursor:pointer; }
+.period-column:focus { outline:none; }
+.period-hit { fill:transparent; }
+.period-column:focus-visible .period-hit { stroke:var(--accent); stroke-width:1.5; }
+.period-column .bar-seg { fill:color-mix(in srgb,var(--color-distance-muted) 60%,var(--color-brand) 40%); }
+.period-column.is-selected .bar-seg { fill:var(--accent); }
+.period-column .bar-seg.partial { opacity:.75; }
+:root[data-theme="dark"] .period-column .bar-seg.partial { fill:var(--color-brand); opacity:1; }
+.distance-empty { stroke:var(--line); stroke-width:1; }
+.period-column .period-zero.current { stroke:var(--tx3); stroke-width:1; stroke-dasharray:2 2; opacity:.65; }
+.period-column.is-selected .period-zero, .period-column.is-selected .distance-empty { stroke:var(--accent); stroke-width:2; }
 
 /* Account navigation and persistent return controls (owner cleanup, October 2026). */
 
@@ -2214,7 +2228,7 @@ button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled
 .shell h1, h1 { font-weight: var(--weight-display); }
 h2, h3, .sec-head, .card > h2, .post-title, .sheet-head h2, .plan-hero h2, .sheet header h2 { font-weight: var(--weight-title); }
 .num, .stat b, .hero-num, .me-metric-value { font-variant-numeric: tabular-nums; font-weight: var(--weight-number); }
-
+.mileage-day.current-day .mileage-bar, .period-select-chart .period-column .bar-seg.partial { fill: url(#kinetta-accent-gradient); opacity: 1; }
 html body .me-card-bars .me-week.now > span:first-child { background: var(--accent-gradient); opacity: 1; }
 .svg-paint-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {

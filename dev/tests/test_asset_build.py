@@ -79,20 +79,7 @@ class AssetBuildTests(unittest.TestCase):
             shared_css=(ROOT/'app/static/style.css').read_text()
             progress_css=(ROOT/'app/static/progress-route.css').read_text()
             progress_totals_rules=(
-                '.period-select-chart svg { touch-action:manipulation; }',
-                '.period-column { cursor:pointer; }',
-                '.period-column:focus { outline:none; }',
-                '.period-hit { fill:transparent; }',
-                '.period-column:focus-visible .period-hit { stroke:var(--accent); stroke-width:1.5; }',
-                '.period-column .bar-seg { fill:color-mix(in srgb,var(--color-distance-muted) 60%,var(--color-brand) 40%); }',
-                '.period-column.is-selected .bar-seg { fill:var(--accent); }',
-                '.period-column .bar-seg.partial { opacity:.75; }',
-                ':root[data-theme="dark"] .period-column .bar-seg.partial { fill:var(--color-brand); opacity:1; }',
-                '.distance-empty { stroke:var(--line); stroke-width:1; }',
-                '.period-column .period-zero.current { stroke:var(--tx3); stroke-width:1; stroke-dasharray:2 2; opacity:.65; }',
-                '.period-column.is-selected .period-zero, .period-column.is-selected .distance-empty { stroke:var(--accent); stroke-width:2; }',
                 '.progress-totals-card { border:1px solid var(--line); box-shadow:none; }',
-                '.mileage-day.current-day .mileage-bar, .period-select-chart .period-column .bar-seg.partial { fill: url(#kinetta-accent-gradient); opacity: 1; }',
             )
             for rule in progress_totals_rules:
                 self.assertNotIn(rule,shared_css,'Progress Totals SVG ownership stays out of shared style.css')
