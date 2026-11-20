@@ -34,6 +34,16 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     const pics=await p.locator('main img[src*="assets/tour/"]').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,w:i.getBoundingClientRect().width,natural:i.naturalWidth/2,alt:i.alt})));
     assert(pics.every(i=>i.alt.length>20&&i.w<=i.natural*2/1.7+1&&i.src.includes(theme==='dark'?'-dark.':'-light.')),name+' tour picture theme, alt or upscaling');
     if(name==='index'){
+     const homeOrder=await p.locator('main > section').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('home-hero')?'hero':n.classList.contains('home-challenges')?'challenges':n.classList.contains('home-proof')?'food-and-activity':n.classList.contains('home-badges')?'achievements':'other'));
+     assert.deepEqual(homeOrder.slice(0,3),['hero','challenges','food-and-activity'],'Challenges is the second Home hero, before Food and Achievements');
+     assert.equal(await p.locator('#home-challenges-title').innerText(),"A shared goal. Everyone's progress.");
+     const challengeTitle=await p.locator('#home-challenges-title').evaluate(el=>({size:parseFloat(getComputedStyle(el).fontSize),left:el.getBoundingClientRect().left}));
+     assert(challengeTitle.size>=36&&challengeTitle.size<=40,`Challenges heading stays 36–40px: ${JSON.stringify(challengeTitle)}`);
+     if(width===390)assert.equal(Math.round(challengeTitle.left),20,'Challenges keeps 20px phone gutters');
+     const challengeSpacing=await p.locator('.home-hero,.home-challenges,.home-proof').evaluateAll(([hero,challenges,food])=>({heroBottom:getComputedStyle(hero).paddingBottom,challengeTop:getComputedStyle(challenges).paddingTop,foodTop:getComputedStyle(food).paddingTop}));
+     assert.equal(challengeSpacing.heroBottom,'0px','hero and Challenges use one shared section gap');
+     assert(parseFloat(challengeSpacing.challengeTop)>=48&&parseFloat(challengeSpacing.challengeTop)<=64,`Challenges has 48–64px top spacing: ${JSON.stringify(challengeSpacing)}`);
+     assert(parseFloat(challengeSpacing.foodTop)>=48&&parseFloat(challengeSpacing.foodTop)<=64,`Food follows Challenges with 48–64px spacing: ${JSON.stringify(challengeSpacing)}`);
      assert.equal(await p.locator('.home-hero .phone-frame').count(),1);
      assert.equal(await p.locator('.home-hero .btn').count(),1,'Home has one primary hero action');
      assert.equal(await p.locator('.home-beta-link').count(),1,'The beta link is secondary text');
@@ -63,8 +73,10 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert.match(challengeCopy,/Joining is optional and never sends a friend request/,'challenge joining is clearly optional and does not imply a friend request');
      assert.match(challengeCopy,/not your food details or protein target/,'food details and protein targets remain private');
      assert.doesNotMatch(challengeCopy,/private by default|free during beta/i);
-     assert.equal(await p.locator('.home-challenges-visuals figure').count(),2,'Challenges has one start sheet and one detail preview');
-     for(const [selector,asset,alt] of [['.home-challenge-preview--start img',`challenge-start-${theme}`,/Start a challenge sheet.*Distance.*Active days.*Activities.*Food logging days.*Protein goal days/],['.home-challenge-preview--detail img',`challenge-detail-${theme}`,/challenge detail.*progress ring.*three participant totals/i]]){
+     const challengeOrder=await p.locator('.home-challenges-visuals figure').evaluateAll(nodes=>nodes.map(n=>({kind:n.classList.contains('home-challenge-preview--detail')?'progress':'create',caption:n.querySelector('figcaption')?.textContent.trim()})));
+     assert.deepEqual(challengeOrder,[{kind:'progress',caption:"See everyone’s progress"},{kind:'create',caption:'Choose your challenge'}],'populated progress comes first and the creation sheet is labelled');
+     assert.equal(challengeOrder.length,2,'Challenges has one progress image and one creation sheet');
+     for(const [selector,asset,alt] of [['.home-challenge-preview--detail img',`challenge-detail-${theme}`,/Fictional challenge progress with a ring and participant totals/i],['.home-challenge-preview--start img',`challenge-start-${theme}`,/challenge creation sheet.*Distance.*Active days.*Activities.*Food logging days.*Protein goal days/i]]){
       const image=await p.locator(selector).evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
       assert(image.src.includes(`assets/tour/${asset}.webp`),`${asset} uses the ${theme} capture`);assert.match(image.alt,alt);assert(image.loaded,`${asset} loaded`);
      }
