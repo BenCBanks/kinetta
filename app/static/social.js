@@ -798,7 +798,7 @@ function commentsSheet(aid, s, onChange) {
       quick.hidden=!showQuick;
       if(showQuick&&quick.scrollWidth>quick.clientWidth+1)quick.hidden=true;
       f.text.style.height='auto';f.text.style.height=Math.min(f.text.scrollHeight+2,112)+'px';};
-    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(!current())return;if(send.dataset.failed){delete send.dataset.failed;status.textContent='';}SocialData.draft(aid,f.text.value);box._sync();};
+    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.onfocus=()=>{if(status.textContent==='Comment posted.')status.textContent='';};f.text.oninput=()=>{if(!current())return;if(send.dataset.failed){delete send.dataset.failed;status.textContent='';}SocialData.draft(aid,f.text.value);box._sync();};
     $$('[data-quick]',quick).forEach(b=>b.onclick=()=>{if(!current())return;f.text.value=b.textContent;SocialData.draft(aid,f.text.value);box._sync();f.text.focus();});
     requestAnimationFrame(()=>{if(current())box._sync();});
     const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
