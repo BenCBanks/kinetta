@@ -14,6 +14,15 @@ class CopyTests(unittest.TestCase):
   home=(content.ROOT/'site/index.html').read_text()
   self.assertIn('Every run, ride and lift, with the details.',home)
   self.assertIn('See a route and splits for a run or ride, or set-by-set history and records for a lift.',home)
+ def test_home_challenges_explains_goals_and_privacy(self):
+  home=(content.ROOT/'site/index.html').read_text()
+  for text in ['Distance','Active days','activities','food logging days','protein goal days','never sends a friend request','not your food details or protein target']:
+   self.assertIn(text,home)
+  self.assertIn('assets/tour/challenge-start-light.webp',home)
+  self.assertIn('assets/tour/challenge-start-dark.webp',home)
+  self.assertIn('assets/tour/challenge-detail-light.webp',home)
+  self.assertIn('assets/tour/challenge-detail-dark.webp',home)
+  self.assertNotRegex(home.lower(),r'private\s+by\s+default|free\s+during\s+beta')
  def test_normal_copy_and_safe_links(self):
   self.assertEqual(content.inline('Your **workouts** and *food*.'),'Your <strong>workouts</strong> and <em>food</em>.')
   self.assertEqual(content.inline('[Training](training)'),'<a href="training">Training</a>')

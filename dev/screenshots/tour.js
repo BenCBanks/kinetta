@@ -2,9 +2,11 @@
 // Usage: node tour.js <out dir> [base url]. Each crop is one whole element at 2x, light and dark, encoded as WebP.
 // Fictional account only; browser captures, not native iPhone evidence. Install fonts-liberation to match CI's text.
 const {chromium} = require('playwright');
+const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 const PAD = 12;   // page background kept around a card so its edge and shadow stay visible
+const ONLY = process.env.KINETTA_TOUR_ONLY ? new Set(process.env.KINETTA_TOUR_ONLY.split(',').filter(Boolean)) : null;
 
 // name, address, selector of the first and last element the crop must contain completely
 const CROPS = [
@@ -51,9 +53,8 @@ async function signIn(page, login) {
   await page.fill('input[name=login]', login);
   await page.fill('input[name=password]', login === 'alex' ? 'blue kettle morning run' : 'green teapot on the hill');
   await page.press('input[name=password]', 'Enter');
-  await page.locator('nav.tabs').waitFor({state: 'visible'});
-  await page.waitForTimeout(700);
-  const who = await page.evaluate(() => fetch('/api/me').then((r) => r.json()));
+  await page.waitForFunction(expected => App.me?.login === expected, login, {timeout: 30000});
+  const who = await page.evaluate(() => ({login: App.me?.login}));
   if (who.login !== login) throw Error(`Could not switch demo account to ${login} (got ${who.login})`);
   await constrain(page);
 }
@@ -86,6 +87,40 @@ async function stageChat(page) {
   await constrain(page);
 }
 
+async function saveChallengeCrop(page, name, scheme) {
+  const target = page.locator(name === 'challenge-start' ? '.sheet' : '#challenge-detail');
+  await target.scrollIntoViewIfNeeded();
+  if (name === 'challenge-start') {
+    const png = await target.screenshot({animations: 'disabled'});
+    const webp = await page.evaluate(async (data) => {
+      const image = new Image(); image.src = 'data:image/png;base64,' + data; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+      canvas.getContext('2d').drawImage(image, 0, 0);
+      return canvas.toDataURL('image/webp', 0.9).split(',')[1];
+    }, png.toString('base64'));
+    fs.writeFileSync(`${OUT}/${name}-${scheme}.webp`, Buffer.from(webp, 'base64'));
+    return;
+  }
+  const box = await target.boundingBox();
+  if (!box) throw Error(`Missing ${name} screenshot target`);
+  // Keep the app page's surrounding surface in the image. A locator-only crop
+  // cuts off the natural page gutter and makes the detail title look clipped.
+  const clip = {
+    x: Math.max(0, Math.floor(box.x - PAD)),
+    y: Math.max(0, Math.floor(box.y - PAD)),
+    width: Math.min(await page.evaluate(() => innerWidth), Math.ceil(box.x + box.width + PAD)) - Math.max(0, Math.floor(box.x - PAD)),
+    height: Math.ceil(box.height + 2 * PAD),
+  };
+  const png = await page.screenshot({clip, animations: 'disabled'});
+  const webp = await page.evaluate(async (data) => {
+    const image = new Image(); image.src = 'data:image/png;base64,' + data; await image.decode();
+    const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+    canvas.getContext('2d').drawImage(image, 0, 0);
+    return canvas.toDataURL('image/webp', 0.9).split(',')[1];
+  }, png.toString('base64'));
+  fs.writeFileSync(`${OUT}/${name}-${scheme}.webp`, Buffer.from(webp, 'base64'));
+}
+
 (async () => {
   fs.mkdirSync(OUT, {recursive: true});
   const browser = await chromium.launch();
@@ -102,6 +137,7 @@ async function stageChat(page) {
       const lift = await page.evaluate(async () => (await (await fetch('/api/activities?limit=20')).json()).find((a) => a.sport === 'workout')?.id);
       if (!lift) throw Error('No demo lifting activity');
       for (const [name, address, first, last, account, action] of CROPS) {
+        if (ONLY && !ONLY.has(name)) continue;
         await signIn(page, account === 'alex' ? 'alex' : account === 'chat' ? 'zz_test_658_chat_' + scheme : 'zz_test_658_food_' + scheme);
         await page.goto(B + address.replace('{RUN}', run).replace('{LIFT}', lift));
         await constrain(page);
@@ -133,6 +169,41 @@ async function stageChat(page) {
         }, png.toString('base64'));
         fs.writeFileSync(`${OUT}/${name}-${scheme}.webp`, Buffer.from(webp, 'base64'));
         console.log(`${name}-${scheme}.webp ${clip.width * 2}x${Math.round(clip.height * 2)}`);
+      }
+
+      if (!ONLY || ONLY.has('challenges')) {
+      // The Challenges home screenshots use the actual app sheet and detail renderer with
+      // read-only fictional response fixtures. No challenge, friend request or write is sent.
+      const challenge = {
+        code: 'website-distance', title: 'November distance goal', kind: 'distance', sports: ['run', 'walk'],
+        target: 40, unit: 'mi', start: '2026-11-02', end: '2026-11-30', creator: 'casey', participants: 3,
+        member: true, owner: false, joining_closed: false, ended_early: false, manual: false, garmin_sources: [],
+        self: {value: 18.6, complete: false, manual: false, garmin_sources: [], days_left: 10, finished: false, needs_target: false},
+        people: [
+          {username: 'casey', photo: false, value: 26, complete: false},
+          {username: 'alex', photo: false, value: 18.6, complete: false},
+          {username: 'jordan', photo: false, value: 12, complete: false},
+        ],
+      };
+      await page.route('**/api/challenges**', route => {
+        const pathname = new URL(route.request().url()).pathname;
+        if (pathname === '/api/challenges') return route.fulfill({json: []});
+        if (pathname === `/api/challenges/${challenge.code}`) return route.fulfill({json: challenge});
+        return route.fallback();
+      });
+      await page.goto(B + '/me/challenges');
+      await page.locator('#challenge-first').waitFor({state: 'visible'});
+      await page.locator('#challenge-first').click();
+      await page.locator('.sheet .challenge-templates').waitFor({state: 'visible'});
+      const choices = await page.locator('.sheet [data-challenge-kind]').allInnerTexts();
+      assert.deepEqual(choices.map(text => text.trim().split('\n')[0]), ['Distance', 'Active days', 'Activities', 'Food logging days', 'Protein goal days']);
+      await page.evaluate(() => document.fonts.ready);
+      await saveChallengeCrop(page, 'challenge-start', scheme);
+      await page.goto(B + `/me/challenges/${challenge.code}`);
+      await page.locator('#challenge-detail .challenge-hero').waitFor({state: 'visible'});
+      await page.locator('#challenge-detail .challenge-person-row').nth(2).waitFor({state: 'visible'});
+      await page.evaluate(() => document.fonts.ready);
+      await saveChallengeCrop(page, 'challenge-detail', scheme);
       }
       await context.close();
     }
