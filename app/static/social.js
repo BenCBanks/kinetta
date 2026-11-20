@@ -702,7 +702,7 @@ function drawShared(el, a) {
   el.classList.add('activity-detail');
   const bars=ActivityDetail.header(a,{mine:false,backLabel:mine?'Your activity':'Activity'});
   panes.overview=`${a.description?`<div class="card"><p class="desc">${esc(a.description)}</p></div>`:''}${a.device?`<p class="small muted">${esc(a.device)}</p>`:''}${panes.overview}`;
-  el.innerHTML=`${a.line?`<div class="detail-map-hero map-head">${activityMedia(a,{mapId:'s-map',detail:true,full:true,compact:true})}${bars.floating}</div>${bars.sticky}`:bars.floating}${ActivityDetail.title(a,hero,{shared:true})}${mine?'<div class="callout">This is what others see of your activity.</div>':''}${!a.line?activityMedia(a,{mapId:'s-map',detail:true,compact:true}):''}
+  el.innerHTML=`${a.line?`<div class="detail-map-hero map-head">${activityMedia(a,{mapId:'s-map',detail:true,full:true,compact:true})}${bars.floating}</div>${bars.sticky}`:bars.floating}${ActivityDetail.title(a,hero,{shared:true,backButton:bars.titleBack})}${mine?'<div class="callout">This is what others see of your activity.</div>':''}${!a.line?activityMedia(a,{mapId:'s-map',detail:true,compact:true}):''}
     ${a.ends_hidden?'<p class="small muted map-note">The start and end of the route are hidden.</p>':''}${activityTabs(panes)}${mine?'':`<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
   applyActivityMapTransition(el,a.id);
   let redrawCharts = null;

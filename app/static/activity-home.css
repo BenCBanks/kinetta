@@ -224,19 +224,20 @@
 .activity-home .feed-list .sk-card .d-ph-stats .sk { height:42px; border-radius:0; border-right:1px solid var(--line); }
 .activity-home .feed-list .sk-card .d-ph-stats .sk:last-child { border-right:0; }
 /* Home feed footer follows the one-row social action spec; other activity lists keep shared defaults. */
-.activity-home .activity-card .post-ft .activity-share { order:4; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 auto; background:none; border-color:transparent; box-shadow:none; }
-.activity-home .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:4px; }
+.activity-home .activity-card .post-ft .activity-share { order:4; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 8px; background:none; border-color:transparent; box-shadow:none; }
+.activity-home .activity-card .post-ft:not(:has(.reaction-count:not([hidden]))) .activity-share { margin-left:auto; }
+.activity-home .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:auto; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more { order:1; display:flex; width:44px; min-width:44px; height:44px; min-height:44px; align-items:center; justify-content:center; gap:0; padding:0; margin:0; color:var(--tx2); }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more>span:not(.reaction-emoji) { display:none; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg { width:22px; height:22px; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) { transform:translateX(-11px); }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) { display:flex; flex-wrap:nowrap; align-items:center; gap:0; padding:0 16px; min-height:48px; }
-.activity-home .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count { order:2; display:flex; flex:none; align-items:center; justify-content:flex-start; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 4px; color:var(--tx2); font-size:14px; font-weight:500; }
+.activity-home .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count { order:3; display:flex; flex:none; align-items:center; justify-content:flex-end; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 auto; color:var(--tx2); font-size:14px; font-weight:500; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary { display:flex; align-items:center; gap:4px; overflow:visible; white-space:nowrap; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji { display:inline-flex; flex:none; align-items:center; gap:3px; white-space:nowrap; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji .reaction-emoji { display:inline-flex; align-items:center; justify-content:center; font-size:16px; line-height:1; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-count,.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-more { font-size:14px; font-weight:500; line-height:1.2; font-variant-numeric:tabular-nums; color:var(--tx2); }
-.activity-home .activity-card .post-ft .activity-comments { order:3; margin-left:8px; }
+.activity-home .activity-card .post-ft .activity-comments { order:2; margin-left:8px; }
 .activity-home .activity-card .post-ft .activity-comments>svg { width:22px; height:22px; }
 .activity-home .activity-card .post-ft .activity-comments .num { font-size:14px; font-weight:500; }
 .activity-home .activity-card .post-ft {
