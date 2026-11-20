@@ -40,8 +40,15 @@ fi
 if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
   base_ref="origin/$GITHUB_BASE_REF"
   if git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
-    detail_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/activity-detail.css app/static/style.css)"
-    [[ "$detail_map" == *"app/static/activity-detail.css -> activity-detail"* && "$detail_map" == *"app/static/style.css -> activity-detail"* ]] || { echo "Detail-only reaction CSS uses its focused Activity Detail mapping: $detail_map" >&2; exit 1; }
+    detail_files="$(git diff --name-only --no-renames "$base_ref...HEAD" -- app/static | sort)"
+    if [[ "$detail_files" == $'app/static/activity-detail.css\napp/static/style.css' ]]; then
+      detail_patch="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/activity-detail.css app/static/style.css)"
+      # This focused mapping applies only to the mechanical reaction-CSS move.
+      if grep -Fq 'detail-social:has(.emoji-reactions)' <<< "$detail_patch" && grep -Fq 't-soc:has(.activity-reactions)' <<< "$detail_patch"; then
+        detail_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/activity-detail.css app/static/style.css)"
+        [[ "$detail_map" == *"app/static/activity-detail.css -> activity-detail"* && "$detail_map" == *"app/static/style.css -> activity-detail"* ]] || { echo "Detail-only reaction CSS uses its focused Activity Detail mapping: $detail_map" >&2; exit 1; }
+      fi
+    fi
   elif [[ "$(git rev-parse --is-shallow-repository)" == true ]]; then
     echo "Skipping stacked-base diff assertion in shallow backend checkout; changed-screen-map checks the full PR diff."
   else
