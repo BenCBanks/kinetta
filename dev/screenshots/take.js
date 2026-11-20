@@ -7,6 +7,7 @@
 const {chromium} = require('playwright');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 const SCREENSHOT_CLOCK = require('./fixture-time.json');
+const OWNER_LOGIN = process.env.KINETTA_SCREENSHOT_FIXTURE === '1' ? 'nia' : 'alex';
 // name, address, and optionally a card title to scroll to, or something to do first
 const SHOTS = require('./scenes.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
@@ -218,7 +219,7 @@ async function closeCaptureContext(context) {
     await page.route('**/api/food/meals-chat/lookup', route => route.fulfill({json: {results: JSON.parse(route.request().postData() || '{}').texts.map(text => ({text, query: '', kind: 'none', foods: [], portion: null}))}}));
     page.on('pageerror', (e) => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
-    await page.fill('input[name=login]', 'alex'); await page.fill('input[name=password]', 'blue kettle morning run');
+    await page.fill('input[name=login]', OWNER_LOGIN); await page.fill('input[name=password]', 'blue kettle morning run');
     await page.click('button[type=submit]'); await page.waitForSelector('nav.tabs');
     await enableKitForDemo(page);
     const ids = await page.evaluate(async () => {

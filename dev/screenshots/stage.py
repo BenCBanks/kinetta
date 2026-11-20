@@ -1,8 +1,8 @@
 # Made-up social + cooking state for the homepage screenshots, on top of dev/demo/seed.py (a throwaway install only).
-# Adds a friend, "Jordan", with a few weeks of rides and walks (the demo routes, two days later and an hour earlier),
-# shares some of Alex's runs with friends, adds reactions and comments both ways,
-# a waiting friend request from "Sam", photos on a few activities, saved dishes (a soup, a traybake shared with Jordan, a smoothie), four weeks of
-# lifting (the same session twice a week, a little heavier each week, in round pounds). Alex also ran this
+# Adds a cast of fictional friends, with a few weeks of rides and walks (the demo routes, two days later and an hour earlier),
+# shares the owner's runs with friends, adds reactions and comments both ways,
+# a waiting friend request, photos on a few activities, saved dishes (a soup, a shared traybake, a smoothie), four weeks of
+# lifting (the same session twice a week, a little heavier each week, in round pounds). The owner also ran this
 # morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 from zoneinfo import ZoneInfo
@@ -34,7 +34,7 @@ def person(login, pw):
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     def q(m, p, b=None):
         r = urllib.request.Request(B + p, data=json.dumps(b if b is not None else {}).encode() if m != 'GET' else None, method=m,
-                                   headers={'Origin': B, 'Content-Type': 'application/json', **(admin_headers(B) if login == 'alex' and is_admin_path(p) else {})})
+                                   headers={'Origin': B, 'Content-Type': 'application/json', **(admin_headers(B) if login == owner_login and is_admin_path(p) else {})})
         return json.loads(op.open(r).read() or b'null')
     q('POST', '/api/login', {'login': login, 'password': pw}); q.op = op
     return q
@@ -60,36 +60,39 @@ def later(gpx, minutes):   # the same made-up route, a little later in the day
     return re.sub(rb'<time>([^<]+)</time>', shift, gpx)
 
 
-alex = person('alex', 'blue kettle morning run')
-alex('PUT','/api/account',{'name':'Alex Rivera','bio':'Runs, rides and good food.'})
-for login, name in (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera'), ('casey', 'Casey Example'), ('taylor', 'Taylor Example'), ('morgan', 'Morgan Example')):
+owner_login = 'alex'  # portal_fixture.admin_headers authenticates this disposable owner before its screenshot-only rename.
+owner_fixture_login = 'nia' if SCREENSHOT_FIXTURE else 'alex'
+alex = person(owner_login, 'blue kettle morning run')
+members = (('ethan', 'Ethan Park'), ('maya', 'Maya Chen'), ('mateo', 'Mateo Ruiz'), ('priya', 'Priya Shah'), ('andre', 'Andre Hill')) if SCREENSHOT_FIXTURE else (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera'), ('casey', 'Casey Example'), ('taylor', 'Taylor Example'), ('morgan', 'Morgan Example'))
+for login, name in members:
     try: alex('POST', '/api/admin/people', {'login': login, 'name': name, 'password': PW})
     except urllib.error.HTTPError as e:
         if e.code != 409: raise
-jordan, sam = person('jordan', PW), person('sam', PW)
+jump = {'name':'Nia Brooks','login':owner_fixture_login,'bio':'Runs, rides and good food.'} if SCREENSHOT_FIXTURE else {'name':'Alex Rivera','bio':'Runs, rides and good food.'}
+alex('PUT','/api/account',jump)
+jordan_login, sam_login = ('ethan', 'priya') if SCREENSHOT_FIXTURE else ('jordan', 'sam')
+friend_a_login, friend_b_login = ('maya', 'mateo') if SCREENSHOT_FIXTURE else ('casey', 'taylor')
+jordan, sam = person(jordan_login, PW), person(sam_login, PW)
 jordan('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial'})
 jordan('PUT', '/api/sharing', {'default': 'friends'})
-# Small generated portraits belong to this disposable screenshot database only.
-# The public app bundle and live accounts never read these fixture files.
-portrait_dir = Path(__file__).with_name('portraits')
-for login in ('casey', 'alex', 'jordan', 'sam', 'taylor', 'morgan'):
-    # Regular test suites use Alex to measure the Me navigation tab. Keep that test account
-    # photo-free there; the dedicated screenshot pipeline opts in to fixture photos explicitly.
-    if login == 'alex' and not SCREENSHOT_FIXTURE:
-        continue
-    fixture_person = alex if login == 'alex' else person(login, PW)
-    portrait = (portrait_dir / f'{login}.webp').read_bytes()
-    payload = 'data:image/webp;base64,' + base64.b64encode(portrait).decode('ascii')
-    fixture_person('PUT', '/api/me/photo', {'image': payload})
+# Small generated portraits belong only to the dedicated disposable screenshot database.
+# The ordinary test seed stays photo-free; the public app bundle and live accounts never read these files.
+if SCREENSHOT_FIXTURE:
+    portrait_dir = Path(__file__).with_name('portraits')
+    for login in ('nia', 'ethan', 'maya', 'mateo', 'priya', 'andre'):
+        fixture_person = alex if login == owner_fixture_login else person(login, PW)
+        portrait = (portrait_dir / f'{login}.webp').read_bytes()
+        payload = 'data:image/webp;base64,' + base64.b64encode(portrait).decode('ascii')
+        fixture_person('PUT', '/api/me/photo', {'image': payload})
 cutoff = (screenshot_today - dt.timedelta(days=2)).strftime('%Y%m%d')   # moved 2 days on, they must still be in the past
 runs = [p for p in sorted(glob.glob(G + '/*.gpx')) if ('cycling' in p or 'walking' in p) and os.path.basename(p)[:8] < cutoff][-16:]
 print('jordan import', upload(jordan, [(os.path.basename(p), later(open(p, 'rb').read(), 2 * 1440 - 60)) for p in runs]).get('added'))
 
-jordan('POST', '/api/friends', {'login': 'alex'}); alex('POST', '/api/friends/jordan/accept')
-sam('POST', '/api/friends', {'login': 'alex'})                      # waiting for Alex
+jordan('POST', '/api/friends', {'login': owner_fixture_login}); alex('POST', f'/api/friends/{jordan_login}/accept')
+sam('POST', '/api/friends', {'login': owner_fixture_login})                      # waiting friend request
 # A mature fictional account tells the feed story without new-account discovery cards.
-for login in ('casey','taylor'):
-    friend=person(login,PW);friend('POST','/api/friends',{'login':'alex'});alex('POST','/api/friends/'+login+'/accept')
+for login in (friend_a_login,friend_b_login):
+    friend=person(login,PW);friend('POST','/api/friends',{'login':owner_fixture_login});alex('POST','/api/friends/'+login+'/accept')
 assert alex('GET','/api/me')['friend_count']>=3
 alex('PUT', '/api/sharing', {'default': 'friends'})
 # A complete, fictional day on the captured date. The local screenshot clock
@@ -106,10 +109,16 @@ t0 = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1)
 # Scheduled captures near midnight still need a workout on the displayed demo day.
 ago = max(now - dt.timedelta(hours=2.5), now.replace(hour=0, minute=0, second=0, microsecond=0)).astimezone(dt.timezone.utc)
 print('alex today', upload(alex, [('today-running.gpx', later(raw, (ago - t0).total_seconds() // 60))]).get('added'))
+if SCREENSHOT_FIXTURE:
+    # Put another under-30 member at the top of the published feed capture; the ordinary test seed is unchanged.
+    friend_start = max(now - dt.timedelta(minutes=50), now.replace(hour=0, minute=0, second=0, microsecond=0)).astimezone(dt.timezone.utc)
+    print('ethan today', upload(jordan, [('ethan-morning-run.gpx', later(raw, (friend_start - t0).total_seconds() // 60))]).get('added'))
+    recent_friend_run = jordan('GET', '/api/activities?limit=1')[0]
+    jordan('PUT', f"/api/activities/{recent_friend_run['id']}/sharing", {'visibility': 'friends'})
 mine = alex('GET', '/api/activities?limit=8')
 for a in mine: alex('PUT', f"/api/activities/{a['id']}/sharing", {'visibility': 'friends'})
 # Three friends on the same newest card show native emoji with individual counts in both capture themes.
-for friend, kind in ((jordan, 'clap'), (person('casey', PW), 'starstruck'), (person('taylor', PW), 'mindblown')):
+for friend, kind in ((jordan, 'clap'), (person(friend_a_login, PW), 'starstruck'), (person(friend_b_login, PW), 'mindblown')):
     friend('POST', f"/api/activities/{mine[0]['id']}/reaction", {'kind': kind})
 reactions = alex('GET', f"/api/activities/{mine[0]['id']}/social")['reactions']
 assert all(reactions.get(kind) == 1 for kind in ('clap', 'starstruck', 'mindblown')) and sum(reactions.values()) == 3
@@ -144,7 +153,7 @@ for n, g, p in [('Chicken breast, raw', 600, {'kcal': 120, 'protein_g': 22.5, 'c
                 ('Olive oil', 27, {'kcal': 884, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 100})]:
     alex('POST', f"/api/dishes/{tray['id']}/items", {'name': n, 'grams': g, 'per100': p})
 alex('PATCH', f"/api/dishes/{tray['id']}", {'serving': 'portion', 'cooked_g': 1400})   # by weight: weighed after roasting
-alex('POST', f"/api/dishes/{tray['id']}/share", {'login': 'jordan'})            # eating together: Jordan logs a portion too
+alex('POST', f"/api/dishes/{tray['id']}/share", {'login': jordan_login})            # eating together: the first friend logs a portion too
 # lifting (2026-10-13, api_lifts.py): "Strength A", a little heavier each week (pounds, as an imperial lifter types them)
 lb = lambda x: x / 2.20462262
 ex = {n: alex('POST', '/api/lifts/exercises', {'name': n})['id'] for n in ('Squat', 'Bench press', 'Barbell row', 'Pull-up', 'Plank')}

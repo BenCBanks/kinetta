@@ -23,8 +23,9 @@ def main():
                                    headers={'Origin': B, 'Content-Type': 'application/json'})
         return json.loads(op.open(r).read() or b'null')
 
+    screenshot_fixture = os.environ.get('KINETTA_SCREENSHOT_FIXTURE') == '1'
     q('POST', '/api/setup', {'name': 'Alex', 'login': 'alex', 'password': 'blue kettle morning run', 'tz': 'America/New_York', 'units': 'imperial'})
-    q('PUT', '/api/profile', {'max_hr': 188, 'rest_hr': 52, 'weight_kg': 64, 'height_cm': 168, 'birth_year': 1990, 'sex': 'female', 'activity_factor': 1.3})
+    q('PUT', '/api/profile', {'max_hr': 188, 'rest_hr': 52, 'weight_kg': 64, 'height_cm': 168, 'birth_year': 2002 if screenshot_fixture else 1990, 'sex': 'female', 'activity_factor': 1.3})
     bnd = uuid.uuid4().hex; parts = []
     for p in sorted(glob.glob(G + '/*.gpx')):
         parts += [f'--{bnd}\r\nContent-Disposition: form-data; name="files"; filename="{p.split("/")[-1]}"\r\n\r\n'.encode(), open(p, 'rb').read(), b'\r\n']

@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
+const OWNER_LOGIN = 'nia';
 const PAD = 12;   // page background kept around a card so its edge and shadow stay visible
 const ONLY = process.env.KINETTA_TOUR_ONLY ? new Set(process.env.KINETTA_TOUR_ONLY.split(',').filter(Boolean)) : null;
 const RAW_OUT = process.env.KINETTA_TOUR_RAW_OUT;
@@ -23,25 +24,25 @@ async function saveRawViewport(page, filename) {
 // name, address, selector of the first and last element the crop must contain completely
 const CROPS = [
   // Training: one complete control for each claim on the Training page.
-  ['training-run', '/activity/{RUN}', '.detail-map-hero', '#d-soc', 'alex', 'hide-tabs'],
-  ['training-sports', '/people/alex', '.me-card', '.me-card', 'alex'],
-  ['training-lifting', '/activity/{LIFT}', '.d-title', '#d-lifts', 'alex'],
-  ['training-plans', '/plan', '.compact-plan-summary', '.pweek.current', 'alex'],
-  ['training-progress', '/progress', '.progress-totals-header', '#m-chart', 'alex'],
-  ['training-routes', '/progress/routes', '#p-body > .card', '#p-body > .card', 'alex'],
+  ['training-run', '/activity/{RUN}', '.detail-map-hero', '#d-soc', OWNER_LOGIN, 'hide-tabs'],
+  ['training-sports', '/people/nia', '.me-card', '.me-card', OWNER_LOGIN],
+  ['training-lifting', '/activity/{LIFT}', '.d-title', '#d-lifts', OWNER_LOGIN],
+  ['training-plans', '/plan', '.compact-plan-summary', '.pweek.current', OWNER_LOGIN],
+  ['training-progress', '/progress', '.progress-totals-header', '#m-chart', OWNER_LOGIN],
+  ['training-routes', '/progress/routes', '#p-body > .card', '#p-body > .card', OWNER_LOGIN],
   // Food: the review card is staged by dev/screenshots/food_chat_fixture.py; the other
   // controls are deterministic demo data from stage.py.
   ['food-quick', '/food/describe?meal=breakfast', '.compact-thread-card', '.compact-thread-card', 'chat', 'hide-chat-user'],
   ['food-yesterday', '/food', '.meal-breakfast', '.meal-breakfast', 'food'],
-  ['food-insights', '/food?view=overview&r=30', '.insights-summary', '.insights-summary', 'alex'],
-  ['food-recipes', '/food/meals', '#library-recipes > .library-section:first-child', '#library-recipes > .library-section:first-child', 'alex'],
+  ['food-insights', '/food?view=overview&r=30', '.insights-summary', '.insights-summary', OWNER_LOGIN],
+  ['food-recipes', '/food/meals', '#library-recipes > .library-section:first-child', '#library-recipes > .library-section:first-child', OWNER_LOGIN],
   // Friends: each picture is one complete feed, profile or search control.
-  ['friends-feed', '/activity', '.activity-card', '.activity-card', 'alex'],
-  ['friends-photos', '/activity', '.activity-card', '.activity-card', 'alex', 'photo'],
-  ['friends-profile', '/people/alex', '.me-card', '.me-card', 'alex'],
-  ['profile-achievements', '/people/alex', '.me-card', '.me-featured-achievements', 'alex', 'scroll-crop'],
-  ['friends-find', '/me/friends?find=1&q=Morgan', '#fr-find', '#fr-found', 'alex', 'hide-friends-groups'],
-  ['run-achievements', '/me/achievements', '.profile-achievement-group[aria-labelledby=\"profile-achievement-group-run\"]', '.profile-achievement-group[aria-labelledby=\"profile-achievement-group-run\"]', 'alex', 'scroll-crop'],
+  ['friends-feed', '/activity', '.activity-card', '.activity-card', OWNER_LOGIN],
+  ['friends-photos', '/activity', '.activity-card', '.activity-card', OWNER_LOGIN, 'photo'],
+  ['friends-profile', '/people/nia', '.me-card', '.me-card', OWNER_LOGIN],
+  ['profile-achievements', '/people/nia', '.me-card', '.me-featured-achievements', OWNER_LOGIN, 'scroll-crop'],
+  ['friends-find', '/me/friends?find=1&q=Ethan', '#fr-find', '#fr-found', OWNER_LOGIN, 'hide-friends-groups'],
+  ['run-achievements', '/me/achievements', '.profile-achievement-group[aria-labelledby=\"profile-achievement-group-run\"]', '.profile-achievement-group[aria-labelledby=\"profile-achievement-group-run\"]', OWNER_LOGIN, 'scroll-crop'],
 ];
 
 async function crop(page, first, last) {
@@ -64,7 +65,7 @@ async function signIn(page, login) {
   await page.goto(B + '/');
   await page.locator('input[name=login]').waitFor({state: 'visible'});
   await page.fill('input[name=login]', login);
-  await page.fill('input[name=password]', login === 'alex' ? 'blue kettle morning run' : 'green teapot on the hill');
+  await page.fill('input[name=password]', login === OWNER_LOGIN ? 'blue kettle morning run' : 'green teapot on the hill');
   await page.press('input[name=password]', 'Enter');
   await page.waitForFunction(expected => App.me?.login === expected, login, {timeout: 30000});
   const who = await page.evaluate(() => ({login: App.me?.login}));
@@ -144,14 +145,14 @@ async function saveChallengeCrop(page, name, scheme) {
       const context = await browser.newContext({viewport: {width: 417, height: 852}, deviceScaleFactor: 2,
         colorScheme: scheme, reducedMotion: 'reduce', timezoneId: 'America/New_York'});
       const page = await context.newPage();
-      await signIn(page, 'alex');
+      await signIn(page, OWNER_LOGIN);
       const run = await page.evaluate(async () => (await (await fetch('/api/activities?limit=20')).json()).find((a) => a.sport === 'run' && a.visibility === 'friends')?.id);
       if (!run) throw Error('No demo run shared with friends');
       const lift = await page.evaluate(async () => (await (await fetch('/api/activities?limit=20')).json()).find((a) => a.sport === 'workout')?.id);
       if (!lift) throw Error('No demo lifting activity');
       for (const [name, address, first, last, account, action] of CROPS) {
         if (ONLY && !ONLY.has(name)) continue;
-        await signIn(page, account === 'alex' ? 'alex' : account === 'chat' ? 'zz_test_658_chat_' + scheme : 'zz_test_658_food_' + scheme);
+        await signIn(page, account === OWNER_LOGIN ? OWNER_LOGIN : account === 'chat' ? 'zz_test_658_chat_' + scheme : 'zz_test_658_food_' + scheme);
         await page.goto(B + address.replace('{RUN}', run).replace('{LIFT}', lift));
         await constrain(page);
         await page.waitForTimeout(1200);
@@ -171,7 +172,7 @@ async function saveChallengeCrop(page, name, scheme) {
         await page.waitForTimeout(800);
         if (action === 'scroll-crop') await page.locator(first).scrollIntoViewIfNeeded();
         else await page.evaluate(() => window.scrollTo(0, 0));
-        if (name.startsWith('friends-') || name === 'profile-achievements')
+        if (name.startsWith('friends-') || name === 'profile-achievements' || name === 'training-sports')
           await saveRawViewport(page, `${name}-${scheme}.png`);
         const clip = await crop(page, first, last);
         const png = await page.screenshot({clip});
@@ -191,19 +192,19 @@ async function saveChallengeCrop(page, name, scheme) {
       // read-only fictional response fixtures. No challenge, friend request or write is sent.
       const challenge = {
         code: 'website-distance', title: 'November distance goal', kind: 'distance', sports: ['run', 'walk'],
-        target: 40, unit: 'mi', start: '2026-11-02', end: '2026-11-30', creator: 'casey', participants: 3,
+        target: 40, unit: 'mi', start: '2026-11-02', end: '2026-11-30', creator: 'maya', participants: 3,
         member: true, owner: false, joining_closed: false, ended_early: false, manual: false, garmin_sources: [],
         self: {value: 18.6, complete: false, manual: false, garmin_sources: [], days_left: 10, finished: false, needs_target: false},
         people: [
-          {username: 'casey', photo: 'portrait-fixture-v1', value: 26, complete: false},
-          {username: 'alex', photo: 'portrait-fixture-v1', value: 18.6, complete: false},
-          {username: 'jordan', photo: 'portrait-fixture-v1', value: 12, complete: false},
+          {username: 'maya', photo: 'portrait-fixture-v1', value: 26, complete: false},
+          {username: 'nia', photo: 'portrait-fixture-v1', value: 18.6, complete: false},
+          {username: 'ethan', photo: 'portrait-fixture-v1', value: 12, complete: false},
         ],
       };
       const avatarFiles = {
-        casey: 'casey.webp',
-        alex: 'alex.webp',
-        jordan: 'jordan.webp',
+        nia: 'nia.webp',
+        ethan: 'ethan.webp',
+        maya: 'maya.webp',
       };
       await page.route('**/api/challenges**', route => {
         const pathname = new URL(route.request().url()).pathname;
@@ -226,6 +227,7 @@ async function saveChallengeCrop(page, name, scheme) {
       const choices = await page.locator('.sheet [data-challenge-kind]').allInnerTexts();
       assert.deepEqual(choices.map(text => text.trim().split('\n')[0]), ['Distance', 'Active days', 'Activities', 'Food logging days', 'Protein goal days']);
       await page.evaluate(() => document.fonts.ready);
+      await saveRawViewport(page, `challenge-start-${scheme}.png`);
       await saveChallengeCrop(page, 'challenge-start', scheme);
       await page.goto(B + `/me/challenges/${challenge.code}`);
       await page.locator('#challenge-detail .challenge-hero').waitFor({state: 'visible'});
