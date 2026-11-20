@@ -60,6 +60,12 @@ if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
         [[ "$login_map" != *'-> core'* ]] || { echo "Login-only CSS move selected unrelated core coverage: $login_map" >&2; exit 1; }
       fi
     fi
+    detail_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/activity-detail.css app/static/style.css)"
+    if [[ "$detail_map" == *"app/static/activity-detail.css -> activity-detail"* ]]; then
+      [[ "$detail_map" == *"app/static/style.css -> activity-detail"* ]] || { echo "Detail-only reaction CSS lost its focused Activity Detail mapping: $detail_map" >&2; exit 1; }
+    else
+      [[ "$detail_map" == *"app/static/activity-detail.css -> social"* && "$detail_map" == *"app/static/style.css -> core"* ]] || { echo "Combined Activity Detail CSS did not select its broader Social mapping: $detail_map" >&2; exit 1; }
+    fi
   elif [[ "$(git rev-parse --is-shallow-repository)" == true ]]; then
     echo "Skipping stacked-base diff assertion in shallow backend checkout; changed-screen-map checks the full PR diff."
   else
