@@ -76,6 +76,7 @@ me_tools_css_only() {
 }
 me_tools_css_only_change=0
 if me_tools_css_only; then me_tools_css_only_change=1; fi
+me_tools_mapping_active=0
 
 map_path() {
   local path="$1" patterns pattern group scenes
@@ -90,7 +91,7 @@ map_path() {
   if [[ "$login_css_only_change" == 1 && ( "$path" == app/static/index.html || "$path" == app/static/login.css || "$path" == app/static/style.css ) ]]; then
     printf 'welcome|\n'; return 0
   fi
-  if [[ "$me_tools_css_only_change" == 1 && ( "$path" == app/static/style.css || "$path" == app/static/profile.css ) ]]; then
+  if [[ "$me_tools_mapping_active" == 1 && ( "$path" == app/static/style.css || "$path" == app/static/profile.css ) ]]; then
     printf 'profile|Me\n'; return 0
   fi
   while IFS=';' read -r patterns group scenes; do
@@ -124,6 +125,13 @@ MAP
 check_paths() {
   local path mapped group scenes name contract_tests
   local scene_names=""
+  local static_paths
+  static_paths="$(printf '%s\n' "$@" | grep '^app/static/' | sort || true)"
+  if [[ "$me_tools_css_only_change" == 1 && "$static_paths" == $'app/static/profile.css\napp/static/style.css' ]]; then
+    me_tools_mapping_active=1
+  else
+    me_tools_mapping_active=0
+  fi
   for path in "$@"; do
     [[ "$path" == app/static/* ]] || continue
     if ! mapped="$(map_path "$path")"; then echo "No changed-screen browser mapping for $path" >&2; return 1; fi
@@ -164,6 +172,10 @@ if [[ "${1:-}" == --check-map ]]; then check_paths "${paths[@]}"; echo "Changed 
 
 declare -A selected=() seen_scene=()
 scenes=""; all_scenes=0; has_static=0
+static_paths="$(printf '%s\n' "${paths[@]}" | grep '^app/static/' | sort || true)"
+if [[ "$me_tools_css_only_change" == 1 && "$static_paths" == $'app/static/profile.css\napp/static/style.css' ]]; then
+  me_tools_mapping_active=1
+fi
 for path in "${paths[@]}"; do
   [[ "$path" == app/static/* ]] || continue
   has_static=1
