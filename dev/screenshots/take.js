@@ -157,8 +157,8 @@ async function closeCaptureContext(context) {
 }
 (async () => {
   const browser = await chromium.launch(), errors = [];
-  const openFoodDemo = async (login, scheme) => {
-    const context = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: SCALE, colorScheme: scheme,
+  const openFoodDemo = async (login, scheme, height = H) => {
+    const context = await browser.newContext({viewport: {width: W, height}, deviceScaleFactor: SCALE, colorScheme: scheme,
       timezoneId: SCREENSHOT_CLOCK.timezone, serviceWorkers: 'block'});
     await context.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
     await context.route('**/style.css*', async route => {
@@ -322,7 +322,7 @@ async function closeCaptureContext(context) {
         continue;
       }
       if (opt.foodChat === 'confirmed') {
-        const demo = await openFoodDemo(`zz_test_1319_chat_${scheme}`, scheme);
+        const demo = await openFoodDemo(`zz_test_1319_chat_${scheme}`, scheme, Math.min(H, 540));
         foodChatCtx = demo.context;
         foodChatPage = demo.page;
         await enableKitForDemo(foodChatPage);
@@ -572,7 +572,16 @@ async function closeCaptureContext(context) {
         await content.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));
       }
       await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-      await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+      const capture = {path: `${OUT}/${scheme}-${name}.png`};
+      if (name === 'activity-detail') {
+        // Keep the complete activity card inside a consistent crop before the fixed tab bar and Pace chart.
+        const summary = await page.locator('.compact-detail-title').boundingBox();
+        if (!summary) throw Error('Activity map capture needs its summary card.');
+        const height = Math.min(H, 720);
+        if (summary.y + summary.height > height) throw Error('Activity summary exceeds the crop before the fixed tab bar.');
+        capture.clip = {x: 0, y: 0, width: W, height};
+      }
+      await page.screenshot(capture);
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
