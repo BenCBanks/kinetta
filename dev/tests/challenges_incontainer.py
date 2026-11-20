@@ -202,13 +202,13 @@ class Challenges(unittest.TestCase):
     row=C.accessible(c,code);c.execute('UPDATE challenges SET end_day=%s WHERE id=%s',(self.now.astimezone(C.ZoneInfo('America/New_York')).date()+dt.timedelta(days=3),row['id']));C.process(c,row['id'],self.now);C.process(c,row['id'],self.now)
    notes=self.clients[0].get('/api/notifications').json()['items'];challenge=[x for x in notes if x['kind'].startswith('challenge_')];self.assertEqual(len(challenge),2);self.assertNotIn('PRIVATE',json.dumps(challenge))
    current_title=self.get(code)['title'];joined=next(x for x in challenge if x['kind']=='challenge_join');reminder=next(x for x in challenge if x['kind']=='challenge_reminder')
-   self.assertEqual(joined['text'],f"@{self.clients[2].get('/api/me').json()['login']} joined '{current_title}'.")
+   self.assertEqual(joined['text'],f"@{self.clients[2].get('/api/me').json()['login']} joined ‘{current_title}’.")
    end_day=self.now.astimezone(C.ZoneInfo('America/New_York')).date()+dt.timedelta(days=3)
-   self.assertEqual(reminder['text'],f"'{current_title}' ends in three days, on {end_day.strftime('%b')} {end_day.day}, {end_day.year}.")
+   self.assertEqual(reminder['text'],f"‘{current_title}’ ends in three days, on {end_day.strftime('%b')} {end_day.day}, {end_day.year}.")
    with db.connect() as c:c.execute('UPDATE challenges SET ended_at=now() WHERE id=%s',(row['id'],));C.process(c,row['id'],self.now+dt.timedelta(seconds=5));C.process(c,row['id'],self.now+dt.timedelta(seconds=5))
   with db.connect() as c:self.assertEqual(c.execute("SELECT count(*) AS n FROM notifications WHERE challenge_id=%s AND kind='challenge_finished'",(row['id'],)).fetchone()['n'],1)
   finished=next(x for x in self.clients[0].get('/api/notifications').json()['items'] if x['kind']=='challenge_finished')
-  self.assertEqual(finished['text'],f"'{current_title}' has ended. View your progress and share a finish picture.")
+  self.assertEqual(finished['text'],f"‘{current_title}’ has ended. View your progress and share a finish picture.")
  def test_native_push_uses_stand_in_and_respects_live_opt_out_and_leave(self):
   q,_=self.make();code=q['code'];self.clients[0].put('/api/notifications/settings',json={'challenge_joins':True})
   self.join(code);sent=[]
