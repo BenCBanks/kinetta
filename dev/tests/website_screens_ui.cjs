@@ -36,6 +36,7 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     if(name==='index'){
      const homeOrder=await p.locator('main > section').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('home-hero')?'hero':n.classList.contains('home-challenges')?'challenges':n.classList.contains('home-proof')?'food-and-activity':n.classList.contains('home-badges')?'achievements':'other'));
      assert.deepEqual(homeOrder.slice(0,3),['hero','challenges','food-and-activity'],'Challenges is the second Home hero, before Food and Achievements');
+     assert.equal(await p.locator('main > .home-challenges').count(),1,'Challenges appears once on Home');
      assert(homeOrder.indexOf('achievements')>homeOrder.indexOf('food-and-activity'),'Achievements follows the Food section');
      assert.equal(await p.locator('#home-challenges-title').innerText(),"A shared goal. Everyone's progress.");
      const challengeTitle=await p.locator('#home-challenges-title').evaluate(el=>({size:parseFloat(getComputedStyle(el).fontSize),left:el.getBoundingClientRect().left}));
