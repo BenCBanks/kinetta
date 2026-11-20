@@ -12,10 +12,12 @@ def ok(r):
 clients={}
 def actor(login,name):
  c=person(login);ok(c.post('/api/account/delete',{'password':PW}));c=person(login,name);ok(c.put('/api/profile',{'tz':'UTC','ai_ok':False}));clients[login]=c;return c
-main={state:actor('zz_test_fc_'+state,'River '+state.title()) for state in ('empty','typical','heavy')}
+main={state:actor('zz_test_fc_'+state,'River '+state.title()) for state in ('empty','typical','heavy','retry','actions')}
 peers=[actor(f'zz_test_fc_peer{i:02}',f'Fictional Friend {i+1:02}') for i in range(40)]
 req=[actor(f'zz_test_fc_request{i}',f'Casey Request {i+1}') for i in range(3)]
 out=[actor(f'zz_test_fc_sent{i}',f'Fictional Sent {i+1}') for i in range(2)]
+action_friend=actor('zz_test_fc_action_friend','Fictional Action Friend')
+ok(main['actions'].post('/api/friends',{'login':'zz_test_fc_action_friend'}));ok(action_friend.post('/api/friends/zz_test_fc_actions/accept',{}));ok(main['actions'].post('/api/friends',{'login':'zz_test_fc_sent0'}));ok(req[0].post('/api/friends',{'login':'zz_test_fc_actions'}))
 for i,c in enumerate(peers):
  ok(main['heavy'].post('/api/friends',{'login':f'zz_test_fc_peer{i:02}'}));ok(c.post('/api/friends/zz_test_fc_heavy/accept',{}))
  if 1<=i<=6:

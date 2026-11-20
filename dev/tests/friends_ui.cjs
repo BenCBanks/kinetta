@@ -6,7 +6,7 @@ assert([330,390].includes(viewportWidth),'Friends UI width is 330px or 390px');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  const inviteOnly=process.env.KINETTA_FRIEND_CASE==='invite';
- if(!inviteOnly){const fixture=cp.execFileSync('python3',[path.join(__dirname,'friends_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(fixture.trim());}
+ if(!inviteOnly&&process.env.KINETTA_FRIEND_SKIP_FIXTURE!=='1'){const fixture=cp.execFileSync('python3',[path.join(__dirname,'friends_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(fixture.trim());}
  const browser=await chromium.launch(),contexts=[];
  async function open(state,theme,size={width:viewportWidth,height:844},initialPath='/me/friends?find=1',options={}){
   const c=await browser.newContext({viewport:size,colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
@@ -25,7 +25,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   const suggested=initialPath.includes('find=1')?p.waitForResponse(r=>new URL(r.url()).pathname==='/api/people/suggested'&&r.request().method()==='GET'):null;
   await p.goto(base+initialPath);if(friends)await friends;if(suggested)await suggested;
   const readySelector=homeRoute?'#feed-top .acts':initialPath.includes('find=1')?'.friends-page #fr-invite':'#fr-own-list';await until(p,selector=>App.pageReady&&!!document.querySelector(selector),homeRoute?'Home ready':initialPath.includes('find=1')?'Find friends ready':'My friends ready',readySelector);await p.evaluate(()=>document.fonts.ready.then(()=>true));
-  if(suggested)await until(p,()=>{const box=document.querySelector('#fr-suggest');return box&&((box.parentElement.hidden)||box.querySelector('.pym-row'));},'suggestions loaded');
+  if(suggested)await until(p,()=>{const box=document.querySelector('#fr-suggest');return box&&((box.parentElement.hidden)||box.querySelector('.pym-row,.friend-state-message'));},'suggestions loaded');
   return{c,p,errors,writes,searches,qrRequests};
  }
  async function close(c){await c.close();contexts.splice(contexts.indexOf(c),1);}
@@ -91,6 +91,43 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.equal(await p.locator('#fr-waiting-title').count(),0,'no-request state hides Waiting for you');assert.equal(await p.locator('#fr-requests .fr-request').count(),0,'no-request state has no request rows');assert.equal(await p.locator('#fr-sent-toggle').innerText(),'Sent requests','no-request state has no sent requests');assert.equal(await p.locator('#fr-suggest .pym-row').count(),5,'suggestions remain available when there are no requests');
    if(out)await capture(p,`find-friends-no-requests-${viewportWidth}-${theme}`);assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'no-request discovery remains read-only');await close(c);console.log(`Find friends no-requests ${viewportWidth}px ${theme}: suggestions without request sections PASS`);
   }
+  if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='pr2-states')for(const theme of ['light','dark']){
+   {
+    const {c,p}=await open('typical',theme);await p.locator('#fr-find input').fill('Fictional Sent 1');await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'Requested connection state');await until(p,()=>document.querySelector('#fr-status')?.textContent==='1 person found','connection result count settles');if(out)await capture(p,`find-friends-connection-${viewportWidth}-${theme}`);await close(c);
+   }
+   {
+    const {c,p}=await open('empty',theme);await p.route('**/api/people/search*',route=>route.fulfill({json:[]}));
+    await p.locator('#fr-find input').fill('Missing Fictional Person');await until(p,()=>document.querySelector('#fr-found')?.textContent.includes('No one found for'),'no-results copy');
+    assert.match(await p.locator('#fr-found').innerText(),/Check the spelling or invite them/);assert.equal(await p.locator('#fr-found [data-no-results-invite]').innerText(),'Invite a friend');const inviteGap=await p.locator('#fr-found [data-no-results-invite]').evaluate(button=>button.getBoundingClientRect().top-button.previousElementSibling.getBoundingClientRect().bottom);assert(inviteGap>=16,`no-results copy has 16px separation from Invite: ${inviteGap}px`);
+    if(out)await capture(p,`find-friends-no-results-${viewportWidth}-${theme}`);await close(c);
+   }
+   {
+    const {c,p}=await open('typical',theme);let fail=true;await p.route('**/api/people/search*',route=>{if(fail){fail=false;return route.fulfill({status:503,json:{message:'fixture failure'}});}return route.continue();});
+    await p.locator('#fr-find input').fill('Fictional Friend 07');await until(p,()=>document.querySelector('#fr-found')?.textContent.includes("Search isn't working right now."),'search error copy');
+    assert.equal(await p.locator('#fr-found [data-retry]').innerText(),'Try again');if(out)await capture(p,`find-friends-search-error-${viewportWidth}-${theme}`);
+    await p.locator('#fr-found [data-retry]').click();await until(p,()=>document.querySelector('#fr-found')?.getAttribute('aria-busy')==='false'&&document.querySelector('#fr-found')?.textContent.includes('Fictional Friend 07'),'search retry succeeds');await close(c);
+   }
+   {
+    const {c,p}=await open('retry',theme),targetLogin=theme==='light'?'zz_test_fc_peer19':'zz_test_fc_peer20',targetName=theme==='light'?'Fictional Friend 20':'Fictional Friend 21';let fail=true;
+    await p.route('**/api/friends',route=>{if(fail&&route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin){fail=false;return route.fulfill({status:503,json:{message:'fixture failure'}});}return route.continue();});
+    await p.locator('#fr-find input').fill(targetName);await until(p,()=>document.querySelector('#fr-found [data-add]'),'Add error target');await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found .friend-row-error')?.textContent==="Couldn't send. Try again.",'Add error copy');assert.equal(await p.locator('#fr-found [data-add]').isDisabled(),false,'failed Add returns to an enabled action');
+    if(out)await capture(p,`find-friends-add-error-${viewportWidth}-${theme}`);await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'Add retry shows Requested');await close(c);
+   }
+   {
+    const {c,p}=await open('typical',theme);await c.setOffline(true);await p.waitForFunction(()=>navigator.onLine===false);await p.evaluate(()=>window.dispatchEvent(new Event('offline')));
+    await until(p,()=>document.querySelector('#fr-suggest')?.textContent.includes('You’re offline'),'offline suggestion placeholder');
+    assert.equal(await p.locator('#fr-requests [data-request-accept]').isDisabled(),true,'offline Accept is disabled');
+    if(out)await capture(p,`find-friends-offline-${viewportWidth}-${theme}`);await close(c);
+   }
+   console.log(`Find friends PR2 empty/error/offline ${viewportWidth}px ${theme}: copy, retry and disabled actions PASS`);
+  }
+  if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='pr2-actions'||process.env.KINETTA_FRIEND_CASE==='pr2-states'){
+   const {c,p}=await open('actions','light');
+   await p.locator('#fr-find input').fill('Fictional Action Friend');await until(p,()=>document.querySelector('#fr-found')?.textContent.includes('Fictional Action Friend'),'existing friend search');assert.equal((await p.locator('#fr-found .friend-status').innerText()).replace(/\s+/g,' ').trim(),'✓ Friends');
+   await p.locator('#fr-find input').fill('Fictional Sent 1');await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'sent request search');await p.locator('#fr-found [data-request-menu]').click();assert.equal(await p.locator('#fr-found [data-request-cancel]').innerText(),'Cancel');assert.equal(await p.locator('#fr-found [data-request-keep]').innerText(),'Keep');await p.locator('#fr-found [data-request-keep]').click();assert.equal(await p.locator('#fr-found [data-request-menu]').isVisible(),true,'Keep restores Requested');await p.locator('#fr-found [data-request-menu]').click();await p.locator('#fr-found [data-request-cancel]').click();await until(p,()=>document.querySelector('#fr-found [data-add]'),'Cancel restores Add');
+   await p.locator('#fr-find input').fill('Casey Request 1');await until(p,()=>document.querySelector('#fr-found [data-friend-accept]'),'incoming request search');await p.locator('#fr-found [data-friend-accept]').click();await until(p,()=>document.querySelector('#fr-found .friend-status')?.textContent.includes('Friends'),'search Accept refreshes to Friends');
+   await close(c);console.log('Find friends PR2 action states: Friends, Requested/Keep and incoming Accept PASS');
+  }
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='list'){
    for(const state of ['empty','typical','heavy'])for(const theme of ['light','dark']){
     const {c,p,errors,writes}=await open(state,theme,{width:viewportWidth,height:844},'/me/friends');
@@ -144,7 +181,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('#fr-find input').fill(targetName);await until(p,name=>document.querySelector('#fr-found')?.getAttribute('aria-busy')==='false'&&document.querySelector('#fr-found')?.textContent.includes(name),'search Add target',targetName);assert.equal(await p.locator('#fr-status').innerText(),'1 person found','the live result count is the only heading');assert.equal(await p.locator('#fr-found h2').count(),0,'search results have no duplicate People heading');assert.equal(await p.locator('#fr-found > .card').count(),0,'search results have no card wrapper');assert.equal(await p.locator('#fr-found > .person').count(),1,'search result is a plain row');const rowStyle=await p.locator('#fr-found > .person').evaluate(el=>{const s=getComputedStyle(el);return{background:s.backgroundColor,borders:[s.borderTopWidth,s.borderRightWidth,s.borderBottomWidth,s.borderLeftWidth],shadow:s.boxShadow};});assert.equal(rowStyle.background,'rgba(0, 0, 0, 0)','search result row has no filled box');assert.deepEqual(rowStyle.borders,['0px','0px','0px','0px'],'search result row has no border');assert.equal(rowStyle.shadow,'none','search result row has no box shadow');assert.equal(await p.locator('#fr-found [data-add] svg').count(),1,'search action uses the supported plus icon');const searchBox=await p.locator('#fr-found [data-add]').boundingBox();assert(searchBox.width>=44&&searchBox.height>=44,'search action keeps a 44px target');await p.locator('#fr-title').scrollIntoViewIfNeeded();await capture(p,`find-friends-search-${viewportWidth}-${theme}`);
     let resolveAdd,addWrites=[];const add=p.locator('#fr-found [data-add]').first();await p.route('**/api/friends',async r=>{if(r.request().method()==='POST'&&r.request().postDataJSON().login===targetLogin){addWrites.push(r.request().url());await new Promise(resolve=>resolveAdd=resolve);return r.continue();}return r.continue();});
     const click=add.click();await until(p,()=>document.querySelector('#fr-found [data-add]')?.classList.contains('is-pending'),'Add enters pending');assert.equal(typeof resolveAdd,'function','the pending Add request is held for the style check');const pendingStyle=await add.evaluate(el=>({background:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color,busy:el.getAttribute('aria-busy'),label:el.getAttribute('aria-label'),icon:!!el.querySelector('svg')}));assert.notEqual(pendingStyle.background,'rgba(0, 0, 0, 0)','pending Add fills with accent');assert.equal(pendingStyle.color,'rgb(255, 255, 255)','pending Add uses white text');assert.equal(pendingStyle.busy,'true');assert.match(pendingStyle.label,/Sending request to/);assert.equal(pendingStyle.icon,true,'pending Add keeps the plus inside its 44px circle');await capture(p,`find-friends-add-pending-${viewportWidth}-${theme}`);resolveAdd();await click;
-    await until(p,()=>document.querySelector('#fr-found .friend-status')?.textContent.includes('Requested'),'request becomes a quiet Requested tick');const status=await p.locator('#fr-found .friend-status').evaluate(el=>({color:getComputedStyle(el).color,tick:getComputedStyle(el.querySelector('span')).color}));assert.equal(status.color,status.tick,'Requested uses one muted grey tick and label');await capture(p,`find-friends-requested-${viewportWidth}-${theme}`);
+    await until(p,()=>document.querySelector('#fr-found [data-request-menu]')?.textContent==='Requested','request becomes the Requested action');const status=await p.locator('#fr-found [data-request-menu]').evaluate(el=>({text:el.textContent,color:getComputedStyle(el).color,body:getComputedStyle(document.body).color,background:getComputedStyle(el).backgroundColor,borderRadius:getComputedStyle(el).borderRadius}));assert.equal(status.text,'Requested');assert.notEqual(status.color,status.body,'Requested stays secondary to the person name');assert.equal(status.background,'rgba(0, 0, 0, 0)','Requested stays unfilled');assert.equal(status.borderRadius,'0px','Requested is not a pill');await capture(p,`find-friends-requested-${viewportWidth}-${theme}`);
     assert(addWrites.some(url=>new URL(url).pathname==='/api/friends'),'Add sends one explicit friend request');assert.deepEqual(errors,[]);await close(c);console.log(`Find friends actions ${theme}: search, pending accent plus and muted Requested tick PASS`);
    }
   }
