@@ -104,45 +104,78 @@ async function settle(page) {
   await page.locator('.thread-pending').first().waitFor({state: 'detached', timeout: 30000}).catch(() => {});
   await page.waitForTimeout(600);
 }
-async function loadedMaps(page, {advanceMapFade = false} = {}){
+async function waitForMaps(page, {advanceMapFade = false, requireMap = false} = {}){
+  let visibleMaps=0;
   for(const preview of await page.locator('.fmap:visible').all()){
     if(!await preview.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.left<innerWidth&&r.right>0&&r.width>0&&r.height>0;}))continue;
-    for(let n=0;n<150;n++){if(await preview.evaluate(el=>el.classList.contains('ready')))break;await page.waitForTimeout(100);}
-    if(!await preview.evaluate(el=>el.classList.contains('ready')))throw Error('Visible feed map did not initialize');
+    visibleMaps++;
+    const deadline=Date.now()+15000;
+    while(Date.now()<deadline&& !await preview.evaluate(el=>el.classList.contains('ready')))await page.waitForTimeout(100);
+    if(!await preview.evaluate(el=>el.classList.contains('ready')))throw Error('Visible feed map did not initialize within 15 seconds');
   }
   let fadeClockAdvanced=false;
   for(const map of await page.locator('.leaflet-container:visible').all()){
     if(!await map.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.left<innerWidth&&r.right>0&&r.width>0&&r.height>0;}))continue;
-    let stable=0;
-    for(let n=0;n<200&&stable<3;n++){
-      const ready=await map.evaluate(el=>{
-        const box=el.getBoundingClientRect(),tiles=[...el.querySelectorAll('.leaflet-tile')].filter(tile=>{const r=tile.getBoundingClientRect();return r.width>0&&r.height>0&&r.left<Math.min(box.right,innerWidth)&&r.right>Math.max(box.left,0)&&r.top<Math.min(box.bottom,innerHeight)&&r.bottom>Math.max(box.top,0);});
-        return tiles.length>0&&tiles.every(tile=>tile.classList.contains('leaflet-tile-loaded'));
-      });stable=ready?stable+1:0;if(stable<3)await page.waitForTimeout(100);
+    visibleMaps++;
+    const snapshot=()=>map.evaluate(el=>{
+      const box=el.getBoundingClientRect(),tiles=[...el.querySelectorAll('.leaflet-tile')].filter(tile=>{const r=tile.getBoundingClientRect();return r.width>0&&r.height>0&&r.left<Math.min(box.right,innerWidth)&&r.right>Math.max(box.left,0)&&r.top<Math.min(box.bottom,innerHeight)&&r.bottom>Math.max(box.top,0);});
+      return tiles.map(tile=>({url:tile.currentSrc||tile.src||'(tile URL unavailable)',loaded:tile.classList.contains('leaflet-tile-loaded'),opacity:Number(getComputedStyle(tile).opacity)}));
+    });
+    let stable=0,previous='',tiles=[];
+    const tileDeadline=Date.now()+15000;
+    while(Date.now()<tileDeadline&&stable<3){
+      tiles=await snapshot();const signature=JSON.stringify(tiles.map(tile=>[tile.url,tile.loaded]));
+      stable=tiles.length&&tiles.every(tile=>tile.loaded)&&signature===previous?stable+1:0;previous=signature;
+      if(stable<3)await page.waitForTimeout(100);
     }
-    if(stable<3)throw Error('All visible basemap tiles must load before capture');
+    const describeFailures=items=>items.filter(tile=>!tile.loaded||tile.opacity<0.999).map(tile=>`${tile.url} [${tile.loaded?'loaded':'not loaded'}, opacity ${tile.opacity}]`);
+    if(stable<3){
+      tiles=await snapshot();
+      const failed=describeFailures(tiles);throw Error(`Visible basemap tiles did not become loaded and idle within 15 seconds; failed tiles: ${failed.length?failed.join('; '):'tile set kept changing or no visible tiles were found'}`);
+    }
     if(advanceMapFade){
       // These screenshot scenes freeze Date.now(); advance only Leaflet's 200 ms tile fade after loading.
       if(!fadeClockAdvanced){
         await page.clock.setFixedTime(new Date(await page.evaluate(()=>Date.now())+250));
         fadeClockAdvanced=true;
       }
-      let opaque=false;
-      for(let n=0;n<10&&!opaque;n++){
-        opaque=await map.evaluate(el=>{
-          const box=el.getBoundingClientRect();
-          const tiles=[...el.querySelectorAll('.leaflet-tile.leaflet-tile-loaded')].filter(tile=>{
-            const r=tile.getBoundingClientRect();
-            return r.width>0&&r.height>0&&r.left<Math.min(box.right,innerWidth)&&r.right>Math.max(box.left,0)&&r.top<Math.min(box.bottom,innerHeight)&&r.bottom>Math.max(box.top,0);
-          });
-          return tiles.length>0&&tiles.every(tile=>getComputedStyle(tile).opacity==='1');
-        });
-        if(!opaque)await page.waitForTimeout(50);
+      let opaqueStable=0,fadeSignature='',fadeTiles=[];const fadeDeadline=Date.now()+5000;
+      while(Date.now()<fadeDeadline&&opaqueStable<3){
+        fadeTiles=await snapshot();const failed=describeFailures(fadeTiles),signature=JSON.stringify(fadeTiles.map(tile=>[tile.url,tile.opacity]));
+        const opaque=fadeTiles.length>0&&failed.length===0&&fadeTiles.every(tile=>tile.opacity>=0.999);
+        opaqueStable=opaque&&signature===fadeSignature?opaqueStable+1:0;fadeSignature=signature;
+        if(opaqueStable<3)await page.waitForTimeout(100);
       }
-      if(!opaque)throw Error('Visible basemap tiles must finish fading in before capture');
+      if(opaqueStable<3){
+        fadeTiles=await snapshot();const failed=describeFailures(fadeTiles);
+        throw Error(`Visible basemap tiles did not finish fading in within 5 seconds; failed tiles: ${failed.length?failed.join('; '):'tile opacity kept changing or stayed below 0.999'}`);
+      }
     }
   }
-  if(await page.locator('.map-unavailable:visible').count())throw Error('Capture requires the loaded approved basemap');
+  if(requireMap&&!visibleMaps)throw Error('Visible basemap map did not appear in the capture viewport');
+  if(await page.locator('.map-unavailable:visible').count())throw Error('Visible basemap unavailable; the capture requires a loaded approved basemap');
+}
+async function loadedMaps(page, options={}){
+  let firstError;
+  for(let attempt=0;attempt<2;attempt++){
+    try{return await waitForMaps(page,options);}
+    catch(error){
+      if(attempt||!/Visible (?:feed map|basemap (?:tiles|map|unavailable))/.test(error.message)){
+        if(firstError)throw Error(`${error.message}; one page-load retry was already attempted after: ${firstError.message}`);
+        throw error;
+      }
+      firstError=error;
+      const y=await page.evaluate(()=>window.scrollY).catch(()=>0);
+      console.warn(`${error.message}; retrying this page load once.`);
+      await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+      await page.waitForSelector('nav.tabs',{state:'attached',timeout:20000});
+      await page.waitForSelector('#page',{state:'attached',timeout:20000});
+      try{await page.locator('.fmap:visible, .leaflet-container:visible').first().waitFor({state:'visible',timeout:20000});}
+      catch{throw Error(`Retried screenshot page did not render a basemap within 20 seconds; first attempt: ${firstError.message}`);}
+      await page.evaluate(async scrollY=>{await document.fonts.ready;window.scrollTo(0,scrollY);},y);
+      await page.waitForTimeout(700);
+    }
+  }
 }
 async function say(page, text) {
   const before = await page.locator('#thread-messages article').count();
@@ -569,7 +602,7 @@ async function closeCaptureContext(context) {
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);
-      await loadedMaps(page, {advanceMapFade: MAP_SHOTS.has(name)});
+      await loadedMaps(page, {advanceMapFade: MAP_SHOTS.has(name), requireMap: MAP_SHOTS.has(name)});
       if(opt.tab){
         const pane=page.locator(`#activity-pane-${opt.tab}:visible`);
         await pane.waitFor();
