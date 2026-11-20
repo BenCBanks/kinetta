@@ -73,6 +73,10 @@ jordan('PUT', '/api/sharing', {'default': 'friends'})
 # The public app bundle and live accounts never read these fixture files.
 portrait_dir = Path(__file__).with_name('portraits')
 for login in ('casey', 'alex', 'jordan', 'sam', 'taylor', 'morgan'):
+    # Regular test suites use Alex to measure the Me navigation tab. Keep that test account
+    # photo-free there; the dedicated screenshot pipeline opts in to fixture photos explicitly.
+    if login == 'alex' and not SCREENSHOT_FIXTURE:
+        continue
     fixture_person = alex if login == 'alex' else person(login, PW)
     portrait = (portrait_dir / f'{login}.webp').read_bytes()
     payload = 'data:image/webp;base64,' + base64.b64encode(portrait).decode('ascii')
