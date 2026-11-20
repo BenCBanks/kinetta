@@ -1793,12 +1793,12 @@ function profilePhotoSheet(done) {
     file.onchange = async () => {
       const f = file.files && file.files[0]; if (!f) return;
       pick.disabled = true; pick.textContent = 'Saving…';
-      try { const image = await shrinkPhoto(f, 1024); me.photo = (await api('/api/me/photo', json('PUT', {image}))).photo; close(); toast('Photo saved'); done(); }
+      try { const image = await shrinkPhoto(f, 1024); me.photo = (await api('/api/me/photo', json('PUT', {image}))).photo; syncMeTabPhoto(); close(); toast('Photo saved'); done(); }
       catch (x) { toast(x.message || "That photo couldn't be opened"); pick.disabled = false; pick.textContent = 'Choose a photo'; }
     };
     if (rm) rm.onclick = async () => {
       rm.disabled = true;
-      try { await api('/api/me/photo', {method: 'DELETE'}); me.photo = null; close(); done(); }
+      try { await api('/api/me/photo', {method: 'DELETE'}); me.photo = null; syncMeTabPhoto(); close(); done(); }
       catch (x) { toast(x.message); rm.disabled = false; }
     };
   });
