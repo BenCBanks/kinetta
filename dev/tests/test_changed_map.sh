@@ -60,6 +60,17 @@ if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
         [[ "$login_map" != *'-> core'* ]] || { echo "Login-only CSS move selected unrelated core coverage: $login_map" >&2; exit 1; }
       fi
     fi
+    me_tools_files="$(git diff --name-only --no-renames "$base_ref...HEAD" -- app/static | sort)"
+    if [[ "$me_tools_files" == $'app/static/profile.css\napp/static/style.css' ]]; then
+      me_tools_patch="$(git diff --unified=0 "$base_ref...HEAD" -- app/static/profile.css app/static/style.css)"
+      if grep -Fq '+.me-tools,.me-help-tools {' <<< "$me_tools_patch" && grep -Fq -- '-.me-tools,.me-help-tools {' <<< "$me_tools_patch"; then
+        me_tools_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/profile.css app/static/style.css)"
+        for path in app/static/profile.css app/static/style.css; do
+          [[ "$me_tools_map" == *"$path -> profile"* ]] || { echo "Me-tools-only CSS move uses focused profile coverage for $path: $me_tools_map" >&2; exit 1; }
+        done
+        [[ "$me_tools_map" != *'-> core'* ]] || { echo "Me-tools-only CSS move selected unrelated core coverage: $me_tools_map" >&2; exit 1; }
+      fi
+    fi
     detail_map="$(CHANGED_BASE="$base_ref" dev/tests/changed.sh --check-files app/static/activity-detail.css app/static/style.css)"
     if [[ "$detail_map" == *"app/static/activity-detail.css -> activity-detail"* ]]; then
       [[ "$detail_map" == *"app/static/style.css -> activity-detail"* ]] || { echo "Detail-only reaction CSS lost its focused Activity Detail mapping: $detail_map" >&2; exit 1; }
