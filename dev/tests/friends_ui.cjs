@@ -98,7 +98,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    {
     const {c,p}=await open('empty',theme);await p.route('**/api/people/search*',route=>route.fulfill({json:[]}));
     await p.locator('#fr-find input').fill('Missing Fictional Person');await until(p,()=>document.querySelector('#fr-found')?.textContent.includes('No one found for'),'no-results copy');
-    assert.match(await p.locator('#fr-found').innerText(),/Check the spelling or invite them/);assert.equal(await p.locator('#fr-found [data-no-results-invite]').innerText(),'Invite a friend');
+    assert.match(await p.locator('#fr-found').innerText(),/Check the spelling or invite them/);assert.equal(await p.locator('#fr-found [data-no-results-invite]').innerText(),'Invite a friend');const inviteGap=await p.locator('#fr-found [data-no-results-invite]').evaluate(button=>button.getBoundingClientRect().top-button.previousElementSibling.getBoundingClientRect().bottom);assert(inviteGap>=16,`no-results copy has 16px separation from Invite: ${inviteGap}px`);
     if(out)await capture(p,`find-friends-no-results-${viewportWidth}-${theme}`);await close(c);
    }
    {
