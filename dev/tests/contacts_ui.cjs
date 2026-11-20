@@ -33,7 +33,7 @@ async function runTheme(browser,theme){
     {id:'fictional-contact-1',name:'Jordan Lee',hashes:[{kind:'email',digest:'a'.repeat(64)}]},
     {id:'fictional-contact-2',name:'Maya Chen',hashes:[{kind:'phone',digest:'b'.repeat(64)}]},
     {id:'fictional-contact-3',name:'Taylor Brooks',hashes:[{kind:'email',digest:'c'.repeat(64)}]},
-   ];const batch={permission:window.__contactsScenario==='limited'?'limited':'authorized',contacts,hashes:contacts.flatMap(c=>c.hashes),truncated:window.__contactsScenario==='after-cap'};window.__contactsLastBatch=batch;return batch;},
+   ];const batch={permission:window.__contactsScenario==='limited'?'limited':window.__contactsScenario==='restricted'?'restricted':window.__contactsScenario==='permission-off'?'off':'authorized',contacts,hashes:contacts.flatMap(c=>c.hashes),truncated:window.__contactsScenario==='after-cap'};window.__contactsLastBatch=batch;return batch;},
    openSettings:async()=>({}),
   }}};
  });
@@ -99,6 +99,17 @@ async function runTheme(browser,theme){
  await capture('contacts-limited');
  await page.locator('#contacts-check-selected').click();await page.getByRole('heading',{name:'On Kinetta',exact:true}).waitFor();
  assert.equal(await page.locator('.contacts-matched-list .contacts-person').count(),2,'the selected contacts continue to matching after confirmation');
+
+ for(const [mode,title] of [['permission-off','Contacts access is off'],['restricted','Contacts are restricted']]){
+  const matchesBefore=matchBodies.length,saltsBefore=saltCalls;
+  await enter(mode);await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:title,exact:true}).waitFor();
+  assert.equal(await page.locator('.contacts-state p').innerText(),'Allow Contacts access in iPhone Settings to check your contacts.');
+  assert.equal(await page.locator('#contacts-open-settings').innerText(),'Open Settings');assert.equal(await page.locator('#contacts-not-now').innerText(),'Not now');
+  assert.equal(await page.evaluate(()=>window.__contactsPluginCalls),1,'permission is requested once after Continue');
+  assert.equal(saltCalls,saltsBefore+1,'one explicit permission attempt obtains one salt');assert.equal(matchBodies.length,matchesBefore,'denied/restricted permission never starts contact matching');
+  await capture(`contacts-${mode}`);await page.locator('#contacts-not-now').click();await page.waitForURL('**/me/friends?find=1');await page.locator('#contacts-entry').waitFor();
+  assert.equal(await page.locator('#contacts-entry').count(),1,'Not now returns to Find friends after permission is unavailable');
+ }
 
  await enter('results');
  await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'On Kinetta',exact:true}).waitFor();
@@ -172,7 +183,7 @@ async function runTheme(browser,theme){
  const afterCapInvite=page.getByRole('dialog',{name:'Invite Sam Aftercap'});await afterCapInvite.waitFor();
  assert.deepEqual(matchBodies.map(body=>Object.keys(body).sort()),[['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt']]);
  assert(matchBodies.every(body=>JSON.stringify(body).includes('digest')&&!JSON.stringify(body).includes('Jordan Lee')),'the server receives hashes only, never local contact details');
- assert.equal(saltCalls,7,'each explicit Contacts check gets a salt');
+ assert.equal(saltCalls,9,'each explicit Contacts check, including denied/restricted attempts, gets one salt');
  assert.deepEqual(errors,[]);
  await context.close();
 }
