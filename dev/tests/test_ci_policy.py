@@ -141,6 +141,18 @@ class CIPolicyTests(unittest.TestCase):
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping
         self.assertIn('RUN python -m app.asset_build app/static app/static',(ROOT/'Dockerfile').read_text())
 
+    def test_homepage_waits_for_its_uploaded_artifact_before_deploy(self):
+        pages=(ROOT/'.github/workflows/pages.yml').read_text()
+        upload=pages.index('actions/upload-pages-artifact@v3')
+        wait=pages.index('Wait for the current Pages artifact to be visible')
+        deploy=pages.index('actions/deploy-pages@v4')
+        self.assertLess(upload,wait)
+        self.assertLess(wait,deploy)
+        self.assertIn('actions: read',pages)
+        self.assertIn('actions/runs/${GITHUB_RUN_ID}/artifacts',pages)
+        self.assertIn('any(.artifacts[]; .name == "github-pages" and (.expired | not))',pages)
+        self.assertIn('for attempt in {1..10}',pages)
+
     def test_signing_requires_release_main_and_successful_required_jobs(self):
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
         job=ios.split('\n  testflight:\n',1)[1].split('\n    runs-on:',1)[0]
