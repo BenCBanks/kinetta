@@ -1506,6 +1506,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count {order:2;justify-content:flex-start;width:auto;min-width:44px;margin:0 0 0 8px;}
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {gap:2px;}
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:3;margin:0 0 0 auto;}
+.activity-home .activity-card .post-ft:not(:has(.reaction-count:not([hidden]))) .activity-share {margin-left:8px;}
 @media(max-width:380px){:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions){padding-inline:12px;}}
 /* Full rows share the card's content edges; narrow cards use four columns. */
 .reaction-picker {position:fixed;z-index:2100;max-width:calc(100vw - 16px);padding:8px;border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
