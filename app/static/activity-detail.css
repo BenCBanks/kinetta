@@ -551,3 +551,21 @@ body.ph-open { overflow: hidden; }
 .activity-edit-photos .ph-add svg { width:18px; height:18px; }
 .activity-edit-photos .ph-strip.empty .ph-add { display:flex; align-items:center; justify-content:flex-start; place-content:initial; width:100%; height:48px; padding:0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); font:400 16px/1.3 var(--font); text-align:left; }
 .activity-edit-photos .ph-strip.empty .ph-add svg { display:none; }
+
+/* Shared Activity feed/social styles moved unchanged from style.css. */
+.social .cheer-who { width: 100%; border: 0; background: none; padding: 6px 0; color: var(--tx); text-align: left; }
+.social .cheer-who .grow { flex: 1; min-width: 0; }
+.comments .comment { display: flex; gap: 10px; }
+.comments .comment > .av, .comments .comment > a .av { width: 32px; height: 32px; font-size: 12px; margin-top: 2px; }
+.comment .c-body { flex: 1; min-width: 0; }
+.post-photos { display: grid; gap: 6px; margin: 14px 0 4px; }
+.post .fmap:has(+ .post-photos) { margin-bottom: 0; } .post .fmap + .post-photos { margin-top: 6px; }
+.post-photos.n1 { grid-template-columns: 1fr; } .post-photos.n2 { grid-template-columns: 1fr 1fr; } .post-photos.n3 { grid-template-columns: 1fr 1fr 1fr; }
+.post-photos span { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--card2); border-radius: 16px; }
+.post-photos.n1 span { aspect-ratio: 16 / 9; }
+.post-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.post-photos b { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .45); color: #fff; font-size: 22px; }
+.comment .c-hd { flex-wrap: wrap; column-gap: 8px; row-gap: 0; }
+.comment .c-acts { display: flex; gap: 16px; } .comment .c-acts:empty { display: none; }
+.comment .c-acts .linkbtn { min-height: 32px; padding: 0; font-size: 13px; }
+.comment .c-hd b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } .comment .c-hd small { white-space: nowrap; }
