@@ -81,19 +81,30 @@
 .fitness-running-heading h2 { margin:0; }
 .fitness-running-heading .rng { margin:0; }
 .fitness-running-heading .range-btn { font-size:max(15px,.9375rem); }
-.fitness-predictions .pred { gap:8px 12px; }
-.fitness-predictions .pred > .prediction-cell { display:grid; align-content:start; gap:2px; min-width:0; padding:8px 0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
-.fitness-predictions .pred b { font-size:max(20px,1.5rem); font-weight:600; }
-.fitness-predictions .pred small { font-size:max(13px,.8125rem); line-height:1.35; }
-.fitness-predictions .pbest { margin-top:4px; font-size:max(12px,.75rem); font-weight:500; color:var(--tx2); }
-.fitness-predictions p.prediction-note { margin:8px 0 4px; }
-.fitness-predictions .prediction-method summary { font-size:max(15px,.9375rem); }
+.progress-chart-card[data-progress-chart="run-score"] .stat-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.fitness-predictions { padding:16px; }
+.fitness-prediction-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; margin:0 0 8px; }
+.fitness-prediction-heading h2 { min-width:0; margin:0; font-size:max(17px,var(--text-app-card-title)); }
+.fitness-prediction-actions { display:flex; align-items:center; gap:8px; flex:none; }
+.fitness-run-score { display:flex; align-items:baseline; gap:5px; white-space:nowrap; }
+.fitness-run-score small { color:var(--tx3); font-size:12px; font-weight:500; }
+.fitness-run-score b { color:var(--tx); font:600 17px/1.2 var(--numf); }
+.fitness-prediction-info { width:44px; height:44px; padding:0; color:var(--tx2); }
+.fitness-prediction-info svg { width:18px; height:18px; }
+.prediction-table-head,.prediction-table-row { display:grid; grid-template-columns:minmax(52px,.78fr) minmax(58px,1fr) minmax(64px,1fr) minmax(48px,.8fr); gap:6px; align-items:center; }
+.prediction-table-head { min-height:28px; color:var(--tx3); font-size:12px; font-weight:500; line-height:1.2; }
+.prediction-table-row { min-height:48px; border-top:1px solid var(--line); color:var(--tx); font-size:14px; line-height:1.2; text-decoration:none; }
+.prediction-table-row[role="row"] { min-width:0; }
+.prediction-table-row b { min-width:0; color:var(--tx); font-size:15px; font-weight:600; }
+.prediction-table-row > * { min-width:0; white-space:nowrap; }
+.prediction-table-row:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.prediction-table-row .prediction-distance { color:var(--tx2); font-weight:500; }
 .prediction-sources { margin-top:12px; }
 .prediction-sources > p { margin:0 0 4px; }
 .prediction-sources ul { list-style:none; margin:0; padding:0; }
 .prediction-source { display:grid; grid-template-columns:minmax(80px,auto) 1fr; gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:max(13px,.8125rem); line-height:1.4; overflow-wrap:anywhere; }
 .prediction-source span:first-child { color:var(--tx2); font-weight:500; }
-@media(max-width:360px){.fitness-predictions .pred{grid-template-columns:1fr}}
+@media(max-width:360px){.prediction-table-head,.prediction-table-row{grid-template-columns:minmax(62px,1.05fr) minmax(58px,1fr) minmax(56px,.95fr) minmax(44px,.75fr);gap:4px}.fitness-run-score{gap:4px}.fitness-run-score small{font-size:11px}}
 /* Calendar (2026-10-11): workouts + food, day by day */
 .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .cal-nav h2 { font-size: 19px; font-weight: 700; letter-spacing: -.02em; } .cal-nav .icon-btn { background: var(--card2); box-shadow: none; }
