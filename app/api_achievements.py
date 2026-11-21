@@ -168,7 +168,7 @@ def _history_source(c, user_id, code, thresholds, now, zone):
         events = milestone_engine._personal_best_events(c, user_id, by_id)
         total, found = _crossings(thresholds, events, lambda _row: 1)
     elif tracks.fastest_effort_spec(code):
-        total, found, _best_seconds, _season_best_seconds = milestone_engine._fastest_effort_facts(c, user_id, by_id, code)
+        total, found, _best_seconds, _best_dates, _season_best_seconds = milestone_engine._fastest_effort_facts(c, user_id, by_id, code)
     else:
         sport_by_code = {
             'sport:run': lambda row: row['sport'] == 'run',
@@ -516,6 +516,7 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
         if tracks.fastest_effort_spec(code):
             current['earned_ranks'] = earned_ranks
             current['best_seconds'] = details.get('best_seconds') or {}
+            current['best_dates'] = details.get('best_dates') or {}
             current['season_year'] = season_year
             current['season_best_seconds'] = (details.get('season_best_seconds') or {}) if details.get('season_year')==season_year else {}
         if next_rule:

@@ -180,6 +180,9 @@ class Milestones(unittest.TestCase):
   fastest=next(row for row in response.json()['tracks'] if row['code']=='sport:run:fastest:5k')
   self.assertEqual(fastest['earned_ranks'],[1,2,3,4],'an exact 25:41 5K backfills each slower nested band')
   self.assertEqual(fastest['best_seconds'],{str(rank):1_541.0 for rank in range(1,10)},'a slower existing effort does not replace the lifetime best')
+  with db.connect() as c:best_start=c.execute('SELECT start_time FROM activities WHERE user_id=%s AND id=%s',(self.ids[0],activity_ids[0])).fetchone()['start_time']
+  best_day=best_start.astimezone(M.ZoneInfo('America/New_York')).date().isoformat()
+  self.assertEqual(fastest['best_dates'],{str(rank):best_day for rank in range(1,10)},'each Fastest 5K tier reports the account-local date of the current best')
 
  def test_five_run_distance_tracks_backfill_and_keep_lifetime_bests(self):
   cases=(('1mi',1609.344,435),('5k',5000,1500),('10k',10000,3000),
@@ -201,6 +204,7 @@ class Milestones(unittest.TestCase):
    item=tracks[f'sport:run:fastest:{slug}']
    self.assertEqual(item['earned_ranks'],[1,2,3,4,5])
    self.assertEqual(item['best_seconds'],{str(rank):float(seconds) for rank in range(1,10)})
+   self.assertEqual(set(item['best_dates']),{str(rank) for rank in range(1,10)},slug+' includes a date for the current best effort')
    self.assertEqual(item['season_year'],self.now.astimezone(M.ZoneInfo('America/New_York')).year)
    self.assertEqual(item['season_best_seconds'],{str(rank):float(seconds) for rank in range(1,10)})
   with db.connect() as c:c.execute('DELETE FROM activities WHERE user_id=%s AND id=%s',(self.ids[0],activities['1mi']))
@@ -208,6 +212,8 @@ class Milestones(unittest.TestCase):
   retained={row['code']:row for row in self.clients[0].get('/api/achievements').json()['tracks']}
   self.assertEqual(retained['sport:run:fastest:1mi']['earned_ranks'],[1,2,3,4,5],
                    'a stored lifetime best remains earned after its source activity is removed')
+  self.assertTrue(retained['sport:run:fastest:1mi']['best_dates'],
+                  'the current-best date remains with its stored lifetime best after source removal')
 
  def test_legacy_mixed_run_bests_migrate_after_source_activity_is_gone(self):
   self.activity(days=30,distance=10000)
@@ -548,7 +554,7 @@ class Milestones(unittest.TestCase):
   self.assertNotIn('best_seconds',workouts,'a shared fastest track keeps best times out of the profile payload')
   by_code={track['code']:track for track in shared['tracks']}
   shared_fastest=by_code['sport:run:fastest:10k']
-  for key in ('best_seconds','season_best_seconds','season_year'):
+  for key in ('best_seconds','best_dates','season_best_seconds','season_year'):
    self.assertNotIn(key,shared_fastest,'a shared fastest track does not expose private best-time details')
   for code,value in (('sport:run',10),('sport:walk-hike',10),('sport:swim',5)):
    track=by_code[code]
