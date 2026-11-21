@@ -1,0 +1,75 @@
+{
+  "topInsetPx": 59,
+  "captures": [
+    {
+      "scene": "light-home-feed",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "light-activity-detail",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "light-feed",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "light-profile",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "light-activity",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "light-activity-splits",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "light-route",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-home-feed",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-activity-detail",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-feed",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-profile",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-activity",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-activity-splits",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-route",
+      "topInsetPx": 59,
+      "controlsClear": true
+    }
+  ]
+}

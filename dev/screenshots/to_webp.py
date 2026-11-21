@@ -1,6 +1,7 @@
 # Whole screenshots at1x and2x; never crop UI or upscale browser captures for the store.
 # Usage: to_webp.py <png dir> <site/assets/shots>
 from pathlib import Path
+import shutil
 import sys
 from PIL import Image
 from manifest import write_manifest
@@ -13,7 +14,10 @@ CROP_HEIGHTS = {
 
 def convert(source, output):
     output = Path(output); output.mkdir(parents=True, exist_ok=True)
-    files = sorted(Path(source).glob('*.png'))
+    source = Path(source)
+    audit = source / 'safe-area-audit.json'
+    if not audit.is_file(): raise ValueError(f'{audit}: safe-area capture audit is required')
+    files = sorted(source.glob('*.png'))
     if not files: raise ValueError('No captured PNG screenshots')
     for path in files:
         with Image.open(path) as captured:
@@ -27,6 +31,7 @@ def convert(source, output):
         image.save(output / (path.stem + '.webp'), 'WEBP', quality=82, method=6)
         image.resize((image.width // 2, image.height // 2), Image.Resampling.LANCZOS).save(output / (path.stem + '-1x.webp'), 'WEBP', quality=82, method=6)
         print(path.name)
+    shutil.copy2(audit, output / 'safe-area-audit.json')
     write_manifest(output)
 
 if __name__ == '__main__': convert(*sys.argv[1:])

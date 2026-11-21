@@ -10,6 +10,23 @@ const OWNER_LOGIN = 'nia';
 const PAD = 12;   // page background kept around a card so its edge and shadow stay visible
 const ONLY = process.env.KINETTA_TOUR_ONLY ? new Set(process.env.KINETTA_TOUR_ONLY.split(',').filter(Boolean)) : null;
 const RAW_OUT = process.env.KINETTA_TOUR_RAW_OUT;
+const SAFE_TOP = Number(process.env.SCREENSHOT_SAFE_TOP || 59), SAFE_BOTTOM = Number(process.env.SCREENSHOT_SAFE_BOTTOM || 34);
+const SAFE_AREA_AUDIT = [];
+
+async function emulateSafeArea(route) {
+  if (new URL(route.request().url()).origin !== B) return route.fallback();
+  const response = await route.fetch(), css = (await response.text())
+    .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, SAFE_TOP + 'px')
+    .replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, SAFE_BOTTOM + 'px');
+  await route.fulfill({response, body: css});
+}
+async function assertTopSafeControls(page, scene) {
+  const overlaps = await page.evaluate(top => [...document.querySelectorAll('a[href],button,[role="button"],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+    .filter(el => { const r=el.getBoundingClientRect(),s=getComputedStyle(el);return r.width>0&&r.height>0&&r.bottom>0&&r.top<top&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)>.05&&s.pointerEvents!=='none'; })
+    .map(el => ({tag:el.tagName,label:(el.getAttribute('aria-label')||el.textContent||'').trim().replace(/\s+/g,' ').slice(0,48),top:Math.round(el.getBoundingClientRect().top),bottom:Math.round(el.getBoundingClientRect().bottom)})), SAFE_TOP);
+  if(overlaps.length)throw Error(`${scene}: controls overlap the first ${SAFE_TOP}px status-bar safe area: ${JSON.stringify(overlaps)}`);
+  SAFE_AREA_AUDIT.push({scene,topInsetPx:SAFE_TOP,controlsClear:true});
+}
 
 async function saveRawViewport(page, filename) {
   if (!RAW_OUT) return;
@@ -62,6 +79,7 @@ async function crop(page, first, last) {
 
 async function signIn(page, login) {
   await page.evaluate(() => fetch('/api/logout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}).catch(() => {}));
+  await page.addInitScript(() => localStorage.setItem('kinetta.firstRunWelcomeSeen', 'true'));
   await page.goto(B + '/');
   await page.locator('input[name=login]').waitFor({state: 'visible'});
   await page.fill('input[name=login]', login);
@@ -106,6 +124,7 @@ async function saveChallengePhone(page, name, scheme) {
   // detail card makes the website image wider and shorter than the iPhone frame.
   await page.setViewportSize({width: 393, height: 852});
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await assertTopSafeControls(page, `${scheme}-${name}`);
   const png = await page.screenshot({animations: 'disabled'});
   if (RAW_OUT) {
     fs.mkdirSync(RAW_OUT, {recursive: true});
@@ -129,6 +148,7 @@ async function saveChallengePhone(page, name, scheme) {
       // map heroes the same 12 px page background as cards and sheets.
       const context = await browser.newContext({viewport: {width: 417, height: 852}, deviceScaleFactor: 2,
         colorScheme: scheme, reducedMotion: 'reduce', timezoneId: 'America/New_York'});
+      await context.route('**/*.css*', emulateSafeArea);
       const page = await context.newPage();
       await signIn(page, OWNER_LOGIN);
       const run = await page.evaluate(async () => (await (await fetch('/api/activities?limit=20')).json()).find((a) => a.sport === 'run' && a.visibility === 'friends')?.id);
@@ -223,5 +243,6 @@ async function saveChallengePhone(page, name, scheme) {
       }
       await context.close();
     }
+    fs.writeFileSync(path.join(OUT,'safe-area-audit.json'),JSON.stringify({topInsetPx:SAFE_TOP,captures:SAFE_AREA_AUDIT},null,2)+'\n');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });
