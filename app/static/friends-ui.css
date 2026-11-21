@@ -137,7 +137,7 @@
 .friend-footer-row span { flex:1;min-width:0; }
 .friend-footer-row svg { width:16px;height:16px;flex:none;color:var(--tx2); }
 .friends-page [hidden] { display:none!important; }
-.friends-page #fr-sections { display:grid;gap:18px; }
+.friends-page #fr-sections { display:grid;gap:10px; }
 .friends-page #fr-sections[hidden] { display:none!important; }
 .friends-page .friend-discovery { margin:12px 0 26px; }
 .friends-page #fr-list-error:empty { display:none; }
@@ -165,9 +165,11 @@
 .friends-page .friend-more-row:active { transform:none;opacity:.7;background:transparent;box-shadow:none; }
 .friends-page #fr-sent { padding:0 0 8px; }
 .friends-page .friend-sent-empty { margin:8px 12px;color:var(--tx2);font-size:14px; }
-/* When there are no request rows, keep the discovery actions clear of the floating tabs. */
+/* Let short states fit; in longer states expose a clear scroll cue above the floating tabs. */
 .friends-page:not(:has(.friend-request-section)) .friend-discovery { margin-bottom:8px; }
-.friends-page:not(:has(.friend-request-section)) #fr-sections { row-gap:10px; }
+.friends-page #fr-suggest { margin-bottom:8px; }
+.friends-page:has(.friend-request-section) .friend-more-ways h2::after { content:'Scroll for more ↓';margin-left:auto;color:var(--tx2);font-size:12px;font-weight:500;white-space:nowrap; }
+body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none; }
 .invite-qr-code { display:grid;justify-items:center;padding:16px;background:#fff;border-radius:12px; }
 .invite-qr-code svg { display:block;width:min(260px,70vw);height:auto;shape-rendering:crispEdges; }
 @media(max-width:360px) { .friends-page .fr-request:has(.friend-inline-actions) .person-link { flex-basis:100%; } .friends-page .friend-inline-actions { justify-content:flex-end;width:100%; } }
