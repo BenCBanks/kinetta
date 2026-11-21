@@ -48,6 +48,10 @@ try:
   assert req(a,'POST',root+'/messages',starter)['id']==stored['id'],'lost acknowledgement retries the same starter'
   req(a,'POST',root+'/messages',{**starter,'context':{'screen':'progress','starter_index':1}},409)
   assert req(a,'GET',root)['messages'][-1]['question']=='Am I improving?','reload reads the exact visible question'
+  with patch('app.coach_chat.answer',side_effect=ValueError('Kit could not verify that answer. Try again.')):
+   failed=req(a,'POST',root+'/messages/'+starter['client_id']+'/answer',{'generation':generation})
+   assert failed['state']=='failed' and failed['answer'] is None and failed['question']=='Am I improving?'
+   assert failed['error']=='Kit could not verify that answer. Try again.'
   answered=req(a,'POST',root+'/messages/'+starter['client_id']+'/answer',{'generation':generation});assert answered['question']=='Am I improving?'
   assert 'Optional guidance for the tapped starter' in seen[-1][1] and seen[-1][1].endswith('Question: Am I improving?'),'hidden starter guidance is separate and the actual visible question is last/primary'
   typed=message('How did my running change this month?');typed['context']={'screen':'progress'}
@@ -152,7 +156,7 @@ try:
  def bounded_turn(messages,definitions):
   calls.append(bool(definitions))
   if definitions:return [{'name':'profile','args':{},'id':'call-'+str(len(calls))}],'',{}
-  return [],json.dumps({'interpretation':'Use the saved target as context, not proof of what you ate.','facts':[{'evidence_id':'e1','path':['protein_target'],'value':120}]}),{}
+  return [],json.dumps({'verdict':'Your saved protein target is {e1:0}.','reason':'A target does not show what you ate.','facts':[{'evidence_id':'e1','path':['protein_target'],'value':120}]}),{}
  with patch('app.coach.provider',return_value='gemini'):
   verified=coach_chat.answer(uid,'Explain my saved protein target',kit=True,turn=bounded_turn)
  assert calls==[True,True,True,True,False] and verified['facts'][0]['value']==120
