@@ -29,9 +29,9 @@ async function pRecordsLoaded(body, q) {
   }
   await load(`/api/records?sport=${sport}`, (r) => {
     const yr = new Date().getFullYear();
-    $('#r-body', body).innerHTML = r.efforts.length ? `<div class="card"><table class="tbl"><thead><tr><th>Distance</th><th class="r">Best</th><th class="r">${yr}</th></tr></thead><tbody>
-      ${r.efforts.map((e) => `<tr><td><a href="/records/${sport}/${e.distance_m}">${esc(e.label)}</a><br><small class="muted">${e.count} efforts</small></td>
-        <td class="r"><a class="num" href="/activity/${e.top[0].activity_id}"><b>${dur(e.top[0].elapsed_s)}</b></a><br><small class="muted">${esc(fdate(e.top[0].start_time, {month: 'short', year: 'numeric'}))}</small></td>
+    $('#r-body', body).innerHTML = r.efforts.length ? `<div class="card progress-records"><table class="tbl"><thead><tr><th>Distance</th><th class="r">Best</th><th class="r">${yr}</th></tr></thead><tbody>
+      ${r.efforts.map((e) => `<tr><td><a class="record-link" href="/records/${sport}/${e.distance_m}"><b>${esc(e.label)}</b><small class="muted">${e.count} efforts</small></a></td>
+        <td class="r"><a class="record-link record-link-best num" href="/activity/${e.top[0].activity_id}"><b>${dur(e.top[0].elapsed_s)}</b><small class="muted">${esc(fdate(e.top[0].start_time, {month: 'short', year: 'numeric'}))}</small></a></td>
         <td class="r num">${e.year ? dur(e.year.elapsed_s) : '–'}</td></tr>`).join('')}</tbody></table>
       <p class="small muted">Tap a distance for its PR history. Best efforts are found inside every ${SPORT_NAMES[sport].toLowerCase()}, not just races.</p></div>
       ${r.power_curve.length ? `<div class="card"><h2>Best power</h2><table class="tbl">${r.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r num">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}`

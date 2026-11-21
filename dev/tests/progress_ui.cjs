@@ -215,6 +215,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
       assert.equal(await p.locator('[data-strength-record]').count(),0,'Run Records contains no lifting entries');
       assert.equal(await p.locator('.strength-records').count(),0,'Run Records has no separate Strength card');
       assert.equal(liftingRecordReads,0,'Run Records does not request lifting records');
+      const runRecordLinks=await p.locator('.progress-records .record-link').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height};}));
+      assert(runRecordLinks.length>0&&runRecordLinks.every(r=>r.width>=44&&r.height>=44),`Run Records distance and result links keep 44px targets: ${JSON.stringify(runRecordLinks)}`);
       for(const [state,rows] of [['empty',[]],['one',liftingFixtures.one],['many',liftingFixtures.many]]){
        liftingRows=rows;
        await p.locator('#p-sport').click();await p.locator(`[data-pk="lifting"]`).waitFor();
