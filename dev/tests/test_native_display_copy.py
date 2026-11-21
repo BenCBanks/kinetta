@@ -29,7 +29,7 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
     def test_original_and_update_keep_fixture_isolation(self):
         with tempfile.TemporaryDirectory() as temp:
             source=Path(temp)/'Original.app';public=source/'public';static=public/'static';static.mkdir(parents=True)
-            (public/'index.html').write_text('<body><script src="/static/keyboard.js?v=0123456789abcdef0123456789abcdef"></script></body>')
+            (public/'index.html').write_text('<body><script src="/static/boot.js?v=0123456789abcdef0123456789abcdef"></script>\n<script src="/static/app-shell.js?v=0123456789abcdef0123456789abcdef"></script></body>')
             (static/'native.js').write_text("const get = async (key) => (await prefs.get({key})).value;")
             (static/'app-shell.js').write_text('/* native.js */\n'+(static/'native.js').read_text())
             (static/'appearance.js').write_bytes((ROOT/'app/static/appearance.js').read_bytes())
@@ -44,6 +44,10 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
                 self.assertEqual(early.count('function install(cfg, env = globalThis)'),1)
                 self.assertLess(early.index('function install'),early.index('const cfg=globalThis.KinettaUIFixture,errors='))
                 self.assertIn('"run": "'+token+'"',early)
+                html=(destination/'public/index.html').read_text()
+                self.assertEqual(html.count('native-ui-early.js'),1,'one fixture bridge script is injected')
+                self.assertLess(html.index('native-ui-early.js'),html.index('app-shell.js'),'the bridge runs before app-shell.js')
+                self.assertLess(html.index('boot.js'),html.index('native-ui-early.js'),'boot remains ahead of the native fixture bridge')
                 self.assertEqual((destination/'public/static/appearance.js').read_bytes(),(static/'appearance.js').read_bytes(),'Production appearance bytes stay exact even in the instrumented copy')
                 late=(destination/'public/static/native-ui-late.js').read_text()
                 self.assertIn('display:cfg.displayDiagnostics(),navigation',late)

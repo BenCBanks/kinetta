@@ -1,5 +1,5 @@
 """Instrument a disposable unsigned Simulator bundle; never modify source or the original build."""
-import argparse,json,math,shutil,subprocess,uuid
+import argparse,json,math,re,shutil,subprocess,uuid
 from datetime import datetime
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-photos-save','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements','achievement-share-track'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');p.add_argument('--startup-timing',action='store_true');a=p.parse_args()
@@ -63,9 +63,17 @@ if a.stage.startswith('track-'):
 (public/'static/native-ui-early.js').write_text('globalThis.KinettaUIFixture='+json.dumps(config)+';\nif(globalThis.KinettaUIFixture.startupTiming){const t=globalThis.KinettaUIFixture.startupTiming;t.performanceTimeOriginEpochMs=performance.timeOrigin;t.webViewReadyPerfMs=performance.now();}\n'+(fixture/'display-diagnostics.js').read_text()+'\n'+(fixture/'early.js').read_text())
 (public/'static/native-ui-late.js').write_text((fixture/'late.js').read_text())
 if not a.update:
- s=index.read_text().replace('<script src="/static/keyboard.js','<script src="/static/native-ui-early.js"></script>\n<script src="/static/keyboard.js',1).replace('</body>','<script src="/static/native-ui-late.js"></script>\n</body>')
- assert s!=index.read_text();index.write_text(s)
+ html=index.read_text()
+ shell_tag=re.compile(r'(<script src="/static/app-shell\.js(?:\?[^\"]*)?"></script>)')
+ matches=list(shell_tag.finditer(html))
+ assert len(matches)==1,'Expected one eager app-shell script for native fixture injection'
+ match=matches[0]
+ s=html[:match.start()]+'<script src="/static/native-ui-early.js"></script>\n'+html[match.start():]
+ assert s!=html
+ assert s.index('/static/native-ui-early.js')<s.index('/static/app-shell.js'),'Native fixture bridge must load before the app shell'
+ assert s.count('</body>')==1,'Expected one document body close for native late fixture injection'
+ s=s.replace('</body>','<script src="/static/native-ui-late.js"></script>\n</body>',1)
+ index.write_text(s)
  p=public/'static/app-shell.js';s=p.read_text();needle='const get = async (key) => (await prefs.get({key})).value;';assert s.count(needle)==1
  p.write_text(s.replace(needle,"const get = async (key) => key==='server'?'https://example.test':key==='token'?'fictional-native-ui-only':(await prefs.get({key})).value;",1))
-import re
 index.write_text(re.sub(r'(/static/native-ui-early.js)(?:\?run=[a-f0-9-]+)?',lambda m:m[1]+'?run='+a.run,index.read_text()))
