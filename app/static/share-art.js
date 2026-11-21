@@ -1,7 +1,7 @@
 // Period pictures contain only selected aggregates. Single-workout milestone pictures may add an approved, cropped route.
 'use strict';
 const ShareArt=(()=>{
-  const palette=()=>({bg:col('--share-surface'),text:col('--share-text'),soft:col('--share-text-secondary'),muted:col('--share-text-muted'),line:col('--share-divider'),blue:col('--share-action'),tint:col('--share-soft')});
+  const palette=()=>({bg:col('--share-surface'),text:col('--share-text'),soft:col('--share-text-secondary'),muted:col('--share-text-muted'),line:col('--share-divider'),blue:col('--share-action'),brand:col('--share-brand'),tint:col('--share-soft')});
   const fitTrackBadgeDiameter=cellWidth=>Math.max(48,Math.floor(Number(cellWidth)-8));
   function badgeExportRectsClear(rects,minGap=12){
     for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){
@@ -216,27 +216,41 @@ const ShareArt=(()=>{
   async function routeSilhouette({routePoints=[],pace='',totalTime='',ink='dark'}={}){
     const pictureOwner=readOwner();if(routePoints.length<2)throw Error('There isn’t enough route left to share.');
     await document.fonts.ready;const W=1080,H=810,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d');
-    const color=ink==='light'?'#FFFFFF':'#151719',mean=routePoints.reduce((sum,p)=>sum+Number(p[0]),0)/routePoints.length,cos=Math.max(.05,Math.cos(mean*Math.PI/180));
+    const color=palette().brand,mean=routePoints.reduce((sum,p)=>sum+Number(p[0]),0)/routePoints.length,cos=Math.max(.05,Math.cos(mean*Math.PI/180));
     const points=routePoints.map(([lat,lon])=>[Number(lon)*cos,-Number(lat)]);if(points.some(p=>!p.every(Number.isFinite)))throw Error('This route could not be drawn.');
     const bounds=points.reduce((b,p)=>({minX:Math.min(b.minX,p[0]),maxX:Math.max(b.maxX,p[0]),minY:Math.min(b.minY,p[1]),maxY:Math.max(b.maxY,p[1])}),{minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity}),{minX,maxX,minY,maxY}=bounds,spanX=maxX-minX,spanY=maxY-minY;
     if(spanX<1e-9&&spanY<1e-9)throw Error('There isn’t enough route left to share.');
     const box={x:64,y:64,w:552,h:682},scale=Math.min(box.w/Math.max(spanX,1e-9),box.h/Math.max(spanY,1e-9)),cx=(minX+maxX)/2,cy=(minY+maxY)/2;
     const project=([x,y])=>[box.x+box.w/2+(x-cx)*scale,box.y+box.h/2+(y-cy)*scale];
-    g.save();g.beginPath();points.forEach((point,index)=>{const [x,y]=project(point);index?g.lineTo(x,y):g.moveTo(x,y);});g.strokeStyle=color;g.lineWidth=12;g.lineCap='round';g.lineJoin='round';g.stroke();g.restore();
+    const outlinedText=(value,x,y,size,weight,max)=>{g.font=`${weight} ${size}px ${family()}`;g.textAlign='left';g.textBaseline='alphabetic';g.lineJoin='round';g.lineWidth=9;g.strokeStyle='rgba(255,255,255,.98)';while(g.measureText(String(value)).width>max&&size>18){size-=2;g.font=`${weight} ${size}px ${family()}`;}g.strokeText(String(value),x,y);g.fillStyle=color;g.fillText(String(value),x,y);};
+    g.save();g.beginPath();points.forEach((point,index)=>{const [x,y]=project(point);index?g.lineTo(x,y):g.moveTo(x,y);});g.strokeStyle='rgba(255,255,255,.98)';g.lineWidth=30;g.lineCap='round';g.lineJoin='round';g.stroke();g.strokeStyle=color;g.lineWidth=14;g.stroke();g.restore();
     const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[])],metricX=656,metricWidth=360;
-    metrics.forEach(([label,value],index)=>{const y=270+index*190;text(g,value,metricX,y,72,{color,weight:700,max:metricWidth});text(g,label,metricX,y+56,48,{color,weight:500,max:metricWidth});});
-    drawMark(g,874,752,42,color);text(g,'Kinetta',921,765,42,{color,weight:700,max:170});
+    metrics.forEach(([label,value],index)=>{const y=270+index*190;outlinedText(value,metricX,y,72,700,metricWidth);outlinedText(label,metricX,y+56,48,500,metricWidth);});
+    drawMark(g,874,752,42,color);outlinedText('Kinetta',921,765,42,700,170);
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:['Route',pace?'Pace '+pace:'',totalTime?'Total time '+totalTime:'','Kinetta'].filter(Boolean).join('. '),width:W,height:H};
   }
   async function statsPicture({distance='',pace='',totalTime='',ink='dark'}={}){
     const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=700,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='light'?'#FFFFFF':'#151719';
     const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[]),...(distance?[['Distance',distance]]:[])];
     if(!metrics.length)throw Error('There are no shared stats to show.');
-    metrics.forEach(([label,value],i)=>{const y=150+i*170;text(g,value,72,y,108,{color,weight:700,max:520});text(g,label,640,y,48,{color,weight:500,max:360});});
-    drawMark(g,874,650,42,color);text(g,'Kinetta',921,663,42,{color,weight:700,max:170});
+    const outlinedText=(value,x,y,size,weight,max)=>{g.font=`${weight} ${size}px ${family()}`;g.textAlign='left';g.textBaseline='alphabetic';g.lineJoin='round';g.lineWidth=10;g.strokeStyle='rgba(255,255,255,.98)';while(g.measureText(String(value)).width>max&&size>18){size-=2;g.font=`${weight} ${size}px ${family()}`;}g.strokeText(String(value),x,y);g.fillStyle=palette().brand;g.fillText(String(value),x,y);};
+    metrics.forEach(([label,value],i)=>{const y=150+i*170;outlinedText(value,72,y,108,700,520);outlinedText(label,640,y,48,500,360);});
+    drawMark(g,874,650,42,palette().brand);outlinedText('Kinetta',921,663,42,700,170);
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:[...metrics.map(([label,value])=>`${label} ${value}`),'Kinetta'].join('. '),width:W,height:H};
   }
   const dataUrl=blob=>new Promise((yes,no)=>{const reader=new FileReader();reader.onload=()=>yes(reader.result);reader.onerror=()=>no(Error('Couldn’t read this picture'));reader.readAsDataURL(blob);});
+  async function storyPicture(picture){
+    const image=await imageFromBlob(picture),W=1080,H=1920,side=64,safe=250,scale=Math.min((W-side*2)/image.naturalWidth,(H-safe*2)/image.naturalHeight),width=image.naturalWidth*scale,height=image.naturalHeight*scale,canvas=document.createElement('canvas');
+    canvas.width=W;canvas.height=H;const context=canvas.getContext('2d');context.clearRect(0,0,W,H);context.drawImage(image,(W-width)/2,(H-height)/2,width,height);
+    return{blob:await blob(canvas),width:W,height:H,alt:'Instagram Story picture with artwork centered inside the story safe area.'};
+  }
+  async function deliverInstagram(picture,filename,live){
+    const file=new File([picture],filename,{type:'image/png'});if(!live())return false;
+    if(Native.activityShareSupported){const data=await dataUrl(picture);if(!live())return false;const result=await Native.shareActivityPicture(data,'instagram');return result?.handedOff===true||result?.cancelled===false;}
+    if(Native.on)throw Error('This version of the Kinetta app cannot share to Instagram Stories. Update the app to continue.');
+    if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file]});return live();}
+    throw Error('Instagram Stories sharing is available in the iPhone app.');
+  }
   const imageFromBlob=(picture,timeout=4000)=>new Promise((yes,no)=>{const url=URL.createObjectURL(picture),image=new Image(),timer=setTimeout(()=>{URL.revokeObjectURL(url);no(Object.assign(Error('The card picture renderer timed out.'),{name:'TimeoutError'}));},timeout);image.onload=()=>{clearTimeout(timer);URL.revokeObjectURL(url);yes(image);};image.onerror=()=>{clearTimeout(timer);URL.revokeObjectURL(url);no(Object.assign(Error('The card picture SVG could not load.'),{name:'ImageError'}));};image.src=url;});
   const imageFromDataUrl=(source,timeout=4000)=>new Promise((yes,no)=>{const image=new Image();let settled=false;const finish=(error)=>{if(settled)return;settled=true;clearTimeout(timer);image.onload=image.onerror=null;if(error)no(error);else yes(image);},timer=setTimeout(()=>{image.src='';finish(Object.assign(Error('The card picture renderer timed out.'),{name:'TimeoutError'}));},timeout);image.onload=()=>finish();image.onerror=()=>finish(Object.assign(Error('The card picture SVG could not load.'),{name:'ImageError'}));image.src=source;});
   const safeImage=(source,cache=new Map())=>{if(!source)return Promise.resolve(null);if(cache.has(source))return cache.get(source);const promise=(async()=>{let timer;const controller=new AbortController();try{if(source.startsWith('data:')){const image=await imageFromDataUrl(source);return image?{image,data:source}:null;}const url=new URL(source,location.href);if(url.origin!==location.origin)return null;const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(Error('Profile image load timed out.'));},2500);});const response=await Promise.race([fetch(url,{credentials:'same-origin',cache:'force-cache',signal:controller.signal}),timeout]);if(!response.ok)return null;const picture=await response.blob(),image=await imageFromBlob(picture,1500);return image?{image,data:await dataUrl(picture)}:null;}catch(_){return null;}finally{clearTimeout(timer);}})();cache.set(source,promise);return promise;};
@@ -327,7 +341,7 @@ const ShareArt=(()=>{
     try{const source='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);if(source.length>2_000_000)throw new Error('The card picture is too large to render safely.');window.__sharePictureDiagnostic.dataUrlBytes=source.length;const image=await imageFromDataUrl(source);if(pictureOwner!==readOwner()||!live())throw Error('The account changed.');const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const context=canvas.getContext('2d');context.fillStyle=background;context.fillRect(0,0,W,H);context.drawImage(image,0,0,W,H);const pictureBlob=await blob(canvas);window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,mode:'foreignObjectDataUrl',outputBytes:pictureBlob.size,exportedBlob:true};if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);return{blob:pictureBlob,alt:root.getAttribute('aria-label')||'Your Kinetta profile card.'};}
     catch(error){window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,mode:'canvasFallback',errorName:error.name,errorMessage:error.message};return canvasDomPicture(root,bounds,W,H,pad,scale,x,y,background,live,pictureOwner);}
   }
-  return{palette,family,text,lines,blob,deliver,photo,simplePicture,challengePicture,routeSilhouette,statsPicture,achievementPicture,domPicture,fitTrackBadgeDiameter,badgeExportRectsClear,badgeExportGeometryClear};
+  return{palette,family,text,lines,blob,deliver,storyPicture,deliverInstagram,photo,simplePicture,challengePicture,routeSilhouette,statsPicture,achievementPicture,domPicture,fitTrackBadgeDiameter,badgeExportRectsClear,badgeExportGeometryClear};
 })();
 const ShareSheet=(()=>{
   const inlineDataUrl=picture=>new Promise((yes,no)=>{const reader=new FileReader();reader.onload=()=>yes(reader.result);reader.onerror=()=>no(Error('Couldn’t read this picture'));reader.readAsDataURL(picture);});
@@ -335,13 +349,14 @@ const ShareSheet=(()=>{
   function open({items,title='Share',actions=[],mode='carousel'}){
     if(!items?.length)return;
     const owner=readOwner(),tabMode=mode==='tabs',initial=items.map(item=>({...Object.fromEntries((item.controls||[]).map(control=>[control.key,!!control.checked])),...(item.initial||{})})),shared=Object.assign({},...items.map(item=>item.initial||{}),initial[0]),values=tabMode?items.map(()=>shared):initial;
-    const pictureMarkup=tabMode?`<div class="share-picture-preview" data-share-preview-frame data-ink="dark"><img data-share-preview-image alt="" hidden><span class="share-picture-loading" aria-hidden="true"></span></div><div class="share-picture-tabs" role="tablist" aria-label="Activity picture style">${items.map((item,index)=>`<button type="button" role="tab" data-share-tab="${index}" aria-selected="false" tabindex="-1">${esc(item.label)}</button>`).join('')}</div>`:`<div class="share-picture-row" role="radiogroup" aria-label="Pictures to share">${items.map((item,index)=>`<button type="button" role="radio" class="share-picture-choice" data-share-choice="${index}" data-busy="true" aria-checked="false" tabindex="-1"><span class="share-picture-frame" data-share-frame="${index}"><img data-share-image="${index}" alt="" hidden><span class="share-picture-loading" aria-hidden="true"></span></span><span class="share-picture-label">${esc(item.label)}</span></button>`).join('')}</div>`;
+    const pictureMarkup=tabMode?`<div class="share-picture-preview" data-share-preview-frame data-ink="dark"><img data-share-preview-image alt="" hidden><span class="share-picture-loading" aria-hidden="true"></span></div><div class="share-picture-format-label">Format</div><div class="share-picture-tabs" role="tablist" aria-label="Activity picture format">${items.map((item,index)=>`<button type="button" role="tab" data-share-tab="${index}" aria-selected="false" tabindex="-1">${esc(item.label)}</button>`).join('')}</div>`:`<div class="share-picture-row" role="radiogroup" aria-label="Pictures to share">${items.map((item,index)=>`<button type="button" role="radio" class="share-picture-choice" data-share-choice="${index}" data-busy="true" aria-checked="false" tabindex="-1"><span class="share-picture-frame" data-share-frame="${index}"><img data-share-image="${index}" alt="" hidden><span class="share-picture-loading" aria-hidden="true"></span></span><span class="share-picture-label">${esc(item.label)}</span></button>`).join('')}</div>`;
+    const actionMarkup=tabMode?`<div class="share-picture-actions share-picture-actions-destinations"><button type="button" class="primary" data-share-send disabled>${svg('share')}<span data-share-send-label>Share</span></button><button type="button" class="primary" data-share-instagram disabled>${svg('camera')}<span>Instagram Story</span></button></div><button type="button" class="linkbtn wide" data-share-save disabled hidden>Save image</button>`:`<div class="share-picture-actions"><button type="button" class="primary wide" data-share-send disabled>${svg('share')}<span data-share-send-label>Share</span></button><button type="button" class="linkbtn wide" data-share-link hidden></button><button type="button" class="linkbtn wide" data-share-save disabled${Native.on&&!Native.activityShareSupported?' hidden':''}>Save image</button>${actions.map((action,index)=>`<button type="button" class="linkbtn wide" data-share-action="${index}">${esc(action.label)}</button>`).join('')}</div>`;
     sheet(title,`<div class="share-sheet${tabMode?' share-sheet-tabs':''}" data-unified-share>
       ${pictureMarkup}
       <div class="share-picture-controls" data-share-controls></div><p class="share-picture-note small muted" data-share-note></p><p class="vh" data-share-description></p><p class="share-picture-status small muted" role="status" aria-live="polite"></p>
-      <div class="share-picture-actions"><button type="button" class="primary wide" data-share-send disabled>${svg('share')}<span data-share-send-label>Share</span></button><button type="button" class="linkbtn wide" data-share-link hidden></button><button type="button" class="linkbtn wide" data-share-save disabled${Native.on&&!Native.activityShareSupported?' hidden':''}>Save image</button>${actions.map((action,index)=>`<button type="button" class="linkbtn wide" data-share-action="${index}">${esc(action.label)}</button>`).join('')}</div>
+      ${actionMarkup}
     </div>`,(body,close)=>{
-      const live=()=>body.isConnected&&owner===readOwner()&&items[selected]?.valid?.()!==false,row=$('.share-picture-row',body),controls=$('[data-share-controls]',body),note=$('[data-share-note]',body),status=$('.share-picture-status',body),send=$('[data-share-send]',body),sendLabel=$('[data-share-send-label]',body),linkButton=$('[data-share-link]',body),saveButton=$('[data-share-save]',body);
+      const live=()=>body.isConnected&&owner===readOwner()&&items[selected]?.valid?.()!==false,row=$('.share-picture-row',body),controls=$('[data-share-controls]',body),note=$('[data-share-note]',body),status=$('.share-picture-status',body),send=$('[data-share-send]',body),sendLabel=$('[data-share-send-label]',body),instagram=$('[data-share-instagram]',body),linkButton=$('[data-share-link]',body),saveButton=$('[data-share-save]',body);
       const cache=new Map(),versions=items.map(()=>0);let selected=-1,busy=false,scrollTimer=0,peekFrame=0;
       const updatePeekLabels=()=>{peekFrame=0;if(!row)return;const bounds=row.getBoundingClientRect(),left=bounds.left,right=bounds.right;$$('[data-share-choice]',body).forEach(choice=>{const rect=choice.getBoundingClientRect(),visible=rect.left>=left-.5&&rect.right<=right+.5;choice.dataset.peeking=String(!visible);});};
       const scheduleFrame=typeof requestAnimationFrame==='function'?requestAnimationFrame:callback=>setTimeout(callback,0);
@@ -349,9 +364,9 @@ const ShareSheet=(()=>{
       const centeredChoice=()=>{const center=row.getBoundingClientRect().left+row.clientWidth/2;let best=-1,distance=Infinity;[...row.children].forEach((choice,index)=>{const rect=choice.getBoundingClientRect(),d=Math.abs(rect.left+rect.width/2-center);if(d<distance){best=index;distance=d;}});return best;};
       const syncCenteredChoice=()=>{const best=centeredChoice();if(best>=0&&best!==selected)select(best);schedulePeekLabels();};
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
-      const buttons=()=>{const current=cache.get(selected),item=items[selected],disabled=busy||!current?.blob;send.disabled=disabled;sendLabel.textContent=item?.shareLabel||'Share';linkButton.hidden=!(current?.link&&item?.linkLabel);linkButton.textContent=item?.linkLabel||'';saveButton.disabled=disabled;$$('[data-share-action]',body).forEach(button=>button.disabled=busy);};
+      const buttons=()=>{const current=cache.get(selected),item=items[selected],disabled=busy||!current?.blob;send.disabled=disabled;sendLabel.textContent=item?.shareLabel||'Share';if(instagram)instagram.disabled=disabled;if(linkButton){linkButton.hidden=!(current?.link&&item?.linkLabel);linkButton.textContent=item?.linkLabel||'';}if(saveButton)saveButton.disabled=disabled;$$('[data-share-action]',body).forEach(button=>button.disabled=busy);};
       const renderControls=index=>{
-        const item=items[index],inkLabels={dark:'Dark ink',light:'Light ink'};controls.innerHTML=(item.controls||[]).map(control=>`<label class="check"><input type="checkbox" data-share-control="${esc(control.key)}"${values[index][control.key]?' checked':''}>${esc(control.label)}</label>`).join('')+(item.inkChoices?`<div class="share-picture-ink" role="group" aria-label="Ink colour">${item.inkChoices.map(ink=>`<button type="button" data-share-ink="${ink}" aria-pressed="${values[index].ink===ink}">${inkLabels[ink]||ink}</button>`).join('')}</div>`:'');
+        const item=items[index],inkLabels={dark:'Dark ink',light:'Light ink'};controls.innerHTML=(item.controls||[]).map(control=>tabMode&&control.key==='hideEnds'?`<label class="share-privacy-switch"><span>${esc(control.label)}</span><input type="checkbox" role="switch" data-share-control="${esc(control.key)}"${values[index][control.key]?' checked':''}><i aria-hidden="true"></i></label>`:`<label class="check"><input type="checkbox" data-share-control="${esc(control.key)}"${values[index][control.key]?' checked':''}>${esc(control.label)}</label>`).join('')+(!tabMode&&item.inkChoices?`<div class="share-picture-ink" role="group" aria-label="Ink colour">${item.inkChoices.map(ink=>`<button type="button" data-share-ink="${ink}" aria-pressed="${values[index].ink===ink}">${inkLabels[ink]||ink}</button>`).join('')}</div>`:'');
         $$('[data-share-control]',controls).forEach(input=>input.onchange=()=>{values[index][input.dataset.shareControl]=input.checked;load(index,true);});
         $$('[data-share-ink]',controls).forEach(button=>button.onclick=()=>{values[index].ink=button.dataset.shareInk;$$('[data-share-ink]',controls).forEach(option=>option.setAttribute('aria-pressed',String(option===button)));const frame=$('[data-share-preview-frame]',body);if(frame)frame.dataset.ink=values[index].ink;load(index,true);});
       };
@@ -375,21 +390,25 @@ const ShareSheet=(()=>{
         if(index<0||index>=items.length)return;selected=index;
         const selectors=tabMode?'[data-share-tab]':'[data-share-choice]',selectedAttr=tabMode?'aria-selected':'aria-checked';$$(selectors,body).forEach((choice,i)=>{choice.setAttribute(selectedAttr,String(i===index));choice.tabIndex=i===index?0:-1;});
         const preview=$('[data-share-preview-frame]',body);if(tabMode&&preview)preview.dataset.ink=values[index].ink||'dark';
-        if(scroll)row.children[index]?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});if(focus)row.children[index]?.focus({preventScroll:true});
+        const choice=tabMode?$(`[data-share-tab="${index}"]`,body):row?.children[index];if(scroll)choice?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});if(focus)choice?.focus({preventScroll:true});
         renderControls(index);note.textContent=items[index].note||'';$('[data-share-description]',body).textContent=items[index].description||'';const current=cache.get(index);status.textContent=current?'':'Preparing picture…';buttons();load(index);
       }
       const tabButtons=$$(tabMode?'[data-share-tab]':'[data-share-choice]',body);tabButtons.forEach(choice=>{const index=Number(tabMode?choice.dataset.shareTab:choice.dataset.shareChoice);choice.onclick=()=>select(index,!tabMode);choice.onkeydown=event=>{const direction=['ArrowRight','ArrowDown'].includes(event.key)?1:['ArrowLeft','ArrowUp'].includes(event.key)?-1:0;if(!direction)return;event.preventDefault();select((index+direction+items.length)%items.length,!tabMode,true);};});
       if(row){row.addEventListener('scroll',()=>{schedulePeekLabels();clearTimeout(scrollTimer);scrollTimer=setTimeout(syncCenteredChoice,120);},{passive:true});row.addEventListener('scrollend',syncCenteredChoice,{passive:true});if(typeof ResizeObserver==='function')new ResizeObserver(schedulePeekLabels).observe(row);}
-      send.onclick=async()=>{
+      const deliverSelected=async(destination)=>{
         const current=cache.get(selected),item=items[selected];if(!current||busy||!live())return;busy=true;buttons();
         try{if(item.beforeShare&&await item.beforeShare({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;
-          const shareLink=item.linkLabel?null:current.link;
-          const handed=item.onShare?await item.onShare({blob:current.blob,filename:current.filename,link:shareLink,values:{...values[selected]},live,close,setStatus:value=>{if(live())status.textContent=value;}}):await ShareArt.deliver(current.blob,current.filename,live,shareLink);
+          const shareLink=item.linkLabel?null:current.link;let handed=false;
+          if(destination==='instagram'){
+            const story=await ShareArt.storyPicture(current.blob);if(!live())return;
+            handed=await ShareArt.deliverInstagram(story.blob,`kinetta-story-${current.filename}`,live);
+          }else handed=item.onShare?await item.onShare({blob:current.blob,filename:current.filename,link:shareLink,values:{...values[selected]},live,close,setStatus:value=>{if(live())status.textContent=value;}}):await ShareArt.deliver(current.blob,current.filename,live,shareLink);
           if(handed&&live())await item.afterShare?.({blob:current.blob,values:{...values[selected]},close,live});
         }catch(error){if(live()&&error.name!=='AbortError')status.textContent=error.message||'Couldn’t share this picture.';}
         finally{busy=false;if(live())buttons();}
       };
-      linkButton.onclick=async()=>{
+      send.onclick=()=>deliverSelected('system');if(instagram)instagram.onclick=()=>deliverSelected('instagram');
+      if(linkButton)linkButton.onclick=async()=>{
         const current=cache.get(selected),item=items[selected];if(!current?.link||!item?.linkLabel||busy||!live())return;busy=true;buttons();
         try{
           if(typeof navigator.share==='function'){await navigator.share({url:current.link});if(live())status.textContent='Link shared.';}
@@ -398,7 +417,7 @@ const ShareSheet=(()=>{
         }catch(error){if(live()&&error.name!=='AbortError')status.textContent=error.message||'Couldn’t share this link.';}
         finally{busy=false;if(live())buttons();}
       };
-      saveButton.onclick=async()=>{
+      if(saveButton)saveButton.onclick=async()=>{
         const current=cache.get(selected),item=items[selected];if(!current||busy||!live())return;busy=true;buttons();
         try{if(item.beforeSave&&await item.beforeSave({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;if(!live())return;const saved=await save(current.blob,current.filename,live);if(!live())return;if(!saved){status.textContent='This device cannot save the picture here. Use Share instead.';return;}status.textContent=Native.activityShareSupported?'Picture saved to Photos.':'Picture saved.';await item.afterSave?.({blob:current.blob,values:{...values[selected]},close,live});}
         catch(error){if(live())status.textContent=error.message||'Couldn’t save this picture.';}
