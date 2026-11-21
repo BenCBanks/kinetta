@@ -42,7 +42,22 @@ async function emulateSafeArea(route) {
     .replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
   await route.fulfill({response, body: css});
 }
-async function assertTopSafeControls(page, scene) {
+// Feed photo/map overlays can cross the simulated status bar after scroll restoration. Hide only those overlay actions.
+async function hideIntersectingMediaControls(page) {
+  return page.evaluate(top => [...document.querySelectorAll('.media-photo-open, .media-controls [data-media-step]')]
+    .filter(el => {
+      const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < top &&
+        s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > .05 && s.pointerEvents !== 'none';
+    })
+    .map(el => {
+      const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 48);
+      el.dataset.captureSafeHidden = 'true';
+      el.style.setProperty('visibility', 'hidden', 'important');
+      return label;
+    }), TOP);
+}
+async function assertTopSafeControls(page, scene, hiddenMediaControls = []) {
   const overlaps = await page.evaluate(top => [...document.querySelectorAll('a[href],button,[role="button"],input,select,textarea')]
     .filter(el => {
       const r=el.getBoundingClientRect(),s=getComputedStyle(el);
@@ -50,7 +65,7 @@ async function assertTopSafeControls(page, scene) {
     })
     .map(el => ({tag:el.tagName,label:(el.getAttribute('aria-label')||el.textContent||'').trim().replace(/\s+/g,' ').slice(0,48),top:Math.round(el.getBoundingClientRect().top),bottom:Math.round(el.getBoundingClientRect().bottom)})), TOP);
   if(overlaps.length)throw Error(`${scene}: controls overlap the first ${TOP}px status-bar safe area: ${JSON.stringify(overlaps)}`);
-  SAFE_AREA_AUDIT.push({scene,topInsetPx:TOP,controlsClear:true});
+  SAFE_AREA_AUDIT.push({scene,topInsetPx:TOP,controlsClear:true,hiddenMediaControls});
 }
 async function enableKitForDemo(page) {
   // Kit requires the person's explicit opt-in; this is only the fictional screenshot account.
@@ -630,9 +645,13 @@ async function closeCaptureContext(context) {
         // otherwise float into the status-bar zone while the split rows remain visible.
         await page.locator('.activity-detail .leaflet-control-zoom').evaluateAll(nodes=>nodes.forEach(node=>node.style.display='none'));
       }
-      await assertTopSafeControls(page, `${scheme}-${name}`);
+      const hiddenMediaControls = await hideIntersectingMediaControls(page);
+      await assertTopSafeControls(page, `${scheme}-${name}`, hiddenMediaControls);
       await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+      await page.evaluate(() => document.querySelectorAll('[data-capture-safe-hidden="true"]').forEach(el => {
+        el.style.removeProperty('visibility'); delete el.dataset.captureSafeHidden;
+      }));
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
