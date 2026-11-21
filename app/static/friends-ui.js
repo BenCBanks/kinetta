@@ -31,26 +31,54 @@ const FriendsUI=(()=>{
  };
  async function mountList(el){
   el.classList.add('friends-page','friends-list-page');
-  el.innerHTML=`<div class="top large-title">${backBtn('Me')}<h1 id="fr-title">Friends</h1><button type="button" class="linkbtn" id="fr-list-add">Add</button></div><div class="large-title-heading" data-type="title" aria-hidden="true">Friends</div>
-    <div class="social-list-group" id="fr-social-links"><a class="list-row" id="fr-groups" href="/me/groups"><span class="ri">${svg('people')}</span><span class="grow"><b>Groups</b><small>Private groups and events</small></span>${svg('chev')}</a></div>
+  el.innerHTML=`<div class="top friends-list-top">${backBtn('Me')}<h1 id="fr-title">Friends</h1><button type="button" class="icon-btn" id="fr-list-add" aria-label="Add friends">${svg('plus')}</button></div>
+    <form class="searchbox people-search friend-list-search" id="fr-list-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Name or @username" aria-label="Search name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-list-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
     <div id="fr-list-error" role="status"></div><div id="fr-requests"></div>
-    <section class="friend-own" aria-label="Your friends"><h2 class="sec-head" id="fr-own-heading">Your friends</h2><div class="social-person-group" id="fr-own-list">${skel(1)}</div></section>`;
+    <div class="social-list-group friend-groups-row"><a class="list-row" id="fr-groups" href="/me/groups"><span class="grow"><b>Groups</b></span>${svg('chev')}</a></div>
+    <section class="friend-own" aria-label="Your friends"><h2 class="vh" id="fr-own-heading">Friends</h2><div class="friend-list-content"><div class="social-person-group" id="fr-own-list">${skel(2)}</div><nav id="fr-alpha-index" aria-label="Jump to letter" hidden></nav></div></section>
+    <section class="friend-people-to-add" id="fr-people-section" hidden aria-label="People to add"><h2 class="sec-head">People to add</h2><div id="fr-people-to-add"></div></section>`;
   wireBack(el,'/me');
-  bindLargeTitle(el);
-  $('#fr-list-add',el).onclick=inviteFriends;
   const owner=readOwner(),live=()=>owner===readOwner()&&el.isConnected;
-  const list=$('#fr-own-list',el),heading=$('#fr-own-heading',el),requests=$('#fr-requests',el),error=$('#fr-list-error',el);
-  let currentFriends=null,people=[],version=0;
+  const list=$('#fr-own-list',el),heading=$('#fr-own-heading',el),requests=$('#fr-requests',el),error=$('#fr-list-error',el),input=$('#fr-list-find input',el),clear=$('#fr-list-clear',el),peopleSection=$('#fr-people-section',el),peopleList=$('#fr-people-to-add',el),empty=$('#fr-search-empty',el),index=$('#fr-alpha-index',el);
+  let currentFriends=null,people=[],version=0,searchVersion=0,timer=null;
+  const lettersOf=rows=>[...new Set(rows.map(p=>(p.name||p.login||'#').trim()[0].toLocaleUpperCase()).filter(c=>/^[A-Z]$/.test(c)))];
+  const matching=(p,q)=>`${p.name||''} ${p.login||''}`.toLocaleLowerCase().includes(q);
+  function friendRows(rows,emptyLabel='No friends yet'){
+    if(!rows.length)return `<div class="friend-empty"><b>${esc(emptyLabel)}</b>${emptyLabel==='No friends yet'?'<p>Your friends will appear here.</p>':''}</div>`;
+    const groups=new Map();for(const p of rows){const letter=(p.name||p.login||'#').trim()[0].toLocaleUpperCase();if(!groups.has(letter))groups.set(letter,[]);groups.get(letter).push(p);}
+    const sorted=[...groups].sort(([a],[b])=>a.localeCompare(b));
+    index.hidden=rows.length<12||sorted.length<2;index.innerHTML=index.hidden?'':sorted.map(([letter])=>`<a href="#fr-letter-${letter}" aria-label="Jump to ${letter}">${letter}</a>`).join('');
+    return sorted.map(([letter,items])=>`<section class="friend-alpha-group" id="fr-letter-${esc(letter)}" aria-label="${esc(letter)}"><h3>${esc(letter)}</h3>${items.map(p=>`<div class="person person-row fr-friend">${profile(p,'fr-friend-link')}</div>`).join('')}</section>`).join('');
+  }
+  function addSheet(){
+    const outgoing=currentFriends?.outgoing||[];
+    sheet('Add friends',`<div class="friend-add-sheet"><button type="button" class="friend-add-sheet-row" data-friends-action="invite">Invite a friend${svg('chev')}</button><button type="button" class="friend-add-sheet-row" data-friends-action="contacts">Find from contacts${svg('chev')}</button><button type="button" class="friend-add-sheet-row" data-friends-action="sent">Sent requests${outgoing.length?` · ${outgoing.length}`:''}${svg('chev')}</button></div>`,(body,close)=>{
+      $('[data-friends-action="invite"]',body).onclick=()=>{close();inviteFriends();};
+      $('[data-friends-action="contacts"]',body).onclick=()=>{close();go('/me/friends/contacts');};
+      $('[data-friends-action="sent"]',body).onclick=()=>{close();sentSheet(outgoing);};
+    });
+  }
+  function sentSheet(rows){
+    const html=rows.length?`<div class="friend-sent-sheet">${rows.map(p=>`<div class="person person-row fr-request">${profile(p)}<button type="button" class="friend-inline-muted" data-request-cancel="${esc(p.login)}">Cancel</button></div>`).join('')}</div>`:'<p class="friend-empty"><b>No sent requests</b></p>';
+    sheet('Sent requests',html,(body,close)=>$$('[data-request-cancel]',body).forEach(button=>button.onclick=async()=>{if(!live()||button.disabled)return;button.disabled=true;try{await api(`/api/friends/${encodeURIComponent(button.dataset.requestCancel)}`,{method:'DELETE'});if(live()){close();await refresh();}}catch(x){if(live()){toast(x.message);button.disabled=false;}}}));
+  }
+  function requestSheet(r){
+    const incoming=r.incoming||[];if(!incoming.length)return;
+    const html=`<div class="friend-request-sheet">${incoming.map(p=>`<div class="person person-row fr-request">${profile(p)}<span class="friend-inline-actions"><button type="button" class="friend-inline-accept" data-request-accept="${esc(p.login)}">Accept</button><button type="button" class="friend-inline-muted" data-request-decline="${esc(p.login)}">Decline</button></span></div>`).join('')}</div>`;
+    sheet('Requests',html,(body,close)=>$$('[data-request-accept],[data-request-decline]',body).forEach(button=>button.onclick=async()=>{if(!live()||button.disabled)return;button.disabled=true;const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline);try{await api(button.hasAttribute('data-request-accept')?`/api/friends/${login}/accept`:`/api/friends/${login}/decline`,json('POST',{}));if(live()){close();await refresh();}}catch(x){if(live()){toast(x.message);button.disabled=false;}}}));
+  }
+  $('#fr-list-add',el).onclick=addSheet;
+  $('#fr-requests',el).onclick=e=>{if(e.target.closest('#fr-requests-open')&&currentFriends)requestSheet(currentFriends);};
+  $('#fr-list-find',el).onsubmit=e=>{e.preventDefault();search(true);};
+  input.oninput=()=>search(false);clear.onclick=()=>{input.value='';search(false);input.focus();};
+  viewResources.set(input.form,()=>{clearTimeout(timer);searchVersion++;});
   function draw(r){
     r={...r,friends:[...r.friends].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'})||a.login.localeCompare(b.login))};
     currentFriends=r;people=r.incoming.concat(r.friends,r.outgoing);App.me.friend_count=r.friends.length;Social.set(r.incoming.length);
-    heading.innerHTML=`Your friends${r.friends.length?` <span class="count">${r.friends.length}</span>`:''}`;
-    drawRequests(requests,r,live,refresh);
-    list.innerHTML=r.friends.length?r.friends.map(p=>`<div class="person person-row fr-friend" data-friend-name="${esc((p.name+' '+p.login).toLocaleLowerCase())}">${profile(p,'fr-friend-link')}<button type="button" class="icon-btn" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button></div>`).join(''):
-      '<div class="friend-empty"><b>No friends yet</b><p>Search by name or @username, or tap Add to share an invite link.</p></div>';
-    $$('[data-manage]',list).forEach(button=>button.onclick=()=>{
-      if(!live())return;const p=people.find(person=>person.login===button.dataset.manage);if(p)friendshipSheet(p,refresh);
-    });
+    $('#fr-title',el).innerHTML=`Friends${r.friends.length?` <span aria-label="${r.friends.length} friends">· ${r.friends.length}</span>`:''}`;
+    heading.innerHTML=`Friends${r.friends.length?` <span class="count">${r.friends.length}</span>`:''}`;
+    requests.innerHTML=r.incoming.length?`<button type="button" class="friend-request-summary" id="fr-requests-open" aria-label="Requests ${r.incoming.length}"><span>Requests · ${r.incoming.length}</span>${svg('chev')}</button>`:'';
+    list.innerHTML=friendRows(r.friends);
   }
   async function loadFriends(){
     const request=++version;
@@ -60,12 +88,19 @@ const FriendsUI=(()=>{
   async function refresh(){
     if(!live())return;invalidate('/api/feed/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();App.cache.delete('/api/friends');await loadFriends();
   }
-  function action(body,close,selector,run){
-    $$(selector,body).forEach(button=>button.onclick=async()=>{
-      if(!live()||!body.isConnected||button.disabled)return;button.disabled=true;
-      try{await run(button);if(!live())return;close();await refresh();}
-      catch(x){if(live()&&body.isConnected){toast(x.message);button.disabled=false;}}
-    });
+  async function search(force){
+    clearTimeout(timer);const q=input.value.trim(),needle=q.replace(/^@/,'').toLocaleLowerCase();clear.hidden=!q;const token=++searchVersion;peopleSection.hidden=true;peopleList.innerHTML='';
+    const mine=currentFriends?.friends||[];
+    if(!needle){list.innerHTML=friendRows(mine);return;}
+    const matched=mine.filter(p=>matching(p,needle));list.innerHTML=friendRows(matched,'No friends match');
+    if(needle.length<2)return;
+    const run=async()=>{const request=token;try{const rows=await api('/api/people/search?q='+encodeURIComponent(q));if(!live()||request!==searchVersion)return;
+      const friends=(currentFriends?.friends||[]).filter(p=>matching(p,needle));const addable=rows.filter(p=>p.status!=='friends'&&p.login!==App.me.login);
+      list.innerHTML=friendRows(friends,'No friends match');peopleSection.hidden=!addable.length;peopleList.innerHTML=addable.map(p=>`<div class="person person-row friend-add-result">${profile(p)}<span class="friend-search-status">${p.status==='incoming'?'Requests':p.status==='sent'?'Requested':`<button type="button" class="friend-search-add" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">Add</button>`}</span></div>`).join('');
+      if(!friends.length&&!addable.length){list.innerHTML='<div class="friend-empty"><b>No results</b><button type="button" class="linkbtn" data-friend-search-invite>Invite a friend</button></div>';list.querySelector('[data-friend-search-invite]').onclick=inviteFriends;}
+      $$('[data-add]',peopleList).forEach(button=>button.onclick=async()=>{if(!live()||button.disabled)return;button.disabled=true;const login=button.dataset.add;try{await api('/api/friends',json('POST',{login}));if(live()){button.outerHTML='<span class="friend-status" role="status">Requested</span>';invalidate('/api/friends');await refresh();await search(true);}}catch(x){if(live()){toast(x.message);button.disabled=false;}}});
+    }catch(x){if(!live()||request!==searchVersion)return;empty.hidden=false;empty.textContent=x.offline?'You’re offline. Reconnect to search.':'Search isn’t working right now.';}}
+    if(force)await run();else timer=setTimeout(run,180);
   }
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);await loadFriends();
  }
@@ -182,6 +217,6 @@ const FriendsUI=(()=>{
   const searching=find();
   await loadFriends();drawSuggest();await searching;
  }
- async function mount(el){const q=new URLSearchParams(location.search);return q.has('find')||q.has('q')?mountFind(el):mountList(el);}
+ async function mount(el){return mountList(el);}
  return Object.freeze({shell,requests:requestSections,mount});
 })();
