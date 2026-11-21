@@ -298,7 +298,7 @@ async function pFitnessLoaded(body, q) {
   // The range controls filter charts only; current fitness and race predictions remain unchanged.
   body.innerHTML = `<div id="fi-body">${skel(2)}</div><div id="fi-pred">${skel(1)}</div>`;
   await load(`/api/fitness?days=${days}`, (f0) => {
-    const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
+    const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box || !pbox) return;
     const now=new Date(),cutoff=new Date(now);
     if(selectedRange==='1m')cutoff.setMonth(cutoff.getMonth()-1);
     else if(selectedRange==='3m')cutoff.setMonth(cutoff.getMonth()-3);
