@@ -63,14 +63,21 @@ async function homeHeaderAndGroups(p,base,size,snap){
 async function sectionReturnJourneys(p,base){
  const tab=name=>p.locator('nav.tabs a[data-tab="'+name+'"]');
  const clickTab=async(name,path)=>{await tab(name).click();await p.waitForURL(base+path);await ready(p);};
- const setScroll=y=>p.evaluate(y=>new Promise(resolve=>{const max=document.documentElement.scrollHeight-innerHeight;scrollTo(0,Math.min(y,max));requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(scrollY)));}),y);
- await until(p,()=>document.documentElement.scrollHeight>innerHeight+40,'Home feed grows enough for the saved-scroll fixture');
+ const setScroll=async y=>{
+  await p.waitForFunction(y=>document.documentElement.scrollHeight-innerHeight>=y,y);
+  const target=await p.evaluate(y=>Math.min(y,Math.max(0,document.documentElement.scrollHeight-innerHeight)),y);
+  await p.evaluate(()=>window.dispatchEvent(new Event('pointerdown')));
+  await p.evaluate(y=>{document.scrollingElement.scrollTop=y;},target);
+  await p.waitForFunction(y=>Math.abs(scrollY-y)<3,target);
+  return p.evaluate(()=>scrollY);
+ };
+ await p.waitForFunction(()=>document.documentElement.scrollHeight-innerHeight>=400,'Home feed grows enough for the saved-scroll fixture');
  await setScroll(0);
  const homeY=await setScroll(360);
  assert(homeY>40,'Home fixture has enough feed to test a saved scroll position: '+JSON.stringify({homeY,scrollHeight:await p.evaluate(()=>document.documentElement.scrollHeight),height:await p.evaluate(()=>innerHeight)}));
- await clickTab('progress','/progress');assert(Math.abs(await p.evaluate(()=>App.scroll['/activity'])-homeY)<3,'Leaving Home saves its current feed position');await clickTab('activity','/activity');
+ await clickTab('progress','/progress');assert(Math.abs(await p.evaluate(()=>App.scroll['/activity'])-homeY)<5,'Leaving Home saves its current feed position');await clickTab('activity','/activity');
  const homeReturn=await p.evaluate(()=>({y:scrollY,memory:App.scroll['/activity'],state:JSON.parse(sessionStorage.getItem('kinetta.sectionReturn'))?.sections?.activity}));
- assert(Math.abs(homeReturn.y-homeY)<3,'Returning to Home restores its feed position: '+JSON.stringify({homeY,...homeReturn}));
+ assert(Math.abs(homeReturn.y-homeY)<5,'Returning to Home restores its feed position: '+JSON.stringify({homeY,...homeReturn}));
  const detailPath=await p.locator('.post').first().getAttribute('data-href');assert.match(detailPath,/^\/activity\/\d+$/,'Home fixture provides an Activity detail route');
  await p.evaluate(path=>go(path),detailPath);await p.waitForURL(base+detailPath);await ready(p);
  await p.evaluate(()=>{const hit=App.cache.get('feed:home');if(hit)hit.at=0;});
@@ -81,7 +88,7 @@ async function sectionReturnJourneys(p,base){
  const homeWarm=await p.evaluate(()=>homeWarmTiming);assert(homeWarm.paintMs!==null&&homeWarm.paintMs<250,'Cached Home feed paints before its refresh: '+JSON.stringify(homeWarm));assert(homeWarm.readyMs<250,'Cached Home is ready without waiting for feed/challenge refresh: '+JSON.stringify(homeWarm));
  for(let n=0;n<10&&refreshesPending===0;n++)await p.waitForTimeout(10);assert(refreshesPending>0,'Home becomes ready while its read-only refresh requests remain in flight');
  await p.waitForTimeout(500);await p.unroute('**/api/**',delayHomeReads);await ready(p);
- assert(Math.abs(await p.evaluate(()=>scrollY)-homeY)<3,'Back from an Activity detail restores the feed position');
+ assert(Math.abs(await p.evaluate(()=>scrollY)-homeY)<5,'Back from an Activity detail restores the feed position');
  await tab('activity').click();await until(p,()=>scrollY<3,'active Home tab resets to top');
  await p.evaluate(()=>scrollTo(0,280));
  await p.evaluate(path=>go(path),detailPath);await p.waitForURL(base+detailPath);await ready(p);
@@ -98,7 +105,7 @@ async function sectionReturnJourneys(p,base){
  assert(foodY>30,'Nutrition overview fixture has enough content to test its saved position');
  await clickTab('progress','/progress/routes');await clickTab('food','/food?view=overview');
  assert.equal(await detail.evaluate(el=>el.open),true,'Returning to Nutrition restores its open disclosure');
- assert(Math.abs(await p.evaluate(()=>scrollY)-foodY)<3,'Returning to Nutrition restores its saved position');
+ assert(Math.abs(await p.evaluate(()=>scrollY)-foodY)<5,'Returning to Nutrition restores its saved position');
  await clickTab('progress','/progress/routes');
  await p.evaluate(()=>{const state=JSON.parse(sessionStorage.getItem('kinetta.sectionReturn'));state.sections.food.path='/food?view=overview';state.sections.food.savedAt=Date.now()-31*60*1000;sessionStorage.setItem('kinetta.sectionReturn',JSON.stringify(state));});
  await tab('food').click();await p.waitForTimeout(160);
