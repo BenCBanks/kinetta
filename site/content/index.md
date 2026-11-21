@@ -36,7 +36,7 @@ Log a meal in a sentence.
 
 ## home-nutrition-description
 
-Tell Kit what you ate, review the matched foods and estimate, then confirm your log.
+Tell Kit what you ate. Kit logs the matched foods and estimate, then offers a quick way to add another food.
 
 ## home-activity-kicker
 
@@ -67,19 +67,7 @@ Am I improving?
 
 ## home-kit-answer
 
-Your weekly run total is 10.8 mi, below your 20.6 mi average. Your strongest week reached 27.9 mi.
-
-## home-kit-examples-label
-
-Example questions
-
-## home-kit-example-one
-
-How consistent was I?
-
-## home-kit-example-two
-
-What should I focus on?
+Your latest run total is below your recent average; this chart also shows stronger weeks. One week alone cannot establish a lasting trend.
 
 ## home-badges-kicker
 
