@@ -688,17 +688,32 @@ header.top .signup { display:flex;align-items:center; }
 .kit-week-copy { min-width:0; }
 .kit-week-copy h2 { max-width:16ch; font-size:clamp(34px,4.2vw,54px); line-height:1.06; }
 .kit-week-copy > p { margin-top:14px; max-width:42ch; color:var(--ink2); }
-.kit-week-replay { margin-top:24px; max-width:500px; }
-.kit-week-demo-label { color:var(--ink3); font-size:13px; }
-.kit-week-conversation { margin-top:10px; }
-.kit-week-question,.kit-week-answer { display:grid; grid-template-columns:44px minmax(0,1fr); align-items:start; gap:10px; margin:0; padding:14px 0; border-bottom:1px solid var(--line); }
-.kit-week-question > span,.kit-week-answer > span { color:var(--ink3); font-size:13px; font-weight:600; }
+.kit-week-visual { display:grid; justify-items:center; min-width:0; margin:0; }
+.phone-frame--kit-week { width:min(320px,100%); background:#111; box-shadow:0 24px 60px rgba(15,24,32,.2),0 4px 12px rgba(15,24,32,.16); }
+.kit-phone-screen { aspect-ratio:393/852; overflow:hidden; background:var(--bg); color:var(--ink); }
+.kit-phone-status { height:32px; display:flex; justify-content:space-between; align-items:center; padding:0 16px; font-size:12px; font-weight:700; }
+.kit-phone-header { height:44px; display:grid; grid-template-columns:36px 1fr 36px; align-items:center; padding:0 12px; border-bottom:1px solid var(--line); text-align:center; }
+.kit-phone-header > span { color:var(--ink2); font-size:22px; line-height:1; }
+.kit-phone-header > span:last-child { font-size:18px; letter-spacing:-2px; }
+.kit-phone-content { display:grid; gap:10px; padding:18px 16px 14px; }
+.kit-week-question { justify-self:end; max-width:92%; margin:0; padding:10px 13px; border-radius:18px 18px 4px 18px; background:var(--paper); font-size:15px; }
+.kit-week-question > span,.kit-week-answer > span { display:none; }
 .kit-week-question strong { font-weight:600; }
-.kit-week-answer p { margin:0; color:var(--ink2); }
-.kit-week-replay-button { display:inline-flex; align-items:center; justify-content:flex-start; min-width:44px; min-height:44px; padding:0; }
-.kit-week-visual { display:grid; justify-items:center; gap:12px; min-width:0; margin:0; }
-.phone-frame--kit-week { width:min(300px,100%); background:#111; }
-.kit-week-visual figcaption { color:var(--ink3); font-size:13px; text-align:center; }
+.kit-week-answer { display:flex; margin:0; padding:0; }
+.kit-week-answer p { margin:0; padding:12px 13px; border:1px solid var(--line); border-radius:4px 18px 18px 18px; background:var(--paper); color:var(--ink); font-size:14px; line-height:1.35; }
+.kit-week-chart { min-width:0; padding:10px 10px 8px; border-radius:14px; background:var(--paper); }
+.kit-week-chart-heading,.kit-week-chart-labels { display:flex; justify-content:space-between; gap:8px; color:var(--ink2); font-size:11px; }
+.kit-week-chart-heading strong { color:var(--ink); font-size:12px; }
+.kit-week-chart svg { display:block; width:100%; height:90px; overflow:visible; }
+.kit-week-chart svg path { fill:none; stroke:var(--line); stroke-width:1; }
+.kit-week-chart svg polyline { fill:none; stroke:var(--brand-solid); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+.kit-week-chart svg circle { fill:var(--brand-solid); stroke:var(--paper); stroke-width:2; }
+.kit-week-chart-labels { font-size:10px; }
+.home-kit-prompts { display:grid; gap:0; margin:0; padding:0; list-style:none; }
+.home-kit-prompts > span { padding:2px 0 4px; color:var(--ink3); font-size:11px; }
+.home-kit-prompts button { width:100%; min-height:44px; padding:8px 22px 8px 0; border:0; border-bottom:1px solid var(--line); background:transparent; color:var(--brand-solid); font:600 12px/1.3 var(--body); text-align:left; position:relative; cursor:pointer; }
+.home-kit-prompts button::after { content:"›"; position:absolute; right:2px; top:50%; transform:translateY(-50%); font-size:18px; }
+.home-kit-prompts button:focus-visible { outline:2px solid var(--brand-solid); outline-offset:2px; }
 [data-site-nav] { transition:box-shadow .25s ease,background .25s ease; }
 [data-site-nav].is-compact .wrap { padding-block:6px; }
 [data-site-nav].is-compact .logo img { width:116px; }
@@ -1048,13 +1063,15 @@ header.top .signup { display:flex;align-items:center; }
 .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { scroll-margin-top:72px; padding-block:clamp(48px,6vw,80px); }
 .home-page .home-badges { border-top:1px solid var(--line); background:var(--paper); }
 .home-page .home-kit-prompts { margin-top:16px; }
+.home-page .phone-frame--kit-week .home-kit-prompts { margin-top:0; }
 @media (max-width:900px) {
   .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { padding-block:28px; }
   .home-page .home-proof-grid { display:flex; width:calc(100% + 40px); margin-inline:-20px; padding:0 20px 8px; gap:14px; overflow-x:auto; overscroll-behavior-inline:contain; scroll-snap-type:x mandatory; scrollbar-width:none; }
   .home-page .home-proof-grid::-webkit-scrollbar { display:none; }
   .home-page .home-proof-card { flex:0 0 min(300px,80vw); scroll-snap-align:start; gap:14px; padding:18px 16px; }
   .home-page .home-section-head { margin-bottom:16px; }
-  .home-page .home-proof-phone .phone-frame,.home-page .home-feature-phone .phone-frame,.home-page .phone-frame--kit-week { width:min(200px,66vw); }
+  .home-page .home-proof-phone .phone-frame,.home-page .home-feature-phone .phone-frame { width:min(200px,66vw); }
+  .home-page .phone-frame--kit-week { width:min(320px,86vw); }
   .home-page .phone-frame--hero { width:min(250px,68vw); }
   .home-page .kit-week-demo { padding-block:36px; }
 }
@@ -1065,9 +1082,11 @@ header.top .signup { display:flex;align-items:center; }
   .home-page .phone-frame--hero { width:min(210px,58vw); }
   .home-page .home-proof,.home-page .home-kit-chat,.home-page .home-badges { padding-block:16px; }
   .home-page .home-proof-card { gap:10px; padding:14px 16px; }
-  .home-page .home-proof-phone .phone-frame,.home-page .home-feature-phone .phone-frame,.home-page .phone-frame--kit-week { width:min(160px,52vw); }
+  .home-page .home-proof-phone .phone-frame,.home-page .home-feature-phone .phone-frame { width:min(160px,52vw); }
+  .home-page .phone-frame--kit-week { width:min(300px,86vw); }
   .home-page .kit-week-demo { padding-block:16px; }
   .home-page .home-kit-prompts { margin-top:8px; }
+  .home-page .phone-frame--kit-week .home-kit-prompts { margin-top:0; }
   .home-page .home-kit-prompts li { min-height:34px; }
   .home-page .home-achievement-tracks { margin-top:12px; padding-top:10px; }
   .home-page .home-sharing { padding-block:28px; }
@@ -1081,10 +1100,20 @@ header.top .signup { display:flex;align-items:center; }
   .home-page .home-feature-split { gap:16px; }
   .home-page .kit-week-grid { gap:14px; }
   .home-page .kit-week-copy > p { margin-top:8px; }
-  .home-page .kit-week-replay { margin-top:12px; }
-  .home-page .kit-week-conversation { margin-top:6px; }
-  .home-page .kit-week-question,.home-page .kit-week-answer { padding-block:8px; }
+  .home-page .kit-phone-content { gap:8px; padding:12px 12px 10px; }
+  .home-page .kit-week-chart svg { height:74px; }
   .home-page .tour-final { padding-block:30px 36px; }
+}
+
+@media (max-width:380px) {
+  .home-page .phone-frame--kit-week { width:min(270px,86vw); }
+  .home-page .kit-phone-status { height:26px; }
+  .home-page .kit-phone-header { height:40px; }
+  .home-page .kit-phone-content { gap:7px; padding:10px 10px 8px; }
+  .home-page .kit-week-question { padding:8px 10px; font-size:14px; }
+  .home-page .kit-week-answer p { padding:10px; font-size:13px; }
+  .home-page .kit-week-chart { padding:8px; }
+  .home-page .kit-week-chart svg { height:62px; }
 }
 
 /* #1319 PR2: real activity/food captures and the Profile-to-Achievements path. */

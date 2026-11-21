@@ -62,11 +62,11 @@ Photo, bio, stats and sports. Preview what friends see.
 
 ## private-overview-heading
 
-Your dashboard stays private.
+Your profile, your way.
 
 ## private-overview-copy
 
-Only you see your food, body data and Kit chats.
+Choose the profile details and workouts you share.
 
 ## motivation-heading
 

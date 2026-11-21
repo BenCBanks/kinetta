@@ -12,7 +12,7 @@ We're Ben and Rachel. We both train and care about eating well, so we built Kine
 
 ## about-feedback
 
-We use Kinetta ourselves and are still adding to it. If there's something you'd find useful, or something that isn't working, we'd like to hear from you at [feedback@kinetta.app](mailto:feedback@kinetta.app).
+We use Kinetta ourselves and are still adding to it. Tell us what you'd like to see next at [feedback@kinetta.app](mailto:feedback@kinetta.app).
 
 ## footer-links
 

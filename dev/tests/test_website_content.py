@@ -14,15 +14,30 @@ class CopyTests(unittest.TestCase):
   home=(content.ROOT/'site/index.html').read_text()
   self.assertIn('Every run, ride and lift, with the details.',home)
   self.assertIn('See a route and splits for a run or ride, or set-by-set history and records for a lift.',home)
- def test_home_challenges_explains_goals_and_privacy(self):
+ def test_home_challenges_uses_positive_copy_and_privacy_details_stay_in_policy(self):
   home=(content.ROOT/'site/index.html').read_text()
-  for text in ['Distance','Active days','activities','food logging days','protein goal days','never sends a friend request','not your food details or protein target']:
+  for text in ['Distance','Active days','activities','food logging days','protein goal days']:
    self.assertIn(text,home)
+  self.assertIn('Bring friends together around',home)
+  self.assertNotIn('never sends a friend request',home)
+  self.assertNotIn('not your food details or protein target',home)
+  privacy=(content.ROOT/'site/privacy.html').read_text()
+  self.assertIn('A group\'s workout totals include your activity only when you choose',privacy)
+  self.assertIn('Food challenges share logging-day or protein-goal-day counts',privacy)
   self.assertIn('assets/tour/challenge-start-light.webp',home)
   self.assertIn('assets/tour/challenge-start-dark.webp',home)
   self.assertIn('assets/tour/challenge-detail-light.webp',home)
   self.assertIn('assets/tour/challenge-detail-dark.webp',home)
   self.assertNotRegex(home.lower(),r'private\s+by\s+default|free\s+during\s+beta')
+ def test_kit_week_demo_copy_and_social_tagline_are_positive(self):
+  home=(content.ROOT/'site/index.html').read_text()
+  self.assertIn('Your weekly run total is 10.8 mi',home)
+  self.assertNotIn('lasting trend',home)
+  self.assertNotIn('Fictional week · sample response',home)
+  self.assertNotIn('Fictional Kit insight screen · sample week',home)
+  friends=(content.ROOT/'site/friends.html').read_text()
+  self.assertIn('Made for the people you move with',friends)
+  self.assertNotIn('Made for people, not metrics',friends)
  def test_normal_copy_and_safe_links(self):
   self.assertEqual(content.inline('Your **workouts** and *food*.'),'Your <strong>workouts</strong> and <em>food</em>.')
   self.assertEqual(content.inline('[Training](training)'),'<a href="training">Training</a>')

@@ -61,21 +61,13 @@ Ask Kit about your week.
 
 Ask one question about your training week.
 
-## home-kit-sample-caption
-
-Fictional week · sample response
-
 ## home-kit-question
 
 Am I improving?
 
 ## home-kit-answer
 
-Your latest run was below your recent average. Other weeks were stronger; one week alone does not show a lasting trend.
-
-## home-kit-replay
-
-Replay answer
+Your weekly run total is 10.8 mi, below your 20.6 mi average. Your strongest week reached 27.9 mi.
 
 ## home-kit-examples-label
 
@@ -88,10 +80,6 @@ How consistent was I?
 ## home-kit-example-two
 
 What should I focus on?
-
-## home-kit-phone-caption
-
-Fictional Kit insight screen · sample week
 
 ## home-badges-kicker
 
@@ -115,11 +103,7 @@ A shared goal. Everyone's progress.
 
 ## home-challenges-description
 
-Challenge friends to distance, active days, activities, food logging days or protein goal days.
-
-## home-challenges-privacy
-
-Joining is optional and never sends a friend request. The group sees challenge progress, not your food details or protein target.
+Bring friends together around distance, active days, activities, food logging days or protein goal days.
 
 ## home-sharing-kicker
 
