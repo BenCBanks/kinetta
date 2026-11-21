@@ -28,7 +28,14 @@ async function mediaBeforeRender(page,requests,label,renderPaths,errors,networkI
  const mediaIndex=requests.findIndex(x=>x==='/static/media.js'),renderIndex=requests.findIndex(x=>renderPaths.some(path=>x===path||x.startsWith(path+'?')));
  assert(mediaIndex>=0,`${label} requests the deferred media bundle`);
  assert(renderIndex>=0,`${label} observes its expected render data request ${JSON.stringify(renderPaths)}: ${JSON.stringify(requests)}`);
- assert(mediaIndex<renderIndex,`${label} requests media before activity data/rendering: ${JSON.stringify(requests)}`);
+ const earlyReadRoute=label==='/activity'||/^\/activity\/(?:friends\/)?\d+$/.test(label);
+ if(earlyReadRoute){
+  assert(renderIndex<mediaIndex,`${label} starts its account-scoped route read before the media bundle: ${JSON.stringify(requests)}`);
+  if(/^\/activity\/\d+$/.test(label)){
+   const photoIndexes=requests.flatMap((path,index)=>path.startsWith('/api/activity-photos/')?[index]:[]);
+   assert(photoIndexes.every(index=>renderIndex<index),`${label} starts /api/activities/<id> before activity-photo requests: ${JSON.stringify(requests)}`);
+  }
+ }else assert(mediaIndex<renderIndex,`${label} loads media before its non-prefetched render data: ${JSON.stringify(requests)}`);
  assert(await page.evaluate(()=>typeof activityMedia==='function'),`${label} renderer is available`);
 }
 (async()=>{
