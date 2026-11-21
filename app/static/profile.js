@@ -210,7 +210,7 @@ const ProfileLayout=(()=>{
   }
   function achievementCurrentMetricText(track){
     const label=achievementMetricLabel(track);
-    if(isFastestAchievement(track?.code)){const best=fastestRecordedTime(track,'best_seconds');return `${label}: ${best==null?'No time recorded':fastestElapsed(best)}`;}
+    if(isFastestAchievement(track?.code)){const best=fastestRecordedTime(track,'best_seconds'),day=fastestRecordedDate(track),date=day?fdate(day+'T12:00',{month:'short',day:'numeric',year:'numeric'}):'';return `${label}: ${best==null?'No time recorded':fastestElapsed(best)}${date?` · ${date}`:''}`;}
     if(['workouts','personal_bests','years_active','sport:lift'].includes(track?.code)||String(track?.code||'').endsWith(':workouts'))return `${label}: ${achievementNumber(track?.display_value??achievementRawValue(track))}`;
     return `${label}: ${achievementValue(track)}`;
   }
@@ -283,6 +283,11 @@ const ProfileLayout=(()=>{
   function fastestRecordedTime(track,field){
     const values=Object.values(track?.[field]||{}).map(Number).filter(value=>Number.isFinite(value)&&value>0);
     return values.length?Math.min(...values):null;
+  }
+  function fastestRecordedDate(track){
+    const best=fastestRecordedTime(track,'best_seconds');if(best==null)return '';
+    const ranks=Object.keys(track?.best_seconds||{}).filter(rank=>Number(track.best_seconds[rank])===best).sort((a,b)=>Number(a)-Number(b));
+    return ranks.map(rank=>String(track?.best_dates?.[rank]||'')).find(day=>/^\d{4}-\d{2}-\d{2}$/.test(day))||'';
   }
   function fastestAchievementStats(track,newBest=false){
     const best=fastestRecordedTime(track,'best_seconds'),season=fastestRecordedTime(track,'season_best_seconds');
@@ -420,8 +425,13 @@ const ProfileLayout=(()=>{
     if(level>levels.length){const repeated=shareAchievementTier(track,level);if(repeated)earned.push(repeated);}
     return earned;
   }
+  function achievementShareHighlightTiers(track){
+    const earned=achievementShareEarnedTiers(track);
+    return isFastestAchievement(track?.code)&&earned.length>1?[earned.at(-1)]:earned;
+  }
   function achievementShareEarnedCount(track){return achievementShareEarnedTiers(track).length;}
   function achievementShareEarnedDay(track,tier){
+    if(isFastestAchievement(track?.code))return fastestRecordedDate(track);
     const rank=Number(tier?.level),record=(Array.isArray(track?.tiers)?track.tiers:[]).find(item=>Number(item?.rank)===rank&&item?.day);
     return String(record?.day||(rank===achievementLevel(track)?track?.day:'')||'');
   }
@@ -476,13 +486,13 @@ const ProfileLayout=(()=>{
   }
   function achievementShareOverviewCard({tracks=[],name='',showName=true,photo=''}={}){
     const groups=achievementShareGroups(tracks).filter(group=>group.key!=='overall'),source=groups.flatMap(group=>group.tracks),total=source.reduce((sum,track)=>sum+achievementShareEarnedCount(track),0),label=showName&&String(name).trim()?String(name).trim():'',latest=achievementShareLatestLine(source);
-    const sportHighlights=groups.map(group=>{const earned=group.tracks.flatMap(track=>achievementShareEarnedTiers(track).map(tier=>({track,tier,day:achievementShareEarnedDay(track,tier)}))).sort((a,b)=>String(b.day).localeCompare(String(a.day))||Number(b.tier.level)-Number(a.tier.level));return{...group,count:group.tracks.reduce((sum,track)=>sum+achievementShareEarnedCount(track),0),highlight:earned[0]||null};}).filter(group=>group.highlight);
-    const highlightsBySport=sportHighlights.map(group=>({group,items:group.tracks.flatMap(track=>achievementShareEarnedTiers(track).map(tier=>({track,tier,day:achievementShareEarnedDay(track,tier)}))).sort((a,b)=>String(b.day).localeCompare(String(a.day))||Number(b.tier.level)-Number(a.tier.level))}));
+    const sportHighlights=groups.map(group=>{const earned=group.tracks.flatMap(track=>achievementShareHighlightTiers(track).map(tier=>({track,tier,day:achievementShareEarnedDay(track,tier)}))).sort((a,b)=>String(b.day).localeCompare(String(a.day))||Number(b.tier.level)-Number(a.tier.level));return{...group,count:group.tracks.reduce((sum,track)=>sum+achievementShareEarnedCount(track),0),highlight:earned[0]||null};}).filter(group=>group.highlight);
+    const highlightsBySport=sportHighlights.map(group=>({group,items:group.tracks.flatMap(track=>achievementShareHighlightTiers(track).map(tier=>({track,tier,day:achievementShareEarnedDay(track,tier)}))).sort((a,b)=>String(b.day).localeCompare(String(a.day))||Number(b.tier.level)-Number(a.tier.level))}));
     const badgeHighlights=highlightsBySport.map(({items})=>items[0]).filter(Boolean),seen=new Set(badgeHighlights.map(item=>`${item.track.code}:${item.tier.level}`));
     for(let rank=1;rank<100&&badgeHighlights.length<8;rank++){for(const {items} of highlightsBySport){const item=items[rank];if(!item)continue;const key=`${item.track.code}:${item.tier.level}`;if(!seen.has(key)){badgeHighlights.push(item);seen.add(key);}if(badgeHighlights.length>=8)break;}}
     const labelFor=(track,tier)=>isFastestAchievement(track.code)?(track.label||achievementLabels[track.code]||'Fastest effort'):achievementShareRowTitle(track);
     const headline=group=>{const {track,tier}=group.highlight;return `<li class="achievement-share-sport-headline" data-sport="${esc(group.key)}"><strong>${esc(group.title)}</strong><span>${group.count} earned</span><span class="achievement-share-headline-latest">${esc(tier.name)} · ${esc(labelFor(track,tier))} ${esc(achievementShareEarnedValue(track,tier))}${group.highlight.day?` · ${esc(fdate(group.highlight.day+'T12:00',{month:'short',day:'numeric'}))}`:''}</span></li>`;};
-    const badge=item=>`<li class="achievement-share-highlight" data-achievement-code="${esc(item.track.code)}" data-achievement-level="${Number(item.tier.level)||1}"><span class="achievement-share-highlight-icon">${achievementAsset(item.tier,'achievement-share-highlight-art')}</span><strong>${esc(item.tier.name)}</strong><span>${esc(labelFor(item.track,item.tier))} · ${esc(achievementShareEarnedValue(item.track,item.tier))}</span></li>`;
+    const badge=item=>{const day=achievementShareEarnedDay(item.track,item.tier),date=day?fdate(day+'T12:00',{month:'short',day:'numeric'}):'';return `<li class="achievement-share-highlight" data-achievement-code="${esc(item.track.code)}" data-achievement-level="${Number(item.tier.level)||1}"><span class="achievement-share-highlight-icon">${achievementAsset(item.tier,'achievement-share-highlight-art')}</span><strong>${esc(item.tier.name)}</strong><span>${esc(labelFor(item.track,item.tier))} · ${esc(achievementShareEarnedValue(item.track,item.tier))}${date?` · ${esc(date)}`:''}</span></li>`;};
     const card=document.createElement('section');card.className='achievement-share-card achievement-share-all-card';card.dataset.nameVisible=String(Boolean(label));card.dataset.sportCount=String(groups.length);card.dataset.highlightCount=String(badgeHighlights.length);card.dataset.shareMode='all';card.setAttribute('aria-label',`${label?`${label}'s `:''}All sports highlights: ${sportHighlights.map(group=>`${group.title}, ${group.count} earned`).join('; ')}`);
     card.innerHTML=`${achievementShareHeader({sport:'all',label,photo,total,latest})}<ol class="achievement-share-all-rows" aria-label="Latest earned achievement by sport">${sportHighlights.map(headline).join('')}</ol><h2 class="achievement-share-highlights-title">Highlights</h2><ul class="achievement-share-highlights" aria-label="Achievement highlights">${badgeHighlights.map(badge).join('')}</ul><footer class="achievement-share-foot"><span>kinetta.app</span></footer>`;
     return card;

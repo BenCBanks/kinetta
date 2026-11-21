@@ -196,7 +196,7 @@ class AchievementTrackRules(unittest.TestCase):
             {'activity_id': 2, 'sport': 'run', 'distance_m': 1_600, 'elapsed_s': 1},
             {'activity_id': 3, 'sport': 'run', 'distance_m': 5_000, 'elapsed_s': 1_700},
         ]
-        count, found, best_seconds, _season_best = milestones._fastest_effort_facts(Cursor(rows), 7,
+        count, found, best_seconds, _best_dates, _season_best = milestones._fastest_effort_facts(Cursor(rows), 7,
                                                                        {1: {'id': 1}, 2: {'id': 2}, 3: {'id': 3}})
         self.assertEqual(count, 2)
         self.assertEqual(sorted(found), [1.0, 3.0])
@@ -213,7 +213,7 @@ class AchievementTrackRules(unittest.TestCase):
                         return [{'activity_id': 9, 'sport': 'run', 'distance_m': 5_000, 'elapsed_s': 1_440}]
                 return Result()
 
-        count, found, _best_seconds, _season_best = milestones._fastest_effort_facts(
+        count, found, _best_seconds, _best_dates, _season_best = milestones._fastest_effort_facts(
             Cursor(), 7, {9: {'id': 9}})
         self.assertEqual(count, 2)
         self.assertEqual(sorted(found), [3.0, 4.0], '5K effort earns only its own two benchmarks')
@@ -231,12 +231,17 @@ class AchievementTrackRules(unittest.TestCase):
         rows = [{'activity_id': 21, 'sport': 'run', 'distance_m': 5_000, 'elapsed_s': 25 * 60 + 41},
                 {'activity_id': 22, 'sport': 'run', 'distance_m': 5_001, 'elapsed_s': 1}]
         cursor = Cursor(rows)
-        count, found, best_seconds, _season_best = milestones._fastest_effort_facts(
-            cursor, 7, {21: {'id': 21}, 22: {'id': 22}}, 'sport:run:fastest:5k')
+        best_start=dt.datetime(2026,11,9,0,30,tzinfo=dt.timezone.utc)
+        now=dt.datetime(2026,11,10,tzinfo=dt.timezone.utc)
+        zone=milestones.ZoneInfo('America/New_York')
+        count, found, best_seconds, best_dates, _season_best = milestones._fastest_effort_facts(
+            cursor, 7, {21: {'id': 21,'start_time':best_start}, 22: {'id': 22}}, 'sport:run:fastest:5k',now,zone)
         self.assertEqual(cursor.sports, ['run'])
         self.assertEqual(count, 4)
         self.assertEqual(sorted(found), [1.0, 2.0, 3.0, 4.0])
         self.assertEqual(best_seconds, {rank: 1_541.0 for rank in range(1, 10)})
+        self.assertEqual(best_dates, {rank: '2026-11-08' for rank in range(1, 10)},
+                         'the best-effort date is returned in the account timezone')
         self.assertEqual(tracks.next_tier('sport:run:fastest:5k', 4).label, 'Swift')
         self.assertEqual(tracks.fastest_effort_track_codes()[:5], (
             'sport:run:fastest:1mi','sport:run:fastest:5k','sport:run:fastest:10k',
@@ -282,7 +287,7 @@ class AchievementTrackRules(unittest.TestCase):
                       {'activity_id':32,'sport':'run','distance_m':expected_distance+1,'elapsed_s':1},
                       {'activity_id':33,'sport':'ride','distance_m':expected_distance,'elapsed_s':1}]
                 cursor=Cursor(rows)
-                count,found,best,_season=milestones._fastest_effort_facts(cursor,7,{31:{'id':31},32:{'id':32},33:{'id':33}},f'sport:run:fastest:{slug}')
+                count,found,best,_best_dates,_season=milestones._fastest_effort_facts(cursor,7,{31:{'id':31},32:{'id':32},33:{'id':33}},f'sport:run:fastest:{slug}')
                 self.assertEqual(cursor.sports,['run'])
                 expected_count=3 if slug=='1mi' else 4
                 self.assertEqual(count,expected_count)
@@ -304,14 +309,16 @@ class AchievementTrackRules(unittest.TestCase):
               {'activity_id':42,'sport':'run','distance_m':10_000,'elapsed_s':2_940}]
         by_id={41:{'id':41,'start_time':dt.datetime(2025,9,1,tzinfo=dt.timezone.utc)},
                42:{'id':42,'start_time':dt.datetime(2026,9,1,tzinfo=dt.timezone.utc)}}
-        _count,_found,best,season=milestones._fastest_effort_facts(
+        _count,_found,best,best_dates,season=milestones._fastest_effort_facts(
             Cursor(rows),7,by_id,'sport:run:fastest:10k',now,zone)
         self.assertEqual(best,{rank:2_940.0 for rank in range(1,10)},'lifetime best uses every recorded season')
+        self.assertEqual(best_dates,{rank:'2026-08-31' for rank in range(1,10)},'the current record date belongs to the fastest activity')
         self.assertEqual(season,{rank:2_940.0 for rank in range(1,10)},'the current-year result is the season best')
         rows[1]['elapsed_s']=3_100
-        _count,_found,best,season=milestones._fastest_effort_facts(
+        _count,_found,best,best_dates,season=milestones._fastest_effort_facts(
             Cursor(rows),7,by_id,'sport:run:fastest:10k',now,zone)
         self.assertEqual(best,{rank:2_980.0 for rank in range(1,10)},'the older lifetime record remains the all-time best')
+        self.assertEqual(best_dates,{rank:'2025-08-31' for rank in range(1,10)},'the older best date stays paired with its time')
         self.assertEqual(season,{rank:3_100.0 for rank in range(1,10)},'a slower current-year result does not replace the lifetime record')
 
     def test_legacy_run_best_efforts_remain_readable_but_are_not_reissued(self):
@@ -331,10 +338,10 @@ class AchievementTrackRules(unittest.TestCase):
                 return Result(self.rows)
 
         ride_rows=[{'activity_id':11,'sport':'ride','distance_m':10_000,'elapsed_s':1_800}]
-        count,found,_,_=milestones._fastest_effort_facts(Cursor('ride',ride_rows),7,{11:{'id':11}},'sport:ride:fastest')
+        count,found,_,_,_=milestones._fastest_effort_facts(Cursor('ride',ride_rows),7,{11:{'id':11}},'sport:ride:fastest')
         self.assertEqual(sorted(found),[1.0,2.0])
         swim_rows=[{'activity_id':12,'sport':'swim','distance_m':400,'elapsed_s':480}]
-        count,found,_,_=milestones._fastest_effort_facts(Cursor('swim',swim_rows),7,{12:{'id':12}},'sport:swim:fastest')
+        count,found,_,_,_=milestones._fastest_effort_facts(Cursor('swim',swim_rows),7,{12:{'id':12}},'sport:swim:fastest')
         self.assertEqual(sorted(found),[4.0,5.0])
 
         class WalkCursor:
@@ -344,7 +351,7 @@ class AchievementTrackRules(unittest.TestCase):
                         return [{'activity_id':13,'sport':'hike','distance_m':5_000,'elapsed_s':2_700}]
                 return Result()
 
-        count,found,_,_=milestones._fastest_effort_facts(WalkCursor(),7,{13:{'id':13}},'sport:walk-hike:fastest')
+        count,found,_,_,_=milestones._fastest_effort_facts(WalkCursor(),7,{13:{'id':13}},'sport:walk-hike:fastest')
         self.assertEqual(sorted(found),[4.0,5.0])
 
     def test_distance_ladder_catalog_parity_remains_canonical(self):

@@ -282,17 +282,20 @@ def _fastest_effort_facts(c, uid, rows_by_id, code='sport:run:fastest', now=None
                 # activity id. The tier remains durable and owner-scoped.
                 best[distance] = (seconds, None)
     found = {}
-    best_seconds = {};season_best_seconds={}
+    best_seconds = {};best_dates={};season_best_seconds={}
     for rank, (_name, distance, max_seconds) in enumerate(criteria, 1):
         candidate = best.get(distance)
         season_candidate=season_best.get(distance)
         if candidate:
             best_seconds[rank] = candidate[0]
+            started=candidate[1].get('start_time') if candidate[1] else None
+            if started is not None:
+                best_dates[rank] = (started.astimezone(zone).date() if zone else started.date()).isoformat()
         if candidate and candidate[0] <= max_seconds:
             found[float(rank)] = candidate[1]
         if season_candidate is not None:
             season_best_seconds[rank]=season_candidate
-    return len(found), found, best_seconds, season_best_seconds
+    return len(found), found, best_seconds, best_dates, season_best_seconds
 
 
 def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
@@ -360,6 +363,21 @@ def _preserve_track_progress(c,uid,states):
                           if str(rank).isdigit() and isinstance(seconds,(int,float)) and math.isfinite(float(seconds))}
             details['best_seconds']={rank:min(seconds,current_best[rank]) if rank in current_best else seconds
                                      for rank,seconds in {**old_best,**current_best}.items()}
+            old_dates={str(rank):str(day) for rank,day in (old_details.get('best_dates') or {}).items()
+                       if str(rank).isdigit() and isinstance(day,str)}
+            current_dates={str(rank):str(day) for rank,day in (details.get('best_dates') or {}).items()
+                           if str(rank).isdigit() and isinstance(day,str)}
+            merged_dates={}
+            for rank in details['best_seconds']:
+                if rank not in old_best:
+                    day=current_dates.get(rank)
+                elif rank not in current_best or old_best[rank] <= current_best[rank]:
+                    day=old_dates.get(rank) or current_dates.get(rank)
+                else:
+                    day=current_dates.get(rank) or old_dates.get(rank)
+                if day:
+                    merged_dates[rank]=day
+            details['best_dates']=merged_dates
             if old_details.get('season_year')==details.get('season_year'):
                 old_season={str(rank):float(seconds) for rank,seconds in (old_details.get('season_best_seconds') or {}).items()
                             if str(rank).isdigit() and isinstance(seconds,(int,float)) and math.isfinite(float(seconds))}
@@ -456,7 +474,7 @@ def achievement_candidates(c,uid,now,zone):
 
     legacy_run_bests=_legacy_run_fastest_bests(c,uid)
     for code in tracks.fastest_effort_track_codes():
-        fastest_count,fastest_crossing,fastest_best,fastest_season=_fastest_effort_facts(
+        fastest_count,fastest_crossing,fastest_best,fastest_best_dates,fastest_season=_fastest_effort_facts(
             c,uid,by_id,code,now,zone,legacy_run_bests)
         fastest_tiers=[tracks.Tier(rank,float(rank),name,'benchmarks',False)
                        for rank,(name,_distance,_seconds) in enumerate(tracks.fastest_effort_spec(code),1)
@@ -465,6 +483,7 @@ def achievement_candidates(c,uid,now,zone):
             reached=fastest_tiers,
             state_extra={'earned_ranks':[tier.rank for tier in fastest_tiers],
                          'best_seconds':{str(rank):seconds for rank,seconds in fastest_best.items()},
+                         'best_dates':{str(rank):day for rank,day in fastest_best_dates.items()},
                          'season_best_seconds':{str(rank):seconds for rank,seconds in fastest_season.items()},
                          'season_year':now.astimezone(zone).year})
 
