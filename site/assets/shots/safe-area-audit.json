@@ -4,72 +4,408 @@
     {
       "scene": "light-home-feed",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-nutrition-filled",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "light-activity-detail",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-kit-insight-progress",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-achievements",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-today",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "light-feed",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": [
+        "Open photo 1 of 1",
+        "Next photo or map"
+      ]
     },
     {
       "scene": "light-profile",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-track",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "light-activity",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "light-activity-splits",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-charts",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": [
+        "Back to Activity",
+        "Share activity",
+        "Edit activity"
+      ]
+    },
+    {
+      "scene": "light-similar",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": [
+        "Back to Activity",
+        "Share activity",
+        "Edit activity"
+      ]
+    },
+    {
+      "scene": "light-coach",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "light-route",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-progress",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-fitness",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-plan",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-heatmap",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-food",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-insights",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-explore",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-meals",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-cook",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-serve",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-friends",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-dietcoach",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-recipecoach",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-photos",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-scan",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-liftex",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-lift",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "dark-home-feed",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-nutrition-filled",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "dark-activity-detail",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-kit-insight-progress",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-achievements",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-today",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "dark-feed",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": [
+        "Open photo 1 of 1",
+        "Next photo or map"
+      ]
     },
     {
       "scene": "dark-profile",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-track",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "dark-activity",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "dark-activity-splits",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-charts",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": [
+        "Back to Activity",
+        "Share activity",
+        "Edit activity"
+      ]
+    },
+    {
+      "scene": "dark-similar",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": [
+        "Back to Activity",
+        "Share activity",
+        "Edit activity"
+      ]
+    },
+    {
+      "scene": "dark-coach",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     },
     {
       "scene": "dark-route",
       "topInsetPx": 59,
-      "controlsClear": true
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-progress",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-fitness",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-plan",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-heatmap",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-food",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-insights",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-explore",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-meals",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-cook",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-serve",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-friends",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-dietcoach",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-recipecoach",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-photos",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-scan",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-liftex",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-lift",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     }
   ]
 }
