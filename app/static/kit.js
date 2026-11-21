@@ -292,13 +292,14 @@ Object.assign(KitChat, (() => {
     const insights=path==='/food'&&new URLSearchParams(globalThis.location?.search).get('view')==='overview';
     if(path==='/activity'){
       const existing=el.querySelector('[data-kit-entry]');
-      if(!kitChatOn()){existing?.remove();el.querySelector('.home-quiet-kit')?.remove();return;}
+      const enabled=kitChatOn();
+      if(!entryRelevant(path,enabled)){existing?.remove();el.querySelector('.home-quiet-kit')?.remove();checkActivityEntry(el,path);return;}
       const placement=new URLSearchParams(globalThis.location?.search).get('kit-home')==='row'?'row':'header';
       const heading=el.querySelector('#feed-top .shell-topbar-root');
       if(!heading)return;
       const link=existing||document.createElement('a');
       link.className='kit-help home-kit-entry';link.setAttribute('data-kit-entry','');link.innerHTML=svg('sparkle');
-      link.href=href('activity');link.setAttribute('aria-label','Ask Kit');link.title='Ask Kit';
+      link.href=enabled?href('activity'):'/food?add=1';link.setAttribute('aria-label',enabled?'Ask Kit':'Add food');link.title=enabled?'Ask Kit':'Add food';
       const row=el.querySelector('.home-quiet-actions');
       if(placement==='row'){
         heading.removeAttribute('data-kit-home-placement');
