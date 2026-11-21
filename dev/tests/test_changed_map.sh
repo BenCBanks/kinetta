@@ -19,6 +19,19 @@ if python3 dev/tests/ui_contracts.py --validate --manifest "$bad_manifest" >/dev
 fi
 mapfile -t files < <(git ls-files app/static)
 dev/tests/changed.sh --check-files "${files[@]}" >/dev/null
+python3 - <<'PY'
+from pathlib import Path
+root=Path('app/static')
+retired=('lift-ui.css','track-home.css')
+for name in retired:
+    assert not (root/name).exists(), f'{name} is retained only as a dead stylesheet'
+for path in root.rglob('*'):
+    if path.suffix not in {'.html','.js','.css'} or not path.is_file():
+        continue
+    text=path.read_text(errors='ignore')
+    for name in retired:
+        assert name not in text, f'{path} still refers to retired stylesheet {name}'
+PY
 if dev/tests/changed.sh --check-files app/static/new-unmapped-screen.js >/dev/null 2>&1; then
   echo "An unmapped app/static path passed the changed-screen gate." >&2
   exit 1

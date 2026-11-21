@@ -2387,6 +2387,55 @@ function aiSheet(after) {
 
 // ---------- login, first-run setup, invite links + start ----------
 const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=__ASSET_HASH__" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=__ASSET_HASH__" alt="Kinetta" width="210" height="34"></picture>`;
+const FIRST_RUN_WELCOME_SEEN = 'kinetta.firstRunWelcomeSeen';
+function showFirstRunWelcome({setupNeeded = false} = {}) {
+  Native.preLogin?.();
+  const modeFor = (signup, beta) => setupNeeded ? 'setup' : signup?.open && !signup.full ? 'signup' : beta?.open ? 'beta' : 'invite';
+  root.innerHTML = `<section class="login first-run-shell" aria-labelledby="first-run-promise">
+    <div class="first-run">
+      ${BRAND}
+      <p id="first-run-promise" class="first-run-promise">Your workouts and your food, in one app.</p>
+      <button type="button" class="primary wide" id="first-run-create" disabled>Checking sign-up…</button>
+      <p class="first-run-status small muted" id="first-run-status" role="status" aria-live="polite"></p>
+      <button type="button" class="linkbtn first-run-login" id="first-run-login">Log in</button>
+    </div>
+  </section>`;
+  cleanViews();
+  const create = $('#first-run-create', root), status = $('#first-run-status', root), login = $('#first-run-login', root);
+  const viewPath = location.pathname + location.search;
+  const openLogin = () => {
+    if (!login.isConnected || viewPath !== location.pathname + location.search) return;
+    store.set(FIRST_RUN_WELCOME_SEEN, true);
+    history.replaceState(null, '', '/');
+    showLogin();
+  };
+  login.onclick = openLogin;
+  const select = mode => {
+    if (!create.isConnected || viewPath !== location.pathname + location.search) return;
+    store.set(FIRST_RUN_WELCOME_SEEN, true);
+    if (mode === 'setup') {
+      showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account', intro: "This is a brand-new Kinetta. Create your account first. You'll be its admin and can invite your people next.", send: body => api('/api/setup', json('POST', body))});
+    } else if (mode === 'signup') {
+      history.replaceState(null, '', '/signup'); showSignup();
+    } else if (mode === 'beta') {
+      history.replaceState(null, '', '/beta'); showBeta();
+    } else {
+      status.textContent = 'Public signup is closed. Open your invitation link to create an account, or ask the person who runs this Kinetta for an invite link.';
+      create.setAttribute('aria-expanded', 'true');
+    }
+  };
+  create.onclick = () => select(create.dataset.mode || 'invite');
+  if (setupNeeded) {
+    create.dataset.mode = 'setup'; create.disabled = false; create.textContent = 'Create account';
+  } else {
+    Promise.all([api('/api/signup').catch(() => null), api('/api/beta').catch(() => null)]).then(([signup, beta]) => {
+      if (!create.isConnected || viewPath !== location.pathname + location.search) return;
+      const mode = modeFor(signup, beta);
+      create.dataset.mode = mode; create.disabled = false;
+      create.textContent = mode === 'signup' ? 'Create account' : mode === 'beta' ? 'Join the beta' : 'Ask for an invite';
+    });
+  }
+}
 function showLogin(msg = '') {
   globalThis.CommunityTerms?.reset();
   App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {});
@@ -2512,7 +2561,41 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
     ${card?.allow_requests?`<label class="check"><input type="checkbox" name="card_request"${card.request_default===false?'':' checked'}><span>Send @${esc(card.username)} a friend request ${email?'after I confirm my email':'when I create my account'}</span></label>`:''}
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
-  const f = $('form', root); f.name.focus();
+  const f = $('form', root), agreement = globalThis.CommunityTerms?.enrollment(f);
+  let signupStep = null, setSignupStep = null, advanceSignup = null;
+  if (signup) {
+    const intro=f.firstElementChild,heading=intro.querySelector('h1'),back=document.createElement('button'),progress=document.createElement('p');
+    const panels=[0,1,2].map((step)=>{const panel=document.createElement('section');panel.className='signup-step';panel.dataset.signupStep=String(step);panel.setAttribute('aria-labelledby','signup-step-title-'+step);return panel;});
+    const stepTitle=document.createElement('h2');stepTitle.id='signup-step-title-0';stepTitle.className='signup-step-title';
+    const names=f.querySelector('input[name="name"]'),emailInput=f.querySelector('input[name="email"]'),usernameInput=f.querySelector('details.username-choice input[name="login"]'),passwordInput=f.querySelector('input[name="password"]'),ageInput=f.querySelector('input[name="age_ok"]'),shareInput=f.querySelector('select[name="share_default"]');
+    const nameLabel=names.closest('label'),emailLabel=emailInput?.closest('label'),usernameDetails=f.querySelector('details.username-choice'),passwordLabel=passwordInput.closest('label'),ageLabel=ageInput?.closest('label'),shareLabel=shareInput.closest('label');
+    const emailHelp=f.querySelector('#enrollment-email-help'),usernameHint=usernameDetails?.previousElementSibling,emailUsernameHint=[...f.querySelectorAll('p.small.muted')].find(node=>node.textContent.includes("We'll give you a username"));
+    const passwordHint=passwordLabel.nextElementSibling,shareHint=shareLabel.nextElementSibling,honeypot=f.querySelector('.hp'),challengeLabel=f.querySelector('input[name="challenge_join"]')?.closest('label'),cardLabel=f.querySelector('input[name="card_request"]')?.closest('label'),error=f.querySelector('.err'),terms=error.previousElementSibling,submit=f.querySelector('button[type="submit"]');
+    intro.append(progress,stepTitle);
+    back.type='button';back.className='signup-back';back.setAttribute('aria-label','Back');back.innerHTML='<span aria-hidden="true">‹</span>';intro.prepend(back);
+    progress.className='signup-progress';progress.setAttribute('aria-live','polite');
+    f.classList.add('signup-wizard');
+    const place=(panel,nodes)=>nodes.filter(Boolean).forEach(node=>panel.append(node));
+    place(panels[0],[nameLabel,emailLabel,emailHelp,usernameHint,usernameDetails,emailUsernameHint]);
+    place(panels[1],[passwordLabel,passwordHint,ageLabel,honeypot]);
+    place(panels[2],[shareLabel,shareHint,challengeLabel,cardLabel,terms,error,submit]);
+    panels.forEach(panel=>f.append(panel));
+    const next=document.createElement('button');next.type='button';next.className='primary wide signup-next';next.textContent='Continue';
+    panels[0].append(next);panels[1].append(next.cloneNode(true));
+    const go=panels.map(panel=>panel.querySelector('.signup-next'));
+    const titles=[['About you','Step 1 of 3 · Your details'],['A secure sign-in','Step 2 of 3 · Password and age'],['Choose your audience','Step 3 of 3 · Sharing']];
+    setSignupStep=step=>{signupStep=step;panels.forEach((panel,index)=>{panel.hidden=index!==step;});heading.textContent='Create your account';stepTitle.id='signup-step-title-'+step;stepTitle.textContent=titles[step][0];progress.textContent=titles[step][1];error.remove();panels[step].append(error);(step===0?names:step===1?passwordInput:submit).focus();};
+    setSignupStep(0);
+    back.onclick=()=>{if(signupStep>0)return setSignupStep(signupStep-1);if(store.get('kinetta.challengeLink')||store.get('kinetta.cardLink')||store.get('kinetta.friendLink')){history.replaceState(null,'','/');return showLogin();}history.replaceState(null,'','/');showFirstRunWelcome();};
+    advanceSignup=()=>{
+      if(signupStep>=2)return;
+      const fields=signupStep===0?[names,emailInput,usernameInput].filter(Boolean):[passwordInput,ageInput].filter(Boolean);
+      const invalid=fields.find(input=>!input.disabled&&!input.checkValidity());
+      if(invalid){invalid.reportValidity();invalid.focus();return;}
+      setSignupStep(signupStep+1);
+    };
+    go.filter(Boolean).forEach(button=>button.onclick=advanceSignup);
+  } else f.name.focus();
   const usernameOwner=readOwner(),usernameRoute=location.pathname+location.search;
   const usernameError=$('.err',f);let usernameLoadMessage=null;
   const usernameLoadFailed=message=>{
@@ -2524,7 +2607,6 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
     usernameLoadMessage=null;
   };
   const username = f.login&&lazyUsernameAvailability(f.login,()=>f.isConnected&&usernameOwner===readOwner()&&usernameRoute===location.pathname+location.search,usernameLoadFailed,usernameLoadSucceeded);
-  const agreement = globalThis.CommunityTerms?.enrollment(f);
   if (pick) {
     f.name.addEventListener('input', () => {   // suggest a username from the first name until they type their own
       if (f.login.dataset.touched) return;
@@ -2551,6 +2633,7 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
   const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && f.login ? 'login' : /\bname\b/i.test(m) ? 'name' : /16 or older/i.test(m) && ageConfirm ? 'age_ok' : null;
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if(signupStep!==null&&signupStep<2){advanceSignup?.();return;}
     const b = $('button[type=submit]', f) || $('button', f);
     if (!f.name.value.trim()) return fieldErr('name', 'Enter your name.');
     if (pick && !f.login.value.trim()) return fieldErr('login', 'Choose a username.');
@@ -2565,7 +2648,7 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
       // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
       if (getAppFirst()) { store.set('kinetta.getApp', '1'); history.replaceState(null, '', '/'); return showGetApp(); }
       history.replaceState(null, '', '/welcome'); await start(); }
-    catch (x) { if(x.code==='email_waiting_for_confirmation'&&email)enrollmentEmailError(f.email,x.message,true);else if(x.code==='email_exists'&&email)enrollmentEmailError(f.email,x.message);else {const field=fieldOf(x.message||'');if(field==='login')username?.error('');fieldErr(field,x.message);} b.disabled = false; }
+    catch (x) { if(signup&&(x.code==='email_waiting_for_confirmation'||x.code==='email_exists'))setSignupStep?.(0);if(x.code==='email_waiting_for_confirmation'&&email)enrollmentEmailError(f.email,x.message,true);else if(x.code==='email_exists'&&email)enrollmentEmailError(f.email,x.message);else {const field=fieldOf(x.message||'');if(field==='login')username?.error('');fieldErr(field,x.message);} b.disabled = false; }
   });
 }
 function showSignupPending(result) {
@@ -2700,7 +2783,7 @@ async function showSignup(friendLink = store.get('kinetta.friendLink')) {
     return enrollmentStatus('Join Kinetta','Public signup is closed. Open your invitation link to create an account, or log in.');
   }
   showNewAccount({title: 'Create your account', button: 'Create my account', signup: true, card,challenge,
-    intro: (inviter ? `${esc(inviter)} invited you. You’ll be friends once you confirm your email. ` : '') + 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
+    intro: (inviter ? `${esc(inviter)} invited you. You’ll be friends once you confirm your email. ` : '') + 'Your workouts and food, in one app.',
     send: async (body) => {
       if(card)body={...body,card_code:cardCode};
       if (friendLink) body = {...body, friend_link: friendLink};
@@ -2822,20 +2905,24 @@ async function showConfirmEmail(token) {
   $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/activity'); root.innerHTML = LAUNCH; start(); };
 }
 async function showWelcome() {
-  if (Native.on) return showLogin();   // new accounts, invites and the waitlist are on the server's web page
-  let setup = {needed: false};
-  try { setup = await api('/api/setup'); } catch (x) { /* show the login */ }
+  Native.preLogin?.();
   const join = location.pathname.match(/^\/join\/([\w-]+)$/);
   if (join) return showJoin(join[1]);
+  const pendingJoin = pendingJoinPath();
+  if (pendingJoin) return showJoin(pendingJoin.split('/').pop());
   if (location.pathname === '/beta') return showBeta();
   // A friend's invite link (2026-10-25): remember it, then sign up (or log in) and the two of you become friends.
   const add = location.pathname.match(/^\/add\/([\w-]+)$/);
-  if (add && !setup.needed) { store.set('kinetta.friendLink', add[1]); return showInvite(add[1]); }
-  if (location.pathname === '/signup' && !setup.needed) return showSignup();
-  if (!setup.needed) return showLogin();
-  showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account',
-    intro: "This is a brand-new Kinetta. Create your account first. You'll be its admin and can invite your people next.",
-    send: (body) => api('/api/setup', json('POST', body))});
+  if (add) { store.set('kinetta.friendLink', add[1]); return showInvite(add[1]); }
+  if (location.pathname === '/signup') return showSignup();
+  if (location.pathname.match(/^\/(?:challenge|card)\/[A-Za-z0-9_-]{1,60}$/) || store.get('kinetta.challengeLink') || store.get('kinetta.cardLink')) return showSignup();
+  const friendLink = store.get('kinetta.friendLink');
+  if (friendLink) return showInvite(friendLink);
+  let setup = {needed: false};
+  try { setup = await api('/api/setup'); } catch (x) { /* enrollment choices below degrade to invite-only copy */ }
+  if (setup.needed) return showFirstRunWelcome({setupNeeded: true});
+  if (store.get(FIRST_RUN_WELCOME_SEEN)) return showLogin();
+  showFirstRunWelcome();
 }
 async function start() {
   if(globalThis.KinettaBoot?.failed){KinettaBoot.showFailure();return;}
@@ -2856,7 +2943,7 @@ async function start() {
     return showConfirmEmail(confirmToken);
   }
   if (location.pathname === '/forgot-password' && !kept('/api/me')) return showForgot();
-  if (Native.on && !Native.token) return showLogin();
+  if (Native.on && !Native.token) return showWelcome();
   const enter = () => {
     const invitation = /^\/join\/[A-Za-z0-9_-]{1,100}$/.test(location.pathname) ? location.pathname : pendingJoinPath();
     if (invitation) { store.set('kinetta.joinReturn',invitation);history.replaceState(null,'',invitation);return showJoin(invitation.split('/').pop()); }
