@@ -2,7 +2,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');const source=fs.readFileSync('app/static/kit.js','utf8');
 const c={route(){},KitChat:{loaded:false},IC:{},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
 assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
-assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition.map(([label])=>label))),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
+assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition)),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
 assert(source.indexOf('id="kit-starters"')<source.indexOf('class="thread-compose-row kit-compose-row"'),'Kit suggestions are directly above the composer');
 assert(source.includes("$('#kit-starters',c.el).hidden=!!has"),'Kit suggestions disappear after the first message');
 assert(source.includes("el.classList.toggle('has-draft',drafted)")&&source.includes("$('#kit-starters',el).inert=drafted"),'Kit suggestions fade and stop taking taps while a draft is non-empty');
@@ -21,6 +21,13 @@ assert.equal(c.Kit.foodIntent('2 eggs and toast',true)?.kind,'food','the follow-
 assert.equal(c.Kit.foodIntent('How many calories was breakfast?',true),null,'a follow-up question stays in Kit');
 const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,2);assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
+assert(source.includes("send(c,label,index)")&&source.includes("button.querySelector('span')?.textContent"),'a starter sends its visible button label separately from its hidden guidance index');
+assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the stored question verbatim');
+assert(source.includes('a.follow_ups.slice(0,3)')&&source.includes('data-kit-followup')&&source.includes('<span>${esc(q)}</span>'),'Kit presents visible, short follow-up prompts as tappable question chips');
+assert(source.includes('send(c,b.textContent.trim())'),'a follow-up chip asks Kit exactly the visible question');
+assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
+assert(source.includes('f.display_value??f.value'),'Kit renders its server-formatted unit-aware value');
+{const starterHandler={sendArgs:null};starterHandler.send=(...args)=>starterHandler.sendArgs=args;vm.createContext(starterHandler);vm.runInContext(pick('  function sendStarter(c,button){','  async function send(c,text,starterIndex=null){')+'\nglobalThis.sendStarter=sendStarter;',starterHandler);const button={dataset:{kitStart:'0'},querySelector(selector){assert.equal(selector,'span');return {textContent:'Am I improving?'};}};starterHandler.sendStarter('chat',button);assert.deepEqual(starterHandler.sendArgs,['chat','Am I improving?',0],'a tapped starter preserves exactly its visible label and sends guidance index separately');}
 // Shared entries need consent, access, a reviewed release and an unpaused service.
 {const app=fs.readFileSync('app/static/app.js','utf8'),gate=app.slice(app.indexOf('function aiCan('),app.indexOf('// Calls render(data)'));
  const g={App:{me:{ai_ok:true,coach:true,ai_access:{coach:{available:true,entitled:true}}}}};vm.createContext(g);vm.runInContext(gate,g);
@@ -61,14 +68,16 @@ async function testFoodThreadBridge(){
  await testEntryVisibility();
  await testFoodThreadBridge();
  let saved,delivered=0,status='',field={value:'My unsent question'};
- const sender={active:()=>true,kitChatOn:()=>true,foodIntent:()=>null,clearDraft(){},$ :()=>field,newId:()=> 'stable-uuid',save:(ctx,k,v)=>{saved=v},deliver:async()=>delivered++,status:(ctx,v)=>status=v};vm.createContext(sender);vm.runInContext(pick('  async function send(c,text){','  async function mount(el){'),sender);
+ const sender={starters:c.Kit.starters,active:()=>true,kitChatOn:()=>true,foodIntent:()=>null,clearDraft(){},$ :()=>field,newId:()=> 'stable-uuid',save:(ctx,k,v)=>{saved=v},deliver:async()=>delivered++,status:(ctx,v)=>status=v};vm.createContext(sender);vm.runInContext(pick('  async function send(c,text,starterIndex=null){','  async function mount(el){')+'\nglobalThis.send=send;',sender);
  const ctx={loaded:true,ready:true,sending:false,generation:'generation-a',context:{screen:'nutrition'}};await sender.send(ctx);assert.equal(saved.question,'My unsent question');assert.equal(saved.client_id,'stable-uuid');assert.equal(saved.generation,'generation-a');assert.equal(delivered,1);await sender.send(ctx);assert.equal(delivered,1,'current-visit durable question is retried, never duplicated');
- ctx.job=null;sender.kitChatOn=()=>false;await sender.send(ctx);assert.equal(delivered,1,'availability loss cannot send a model request');assert.equal(field.value,'My unsent question','unavailable chat keeps its draft');sender.kitChatOn=()=>true;
- ctx.job=null;sender.save=()=>{throw Error('quota')};await sender.send(ctx);assert.equal(field.value,'My unsent question');assert.equal(delivered,1);assert(status.includes('could not save'));
- ctx.job=null;ctx.ready=false;await sender.send(ctx);assert.equal(delivered,1);assert.equal(field.value,'My unsent question');assert(status.includes('isn’t available'));
+ ctx.job=null;await sender.send(ctx,'Am I improving?',0);assert.equal(saved.question,'Am I improving?','the exact visible starter question becomes the stored user bubble');assert.equal(saved.context.starter_index,0,'the starter guidance travels in a separate context field');
+ ctx.context.starter_index=0; ctx.job=null;field.value='How did my running change this month?';await sender.send(ctx);assert.equal(saved.question,'How did my running change this month?','typed text replaces neither itself nor an earlier starter');assert.equal(Object.hasOwn(saved.context,'starter_index'),false,'typed messages do not inherit starter guidance');
+ field.value='My unsent question';const sentBeforeUnavailable=delivered;ctx.job=null;sender.kitChatOn=()=>false;await sender.send(ctx);assert.equal(delivered,sentBeforeUnavailable,'availability loss cannot send a model request');assert.equal(field.value,'My unsent question','unavailable chat keeps its draft');sender.kitChatOn=()=>true;
+ ctx.job=null;sender.save=()=>{throw Error('quota')};await sender.send(ctx);assert.equal(field.value,'My unsent question');assert.equal(delivered,sentBeforeUnavailable);assert(status.includes('could not save'));
+ ctx.job=null;ctx.ready=false;await sender.send(ctx);assert.equal(delivered,sentBeforeUnavailable);assert.equal(field.value,'My unsent question');assert(status.includes('isn’t available'));
  let promptDeliveries=0;const foodBodies=[],promptField={value:'Can you log my food',style:{}};
- const foodRouter={active:()=>true,kitChatOn:()=>true,foodIntent:(text,awaiting)=>c.Kit.foodIntent(text,awaiting),clearDraft(_c,f,submitted){if(f.value.trim()===submitted.trim())f.value='';return true;},$ :()=>promptField,draw(){},controls(){},status(){},sendFood:async(_c,body)=>{foodBodies.push(body);return true;},newId:()=> 'activity-question',save(){},deliver:async()=>promptDeliveries++};
- vm.createContext(foodRouter);vm.runInContext(pick('  async function send(c,text){','  async function mount(el){'),foodRouter);
+ const foodRouter={starters:c.Kit.starters,active:()=>true,kitChatOn:()=>true,foodIntent:(text,awaiting)=>c.Kit.foodIntent(text,awaiting),clearDraft(_c,f,submitted){if(f.value.trim()===submitted.trim())f.value='';return true;},$ :()=>promptField,draw(){},controls(){},status(){},sendFood:async(_c,body)=>{foodBodies.push(body);return true;},newId:()=> 'activity-question',save(){},deliver:async()=>promptDeliveries++};
+ vm.createContext(foodRouter);vm.runInContext(pick('  async function send(c,text,starterIndex=null){','  async function mount(el){')+'\nglobalThis.send=send;',foodRouter);
  const foodContext={loaded:true,ready:true,sending:false,generation:'g',context:{screen:'activity'}};await foodRouter.send(foodContext);
  assert.equal(foodContext.localMessages[0].answer.interpretation,'What did you have?','a bare food-log request gets the short food follow-up');assert.equal(foodBodies.length,0);assert.equal(promptDeliveries,0,'the follow-up does not call the model or old food-logger answer');
  promptField.value='2 eggs and toast';await foodRouter.send(foodContext);assert.deepEqual(foodBodies,['2 eggs and toast'],'the follow-up sends the food description to FoodThread');assert.equal(foodContext.awaitingFood,false);
@@ -86,7 +95,17 @@ async function testFoodThreadBridge(){
  chat.generation='current';chat.visit_id='first-visit';chat.messages=[{client_id:'same',state:'pending'}];const ended=answerer.answer(chat,'same');chat.visit_id='next-visit';chat.messages=[];finish({client_id:'same',state:'answered'});await ended;assert.equal(draws,0,'a late answer from an ended visit cannot enter a fresh visit');
  chat.generation='current';chat.messages=[{client_id:'same',state:'pending'}];const next=answerer.answer(chat,'same');active=false;finish({client_id:'same',state:'answered'});await next;assert.equal(chat.messages[0].state,'pending');assert.equal(draws,0,'another session never renders the old answer');
  let forbidden=0;answerer.api=()=>{forbidden++;throw Error('Unavailable model request')};answerer.kitChatOn=()=>false;active=true;await answerer.answer(chat,'same');assert.equal(forbidden,0,'unavailable retries never request an answer');
- const delivery={...answerer};vm.createContext(delivery);vm.runInContext(pick('  async function deliver(c){','  async function send(c,text){'),delivery);await delivery.deliver({...chat,job:{question:'Kept'}});assert.equal(forbidden,0,'unavailable retry sending never requests a message');
+ const delivery={...answerer};vm.createContext(delivery);vm.runInContext(pick('  async function deliver(c){','  function sendStarter(c,button){'),delivery);await delivery.deliver({...chat,job:{question:'Kept'}});assert.equal(forbidden,0,'unavailable retry sending never requests a message');
+ // Reload restores the serialized pending payload; network retries must preserve its exact question and context.
+ for(const context of [{screen:'progress',starter_index:0},{screen:'progress'}]){
+  const question=Object.hasOwn(context,'starter_index')?'Am I improving?':'How did my running change this month?';
+  const pending={client_id:'saved-id',generation:'g',visit_id:'v',question,context},requests=[];
+  const retry={active:()=>true,kitChatOn:()=>true,draw(){},controls(){},status(){},key:()=>'',store:{del(){}},$:()=>({value:'A different unsent draft',style:{}}),json:(_method,body)=>JSON.parse(JSON.stringify(body)),answer:async()=>{},api:async(_url,body)=>{requests.push(body);if(requests.length===1)throw Error('offline');return {...body,id:1};}};
+  vm.createContext(retry);vm.runInContext(pick('  async function deliver(c){','  function sendStarter(c,button){'),retry);
+  const restored={job:JSON.parse(JSON.stringify(pending)),ready:true,generation:'g',visit_id:'v',messages:[],view:{pin(){}}};
+  await retry.deliver(restored);assert.deepEqual(JSON.parse(JSON.stringify(restored.job)),pending,'failed send retains the saved payload');
+  await retry.deliver(restored);assert.deepEqual(requests,[pending,pending],'reload and retry never replace the typed/tapped question with guidance or draft text');
+ }
  let auto=0;loader.kitChatOn=()=>false;loader.api=async()=>({generation:'generation-a',messages:[{id:1,client_id:'pending',state:'pending'}],ready:true,before:null});loader.answer=()=>auto++;await loader.refresh({...resumed,job:null});assert.equal(auto,0,'pause cannot auto-answer an existing pending message');loader.kitChatOn=()=>true;loader.api=async()=>({generation:'generation-a',messages:[{id:1,client_id:'pending',state:'pending'}],ready:false,before:null});await loader.refresh({...resumed,job:null});assert.equal(auto,0,'unreviewed chat cannot auto-answer pending messages');
  console.log('Kit UI: shared safe entry URLs/actions, account-scoped cleanup, durable-before-send/storage failure, duplicate-send prevention and late clear/account response fences PASS');
 })().catch(e=>{console.error(e);process.exit(1)});
@@ -113,11 +132,16 @@ assert(css.includes('.food-thread:not(.kit-chat) .thread-heading h1 { grid-colum
 assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button>'),'empty chat reminder sits below the composer');
 assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('New chat each visit.')&&source.includes('providerName()'),'About Kit keeps visit and provider details in the menu flow');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
-const drawSource=source.slice(source.indexOf('  function draw(c){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
+const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
 const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
-const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:()=>[],esc:String,controls(){},kitChatOn:()=>true};
+const followups=[{textContent:'How is my running trending?'},{textContent:'What should I focus on next?'}],sent=[];
+const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,controls(){},kitChatOn:()=>true,actions:{},svg(){},send:async(_c,q)=>sent.push(q)};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
 drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
 drawHarness.draw({el:{},messages:[],job:{client_id:'fictional',question:'A fictional question'},before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'a queued first message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'a queued first message hides the reminder');
+drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'Am I improving?',state:'answered',answer:{interpretation:'Your recent running is trending up.',facts:[{label:'Run distance',display_value:'124 mi',path:['runs',0,'distance_m']}],limitations:['Unlogged days do not count as zero.'],follow_ups:['How is my running trending?','What should I focus on next?']}}],job:null,before:null});
+assert(drawNodes['#kit-messages'].innerHTML.includes('Run distance')&&drawNodes['#kit-messages'].innerHTML.includes('124 mi'),'Kit answer uses a friendly fact label and converted display value');
+assert(!drawNodes['#kit-messages'].innerHTML.includes('Unlogged days do not count'),'Kit answer omits tool limitation lists');
+followups[0].onclick();assert.deepEqual(sent,['How is my running trending?'],'a follow-up chip sends its visible question unchanged');
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');

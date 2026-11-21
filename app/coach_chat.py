@@ -1,5 +1,6 @@
 """Tool-calling coach with bounded provider calls and application-checked quantitative evidence."""
 import json
+import math
 import os
 import re
 import time
@@ -53,10 +54,78 @@ class Answer(Empty):
     actions: list[Literal['food','nutrition','record','activities','plan','progress','strength','recipes','goals','connections']] = Field(default_factory=list, max_length=3)
 
 
-def checked_answer(raw, evidence):
-    answer = Answer.model_validate(raw)
+class KitAnswer(Answer):
+    facts: list[Fact] = Field(max_length=3)
+    follow_ups: list[StrictStr] = Field(default_factory=list, max_length=3)
+
+
+def _compact_number(value, digits=1):
+    if isinstance(value, int): return str(value)
+    shown=f'{float(value):.{digits}f}'
+    return shown.rstrip('0').rstrip('.') if '.' in shown else shown
+
+
+def _kit_fact(tool, data, path, value, units):
+    """Format verified measurements with short labels and the person's units."""
+    field=path[-1] if path and isinstance(path[-1],str) else ''
+    sport=None
+    if tool=='recent_runs' and path and path[0]=='runs': sport='Run'
+    elif tool=='activities' and path and path[0]=='totals_by_sport':
+        try: sport={'run':'Run','ride':'Ride','walk':'Walk','hike':'Hike','swim':'Swim','strength':'Strength'}.get(data['totals_by_sport'][path[1]].get('sport'))
+        except (IndexError,KeyError,TypeError): pass
+    labels={
+        'distance_m':'Distance','moving_s':'Moving time','elapsed_s':'Elapsed time','pace_s_per_km':'Pace',
+        'avg_hr':'Heart rate','max_hr':'Peak heart rate','avg_temp':'Temperature','effort':'Effort',
+        'workouts':'Workouts','count':'Workouts','activities':'Workouts','ascent_m':'Elevation gain',
+        'calories':'Calories','kcal':'Calories','protein_g':'Protein','carbs_g':'Carbohydrates',
+        'fat_g':'Fat','fiber_g':'Fibre','sodium_mg':'Sodium','sugar_g':'Sugar',
+        'kg':'Weight','max_recorded_kg':'Best recorded weight','trend_kg':'Weight trend',
+        'endpoint_change_kg':'Weight change','completed_sets':'Completed sets','max_recorded_reps':'Most reps',
+        'recorded_volume_kg':'Recorded volume','fitness':'Fitness','fatigue':'Fatigue','form':'Form','load':'Training load',
+    }
+    label=labels.get(field,'Recorded value')
+    if sport: label=f'{sport} {label.lower()}'
+    if 'average_per_logged_day' in path: label=f'Average daily {label.lower()}'
+    elif 'totals' in path or 'totals_by_sport' in path: label=f'Total {label.lower()}'
+    metric=units=='metric';display=str(value)
+    if field=='distance_m':
+        factor,unit=(1000,'km') if metric else (1609.344,'mi')
+        display=f'{_compact_number(float(value)/factor)} {unit}'
+    elif field=='ascent_m':
+        factor,unit=(1,'m') if metric else (3.28084,'ft')
+        display=f'{_compact_number(float(value)*factor)} {unit}'
+    elif field=='pace_s_per_km':
+        seconds=float(value)*(1 if metric else 1609.344/1000)
+        whole=max(0,round(seconds));display=f'{whole//60}:{whole%60:02d} /{"km" if metric else "mi"}'
+    elif field in {'moving_s','elapsed_s'}:
+        seconds=max(0,round(float(value)));hours,rem=divmod(seconds,3600);minutes=rem//60
+        display=f'{hours}h {minutes}m' if hours else f'{minutes} min'
+    elif field in {'avg_hr','max_hr'}: display=f'{round(float(value))} bpm'
+    elif field=='avg_temp':
+        temp=float(value) if metric else float(value)*9/5+32
+        display=f'{_compact_number(temp)} °{"C" if metric else "F"}'
+    elif field.endswith('_kg') or field=='kg':
+        shown=float(value) if metric else float(value)*2.2046226218
+        display=f'{_compact_number(shown)} {"kg" if metric else "lb"}'
+    elif field.endswith('_g'): display=f'{_compact_number(float(value))} g'
+    elif field.endswith('_mg'): display=f'{_compact_number(float(value))} mg'
+    elif field in {'calories','kcal'}: display=f'{round(float(value))} kcal'
+    elif isinstance(value,(int,float)): display=_compact_number(value)
+    return label,display
+
+
+def checked_answer(raw, evidence, *, kit=False):
+    answer = (KitAnswer if kit else Answer).model_validate(raw)
     if re.search(r'\d', answer.interpretation): raise ValueError('Unverified numerical assertion in explanation')
+    follow_ups=[]
+    for question in (answer.follow_ups if kit else []):
+        question=question.strip()
+        if len(question)>80 or re.search(r'\d|https?://|\b(?:unlogged days|cannot be assessed|cannot be evaluated)\b',question,re.I):
+            raise ValueError('Kit follow-up is too long or unsuitable as a question chip')
+        if question and question not in follow_ups: follow_ups.append(question)
     by_id = {e['evidence_id']: e for e in evidence if 'error' not in e}
+    profile=next((e.get('data',{}) for e in by_id.values() if e.get('tool')=='profile'),{}) if kit else {}
+    units=profile.get('units') or 'imperial'
     facts = []
     for claim in answer.facts:
         if claim.evidence_id not in by_id: raise ValueError('Unknown evidence reference')
@@ -68,11 +137,20 @@ def checked_answer(raw, evidence):
         except (KeyError, IndexError, TypeError): raise ValueError('Invalid evidence path') from None
         if isinstance(value, bool) or value is None or not isinstance(value, (str, int, float)): raise ValueError('Evidence is not a measurement')
         if type(value) is not type(claim.value) and not isinstance(value, (int, float)): raise ValueError('Wrong evidence type')
+        if isinstance(claim.value,bool) or (isinstance(value,(int,float)) and not math.isfinite(value)):
+            raise ValueError('Evidence must be a finite measurement')
         if value != claim.value: raise ValueError('Claim does not match tool evidence')
-        # Labels and values are derived from the tool path; the model cannot relabel an average as a maximum.
-        label = ' · '.join(str(x).replace('_', ' ') for x in claim.path if not isinstance(x, int))
-        facts.append({'label': label, 'value': value, 'tool': by_id[claim.evidence_id]['tool'], 'path': claim.path,
-                      'evidence_id': claim.evidence_id})
+        # Labels and values are derived from the verified path, never model-supplied prose.
+        tool=by_id[claim.evidence_id]['tool']
+        if kit:
+            if isinstance(value,str): raise ValueError('Kit facts must be measurements')
+            if 'unlogged_days' in claim.path: continue
+            label,display=_kit_fact(tool,by_id[claim.evidence_id]['data'],claim.path,value,units)
+        else:
+            label=' · '.join(str(x).replace('_',' ') for x in claim.path if not isinstance(x,int));display=None
+        fact={'label':label,'value':value,'tool':tool,'path':claim.path,'evidence_id':claim.evidence_id}
+        if kit: fact['display_value']=display
+        facts.append(fact)
     selection = None
     if answer.selection:
         s = answer.selection
@@ -85,8 +163,10 @@ def checked_answer(raw, evidence):
         if candidate:
             selection = {'kind': s.kind, 'candidate_id': s.candidate_id, 'candidate': candidate,
                          'day': ev['arguments'].get('day'), 'confirmation_required': True}
-    return {'interpretation': answer.interpretation, 'facts': facts, 'selection': selection, 'actions':answer.actions,
-            'limitations': [str(item) for e in by_id.values() for item in e['data'].get('limitations', [])]}
+    result={'interpretation':answer.interpretation,'facts':facts,'selection':selection,'actions':answer.actions}
+    if kit: result['follow_ups']=follow_ups
+    if not kit: result['limitations']=[str(item) for e in by_id.values() for item in e['data'].get('limitations',[])]
+    return result
 
 
 def _json(text):
@@ -104,7 +184,13 @@ personal conclusion to answer a general question. Consult profile for the person
 Prior conversation is context, not fresh evidence. Always get current personal measurements from tools.
 The application supplies a verified profile evidence record with today's date before the first turn; use it.
 Use the fewest relevant tools, usually one or two. Do not repeat identical lookups. Keep the answer concise,
-with at most four relevant facts, then offer a useful next step or a short follow-up question.
+with a direct answer in the first short sentence and one reason in the second. A progress verdict must distinguish
+improving, declining and insufficient evidence; never treat a longer run alone as proof of improving fitness. For “Am I improving?”, use the
+available running trend even when strength or nutrition records are empty. Follow with at most three plainly labelled
+facts. Never expose tool names, field paths, raw metres or seconds; use the account's units and round distances to
+one decimal at most. Do not report unlogged-day counts, scold about missing records, or list generic limitations.
+Mention missing data in one brief sentence only when it changes the answer. Finish with two or three useful, short
+follow-up questions in "follow_ups" (an array of strings), each asking one thing. Keep numerical claims in the verified facts list, not the prose.
 For calorie restriction, pregnancy, minors or medical diets, clarify needs and avoid prescribing targets outside the validated app goal tools.
 Do not request unconsented Health data; an unavailable tool means that scope cannot be used.
 Optionally add "actions" to the final JSON: at most three IDs from food, nutrition, record, activities, plan,
@@ -208,7 +294,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         for key in usage: usage[key] += int(tokens.get(key) or 0)
         if not calls:
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
-            checked = checked_answer(_json(text), evidence)
+            checked = checked_answer(_json(text), evidence, kit=kit)
             return {**checked, 'prompt_version': 'kit-shared-1' if kit else PROMPT_VERSION, 'usage': usage,
                     'latency_ms': round((time.monotonic() - began) * 1000),
                     'health_included':kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and 'data' in e for e in evidence),

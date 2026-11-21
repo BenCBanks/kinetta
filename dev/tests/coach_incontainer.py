@@ -19,6 +19,68 @@ for name in ['unsupported_value', 'unknown_evidence', 'wrong_path', 'numbers_in_
     except ValueError: pass
     else: raise AssertionError(name)
 
+# Kit displays verified measurements as short, user-unit-aware facts without exposing paths or caveat dumps.
+import json
+profile_evidence={'evidence_id':'e1','tool':'profile','arguments':{},'data':{'units':'imperial'}}
+run_evidence={'evidence_id':'e2','tool':'recent_runs','arguments':{},'data':{'runs':[{'distance_m':199558.656}]}}
+kit_raw={'interpretation':'You are covering more ground. That supports a volume increase, but not a fitness verdict.',
+         'facts':[{'evidence_id':'e2','path':['runs',0,'distance_m'],'value':199558.656}],
+         'follow_ups':['How is my running trending?','What should I focus on next?']}
+imperial=coach_chat.checked_answer(kit_raw,[profile_evidence,run_evidence],kit=True)
+assert imperial['facts'][0]['label']=='Run distance' and imperial['facts'][0]['display_value']=='124 mi'
+assert imperial['follow_ups']==kit_raw['follow_ups'] and 'limitations' not in imperial
+metric_raw={**kit_raw,'facts':[{'evidence_id':'e2','path':['runs',0,'distance_m'],'value':124000}]}
+metric=coach_chat.checked_answer(metric_raw,[{**profile_evidence,'data':{'units':'metric'}},
+    {**run_evidence,'data':{'runs':[{'distance_m':124000}]}}],kit=True)
+assert metric['facts'][0]['display_value']=='124 km'
+too_many={**kit_raw,'facts':kit_raw['facts']*4}
+try: coach_chat.checked_answer(too_many,[profile_evidence,run_evidence],kit=True)
+except ValueError: pass
+else: raise AssertionError('Kit answer facts must be capped at three')
+
+# Known totals/averages retain their meaning; missing-day counts never become reproachful facts.
+for container,label in [('average_per_logged_day','Average daily protein'),('totals','Total protein')]:
+    ev={'evidence_id':'e2','tool':'nutrition_summary','data':{container:{'protein_g':80}}}
+    raw={**kit_raw,'facts':[{'evidence_id':'e2','path':[container,'protein_g'],'value':80}]}
+    fact=coach_chat.checked_answer(raw,[profile_evidence,ev],kit=True)['facts'][0]
+    assert fact['label']==label and fact['display_value']=='80 g'
+raw={**kit_raw,'facts':[{'evidence_id':'e2','path':['unlogged_days'],'value':27}]}
+assert not coach_chat.checked_answer(raw,[profile_evidence,{'evidence_id':'e2','tool':'nutrition_summary','data':{'unlogged_days':27}}],kit=True)['facts']
+for field,value,display in [('pace_s_per_km',300,'8:03 /mi'),('elapsed_s',3660,'1h 1m'),('kg',70,'154.3 lb')]:
+    raw={**kit_raw,'facts':[{'evidence_id':'e2','path':[field],'value':value}]}
+    assert coach_chat.checked_answer(raw,[profile_evidence,{'evidence_id':'e2','tool':'activity','data':{field:value}}],kit=True)['facts'][0]['display_value']==display
+for value in [float('inf'),float('nan'),True]:
+    raw={**kit_raw,'facts':[{'evidence_id':'e2','path':['distance_m'],'value':value}]}
+    try:coach_chat.checked_answer(raw,[profile_evidence,{'evidence_id':'e2','tool':'activity','data':{'distance_m':value}}],kit=True)
+    except ValueError:pass
+    else:raise AssertionError('non-finite or boolean evidence')
+
+# Running can answer the progress starter without strength or nutrition evidence.
+from app import db
+with db.connect() as c: uid=c.execute("SELECT id FROM users WHERE login='alex'").fetchone()['id']
+fixture_calls=[]
+def kit_fixture_tool(self,name,args,*,connection=None):
+    fixture_calls.append(name)
+    if name=='profile': return {'units':'imperial','today':'2026-10-14'}
+    if name=='recent_runs': return {'runs':[{'distance_m':9000,'day':'2026-10-14'},{'distance_m':7000,'day':'2026-10-07'}],
+                                    'totals':{'count':2,'distance_m':16000},'truncated':False,'limitations':[]}
+    raise AssertionError('Fixture must not need '+name)
+fixture_rounds=0
+def kit_fixture_turn(messages,definitions):
+    global fixture_rounds
+    fixture_rounds+=1
+    if fixture_rounds==1: return [{'name':'recent_runs','args':{'start':'2026-10-01','end':'2026-10-14'},'id':'run-trend'}],'',{}
+    return [],json.dumps({'interpretation':'Your latest run was longer. That supports a volume increase, but not a fitness verdict.',
+        'facts':[{'evidence_id':'e2','path':['runs',0,'distance_m'],'value':9000},
+                 {'evidence_id':'e2','path':['runs',1,'distance_m'],'value':7000}],
+        'follow_ups':['How is my running trending?','What should I focus on next?']}),{}
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
+     patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=kit_fixture_tool):
+    trend=coach_chat.answer(uid,'Am I improving?',kit=True,turn=kit_fixture_turn)
+assert fixture_calls==['profile','recent_runs'] and trend['tools_used']==['profile','recent_runs'],(fixture_calls,trend['tools_used'])
+assert trend['facts'][0]['display_value']=='5.6 mi' and len(trend['facts'])==2
+assert 'even when strength or nutrition records are empty' in coach_chat.KIT_SYSTEM
+
 plan = {'plan': {'unit': 'km'}, 'today': '2026-10-14', 'weeks': [{'workouts': [
  {'day': '2026-10-12', 'status': 'missed', 'type': 'easy', 'dist': 5},
  {'day': '2026-10-13', 'status': 'missed', 'type': 'easy', 'dist': 5},
