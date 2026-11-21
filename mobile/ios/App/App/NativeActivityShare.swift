@@ -7,40 +7,30 @@ import WebKit
 // Instagram Stories accepts a transparent image as a movable sticker through its
 // documented pasteboard handoff. The activity is absent unless this app build has
 // a registered Meta App ID and Instagram is installed.
-private final class InstagramStoriesActivity: UIActivity {
-    private let stickerType = "com.instagram.sharedSticker.stickerImage"
-    private var sticker: UIImage?
-
-    private var metaAppID: String? {
+private enum InstagramStoriesHandoff {
+    private static let stickerType = "com.instagram.sharedSticker.stickerImage"
+    private static var metaAppID: String? {
         guard let value = Bundle.main.object(forInfoDictionaryKey: "KinettaMetaAppID") as? String else { return nil }
         let id = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty, id.rangeOfCharacter(from: CharacterSet.decimalDigits.inverted) == nil else { return nil }
         return id
     }
 
-    override class var activityCategory: UIActivity.Category { .share }
-    override var activityType: UIActivity.ActivityType? { UIActivity.ActivityType("com.kinetta.activity-share.instagram-stories") }
-    override var activityTitle: String? { "Instagram Stories" }
-    override var activityImage: UIImage? { UIImage(systemName: "camera") }
-
-    override func canPerform(withActivityItems activityItems: [Any]) -> Bool {
+    static var isAvailable: Bool {
         guard metaAppID != nil,
-              let instagram = URL(string: "instagram://app"), UIApplication.shared.canOpenURL(instagram) else { return false }
-        return activityItems.contains { $0 is UIImage }
+              let instagram = URL(string: "instagram://app"),
+              let stories = URL(string: "instagram-stories://share") else { return false }
+        return UIApplication.shared.canOpenURL(instagram) && UIApplication.shared.canOpenURL(stories)
     }
 
-    override func prepare(withActivityItems activityItems: [Any]) {
-        sticker = activityItems.compactMap { $0 as? UIImage }.first
-    }
-
-    override func perform() {
-        guard let image = sticker, let appID = metaAppID,
+    static func open(_ image: UIImage, completion: @escaping (Bool) -> Void) {
+        guard let appID = metaAppID, isAvailable,
               let png = image.pngData(), !png.isEmpty, png.count <= 8 * 1024 * 1024,
               var components = URLComponents(string: "instagram-stories://share") else {
-            activityDidFinish(false); return
+            completion(false); return
         }
         components.queryItems = [URLQueryItem(name: "source_application", value: appID)]
-        guard let destination = components.url else { activityDidFinish(false); return }
+        guard let destination = components.url else { completion(false); return }
 
         let pasteboard = UIPasteboard.general
         let previousItems = pasteboard.items
@@ -49,23 +39,46 @@ private final class InstagramStoriesActivity: UIActivity {
             options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(5 * 60)]
         )
         UIApplication.shared.open(destination, options: [:]) { opened in
-            if !opened, pasteboard.items.first?[self.stickerType] as? Data == png {
+            if !opened, pasteboard.items.first?[stickerType] as? Data == png {
                 pasteboard.items = previousItems
             }
-            self.activityDidFinish(opened)
+            completion(opened)
         }
+    }
+}
+
+private final class InstagramStoriesActivity: UIActivity {
+    private var sticker: UIImage?
+
+    override class var activityCategory: UIActivity.Category { .share }
+    override var activityType: UIActivity.ActivityType? { UIActivity.ActivityType("com.kinetta.activity-share.instagram-stories") }
+    override var activityTitle: String? { "Instagram Stories" }
+    override var activityImage: UIImage? { UIImage(systemName: "camera") }
+
+    override func canPerform(withActivityItems activityItems: [Any]) -> Bool {
+        InstagramStoriesHandoff.isAvailable && activityItems.contains { $0 is UIImage }
+    }
+
+    override func prepare(withActivityItems activityItems: [Any]) {
+        sticker = activityItems.compactMap { $0 as? UIImage }.first
+    }
+
+    override func perform() {
+        guard let image = sticker else { activityDidFinish(false); return }
+        InstagramStoriesHandoff.open(image) { self.activityDidFinish($0) }
     }
 }
 
 // Exports only the picture the person previewed. No server access, account tokens or photo-library writes.
 @objc(KinettaActivitySharePlugin)
-class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteractionControllerDelegate {
+class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin {
     let identifier = "KinettaActivitySharePlugin"
     let jsName = "KinettaActivityShare"
     let pluginMethods: [CAPPluginMethod] = {
         var methods: [CAPPluginMethod] = [
             CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "saveToPhotos", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "copyToClipboard", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "keepAwake", returnType: CAPPluginReturnPromise)
         ]
@@ -162,13 +175,13 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
 
     private var awakeBefore: Bool?
     private var pending: CAPPluginCall?
-    private var document: UIDocumentInteractionController?
     private var activity: UIActivityViewController?
-    private var imageURL: URL?
-    private var sending = false
     private var timeout: DispatchWorkItem?
     private static let maxBytes = 8 * 1024 * 1024
     private static let maxCaptionCharacters = 1000
+    private var shareDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("kinetta-activity-share", isDirectory: true)
+    }
 
     override func load() {
         // A crashed/interrupted share must not retain activity pictures indefinitely.
@@ -189,10 +202,6 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
             }
             call.resolve()
         }
-    }
-
-    private var shareDirectory: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("kinetta-activity-share", isDirectory: true)
     }
 
     @objc func share(_ call: CAPPluginCall) {
@@ -223,10 +232,11 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
                 call.reject("Finish the open share sheet first"); return
             }
             if destination == "instagram" {
-                guard let url = URL(string: "instagram://app"), UIApplication.shared.canOpenURL(url) else {
-                    call.reject("Install Instagram to share there, or use Share for another app"); return
+                if InstagramStoriesHandoff.isAvailable {
+                    self.shareToInstagramStories(image, call: call, controller: controller)
+                } else {
+                    self.shareWithSystem(image, call: call, controller: controller)
                 }
-                self.shareToInstagram(image, call: call, controller: controller)
             } else {
                 self.shareWithSystem(image, call: call, controller: controller)
             }
@@ -263,8 +273,23 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
         }
     }
 
+    @objc func copyToClipboard(_ call: CAPPluginCall) {
+        guard let text = call.getString("image"), text.count <= 12 * 1024 * 1024,
+              text.hasPrefix("data:image/png;base64,"),
+              let data = Data(base64Encoded: String(text.dropFirst("data:image/png;base64,".count))),
+              !data.isEmpty, data.count <= Self.maxBytes,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) == 1,
+              CGImageSourceGetType(source) as String? == "public.png" else {
+            call.reject("That activity picture couldn’t be copied"); return
+        }
+        UIPasteboard.general.setItems([["public.png": data]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(5 * 60)])
+        call.resolve(["copied": true])
+    }
+
     private func begin(_ call: CAPPluginCall) {
         pending = call
+        timeout?.cancel()
         let work = DispatchWorkItem { [weak self, weak call] in
             guard let self = self, let call = call, self.pending === call else { return }
             self.finish(["cancelled": true], dismiss: true)
@@ -274,7 +299,7 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     }
 
     private func shareWithSystem(_ image: UIImage, call: CAPPluginCall, controller: UIViewController) {
-        begin(call)
+        if pending !== call { begin(call) }
         var items: [Any] = [image]
         if let caption = call.getString("caption"), !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             items.append(caption)
@@ -296,49 +321,13 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
         controller.present(sheet, animated: true)
     }
 
-    private func shareToInstagram(_ image: UIImage, call: CAPPluginCall, controller: UIViewController) {
-        guard let jpeg = image.jpegData(compressionQuality: 0.95), jpeg.count <= Self.maxBytes else {
-            call.reject("That activity picture is too large to share"); return
-        }
-        let file = shareDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("igo")
-        do {
-            try FileManager.default.createDirectory(at: shareDirectory, withIntermediateDirectories: true)
-            try jpeg.write(to: file, options: [.atomic, .completeFileProtection])
-            var protectedFile = file
-            var values = URLResourceValues(); values.isExcludedFromBackup = true
-            try protectedFile.setResourceValues(values)
-        } catch {
-            try? FileManager.default.removeItem(at: file)
-            call.reject("Couldn’t prepare this picture for Instagram"); return
-        }
+    private func shareToInstagramStories(_ image: UIImage, call: CAPPluginCall, controller: UIViewController) {
         begin(call)
-        imageURL = file
-        let picker = UIDocumentInteractionController(url: file)
-        picker.uti = "com.instagram.exclusivegram"
-        picker.name = "Activity picture"
-        picker.delegate = self
-        document = picker
-        let rect = CGRect(x: controller.view.bounds.midX, y: controller.view.bounds.midY, width: 1, height: 1)
-        if !picker.presentOpenInMenu(from: rect, in: controller.view, animated: true) {
-            finish([:], error: "Instagram couldn’t open this picture. Use Share to choose another destination.")
-        }
-    }
-
-    func documentInteractionController(_ controller: UIDocumentInteractionController, willBeginSendingToApplication application: String?) {
-        guard controller === document else { return }
-        sending = true
-    }
-
-    func documentInteractionController(_ controller: UIDocumentInteractionController, didEndSendingToApplication application: String?) {
-        guard controller === document else { return }
-        finish(["handedOff": true])
-    }
-
-    func documentInteractionControllerDidDismissOpenInMenu(_ controller: UIDocumentInteractionController) {
-        // UIKit may dismiss the menu immediately before its handoff delegate notification.
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, controller === self.document, !self.sending else { return }
-            self.finish(["cancelled": true])
+        InstagramStoriesHandoff.open(image) { [weak self, weak call, weak controller] opened in
+            guard let self, let call, self.pending === call else { return }
+            if opened { self.finish(["handedOff": true]) }
+            else if let controller { self.shareWithSystem(image, call: call, controller: controller) }
+            else { self.finish(["cancelled": true]) }
         }
     }
 
@@ -352,10 +341,8 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     private func finish(_ result: [String: Any], dismiss: Bool = false, error: String? = nil) {
         let call = pending; pending = nil
         timeout?.cancel(); timeout = nil
-        if dismiss { document?.dismissMenu(animated: false); activity?.dismiss(animated: false) }
-        document?.delegate = nil; document = nil; activity = nil; sending = false
-        if let file = imageURL { try? FileManager.default.removeItem(at: file) }
-        imageURL = nil
+        if dismiss { activity?.dismiss(animated: false) }
+        activity = nil
         if let error = error { call?.reject(error) } else { call?.resolve(result) }
     }
 }
