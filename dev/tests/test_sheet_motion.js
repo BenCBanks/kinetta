@@ -5,14 +5,14 @@ const source=fs.readFileSync('app/static/app.js','utf8');
 function setup(reduced=false){
  const sheets=[],timers=new Map(),events=new Map(),documentEvents=new Map();let timerId=0,focuses=0,disposed=0,clock=0;
  const classes=()=>{const values=new Set();return {add:x=>values.add(x),remove:x=>values.delete(x),contains:x=>values.has(x)};};
- const element=()=>({style:{setProperty(k,v){this[k]=v;}},classList:classes(),listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},setAttribute(k,v){this[k]=v;},remove(){this.isConnected=false;},contains(){return false;},getBoundingClientRect(){return {height:400};}});
+ const element=()=>({focus(){},style:{setProperty(k,v){this[k]=v;}},classList:classes(),listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},setAttribute(k,v){this[k]=v;},remove(){this.isConnected=false;},contains(){return false;},getBoundingClientRect(){return {height:400};}});
  const notice=element();notice.classList.add('on');notice.undo=false;
  const previous={isConnected:true,focus(options){assert.equal(options.preventScroll,true);focuses++;}};
  const document={activeElement:previous,body:{children:sheets,classList:classes(),append:s=>{s.isConnected=true;sheets.push(s);}},
   createElement:()=>{const s=element();s.sh=element();s.body=element();s.classList.add('scrim');s.contains=el=>el.sheet===s;return s;},
   querySelector:()=>sheets.find(s=>s.isConnected),querySelectorAll:()=>sheets.filter(s=>s.isConnected),
   addEventListener:(k,f)=>documentEvents.set(k,f),removeEventListener:k=>documentEvents.delete(k)};
- const ctx={document,console,window:{},performance:{now:()=>clock},matchMedia:()=>({matches:reduced}),getComputedStyle:el=>({transform:'matrix(1, 0, 0, 1, 0, 19)',opacity:el.sh?'.7':'.8'}),esc:String,svg:()=>'',innerHeight:844,
+ const ctx={document,console,window:{},performance:{now:()=>clock},matchMedia:query=>({matches:query==='(prefers-reduced-motion: reduce)'&&reduced}),getComputedStyle:el=>({transform:'matrix(1, 0, 0, 1, 0, 19)',opacity:el.sh?'.7':'.8'}),esc:String,svg:()=>'',innerHeight:844,
   addEventListener:(k,f)=>events.set(k,f),removeEventListener:k=>events.delete(k),requestAnimationFrame:f=>f(),
   setTimeout:f=>{timers.set(++timerId,f);return timerId;},clearTimeout:id=>timers.delete(id),
   $:(selector,parent)=>selector==='#toast'?notice:selector==='button'&&parent===notice?(notice.undo?{}:null):selector==='.sheet'?parent.sh:selector==='.sbody'?parent.body:null,
