@@ -561,8 +561,8 @@ function wireHomeChallengeLink(el){
   const link=el?.querySelector?.('[data-home-challenges]');
   link?.addEventListener('click',event=>{if(event.defaultPrevented||event.metaKey||event.ctrlKey||event.button>0)return;if(typeof Discovery!=='undefined')Discovery.visit('activity','challenges');});
 }
-function groupListMarkup(groups){
-  return groups.length?`<div class="card list group-list-card">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow"><b>${esc(group.title)}</b><small>${esc(groupListSubtitle(group))}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+function groupListMarkup(groups,home=false){
+  return groups.length?`<div class="card list group-list-card">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow"><b>${esc(group.title)}</b><small>${esc(groupListSubtitle(group))}</small></span>${svg('chev')}</a>`).join('')}</div>`:home?`<div class="group-empty"><p>Start a group</p><button type="button" class="ghost" id="group-empty-create">Create a group</button></div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
 }
 function groupListSubtitle(group){
   const current=group.total!==undefined?Number(group.total)||0:Number(group.your_total)||0,target=Number(group.goal_target)||0;
@@ -572,16 +572,17 @@ function groupListSubtitle(group){
 }
 async function homeGroups(el) {
   const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner();
-  el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('groups')}<section class="home-groups"><div class="home-groups-heading"><h2>Groups</h2><button type="button" class="linkbtn" id="home-group-new">Create</button></div><div id="home-group-list"><div class="card empty">Loading your groups…</div></div></section>`;
+  el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('groups')}<section class="home-groups"><div class="home-groups-heading" hidden><button type="button" class="linkbtn" id="home-group-new">Create</button></div><div id="home-group-list"><div class="card empty">Loading your groups…</div></div></section>`;
   wireHomeChallengeLink(el);
   const create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url,group.title);});
   $('#home-group-new',el).onclick=create;
   try{
     const groups=await api('/api/groups');if(!live())return;
+    $('.home-groups-heading',el).hidden=!groups.length;
     const host=$('#home-group-list',el);
-    host.innerHTML=groupListMarkup(groups);
+    host.innerHTML=groupListMarkup(groups,true);
     $('#group-empty-create',host)?.addEventListener('click',create);
-  }catch(error){if(live()){$('#home-group-list',el).innerHTML=`<div class="card empty">${esc(loadErrorCopy(error))}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/activity?view=groups',{replace:true}));}}
+  }catch(error){if(live()){$('.home-groups-heading',el).hidden=false;$('#home-group-list',el).innerHTML=`<div class="card empty">${esc(loadErrorCopy(error))}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/activity?view=groups',{replace:true}));}}
 }
 // An empty Home feed always offers a next step (#762): record or import a workout, or find friends to follow.
 const feedEmpty=()=>`<div class="feed-empty"><p class="small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p><div class="btncol"><a class="primary wide" href="/track">Record or import a workout</a><a class="linkbtn" href="/me/friends?find=1">Find friends</a></div></div>`;
