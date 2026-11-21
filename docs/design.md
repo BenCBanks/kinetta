@@ -2005,3 +2005,15 @@ Owner direction: between Apple and Linear. Little things matter and nothing shou
 - **Badges.** Earned badges have a medal finish (radial base, rim, top highlight, `--elevation-raised`); unearned are desaturated with no rim. Unlock plays one bouncy scale with a glow and never repeats on revisit. The next badge's ring reads as a gradient.
 - **Perceived speed.** Writes are optimistic with an inline retry on failure. Show the destination's title and back button within 100ms of a tap. Use skeletons, not spinners, and only after 200ms. Prefetch on touch start and render from cache first.
 - **Review test.** A before/after screenshot pair must look clearly different at phone size in light and dark. If it does not, the polish has not shipped.
+
+
+### Icon budget · 21 November 2026 (#1399)
+
+These rules guide new UI and scoped cleanup of existing screens. Keep the emoji reaction button unchanged.
+
+- Show at most three actions per card or row group, with one secondary action per row; allow at most two trailing icons in a screen header and about six visible icon actions per viewport, excluding navigation.
+- Use icon-only controls for the standard back, close, share, more, search and plus actions. Give Kinetta-specific actions a visible label and every icon action an accessible name. Keep all targets at least 44 × 44 pt.
+- Move actions used on fewer than roughly one in ten visits behind More. Core actions always have a visible equivalent to swipe or long-press.
+- Remove duplicate paths to an action, decorative row icons, outlined circles around toolbar icons and colour without meaning first. Never combine a decorative leading icon, chevron and trailing action on one row. Offer sharing once per object.
+- Use 30–34 pt page titles, 20–22 pt section titles, 17 pt body text and 13–15 pt metadata, one blue accent, and flat lists with inset separators.
+- Achievement lists use their title/summary as the detail target. Remove per-row Share and redundant runner/chevron icons; put one Share action in achievement detail.
