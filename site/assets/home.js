@@ -26,23 +26,21 @@
     const question=demo.querySelector('[data-chat-question]');question.textContent=question.dataset.fullText;
     demo.querySelector('[data-chat-typing]').setAttribute('aria-hidden','true');
     demo.querySelector('[data-chat-result]').setAttribute('aria-hidden','false');
-    demo.querySelector('[data-chat-total]').textContent='515 kcal';
-    demo.querySelector('[data-chat-check]').setAttribute('aria-hidden','false');
-    demo.querySelector('[data-chat-suggestion]').setAttribute('aria-hidden','false');
+    demo.querySelector('[data-chat-total]').textContent='55';
+    demo.querySelector('[data-chat-log-bar]').setAttribute('aria-hidden','false');
     demo.dataset.demoState='complete';
   }
   async function mealLoop(demo,state){
-    const question=demo.querySelector('[data-chat-question]'),typing=demo.querySelector('[data-chat-typing]'),result=demo.querySelector('[data-chat-result]'),total=demo.querySelector('[data-chat-total]'),check=demo.querySelector('[data-chat-check]'),suggestion=demo.querySelector('[data-chat-suggestion]'),text=question.dataset.fullText;
+    const question=demo.querySelector('[data-chat-question]'),typing=demo.querySelector('[data-chat-typing]'),result=demo.querySelector('[data-chat-result]'),total=demo.querySelector('[data-chat-total]'),logBar=demo.querySelector('[data-chat-log-bar]'),text=question.dataset.fullText;
     while(!reduced.matches){
-      demo.dataset.demoState='typing';question.textContent='';typing.setAttribute('aria-hidden','true');result.setAttribute('aria-hidden','true');check.setAttribute('aria-hidden','true');suggestion.setAttribute('aria-hidden','true');total.textContent='0 kcal';
+      demo.dataset.demoState='typing';question.textContent='';typing.setAttribute('aria-hidden','true');result.setAttribute('aria-hidden','true');logBar.setAttribute('aria-hidden','true');total.textContent='0';
       for(let i=1;i<=text.length;i++){question.textContent=text.slice(0,i);if(!await activeWait(demo,state,23))return;}
       question.textContent=text;demo.dataset.demoState='matching';typing.setAttribute('aria-hidden','false');
       if(!await activeWait(demo,state,650))break;
       typing.setAttribute('aria-hidden','true');result.setAttribute('aria-hidden','false');demo.dataset.demoState='matched';
-      for(let n=0;n<=515;n+=35){total.textContent=`${Math.min(n,515)} kcal`;if(!await activeWait(demo,state,45))return;}
-      total.textContent='515 kcal';check.setAttribute('aria-hidden','false');
-      if(!await activeWait(demo,state,220))break;
-      suggestion.setAttribute('aria-hidden','false');if(!await activeWait(demo,state,50))break;demo.dataset.demoState='complete';
+      logBar.setAttribute('aria-hidden','false');
+      for(let n=0;n<=55;n+=5){total.textContent=String(Math.min(n,55));if(!await activeWait(demo,state,45))return;}
+      total.textContent='55';demo.dataset.demoState='complete';
       if(!await activeWait(demo,state,2100))break;
     }
     state.running=false;
