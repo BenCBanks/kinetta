@@ -54,12 +54,14 @@ async function assertNoDetailTitleBand(locator){
  assert(result.content==='none'&&result.pseudoImage==='none'&&result.hostImage==='none'&&result.borderTop==='0px',`activity detail map has no title band or top edge: ${JSON.stringify(result)}`);
 }
 async function assertActivitySharePreview(p,label){
- const sheet=p.locator('[data-unified-share]'),formats=sheet.locator('[data-share-tab]'),preview=sheet.locator('[data-share-preview-image]');
+ const sheet=p.locator('[data-unified-share]'),formats=sheet.locator('[data-share-tab]'),cards=sheet.locator('[data-share-card]'),preview=sheet.locator('[data-share-card][aria-pressed="true"] [data-share-preview-image]');
  assert.equal(await p.locator('.detail-floating [data-detail-share]').evaluate(n=>n.matches(':focus-visible')),false,`${label}: pointer tap does not show the keyboard focus ring`);
  await preview.waitFor({state:'visible'});
- await p.waitForFunction(()=>{const image=document.querySelector('[data-unified-share] [data-share-preview-image]');return image?.complete&&image.naturalWidth>0&&image.naturalHeight>0;});
+ await p.waitForFunction(()=>{const card=document.querySelector('[data-unified-share] [data-share-card][aria-pressed="true"]'),image=card?.querySelector('[data-share-preview-image]');return image?.complete&&image.naturalWidth>0&&image.naturalHeight>0;});
  assert.equal(await formats.count(),3,`${label}: activity share has three picture formats`);
- assert.equal(await formats.nth(0).getAttribute('aria-pressed'),'true',`${label}: Card is selected on open`);
+ assert.equal(await cards.count(),3,`${label}: activity share carousel has three picture cards`);
+ assert.equal(await formats.nth(0).getAttribute('aria-pressed'),'true',`${label}: Card dot is selected on open`);
+ assert.equal(await cards.nth(0).getAttribute('aria-pressed'),'true',`${label}: Card artwork is selected on open`);
  assert.equal(await sheet.locator('[data-share-send]').isEnabled(),true,`${label}: loaded preview enables sharing`);
  await p.keyboard.press('Escape');await sheet.waitFor({state:'detached'});
 }
