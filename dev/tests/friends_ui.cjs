@@ -55,6 +55,16 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     if(out)await capture(p,`friends-search-${width}-${theme}-${state}`);
     await p.locator('#fr-list-clear').click();await p.locator('#fr-list-add').click();await p.getByRole('dialog',{name:'Add friends'}).waitFor();assert.equal(await p.locator('[role=dialog] [data-friends-action]').count(),3);if(out&&state==='empty')await capture(p,`friends-add-sheet-${width}-${theme}`);await closeSheet(p);
    }
+   if(state==='heavy'){
+    await c.route('**/api/people/search?*',r=>r.fulfill({status:500,json:{detail:'Server error'}}));
+    await p.locator('#fr-list-find input').fill('No matching fictional friend');
+    await p.locator('#fr-search-empty').waitFor({state:'visible'});
+    assert.equal(await p.locator('#fr-search-empty').innerText(),'Search isn’t working right now.');
+    assert.equal(await p.locator('#fr-alpha-index').isVisible(),false,'a zero-match search removes the old alphabetical index');
+    await p.locator('#fr-list-clear').click();
+    assert.equal(await p.locator('#fr-search-empty').isVisible(),false,'clearing search removes its error');
+    assert.equal(await p.locator('#fr-alpha-index a').count(),26,'clearing search restores the full alphabetical index');
+   }
    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Friends fits the phone width');assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'viewing Friends stays read-only');await close(c);console.log(`Friends list ${state} ${width}px ${theme}: list, requests, search and 44px rows PASS`);
   }
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='cls')for(const theme of ['light','dark']){

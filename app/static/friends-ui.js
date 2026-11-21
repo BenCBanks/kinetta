@@ -36,7 +36,7 @@ const FriendsUI=(()=>{
     <div id="fr-list-error" role="status"></div><div id="fr-requests"></div>
     <div class="social-list-group friend-groups-row"><a class="list-row" id="fr-groups" href="/me/groups"><span class="grow"><b>Groups</b></span>${svg('chev')}</a></div>
     <section class="friend-own" aria-label="Your friends"><h2 class="vh" id="fr-own-heading">Friends</h2><div class="friend-list-content"><div class="social-person-group" id="fr-own-list">${skel(2)}</div><nav id="fr-alpha-index" aria-label="Jump to letter" hidden></nav></div></section>
-    <section class="friend-people-to-add" id="fr-people-section" hidden aria-label="People to add"><h2 class="sec-head">People to add</h2><div id="fr-people-to-add"></div></section>`;
+    <section class="friend-people-to-add" id="fr-people-section" hidden aria-label="People to add"><h2 class="sec-head">People to add</h2><p id="fr-search-empty" class="small muted" role="status" hidden></p><div id="fr-people-to-add"></div></section>`;
   wireBack(el,'/me');
   const owner=readOwner(),live=()=>owner===readOwner()&&el.isConnected;
   const list=$('#fr-own-list',el),heading=$('#fr-own-heading',el),requests=$('#fr-requests',el),error=$('#fr-list-error',el),input=$('#fr-list-find input',el),clear=$('#fr-list-clear',el),peopleSection=$('#fr-people-section',el),peopleList=$('#fr-people-to-add',el),empty=$('#fr-search-empty',el),index=$('#fr-alpha-index',el);
@@ -44,6 +44,7 @@ const FriendsUI=(()=>{
   const lettersOf=rows=>[...new Set(rows.map(p=>(p.name||p.login||'#').trim()[0].toLocaleUpperCase()).filter(c=>/^[A-Z]$/.test(c)))];
   const matching=(p,q)=>`${p.name||''} ${p.login||''}`.toLocaleLowerCase().includes(q);
   function friendRows(rows,emptyLabel='No friends yet'){
+    index.hidden=true;index.innerHTML='';
     if(!rows.length)return `<div class="friend-empty"><b>${esc(emptyLabel)}</b>${emptyLabel==='No friends yet'?'<p>Your friends will appear here.</p>':''}</div>`;
     const groups=new Map();for(const p of rows){const letter=(p.name||p.login||'#').trim()[0].toLocaleUpperCase();if(!groups.has(letter))groups.set(letter,[]);groups.get(letter).push(p);}
     const sorted=[...groups].sort(([a],[b])=>a.localeCompare(b));
@@ -75,7 +76,7 @@ const FriendsUI=(()=>{
   function draw(r){
     r={...r,friends:[...r.friends].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'})||a.login.localeCompare(b.login))};
     currentFriends=r;people=r.incoming.concat(r.friends,r.outgoing);App.me.friend_count=r.friends.length;Social.set(r.incoming.length);
-    $('#fr-title',el).innerHTML=`Friends${r.friends.length?` <span aria-label="${r.friends.length} friends">· ${r.friends.length}</span>`:''}`;
+    $('#fr-title',el).textContent=`Friends${r.friends.length?` · ${r.friends.length}`:''}`;
     heading.innerHTML=`Friends${r.friends.length?` <span class="count">${r.friends.length}</span>`:''}`;
     requests.innerHTML=r.incoming.length?`<button type="button" class="friend-request-summary" id="fr-requests-open" aria-label="Requests ${r.incoming.length}"><span>Requests · ${r.incoming.length}</span>${svg('chev')}</button>`:'';
     list.innerHTML=friendRows(r.friends);
@@ -89,7 +90,7 @@ const FriendsUI=(()=>{
     if(!live())return;invalidate('/api/feed/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();App.cache.delete('/api/friends');await loadFriends();
   }
   async function search(force){
-    clearTimeout(timer);const q=input.value.trim(),needle=q.replace(/^@/,'').toLocaleLowerCase();clear.hidden=!q;const token=++searchVersion;peopleSection.hidden=true;peopleList.innerHTML='';
+    clearTimeout(timer);const q=input.value.trim(),needle=q.replace(/^@/,'').toLocaleLowerCase();clear.hidden=!q;const token=++searchVersion;peopleSection.hidden=true;peopleList.innerHTML='';empty.hidden=true;empty.textContent='';
     const mine=currentFriends?.friends||[];
     if(!needle){list.innerHTML=friendRows(mine);return;}
     const matched=mine.filter(p=>matching(p,needle));list.innerHTML=friendRows(matched,'No friends match');
@@ -99,7 +100,7 @@ const FriendsUI=(()=>{
       list.innerHTML=friendRows(friends,'No friends match');peopleSection.hidden=!addable.length;peopleList.innerHTML=addable.map(p=>`<div class="person person-row friend-add-result">${profile(p)}<span class="friend-search-status">${p.status==='incoming'?'Requests':p.status==='sent'?'Requested':`<button type="button" class="friend-search-add" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">Add</button>`}</span></div>`).join('');
       if(!friends.length&&!addable.length){list.innerHTML='<div class="friend-empty"><b>No results</b><button type="button" class="linkbtn" data-friend-search-invite>Invite a friend</button></div>';list.querySelector('[data-friend-search-invite]').onclick=inviteFriends;}
       $$('[data-add]',peopleList).forEach(button=>button.onclick=async()=>{if(!live()||button.disabled)return;button.disabled=true;const login=button.dataset.add;try{await api('/api/friends',json('POST',{login}));if(live()){button.outerHTML='<span class="friend-status" role="status">Requested</span>';invalidate('/api/friends');await refresh();await search(true);}}catch(x){if(live()){toast(x.message);button.disabled=false;}}});
-    }catch(x){if(!live()||request!==searchVersion)return;empty.hidden=false;empty.textContent=x.offline?'You’re offline. Reconnect to search.':'Search isn’t working right now.';}}
+    }catch(x){if(!live()||request!==searchVersion)return;peopleSection.hidden=false;empty.hidden=false;empty.textContent=x.offline?'You’re offline. Reconnect to search.':'Search isn’t working right now.';}}
     if(force)await run();else timer=setTimeout(run,180);
   }
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);await loadFriends();
@@ -217,6 +218,6 @@ const FriendsUI=(()=>{
   const searching=find();
   await loadFriends();drawSuggest();await searching;
  }
- async function mount(el){return mountList(el);}
+ async function mount(el){const q=new URLSearchParams(location.search);return q.has('find')||q.has('q')?mountFind(el):mountList(el);}
  return Object.freeze({shell,requests:requestSections,mount});
 })();

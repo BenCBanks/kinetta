@@ -17,7 +17,7 @@ const scenes=fixtures=>[
  {name:'Nutrition day',login:'zz_test_nutrition_typical',route:'/food',ready:'#nutrition-explore[aria-busy="false"]'},
  {name:'Add food',login:'zz_test_food_compact_empty',route:'/food/describe?meal=lunch',ready:'#thread-text'},
  {name:'Recipes and foods',login:'zz_test_recipes_ui_typical',route:'/food/meals',ready:'#tm-new'},
- {name:'Friends',login:'zz_test_fc_typical',route:'/me/friends',ready:'#fr-own-list > .friend-alpha-group'},
+ {name:'Friends',login:'zz_test_fc_typical',route:'/me/friends?find=1',ready:'.friends-page #fr-invite'},
  {name:'Groups',login:'alex',route:'/me/groups',ready:'#group-new',groups:true},
  {name:'Group create',login:'alex',route:'/me/groups',entryReady:'#group-new',ready:'#group-create-form',modal:'group-create',groups:true},
  {name:'Group empty roster',login:'alex',route:'/groups/'+GROUP_EMPTY.id,ready:'.group-roster',group:'empty'},
