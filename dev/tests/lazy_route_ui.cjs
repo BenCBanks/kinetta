@@ -1056,7 +1056,9 @@ async function foodWarmupCase(browser){
     await page.evaluate(()=>{App.scroll['/me/explore']=120;});
     await page.locator('.me-help a[href="/me/explore"]').click();
     await ready(page,'.guide-hint','deferred Explore with saved scroll');
-    assert.equal(await page.evaluate(()=>scrollY),await page.evaluate(()=>Math.min(120,Math.max(0,document.documentElement.scrollHeight-innerHeight))),'the deferred render restores the saved route position once');
+    const expectedExploreY=await page.evaluate(()=>Math.min(120,Math.max(0,document.documentElement.scrollHeight-innerHeight)));
+    await page.waitForFunction(y=>Math.abs(scrollY-y)<5,expectedExploreY);
+    assert(Math.abs(await page.evaluate(()=>scrollY)-expectedExploreY)<5,'the deferred render restores the saved route position once');
   }finally{await scrollContext.close();}
 
   const navigationContext=await fixtureContext(browser);

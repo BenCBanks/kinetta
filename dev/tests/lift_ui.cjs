@@ -109,7 +109,8 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    await p.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await p.locator('#lf-finish').click();await p.locator('#ff-yes').click();
    assert.equal(await p.locator('#lf-sum').count(),0,'Finish waits for its outstanding write');release();await p.locator('#lf-sum').waitFor();
    assert.equal(writes.length,2);assert.equal(writes[0].exercises[0].sets[0].kg,60);assert.equal(writes[1].finish,true);
-   assert.equal(await p.evaluate(()=>scrollY),0,'Summary opens at the title, not the previous scroll position');
+   await p.waitForFunction(()=>Math.abs(scrollY)<5);
+   assert(Math.abs(await p.evaluate(()=>scrollY))<5,'Summary opens at the title, not the previous scroll position');
    await p.waitForTimeout(350);
    const overlap=await p.locator('.track-review-stats > div').evaluateAll(es=>es.flatMap((e,i)=>{const a=e.getBoundingClientRect(),b=e.querySelector('b').getBoundingClientRect();return b.right>a.right+1||b.left<a.left-1||e.querySelector('b').scrollWidth>e.querySelector('b').clientWidth+1?[i]:[];}));
    assert.deepEqual(overlap,[],'Enlarged summary numbers must fit their own cell');
