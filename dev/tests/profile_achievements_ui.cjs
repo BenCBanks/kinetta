@@ -285,9 +285,10 @@ module.exports=async({browser,storageState,base,shots})=>{
  const tailOnly=process.env.KINETTA_ACHIEVEMENT_TAIL_ONLY==='1';
  const redesignOnly=process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY==='1';
  const tabsOnly=process.env.KINETTA_ACHIEVEMENT_TABS_ONLY==='1';
+ const metricOnly=process.env.KINETTA_ACHIEVEMENT_METRIC_ONLY==='1';
  for(const theme of pendingOnly?['light']:['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
-  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,legacyRunAward=null,runEvidenceState=null,deepRunFeatured=false,achievementRedesignEvidence=false,challengeUiFixture=null,shareCompleteEvidence=false,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
+  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,liftMetricOverride=null,unitMode='imperial',unitLabelValues=null,legacyRunAward=null,runEvidenceState=null,deepRunFeatured=false,achievementRedesignEvidence=false,challengeUiFixture=null,shareCompleteEvidence=false,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
   const ownerShowcaseCodes=['journey','workouts','lifted','sport:run'];
   await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
@@ -311,6 +312,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     if(futureEvidence){const next=data.tracks.find(t=>t.code==='active_time');Object.assign(next,{value:1800,display_value:.5,display_unit:'hours',tiers:[]});}
     if(journey){journey.value=journeyValue;journey.display_value=unitMode==='imperial'?journeyValue/1609.344:journeyValue/1000;journey.display_unit=unitMode==='imperial'?'mi':'km';}
     if(workouts){workouts.value=workoutValue;workouts.display_value=workoutValue;}
+    if(liftMetricOverride!==null&&!url.searchParams.has('login')){const lift=data.tracks.find(track=>track.code==='sport:lift');if(lift){lift.value=liftMetricOverride;lift.display_value=liftMetricOverride;lift.display_unit='sessions';lift.level=0;lift.tiers=[];}}
     for(const track of data.tracks)if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(track.code)){const value=Number(track.value)||0;track.display_value=unitMode==='imperial'?value/1609.344:value/1000;track.display_unit=unitMode==='imperial'?'mi':'km';}
     for(const item of unitLabelValues||[]){const track=data.tracks.find(row=>row.code===item.code);if(track){track.display_value=item.value;track.display_unit=item.unit;}}
     if(achievementRedesignEvidence&&!url.searchParams.has('login')){
@@ -384,6 +386,30 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert.equal(await note.locator('a,button,[role="button"],[role="progressbar"]').count(),0,'the continuation is an explanation');
    const icon=await note.locator('img').boundingBox();assert.equal(icon.width,24);assert.equal(icon.height,24);
   };
+  if(metricOnly){
+   const originalFeaturedCodes=[...ownerShowcaseCodes];
+   ownerShowcaseCodes.splice(0,ownerShowcaseCodes.length,'sport:lift');liftMetricOverride=0;
+   await page.goto(base+'/me');await page.locator('[data-me-featured][data-loaded="true"]').waitFor();
+   assert.equal(await page.locator('.me-featured-item[data-showcase-code="sport:lift"]').count(),0,'a stale showcase rank cannot give Lift sessions a level when its lifetime count is zero');
+   liftMetricOverride=7;await page.goto(base+'/me');await page.locator('.me-featured-item[data-showcase-code="sport:lift"]').waitFor();
+   const ownerLift=page.locator('.me-featured-item[data-showcase-code="sport:lift"]');
+   assert.equal(await ownerLift.locator('.me-featured-caption').innerText(),'Lv 2','the displayed Lift level comes from the current lifetime count, not the stale showcase rank');
+   assert.equal(await ownerLift.locator('.profile-achievement-value').innerText(),'7 lifts','the featured count uses a plain, matching label');
+   if(shots)await page.locator('.me-card').screenshot({path:path.join(shots,`featured-lift-owner-390-${theme}.png`),animations:'disabled'});
+   ownerShowcaseCodes.splice(0,ownerShowcaseCodes.length,...originalFeaturedCodes);liftMetricOverride=null;
+   sharedShowcasePins=['sport:lift'];await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-item[data-showcase-code="sport:lift"]').waitFor();
+   const sharedLift=page.locator('.me-featured-item[data-showcase-code="sport:lift"]');
+   assert.match(await sharedLift.locator('.me-featured-caption').innerText(),/^Lv [1-9]\d*$/,'the fictional shared lifter keeps the earned server level');
+   assert.equal(await sharedLift.locator('.profile-achievement-value').count(),0,'a shared Lift sessions card omits a current count withheld by the API');
+   assert.doesNotMatch(await sharedLift.getAttribute('aria-label'),/0 sess/i,'a shared Lift sessions label never claims zero sessions alongside an earned level');
+   if(shots)await page.locator('.me-card').screenshot({path:path.join(shots,`featured-lift-shared-390-${theme}.png`),animations:'disabled'});
+   sharedShowcasePins=['journey','workouts','lifted','sport:run'];await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements').waitFor();
+   const sharedMetrics=await page.locator('.me-featured-achievements .profile-achievement-list:not(.is-grid) .profile-achievement').evaluateAll(nodes=>nodes.map(node=>({code:node.dataset.achievementCode,value:node.querySelector('.profile-achievement-value')?.textContent.trim()||null})));
+   assert(sharedMetrics.every(item=>item.value===null||!/^0(?:\s|$)/.test(item.value)),`other shared Featured cards never pair a zero placeholder with an earned level: ${JSON.stringify(sharedMetrics)}`);
+   if(shots)await page.locator('.me-card').screenshot({path:path.join(shots,`featured-metrics-friend-390-${theme}.png`),animations:'disabled'});
+   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(url=>url!=='/api/challenges/signup/continue'),[]);
+   console.log(`Featured achievement lifetime metrics 390 ${theme}: owner level/count, shared privacy, other cards PASS`);await context.close();continue;
+  }
   if(tabsOnly){
    await page.goto(base+'/me');await until(page,()=>App.pageReady,'Me before achievement tab tests');await setUnits('imperial');
    for(const width of [390,330]){
@@ -811,7 +837,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.deepEqual(await featuredRows.evaluateAll(nodes=>nodes.map(node=>node.dataset.achievementCode)),['journey','workouts','lifted','sport:run'],'the public profile uses the automatic top four when no pins exist');
   const thirdMedalClearance=await featuredRows.nth(2).evaluate(node=>{const medal=node.querySelector('.profile-achievement-medallion'),badge=medal.querySelector('.profile-achievement-level'),card=node.closest('.me-card').getBoundingClientRect(),medalBox=medal.getBoundingClientRect(),badgeBox=badge.getBoundingClientRect();return{badge:card.right-badgeBox.right,glow:card.right-(medalBox.right+20)};});assert(thirdMedalClearance.badge>=0&&thirdMedalClearance.glow>=0,`the third medal's level badge and glow fit inside the 390px card: ${JSON.stringify(thirdMedalClearance)}`);
   const featuredVisual=await featuredRows.first().evaluate(node=>{const medal=node.querySelector('.profile-achievement-medallion'),rect=medal.getBoundingClientRect(),list=node.parentElement,style=getComputedStyle(list);return{width:rect.width,height:rect.height,level:medal.querySelector('.profile-achievement-level')?.textContent.trim(),value:medal.querySelector('.profile-achievement-value')?.textContent.trim(),name:node.querySelector('.profile-achievement-name')?.textContent.trim(),caption:node.querySelector('.profile-achievement-next')?.textContent.trim(),overflowX:style.overflowX,scrollWidth:list.scrollWidth,clientWidth:list.clientWidth,pageWidth:document.documentElement.scrollWidth,viewport:innerWidth};});
-  assert(featuredVisual.width>=68&&featuredVisual.width<=72&&featuredVisual.height===featuredVisual.width,`friend medals match the responsive Me-card size: ${JSON.stringify(featuredVisual)}`);assert.match(featuredVisual.level,/^Lv \d+$/);assert(featuredVisual.value&&featuredVisual.name,'friend medals show their earned value and track name');assert.match(featuredVisual.caption,/^Level \d+ · /,'the caption names only the earned level');assert.doesNotMatch(featuredVisual.caption,/Next|Coming up/,'the shared card does not reveal future progress');assert.equal(featuredVisual.overflowX,'visible');assert(featuredVisual.scrollWidth<=featuredVisual.clientWidth+1,'all four medals fit without a horizontal rail');assert(featuredVisual.pageWidth<=featuredVisual.viewport+1,'the grid does not widen the page');
+  assert(featuredVisual.width>=68&&featuredVisual.width<=72&&featuredVisual.height===featuredVisual.width,`friend medals match the responsive Me-card size: ${JSON.stringify(featuredVisual)}`);assert.match(featuredVisual.level,/^Lv \d+$/);assert.equal(featuredVisual.value,null,'a shared track without an allowed current total does not invent a zero metric');assert(featuredVisual.name,'friend medals keep their track name');assert.match(featuredVisual.caption,/^Level \d+ · /,'the caption names only the earned level');assert.doesNotMatch(featuredVisual.caption,/Next|Coming up/,'the shared card does not reveal future progress');assert.equal(featuredVisual.overflowX,'visible');assert(featuredVisual.scrollWidth<=featuredVisual.clientWidth+1,'all four medals fit without a horizontal rail');assert(featuredVisual.pageWidth<=featuredVisual.viewport+1,'the grid does not widen the page');
   assert(await page.locator('.me-card-avatar .av img').evaluate(node=>node.complete&&node.naturalWidth>0),'the friend profile displays its fictional author photo');
   if(shots)await page.screenshot({path:path.join(shots,`friend-profile-featured-390-${theme}.png`),fullPage:true,animations:'disabled'});
   await featuredLink.click();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();

@@ -198,6 +198,7 @@ const ProfileLayout=(()=>{
     return `<svg class="profile-achievement-icon" data-achievement-icon="${icon}" viewBox="0 0 24 24" aria-hidden="true">${achievementGlyphs[icon]||achievementGlyphs.trophy}</svg>`;
   }
   function achievementValue(track){
+    if(track?.display_value==null||!Number.isFinite(Number(track.display_value)))return '';
     return achievementQuantity(track.display_value,track.display_unit||'');
   }
   function achievementMetricLabel(track){
@@ -225,7 +226,7 @@ const ProfileLayout=(()=>{
     return (Array.isArray(data?.tracks)?data.tracks:[]).map(track=>{
       const earned=(Array.isArray(track?.tiers)?track.tiers:[]).filter(tier=>Number.isInteger(Number(tier?.rank))&&Number(tier.rank)>0).sort((a,b)=>Number(a.rank)-Number(b.rank)),legacy=(Array.isArray(track?.tiers)?track.tiers:[]).filter(tier=>Number(tier?.rank)===0&&tier.legacy===true),current=earned.at(-1),reportedLevel=Number(track?.level),rank=Number.isInteger(reportedLevel)&&reportedLevel>0?reportedLevel:Number(current?.rank),tier=rank?achievementTierAt(track.code,rank):null;
       if(!rank||!tier){if(!legacy.length)return null;return {...track,level:0,display_value:null,tiers:[],_sharedAchievement:true,_sharedLegacyOnly:true};}
-      const total=track?.display_value,displayValue=total!=null&&Number.isFinite(Number(total))?Number(total):Number(current?.display_threshold??tier.display_value);
+      const total=track?.display_value,displayValue=total!=null&&Number.isFinite(Number(total))?Number(total):null;
       return {...track,level:rank,display_value:displayValue,display_unit:track.display_unit||current?.display_unit||track.unit||tier.canonical_unit,tiers:earned,_sharedAchievement:true};
     }).filter(Boolean);
   }
@@ -379,6 +380,7 @@ const ProfileLayout=(()=>{
   function achievementMedalValue(track,{small=false}={}){
     const value=achievementValue(track);if(!small&&value.length<=8)return value;
     const raw=Number(track.display_value),unit=String(track.display_unit||'').toLowerCase();if(!Number.isFinite(raw))return value;
+    if(small&&track.code==='sport:lift')return `${achievementCompactNumber(raw)} ${raw===1?'lift':'lifts'}`;
     const amount=achievementCompactNumber(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
     return `${amount}${shortUnit?' '+shortUnit:''}`;
   }
@@ -724,17 +726,18 @@ const ProfileLayout=(()=>{
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,href=`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`;
     return `<a class="profile-achievement is-unstarted" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, earlier saved awards`)}" data-achievement-code="${esc(track.code)}" data-legacy-only="true"><span class="profile-achievement-name">${esc(label)}</span><span class="profile-achievement-next">Earlier awards</span></a>`;
   }
-  function sharedAchievementRow(track,login='',{featured=false,ownerFeatured=false}={}){
+  function sharedAchievementRow(track,login='',{featured=false,ownerFeatured=false,showValue=true}={}){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track);
     const secondary=featured?' data-type="secondary"':'';
     const repeat=Number(tier?.multiple)>1?` · ×${Number(tier.multiple)}`:'';
     const description=featured?`<span class="me-featured-caption"${secondary}>Lv ${level}${repeat}</span>`:`<span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span>`;
-    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${repeat?`, ${repeat.slice(3)}`:''}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured,showLevel:!featured,showMultiple:!featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span>${description}</a>`;
+    const value=showValue?achievementValue(track):'',valueLabel=value?`, ${value}`:'';
+    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${repeat?`, ${repeat.slice(3)}`:''}${tier?`, ${tier.name}`:''}${valueLabel}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured,showLevel:!featured,showMultiple:!featured,showValue})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span>${description}</a>`;
   }
-  function achievementMedallion(track,{featured=false,showLevel=true,showMultiple=true}={}){
+  function achievementMedallion(track,{featured=false,showLevel=true,showMultiple=true,showValue=true}={}){
     const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track,{small:featured}):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
     const tone=level>=6?'deep':String(level),secondary=featured?' data-type="secondary"':'';
-    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value"${secondary}>${esc(value)}</span>${showLevel?`<span class="profile-achievement-level"${secondary}>Lv ${level}</span>`:''}${showMultiple&&Number(tier?.multiple)>1?`<span class="profile-achievement-multiple"${secondary}>×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
+    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`${showValue&&value?`<span class="profile-achievement-value"${secondary}>${esc(value)}</span>`:''}${showLevel?`<span class="profile-achievement-level"${secondary}>Lv ${level}</span>`:''}${showMultiple&&Number(tier?.multiple)>1?`<span class="profile-achievement-multiple"${secondary}>×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
   }
   function achievementNextMedallion(track,tier){
     if(!tier)return '';
@@ -796,15 +799,15 @@ const ProfileLayout=(()=>{
       .sort((a,b)=>b.rank-a.rank||achievementDay(b.track).localeCompare(achievementDay(a.track))||String(a.track.code).localeCompare(String(b.track.code)))
       .slice(0,FEATURED_ACHIEVEMENT_LIMIT).map(({track,rank})=>({code:track.code,rank}));
     const items=choices.slice(0,FEATURED_ACHIEVEMENT_LIMIT).map(item=>{
-      const code=String(item?.code||''),track=tracks.get(code),reported=Number(item?.rank),rank=Math.max(Number.isInteger(reported)&&reported>0?reported:0,Number(track?.level)||achievementLevel(track||{}));
+      const code=String(item?.code||''),track=tracks.get(code),rank=track?(sharedLogin?Math.max(0,Math.round(Number(track.level)||0)):achievementLevel(track)):0;
       if(!code||!track||!rank)return null;
-      const tier=achievementTierAt(code,rank),value=achievementValue(track),medalTrack={...track,level:rank,_sharedAchievement:true};
-      return tier&&value?{track:medalTrack}:null;
+      const tier=achievementTierAt(code,rank),medalTrack={...track,level:rank,_sharedAchievement:true};
+      return tier?{track:medalTrack,showValue:!sharedLogin||track.display_value!=null}:null;
     }).filter(Boolean);
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
     if(!items.length)return sharedLogin?'':`<a class="linkbtn me-featured-empty-entry" href="${esc(href)}">Achievements ›</a>`;
     const heading=`<h3 class="me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">See all</a></h3>`;
-    const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin,{featured:true,ownerFeatured})).join('')}</div>`;
+    const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin,{featured:true,ownerFeatured,showValue:item.showValue})).join('')}</div>`;
     return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
   }
   function addAchievementCleanup(root,cleanup){

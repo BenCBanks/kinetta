@@ -527,6 +527,30 @@ class Milestones(unittest.TestCase):
                 VALUES(%s,'run','Fictional stale streak',%s,1000,60,60,'manual')''',(owner_id,self.now-dt.timedelta(days=3)))
   self.assertEqual(owner.get('/api/achievements/showcase').json()['day_streak'],0,'a streak older than yesterday is no longer current')
 
+ def test_fictional_lifter_feature_count_and_level_share_one_lifetime_metric(self):
+  owner,viewer=self.clients;owner_id=self.ids[0]
+  for day in range(7):self.lifted_activity(day,20)
+  self.process(uid=owner_id)
+  own=owner.get('/api/achievements');self.assertEqual(own.status_code,200,own.text)
+  lift=next(track for track in own.json()['tracks'] if track['code']=='sport:lift')
+  self.assertEqual(lift['value'],7,'the owner metric counts completed lifetime lift sessions')
+  self.assertEqual(lift['display_value'],7,'the visible session count uses the same lifetime total')
+  self.assertEqual(lift['display_unit'],'sessions')
+  definition=api_achievements._level_catalog()['tracks']['sport:lift']['levels']
+  expected=max((rank for rank,tier in enumerate(definition,1)
+                if float(tier.get('threshold') or tier.get('canonical_value') or 0)<=lift['value']),default=0)
+  self.assertEqual(lift['level'],expected,'the earned level is computed from that same lifetime total')
+  available=owner.get('/api/achievements/showcase').json()['available']
+  self.assertEqual(next(item['rank'] for item in available if item['code']=='sport:lift'),expected,
+                   'Featured selection agrees with the owner achievement lifetime metric')
+  self.assertEqual(owner.put('/api/sharing',json={'share_achievements':True}).status_code,200)
+  with db.connect() as c:login=c.execute('SELECT login::text AS login FROM users WHERE id=%s',(owner_id,)).fetchone()['login']
+  shared=viewer.get('/api/achievements',params={'login':login})
+  self.assertEqual(shared.status_code,200,shared.text)
+  shared_lift=next(track for track in shared.json()['tracks'] if track['code']=='sport:lift')
+  self.assertEqual(shared_lift['level'],expected,'sharing retains the earned level')
+  self.assertNotIn('display_value',shared_lift,'shared achievements keep the existing current-count privacy boundary')
+
  def test_shared_earned_achievement_reads_are_opt_in_block_aware_and_minimal(self):
   owner,viewer=self.clients;owner_id,viewer_id=self.ids
   with db.connect() as c:
