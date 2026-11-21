@@ -10,6 +10,23 @@ PREPARE=ROOT/'dev/tests/native-ui/prepare.py'
 
 
 class DisplayCopyTests(unittest.TestCase):
+    def test_native_fixture_patches_esbuild_minified_preferences_get(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source=Path(temp)/'Original.app';public=source/'public';static=public/'static';static.mkdir(parents=True)
+            (public/'index.html').write_text('<body><script src="/static/app-shell.js"></script></body>')
+            (static/'app-shell.js').write_text('const P=on?C.Plugins:{},prefs=P.Preferences,get=async key=>(await prefs.get({key})).value,put=(key,value)=>value;')
+            (static/'appearance.js').write_bytes((ROOT/'app/static/appearance.js').read_bytes())
+            original=(static/'app-shell.js').read_text()
+            destination=Path(temp)/'Fixture.app'
+            subprocess.run(['python3',str(PREPARE),str(source),str(destination),'--stage','header-me','--root','16','--run','d'*32,'--startup-timing'],check=True,cwd=ROOT)
+            shell=(destination/'public/static/app-shell.js').read_text()
+            self.assertIn("key==='token'?'fictional-native-ui-only'",shell,'the disposable fixture patches the minified native Preferences.get function')
+            self.assertEqual((static/'app-shell.js').read_text(),original,'the simulator source bundle stays untouched')
+            early=(destination/'public/static/native-ui-early.js').read_text()
+            html=(destination/'public/index.html').read_text()
+            self.assertLess(html.index('native-ui-early.js'),html.index('app-shell.js'))
+            self.assertIn('webViewReadyPerfMs=performance.now()',early)
+
     def test_store_fixture_serves_home_group_strip_and_only_noop_celebration_post(self):
         node = r'''const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const config={stage:'activity',store:require(process.argv[2])()};

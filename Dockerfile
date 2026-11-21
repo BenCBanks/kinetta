@@ -1,7 +1,18 @@
+FROM node:22.22.1-slim AS js-minifier
+ARG TARGETARCH
+WORKDIR /minifier
+COPY mobile/package.json mobile/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts=false
+RUN case "$TARGETARCH" in amd64) platform=x64 ;; arm64) platform=arm64 ;; *) echo "Unsupported build architecture: $TARGETARCH" >&2; exit 1 ;; esac \
+ && mkdir -p /out \
+ && cp "/minifier/node_modules/@esbuild/linux-${platform}/bin/esbuild" /out/esbuild
+
 FROM python:3.12-slim
+ARG TARGETARCH
 WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=js-minifier /out/esbuild /usr/local/bin/esbuild
 # runs as an ordinary user; /data (uploads) and /run/kinetta (generated passwords) belong to it
 RUN useradd --uid 1000 --create-home kinetta && mkdir -p /data /run/kinetta && chown kinetta:kinetta /data /run/kinetta
 COPY app ./app
