@@ -1154,10 +1154,28 @@ function sectionTabForPath(value) {
 function savedSectionReturn(tab) {
   if (!tab) return null;
   const store = sectionReturnStore(), state = store.sections[tab];
-  return state && sectionTabForPath(state.path) === tab ? state : null;
+  if (!state) return null;
+  if (!sectionReturnPathAllowed(tab, state.path)) {
+    delete store.sections[tab]; saveSectionReturnStore(store); return null;
+  }
+  return state;
+}
+function sectionReturnPathAllowed(tab, path) {
+  if (!tab || sectionTabForPath(path) !== tab) return false;
+  const url = new URL(path, location.href);
+  // Track's logger and nested recording/editor routes own their own recovery state.
+  if (tab === 'track' && (url.pathname !== '/track' || (typeof Track !== 'undefined' && Track.active))) return false;
+  return true;
+}
+function sectionReturnOverlayOpen(root) {
+  const selector = '.scrim, dialog[open], [role="dialog"][aria-modal="true"]';
+  return !!document.querySelector(selector) || !!root?.querySelector?.(selector);
+}
+function sectionReturnAllowed(tab, path, root = $('#page')) {
+  return sectionReturnPathAllowed(tab, path) && !sectionReturnOverlayOpen(root);
 }
 function saveSectionReturn(tab = sectionTabForPath(App.page?.key || location.pathname + location.search), {path = App.page?.key || location.pathname + location.search, y = scrollY, root = $('#page')} = {}) {
-  if (!tab || sectionTabForPath(path) !== tab) return;
+  if (!sectionReturnAllowed(tab, path, root)) return;
   const store = sectionReturnStore(), details = $$('details', root);
   store.sections[tab] = {path, y: Math.max(0, Number(y) || 0), open: details.flatMap((detail, index) => detail.open ? [index] : []), savedAt: Date.now()};
   saveSectionReturnStore(store);
@@ -1170,7 +1188,9 @@ function clearSectionReturn(tab) {
   const store = sectionReturnStore(); delete store.sections[tab]; saveSectionReturnStore(store);
 }
 function restoreSectionDisclosures(el, path) {
-  const tab = sectionTabForPath(path), state = savedSectionReturn(tab);
+  const tab = sectionTabForPath(path);
+  if (!sectionReturnAllowed(tab, path, el)) return;
+  const state = savedSectionReturn(tab);
   if (!state || state.path !== path) return;
   const open = new Set(state.open), details = $$('details', el);
   details.forEach((detail, index) => { detail.open = open.has(index); });
@@ -1285,8 +1305,8 @@ function pagePosition(key) {
   else {App.scroll[previous.key]=scrollY;if(previous.key!==key){if(skipSectionSaveOnNextRoute)skipSectionSaveOnNextRoute=false;else saveSectionReturn(sectionTabForPath(previous.key),{path:previous.key,y:scrollY});}}
   App.page={key,owner};
   if(Object.prototype.hasOwnProperty.call(App.scroll,key))return App.scroll[key];
-  const saved=savedSectionReturn(sectionTabForPath(key));
-  return saved?.path===key?saved.y:0;
+  const tab=sectionTabForPath(key),saved=savedSectionReturn(tab);
+  return sectionReturnPathAllowed(tab,key)&&saved?.path===key?saved.y:0;
 }
 // A route may consume a one-time query without replacing its already mounted view.
 // Keep readiness and saved scroll keyed to that same view's canonical address.
@@ -1365,6 +1385,9 @@ function compactRootHeader(el){
 }
 function render(options) {
   if (!App.me) return;
+  // Capture live disclosure choices before a same-route rerender replaces #page.
+  // An explicit active-tab reset has already cleared this section and must not recreate it.
+  if (App.page && !skipSectionSaveOnNextRoute) saveSectionReturn(sectionTabForPath(App.page.key), {path:App.page.key, y:scrollY});
   expandBottomNav();
   const globalSyncDone = options?.globalSyncDone === true;
   App.pageReady = false;
