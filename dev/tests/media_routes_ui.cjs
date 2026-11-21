@@ -55,12 +55,12 @@ async function mediaBeforeRender(page,requests,label,renderPaths,errors,networkI
    await socialRefresh;await p.waitForFunction(()=>classicScriptsLoaded.has(SOCIAL_ROUTE_ASSET)&&Social.at>0,null,{timeout:20000});
    assert.equal(requests.includes('/static/media.js'),false,'cold Me stays media-free after the real scheduled Social warmup');
    assert.equal(await p.locator('script[src*="/static/media.js"]').count(),0,'Me has no eager media tag');
-   await p.locator('[data-card-preview]').click();const preview=p.locator('[data-profile-preview]');await preview.locator('.me-card-sections[aria-busy="false"]').waitFor();
+   await p.locator('[data-card-edit]').click();await p.locator('[data-card-preview-edit]').click();const preview=p.locator('[data-profile-preview]');await preview.locator('.me-card-sections[aria-busy="false"]').waitFor();
    await previewSettled(p,errors,'cold Me preview');
    assert.equal(requests.filter(x=>x==='/static/media.js').length,1,'View as friend demand-loads media on first action after cold Me');
    assert(await p.evaluate(()=>classicScriptsLoaded.has(MEDIA_ROUTE_ASSET)&&typeof wireActivityMedia==='function'),'the media script and activity-card wiring function are available after preview settles');
    assert.equal(await preview.locator('[role="alert"]').count(),0,'the settled card-only preview has no retry alert');
-   assert.equal(await preview.locator('[data-card-edit],[data-card-share],[data-card-preview],[data-person-manage],[data-person-report]').count(),0,'the preview remains read-only');
+   assert.equal(await preview.locator('[data-card-edit],[data-card-share],[data-card-preview],[data-card-preview-edit],[data-person-manage],[data-person-report]').count(),0,'the preview remains read-only');
    assert.doesNotMatch(await preview.innerText(),/Only you|PRIVATE-ONLY|Fictional run session|Fictional treadmill session|Fictional lifting session/,'the card-only preview excludes private content and owner-only controls');
    assert.deepEqual(errors,[],'cold Me and its card-only preview have no page errors');await c.close();
   }
@@ -70,7 +70,7 @@ async function mediaBeforeRender(page,requests,label,renderPaths,errors,networkI
    const p=await c.newPage(),requests=[],errors=[],networkIssues=[],attempts={media:0};let previewFetches=0;await guard(p,requests,errors,networkIssues);p.on('request',request=>{const u=new URL(request.url());if(u.origin===base&&u.pathname==='/api/people/zz_test_detail_owner/profile'&&u.searchParams.get('as_friend')==='true'&&u.searchParams.get('preview')==='member')previewFetches++;});await p.unroute('**/*');
    await p.route('**/*',route=>{const q=route.request(),u=new URL(q.url());if(u.origin!==base)return route.abort();if(u.pathname==='/static/media.js'&&++attempts.media===1)return route.abort();if(q.method()==='POST'&&u.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});if(!['GET','HEAD'].includes(q.method()))return route.abort();return route.continue();});
    await p.goto(base+'/me');await ready(p,'.me-card-sections[aria-busy="false"]','Me before preview media retry',{errors,networkIssues});
-   await p.locator('[data-card-preview]').click();const preview=p.locator('[data-profile-preview]');await preview.locator('[role="alert"]').waitFor();
+   await p.locator('[data-card-edit]').click();await p.locator('[data-card-preview-edit]').click();const preview=p.locator('[data-profile-preview]');await preview.locator('[role="alert"]').waitFor();
    assert.equal(attempts.media,1,'the preview media request fails once');assert(await preview.locator('[data-profile-preview-retry]').isVisible(),'media failure keeps the existing explicit Try again action');
    await preview.locator('[data-profile-preview-retry]').click();await previewSettled(p,errors,'preview retry');
    assert.equal(attempts.media,2,'the same preview action retries the rejected media loader');
@@ -87,7 +87,7 @@ async function mediaBeforeRender(page,requests,label,renderPaths,errors,networkI
    const mediaEntered=new Promise(resolve=>{entered=resolve;}),mediaGate=new Promise(resolve=>{release=resolve;});
    await p.route('**/static/media.js*',async route=>{entered();await mediaGate;return route.continue();});
    await p.goto(base+'/me');await ready(p,'.me-card-sections[aria-busy="false"]','Me before stale preview '+stale,{errors,networkIssues});
-   await p.locator('[data-card-preview]').click();const host=p.locator('[data-profile-preview]'),hostHandle=await host.elementHandle();await mediaEntered;
+   await p.locator('[data-card-edit]').click();await p.locator('[data-card-preview-edit]').click();const host=p.locator('[data-profile-preview]'),hostHandle=await host.elementHandle();await mediaEntered;
    if(stale==='query')await p.evaluate(()=>history.pushState({fixture:'stale-preview'},'',location.pathname+'?previewFixture=stale'));
    if(stale==='owner')await p.evaluate(()=>{window.__previewOwner=App.me;App.me={...App.me,id:'fictional-preview-owner-change'};});
    if(stale==='detached')await hostHandle.evaluate(node=>node.remove());

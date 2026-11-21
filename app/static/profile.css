@@ -638,6 +638,8 @@
 .me-editor-bio-label { display:flex; justify-content:flex-end; }
 .me-editor-bio-label small { font-size:.6875rem; }
 .me-card-editor .me-editor-privacy { font-size:.75rem; line-height:1.4; }
+.me-card-editor .me-editor-preview { min-height:52px; margin:4px 0 0; padding:8px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); font-size:17px; font-weight:600; }
+.me-card-editor .me-editor-preview > svg { flex:none; width:20px; height:20px; color:var(--tx3); }
 .me-card-editor h3 { margin:8px 0 0; font-size:.8125rem; line-height:1.4; color:var(--tx2); }
 .me-card-editor h3 span { font-weight:400; }
 .me-editor-sections { border:1px solid var(--line); border-radius:12px; overflow:hidden; }
