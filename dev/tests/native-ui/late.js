@@ -148,7 +148,7 @@
     let photosSave;
     if(cfg.stage==='activity-photos-save'){
       const shareButton=document.querySelector('.detail-floating [data-detail-share]');if(!shareButton)throw Error('Activity Share action is missing');shareButton.click();
-      let image=null,save=null;for(let n=0;n<300;n++){image=document.querySelector('[data-unified-share] [data-share-preview-image]');save=document.querySelector('[data-unified-share] [data-share-save]');if(image?.complete&&image.naturalWidth>0&&save&&!save.disabled)break;await new Promise(ok=>setTimeout(ok,100));}
+      let image=null,save=null;for(let n=0;n<300;n++){image=document.querySelector('[data-unified-share] [data-share-preview-image]');save=document.querySelector('[data-unified-share] [data-share-destination="save"]');if(image?.complete&&image.naturalWidth>0&&save&&!save.disabled)break;await new Promise(ok=>setTimeout(ok,100));}
       if(!image?.complete||!image.naturalWidth||!save||save.disabled)throw Error('Native activity share preview is not ready to save');
       save.click();let status=document.querySelector('[data-unified-share] .share-picture-status');for(let n=0;n<300;n++){status=document.querySelector('[data-unified-share] .share-picture-status');if(/saved/i.test(status?.textContent||''))break;await new Promise(ok=>setTimeout(ok,100));}
       const message=status?.textContent.trim()||'';if(!/saved/i.test(message)||!/photos/i.test(message))throw Error('Save image did not report a Photos-library success');photosSave={saved:true,status:message,imageWidth:image.naturalWidth,imageHeight:image.naturalHeight};
