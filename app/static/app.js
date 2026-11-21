@@ -1085,11 +1085,13 @@ function sheet(title, html, onMount, opts = {}) {
   document.body.append(s); const releaseModal=ModalStack.open(s); document.body.classList.add('has-sheet');
   if(flow){s._sheetCanClose=()=>!opts.canClose||opts.canClose();flowEntry=SheetHistory.add(flow,s,(force,fromPop)=>close(force,fromPop));}
   const closeNow=()=>close(true);closeNow.flow=flow;closeNow.back=()=>SheetHistory.back(flow);closeNow.closeAll=(force=true)=>flow?SheetHistory.closeAll(flow,force):close(true);
-  // phones: a text box waits for a tap (a focused box pops up the keyboard over the sheet); buttons still take focus
+  // Touch-opened sheets start at their dialog container so an autofocus highlight does not look like a selected
+  // action. Tab still enters the normal control order, where :focus-visible marks keyboard navigation. Text fields
+  // also wait for a deliberate tap on phones so the on-screen keyboard cannot cover the choices.
   const first = $('input, select, textarea, button:not([data-close])', $('.sbody', s));
   // (2026-10-12: a select too - iOS opened the meal picker as soon as Add food appeared)
-  if (opts.focusContainer) { sh.tabIndex = -1; sh.focus({preventScroll:true}); }
-  else if (first && !(first.matches('input, textarea, select') && matchMedia('(pointer: coarse)').matches)) first.focus({preventScroll: true});
+  if (opts.focusContainer || matchMedia('(pointer: coarse)').matches) { sh.tabIndex = -1; sh.focus({preventScroll:true}); }
+  else if (first) first.focus({preventScroll: true});
   if (onMount) onMount($('.sbody', s), closeNow);
   return closeNow;
 }
