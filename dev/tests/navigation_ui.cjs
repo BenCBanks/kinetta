@@ -63,12 +63,24 @@ async function homeHeaderAndGroups(p,base,size,snap){
 async function sectionReturnJourneys(p,base){
  const tab=name=>p.locator('nav.tabs a[data-tab="'+name+'"]');
  const clickTab=async(name,path)=>{await tab(name).click();await p.waitForURL(base+path);await ready(p);};
+ const waitForSettledScroll=async target=>{
+  await p.waitForFunction(y=>Math.abs(scrollY-y)<5,target);
+  await p.evaluate(async y=>{
+   let stable=0,last=scrollY;
+   while(stable<2){
+    await new Promise(requestAnimationFrame);
+    const current=scrollY;
+    if(Math.abs(current-y)<5&&Math.abs(current-last)<1)stable++;else stable=0;
+    last=current;
+   }
+  },target);
+ };
  const setScroll=async y=>{
   await p.waitForFunction(y=>document.documentElement.scrollHeight-innerHeight>=y,y);
   const target=await p.evaluate(y=>Math.min(y,Math.max(0,document.documentElement.scrollHeight-innerHeight)),y);
   await p.evaluate(()=>window.dispatchEvent(new Event('pointerdown')));
   await p.evaluate(y=>{document.scrollingElement.scrollTop=y;},target);
-  await p.waitForFunction(y=>Math.abs(scrollY-y)<3,target);
+  await waitForSettledScroll(target);
   return p.evaluate(()=>scrollY);
  };
  await p.waitForFunction(()=>document.documentElement.scrollHeight-innerHeight>=400,'Home feed grows enough for the saved-scroll fixture');
@@ -81,13 +93,13 @@ async function sectionReturnJourneys(p,base){
  const detailPath=await p.locator('.post').first().getAttribute('data-href');assert.match(detailPath,/^\/activity\/\d+$/,'Home fixture provides an Activity detail route');
  await p.evaluate(path=>go(path),detailPath);await p.waitForURL(base+detailPath);await ready(p);
  await p.evaluate(()=>{const hit=App.cache.get('feed:home');if(hit)hit.at=0;});
- let refreshesPending=0;const delayHomeReads=async route=>{if(route.request().method()==='GET'&&route.request().url().includes('/api/')){refreshesPending++;await new Promise(resolve=>setTimeout(resolve,450));refreshesPending--;}await route.continue();};
+ let refreshesPending=0;const delayHomeReads=async route=>{if(route.request().method()==='GET'&&route.request().url().includes('/api/')){refreshesPending++;try{await new Promise(resolve=>setTimeout(resolve,450));if(!route.isHandled?.())await route.continue();}finally{refreshesPending--;}return;}if(!route.isHandled?.())await route.continue();};
  await p.route('**/api/**',delayHomeReads);
  await p.evaluate(()=>{const started=performance.now();globalThis.homeWarmTiming=new Promise(resolve=>{let paintMs=null;const check=()=>{if(location.pathname==='/activity'){if(paintMs===null&&document.querySelector('#page #ff-list .post'))paintMs=performance.now()-started;if(App.pageReady)resolve({paintMs,readyMs:performance.now()-started});}requestAnimationFrame(check);};requestAnimationFrame(check);});});
  await p.locator('[data-back]:visible').first().click();await p.waitForURL(base+'/activity');
  const homeWarm=await p.evaluate(()=>homeWarmTiming);assert(homeWarm.paintMs!==null&&homeWarm.paintMs<250,'Cached Home feed paints before its refresh: '+JSON.stringify(homeWarm));assert(homeWarm.readyMs<250,'Cached Home is ready without waiting for feed/challenge refresh: '+JSON.stringify(homeWarm));
  for(let n=0;n<10&&refreshesPending===0;n++)await p.waitForTimeout(10);assert(refreshesPending>0,'Home becomes ready while its read-only refresh requests remain in flight');
- await p.waitForTimeout(500);await p.unroute('**/api/**',delayHomeReads);await ready(p);
+ await p.waitForTimeout(500);for(let n=0;refreshesPending&&n<100;n++)await p.waitForTimeout(20);assert.equal(refreshesPending,0,'Home refresh interceptors drain before route cleanup');await p.unroute('**/api/**',delayHomeReads);await ready(p);
  assert(Math.abs(await p.evaluate(()=>scrollY)-homeY)<5,'Back from an Activity detail restores the feed position');
  await tab('activity').click();await until(p,()=>scrollY<3,'active Home tab resets to top');
  await p.evaluate(()=>scrollTo(0,280));
@@ -104,6 +116,7 @@ async function sectionReturnJourneys(p,base){
  const foodY=await setScroll(240);
  assert(foodY>30,'Nutrition overview fixture has enough content to test its saved position');
  await clickTab('progress','/progress/routes');await clickTab('food','/food?view=overview');
+ await waitForSettledScroll(foodY);
  assert.equal(await detail.evaluate(el=>el.open),true,'Returning to Nutrition restores its open disclosure');
  assert(Math.abs(await p.evaluate(()=>scrollY)-foodY)<5,'Returning to Nutrition restores its saved position');
  await clickTab('progress','/progress/routes');
