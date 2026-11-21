@@ -4,6 +4,11 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 function duration(seconds){seconds=Math.round(seconds);const hours=Math.floor(seconds/3600),minutes=Math.floor((seconds%3600)/60),rest=seconds%60;return hours?`${hours}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`:`${minutes}:${String(rest).padStart(2,'0')}`;}
 async function until(p,fn,label){for(let i=0;i<180;i++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}const state=await p.evaluate(()=>({url:location.href,ready:typeof App==='undefined'?null:App.pageReady,key:typeof App==='undefined'?null:App.page?.key,body:document.body.innerText.slice(0,240)})).catch(e=>({pageError:e.message}));throw Error(label+' '+JSON.stringify(state));}
+async function fitnessWarning(p,ramp){
+ const warning=p.locator('[data-progress-chart="training-load"] .fitness-ramp-warning');
+ assert.equal(await warning.count(),ramp>8?1:0,'load warning appears only above the high-ramp threshold');
+ if(ramp>8){assert(await warning.isVisible(),'high load has a visible warning');assert.doesNotMatch(await warning.innerText(),/\bramp\b|\b8\.1\b/i,'warning hides the raw load increase');}
+}
 async function fitnessLanguage(p,data){
  const last=data.days.at(-1),load=p.locator('[data-progress-chart="training-load"]'),score=p.locator('[data-progress-chart="run-score"]');
  assert.deepEqual(await load.locator('.stat-row-item small').allTextContents(),['Fitness','Fatigue','Form']);
@@ -14,6 +19,7 @@ async function fitnessLanguage(p,data){
  assert.deepEqual(await score.locator('.stat-row-item small').allTextContents(),['Current','Best in range','Best ever']);
  assert.equal((await score.locator('.stat-row-item b').first().innerText()).trim(),Number(data.vdot_now).toFixed(1),'Run score retains its API value');
  assert.doesNotMatch(await p.locator('#fi-pred,#fi-body').allInnerTexts().then(texts=>texts.join('\n')),/\b(?:VDOT|ramp)\b/i,'visible Fitness wording uses Run score and hides raw internals');
+ await fitnessWarning(p,data.ramp_7d);
 }
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'subpages_fixture.py')],{env:{...process.env,KINETTA_URL:base},stdio:'inherit'});
@@ -69,6 +75,10 @@ with db.connect() as c:
    if(out&&state==='typical'&&size.width===390&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/race-predictions-390-'+theme+'.png'});}
    if(state==='typical'&&size.root===16){
     await fitnessLanguage(p,data);
+    // Keep the fictional history and predictions; change only the browser response's load increase.
+    let ramp=8,served=0;
+    await c.route('**/api/fitness?*',r=>{served++;return r.fulfill({json:{...data,ramp_7d:ramp}});});
+    for(const value of [8,8.1]){ramp=value;const previous=served;await p.reload();await ready();assert(served>previous,'load-warning variant uses the browser-local response');await fitnessWarning(p,ramp);}
     if(out){await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/fitness-typical-390-'+theme+'.png'});}
    }
    if(state==='heavy')await require('./progress_polish_ui.cjs')(p,{size,theme});

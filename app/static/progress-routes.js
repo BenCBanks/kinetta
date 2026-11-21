@@ -346,7 +346,8 @@ async function pFitnessLoaded(body, q) {
       {label:'Best ever',value:f0.vdot_months.length?Math.max(...f0.vdot_months.map(m=>m.v)).toFixed(1):'–'}
     ]) : '';
     const fitnessStatus=`<div class="fitness-card-status"><span class="fitness-status-dot ${kind}" aria-hidden="true"></span><span class="fitness-status-word">${word}</span></div>`;
-    const fitnessMarkup=`<section class="card progress-chart-card fitness-card-a" data-progress-chart="training-load"><header class="progress-chart-heading fitness-card-heading"><h2>Fitness</h2><div id="fi-range"></div></header>${fitnessStatus}${fitnessStats}<div class="fitness-load-chart" id="p-load"></div></section>`;
+    const rampWarning=f0.ramp_7d>8?'<p class="fitness-ramp-warning" role="status">Your training load jumped this week. Build up gradually to stay healthy.</p>':'';
+    const fitnessMarkup=`<section class="card progress-chart-card fitness-card-a" data-progress-chart="training-load"><header class="progress-chart-heading fitness-card-heading"><h2>Fitness</h2><div id="fi-range"></div></header>${fitnessStatus}${fitnessStats}<div class="fitness-load-chart" id="p-load"></div>${rampWarning}</section>`;
     box.innerHTML = hasFitness ? `${fitnessMarkup}
       ${hasPredictions&&chartMonths.length?progressChartCard('run-score','Run score',runScoreStats,'fi-range-score','<div id="p-vdot"></div>'):''}`
       : '<section class="card progress-chart-card fitness-card-a" data-progress-chart="training-load"><h2>Fitness</h2><p class="small muted fitness-card-empty">Log an activity with effort data to see your Fitness trend.</p></section>';
