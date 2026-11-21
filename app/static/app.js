@@ -84,6 +84,7 @@ const PROGRESS_ROUTE_STYLE = '/static/progress-route.css?v=__ASSET_HASH__';
 const TRACK_ROUTE_STYLE = '/static/track-route.css?v=__ASSET_HASH__';
 const FOOD_ROUTE_STYLE = '/static/food-route.css?v=__ASSET_HASH__';
 const LIFT_ROUTE_STYLE = '/static/lift-route.css?v=__ASSET_HASH__';
+const ROUTE_SCREENS_STYLE = '/static/route-screens.css?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
@@ -1312,6 +1313,17 @@ function render(options) {
   const path = location.pathname.replace(/\/+$/, '') || '/activity';
   document.title = path === '/activity' ? 'Home · Kinetta' : 'Kinetta';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
+  if (!routeStylesLoaded.has(ROUTE_SCREENS_STYLE)) {
+    const owner=readOwner(),generation=++lazyRouteGeneration;
+    const current=()=>generation===lazyRouteGeneration&&owner===readOwner()&&key===location.pathname+location.search&&!!App.me;
+    const bundleMatch=path.match(bundle?.re||/^$/)||[],bundleTab=typeof bundle?.tab==='function'?bundle.tab(...bundleMatch.slice(1)):bundle?.tab;
+    const el=lazyRouteShell(bundleTab);
+    el.innerHTML='<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
+    loadRouteStyle(ROUTE_SCREENS_STYLE).then(()=>{if(current())render(options);}).catch(error=>{
+      if(current()){showError(el,error,{retry:()=>render({...options,globalSyncDone:true})});App.pageReady=true;}
+    });
+    return;
+  }
   if (bundle && ((bundle.styles || []).some((file) => !routeStylesLoaded.has(file)) || bundle.scripts.some((file) => !classicScriptsLoaded.has(file)))) {
     const bundleMatch=path.match(bundle.re)||[],bundleTab=typeof bundle.tab==='function'?bundle.tab(...bundleMatch.slice(1)):bundle.tab;
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};

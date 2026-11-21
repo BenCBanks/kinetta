@@ -5,6 +5,7 @@ const routes = fs.readFileSync('app/static/lift-routes.js', 'utf8');
 const trackRoute = fs.readFileSync('app/static/track-route.js', 'utf8');
 const app = fs.readFileSync('app/static/app.js', 'utf8');
 const index = fs.readFileSync('app/static/index.html', 'utf8');
+const assetBuild = fs.readFileSync('app/asset_build.py', 'utf8');
 const code = lift.slice(lift.indexOf('const wUnit'), lift.indexOf('const KINDS')) + routes.slice(routes.indexOf('function liftTotals'), routes.indexOf('// The session is already saved'));
 const x = [
   {name: 'Bench press', kind: 'weight', sets: [{kg: 20, reps: 10, warmup: true}, {kg: 60, reps: 5, pr: ['heaviest']}, {kg: 55, reps: 6}]},
@@ -25,7 +26,9 @@ for (const name of ['const LB =', 'const wUnit =', 'function startLiftSheet()', 
 assert.equal((lift.match(/^route\(/gm) || []).length, 0, 'the eager seam registers no lift feature routes');
 assert.equal((routes.match(/^route\(/gm) || []).length, 5, 'all five lift routes are deferred together');
 assert(!lift.includes('function liftLogger(') && routes.includes('function liftLogger('), 'the active session editor is deferred');
-assert.match(index, /<script src="\/static\/lift\.js\?v=__ASSET_HASH__"><\/script>/, 'the shared lifting seam remains an eager entry asset');
+assert.match(index, /<script src="\/static\/app-shell\.js\?v=__ASSET_HASH__"><\/script>/, 'the generated app shell is loaded eagerly');
+const appShellBundle = assetBuild.match(/'app-shell\.js': \(([\s\S]*?)\n    \),/);
+assert(appShellBundle && /'lift\.js'/.test(appShellBundle[1]), 'the shared lifting seam remains in the eager app-shell bundle');
 assert.doesNotMatch(index, /<script src="\/static\/lift-routes\.js/, 'the route module is not loaded eagerly');
 const liftBundles = [...app.matchAll(/\{re: (\/\^.+?\$\/), tab: '(track|progress)', scripts: \['\/static\/lift-routes\.js\?v=__ASSET_HASH__'\]\}/g)];
 for (const [path, tab] of [['/lift/42', 'track'], ['/track/lift/42', 'track'], ['/lift/history/workout/42', 'track'], ['/lift/ex/7', 'progress'], ['/lift/history/exercise/7', 'progress']]) {

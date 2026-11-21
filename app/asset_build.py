@@ -16,6 +16,32 @@ SHELL = '__SHELL_HASH__'
 REFERENCE = re.compile(r'(?P<attribute>\b(?:src|href)\s*=\s*)(?P<quote>[\"\'])(?P<url>[^\"\']+)(?P=quote)')
 SHELL_LINE = re.compile(r"const SHELL = 'fit-shell-[^']+';")
 STATIC_VERSION = re.compile(r'/static/(?P<name>[A-Za-z0-9_./-]+)\?v=(?:__ASSET_HASH__|[A-Za-z0-9_-]+)')
+GENERATED_CSS = {
+    # Authentication screens are available before the signed-in route loader,
+    # so their password affordance must ship with the initial shell styles.
+    'critical-shell.css': (
+        'theme.css', 'paint-gate.css', 'style.css', 'password-visibility.css',
+        'username-availability.css', 'email-account.css', 'login.css',
+    ),
+    'route-screens.css': (
+        'activity-import.css', 'food.css', 'plan-ui.css', 'maps.css', 'nutrition.css',
+        'activity-home.css', 'activity-detail.css', 'recipes-ui.css', 'friends-ui.css',
+        'contacts-ui.css', 'profile.css', 'cards.css', 'milestones.css', 'challenges.css',
+        'recaps-ui.css', 'guide-ui.css', 'insights-ui.css', 'notifications-ui.css',
+        'heatmap-ui.css', 'community-terms.css',
+    ),
+}
+GENERATED_JS = {
+    'app-shell.js': (
+        'keyboard.js', 'back-navigation.js', 'app.js', 'paint-gate.js',
+        'community-terms.js', 'password-visibility.js', 'native.js', 'haptics.js',
+        'appearance.js', 'maps.js', 'discovery.js', 'pages.js', 'recaps.js', 'cards.js',
+        'milestones.js', 'challenge-summary.js', 'lift.js', 'track-native.js',
+        'track-review.js', 'track.js', 'food-home.js', 'thread-store.js',
+        'food-removal.js', 'feature-usage.js', 'social-data.js', 'profile.js',
+        'refresh.js', 'email-account.js',
+    ),
+}
 
 
 def digest(data):
@@ -44,6 +70,7 @@ def build(source, output):
         if path.is_symlink():raise ValueError('Static source must not contain symlinks')
         if not path.is_file():continue
         name=path.relative_to(source).as_posix();data=path.read_bytes()
+        if name in GENERATED_CSS or name in GENERATED_JS:continue
         if path.suffix=='.html':data=references(data.decode('utf-8'),lambda _:ASSET).encode('utf-8')
         if path.suffix in ('.html','.js','.css','.webmanifest','.json','.svg'):
             data=STATIC_VERSION.sub(lambda m:'/static/'+m['name']+'?v='+ASSET,data.decode('utf-8')).encode('utf-8')
@@ -52,6 +79,20 @@ def build(source, output):
             if count!=1:raise ValueError('Expected one service-worker shell name')
             data=text.encode('utf-8')
         files[name]=data
+    # Keep authored CSS separate, but ship deterministic concatenations.  The
+    # order here mirrors the former link order in index.html exactly.
+    for bundle,names in GENERATED_CSS.items():
+        if not all((source/name).is_file() for name in names):continue
+        files[bundle]=b'\n'.join(
+            b'/* '+name.encode('ascii')+b' */\n'+(source/name).read_bytes()
+            for name in names
+        )
+    for bundle,names in GENERATED_JS.items():
+        if not all((source/name).is_file() for name in names):continue
+        files[bundle]=b'\n;\n'.join(
+            b'/* '+name.encode('ascii')+b' */\n'+(source/name).read_bytes()
+            for name in names
+        )
     if 'index.html' not in files or 'sw.js' not in files:raise ValueError('Missing web entry or service worker')
     shell=digest(b''.join(name.encode('utf-8')+b'\0'+bytes.fromhex(digest(data)) for name,data in files.items()))
     if source!=output and output.exists() and any(output.iterdir()):raise ValueError('Build output must be empty')

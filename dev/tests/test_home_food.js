@@ -45,9 +45,9 @@ assert.match(fs.readFileSync('app/static/kit.js','utf8'),/\br0\(/);
 assert.match(thread,/homeCalories\(/);assert.match(thread,/shrinkPhoto\(/);
 assert.doesNotMatch(homeSource,/function todayFoodCard\(/,'unused todayFoodCard stays out of food-home.js');
 const index=fs.readFileSync('app/static/index.html','utf8');
-assert(index.includes('/static/food-home.js?v=__ASSET_HASH__'),'shared Food helpers stay eager for the Me surface');
-assert(!index.includes('/static/thread.js?v=__ASSET_HASH__'),'FoodThread is deferred until a Food conversation');
-assert(!index.includes('/static/food.js?v=__ASSET_HASH__')&&!index.includes('/static/kit.js?v=__ASSET_HASH__'),'full Nutrition and Kit modules stay out of the initial script path');
+const assetBuild=fs.readFileSync('app/asset_build.py','utf8'),appShellBundle=assetBuild.match(/'app-shell\.js': \(([\s\S]*?)\n    \),/);
+assert(index.includes('/static/app-shell.js?v=__ASSET_HASH__')&&appShellBundle&&/'food-home\.js'/.test(appShellBundle[1]),'shared Food helpers stay eager for the Me surface');
+assert(!appShellBundle?.[1].includes("'thread.js'")&&!appShellBundle?.[1].includes("'food.js'")&&!appShellBundle?.[1].includes("'kit.js'"),'FoodThread, full Nutrition and Kit modules stay out of the initial script path');
 console.log('Food home boundary: shared math/date globals, Cook/Kit callsites, describe route and eager script order PASS');
 
 (async()=>{
