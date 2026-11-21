@@ -62,8 +62,17 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert(activity.src.includes(`${theme}-activity-detail`));assert.match(activity.alt,/Fictional Activity detail/);assert(activity.loaded,'Activity map screenshot is loaded');
      assert.equal(await p.locator('.home-kit-chat').count(),0,'The real Kit meal capture is not repeated in a second section');
      assert.equal(await p.locator('.kit-week-demo').count(),1,'Home shows the Kit week insight section');
-     assert.equal(await p.locator('[data-week-question]').innerText(),'Am I improving?');
-     assert.equal(await p.locator('.home-kit-prompts li').count(),2,'Kit provides three one-line example questions including the replay question');
+     const kitPhone=p.locator('.phone-frame--kit-week');
+     assert.equal(await kitPhone.locator('[data-week-question]').innerText(),'Am I improving?');
+     assert.match(await kitPhone.locator('[data-week-answer]').innerText(),/10\.8 mi.*20\.6 mi average.*27\.9 mi/);
+     assert.equal(await kitPhone.locator('[data-week-chart]').count(),1,'Kit insight chart lives inside the phone');
+     assert.equal(await kitPhone.locator('.home-kit-prompts button').count(),2,'Example questions live inside the phone');
+     assert.equal(await p.locator('.kit-week-demo > .wrap > .kit-week-copy .home-kit-prompts').count(),0,'No example questions sit outside the phone');
+     assert.equal(await p.locator('[data-week-replay],.kit-week-demo-label,.kit-week-visual figcaption').count(),0,'No replay link or fictional sample captions remain');
+     assert.equal(await kitPhone.locator('img').count(),0,'The scripted Kit demo is rendered as phone content, not website UI beside a screenshot');
+     const exampleTarget=await kitPhone.locator('[data-week-example]').first().boundingBox();assert(exampleTarget&&exampleTarget.height>=44,'Kit example questions have 44px targets');
+     const demoFit=await kitPhone.evaluate(frame=>{const screen=frame.querySelector('.kit-phone-screen'),content=frame.querySelector('.kit-phone-content');const r=content.getBoundingClientRect(),s=screen.getBoundingClientRect();return{bottom:r.bottom,screenBottom:s.bottom,scroll:content.scrollHeight,client:content.clientHeight};});
+     assert(demoFit.bottom<=demoFit.screenBottom+1&&demoFit.scroll<=demoFit.client+1,`Kit demo content stays inside the phone screen: ${JSON.stringify(demoFit)}`);
      assert.equal(await p.locator('.home-badges img').count(),2,'Profile leads into the Achievements screen');
      const badgeExamples=await p.locator('.home-badges .home-badge-preview').evaluateAll(xs=>xs.map(x=>({caption:x.querySelector('figcaption')?.textContent.trim(),src:x.querySelector('img')?.currentSrc,width:x.querySelector('.phone-frame')?.getBoundingClientRect().width,loaded:x.querySelector('img')?.complete&&x.querySelector('img')?.naturalWidth>0})));
      assert.deepEqual(badgeExamples.map(x=>x.caption),['Open Achievements from your profile','Follow your progress in each sport.']);
@@ -72,8 +81,7 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      if(width===390){assert.equal(Math.round(badgeExamples[0].width),350,'Profile capture is 350px wide at 390px');assert(badgeExamples[1].width>=220&&badgeExamples[1].width<=240,'Achievements image stays 220–240px wide');}
      const challengeCopy=(await p.locator('.home-challenges').innerText()).replace(/\s+/g,' ').trim();
      assert.match(challengeCopy,/distance, active days, activities, food logging days or protein goal days/i,'Home names the challenge goal types');
-     assert.match(challengeCopy,/Joining is optional and never sends a friend request/,'challenge joining is clearly optional and does not imply a friend request');
-     assert.match(challengeCopy,/not your food details or protein target/,'food details and protein targets remain private');
+     assert.doesNotMatch(challengeCopy,/never sends a friend request|not your food details|protein target/i,'Home has no defensive privacy disclaimer');
      assert.doesNotMatch(challengeCopy,/private by default|free during beta/i);
      const challengeOrder=await p.locator('.home-challenges-visuals figure').evaluateAll(nodes=>nodes.map(n=>({kind:n.classList.contains('home-challenge-preview--detail')?'progress':'create',caption:n.querySelector('figcaption')?.textContent.trim()})));
      assert.deepEqual(challengeOrder,[{kind:'progress',caption:"See everyone’s progress"},{kind:'create',caption:'Choose your challenge'}],'populated progress comes first and the creation sheet is labelled');
@@ -91,6 +99,7 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
       await p.locator('[data-site-nav],.skip-link').evaluateAll(nodes=>nodes.forEach(el=>el.style.visibility='hidden'));
        if(width===390){await p.locator('#home-food').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`food-390-${theme}.png`),animations:'disabled'});await p.locator('.home-badges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`badges-390-${theme}.png`),animations:'disabled'});}
       await p.locator('.home-challenges').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`challenges-${width}-${theme}.png`),animations:'disabled'});
+      if(width===390){await p.locator('.kit-week-demo').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`kit-demo-390-${theme}.png`),animations:'disabled'});await p.locator('.phone-frame--kit-week').screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`kit-phone-390-${theme}.png`),animations:'disabled'});}
      }
      assert.equal(await p.locator('.home-sharing .phone-frame').count(),0,'Sharing stays text-only');
      assert.equal(await p.locator('.tour-final .btn').count(),1,'Home ends with one clear account action');
@@ -104,8 +113,10 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      const phone=await p.locator('.home-hero .phone-frame').boundingBox();assert(phone&&phone.width<=320&&phone.x>=0&&phone.x+phone.width<=width,'Home hero phone stays fully in view');if(width===390)assert.equal(Math.round(phone.width),250,'real-map hero phone is about 250px wide at 390px');
      const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .home-beta-link').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
      assert(targets.every(r=>r.w>=44&&r.h>=44),`Home header and hero actions keep 44px hit areas: ${JSON.stringify(targets)}`);
-     const replay=await p.locator('[data-week-replay]').boundingBox();assert(replay&&replay.width>=44&&replay.height>=44,'Kit week replay remains a 44px target');
-     await p.locator('[data-week-replay]').click();await until(p,()=>document.querySelector('[data-week-answer]')?.textContent?.length>40);
+     await kitPhone.locator('[data-week-example]').first().click();
+     assert.equal(await kitPhone.locator('[data-week-question]').innerText(),'How consistent was I?');
+     assert.match(await kitPhone.locator('[data-week-answer]').innerText(),/4 of the last 6 weeks/,'In-phone example question plays its scripted answer');
+     if(process.env.KINETTA_WEBSITE_SHOT_DIR&&dpr===1)await kitPhone.screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`kit-phone-example-390-${theme}.png`),animations:'disabled'});
     }
     if(name==='food'){
      assert.equal(await p.locator('.food-story .story-steps > h2').count(),0,'Food has one page heading, not a second stacked story heading');
