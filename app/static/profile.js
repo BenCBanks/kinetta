@@ -1041,7 +1041,6 @@ const MeCard=(()=>{
     const content=data?profileView(data,{viewer,period}).html:skel(1);
     return `<section class="me-card me-card-${period}" data-profile-card-period="${period}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id me-card-id-link">${identity}${friends}</div>
-        ${preview&&period==='week'?'<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>View as friend</button></div>':''}
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="${data?'false':'true'}">${content}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
@@ -1124,7 +1123,7 @@ const MeCard=(()=>{
   }
   function header(me){
     return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools"><a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
-    ${profileCard({person:me,viewer:'owner',period:'week',link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false,preview:true})}
+    ${profileCard({person:me,viewer:'owner',period:'week',link:true,pills:ownPills(),milestones:true,showBio:false})}
     <div class="me-dashboard-divider" data-me-dashboard-divider><span>Your dashboard</span><span>Only you</span></div><p class="me-card-close-to me-dashboard-close-to" data-me-close-to hidden></p>`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
@@ -1196,7 +1195,7 @@ const MeCard=(()=>{
     const avatarNode=clone.querySelector('.me-card-avatar');if(avatarNode){avatarNode.innerHTML=avatar({...person,photo:photo?person.photo:null},'lg');const image=avatarNode.querySelector('img');if(image&&photo){const resolved=await ShareArt.photo(image.dataset.asrc||image.getAttribute('src')||'');if(resolved){image.src=resolved.src;image.removeAttribute('data-asrc');image.loading='eager';}else image.remove();}}
     const friendCount=clone.querySelector('[data-friend-count]');if(friendCount)friendCount.textContent=Number.isInteger(member.friend_count)?friendCountText(member.friend_count):'Friends';
     if(featureSlot){featureSlot.replaceChildren();featureSlot.removeAttribute('data-loaded');featureSlot.removeAttribute('data-loading');}
-    const ownerOnly=['.me-week-streak','.me-card-close-to','[data-friend-waiting]','[data-me-milestones]','[data-card-edit]','[data-card-share]','[data-card-preview]','.me-card-preview-row','.me-showcase-streak-slot'];
+    const ownerOnly=['.me-week-streak','.me-card-close-to','[data-friend-waiting]','[data-me-milestones]','[data-card-edit]','[data-card-share]','.me-showcase-streak-slot'];
     clone.querySelectorAll(ownerOnly.join(',')).forEach(node=>node.remove());
     if(shareAchievements){await ProfileLayout.mountShowcase(clone,member,{shared:true,featured:true});if(featureSlot?.dataset.loaded==='true')clone.querySelectorAll('.profile-achievement-next').forEach(node=>node.remove());else if(featureSlot){featureSlot.replaceChildren();featureSlot.removeAttribute('data-loaded');featureSlot.removeAttribute('data-loading');}}
     else clone.querySelectorAll('.me-featured-slot,[data-me-featured],.me-featured-achievements,.profile-achievements').forEach(node=>node.remove());
@@ -1333,6 +1332,7 @@ const MeCard=(()=>{
           <div class="me-editor-fields"><label class="vh" for="card-name">Name</label><input id="card-name" name="name" value="${esc(start.name)}" maxlength="60" autocomplete="name" placeholder="Name" required aria-describedby="card-name-error"><small class="danger" id="card-name-error" role="alert"></small><span class="small muted">@${esc(App.me.login)}</span>
           <label class="vh" for="card-bio">Bio</label><textarea id="card-bio" name="bio" rows="2" maxlength="280" placeholder="Bio" aria-describedby="card-bio-count">${esc(start.bio)}</textarea><div class="me-editor-bio-label"><small class="muted" id="card-bio-count" data-card-bio-count>${start.bio.length}/280</small></div></div></div>
         <p class="small muted me-editor-privacy">Your name, photo and bio are visible to people who find your profile.</p>
+        <button type="button" class="row-link me-editor-preview" data-card-preview-edit><span class="grow">Preview public profile</span>${svg('chev')}</button>
         <h3 id="card-period-label">Period</h3><div class="me-chips" data-card-period role="group" aria-labelledby="card-period-label"></div>
         <h3>Sections</h3><div class="me-editor-sections" data-card-sections></div>
         <h3 id="card-featured-label">Featured achievements <span>· up to 4</span></h3><p class="small muted me-editor-featured-note">Choose achievements you've earned. Changes save with your profile; Cancel discards them. Use the arrows to set their order.</p>
@@ -1398,6 +1398,7 @@ const MeCard=(()=>{
       bio.oninput=()=>{$('[data-card-bio-count]',box).textContent=bio.value.length+'/280';sizeBio();changed();};
       $('[data-card-photo]',box).onclick=()=>{if(!valid())return;profilePhotoSheet(()=>{if(!valid())return;const photo=$('[data-card-photo]',box);photo.innerHTML=avatar(App.me,'lg')+'<small>Change</small>';const original=$('.me-card-id .me-card-avatar',card);if(original)original.innerHTML=avatar(App.me,'lg');invalidate('/api/me');invalidate('/api/people/');clearPreviewCache();keep('/api/me',App.me);status.textContent='Photo saved. Your other edits are kept.';});};
       const close=()=>{finish();if(fromSettings&&live())go('/me',{replace:true});};
+      const previewEdit=$('[data-card-preview-edit]',box);if(previewEdit)previewEdit.onclick=()=>{if(valid())viewAsFriend();};
       const cancel=$('[data-card-cancel]',box);cancel.onclick=async()=>{if(!valid()||busy||featuredBusy)return;if(dirty()&&(!await confirmSheet('Discard your changes?',{body:'Your profile edits won’t be saved.',action:'Discard',cancel:'Keep editing'})||!valid()||busy||featuredBusy))return;close();};
       form.onsubmit=async e=>{
         e.preventDefault();if(!valid()||busy||featuredBusy||!dirty())return;
@@ -1425,7 +1426,6 @@ const MeCard=(()=>{
     if(!ownerView){draw();return {};}
     $('[data-card-edit]',card).onclick=edit;
     $('[data-card-share]',card).onclick=shareSheet;
-    card.addEventListener('click',event=>{if(event.target.closest('[data-card-preview]'))viewAsFriend();});
     if(data)draw();else initialLoad=loadCard();
     return {edit,ready:initialLoad};
   }

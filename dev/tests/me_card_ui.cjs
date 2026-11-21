@@ -146,10 +146,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');
   await p.locator('.me-featured-slot[data-loaded="true"]').waitFor();await p.locator('.me-featured-achievements').waitFor();
-  const previewRow=p.locator('.me-card .me-card-preview-row'),previewAction=previewRow.locator('[data-card-preview]');
-  assert.equal(await previewAction.innerText(),'View as friend','friend preview action remains available before weekly stats');
-  const previewPlacement=await previewRow.evaluate(node=>({afterIdentity:node.previousElementSibling?.classList.contains('me-card-id'),beforeSections:node.nextElementSibling?.classList.contains('me-card-sections'),outsideWeekly:!node.closest('.me-card-weekly'),weeklyChart:!!node.nextElementSibling?.querySelector('.me-card-weekly .me-chart-scroll .me-card-bars')}));
-  assert.deepEqual(previewPlacement,{afterIdentity:true,beforeSections:true,outsideWeekly:true,weeklyChart:true},'friend preview follows identity/streak and precedes weekly stats, chart and achievements');
+  assert.equal(await p.locator('.me-card .me-card-preview-row,[data-card-preview]').count(),0,'friend preview is removed from the Me card');
+  const friendsRow=p.locator('.me-tools .row-link').first();assert.equal(await friendsRow.innerText(),'Friends\n2');assert.equal(await friendsRow.getAttribute('href'),'/me/friends');const friendsBox=await friendsRow.boundingBox();assert(friendsBox.width>0&&friendsBox.height>=44,'Friends is the first full-width Me row with a phone-sized target');
   const profileLink=p.locator('a.me-card-profile-link'),identityBox=await profileLink.boundingBox();
   assert.equal(await profileLink.getAttribute('aria-label'),null,'the profile link name comes from its visible identity');
   assert.equal(await p.getByRole('link',{name:/Alex Rivera.*@alex/}).count(),1,'the profile link exposes its visible name and handle accessibly');
@@ -159,9 +157,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   assert.equal(await identity.locator('.me-card-avatar').count(),1);assert.equal(await identity.locator('h2').innerText(),'Alex Rivera');
   assert.equal(await identity.locator('.me-card-meta').innerText(),'@alex');
   assert.equal(await p.locator('.me-card-open-link,.me-profile-chevron').count(),0,'the card has one visible identity link without an overlay or chevron');
-  assert.equal(await p.locator('.me-card-id > .me-friends-link').count(),1,'friend navigation remains a separate link');
+  assert.equal(await p.locator('.me-card-id > .me-friends-link').count(),0,'the Me card no longer carries the Friends link');
   assert.equal(await profileLink.locator('.me-friends-link').count(),0,'friend navigation is not nested inside the profile link');
-  for(const [selector,label] of [['.me-card-banner [data-card-edit]','Edit'],['.me-card-banner [data-card-share]','Share'],['.me-card [data-card-preview]','View as friend'],['.me-card-id > .me-friends-link .me-friends-count','friends'],['.me-card-id > .me-friends-link .badge.alert','waiting chip'],['.me-card .me-milestone-all','Recent milestones']]){
+  for(const [selector,label] of [['.me-card-banner [data-card-edit]','Edit'],['.me-card-banner [data-card-share]','Share'],['.me-card .me-milestone-all','Recent milestones']]){
    const target=p.locator(selector).first();if(await target.count()&&await target.isVisible()){const box=await target.boundingBox(),profileHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('a.me-card-profile-link'),{x:box.x+box.width/2,y:box.y+box.height/2});assert(!profileHit,`${label} remains a separate tap target outside the profile identity link`);}
   }
   assert.equal(await p.locator('.me-divider').count(),0,'no hairline divider separates the Me card and Today');
