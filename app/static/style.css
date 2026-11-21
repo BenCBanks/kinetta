@@ -789,13 +789,6 @@ tr.muted td { color: var(--tx3); }
 /* ---------- Progress ---------- */
 .bigstat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .bigstat .stat b { font-size: var(--text-app-stat); }
-.pred { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.pred div { background: var(--card2); border-radius: var(--r3); padding: 14px 16px; } .pred b { display: block; font: 800 23px var(--numf); letter-spacing: -.02em; }
-/* Quiet current-fitness estimates leave room for the running charts below. */
-.card p.prediction-note { margin:16px 0 4px; }
-
-
-
 .rng { margin: 4px 0 12px; }
 /* Pickers (sport, years, day, time range) are plain text with their chevron: no grey pill, shadow or radius (#764). */
 .range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 4px; border: 0; border-radius: 0;

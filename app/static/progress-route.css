@@ -1,5 +1,10 @@
 /* Progress route-only styles. Loaded with Progress leaves; shell and nav stay eager. */
 
+.pred { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pred div { background: var(--card2); border-radius: var(--r3); padding: 14px 16px; } .pred b { display: block; font: 800 23px var(--numf); letter-spacing: -.02em; }
+/* Quiet current-fitness estimates leave room for the running charts below. */
+.card p.prediction-note { margin:16px 0 4px; }
+
 /* Matched route detail follows the same quiet header, map and inset-list pattern as Progress. */
 .route-detail-top { display:flex; align-items:center; justify-content:space-between; min-height:44px; margin-bottom:12px; }
 .route-detail-top .route-back { display:inline-flex; align-items:center; gap:6px; min-width:44px; min-height:44px; padding:0 4px 0 0; border:0; border-radius:10px; background:transparent; color:var(--accent); font-family:inherit; font-size:15px; font-weight:600; line-height:1.2; white-space:nowrap; }
