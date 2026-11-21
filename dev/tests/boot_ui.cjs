@@ -32,9 +32,22 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
         for(const screen of mode==='optional'?['login','signup']:['login']){
           await page.goto(base+(screen==='signup'?'/signup':'/'),{waitUntil:'networkidle'});
           if(mode==='optional'){
+            if(screen==='login'){
+              // A new installation opens the first-run welcome; choose its existing Log in path
+              // before asserting the anonymous login form.
+              const firstRunLogin=page.locator('#first-run-login');
+              if(await firstRunLogin.count())await firstRunLogin.click();
+              await page.locator('.login form input[name="login"]').waitFor();
+            }else{
+              // Signup now reveals credentials on step two, so exercise the wizard instead of
+              // waiting for a password field that is intentionally hidden on the details step.
+              await page.locator('.signup-wizard [data-signup-step="0"]:visible').waitFor();
+              await page.locator('.login form input[name="name"]').fill('Fictional Member');
+              await page.locator('.login form input[name="email"]').fill('fictional@example.test');
+              await page.locator('.signup-next:visible').click();
+              await page.locator('.signup-wizard [data-signup-step="1"]:visible').waitFor();
+            }
             await page.locator('.login form input[name="password"]').waitFor();
-            if(screen==='signup')await page.locator('.login form input[name="email"]').waitFor();
-            else await page.locator('.login form input[name="login"]').waitFor();
             assert.equal(await page.locator('#boot-reload').count(),0,'Optional scripts never cause fatal startup');
             assert.equal(await page.evaluate(()=>KinettaBoot.failed),false);
             assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'No horizontal clipping');
