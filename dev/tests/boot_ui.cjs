@@ -21,8 +21,8 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
             assert.notEqual(body,html,'The blocked optional script runs immediately after the startup guard');
             return route.fulfill({response,body});
           }
-          if(mode==='script'&&url.pathname==='/static/app.js')return route.abort();
-          if(mode==='style'&&url.pathname==='/static/style.css')return route.abort();
+          if(mode==='script'&&url.pathname==='/static/app-shell.js')return route.abort();
+          if(mode==='style'&&url.pathname==='/static/critical-shell.css')return route.abort();
           if(url.pathname==='/api/setup')return route.fulfill({json:{needed:false}});
           if(url.pathname==='/api/signup')return route.fulfill({json:{open:true,full:false}});
           if(url.pathname==='/api/beta')return route.fulfill({json:{open:false}});
