@@ -178,6 +178,9 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin {
     private var timeout: DispatchWorkItem?
     private static let maxBytes = 8 * 1024 * 1024
     private static let maxCaptionCharacters = 1000
+    private var shareDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("kinetta-activity-share", isDirectory: true)
+    }
 
     override func load() {
         // A crashed/interrupted share must not retain activity pictures indefinitely.
