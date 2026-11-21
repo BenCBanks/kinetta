@@ -268,28 +268,47 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     }
     if(url==='/progress/segments'){assert.equal(await p.locator('#sg-sport').evaluate(n=>!!n.closest('.card')),true,'segment sport is inside its first card');await p.locator('#sg-sport').click();await p.locator('[data-pk=run]').click();await ready();assert.match(new URL(p.url()).search,/sport=run/);}
     if(url.includes('view=fitness')){
-     await until(p,()=>!!document.querySelector('#fi-range .range-text'),'Fitness range control renders in its chart card');
-     assert.equal(await p.locator('.progress-chart-card').count(),2,'Fitness charts use two independent ChartCards');
-     assert.equal(await p.locator('.progress-chart-card .card').count(),0,'Fitness ChartCards do not nest cards');
-     assert.deepEqual(await p.locator('#fi-range [data-fitness-range]').allTextContents(),['1M','3M','1Y','All'],'training load offers the specified range choices');
-     assert.equal(await p.locator('#fi-range-score .range-text').count(),who==='runner'?1:0,'run score range appears only when its chart exists');
-     for(const range of ['#fi-range [data-fitness-range]','#fi-range-score [data-fitness-range]'])for(const button of await p.locator(range).all()){const target=await button.boundingBox();assert(target.height>=44&&target.width>=44,`${range} stays at least 44px in both dimensions`);}
+     await until(p,()=>!!document.querySelector('.fitness-card-a'),'Fitness Card A renders');
      if(who==='runner'){
-      assert.deepEqual(await p.locator('[data-progress-chart="training-load"] .stat-row-item small').allTextContents(),['Fitness','Form','5K estimate'],'Fitness uses the specified three-metric StatRow');
-      assert.equal(await p.locator('[data-progress-chart="training-load"] .stat-row-item[data-form-state]').count(),1,'form state is conveyed by semantic text color');
-      assert.equal(await p.locator('[data-progress-chart="training-load"] #p-load .chartbox > svg').count(),1,'training load plot is inside its ChartCard');
-      assert.deepEqual(await p.locator('[data-progress-chart="training-load"] #p-load .readout').evaluate(n=>{const s=getComputedStyle(n);return{position:s.position,background:s.backgroundColor,border:s.borderTopWidth,radius:s.borderRadius,shadow:s.boxShadow};}),{position:'static',background:'rgba(0, 0, 0, 0)',border:'0px',radius:'0px',shadow:'none'},'chart inspection values remain plain text instead of a nested soft panel');
+      await until(p,()=>!!document.querySelector('#fi-range .underline-tabs'),'Fitness range tabs render in Card A');
+      assert.equal(await p.locator('.progress-chart-card').count(),2,'Card A and the existing Run score chart remain separate');
+      assert.equal(await p.locator('.progress-chart-card .card').count(),0,'Fitness charts do not nest cards');
+      assert.deepEqual(await p.locator('#fi-range [data-fitness-range]').allTextContents(),['1M','3M','1Y','All'],'training load offers the specified plain-text ranges');
+      assert.equal(await p.locator('#fi-range-score .range-text').count(),1,'the existing Run score chart keeps its range control');
+      assert.equal(await p.locator('#fi-range [data-fitness-range="3m"]').getAttribute('aria-pressed'),'true','3M is selected by default');
+      for(const range of ['#fi-range [data-fitness-range]','#fi-range-score [data-fitness-range]'])for(const button of await p.locator(range).all()){const target=await button.boundingBox();assert(target.height>=44&&target.width>=44,`${range} stays at least 44px in both dimensions`);}
+      const cardA=p.locator('[data-progress-chart="training-load"]');
+      assert.equal((await cardA.locator('.fitness-card-heading h2').innerText()).trim(),'Fitness','Card A has one clear Fitness heading');
+      assert.deepEqual(await cardA.locator('.stat-row-item small').allTextContents(),['Fitness','Fatigue','Form'],'Card A shows the three specified measures');
+      assert(await cardA.locator('.stat-row-item b').evaluateAll(nodes=>nodes.length===3&&nodes.every(n=>/^[-+]?\d+$/.test(n.textContent.trim()))),'Fitness, Fatigue and signed Form are whole numbers');
+      assert.equal(await cardA.locator('.stat-row-item[data-form-state]').count(),1,'form state is conveyed in the number row');
+      const status=await cardA.locator('.fitness-card-status').evaluate(node=>({text:node.innerText.trim(),word:getComputedStyle(node.querySelector('.fitness-status-word')).color,ink:(()=>{const probe=document.createElement('i');probe.style.color='var(--tx)';document.body.append(probe);const color=getComputedStyle(probe).color;probe.remove();return color;})(),dot:getComputedStyle(node.querySelector('.fitness-status-dot')).backgroundColor}));
+      assert(['Fresh','Tired','Steady'].includes(status.text)&&status.word===status.ink&&status.dot!==status.word,'status uses a colored dot and normal-ink word');
+      assert.equal(await cardA.locator('#p-load .fitness-load-line').count(),1,'Fitness is the primary chart line');assert.equal(await cardA.locator('#p-load .fitness-fatigue-line').count(),1,'Fatigue is the muted chart line');assert.equal(await cardA.locator('#p-load .chartbox .legend').count(),0,'the plot has no repeated legend');
+      const chartStyle=await cardA.locator('#p-load .chartbox > svg').evaluate(node=>({height:node.getBoundingClientRect().height,fitness:parseFloat(getComputedStyle(node.querySelector('.fitness-load-line')).strokeWidth),fatigue:parseFloat(getComputedStyle(node.querySelector('.fitness-fatigue-line')).strokeWidth)}));
+      assert.deepEqual(chartStyle,{height:180,fitness:2,fatigue:1.5},'Card A uses a 180px plot with 2px Fitness and 1.5px Fatigue lines');
+      const resting=cardA.locator('.fitness-chart-readout');await until(p,()=>/^Fitness [+-]\d+ over 3 months$/.test(document.querySelector('.fitness-chart-readout')?.innerText||''),'Card A resting readout');
+      const chart=cardA.locator('#p-load .chartbox > svg');await chart.evaluate(node=>{const r=node.getBoundingClientRect();node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:r.left+r.width*.58,clientY:r.top+r.height*.5,pointerType:'mouse'}));});
+      assert.match(await resting.innerText(),/^[A-Z][a-z]{2} \d{1,2} · Fitness \d+ · Fatigue \d+ · Form [+-]?\d+$/,'touching the line chart shows the selected day’s values');
+      assert.deepEqual(await cardA.locator('#p-load .readout').evaluate(n=>{const s=getComputedStyle(n);return{position:s.position,background:s.backgroundColor,border:s.borderTopWidth,radius:s.borderRadius,shadow:s.boxShadow};}),{position:'static',background:'rgba(0, 0, 0, 0)',border:'0px',radius:'0px',shadow:'none'},'chart inspection values remain plain text instead of a nested soft panel');
       const runScorePlot=p.locator('[data-progress-chart="run-score"] #p-vdot .chartbox > svg');
       if(await runScorePlot.count())assert.equal(await runScorePlot.count(),1,'run score plot is inside its ChartCard');
       else {assert.match(await p.locator('[data-progress-chart="run-score"] #p-vdot').innerText(),/Not enough data in this range/,'short run-score history explains why a plot is unavailable');assert.equal(await p.locator('[data-progress-chart="run-score"] .stat-row').count(),0,'short history does not repeat current and best values without a range plot');}
       assert((await p.locator('[data-progress-chart="run-score"] .progress-chart-heading h2').innerText()).trim()==='Run score');
-      assert.equal(await p.locator('#fi-range [data-fitness-range="all"]').getAttribute('aria-pressed'),'true','All is selected by default');
+      await p.locator('#fi-range [data-fitness-range="1y"]').click();await p.waitForURL('**/progress?view=fitness&range=1y');await ready();
+      assert.equal(await p.locator('#fi-range [data-fitness-range="1y"]').getAttribute('aria-pressed'),'true','the selected Fitness range persists in the route');
       await p.locator('#fi-range [data-fitness-range="3m"]').click();await p.waitForURL('**/progress?view=fitness&range=3m');await ready();
       assert.equal(await p.locator('#fi-range [data-fitness-range="3m"]').getAttribute('aria-pressed'),'true','range selection persists in the Fitness route');
       assert.equal(await p.locator('#fi-range-score [data-fitness-range="3m"]').getAttribute('aria-pressed'),'true','the same range applies to both Fitness charts');
       await p.evaluate(url=>go(url),url);await ready();
-      if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/fitness-chartcard-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
-     }else assert.equal(await p.locator('.progress-chart-empty').count(),1,'no-score empty state stays inside the route card');
+      if(out){await p.locator('#p-load .fitness-load-line').waitFor({state:'visible'});fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/fitness-card-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
+     }else{
+      assert.equal(await p.locator('[data-progress-chart="training-load"] .fitness-card-empty').count(),1,'no activities leave one calm Fitness message');
+      assert.equal(await p.locator('#fi-pred').isHidden(),true,'Race predictions stay hidden without a recent eligible run');
+      assert.equal(await p.locator('#fi-body .progress-chart-card').count(),1,'the no-activity state has no empty Run score card');
+      assert.equal(await p.locator('#fi-body .stat-row,#fi-body .underline-tabs,#fi-body svg').count(),0,'no-activity state does not show fabricated numbers, ranges or a plot');
+      if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/fitness-card-no-runs-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
+     }
     }
     if(url.includes('/trends')){
      assert.equal(await p.locator('#p-rng button').count(),1,'years filter remains on the separate Trends view');
