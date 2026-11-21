@@ -162,7 +162,10 @@ function loadClassicScript(asset) {
   return promise;
 }
 function loadClassicScripts(assets) {
-  return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
+  // Dynamic classic scripts with async=false download together but execute in
+  // insertion order. Keep the dependency order in `assets` and avoid a network
+  // round trip between each route bundle.
+  return Promise.all(assets.map(loadClassicScript));
 }
 function lazyUsernameAvailability(input,valid,failed,loaded) {
   let watcher=null,pending=null,action=null;
@@ -335,6 +338,41 @@ function scheduleKitRouteWarmup(el,path) {
 const pendingReads = new Map();
 const readEpochs = new Map();
 const readEpoch = (path) => readEpochs.get(path) || 0;
+const earlyRouteReads = new Map();
+const routeReadKey = (owner, path) => JSON.stringify([owner, path]);
+function startRouteReads(path, owner, isCurrent) {
+  const reads = path === '/activity' && new URLSearchParams(location.search).get('view') !== 'groups'
+    ? ['/api/activities?limit=15', '/api/feed/friends?limit=15']
+    : path === '/track' ? ['/api/connections']
+      : (path.match(/^\/activity\/(\d+)$/) || []).slice(1).map(id => `/api/activities/${id}`);
+  const shared = path.match(/^\/activity\/friends\/(\d+)$/);
+  if (shared) reads.push(`/api/shared/${shared[1]}`);
+  for (const [key, entry] of earlyRouteReads) {
+    if (entry.owner !== owner || (entry.expiresAt && entry.expiresAt < Date.now())) earlyRouteReads.delete(key);
+  }
+  for (const readPath of reads) {
+    const key = routeReadKey(owner, readPath);
+    if (earlyRouteReads.has(key)) continue;
+    const epoch = readEpoch(readPath), entry = {owner, epoch, expiresAt: 0, promise: null};
+    entry.promise = apiRequest(readPath).then(data => {
+      if (!isCurrent() || owner !== readOwner() || epoch !== readEpoch(readPath)) {
+        if (earlyRouteReads.get(key) === entry) earlyRouteReads.delete(key);
+        return data;
+      }
+      entry.expiresAt = Date.now() + 15000;
+      return data;
+    }).catch(error => {
+      if (earlyRouteReads.get(key) === entry) {
+        if (isCurrent() && owner === readOwner() && epoch === readEpoch(readPath)) entry.expiresAt = Date.now() + 15000;
+        else earlyRouteReads.delete(key);
+      }
+      throw error;
+    });
+    // A route can be left before this optional prefetch settles.
+    entry.promise.catch(() => {});
+    earlyRouteReads.set(key, entry);
+  }
+}
 // A new cookie login to the same account is still a different session.
 const readSessions = new WeakMap();
 let readSession = 0;
@@ -360,6 +398,20 @@ function bootstrapMe() {
 
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
+  const method = (opts.method || 'GET').toUpperCase();
+  if (method === 'GET' && !opts.signal) {
+    const key = routeReadKey(readOwner(), path), early = earlyRouteReads.get(key);
+    if (early) {
+      if (early.epoch === readEpoch(path) && (!early.expiresAt || early.expiresAt >= Date.now())) {
+        earlyRouteReads.delete(key);
+        return early.promise;
+      }
+      earlyRouteReads.delete(key);
+    }
+  }
+  return apiRequest(path, opts);
+}
+async function apiRequest(path, opts = {}) {
   const owner = readOwner();
   const mePath=path==='/api/me',requestPath=mePath?'/api/me?refresh=1':path;
   let r,body=null;
@@ -1428,6 +1480,7 @@ function render(options) {
       if (typeof Social !== 'undefined') Social.refresh();
     }
     const current = () => generation === lazyRouteGeneration && owner === readOwner() && key === location.pathname + location.search && !!App.me;
+    startRouteReads(path, owner, current);
     loadRouteStyles(bundle.styles).then(() => loadClassicScripts(bundle.scripts)).then(() => {
       if (!current()) return;
       if (!App.pages.some((page) => page.re.test(path))) {

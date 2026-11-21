@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track','sharing'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track','sharing','route-ready'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -260,6 +260,57 @@ async function sharingRouteCase(browser){
   }finally{await context.close();}
  }
  console.log('Sharing direct routes: route trimming and blocked people load their Social leaf without writes or errors PASS');
+}
+async function routeReadyCase(browser){
+ const context=await fixtureContext(browser);await login(context);
+ const page=await context.newPage(),scriptRequests=[],feedReads=[],writes=[],errors=[];let releaseScripts=()=>{};
+ const scriptsGate=new Promise(resolve=>{releaseScripts=resolve;});page.on('pageerror',error=>errors.push(error.message));
+ await page.addInitScript(()=>{window.__routeScriptExecution=[];});
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(['/static/social.js','/static/media.js'].includes(url.pathname)){
+   scriptRequests.push(url.pathname);const response=await route.fetch(),body=await response.text();await scriptsGate;
+   const name=url.pathname.split('/').at(-1).replace('.js','');return route.fulfill({response,body:`${body}\nwindow.__routeScriptExecution.push(${JSON.stringify(name)});`});
+  }
+  if(['/api/activities','/api/feed/friends'].includes(url.pathname)){
+   feedReads.push(url.pathname+url.search);return route.fulfill({json:[]});
+  }
+  if(url.pathname==='/api/challenges')return route.fulfill({json:[]});
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ try{
+  await page.goto(base+'/activity',{waitUntil:'domcontentloaded'});
+  for(let i=0;i<80&&(scriptRequests.length<2||feedReads.length<2);i++)await page.waitForTimeout(50);
+  assert.deepEqual([...new Set(scriptRequests)].sort(),['/static/media.js','/static/social.js'],'Home requests its independent route scripts together');
+  assert.deepEqual([...new Set(feedReads.map(path=>path.split('?')[0]))].sort(),['/api/activities','/api/feed/friends'],'Home starts both feed reads while its route scripts are still held');
+  assert.equal(scriptRequests.length,2,'each route script begins once before either response is released');
+  assert.equal(feedReads.length,2,'both first-page reads begin once before the script gate opens');
+  releaseScripts();await ready(page,'#ff-list','Home feed after parallel route bundle and data load');
+  assert.deepEqual(await page.evaluate(()=>window.__routeScriptExecution),['social','media'],'independent script downloads still execute in declared dependency order');
+  assert.equal(feedReads.length,2,'the renderer consumes early feed responses without duplicate GETs');
+  assert.deepEqual(errors,[],'parallel route loading has no browser errors');assert.deepEqual(writes,[],'route prefetch makes no writes');
+ }finally{releaseScripts();await context.close();}
+
+ const staleContext=await fixtureContext(browser);await login(staleContext);
+ const stalePage=await staleContext.newPage();let releaseRead=()=>{},heldRead=()=>{};const readGate=new Promise(resolve=>{releaseRead=resolve;}),readStarted=new Promise(resolve=>{heldRead=resolve;});
+ await stalePage.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/api/activities'&&url.searchParams.get('limit')==='15'){heldRead();await readGate;return route.fulfill({json:[]});}
+  if(url.pathname==='/api/feed/friends')return route.fulfill({json:[]});
+  if(url.pathname==='/api/challenges')return route.fulfill({json:[]});
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
+  if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();
+ });
+ try{
+  await stalePage.goto(base+'/activity',{waitUntil:'domcontentloaded'});await readStarted;
+  await stalePage.locator('nav.tabs a[data-tab="me"]').click();await ready(stalePage,meReady,'Me after leaving Home during its early feed read');
+  releaseRead();await stalePage.waitForTimeout(100);
+  assert.equal(new URL(stalePage.url()).pathname,'/me','a late Home feed response cannot replace a newer route');
+  assert.equal(await stalePage.locator('#ff-list').count(),0,'a stale Home response never renders into Me');
+ }finally{releaseRead();await staleContext.close();}
+ console.log('Route-ready: Home scripts download together, execute in dependency order, reuse early feed reads, and ignore a late route response PASS');
 }
 async function friendsLeafChecks(browser){
  const me=await socialFixture(browser,{idleGate:true});
@@ -899,6 +950,7 @@ async function foodWarmupCase(browser){
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
   if(selectedCase==='sharing'){await sharingRouteCase(browser);return;}
+  if(selectedCase==='route-ready'){await routeReadyCase(browser);return;}
   if(selectedCase==='food'){await foodWarmupCase(browser);return;}
   if(selectedCase==='route-css'){await routeCssCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
@@ -1583,9 +1635,10 @@ async function foodWarmupCase(browser){
   const intervalsRetry=await progressFixture(browser,{fail:'/static/intervals.js'});
   try{
     await intervalsRetry.page.goto(base+'/plan',{waitUntil:'domcontentloaded'});await intervalsRetry.page.locator('.load-error').waitFor();
-    assert.deepEqual(intervalsRetry.assets,['/static/intervals.js'],'Plan waits for its interval dependency before requesting Plan');
+    assert.deepEqual([...new Set(intervalsRetry.assets)].sort(),['/static/intervals.js','/static/plan.js'],'Plan and its interval dependency download together before ordered execution');
     await intervalsRetry.page.locator('#retry').click();await ready(intervalsRetry.page,'.plan-page','Plan after interval dependency retry');
-    assert.deepEqual(intervalsRetry.assets,['/static/intervals.js','/static/intervals.js','/static/plan.js'],'a failed interval dependency retries first, then loads Plan once');
+    assert.equal(intervalsRetry.assets.filter(path=>path==='/static/intervals.js').length,2,'the failed interval dependency is retried once');
+    assert.equal(intervalsRetry.assets.filter(path=>path==='/static/plan.js').length,1,'Plan is downloaded once and runs after Intervals becomes available');
     assert.deepEqual(intervalsRetry.errors,[]);assert.deepEqual(intervalsRetry.writes,[]);
   }finally{await intervalsRetry.context.close();}
 
