@@ -66,31 +66,31 @@ const rounded=c.replyHtml(root,{entries:[],result:{kind:'preview',assumed:'I ass
 assert.equal((rounded.match(/thread-assumptions/g)||[]).length,1,'assumption text appears once for the card');assert.match(rounded,/Assumed a typical portion of 1 tbsp cream/);assert.doesNotMatch(rounded,/I assumed|Use − or \+ to change/);assert.match(rounded,/≈ 5 kcal/,'the card total adds the rounded row values');
 console.log('food chat assumptions: one concise guess line and totals use displayed rounded calories PASS');
 
-// A stepper decreases to one portion, where its minus control becomes a named trash action.
+// A stepper stays a quantity control; the item menu remains the separate removal route.
 Object.assign(c,{fmtAmount:()=>"0.25 serving",source:()=>"Kit’s estimate"});
 Object.assign(c,{FoodNutrition:{macros:()=> 'Protein unknown · Carbs unknown · Fat unknown'}});
 vm.runInContext(source.slice(source.indexOf('  const nutritionAttr='),source.indexOf('  function choices(')),c);
 vm.runInContext(source.slice(source.indexOf('  function previewRows('),source.indexOf('  const queuedReview=')),c);
 const removable={index:0,status:'ready',entries:[{name:'Mayonnaise <test>',kcal:25}],drafts:[{portion:{count:.25}}],entry_drafts:[0],remove_entries:[0],remove_token:'a'.repeat(64)};
 const rows=c.previewRows(root,{parts:[removable]});
-const removedHtml=c.stepRow(rows[0]);assert.match(removedHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(removedHtml,/class="icon-btn thread-remove/);
-assert.match(removedHtml,/data-step="-1"/);assert.match(removedHtml,/data-step="1"/);assert.match(removedHtml,/data-remove-food=/,'removal stays separate from the quantity controls');
-const atOneHtml=c.stepRow({...rows[0],e:{...rows[0].e,amount:1,unit:'serving'}});assert.match(atOneHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(atOneHtml,/class="icon-btn thread-remove/);assert.match(atOneHtml,/data-step="-1"/,'one serving keeps a minus stepper');assert.match(atOneHtml,/data-remove-food=/);
+const removedHtml=c.stepRow(rows[0]);assert.doesNotMatch(removedHtml,/data-remove-food=/,'the stepper row has no trash action');assert.match(removedHtml,/data-row-food-menu=/,'removal stays reachable through the item menu');assert.match(removedHtml,/aria-label="More options for Mayonnaise &lt;test&gt;"/);
+assert.match(removedHtml,/data-step="-1"/);assert.match(removedHtml,/data-step="1"/);
+const atOneHtml=c.stepRow({...rows[0],e:{...rows[0].e,amount:1,unit:'serving'}});assert.doesNotMatch(atOneHtml,/data-remove-food=/,'minus never becomes a trash action at one portion');assert.match(atOneHtml,/data-row-food-menu=/,'one portion keeps removal in the item menu');assert.match(atOneHtml,/aria-label="More options for Mayonnaise &lt;test&gt;"/);assert.match(atOneHtml,/data-step="-1"/,'one serving keeps a minus stepper');
 ctx.messages=[user(1),reply(1,[])];c.primary(ctx);assert.equal(nodes['#thread-review'].hidden,true);
 assert.equal(c.previewRows({result:{review_only:false}},{parts:[removable]}),null,'logged/legacy rows cannot expose removal');
-console.log('estimate removal: quantity-one trash names the food, portion controls remain, final-food review hidden PASS');
+console.log('estimate removal: no stepper trash, item menu remains available, final-food review hidden PASS');
 
-// Current draft foods use the sticky review total and the direct remove control; logged/legacy and incomplete cards keep their own honest total.
+// Current draft foods use the sticky review total and a separate item menu; logged/legacy and incomplete cards keep their own honest total.
 c.fmtAmount=e=>`${e.amount} ${e.unit}`;
 for(const [label,amount,want] of [['1',2,'2 servings'],['1 estimated portion',2,'2 portions'],['1 bottle',1,'1 bottle'],['1 bottle',2,'2 bottles'],['1 hot dog',2,'2 hot dogs'],['1 slice (30 g)',2,'2 servings · 1 slice (30 g) each']])assert.equal(c.threadAmount({amount,unit:'serving',ref:{serving:{label}}}),want);
 assert.equal(c.threadAmount({amount:150,unit:'g'}),'150 g');
 for(const kcal of [0,120]){
  const entry={name:'Fictional food',amount:1,unit:'serving',kcal},result={kind:'preview',parts:[{index:0,status:'ready',estimated:true,entries:[entry],remove_entries:[0],remove_token:'a'.repeat(64)}]};
- const html=c.replyHtml(root,{entries:[],result});assert(!html.includes('thread-total'));assert(!html.includes('Review before logging')&&!html.includes('Ready to add'),'a compact food card has no permanent instruction caption');assert.equal((html.match(/data-unlogged-remove/g)||[]).length,0,'a single unlogged draft has no wasted close row');assert.equal((html.match(/data-remove-food=/g)||[]).length,1,'a single unlogged draft keeps its title-row remove control');assert(!html.includes('data-more '),'an unlogged draft does not keep the overflow menu');assert(html.includes('data-amount-editor'));
+ const html=c.replyHtml(root,{entries:[],result});assert(!html.includes('thread-total'));assert(!html.includes('Review before logging')&&!html.includes('Ready to add'),'a compact food card has no permanent instruction caption');assert.equal((html.match(/data-unlogged-remove/g)||[]).length,0,'a single unlogged draft has no wasted close row');assert.equal((html.match(/data-remove-food=/g)||[]).length,0,'a single unlogged draft has no title-row trash');assert.equal((html.match(/data-row-food-menu=/g)||[]).length,1,'a single unlogged draft keeps removal in its item menu');assert(!html.includes('data-more '),'an unlogged draft does not keep the overflow menu');assert(html.includes('data-amount-editor'));
  assert(c.replyHtml({id:1,state:'answered',result:{review_only:false}},{entries:[],result}).includes('thread-total'));
 }
 const incomplete=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Unknown',amount:1,unit:'serving',kcal:null}]}]}});assert(incomplete.includes('Incomplete'));
-console.log('compact drafts: one sticky total, honest incomplete/legacy totals, one card remove control, direct amount action and natural source portions PASS');
+console.log('compact drafts: one sticky total, honest incomplete/legacy totals, separate item-menu removal, direct amount action and natural source portions PASS');
 
 const incompleteStrip={...ctx,jobs:[],messages:[user(9),reply(9,[{index:0,status:'ready',entries:[{kcal:null}]}])],visibleClients:new Set(['c9'])};
 c.primary(incompleteStrip);
