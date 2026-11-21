@@ -54,7 +54,7 @@ async function assertNoDetailTitleBand(locator){
  assert(result.content==='none'&&result.pseudoImage==='none'&&result.hostImage==='none'&&result.borderTop==='0px',`activity detail map has no title band or top edge: ${JSON.stringify(result)}`);
 }
 async function assertActivitySharePreview(p,label){
- const sheet=p.locator('[data-unified-share]'),formats=sheet.locator('[data-share-tab]'),cards=sheet.locator('[data-share-card]'),preview=sheet.locator('[data-share-card][aria-pressed="true"] [data-share-preview-image]');
+ const sheet=p.locator('[data-unified-share]'),formats=sheet.locator('[data-share-tab]'),cards=sheet.locator('[data-share-card]'),destinations=sheet.locator('[data-share-destination]'),preview=sheet.locator('[data-share-card][aria-pressed="true"] [data-share-preview-image]');
  assert.equal(await p.locator('.detail-floating [data-detail-share]').evaluate(n=>n.matches(':focus-visible')),false,`${label}: pointer tap does not show the keyboard focus ring`);
  await preview.waitFor({state:'visible'});
  await p.waitForFunction(()=>{const card=document.querySelector('[data-unified-share] [data-share-card][aria-pressed="true"]'),image=card?.querySelector('[data-share-preview-image]');return image?.complete&&image.naturalWidth>0&&image.naturalHeight>0;});
@@ -62,7 +62,10 @@ async function assertActivitySharePreview(p,label){
  assert.equal(await cards.count(),3,`${label}: activity share carousel has three picture cards`);
  assert.equal(await formats.nth(0).getAttribute('aria-pressed'),'true',`${label}: Card dot is selected on open`);
  assert.equal(await cards.nth(0).getAttribute('aria-pressed'),'true',`${label}: Card artwork is selected on open`);
- assert.equal(await sheet.locator('[data-share-send]').isEnabled(),true,`${label}: loaded preview enables sharing`);
+ await p.waitForFunction(()=>{const buttons=[...document.querySelectorAll('[data-unified-share] [data-share-destination]')];return buttons.length===4&&buttons.every(button=>!button.disabled);});
+ assert.equal(await destinations.count(),4,`${label}: Story, Save, Copy and More destinations are present`);
+ assert.deepEqual(await destinations.evaluateAll(buttons=>buttons.map(button=>button.dataset.shareDestination)),['story','save','copy','more'],`${label}: destination order matches the approved share sheet`);
+ assert.equal(await destinations.evaluateAll(buttons=>buttons.every(button=>!button.disabled)),true,`${label}: loaded preview enables every destination`);
  await p.keyboard.press('Escape');await sheet.waitFor({state:'detached'});
 }
 const timingCases={
