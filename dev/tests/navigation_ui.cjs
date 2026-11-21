@@ -130,7 +130,7 @@ async function homeDefaults(browser){
   }
   return route.continue();
  });
- await p.goto(base+'/');await p.locator('input[name="login"]').fill('alex');await p.locator('input[name="password"]').fill('blue kettle morning run');await p.locator('form button[type="submit"]').click();await p.waitForURL(base+'/activity');await ready(p);
+ await p.goto(base+'/');await p.waitForFunction(()=>document.querySelector('#first-run-login')||document.querySelector('input[name=login]'));if(await p.locator('#first-run-login').count()){await p.locator('#first-run-login').click();await p.locator('input[name=login]').waitFor();}await p.locator('input[name="login"]').fill('alex');await p.locator('input[name="password"]').fill('blue kettle morning run');await p.locator('form button[type="submit"]').click();await p.waitForURL(base+'/activity');await ready(p);
  assert.equal(await p.locator('nav.tabs a[aria-current="page"]').getAttribute('data-tab'),'activity','after login the Home tab is highlighted');
  await p.goto(base+'/');await p.waitForURL(base+'/activity');await ready(p);assert.equal(await p.locator('nav.tabs a[aria-current="page"]').getAttribute('data-tab'),'activity','a signed-in cold open of / lands on Home');
  await p.goto(base+'/me');await ready(p);assert.equal(p.url(),base+'/me');assert.equal(await p.locator('nav.tabs a[aria-current="page"]').getAttribute('data-tab'),'me','an explicit /me link still opens Me');const fallback=await p.evaluate(()=>{const el=document.createElement('main');showError(el,{status:404});return el.querySelector('[data-back]')?.getAttribute('aria-label');});assert.equal(fallback,'Back to Home','an unknown page uses Home as its default back destination');
