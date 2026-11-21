@@ -758,7 +758,38 @@ const FoodThread = (() => {
       ctx.jobs=await ThreadDB.list(ctx.owner);ctx.follow=true;draw(ctx);status(ctx,'');Native.haptic();flush(ctx);
     }catch(e){status(ctx,e.message);}finally{ctx.sendingText=false;if(active(ctx))primary(ctx);}
   }
-  function preferences(ctx){if(!ctx.preferences){status(ctx,'Wait for food chat settings to load, then try again.');return;}const p=ctx.preferences;sheet('Food chat settings',`<button type="button" class="ghost wide danger" id="thread-clear">Clear chat</button><p class="small muted">Clears the conversation on this and your other devices. Food you’ve logged stays in your log. The chat also starts fresh each day.</p><form class="form" id="thread-preferences"><p>Choose Add to log to save food. Logged cards have Undo and Edit.</p><label>Feedback<select name="tone"><option value="supportive"${p.tone==='supportive'?' selected':''}>Supportive</option><option value="numbers"${p.tone==='numbers'?' selected':''}>Just the numbers</option></select></label><button class="primary wide">Save settings</button></form>`,(b,close)=>{$('#thread-clear',b).onclick=()=>clearChat(ctx,close);$('#thread-preferences',b).onsubmit=async e=>{e.preventDefault();if(!active(ctx))return;try{const value={tone:e.target.tone.value,daily_note:'off'};const saved=await api('/api/food/thread/preferences',json('PUT',value));if(!active(ctx))return;ctx.preferences=saved;close();toast('Food chat settings saved');}catch(e){toast(e.message);}};});}
+  function preferences(ctx){
+    if(!ctx.preferences){status(ctx,'Wait for food chat settings to load, then try again.');return;}
+    const p=ctx.preferences,tones=[['supportive','Supportive'],['numbers','Just the numbers']];
+    const toneRows=tones.map(([value,label])=>`<button type="button" role="option" data-tone="${value}" aria-selected="${p.tone===value}"><span>${label}</span>${p.tone===value?svg('check'):''}</button>`).join('');
+    sheet('Food chat settings',`<div class="food-settings-sheet">
+      <div class="food-settings-row food-settings-tone">
+        <span class="food-settings-label">Feedback tone</span>
+        <button type="button" class="food-settings-tone-value" id="thread-tone-open" aria-haspopup="listbox" aria-expanded="false"><span data-tone-label>${esc(tones.find(([value])=>value===p.tone)?.[1]||'Supportive')}</span><span aria-hidden="true">${svg('chev')}</span><span class="food-settings-spinner" data-tone-spinner hidden aria-hidden="true"></span></button>
+        <div class="food-tone-menu" id="thread-tone-menu" role="listbox" aria-label="Feedback tone" hidden>${toneRows}</div>
+      </div>
+      <div class="food-settings-divider" aria-hidden="true"></div>
+      <button type="button" class="food-settings-row food-settings-clear" id="thread-clear">Clear chat</button>
+      <p class="food-settings-error" id="thread-tone-error" role="alert" hidden>Couldn’t save. Try again.<button type="button" class="linkbtn" id="thread-tone-retry">Retry</button></p>
+    </div>`,(b,close)=>{
+      const opener=$('#thread-tone-open',b),menu=$('#thread-tone-menu',b),error=$('#thread-tone-error',b),spinner=$('[data-tone-spinner]',b),label=$('[data-tone-label]',b);
+      let savedTone=p.tone==='numbers'?'numbers':'supportive',pendingTone=null,saveBusy=false;
+      const renderTone=()=>{$$('[data-tone]',menu).forEach(option=>{const selected=option.dataset.tone===savedTone;option.setAttribute('aria-selected',String(selected));option.innerHTML=`<span>${esc(tones.find(([value])=>value===option.dataset.tone)?.[1]||option.dataset.tone)}</span>${selected?svg('check'):''}`;});label.textContent=tones.find(([value])=>value===savedTone)?.[1]||'Supportive';};
+      const setMenu=open=>{if(saveBusy&&open)return;menu.hidden=!open;opener.setAttribute('aria-expanded',String(open));if(open){menu.querySelector('[aria-selected="true"]')?.focus({preventScroll:true});}};
+      const saveTone=async tone=>{
+        if(saveBusy||tone===savedTone)return;
+        saveBusy=true;pendingTone=tone;error.hidden=true;spinner.hidden=false;opener.disabled=true;$$('[data-tone]',menu).forEach(option=>option.disabled=true);
+        try{const saved=await api('/api/food/thread/preferences',json('PUT',{tone,daily_note:'off'}));if(!active(ctx))return;ctx.preferences=saved;savedTone=saved.tone==='numbers'?'numbers':'supportive';pendingTone=null;renderTone();setMenu(false);}
+        catch(e){pendingTone=tone;error.hidden=false;}
+        finally{saveBusy=false;spinner.hidden=true;opener.disabled=false;$$('[data-tone]',menu).forEach(option=>option.disabled=false);}
+      };
+      opener.onclick=()=>setMenu(menu.hidden);
+      $$('[data-tone]',menu).forEach(option=>option.onclick=()=>saveTone(option.dataset.tone));
+      $('#thread-tone-retry',b).onclick=()=>{if(pendingTone)saveTone(pendingTone);};
+      $('#thread-clear',b).onclick=()=>clearChat(ctx,close);
+      renderTone();
+    });
+  }
   // Clear the conversation on the server and this phone. Logged food is never touched.
   async function wipe(ctx){
     if(!active(ctx))return;
@@ -772,7 +803,7 @@ const FoodThread = (() => {
     if(!active(ctx))return;
     if(ctx.preparingReview||pendingReview()){status(ctx,'Wait for your food to finish saving, then clear the chat.');return;}
     close();
-    sheet('Clear chat?','<p>The conversation is removed on all your devices. Food you’ve logged stays in your log.</p><button type="button" class="primary wide danger" id="thread-clear-yes">Clear chat</button>',(b,done)=>{$('#thread-clear-yes',b).onclick=async()=>{
+    sheet('Clear chat everywhere?','<div class="confirm-sheet"><p>Logged food stays.</p><div class="btnrow"><button type="button" class="ghost" data-clear-cancel>Cancel</button><button type="button" class="primary danger-btn" id="thread-clear-yes">Clear chat</button></div></div>',(b,done)=>{$('[data-clear-cancel]',b).onclick=done;$('#thread-clear-yes',b).onclick=async()=>{
     if(!active(ctx))return;
     try{await api('/api/food/thread/clear',json('POST',{confirm:true}));
       privacyEpoch++;photos.clear(ctx.owner);await ThreadDB.erase(ctx.owner);store.del(cacheKey(ctx.owner));store.del(contextKey(ctx.owner));store.del(draftKey(ctx.owner));
