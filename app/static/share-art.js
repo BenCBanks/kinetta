@@ -101,7 +101,8 @@ const ShareArt=(()=>{
   async function challengePicture({kind,start,end,target,unit,sports=[],value='0',finished=false,identity=false,handle='',photo:photoVersion=null,sources=[],manual=false,finish=false}){
     const pictureOwner=readOwner();await document.fonts.ready;
     const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const g=canvas.getContext('2d');
-    const C={bg:'#171B1F',text:'#F1F3F5',soft:'#B4BCC4',muted:'#929BA4',line:'#2A3137',blue:'#2F64D8',success:'#4CC98A'};
+    const ring=globalThis.ChallengeRingPalette;if(!ring)throw Error('Challenge ring colors are unavailable.');
+    const C={bg:'#171B1F',text:'#F1F3F5',soft:'#B4BCC4',muted:'#929BA4',line:'#2A3137',blue:ring.progress,success:ring.complete};
     const M=72,W=936;g.fillStyle=C.bg;g.fillRect(0,0,1080,1350);
     const numberWidth=(value,size,weight)=>{g.font=`${weight} ${size}px ${family()}`;const digit=Math.max(...Array.from('0123456789',d=>g.measureText(d).width));return Array.from(String(value)).reduce((sum,char)=>sum+(/[0-9]/.test(char)?digit:g.measureText(char).width),0);};
     const tabularNumber=(value,cx,baseline,size,weight,color,max)=>{let width=numberWidth(value,size,weight);while(width>max&&size>48){size-=2;width=numberWidth(value,size,weight);}g.font=`${weight} ${size}px ${family()}`;g.fillStyle=color;g.textBaseline='alphabetic';let x=cx-width/2;const digit=Math.max(...Array.from('0123456789',d=>g.measureText(d).width));for(const char of String(value)){const cell=/[0-9]/.test(char)?digit:g.measureText(char).width;if(/[0-9]/.test(char)){g.textAlign='center';g.fillText(char,x+cell/2,baseline);}else{g.textAlign='left';g.fillText(char,x,baseline);}x+=cell;}return width;};
