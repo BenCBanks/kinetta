@@ -184,6 +184,7 @@ jobs:
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         device: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft && '["pro"]' || '["compact","pro"]') }}
     # The Xcode 27 runner is Apple Silicon and includes the iOS 27 Simulator runtime.
@@ -280,7 +281,7 @@ jobs:
           retention-days: 7
 
   store-ui:
-    needs: [changes, build]
+    needs: [changes, build, native-ui]
     if: >-
       needs.changes.outputs.native == 'true' && needs.changes.outputs.store == 'true' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
