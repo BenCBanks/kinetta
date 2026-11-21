@@ -519,7 +519,7 @@ await p.goto(base+'/me/kit?from=nutrition');await until(p,()=>typeof App!=='unde
     assert.equal((await(await loggedThree.get('/api/food/day?d='+threeToday)).json()).entries.length,3,'the three-food summary matches the diary');assert.deepEqual(loggedThree.errors,[]);
     await loggedThree.c.close();contexts.splice(contexts.indexOf(loggedThree.c),1);
    }
-   console.log('Food chat #638: thinking, one/three ready and logged rows, quantity-one trash, toast Undo, Pear suggestion and header spacing PASS');
+   console.log('Food chat #638: thinking, one/three ready and logged rows, quantity-one minus with menu removal, toast Undo, Pear suggestion and header spacing PASS');
   }
   if(process.env.KINETTA_FOOD_CASE==='return-flow')for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}]){
    const {c,p,errors}=await open(theme==='light'?'638one':'6381d',theme,size),card='.thread-card:not(.thread-thinking)';
