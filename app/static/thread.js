@@ -411,7 +411,7 @@ const FoodThread = (() => {
   }
   function stepRow(row){
     const {e}=row,data=`data-part="${row.part}"${row.draft!=null?` data-draft="${row.draft}"`:''}`,notes=row.hideNotes?null:e.ref?.origin_notes;
-    const old=row.draft!=null?row.partData?.drafts?.[row.draft]:null,remove=row.remove&&!row.hideItemRemove?`<button type="button" class="icon-btn thread-remove thread-row-remove" data-remove-food="${esc(JSON.stringify(row.remove))}" aria-label="Remove ${esc(e.name)}">${svg('trash')}</button>`:'';
+    const old=row.draft!=null?row.partData?.drafts?.[row.draft]:null,remove=row.remove&&!row.hideItemRemove?`<button type="button" class="icon-btn thread-row-menu" data-row-food-menu="${esc(JSON.stringify(row.remove))}" aria-label="More options for ${esc(e.name)}">${svg('more')}</button>`:'';
     const base=old?.portion||old,step=base?portionStep(base,e,false):null,disabled=step&&((Number(step.next)===Number(step.minimum))&&!((base?.grams!=null&&Number(base.grams)>step.minimum)||(base?.count!=null&&Number(base.count)>step.minimum))),less=row.step?`<button type="button" class="icon-btn" data-step="-1" ${data}${disabled?' disabled':''} aria-label="Less ${esc(e.name)}">−</button>`:'',origin=source(e),sourceLine=origin==='Kit’s estimate'&&!row.catalogFallback?'':`<small class="tf-source">${esc(origin)}</small>`;
     return `<div class="thread-food compact-food${row.step?' has-stepper':''}"><div class="compact-food-title"><button type="button" class="tf-inspect" ${nutritionAttr(row)}><strong>${esc(e.name)}</strong></button>${remove}</div>
       <div class="compact-food-meta"><button type="button" class="thread-amount num" ${nutritionAttr(row,`Change amount of ${e.name}: ${threadAmount(e)}`)} data-amount-editor>${esc(threadAmount(e))}</button>${sourceLine}</div><span class="tf-kcal num">${e.kcal==null||e.ref?.unknown_nutrients?.includes('kcal')?'Unknown':homeCalories(e.kcal)+'<small> kcal</small>'}</span>
@@ -681,6 +681,18 @@ const FoodThread = (() => {
       try{await action(ctx,m.id,'remove-food',JSON.parse(b.dataset.removeFood));status(ctx,'Food removed.');}
       catch(e){toast(e.message);}
       finally{ctx.preparingReview=false;if(node.isConnected)controls.forEach(c=>c.disabled=false);primary(ctx);}
+    });
+    $$('[data-row-food-menu]',node).forEach(button=>button.onclick=()=>{
+      if(!active(ctx)||ctx.preparingReview||pendingReview())return;
+      sheet('Food options','<button type="button" class="linkbtn danger wide" data-remove-row-food>Remove food</button>',(box,close)=>{
+        $('[data-remove-row-food]',box).onclick=async()=>{
+          if(!active(ctx)||ctx.preparingReview||pendingReview())return;
+          close();button.disabled=true;ctx.preparingReview=true;primary(ctx);
+          try{await action(ctx,m.id,'remove-food',JSON.parse(button.dataset.rowFoodMenu));status(ctx,'Food removed.');}
+          catch(e){toast(e.message);}
+          finally{ctx.preparingReview=false;if(button.isConnected)button.disabled=false;primary(ctx);}
+        };
+      });
     });
     $$('[data-step]',node).forEach(b=>b.onclick=async()=>{
       if(!active(ctx)||ctx.preparingReview||pendingReview())return;
