@@ -78,6 +78,7 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin {
         var methods: [CAPPluginMethod] = [
             CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "saveToPhotos", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "copyToClipboard", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "keepAwake", returnType: CAPPluginReturnPromise)
         ]
@@ -270,6 +271,20 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin {
                 else { call.reject("Couldn’t save this picture to Photos", nil, error) }
             }
         }
+    }
+
+    @objc func copyToClipboard(_ call: CAPPluginCall) {
+        guard let text = call.getString("image"), text.count <= 12 * 1024 * 1024,
+              text.hasPrefix("data:image/png;base64,"),
+              let data = Data(base64Encoded: String(text.dropFirst("data:image/png;base64,".count))),
+              !data.isEmpty, data.count <= Self.maxBytes,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) == 1,
+              CGImageSourceGetType(source) as String? == "public.png" else {
+            call.reject("That activity picture couldn’t be copied"); return
+        }
+        UIPasteboard.general.setItems([["public.png": data]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(5 * 60)])
+        call.resolve(["copied": true])
     }
 
     private func begin(_ call: CAPPluginCall) {
