@@ -105,6 +105,7 @@ activity_import_css_only() {
   [[ -n "$style_removed" && "$style_removed" == "$import_added" ]]
 }
 activity_import_css_only_change=0
+activity_import_css_mapping_active=0
 if activity_import_css_only; then activity_import_css_only_change=1; fi
 
 map_path() {
