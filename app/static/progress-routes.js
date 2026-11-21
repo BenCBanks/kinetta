@@ -298,6 +298,7 @@ async function pFitnessLoaded(body, q) {
   // The range controls filter charts only; current fitness and race predictions remain unchanged.
   body.innerHTML = `<div id="fi-body">${skel(2)}</div><div id="fi-pred">${skel(1)}</div>`;
   await load(`/api/fitness?days=${days}`, (f0) => {
+    if (!body.isConnected) return;
     const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box || !pbox) return;
     const now=new Date(),cutoff=new Date(now);
     if(selectedRange==='1m')cutoff.setMonth(cutoff.getMonth()-1);
@@ -357,10 +358,9 @@ async function pFitnessLoaded(body, q) {
     $$('[data-fitness-range]',box).forEach(button=>button.onclick=()=>{const next=new URLSearchParams(location.search);next.set('range',button.dataset.fitnessRange);go('/progress?'+next.toString(),{replace:true});});
     const formItem=$$('.stat-row-item',fitnessCard)[2];if(formItem&&hasFitness){formItem.dataset.formState=kind;}
     requestAnimationFrame(() => {
-      if(hasFitness){const plot=$('#p-load',box);fitnessChart(plot,'Fitness', (mount,height,options)=>fitnessLoadChart(mount,chartDays,{height, ...options}),180);const delta=Math.round((chartDays.at(-1)?.fitness||0)-(chartDays[0]?.fitness||0));const label=({'1m':'1 month','3m':'3 months','1y':'1 year','all':'all time'}[selectedRange]);$('.fitness-chart-readout',plot)?.replaceChildren(Object.assign(document.createElement('span'),{textContent:`Fitness ${delta>0?'+':''}${delta} over ${label}`}));}
-      if (hasPredictions&&chartMonths.length) fitnessChart($('#p-vdot', box), 'Run score', (mount, height, options) => {trendLine(mount, monthSeries(chartMonths[0].m, (m) => { const r = chartMonths.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
-        {fmt: (v) => v.toFixed(1), rollName:'6-month average of monthly bests', color: 'brand', height, ...options});
-        const key=$('.legend span:last-child',mount);if(key)key.lastChild.textContent='Monthly best';});
+      if (!body.isConnected || !box.isConnected || !pbox.isConnected) return;
+      if(hasFitness){const plot=$('#p-load',box);if(plot){fitnessChart(plot,'Fitness',(mount,height,options)=>fitnessLoadChart(mount,chartDays,{height,...options}),180);const delta=Math.round((chartDays.at(-1)?.fitness||0)-(chartDays[0]?.fitness||0));const label=({'1m':'1 month','3m':'3 months','1y':'1 year','all':'all time'}[selectedRange]);$('.fitness-chart-readout',plot)?.replaceChildren(Object.assign(document.createElement('span'),{textContent:`Fitness ${delta>0?'+':''}${delta} over ${label}`}));}}
+      if(hasPredictions&&chartMonths.length){const plot=$('#p-vdot',box);if(plot)fitnessChart(plot,'Run score',(mount,height,options)=>{trendLine(mount,monthSeries(chartMonths[0].m,m=>{const r=chartMonths.find(x=>x.m===m);return r?{y:r.v}:{y:null};}),{fmt:v=>v.toFixed(1),rollName:'6-month average of monthly bests',color:'brand',height,...options});const key=$('.legend span:last-child',mount);if(key)key.lastChild.textContent='Monthly best';});}
     });
   });
 }
