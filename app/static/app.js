@@ -1379,12 +1379,20 @@ function compactSubpageHeader(el){
 }
 function compactRootHeader(el){
   const top=el.querySelector(':scope > #feed-top .shell-topbar-root');
-  if(!top||rootHeaderCleanups.has(el))return;
-  const expandedTop=top.getBoundingClientRect().top+window.scrollY;
-  const update=()=>{if(top.isConnected)top.classList.toggle('is-compact',window.scrollY>expandedTop+24);};
+  if(!top)return;
+  const existing=rootHeaderCleanups.get(el);
+  if(existing?.top===top)return;
+  existing?.();
+  // The root header starts at the top of its tab. A stable scroll threshold
+  // avoids deriving the expanded position from #feed-top after it has stuck.
+  const update=()=>{if(top.isConnected)top.classList.toggle('is-compact',window.scrollY>24);};
   window.addEventListener('scroll',update,{passive:true});update();
-  rootHeaderCleanups.set(el,()=>window.removeEventListener('scroll',update));
+  const cleanup=()=>window.removeEventListener('scroll',update);
+  cleanup.top=top;
+  cleanup.update=update;
+  rootHeaderCleanups.set(el,cleanup);
 }
+function refreshCompactRootHeader(el){rootHeaderCleanups.get(el)?.update?.();}
 function render(options) {
   if (!App.me) return;
   // Capture live disclosure choices before a same-route rerender replaces #page.
@@ -1476,10 +1484,10 @@ function render(options) {
   // behind its background feed and challenge refreshes.
   const warmHomeReady=warmHomeCache&&result&&typeof result.then==='function';
   if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path);
-  requestAnimationFrame(()=>{if(!current())return;if(warmHomeReady)restoreSectionDisclosures(el,key);if(!touched)window.scrollTo(0,targetY);if(warmHomeReady)App.pageReady=true;});
+  requestAnimationFrame(()=>{if(!current())return;if(warmHomeReady)restoreSectionDisclosures(el,key);if(!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);}if(warmHomeReady)App.pageReady=true;});
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
-    requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
+    requestAnimationFrame(() => { if(current()&&!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);}interactions.abort(); });
     if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;if(!warmHomeCache)restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:warmHomeCache&&touched?scrollY:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
