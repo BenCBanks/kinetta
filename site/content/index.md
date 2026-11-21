@@ -67,7 +67,7 @@ Am I improving?
 
 ## home-kit-answer
 
-Your latest run total is below your recent average.
+Yes, mostly: your completed-week running trend is up over the last 8 weeks. This week is still in progress at 4.8 mi.
 
 ## home-badges-kicker
 

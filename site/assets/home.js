@@ -46,10 +46,9 @@
     state.running=false;
   }
   async function insightLoop(demo,state){
-    const question=demo.querySelector('[data-week-question]'),typing=demo.querySelector('[data-week-typing]'),answer=demo.querySelector('.kit-week-answer'),copy=demo.querySelector('[data-week-answer]'),facts=demo.querySelector('[data-week-facts]'),insightText=copy.dataset.fullText;
-    const values=[['[data-week-this]',10.8],['[data-week-average]',20.6],['[data-week-best]',27.9]];
+    const question=demo.querySelector('[data-week-question]'),typing=demo.querySelector('[data-week-typing]'),answer=demo.querySelector('.kit-week-answer'),copy=demo.querySelector('[data-week-answer]'),insightText=copy.dataset.fullText;
     while(!reduced.matches){
-      demo.dataset.demoState='typing';question.textContent='';typing.setAttribute('aria-hidden','true');answer.setAttribute('aria-hidden','true');copy.textContent='';facts.querySelectorAll('b').forEach(x=>x.textContent='0.0');
+      demo.dataset.demoState='typing';question.textContent='';typing.setAttribute('aria-hidden','true');answer.setAttribute('aria-hidden','true');copy.textContent='';
       const prompt=question.dataset.fullText;
       for(let i=1;i<=prompt.length;i++){question.textContent=prompt.slice(0,i);if(!await activeWait(demo,state,45))return;}
       question.textContent=prompt;typing.setAttribute('aria-hidden','false');
@@ -57,7 +56,6 @@
       typing.setAttribute('aria-hidden','true');answer.setAttribute('aria-hidden','false');if(!await activeWait(demo,state,50))break;demo.dataset.demoState='answering';
       for(let i=1;i<=insightText.length;i++){copy.textContent=insightText.slice(0,i);if(!await activeWait(demo,state,12))return;}
       copy.textContent=insightText;
-      for(const [selector,value] of values){const target=facts.querySelector(selector);for(let n=0;n<=value*10;n+=Math.max(1,Math.ceil(value*10/18))){target.textContent=(Math.min(n,value*10)/10).toFixed(1);if(!await activeWait(demo,state,22))return;}target.textContent=value.toFixed(1);}
       demo.dataset.demoState='complete';
       if(!await activeWait(demo,state,2100))break;
     }
@@ -70,9 +68,6 @@
       demo.querySelector('[data-week-typing]').setAttribute('aria-hidden','true');
       demo.querySelector('.kit-week-answer').setAttribute('aria-hidden','false');
       const answer=demo.querySelector('[data-week-answer]');answer.textContent=answer.dataset.fullText;
-      demo.querySelector('[data-week-this]').textContent='10.8';
-      demo.querySelector('[data-week-average]').textContent='20.6';
-      demo.querySelector('[data-week-best]').textContent='27.9';
       demo.dataset.demoState='complete';
     }
   }
