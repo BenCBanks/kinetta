@@ -278,7 +278,12 @@ async function closeCaptureContext(context) {
     await page.route('**/api/food/meals-chat/lookup', route => route.fulfill({json: {results: JSON.parse(route.request().postData() || '{}').texts.map(text => ({text, query: '', kind: 'none', foods: [], portion: null}))}}));
     page.on('pageerror', (e) => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
-    await page.fill('input[name=login]', OWNER_LOGIN); await page.fill('input[name=password]', 'blue kettle morning run');
+    // A fresh disposable server starts on the first-run welcome; take the same existing Log in path as a person.
+    await page.locator('#first-run-login, .login form input[name="login"]').first().waitFor({state: 'visible'});
+    const firstRunLogin = page.locator('#first-run-login');
+    if (await firstRunLogin.isVisible().catch(() => false)) await firstRunLogin.click();
+    await page.locator('.login form input[name="login"]').waitFor({state: 'visible'});
+    await page.fill('.login form input[name=login]', OWNER_LOGIN); await page.fill('input[name=password]', 'blue kettle morning run');
     await page.click('button[type=submit]'); await page.waitForSelector('nav.tabs');
     await enableKitForDemo(page);
     const ids = await page.evaluate(async () => {
