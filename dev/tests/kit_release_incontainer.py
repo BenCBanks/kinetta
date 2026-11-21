@@ -17,6 +17,15 @@ with tempfile.TemporaryDirectory() as directory,patch('urllib.request.urlopen',s
   def checked(data):
    report.write_text(json.dumps(data));return ai_release.enabled('kit')
   assert checked(valid),'Kit uses its own reviewed report without a food-photo result'
+  # Recording this candidate in its own ledger group must never approve any earlier Kit prompt.
+  current_text=ai_release.ai_text('kit')
+  groups=ai_release.ledger()['kit']
+  assert groups[-1]==[current_text],'phase-one candidate has its own review group'
+  for previous_group in groups[:-1]:
+   for previous_text in previous_group:
+    prior={**valid,'candidate_fingerprint':'previous-candidate','ai_text':previous_text,'models':ai_release.models('kit')}
+    assert not checked(prior),'previous prompt approval must not enable the registered candidate'
+
   assert not ai_release.enabled() and not ai_release.enabled('food'),'Kit approval does not enable legacy food/coach scopes'
   assert not ai_release.enabled('unknown')
   for flag in ['0','', 'true']:

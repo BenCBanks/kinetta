@@ -16,7 +16,7 @@ router=APIRouter(prefix='/api/coach/conversation')
 class Context(Empty):
     screen: Literal['me','nutrition','activity','progress','plan','strength','track']='me'
     activity_id: int | None=Field(default=None,gt=0)
-    starter_index: int | None=Field(default=None,ge=0,le=2)
+    starter_index: int | None=Field(default=None,ge=0,le=2,strict=True)
 
 
 class MessageIn(Empty):

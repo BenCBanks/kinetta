@@ -23,7 +23,7 @@ for name in ['unsupported_value', 'unknown_evidence', 'wrong_path', 'numbers_in_
 import json
 profile_evidence={'evidence_id':'e1','tool':'profile','arguments':{},'data':{'units':'imperial'}}
 run_evidence={'evidence_id':'e2','tool':'recent_runs','arguments':{},'data':{'runs':[{'distance_m':199558.656}]}}
-kit_raw={'interpretation':'Your recent running is trending up. The latest run was longer than the earlier ones.',
+kit_raw={'interpretation':'You are covering more ground. That supports a volume increase, but not a fitness verdict.',
          'facts':[{'evidence_id':'e2','path':['runs',0,'distance_m'],'value':199558.656}],
          'follow_ups':['How is my running trending?','What should I focus on next?']}
 imperial=coach_chat.checked_answer(kit_raw,[profile_evidence,run_evidence],kit=True)
@@ -37,6 +37,23 @@ too_many={**kit_raw,'facts':kit_raw['facts']*4}
 try: coach_chat.checked_answer(too_many,[profile_evidence,run_evidence],kit=True)
 except ValueError: pass
 else: raise AssertionError('Kit answer facts must be capped at three')
+
+# Known totals/averages retain their meaning; missing-day counts never become reproachful facts.
+for container,label in [('average_per_logged_day','Average daily protein'),('totals','Total protein')]:
+    ev={'evidence_id':'e2','tool':'nutrition_summary','data':{container:{'protein_g':80}}}
+    raw={**kit_raw,'facts':[{'evidence_id':'e2','path':[container,'protein_g'],'value':80}]}
+    fact=coach_chat.checked_answer(raw,[profile_evidence,ev],kit=True)['facts'][0]
+    assert fact['label']==label and fact['display_value']=='80 g'
+raw={**kit_raw,'facts':[{'evidence_id':'e2','path':['unlogged_days'],'value':27}]}
+assert not coach_chat.checked_answer(raw,[profile_evidence,{'evidence_id':'e2','tool':'nutrition_summary','data':{'unlogged_days':27}}],kit=True)['facts']
+for field,value,display in [('pace_s_per_km',300,'8:03 /mi'),('elapsed_s',3660,'1h 1m'),('kg',70,'154.3 lb')]:
+    raw={**kit_raw,'facts':[{'evidence_id':'e2','path':[field],'value':value}]}
+    assert coach_chat.checked_answer(raw,[profile_evidence,{'evidence_id':'e2','tool':'activity','data':{field:value}}],kit=True)['facts'][0]['display_value']==display
+for value in [float('inf'),float('nan'),True]:
+    raw={**kit_raw,'facts':[{'evidence_id':'e2','path':['distance_m'],'value':value}]}
+    try:coach_chat.checked_answer(raw,[profile_evidence,{'evidence_id':'e2','tool':'activity','data':{'distance_m':value}}],kit=True)
+    except ValueError:pass
+    else:raise AssertionError('non-finite or boolean evidence')
 
 # Running can answer the progress starter without strength or nutrition evidence.
 from app import db
@@ -53,7 +70,7 @@ def kit_fixture_turn(messages,definitions):
     global fixture_rounds
     fixture_rounds+=1
     if fixture_rounds==1: return [{'name':'recent_runs','args':{'start':'2026-10-01','end':'2026-10-14'},'id':'run-trend'}],'',{}
-    return [],json.dumps({'interpretation':'Your recent running is trending up. Your latest run was longer than the previous one.',
+    return [],json.dumps({'interpretation':'Your latest run was longer. That supports a volume increase, but not a fitness verdict.',
         'facts':[{'evidence_id':'e2','path':['runs',0,'distance_m'],'value':9000},
                  {'evidence_id':'e2','path':['runs',1,'distance_m'],'value':7000}],
         'follow_ups':['How is my running trending?','What should I focus on next?']}),{}

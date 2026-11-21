@@ -192,7 +192,7 @@ Object.assign(KitChat, (() => {
     if(!kitChatOn()){status(c,'Kit is unavailable. Your draft is kept.');return;}
     if(!c.ready){status(c,'Kit chat isn’t available yet. Your draft is kept.');return;}
     if(c.job){status(c,'Retry the saved question before sending another.');return;}
-    const context={...c.context};if(Number.isInteger(starterIndex)&&starterIndex>=0&&starterIndex<starters[c.context.screen].length)context.starter_index=starterIndex;
+    const context={...c.context};delete context.starter_index;if(Number.isInteger(starterIndex)&&starterIndex>=0&&starterIndex<starters[c.context.screen].length)context.starter_index=starterIndex;
     const job={client_id:newId(),generation:c.generation,visit_id:c.visit_id,question,context};
     try{save(c,'pending',job);c.job=job;await deliver(c);}catch(e){status(c,'This phone could not save your question. Keep it here and try again.');}
   }

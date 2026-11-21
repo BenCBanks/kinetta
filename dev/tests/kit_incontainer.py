@@ -42,7 +42,12 @@ try:
   req(a,'POST',root+'/messages',message('   '),422)
   hi=message('Hi');assert req(a,'POST',root+'/messages',hi)['question']=='Hi';assert req(a,'POST',root+'/messages/'+hi['client_id']+'/answer',{'generation':generation})['state']=='answered' and seen[-1][1].endswith('Question: Hi')
   starter=message('Am I improving?');starter['context']={'screen':'progress','starter_index':0}
+  for invalid in [-1,3,True,'0']:
+   req(a,'POST',root+'/messages',{**starter,'context':{'screen':'progress','starter_index':invalid}},422)
   stored=req(a,'POST',root+'/messages',starter);assert stored['question']=='Am I improving?' and stored['context']['starter_index']==0
+  assert req(a,'POST',root+'/messages',starter)['id']==stored['id'],'lost acknowledgement retries the same starter'
+  req(a,'POST',root+'/messages',{**starter,'context':{'screen':'progress','starter_index':1}},409)
+  assert req(a,'GET',root)['messages'][-1]['question']=='Am I improving?','reload reads the exact visible question'
   answered=req(a,'POST',root+'/messages/'+starter['client_id']+'/answer',{'generation':generation});assert answered['question']=='Am I improving?'
   assert 'Optional guidance for the tapped starter' in seen[-1][1] and seen[-1][1].endswith('Question: Am I improving?'),'hidden starter guidance is separate and the actual visible question is last/primary'
   typed=message('How did my running change this month?');typed['context']={'screen':'progress'}

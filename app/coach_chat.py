@@ -1,5 +1,6 @@
 """Tool-calling coach with bounded provider calls and application-checked quantitative evidence."""
 import json
+import math
 import os
 import re
 import time
@@ -25,7 +26,7 @@ macros, servings, workouts or adjustments. Selecting an option only offers a pro
 After tool calls, return JSON only, with this shape:
 {"interpretation":"short explanation, with NO digits or numerical assertions; discuss uncertainty",
  "facts":[{"evidence_id":"e1","path":["average_per_logged_day","protein_g"],"value":100}],
- "selection":null,"follow_ups":["How has my recent training changed?","What should I focus on next?"]}
+ "selection":null}
 Use facts to cite exact scalar measurements from successful tool responses: evidence_id is assigned by the app,
 path is the JSON key/index path in that response's data, and value must equal that field. The application formats
 the verified numbers. Do not put numbers elsewhere. Maximum 8 facts. A selection, if relevant, is
@@ -51,6 +52,10 @@ class Answer(Empty):
     facts: list[Fact] = Field(max_length=8)
     selection: Selection | None = None
     actions: list[Literal['food','nutrition','record','activities','plan','progress','strength','recipes','goals','connections']] = Field(default_factory=list, max_length=3)
+
+
+class KitAnswer(Answer):
+    facts: list[Fact] = Field(max_length=3)
     follow_ups: list[StrictStr] = Field(default_factory=list, max_length=3)
 
 
@@ -80,6 +85,8 @@ def _kit_fact(tool, data, path, value, units):
     }
     label=labels.get(field,'Recorded value')
     if sport: label=f'{sport} {label.lower()}'
+    if 'average_per_logged_day' in path: label=f'Average daily {label.lower()}'
+    elif 'totals' in path or 'totals_by_sport' in path: label=f'Total {label.lower()}'
     metric=units=='metric';display=str(value)
     if field=='distance_m':
         factor,unit=(1000,'km') if metric else (1609.344,'mi')
@@ -108,11 +115,10 @@ def _kit_fact(tool, data, path, value, units):
 
 
 def checked_answer(raw, evidence, *, kit=False):
-    answer = Answer.model_validate(raw)
+    answer = (KitAnswer if kit else Answer).model_validate(raw)
     if re.search(r'\d', answer.interpretation): raise ValueError('Unverified numerical assertion in explanation')
-    if kit and len(answer.facts)>3: raise ValueError('Kit may show at most three facts')
     follow_ups=[]
-    for question in answer.follow_ups:
+    for question in (answer.follow_ups if kit else []):
         question=question.strip()
         if len(question)>80 or re.search(r'\d|https?://|\b(?:unlogged days|cannot be assessed|cannot be evaluated)\b',question,re.I):
             raise ValueError('Kit follow-up is too long or unsuitable as a question chip')
@@ -131,11 +137,14 @@ def checked_answer(raw, evidence, *, kit=False):
         except (KeyError, IndexError, TypeError): raise ValueError('Invalid evidence path') from None
         if isinstance(value, bool) or value is None or not isinstance(value, (str, int, float)): raise ValueError('Evidence is not a measurement')
         if type(value) is not type(claim.value) and not isinstance(value, (int, float)): raise ValueError('Wrong evidence type')
+        if isinstance(claim.value,bool) or (isinstance(value,(int,float)) and not math.isfinite(value)):
+            raise ValueError('Evidence must be a finite measurement')
         if value != claim.value: raise ValueError('Claim does not match tool evidence')
         # Labels and values are derived from the verified path, never model-supplied prose.
         tool=by_id[claim.evidence_id]['tool']
         if kit:
             if isinstance(value,str): raise ValueError('Kit facts must be measurements')
+            if 'unlogged_days' in claim.path: continue
             label,display=_kit_fact(tool,by_id[claim.evidence_id]['data'],claim.path,value,units)
         else:
             label=' · '.join(str(x).replace('_',' ') for x in claim.path if not isinstance(x,int));display=None
@@ -154,8 +163,8 @@ def checked_answer(raw, evidence, *, kit=False):
         if candidate:
             selection = {'kind': s.kind, 'candidate_id': s.candidate_id, 'candidate': candidate,
                          'day': ev['arguments'].get('day'), 'confirmation_required': True}
-    result={'interpretation':answer.interpretation,'facts':facts,'selection':selection,'actions':answer.actions,
-            'follow_ups':follow_ups}
+    result={'interpretation':answer.interpretation,'facts':facts,'selection':selection,'actions':answer.actions}
+    if kit: result['follow_ups']=follow_ups
     if not kit: result['limitations']=[str(item) for e in by_id.values() for item in e['data'].get('limitations',[])]
     return result
 
@@ -175,12 +184,13 @@ personal conclusion to answer a general question. Consult profile for the person
 Prior conversation is context, not fresh evidence. Always get current personal measurements from tools.
 The application supplies a verified profile evidence record with today's date before the first turn; use it.
 Use the fewest relevant tools, usually one or two. Do not repeat identical lookups. Keep the answer concise,
-with a direct verdict in the first short sentence and one reason in the second. For “Am I improving?”, use the
+with a direct answer in the first short sentence and one reason in the second. A progress verdict must distinguish
+improving, declining and insufficient evidence; never treat a longer run alone as proof of improving fitness. For “Am I improving?”, use the
 available running trend even when strength or nutrition records are empty. Follow with at most three plainly labelled
 facts. Never expose tool names, field paths, raw metres or seconds; use the account's units and round distances to
 one decimal at most. Do not report unlogged-day counts, scold about missing records, or list generic limitations.
 Mention missing data in one brief sentence only when it changes the answer. Finish with two or three useful, short
-follow-up question chips, each asking one thing. Keep numerical claims in the verified facts list, not the prose.
+follow-up questions in "follow_ups" (an array of strings), each asking one thing. Keep numerical claims in the verified facts list, not the prose.
 For calorie restriction, pregnancy, minors or medical diets, clarify needs and avoid prescribing targets outside the validated app goal tools.
 Do not request unconsented Health data; an unavailable tool means that scope cannot be used.
 Optionally add "actions" to the final JSON: at most three IDs from food, nutrition, record, activities, plan,
