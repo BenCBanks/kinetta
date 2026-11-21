@@ -38,12 +38,16 @@ class CIPolicyTests(unittest.TestCase):
         self.assertEqual([root for root in configured_roots('root:15; root:16; ROOT=16') if root>16],[])
         self.assertEqual([root for root in configured_roots('root:17; rootFont:24; root==32; ROOT=20; documentElement.style.fontSize="18px"; for(const root of [15,16,32])') if root>16],[17,24,32,20,18,32])
 
+        # Narrow exception: profile_card_ui.cjs has one explicit 20px large-text accessibility case.
+        large_text_test='dev/tests/profile_card_ui.cjs'
+        self.assertEqual([root for root in configured_roots((ROOT/large_text_test).read_text()) if root>16],[20],
+                         'the Me UI keeps one deliberate 20px root accessibility check')
         offenders=[]
         for path in (ROOT/'dev/tests').rglob('*'):
             if not path.is_file() or path.suffix not in {'.cjs','.js','.py','.sh'}:continue
             relative=path.relative_to(ROOT).as_posix()
             if relative=='dev/tests/test_ci_policy.py':continue
-            large=[root for root in configured_roots(path.read_text()) if root>16]
+            large=[root for root in configured_roots(path.read_text()) if root>16 and not (relative==large_text_test and root==20)]
             if large:offenders.append((relative,large))
         self.assertEqual(offenders,[],'test roots above 16 are out of scope for this app')
 
