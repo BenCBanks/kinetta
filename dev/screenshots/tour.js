@@ -79,6 +79,7 @@ async function crop(page, first, last) {
 
 async function signIn(page, login) {
   await page.evaluate(() => fetch('/api/logout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}).catch(() => {}));
+  await page.addInitScript(() => localStorage.setItem('kinetta.firstRunWelcomeSeen', 'true'));
   await page.goto(B + '/');
   await page.locator('input[name=login]').waitFor({state: 'visible'});
   await page.fill('input[name=login]', login);

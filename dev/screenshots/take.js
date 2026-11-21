@@ -42,9 +42,9 @@ async function emulateSafeArea(route) {
     .replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
   await route.fulfill({response, body: css});
 }
-// Feed photo/map overlays can cross the simulated status bar after scroll restoration. Hide only those overlay actions.
+// Feed media and activity-detail bar controls can cross the simulated status bar after scroll restoration.
 async function hideIntersectingMediaControls(page) {
-  return page.evaluate(top => [...document.querySelectorAll('.media-photo-open, .media-controls [data-media-step]')]
+  return page.evaluate(top => [...document.querySelectorAll('.media-photo-open, .media-controls [data-media-step], .detail-bar a, .detail-bar button')]
     .filter(el => {
       const r = el.getBoundingClientRect(), s = getComputedStyle(el);
       return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < top &&
@@ -56,6 +56,33 @@ async function hideIntersectingMediaControls(page) {
       el.style.setProperty('visibility', 'hidden', 'important');
       return label;
     }), TOP);
+}
+async function settleDetailContentBelowSafeArea(page) {
+  await page.evaluate(async top => {
+    // Chromium's browser safe-area env is zero even though this capture draws an iPhone status bar.
+    // Keep the sticky Activity tabs below that simulated status bar before checking/capturing.
+    const tabs = document.querySelector('.activity-detail .activity-tabs');
+    if (tabs) tabs.style.setProperty('top', `${top + 8}px`, 'important');
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const overlap = [...document.querySelectorAll('a[href],button,[role="button"],input,select,textarea')]
+        .filter(el => !el.closest('.detail-bar'))
+        .map(el => ({el, rect: el.getBoundingClientRect(), style: getComputedStyle(el)}))
+        .filter(({rect, style}) => rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < top &&
+          style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > .05 && style.pointerEvents !== 'none');
+      if (!overlap.length) return;
+      const firstTop = Math.min(...overlap.map(({rect}) => rect.top));
+      const next = Math.max(0, scrollY - (top - firstTop + 8));
+      if (next === scrollY) return;
+      window.scrollTo({top: next, behavior: 'instant'});
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+  }, TOP);
+}
+async function settleFeedHeaderBelowSafeArea(page) {
+  await page.evaluate(top => {
+    const header = document.querySelector('#page > #feed-top:has(.shell-topbar-root)');
+    if (header) header.style.setProperty('top', `${top + 8}px`, 'important');
+  }, TOP);
 }
 async function assertTopSafeControls(page, scene, hiddenMediaControls = []) {
   const overlaps = await page.evaluate(top => [...document.querySelectorAll('a[href],button,[role="button"],input,select,textarea')]
@@ -231,6 +258,7 @@ async function closeCaptureContext(context) {
     await context.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
     await context.route('**/*.css*', emulateSafeArea);
     const page = await context.newPage();
+    await page.addInitScript(() => localStorage.setItem('kinetta.firstRunWelcomeSeen', 'true'));
     await page.clock.setFixedTime(new Date(SCREENSHOT_CLOCK.instant));
     page.on('pageerror', e => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
@@ -262,7 +290,11 @@ async function closeCaptureContext(context) {
       });
     }
     const page = await ctx.newPage();
-    await page.addInitScript(() => { window.__KINETTA_SCREENSHOT_MODE__ = true; });
+    await page.addInitScript(() => {
+      window.__KINETTA_SCREENSHOT_MODE__ = true;
+      // The fixture starts with an established demo account; skip first-run welcome before app.js chooses its screen.
+      localStorage.setItem('kinetta.firstRunWelcomeSeen', 'true');
+    });
     await page.clock.setFixedTime(new Date(SCREENSHOT_CLOCK.instant));
     await ctx.route('**/*', route => { const request=route.request(), url=new URL(request.url());
       if(url.hostname==='tile.openstreetmap.org'||url.origin!==B&&!['GET','HEAD'].includes(request.method()))return route.abort();
@@ -278,10 +310,6 @@ async function closeCaptureContext(context) {
     await page.route('**/api/food/meals-chat/lookup', route => route.fulfill({json: {results: JSON.parse(route.request().postData() || '{}').texts.map(text => ({text, query: '', kind: 'none', foods: [], portion: null}))}}));
     page.on('pageerror', (e) => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
-    // A fresh disposable server starts on the first-run welcome; take the same existing Log in path as a person.
-    await page.locator('#first-run-login, .login form input[name="login"]').first().waitFor({state: 'visible'});
-    const firstRunLogin = page.locator('#first-run-login');
-    if (await firstRunLogin.isVisible().catch(() => false)) await firstRunLogin.click();
     await page.locator('.login form input[name="login"]').waitFor({state: 'visible'});
     await page.fill('.login form input[name=login]', OWNER_LOGIN); await page.fill('input[name=password]', 'blue kettle morning run');
     await page.click('button[type=submit]'); await page.waitForSelector('nav.tabs');
@@ -397,8 +425,10 @@ async function closeCaptureContext(context) {
           const payload = await fetch('/api/food/thread?limit=100').then(r => r.json());
           const message = [...(payload.messages || [])].reverse().find(m => m.kind === 'user' && m.body === 'Chicken sandwich and an apple for lunch');
           const reply = message && payload.messages.find(m => m.kind === 'reply' && m.reply_to === message.id);
-          const key = Object.keys(localStorage).find(name => name.startsWith('fit.food.review.draft:'));
-          if (!message?.result?.draft_id || reply?.result?.kind !== 'preview' || !key) {
+          const me = await fetch('/api/me').then(r => r.json());
+          const key = Object.keys(localStorage).find(name => name.startsWith('fit.food.review.draft:')) ||
+            'fit.food.review.draft:' + JSON.stringify([location.origin, me.id]);
+          if (!message?.result?.draft_id || reply?.result?.kind !== 'preview') {
             throw Error('Missing the fictional #1319 meal review fixture.');
           }
           localStorage.setItem(key, JSON.stringify({id: message.result.draft_id, meal: 'lunch', day: message.local_day, explicitDay: true, active: true}));
@@ -564,6 +594,7 @@ async function closeCaptureContext(context) {
         await page.locator('[data-dt=charts][aria-selected=true]').waitFor();
         await page.locator('#d-charts .chartbox svg').first().waitFor();
         await page.locator('.dtabs').evaluate(el=>window.scrollTo(0,scrollY+el.getBoundingClientRect().top-129));
+        await settleDetailContentBelowSafeArea(page);
       }
       if(opt.similar){
         await page.locator('[data-dt=efforts]').click();
@@ -571,6 +602,7 @@ async function closeCaptureContext(context) {
         await heading.evaluate(h=>window.scrollTo({top:h.getBoundingClientRect().top+scrollY-130,behavior:'instant'}));
         await page.waitForTimeout(100);
         if(!await heading.evaluate(h=>h.getBoundingClientRect().top<400&&h.getBoundingClientRect().top>100))throw Error('Similar efforts heading must be visible above the tab bar.');
+        await settleDetailContentBelowSafeArea(page);
       }
       if (opt.photo) {
         // The real activity always opens on its map. This feature example shows the next slide after a swipe.
@@ -634,7 +666,10 @@ async function closeCaptureContext(context) {
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);
-      await loadedMaps(page, {advanceMapFade: MAP_SHOTS.has(name), requireMap: MAP_SHOTS.has(name)});
+      // Recheck map tiles after final positioning only for scenes whose capture includes the map.
+      // Activity Charts scrolls the map offscreen, where Leaflet can unload its tiles intentionally.
+      if (MAP_SHOTS.has(name)) await loadedMaps(page, {advanceMapFade: true, requireMap: true});
+      if (name === 'feed' || name === 'home-feed') await settleFeedHeaderBelowSafeArea(page);
       if(opt.tab){
         const pane=page.locator(`#activity-pane-${opt.tab}:visible`);
         await pane.waitFor();
