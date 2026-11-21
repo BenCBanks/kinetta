@@ -17,6 +17,17 @@
 .challenge-option-row[aria-pressed="true"] .challenge-option-check{opacity:1;}
 .challenge-custom{display:grid;gap:12px;}
 .challenge-custom[hidden]{display:none;}
+.challenge-start-row,.challenge-length-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:4px 2px;border-bottom:1px solid var(--line);color:var(--tx);font-size:15px;font-weight:500;}
+.challenge-start-row select{min-width:0;min-height:44px;max-width:70%;padding:0 26px 0 8px;border:0;border-radius:0;background:transparent;color:var(--brand);font:600 15px var(--font);text-align:right;}
+.challenge-start-row input[type=date]{min-width:0;min-height:44px;max-width:62%;padding:0 4px;border:0;border-radius:0;background:transparent;color:var(--brand);font:600 15px var(--font);}
+.challenge-start-row.is-picking{gap:8px;}
+.challenge-start-row.is-picking select{flex:1 1 96px;width:auto;max-width:116px;padding:0 4px;font-size:14px;}
+.challenge-start-row.is-picking input[type=date]{flex:0 1 132px;width:132px;max-width:132px;padding:0;font-size:14px;}
+.challenge-length-controls{display:flex;align-items:center;gap:6px;min-width:0;}
+.challenge-length-controls input{width:64px;min-height:44px;padding:6px 8px;text-align:center;font-variant-numeric:tabular-nums;}
+.challenge-length-controls small{min-width:0;margin-left:4px;color:var(--tx2);font-size:13px;font-weight:500;white-space:nowrap;}
+.challenge-start-row select:focus-visible,.challenge-start-row input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+@media(max-width:360px){.challenge-start-row.is-picking select{flex-basis:92px;max-width:96px;font-size:13px;}.challenge-start-row.is-picking input[type=date]{flex-basis:116px;width:116px;max-width:116px;font-size:13px;}}
 .challenge-hero{display:flex;flex-wrap:wrap;align-items:center;gap:16px;}
 .challenge-hero>.grow{flex:1 1 150px;min-width:0;overflow-wrap:anywhere;}
 .challenge-ring-wrap{position:relative;width:88px;height:88px;flex:none;display:grid;place-items:center;}
