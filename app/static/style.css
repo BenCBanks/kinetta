@@ -1502,7 +1502,10 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-count,:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-more {font-size:14px;font-weight:500;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--tx2);}
 :is(.activity-home,.profile-activities) .activity-card .post-ft .activity-share {order:4;display:flex;align-items:center;justify-content:center;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 8px;background:none;border-color:transparent;box-shadow:none;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:not(:has(.reaction-count:not([hidden]))) .activity-share {margin-left:auto;}
-:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count {margin-left:auto;}
+/* Home activity cards group reaction totals on the left and comments/share on the right. */
+.activity-home .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count {order:2;justify-content:flex-start;width:auto;min-width:44px;margin:0 0 0 8px;}
+.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {gap:2px;}
+.activity-home .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:3;margin:0 0 0 auto;}
 @media(max-width:380px){:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions){padding-inline:12px;}}
 /* Full rows share the card's content edges; narrow cards use four columns. */
 .reaction-picker {position:fixed;z-index:2100;max-width:calc(100vw - 16px);padding:8px;border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
