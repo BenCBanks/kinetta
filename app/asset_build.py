@@ -17,14 +17,18 @@ REFERENCE = re.compile(r'(?P<attribute>\b(?:src|href)\s*=\s*)(?P<quote>[\"\'])(?
 SHELL_LINE = re.compile(r"const SHELL = 'fit-shell-[^']+';")
 STATIC_VERSION = re.compile(r'/static/(?P<name>[A-Za-z0-9_./-]+)\?v=(?:__ASSET_HASH__|[A-Za-z0-9_-]+)')
 GENERATED_CSS = {
-    'critical-shell.css': ('theme.css', 'paint-gate.css', 'style.css'),
+    # Authentication screens are available before the signed-in route loader,
+    # so their password affordance must ship with the initial shell styles.
+    'critical-shell.css': (
+        'theme.css', 'paint-gate.css', 'style.css', 'password-visibility.css',
+        'username-availability.css', 'email-account.css', 'login.css',
+    ),
     'route-screens.css': (
         'activity-import.css', 'food.css', 'plan-ui.css', 'maps.css', 'nutrition.css',
         'activity-home.css', 'activity-detail.css', 'recipes-ui.css', 'friends-ui.css',
         'contacts-ui.css', 'profile.css', 'cards.css', 'milestones.css', 'challenges.css',
         'recaps-ui.css', 'guide-ui.css', 'insights-ui.css', 'notifications-ui.css',
-        'heatmap-ui.css', 'community-terms.css', 'password-visibility.css',
-        'username-availability.css', 'email-account.css', 'login.css',
+        'heatmap-ui.css', 'community-terms.css',
     ),
 }
 GENERATED_JS = {

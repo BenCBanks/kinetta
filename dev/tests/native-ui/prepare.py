@@ -65,7 +65,7 @@ if a.stage.startswith('track-'):
 if not a.update:
  s=index.read_text().replace('<script src="/static/keyboard.js','<script src="/static/native-ui-early.js"></script>\n<script src="/static/keyboard.js',1).replace('</body>','<script src="/static/native-ui-late.js"></script>\n</body>')
  assert s!=index.read_text();index.write_text(s)
- p=public/'static/native.js';s=p.read_text();needle='const get = async (key) => (await prefs.get({key})).value;';assert s.count(needle)==1
+ p=public/'static/app-shell.js';s=p.read_text();needle='const get = async (key) => (await prefs.get({key})).value;';assert s.count(needle)==1
  p.write_text(s.replace(needle,"const get = async (key) => key==='server'?'https://example.test':key==='token'?'fictional-native-ui-only':(await prefs.get({key})).value;",1))
 import re
 index.write_text(re.sub(r'(/static/native-ui-early.js)(?:\?run=[a-f0-9-]+)?',lambda m:m[1]+'?run='+a.run,index.read_text()))

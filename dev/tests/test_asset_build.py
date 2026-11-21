@@ -67,6 +67,13 @@ class AssetBuildTests(unittest.TestCase):
             self.assertEqual(screens,b'\n'.join(b'/* '+name.encode('ascii')+b' */\n'+(parent/'docker'/name).read_bytes() for name in builder.GENERATED_CSS['route-screens.css']),'deferred bundle preserves the original stylesheet bytes and order')
             self.assertLess(critical.index(b'/* theme.css */'),critical.index(b'/* paint-gate.css */'))
             self.assertLess(critical.index(b'/* paint-gate.css */'),critical.index(b'/* style.css */'))
+            previous=critical.index(b'/* style.css */')
+            for name in ('password-visibility.css','username-availability.css','email-account.css','login.css'):
+                marker=b'/* '+name.encode('ascii')+b' */'
+                self.assertIn(marker,critical,'pre-route auth styles stay in the eager shell bundle: '+name)
+                self.assertGreater(critical.index(marker),previous,'pre-route auth CSS preserves its former order: '+name)
+                self.assertNotIn(marker,screens,'pre-route auth styles are absent from deferred screen CSS: '+name)
+                previous=critical.index(marker)
             self.assertLess(screens.index(b'/* activity-import.css */'),screens.index(b'/* food.css */'))
             self.assertLess(screens.index(b'/* activity-home.css */'),screens.index(b'/* activity-detail.css */'))
             self.assertLess(screens.index(b'/* challenges.css */'),screens.index(b'/* recaps-ui.css */'))

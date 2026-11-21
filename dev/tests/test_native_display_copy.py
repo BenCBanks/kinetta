@@ -31,6 +31,7 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
             source=Path(temp)/'Original.app';public=source/'public';static=public/'static';static.mkdir(parents=True)
             (public/'index.html').write_text('<body><script src="/static/keyboard.js?v=0123456789abcdef0123456789abcdef"></script></body>')
             (static/'native.js').write_text("const get = async (key) => (await prefs.get({key})).value;")
+            (static/'app-shell.js').write_text('/* native.js */\n'+(static/'native.js').read_text())
             (static/'appearance.js').write_bytes((ROOT/'app/static/appearance.js').read_bytes())
             before={str(p.relative_to(source)):hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}
             destination=Path(temp)/'Fixture.app'
@@ -54,6 +55,9 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
             early=(destination/'public/static/native-ui-early.js').read_text()
             self.assertIn('"startupTiming": {}',early)
             self.assertIn('webViewReadyPerfMs=performance.now()',early)
+            shell=(destination/'public/static/app-shell.js').read_text()
+            self.assertIn("key==='token'?'fictional-native-ui-only'",shell,'the disposable native fixture patches the bundled bridge actually loaded by index.html')
+            self.assertNotIn("key==='token'?'fictional-native-ui-only'",(destination/'public/static/native.js').read_text(),'the standalone source module is not used as a runtime patch target')
             late=(destination/'public/static/native-ui-late.js').read_text()
             self.assertIn('firstUsefulRenderPerfMs=performance.now()',late)
             after={str(p.relative_to(source)):hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}
