@@ -1,10 +1,12 @@
 // Deliberate group goals. A challenge never grants access to anyone else's workouts or food.
 'use strict';
+// Shared by browser rings and the Node share-image renderer/tests.
+const ChallengeRingPalette=Object.freeze({neutral:'#929BA4',progress:'#2F64D8',complete:'#4CC98A',color(state){return state==='goal'||state==='over'?this.complete:state==='not-started'||state==='missed'?this.neutral:this.progress;}});
+if(typeof module!=='undefined'&&module.exports)module.exports=ChallengeRingPalette;
+if(typeof globalThis!=='undefined')globalThis.ChallengeRingPalette=ChallengeRingPalette;
+if(typeof window!=='undefined')window.ChallengeRingPalette=ChallengeRingPalette;
 const challengeSummaryMount=Challenges.mount;
 const ChallengeRoutes=(()=>{
-  // Keep every challenge ring stage aligned with the invite and finish pictures.
-  const ChallengeRingPalette=Object.freeze({neutral:'#929BA4',progress:'#2F64D8',complete:'#4CC98A',color(state){return state==='goal'||state==='over'?this.complete:state==='not-started'||state==='missed'?this.neutral:this.progress;}});
-  window.ChallengeRingPalette=ChallengeRingPalette;
   const stateFromRing=node=>[...node.classList].find(name=>name.startsWith('is-'))?.slice(3)||'progress';
   const kinds={distance:'Distance',active_days:'Active days',activities:'Activities',food_days:'Food logging days',protein_days:'Protein goal days'};
   const descriptions={distance:'Choose running, walking, hiking or cycling.',active_days:'A day counts with at least one workout lasting 10 minutes or more.',activities:'Each workout must last at least 10 minutes.',food_days:'Days with food logged. No food details are shared.',protein_days:'Days reaching your own protein target. Your target stays private.'};
