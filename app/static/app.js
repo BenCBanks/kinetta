@@ -1175,7 +1175,9 @@ function sectionReturnAllowed(tab, path, root = $('#page')) {
   return sectionReturnPathAllowed(tab, path) && !sectionReturnOverlayOpen(root);
 }
 function saveSectionReturn(tab = sectionTabForPath(App.page?.key || location.pathname + location.search), {path = App.page?.key || location.pathname + location.search, y = scrollY, root = $('#page')} = {}) {
-  if (!sectionReturnAllowed(tab, path, root)) return;
+  // Scroll/toggle events can fire while a route is still showing its loading shell.
+  // Do not persist that incomplete DOM over the last usable route state.
+  if (!App.pageReady || !sectionReturnAllowed(tab, path, root)) return;
   const store = sectionReturnStore(), details = $$('details', root);
   store.sections[tab] = {path, y: Math.max(0, Number(y) || 0), open: details.flatMap((detail, index) => detail.open ? [index] : []), savedAt: Date.now()};
   saveSectionReturnStore(store);
@@ -1474,7 +1476,7 @@ function render(options) {
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:targetY,root:el});compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true; if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
+    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {
