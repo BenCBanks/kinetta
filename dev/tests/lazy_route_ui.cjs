@@ -403,7 +403,8 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitne
   }
   if(fitnessProbe&&url.pathname==='/api/fitness'&&url.searchParams.get('days')!=='60'){
    fitnessReads.push(url.search);
-   return route.fulfill({json:{days:[],predictions:[],vdot_months:[],vdot_now:null,ramp_7d:0}});
+   const days=[2,1,0].map((offset,index)=>{const date=new Date();date.setDate(date.getDate()-offset);return{d:date.toLocaleDateString('sv-SE'),fitness:10+index,fatigue:8+index,form:2};});
+   return route.fulfill({json:{days,predictions:[],vdot_months:[],vdot_now:null,ramp_7d:0}});
   }
   if(recordsProbe&&['/api/records','/api/records/history'].includes(url.pathname)){
    recordsReads.push(url.pathname+url.search);
@@ -438,7 +439,10 @@ async function fitnessRouteCase(browser){
   await cold.page.goto(base+fitness);await readyFitness(cold.page);
   assert.equal(cold.assets.filter(path=>path===asset).length,1,'direct Fitness requests one existing Progress bundle');
   assert.match(new URL(cold.assetUrls.find(url=>new URL(url).pathname===asset)).searchParams.get('v'),/^[0-9a-f]{32}$/,'deferred asset uses its built content hash');
-  assert.equal(await cold.page.locator('#fi-range [data-fitness-range="1y"]').count(),1,'the moved renderer retains the one-year chart range');
+  const fitnessRanges=cold.page.locator('#fi-range [data-fitness-range]');
+  assert.deepEqual(await fitnessRanges.allTextContents(),['1M','3M','1Y','All'],'Fitness renders the four current chart range tabs');
+  assert.equal(await cold.page.locator('#fi-range [data-fitness-range="1y"]').count(),1,'the one-year chart range remains available as a tab');
+  assert.equal(await cold.page.locator('#fi-range [data-fitness-range="3m"]').getAttribute('aria-pressed'),'true','the redesigned Fitness range defaults to 3M');
   assert.equal(await cold.page.evaluate(()=>window.__fitnessRenders.length),1,'the direct route invokes the real renderer once');
   await cold.page.evaluate(()=>go('/progress'));await ready(cold.page,'#p-home-totals','Progress after Fitness');
   await cold.page.evaluate(path=>go(path),fitness);await readyFitness(cold.page);

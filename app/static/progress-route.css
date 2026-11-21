@@ -193,9 +193,23 @@
 .progress-home-totals #m-chart .dotp.cur { fill:var(--color-action); stroke:var(--color-action); stroke-width:3; }
 .progress-home-totals #m-chart .dotp.best { fill:var(--color-success); }
 .progress-home-totals #m-chart .yl { font-size:11px; }
-.fitness-current { margin-bottom:12px; }
-.fitness-current .me-form-top { min-height:38px; }
-.fitness-current .me-form-nums { padding-top:10px; border-top:1px solid var(--line); }
+.fitness-card-a { padding:16px; }
+.fitness-card-a .fitness-card-heading { display:block; min-width:0; margin:0 0 4px; }
+.fitness-card-a .fitness-card-heading h2 { margin:0; font-size:17px; line-height:1.25; font-weight:700; }
+.fitness-card-a .underline-tabs { gap:4px; margin:4px 0 8px; }
+.fitness-card-a .underline-tabs button { min-width:44px; min-height:44px; font-size:15px; }
+.fitness-card-status { display:flex; align-items:center; gap:8px; min-height:28px; margin:0 0 8px; color:var(--tx); font-size:15px; font-weight:500; }
+.fitness-status-dot { width:8px; height:8px; flex:none; border-radius:50%; background:var(--tx3); }
+.fitness-status-dot.good { background:var(--good); }
+.fitness-status-dot.warn { background:var(--warn); }
+.fitness-card-a .stat-row { margin-bottom:8px; }
+.fitness-card-a .stat-row-item b { font-size:20px; font-weight:600; }
+.fitness-load-chart .chartbox { margin-top:0; }
+.fitness-load-chart .fitness-load-line { fill:none; stroke:var(--accent); stroke-width:2; }
+.fitness-load-chart .fitness-fatigue-line { fill:none; stroke:var(--tx3); stroke-width:1.5; }
+.fitness-chart-readout { min-height:20px; margin:4px 0 0; padding:0; border:0; border-radius:0; background:transparent; color:var(--tx2); font-size:13px; line-height:1.35; white-space:normal; }
+.fitness-chart-empty { margin:0; min-height:44px; display:flex; align-items:center; }
+.fitness-card-empty { margin:4px 0 0; }
 .progress-home-totals .progress-totals-title { font-size:1rem; }
 .progress-home-totals .progress-totals-title svg { width:12px; height:12px; }
 .progress-home-totals .progress-filters .range-btn { padding:4px 6px; gap:3px; }
