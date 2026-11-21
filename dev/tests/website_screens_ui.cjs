@@ -53,10 +53,15 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert.equal(await p.locator('.home-hero h1').innerText(),"Your meals, workouts and Kit's coaching, together.");
      assert.deepEqual(await p.locator('.home-proof-card').count(),2,'Home pairs Nutrition and Activity proof screens');
      assert.equal(await p.locator('.home-story').count(),0,'The oversized scroll story is removed');
-     const nutrition=await p.locator('#home-food img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
-     assert(nutrition.src.includes(`1319-kit-food-chat-${theme}`));assert.match(nutrition.alt,/Chicken sandwich and an apple for lunch.*two matched foods.*calorie estimate.*confirmed Lunch log/i);assert(nutrition.loaded,'captured Kit meal is loaded');
+     const mealDemo=p.locator('#home-food [data-demo=kit-chat]');
+     assert.equal(await mealDemo.getAttribute('aria-label'),'Fictional Kit chat: describe lunch, review two matched foods, confirm the meal and see it logged');
+     assert.equal(await mealDemo.getAttribute('data-demo-state'),'complete','reduced motion presents the final Kit chat state');
+     assert.equal(await mealDemo.locator('[data-chat-question]').innerText(),'Chicken sandwich and an apple for lunch');
+     assert.equal(await mealDemo.locator('[data-chat-total]').innerText(),'515 kcal');
+     assert.equal(await mealDemo.locator('[data-chat-log]').getAttribute('aria-hidden'),'false','the finished demo includes the logged meal row');
      assert.equal(await p.locator('#home-food h3').innerText(),'Log a meal in a sentence.');
-     const mealFrame=await p.locator('#home-food .phone-frame').boundingBox();if(width===390)assert(mealFrame&&Math.round(mealFrame.width)===350&&mealFrame.height<=541,'390px meal crop shows the sentence, result and confirmation together');
+     const mealFrame=await mealDemo.evaluate(frame=>{const r=frame.getBoundingClientRect(),s=frame.querySelector('.phone-screen').getBoundingClientRect();return{width:r.width,height:r.height,screenWidth:s.width,screenHeight:s.height,outerRadius:parseFloat(getComputedStyle(frame).borderRadius),island:getComputedStyle(frame,'::before').width,home:getComputedStyle(frame,'::after').height};});
+     if(width===390){assert.equal(Math.round(mealFrame.width),250,'390px Kit chat uses a scaled full-height phone frame');assert(Math.abs(mealFrame.screenHeight/mealFrame.screenWidth-852/393)<.01,`Kit chat screen keeps 9:19.5 proportions: ${JSON.stringify(mealFrame)}`);assert(Math.abs((mealFrame.height-16)/(mealFrame.width-16)-852/393)<.01,'Kit chat frame shows the full iPhone screen without cropping');assert(mealFrame.outerRadius>=40&&mealFrame.island==='84px'&&mealFrame.home==='4px','demo phone includes rounded hardware, Dynamic Island and home indicator');}
      if(width===390){const nextCardLeft=await p.locator('#home-activity').evaluate(e=>e.getBoundingClientRect().left);assert(nextCardLeft>=width,`Food shows no clipped Activity text at the viewport edge (${nextCardLeft}px)`);}
      const activity=await p.locator('#home-activity img').evaluate(i=>({src:i.currentSrc,alt:i.alt,loaded:i.complete&&i.naturalWidth>0}));
      assert(activity.src.includes(`${theme}-activity-detail`));assert.match(activity.alt,/Fictional Activity detail/);assert(activity.loaded,'Activity map screenshot is loaded');
@@ -65,7 +70,12 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      const kitPhone=p.locator('.phone-frame--kit-week');
      assert.equal(await kitPhone.locator('[data-week-question]').innerText(),'Am I improving?');
      assert.match(await kitPhone.locator('[data-week-answer]').innerText(),/10\.8 mi.*20\.6 mi average.*27\.9 mi/);
-     assert.equal(await kitPhone.locator('[data-week-chart]').count(),1,'Kit insight chart lives inside the phone');
+     assert.equal(await kitPhone.locator('[data-week-chart]').count(),1,'Kit insight chart lives inside the shared phone frame');
+     assert.equal(await kitPhone.getAttribute('data-demo-state'),'complete','reduced motion presents the final insight chart');
+     assert.equal(await kitPhone.locator('[data-week-total]').innerText(),'10.8','the insight headline settles on the current-week total');
+     assert.equal(await kitPhone.locator('[data-week-readout]').innerText(),'10.8 mi','the chart tooltip settles on the current week');
+     const insightShape=await kitPhone.evaluate(frame=>{const r=frame.getBoundingClientRect(),s=frame.querySelector('.phone-screen').getBoundingClientRect();return{outer:r.height/r.width,screen:s.height/s.width};});
+     assert(Math.abs(insightShape.screen-852/393)<.01,`insight reuses the proportional phone frame: ${JSON.stringify(insightShape)}`);
      assert.equal(await kitPhone.locator('.home-kit-prompts button').count(),2,'Example questions live inside the phone');
      assert.equal(await p.locator('.kit-week-demo > .wrap > .kit-week-copy .home-kit-prompts').count(),0,'No example questions sit outside the phone');
      assert.equal(await p.locator('[data-week-replay],.kit-week-demo-label,.kit-week-visual figcaption').count(),0,'No replay link or fictional sample captions remain');
@@ -172,6 +182,23 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     assert.deepEqual(errors,[]);checks++;await p.close();
    }
   }finally{await c.close();}
- }console.log('Website tour checks: '+checks+' selected page/size/theme/density cases PASS; themed crops, alt text, image scale, overflow and navigation labels');
+ }
+ for(const theme of ['light','dark']){
+  const videoOptions=theme==='light'&&process.env.KINETTA_WEBSITE_SHOT_DIR?{recordVideo:{dir:process.env.KINETTA_WEBSITE_SHOT_DIR,size:{width:390,height:844}}}:{};
+  const c=await b.newContext({viewport:{width:390,height:844},colorScheme:theme,deviceScaleFactor:1,reducedMotion:'no-preference',serviceWorkers:'block',...videoOptions});
+  try{
+   await c.route('**/*',r=>{const req=r.request(),u=new URL(req.url());if(!['GET','HEAD'].includes(req.method())||u.origin!==base&&!['fonts.googleapis.com','fonts.gstatic.com'].includes(u.hostname))return r.abort();return r.continue();});
+   const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(base+'/index.html');await p.evaluate(()=>{window.__demoStates=[];new MutationObserver(records=>records.forEach(record=>window.__demoStates.push(record.target.dataset.demoState))).observe(document.querySelector('[data-demo=kit-chat]'),{attributes:true,attributeFilter:['data-demo-state']});});
+   const meal=p.locator('[data-demo=kit-chat]');await meal.scrollIntoViewIfNeeded();const mealBoxBefore=await meal.boundingBox();await p.waitForFunction(()=>document.querySelector('[data-demo=kit-chat]')?.dataset.demoState==='complete',undefined,{timeout:15000});
+   assert.equal(await meal.locator('[data-chat-question]').innerText(),'Chicken sandwich and an apple for lunch','the Kit message types into the phone');assert.equal(await meal.locator('[data-chat-total]').innerText(),'515 kcal');assert.equal(await meal.locator('[data-chat-log]').getAttribute('aria-hidden'),'false','the scripted confirmation lands in the phone diary');assert((await p.evaluate(()=>window.__demoStates)).includes('confirming'),'the scripted Confirm action is shown before the diary row lands');const mealBoxAfter=await meal.boundingBox();assert.deepEqual(mealBoxAfter,mealBoxBefore,'the chat frame does not shift during the animation');
+   if(process.env.KINETTA_WEBSITE_SHOT_DIR){fs.mkdirSync(process.env.KINETTA_WEBSITE_SHOT_DIR,{recursive:true});await meal.screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`kit-chat-animated-390-${theme}.png`),animations:'disabled'});}
+   const insight=p.locator('[data-demo=kit-insight]');await insight.scrollIntoViewIfNeeded();const mealPaused=await meal.evaluate(frame=>({state:frame.dataset.demoState,text:frame.querySelector('[data-chat-question]').textContent}));const insightBoxBefore=await insight.boundingBox();await p.waitForFunction(()=>document.querySelector('[data-demo=kit-insight]')?.dataset.demoState==='drawing');await p.waitForTimeout(850);
+   const moving=await insight.evaluate(frame=>({state:frame.dataset.demoState,line:Number(frame.querySelector('[data-week-line]').style.strokeDashoffset),readout:frame.style.getPropertyValue('--readout-x')}));assert.equal(moving.state,'drawing');assert(moving.line>0&&moving.line<1,`chart line is part-drawn while in view: ${JSON.stringify(moving)}`);assert(parseFloat(moving.readout)>10&&parseFloat(moving.readout)<85,'chart readout moves through its weekly points');assert.deepEqual(await insight.boundingBox(),insightBoxBefore,'the chart frame does not shift during the animation');
+   if(process.env.KINETTA_WEBSITE_SHOT_DIR)await insight.screenshot({path:path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`kit-insight-animated-390-${theme}.png`),animations:'disabled'});
+   await p.evaluate(()=>scrollTo(0,0));await p.waitForTimeout(350);const paused=await insight.evaluate(frame=>({state:frame.dataset.demoState,line:frame.querySelector('[data-week-line]').style.strokeDashoffset}));await p.waitForTimeout(550);assert.deepEqual(await insight.evaluate(frame=>({state:frame.dataset.demoState,line:frame.querySelector('[data-week-line]').style.strokeDashoffset})),paused,'the chart demo pauses while its phone is off-screen');assert.deepEqual(await meal.evaluate(frame=>({state:frame.dataset.demoState,text:frame.querySelector('[data-chat-question]').textContent})),mealPaused,'the Kit chat loop pauses while its phone is off-screen');
+   await insight.scrollIntoViewIfNeeded();await p.waitForFunction(()=>document.querySelector('[data-demo=kit-insight]')?.dataset.demoState==='complete',undefined,{timeout:10000});assert.equal(await insight.locator('[data-week-total]').innerText(),'10.8','the animated chart reaches the current-week total');assert.deepEqual(errors,[]);const video=p.video();await p.close();if(video)await video.saveAs(path.join(process.env.KINETTA_WEBSITE_SHOT_DIR,`kit-chat-and-insight-390-${theme}.webm`));
+  }finally{await c.close();}
+ }
+ console.log('Website tour checks: '+checks+' selected page/size/theme/density cases PASS; Kit chat and chart demos animate in-view, pause off-screen, and honor reduced motion');
  }finally{await b.close();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
