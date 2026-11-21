@@ -1470,13 +1470,17 @@ function render(options) {
   if (!globalSyncDone && typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   let touched=false;const interactions=new AbortController();
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
+  const warmHomeCache=key==='/activity'&&!!(App.cache.get('feed:home')?.data||kept('feed:home'));
   const result=page.fn(el,...m.slice(1));compactSubpageHeader(el);compactRootHeader(el);
+  // A cached Home feed is already useful on a warm return; don't keep the route
+  // behind its background feed and challenge refreshes.
+  const warmHomeReady=warmHomeCache&&result&&typeof result.then==='function';
   if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path);
-  requestAnimationFrame(()=>{if(current()&&!touched)window.scrollTo(0,targetY);});
+  requestAnimationFrame(()=>{if(!current())return;if(warmHomeReady)restoreSectionDisclosures(el,key);if(!touched)window.scrollTo(0,targetY);if(warmHomeReady)App.pageReady=true;});
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
+    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;if(!warmHomeCache)restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:warmHomeCache&&touched?scrollY:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {
