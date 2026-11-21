@@ -1118,7 +1118,65 @@ IC.paste = '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 
 IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
 // Owner decision #700 (7 Nov 2026): Home renames the Activity tab and moves first; Me moves last. Keep Track centred.
 const TABS = [['activity', 'Home'], ['progress', 'Progress'], ['track', 'Track'], ['food', 'Nutrition'], ['me', 'Me']];
+const SECTION_RETURN_KEY = 'kinetta.sectionReturn';
+const SECTION_RETURN_TTL = 30 * 60 * 1000;
+let sectionReturnTimer = 0;
+function sectionReturnOwner() { return JSON.stringify([Native.base || location.origin, App.me?.id ?? App.me?.login ?? null]); }
+function sectionReturnStore() {
+  const owner = sectionReturnOwner();
+  try {
+    const value = JSON.parse(sessionStorage.getItem(SECTION_RETURN_KEY) || 'null');
+    if (value?.owner !== owner || !value.sections || typeof value.sections !== 'object') {
+      if (value) sessionStorage.removeItem(SECTION_RETURN_KEY);
+      return {owner, sections: {}};
+    }
+    const now = Date.now();
+    for (const [tab, state] of Object.entries(value.sections)) {
+      if (!TABS.some(([key]) => key === tab) || !state || typeof state.path !== 'string' ||
+          !Number.isFinite(state.savedAt) || now - state.savedAt > SECTION_RETURN_TTL || now < state.savedAt ||
+          !Number.isFinite(state.y) || !Array.isArray(state.open)) delete value.sections[tab];
+    }
+    return value;
+  } catch (_) { return {owner, sections: {}}; }
+}
+function saveSectionReturnStore(value) { try { sessionStorage.setItem(SECTION_RETURN_KEY, JSON.stringify(value)); } catch (_) { /* restoration is best effort */ } }
+function sectionTabForPath(value) {
+  let url; try { url = new URL(value, location.href); } catch (_) { return null; }
+  if (url.origin !== location.origin) return null;
+  const path = url.pathname.replace(/\/+$/, '') || '/activity';
+  const page = App.pages.find((item) => item.re.test(path)) || lazyRouteBundles.find((item) => item.re.test(path));
+  if (!page) return null;
+  const match = path.match(page.re) || [];
+  let tab = typeof page.tab === 'function' ? page.tab(...match.slice(1)) : page.tab;
+  if (path === '/progress/weight') tab = url.searchParams.get('from') === 'nutrition' ? 'food' : 'progress';
+  return TABS.some(([key]) => key === tab) ? tab : null;
+}
+function savedSectionReturn(tab) {
+  if (!tab) return null;
+  const store = sectionReturnStore(), state = store.sections[tab];
+  return state && sectionTabForPath(state.path) === tab ? state : null;
+}
+function saveSectionReturn(tab = sectionTabForPath(App.page?.key || location.pathname + location.search), {path = App.page?.key || location.pathname + location.search, y = scrollY, root = $('#page')} = {}) {
+  if (!tab || sectionTabForPath(path) !== tab) return;
+  const store = sectionReturnStore(), details = $$('details', root);
+  store.sections[tab] = {path, y: Math.max(0, Number(y) || 0), open: details.flatMap((detail, index) => detail.open ? [index] : []), savedAt: Date.now()};
+  saveSectionReturnStore(store);
+}
+function scheduleSectionReturnSave() {
+  clearTimeout(sectionReturnTimer);
+  sectionReturnTimer = setTimeout(() => saveSectionReturn(), 120);
+}
+function clearSectionReturn(tab) {
+  const store = sectionReturnStore(); delete store.sections[tab]; saveSectionReturnStore(store);
+}
+function restoreSectionDisclosures(el, path) {
+  const tab = sectionTabForPath(path), state = savedSectionReturn(tab);
+  if (!state || state.path !== path) return;
+  const open = new Set(state.open), details = $$('details', el);
+  details.forEach((detail, index) => { detail.open = open.has(index); });
+}
 let navScrollFrame = 0, navScrollLast = 0, navScrollDown = 0, navScrollUp = 0;
+let skipSectionSaveOnNextRoute = false;
 function navElement() { return document.querySelector('nav.tabs'); }
 function expandBottomNav() {
   navElement()?.classList.remove('compact');
@@ -1133,7 +1191,8 @@ function updateBottomNav() {
   if (delta > 0) { navScrollDown += delta; navScrollUp = 0; if (navScrollDown >= 24) navElement()?.classList.add('compact'); }
   else if (delta < 0) { navScrollUp -= delta; navScrollDown = 0; if (navScrollUp >= 8) expandBottomNav(); }
 }
-addEventListener('scroll', () => { if (!navScrollFrame) navScrollFrame = requestAnimationFrame(updateBottomNav); }, {passive: true});
+addEventListener('scroll', () => { if (!navScrollFrame) navScrollFrame = requestAnimationFrame(updateBottomNav); scheduleSectionReturnSave(); }, {passive: true});
+document.addEventListener('toggle', (event) => { if (event.target?.matches?.('details') && event.target.closest('#page')) scheduleSectionReturnSave(); }, true);
 // The Home tab keeps its /activity address but shows a house (#762); the pulse line still marks activities elsewhere.
 IC.home = '<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>';
 const tabIcon = tab => tab === 'me' && App.me?.photo && App.me?.login
@@ -1146,9 +1205,10 @@ function syncMeTabPhoto() {
   const next=template.content.firstElementChild;if(next)current.replaceWith(next);
 }
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
-function go(path, {replace = false} = {}) {
+function go(path, {replace = false, resetSection = false} = {}) {
   if (typeof expandBottomNav === 'function') expandBottomNav();
   App.scroll[location.pathname + location.search] = scrollY;
+  if (!resetSection) saveSectionReturn(); else skipSectionSaveOnNextRoute = true;
   const from = location.pathname;
   const fromKnown=App.pages.some(p=>p.re.test(location.pathname.replace(/\/+$/, '')||'/me'));
   const nav=BackNavigation.transition(history.state,location.pathname+location.search,path,readOwner(),{replace,fromKnown});
@@ -1222,9 +1282,11 @@ if(typeof history!=='undefined'&&'scrollRestoration' in history)history.scrollRe
 function pagePosition(key) {
   const owner=readOwner(),previous=App.page;
   if(!previous||previous.owner!==owner)App.scroll={};
-  else App.scroll[previous.key]=scrollY;
+  else {App.scroll[previous.key]=scrollY;if(previous.key!==key){if(skipSectionSaveOnNextRoute)skipSectionSaveOnNextRoute=false;else saveSectionReturn(sectionTabForPath(previous.key),{path:previous.key,y:scrollY});}}
   App.page={key,owner};
-  return App.scroll[key]||0;
+  if(Object.prototype.hasOwnProperty.call(App.scroll,key))return App.scroll[key];
+  const saved=savedSectionReturn(sectionTabForPath(key));
+  return saved?.path===key?saved.y:0;
 }
 // A route may consume a one-time query without replacing its already mounted view.
 // Keep readiness and saved scroll keyed to that same view's canonical address.
@@ -1389,7 +1451,7 @@ function render(options) {
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true; if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
+    if (current()) { restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:targetY,root:el});compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true; if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {
@@ -1431,11 +1493,20 @@ document.addEventListener('click', (e) => {
   const a = e.target.closest('a[href^="/"]');
   if (!a || e.metaKey || e.ctrlKey || a.target || a.hasAttribute('download')) return;
   e.preventDefault();
-  // The tab you're on (owner, 20 Oct 2026): its plain home page; already there, scroll to the top (like iPhone tab bars).
-  if (a.dataset.tab && location.pathname === '/' + a.dataset.tab && !location.search) { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
-  if (a.dataset.tab) App.scroll[a.getAttribute('href')] = 0;
-  prepareActivityMapTransition(a,a.getAttribute('href'));
-  go(a.getAttribute('href'));
+  let destination=a.getAttribute('href'),resetSection=false;
+  if(a.dataset.tab){
+    const tab=a.dataset.tab,active=navElement()?.querySelector('a[aria-current="page"]')?.dataset.tab;
+    if(active===tab){
+      clearSectionReturn(tab);App.scroll['/'+tab]=0;resetSection=true;destination='/'+tab;
+      if(location.pathname===destination&&!location.search){window.scrollTo({top:0,behavior:'smooth'});return;}
+    }else{
+      saveSectionReturn();
+      const saved=savedSectionReturn(tab);
+      if(saved){destination=saved.path;App.scroll[saved.path]=saved.y;}
+    }
+  }
+  prepareActivityMapTransition(a,destination);
+  go(destination,{resetSection});
 });
 let lastPressPrefetch = null;
 function prefetchPressOnce(node,path) {
@@ -1459,7 +1530,7 @@ function prefetchFromPress(e) {
 document.addEventListener('pointerdown', prefetchFromPress, {passive: true});
 document.addEventListener('touchstart', prefetchFromPress, {passive: true});
 document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
-window.addEventListener('popstate', (event) => { if (SheetHistory.pop(event)) return; if (App.mediaMapBack?.()) return; const from=App.lastPath||'';prepareActivityMapBackTransition(from);slide('back',from); });
+window.addEventListener('popstate', (event) => { if (SheetHistory.pop(event)) return; if (App.mediaMapBack?.()) return; if(App.page)saveSectionReturn(sectionTabForPath(App.page.key),{path:App.page.key,y:scrollY});const from=App.lastPath||'';prepareActivityMapBackTransition(from);slide('back',from); });
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){App.hiddenAt=Date.now();return;}
   if(!App.me)return;Q.flush().catch(e=>toast(e.message));
