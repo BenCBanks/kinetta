@@ -51,7 +51,7 @@ try:
   # Bounded history and pagination use the same account; no source identity can be supplied.
   with db.connect() as c:
    for n in range(55):c.execute("INSERT INTO kit_turns(user_id,client_id,generation,question,state,answer) VALUES (%s,%s,%s,%s,'answered',%s)",(uid,uuid.uuid4(),generation,'Earlier question '+str(n),json.dumps(result['answer'])))
-  page=req(a,'GET',root);assert len(page['messages'])==50 and page['before'];older=req(a,'GET',root+'?before='+str(page['before']));assert len(older['messages'])==8
+  page=req(a,'GET',root);assert len(page['messages'])==50 and page['before'];older=req(a,'GET',root+'?before='+str(page['before']));assert len(older['messages'])==10
   req(a,'POST',root+'/clear',{'generation':generation,'confirmed':'true'},422)
   new=req(a,'POST',root+'/clear',{'generation':generation,'confirmed':True});assert not new['messages'] and new['generation']!=generation
   req(a,'POST',root+'/messages',body,409);generation=new['generation']

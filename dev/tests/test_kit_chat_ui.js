@@ -23,6 +23,10 @@ const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eras
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 assert(source.includes("send(c,label,index)")&&source.includes("button.querySelector('span')?.textContent"),'a starter sends its visible button label separately from its hidden guidance index');
 assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the stored question verbatim');
+assert(source.includes('a.follow_ups.slice(0,3)')&&source.includes('data-kit-followup')&&source.includes('<span>${esc(q)}</span>'),'Kit presents visible, short follow-up prompts as tappable question chips');
+assert(source.includes('send(c,b.textContent.trim())'),'a follow-up chip asks Kit exactly the visible question');
+assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
+assert(source.includes('f.display_value??f.value'),'Kit renders its server-formatted unit-aware value');
 {const starterHandler={sendArgs:null};starterHandler.send=(...args)=>starterHandler.sendArgs=args;vm.createContext(starterHandler);vm.runInContext(pick('  function sendStarter(c,button){','  async function send(c,text,starterIndex=null){')+'\nglobalThis.sendStarter=sendStarter;',starterHandler);const button={dataset:{kitStart:'0'},querySelector(selector){assert.equal(selector,'span');return {textContent:'Am I improving?'};}};starterHandler.sendStarter('chat',button);assert.deepEqual(starterHandler.sendArgs,['chat','Am I improving?',0],'a tapped starter preserves exactly its visible label and sends guidance index separately');}
 // Shared entries need consent, access, a reviewed release and an unpaused service.
 {const app=fs.readFileSync('app/static/app.js','utf8'),gate=app.slice(app.indexOf('function aiCan('),app.indexOf('// Calls render(data)'));
@@ -118,11 +122,16 @@ assert(css.includes('.food-thread:not(.kit-chat) .thread-heading h1 { grid-colum
 assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button>'),'empty chat reminder sits below the composer');
 assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('New chat each visit.')&&source.includes('providerName()'),'About Kit keeps visit and provider details in the menu flow');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
-const drawSource=source.slice(source.indexOf('  function draw(c){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
+const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
 const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
-const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:()=>[],esc:String,controls(){},kitChatOn:()=>true};
+const followups=[{textContent:'How is my running trending?'},{textContent:'What should I focus on next?'}],sent=[];
+const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,controls(){},kitChatOn:()=>true,actions:{},svg(){},send:async(_c,q)=>sent.push(q)};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
 drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
 drawHarness.draw({el:{},messages:[],job:{client_id:'fictional',question:'A fictional question'},before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'a queued first message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'a queued first message hides the reminder');
+drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'Am I improving?',state:'answered',answer:{interpretation:'Your recent running is trending up.',facts:[{label:'Run distance',display_value:'124 mi',path:['runs',0,'distance_m']}],limitations:['Unlogged days do not count as zero.'],follow_ups:['How is my running trending?','What should I focus on next?']}}],job:null,before:null});
+assert(drawNodes['#kit-messages'].innerHTML.includes('Run distance')&&drawNodes['#kit-messages'].innerHTML.includes('124 mi'),'Kit answer uses a friendly fact label and converted display value');
+assert(!drawNodes['#kit-messages'].innerHTML.includes('Unlogged days do not count'),'Kit answer omits tool limitation lists');
+followups[0].onclick();assert.deepEqual(sent,['How is my running trending?'],'a follow-up chip sends its visible question unchanged');
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
