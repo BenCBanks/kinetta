@@ -94,7 +94,10 @@ async function testFoodThreadBridge(){
 // #578 keeps the shared pushed-page title compact and the Kit reminder only in an empty chat.
 const css=fs.readFileSync('app/static/style.css','utf8')+'\n'+fs.readFileSync('app/static/food.css','utf8');
 const index=fs.readFileSync('app/static/index.html','utf8');
-assert(index.indexOf('/static/style.css')<index.indexOf('/static/food.css'),'Food chat styles load after the shared base stylesheet');
+const assetBuild=fs.readFileSync('app/asset_build.py','utf8');
+const criticalCss=assetBuild.match(/'critical-shell\.css': \(([\s\S]*?)\n    \),/);
+const routeCss=assetBuild.match(/'route-screens\.css': \(([\s\S]*?)\n    \),/);
+assert(criticalCss&&/'style\.css'/.test(criticalCss[1])&&routeCss&&/'food\.css'/.test(routeCss[1])&&index.indexOf('/static/critical-shell.css')<index.indexOf('/static/app-shell.js'),'Food chat styles load after the shared base stylesheet');
 assert(css.includes('.chat-suggestions > button {position:relative;display:flex;align-items:center;justify-content:flex-start;gap:16px;width:100%;min-width:0;min-height:44px;padding:0 16px;'),'suggestions are plain full-width 44px rows with 16px gutters');
 assert(css.includes('left:52px;height:1px;background:var(--line);content:\'\';'),'suggestion hairlines begin after the 20px icon and 16px gap');
 assert(css.includes('.chat-suggestions > button svg {flex:none;width:20px;height:20px;color:var(--tx2);}'),'suggestion icons use a clear 20px glyph');
