@@ -1,4 +1,4 @@
-// Prediction references are quiet, local-year bests; provenance stays inside the explanation.
+// Card B keeps the Best column compact; dated provenance stays inside the explanation.
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app/static/progress-routes.js','utf8'),start=source.indexOf('    const predictionSourceDetail ='),end=source.indexOf('\n    pbox.innerHTML',start),block=source.slice(start,end);
@@ -15,7 +15,7 @@ assert(!sourceHtml.includes('<a'));
 const escaped=helpers.source({label:'5K <script>',from:{label:'track & field',elapsed_s:1200,start_time:'invalid'}});
 assert(escaped.includes('5K &lt;script&gt;'));assert(escaped.includes('track &amp; field'));assert(escaped.includes('date unavailable'));
 assert(helpers.source({label:'5K',from:{}}).includes('Source unavailable'));
-assert.equal(helpers.best({best_s:1170,best_year:2024}),'19:30 · 2024');
+assert.equal(helpers.best({best_s:1170,best_year:2024}),'19:30');
 assert.equal(helpers.best({best_s:1170,best_year:null}),'19:30');
-assert.equal(helpers.best({best_s:null,best_year:null}),null);
-console.log('Prediction detail: quiet dated best, missing reference, escaped plain-text sources and invalid-source fallback PASS');
+assert.equal(helpers.best({best_s:null,best_year:null}),'–');
+console.log('Prediction detail: duration-only Best, missing-best dash, escaped plain-text sources and invalid-source fallback PASS');

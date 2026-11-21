@@ -4,6 +4,31 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 function duration(seconds){seconds=Math.round(seconds);const hours=Math.floor(seconds/3600),minutes=Math.floor((seconds%3600)/60),rest=seconds%60;return hours?`${hours}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`:`${minutes}:${String(rest).padStart(2,'0')}`;}
 async function until(p,fn,label){for(let i=0;i<180;i++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}const state=await p.evaluate(()=>({url:location.href,ready:typeof App==='undefined'?null:App.pageReady,key:typeof App==='undefined'?null:App.page?.key,body:document.body.innerText.slice(0,240)})).catch(e=>({pageError:e.message}));throw Error(label+' '+JSON.stringify(state));}
+async function predictionTable(p,data){
+ const card=p.locator('#fi-pred .fitness-predictions'),rows=card.locator('[data-prediction-row]');
+ assert.equal(await card.count(),1,'Card B is present when current predictions exist');
+ assert.equal(await rows.count(),data.predictions.length,'one compact row per supported race distance');
+ assert.equal(await card.locator('.fitness-run-score small').innerText(),'Run score');
+ assert.equal(await card.locator('.fitness-run-score b').innerText(),String(Math.round(data.vdot_now)),'Card B shows the rounded current Run score once');
+ assert.equal(await card.locator('.prediction-table-head').innerText(),`Distance\nNow\nPace ${await p.evaluate(()=>U.pu())}\nBest`,'pace unit appears in its column heading');
+ for(let i=0;i<data.predictions.length;i++){
+  const pred=data.predictions[i],row=rows.nth(i),distance=pred.label==='Half marathon'?'Half':pred.label,best=Number.isFinite(pred.best_s)&&pred.best_s>0?duration(pred.best_s):'–';
+  assert.equal(await row.locator('[role=cell]').nth(0).innerText(),distance);
+  assert.equal(await row.locator('.prediction-time').innerText(),'≈'+duration(pred.seconds));
+  assert.equal(await row.locator('.prediction-pace').innerText(),await p.evaluate(v=>U.pace(v),pred.seconds/pred.distance_m*1000));
+  assert.equal(await row.locator('.prediction-best').innerText(),best,'missing bests use a dash and dated years stay out of the table');
+  const box=await row.boundingBox();assert(box.height>=44,`${pred.label} row keeps a 44px tap target`);
+  if(pred.from?.activity_id){assert.equal(await row.evaluate(n=>n.tagName),'A');assert.equal(await row.getAttribute('href'),`/activity/${pred.from.activity_id}`,'linked prediction row opens its source activity');}
+  else {assert.equal(await row.evaluate(n=>n.tagName),'DIV','row without a linked activity is not presented as an action');}
+ }
+ const info=card.locator('#fitness-estimates-info'),target=await info.boundingBox();assert(target.width>=44&&target.height>=44,'How estimates work icon keeps a 44px target');
+ await info.click();await p.locator('.sheet h2').getByText('How estimates work').waitFor();
+ assert.match(await p.locator('.sheet').innerText(),/past 90 days.*last 8 weeks of running mileage/);
+ assert.equal(await p.locator('.sheet .prediction-source').count(),data.predictions.length,'the sheet lists the actual recent efforts used');
+ if(out&&await p.evaluate(()=>innerWidth===390)){fs.mkdirSync(out,{recursive:true});const theme=await p.evaluate(()=>matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');await p.screenshot({path:`${out}/race-predictions-info-390-${theme}.png`,animations:'disabled'});}
+ assert.equal(await card.locator('.prediction-method').count(),0,'Card B has no inline expander');
+ await p.locator('.sheet [data-close]').click();assert.equal(await p.locator('.sheet').count(),0,'the explanation sheet closes cleanly');
+}
 async function fitnessWarning(p,ramp){
  const warning=p.locator('[data-progress-chart="training-load"] .fitness-ramp-warning');
  assert.equal(await warning.count(),ramp>8?1:0,'load warning appears only above the high-ramp threshold');
@@ -16,8 +41,7 @@ async function fitnessLanguage(p,data){
  assert.equal(values[0],String(Math.round(last.fitness)),'Fitness retains its API value');
  assert.equal(values[1],String(Math.round(last.fatigue)),'Fatigue retains its API value');
  assert.equal(values[2],formValue,'Form retains its signed API value');
- assert.deepEqual(await score.locator('.stat-row-item small').allTextContents(),['Current','Best in range','Best ever']);
- assert.equal((await score.locator('.stat-row-item b').first().innerText()).trim(),Number(data.vdot_now).toFixed(1),'Run score retains its API value');
+ assert.deepEqual(await score.locator('.stat-row-item small').allTextContents(),['Best in range','Best ever']);
  assert.doesNotMatch(await p.locator('#fi-pred,#fi-body').allInnerTexts().then(texts=>texts.join('\n')),/\b(?:VDOT|ramp)\b/i,'visible Fitness wording uses Run score and hides raw internals');
  await fitnessWarning(p,data.ramp_7d);
 }
@@ -37,7 +61,7 @@ with db.connect() as c:
   const login=await b.newContext();assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_subpages_'+state,password:'green teapot on the hill'}})).status(),200);const units=state==='typical'?'metric':'imperial',unitUpdate=await login.request.put(base+'/api/profile',{data:{units}});assert.equal(unitUpdate.status(),200,'fictional runner units update');const auth=await login.storageState(),data=await(await login.request.get(base+'/api/fitness?days=3650')).json();await login.close();
   if(state!=='empty')assert(data.predictions.every(row=>'best_year'in row),'every prediction carries a dated all-time-best reference');
   if(state==='typical'){const five=data.predictions.find(row=>row.label==='5K');assert(five&&five.seconds>five.best_s&&five.best_s===1170&&five.best_year===2024,'slower current 5K estimate keeps the faster 2024 record as a reference');assert.equal(data.predictions.find(row=>row.label==='10K').best_s,null,'a prediction can have no recorded best at its exact distance');}
-  for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16}]){
+  for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16},...(state==='typical'&&theme==='light'?[{width:330,height:844,root:16}]:[])]){
    const c=await b.newContext({storageState:auth,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'}),p=await c.newPage(),errors=[],writes=[];
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',r=>{const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(req.method())){if(u.pathname!=='/api/challenges/signup/continue')writes.push(u.pathname);return r.fulfill({json:{}});}return r.continue();});
@@ -58,28 +82,32 @@ with db.connect() as c:
    if(state!=='empty')assert((await p.locator('#fi-range').boundingBox()).y<(await p.locator('#fi-pred').boundingBox()).y,'Fitness range controls stay with the chart above predictions');
    if(state==='empty'){assert.equal(await p.locator('#p-load .chart-expand').count(),0,'empty Fitness has no full-screen/zoom affordance');assert.equal(await p.locator('#fi-body .fitness-card-empty').count(),1,'empty Fitness shows one calm message instead of a chart');assert.equal(await p.locator('#fi-pred').isHidden(),true,'race predictions stay hidden until there is activity data');assert.equal(await p.locator('.pred').count(),0);}
    else{
-    assert.equal(await p.locator('.prediction-cell').count(),4);assert.equal(await p.locator('.fitness-predictions a').count(),0,'prediction card has no source links or blue source text');assert.equal(await p.locator('.prediction-current').count(),0,'separate current-fitness line is removed');assert.equal(await p.locator('.prediction-note').innerText(),'Estimates from current fitness, not target paces.');const bestRows=data.predictions.filter(row=>Number.isFinite(row.best_s)&&row.best_s>0),expectedBests=bestRows.map(row=>'Best '+duration(row.best_s)+(Number.isInteger(row.best_year)?' · '+row.best_year:''));assert.deepEqual(await p.locator('.prediction-best').allTextContents(),expectedBests,'only available exact-distance bests are shown');assert.equal(await p.locator('.fitness-predictions').getByText('Best not recorded').count(),0,'missing records do not add a Best line');if(state==='typical')assert.equal(expectedBests[0],'Best 19:30 · 2024');
-    const shown=await p.locator('.prediction-time').allTextContents(),expected=await p.evaluate(rows=>rows.map(x=>dur(x.seconds)),data.predictions);assert.deepEqual(shown,expected,'displayed times equal unchanged API predictions');
-    const paces=await p.locator('.prediction-pace').allTextContents(),expectedPaces=await p.evaluate(rows=>rows.map(x=>U.pace(x.seconds/x.distance_m*1000)+U.pu()),data.predictions);assert.deepEqual(paces,expectedPaces,'pace respects the person’s units');assert.match(paces[0],state==='typical'?/\/km$/:/\/mi$/);
-    assert.equal(await p.locator('.prediction-method').getAttribute('open'),null);assert.equal(await p.locator('.prediction-note').count(),1);
-    assert.equal(await p.locator('.pred').evaluate(n=>getComputedStyle(n).gridTemplateColumns.trim().split(/\s+/).length),2,'two-column prediction grid at 390px');assert.equal(await p.locator('.prediction-cell.pr').count(),0,'no best-beating highlight');
-    const geometry=await p.evaluate(()=>{const box=n=>{const r=n.getBoundingClientRect();return {x:r.x,y:r.y,h:r.height,w:r.width,b:r.bottom};},card=document.querySelector('.fitness-predictions'),grid=card.querySelector('.pred'),s=getComputedStyle(card),g=getComputedStyle(grid);return {padding:[s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft].map(parseFloat),gap:[g.rowGap,g.columnGap].map(parseFloat),rows:[...grid.children].map(box),bad:[...grid.querySelectorAll('b')].filter(n=>n.scrollWidth>n.clientWidth+1).length};});assert(geometry.padding.every(v=>v>=16),'card padding: '+JSON.stringify(geometry));assert(geometry.gap.every(v=>v>=8));assert.equal(geometry.bad,0,'complete prediction times fit');assert(Math.abs(geometry.rows[0].y-geometry.rows[1].y)<1&&Math.abs(geometry.rows[2].y-geometry.rows[3].y)<1,'each pair shares a row');for(const a of await p.locator('.prediction-method > summary').all())assert((await a.boundingBox()).height>=44,'help disclosure44px target');
-    if(size.root<=16){const type=await p.locator('.prediction-time').first().evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(type>=20&&type<=24);const cardA=p.locator('[data-progress-chart="training-load"]'),cardBox=await cardA.boundingBox(),nav=await p.locator('nav.tabs').boundingBox();assert(await cardA.isVisible(),'the Fitness Card A chart is visible on the first screen');assert(cardBox.y+cardBox.height<nav.y,'Fitness Card A remains above the tab bar');}
+    await predictionTable(p,data);
+    if(state==='typical'&&size.width===390&&size.root===16&&theme==='light'){
+     const firstLinked=p.locator('.prediction-table-row[href]').first(),linkedHref=await firstLinked.getAttribute('href');assert(linkedHref,'fixture includes a prediction with a linked best activity');await Promise.all([p.waitForURL('**'+linkedHref),firstLinked.click()]);assert.equal(new URL(p.url()).pathname,linkedHref,'selecting a linked race row opens its best activity');await p.goto(base+'/progress?view=fitness');await ready();
+    }
+    assert.equal(await p.locator('.prediction-table-row').count(),data.predictions.length,'predicted times are listed only once');
+    assert.equal(await p.locator('.prediction-method,.prediction-note,.prediction-current').count(),0,'no inline explanation, footnote or duplicate current score remains');
+    const geometry=await p.evaluate(()=>{const card=document.querySelector('.fitness-predictions'),s=getComputedStyle(card),rows=[...card.querySelectorAll('[data-prediction-row]')].map(n=>{const r=n.getBoundingClientRect(),cells=[...n.querySelectorAll('[role="cell"]')].map(c=>{const b=c.getBoundingClientRect();return{x:b.x,right:b.right,scroll:c.scrollWidth,client:c.clientWidth};});return{x:r.x,right:r.right,y:r.y,height:r.height,cells};}),head=card.querySelector('.prediction-table-head').getBoundingClientRect();return{padding:[s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft].map(parseFloat),rows,headRight:head.right,cardRight:card.getBoundingClientRect().right};});assert(geometry.padding.every(v=>v>=16),'Card B has 16px insets');assert(geometry.rows.every(r=>r.height>=44&&r.x>=geometry.rows[0].x&&r.right<=geometry.cardRight+1),'prediction rows fit without clipping');for(const row of geometry.rows){assert(row.cells.every((c,i)=>c.scroll<=c.client+1&&(i===0||row.cells[i-1].right<=c.x+1)),`prediction values fit distinct columns: ${JSON.stringify(row.cells)}`);}
+    if(size.root<=16){const type=await p.locator('.prediction-time').first().evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(type<=22,'prediction times respect the compact type scale');const cardA=p.locator('[data-progress-chart="training-load"]'),cardBox=await cardA.boundingBox(),nav=await p.locator('nav.tabs').boundingBox();assert(await cardA.isVisible(),'the Fitness Card A chart is visible');if(size.width===390)assert(cardBox.y+cardBox.height<nav.y,'Fitness Card A remains above the tab bar on the initial phone screen');}
     console.log('Fitness spacing',state,size.width,size.root,theme,JSON.stringify(geometry));
-    await p.locator('.prediction-method summary').click();assert(await p.locator('.prediction-method').evaluate(n=>n.open));assert.match(await p.locator('.prediction-method').innerText(),/90 days/);assert.equal(await p.locator('.prediction-method .prediction-source').count(),4,'source details are tucked inside the explanation');assert.equal(await p.locator('.prediction-method a').count(),0,'source details remain plain text');await p.evaluate(()=>{const r=document.querySelector('.prediction-source:last-child').getBoundingClientRect(),n=document.querySelector('nav.tabs').getBoundingClientRect();window.scrollBy(0,Math.max(0,r.bottom-n.top+8));});const lastSource=await p.locator('.prediction-method .prediction-source').last().boundingBox(),tabs=await p.locator('nav.tabs').boundingBox();assert(lastSource.y+lastSource.height<=tabs.y,'the last source stays reachable above the tab bar when scrolled');await p.locator('.prediction-method summary').click();
     assert.match(await p.locator('[data-progress-chart="run-score"] .progress-chart-heading').innerText(),/Run score/i);assert.match(await p.locator('#p-vdot .legend').innerText(),/6-month average of monthly bests/);
     const swatches=await p.locator('#p-vdot .sw').evaluateAll(ns=>ns.map(n=>getComputedStyle(n).backgroundColor));assert(swatches.length===2&&swatches.every(c=>c!=='rgba(0, 0, 0, 0)'&&c!=='transparent'),'fitness keys have a visible color');
     await p.locator('#p-vdot .chart-expand').click();await until(p,()=>!!document.querySelector('.fitness-inspect svg'),'full Run score chart');assert.doesNotMatch(await p.locator('.sheet').innerText(),/\bVDOT\b/i,'expanded chart keeps the Run score name');await p.locator('.sheet [data-close]').click();assert.equal(await p.locator('.fitness-inspect').count(),0);
    }
    if(out&&state==='empty'&&size.width===390&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/race-predictions-empty-390-'+theme+'.png'});}
-   if(out&&state==='typical'&&size.width===390&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/race-predictions-390-'+theme+'.png'});}
+   if(out&&state==='typical'&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.locator('#fi-pred').screenshot({path:out+`/race-predictions-${size.width}-${theme}.png`,animations:'disabled'});}
    if(state==='typical'&&size.root===16){
     await fitnessLanguage(p,data);
     // Keep the fictional history and predictions; change only the browser response's load increase.
     let ramp=8,served=0;
     await c.route('**/api/fitness?*',r=>{served++;return r.fulfill({json:{...data,ramp_7d:ramp}});});
     for(const value of [8,8.1]){ramp=value;const previous=served;await p.reload();await ready();assert(served>previous,'load-warning variant uses the browser-local response');await fitnessWarning(p,ramp);}
-    if(out){await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/fitness-typical-390-'+theme+'.png'});}
+    if(size.width===390&&size.root===16){
+     const noLinkData={...data,predictions:data.predictions.map((row,index)=>index===0?{...row,from:{...row.from,activity_id:null}}:row)};
+     await c.route('**/api/fitness?*',r=>r.fulfill({json:noLinkData}));await p.reload();await ready();await predictionTable(p,noLinkData);assert.equal(await p.locator('.prediction-table-row').first().evaluate(n=>n.tagName),'DIV','a best without an activity id is not rendered as a link');
+     await c.route('**/api/fitness?*',r=>r.fulfill({json:{...data,vdot_now:null,predictions:[]}}));await p.reload();await ready();assert.equal(await p.locator('#fi-pred').isHidden(),true,'Card B stays hidden when there are no recent runs');assert.equal(await p.locator('.fitness-card-empty').count(),0,'old activity data still renders Card A rather than an empty state');assert.equal(await p.locator('#p-load .fitness-load-line').count(),1,'Fitness history remains visible without recent race efforts');if(out){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+`/fitness-no-recent-runs-390-${theme}.png`,fullPage:true,animations:'disabled'});}
+    }
    }
    if(state==='heavy')await require('./progress_polish_ui.cjs')(p,{size,theme});
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);await c.close();console.log(`Fitness ${state} ${size.width}/${size.root} ${theme} PASS`);

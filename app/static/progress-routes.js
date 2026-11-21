@@ -321,28 +321,26 @@ async function pFitnessLoaded(body, q) {
       const effort = source.label ? `${esc(source.label)} · ${esc(dur(source.elapsed_s))} · ${esc(date)}` : 'Source unavailable';
       return `<li class="prediction-source"><span>${esc(p.label)}</span><span>${effort}</span></li>`;
     };
-    const predictionBestReference = p => Number.isFinite(p.best_s) && p.best_s > 0
-      ? `${esc(dur(p.best_s))}${Number.isInteger(p.best_year) ? ` · ${p.best_year}` : ''}`
-      : null;
-    pbox.innerHTML = f.predictions.length ? `<div class="card fitness-predictions">
-        <h2>Race predictions</h2>
-        <div class="pred">${f.predictions.map(p => { const best = predictionBestReference(p); return `<div class="prediction-cell">
-          <small class="muted prediction-distance">${esc(p.label)}</small>
-          <b class="num prediction-time">${dur(p.seconds)}</b>
-          <small class="muted num prediction-pace">${esc(U.pace(p.seconds / p.distance_m * 1000))}${esc(U.pu())}</small>
-          ${best ? `<small class="muted pbest prediction-best">Best ${best}</small>` : ''}
-        </div>`; }).join('')}</div>
-        <p class="small muted prediction-note">Estimates from current fitness, not target paces.</p>
-        <details class="prediction-method"><summary>How estimates work</summary>
-          <p class="small muted">Each estimate uses the recent effort from the past 90 days that best matches that race distance, plus your last 8 weeks of running mileage. Course, weather and race-day pacing aren’t included.</p>
-          <div class="prediction-sources"><p class="small muted">Recent efforts used</p><ul>${f.predictions.map(predictionSourceDetail).join('')}</ul></div>
-        </details></div>`
+    const predictionBestReference = p => Number.isFinite(p.best_s) && p.best_s > 0 ? esc(dur(p.best_s)) : '–';
+    pbox.innerHTML = f.predictions.length ? `<section class="card fitness-predictions">
+        <header class="fitness-prediction-heading"><h2>Race predictions</h2><div class="fitness-prediction-actions"><span class="fitness-run-score"><small>Run score</small><b class="num">${f.vdot_now?Math.round(f.vdot_now):'–'}</b></span><button type="button" class="icon-btn fitness-prediction-info" id="fitness-estimates-info" aria-label="How estimates work" title="How estimates work">${svg('info')}</button></div></header>
+        <div class="prediction-table" role="table" aria-label="Race predictions">
+          <div class="prediction-table-head" role="row"><span role="columnheader">Distance</span><span role="columnheader">Now</span><span role="columnheader">Pace ${esc(U.pu())}</span><span role="columnheader">Best</span></div>
+          <div class="prediction-table-body" role="rowgroup">${f.predictions.map(p => {
+            const linkedId=p.from?.activity_id, rowTag=linkedId?'a':'div', href=linkedId?` href="/activity/${esc(linkedId)}"`:'';
+            const distance=p.label==='Half marathon'?'Half':p.label;
+            return `<${rowTag} class="prediction-table-row" role="row" data-prediction-row data-prediction-label="${esc(p.label)}"${href}><span role="cell" class="prediction-distance">${esc(distance)}</span><b role="cell" class="num prediction-time">≈${esc(dur(p.seconds))}</b><span role="cell" class="num prediction-pace">${esc(U.pace(p.seconds / p.distance_m * 1000))}</span><span role="cell" class="num prediction-best">${predictionBestReference(p)}</span></${rowTag}>`;
+          }).join('')}</div>
+        </div></section>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p><a class="primary wide prediction-start" data-fitness-empty-action href="/track">Record a run</a></div>';
     pbox.hidden=!hasPredictions;
+    if(hasPredictions){
+      const sources=`<div class="prediction-sources"><p class="small muted">Recent efforts used</p><ul>${f.predictions.map(predictionSourceDetail).join('')}</ul></div>`;
+      $('#fitness-estimates-info',pbox).onclick=()=>sheet('How estimates work',`<p>Each estimate uses the recent effort from the past 90 days that best matches that race distance, plus your last 8 weeks of running mileage. Course, weather and race-day pacing aren’t included.</p>${sources}`);
+    }
     const rangeScores=chartMonths.map(m=>m.v);
     const hasRunScoreHistory=rangeScores.filter(Number.isFinite).length>=2;
     const runScoreStats = hasRunScoreHistory ? ProgressUI.statRow([
-      {label:'Current',value:f.vdot_now?Number(f.vdot_now).toFixed(1):'–'},
       {label:'Best in range',value:Math.max(...rangeScores).toFixed(1)},
       {label:'Best ever',value:f0.vdot_months.length?Math.max(...f0.vdot_months.map(m=>m.v)).toFixed(1):'–'}
     ]) : '';
