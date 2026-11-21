@@ -8,4 +8,7 @@ docs
 *.md
 site
 dev
-mobile
+!mobile/
+mobile/**
+!mobile/package.json
+!mobile/package-lock.json

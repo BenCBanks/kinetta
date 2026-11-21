@@ -1,6 +1,8 @@
 """Disposable builds and real mobile-copy parity; no server, credentials or devices."""
 import hashlib
 import importlib.util
+import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -26,6 +28,17 @@ class AssetBuildTests(unittest.TestCase):
 
     def files(self,root):return {p.relative_to(root).as_posix():p.read_bytes() for p in root.rglob('*') if p.is_file()}
 
+    def test_js_aware_minifier_is_pinned_for_docker_and_native_builds(self):
+        mobile=json.loads((ROOT/'mobile/package.json').read_text())
+        self.assertEqual(mobile['dependencies']['esbuild'],'0.28.2')
+        docker=(ROOT/'Dockerfile').read_text()
+        self.assertIn('FROM node:22.22.1-slim AS js-minifier',docker)
+        self.assertIn('RUN npm ci --omit=dev',docker)
+        self.assertIn('/usr/local/bin/esbuild',docker)
+        source=(ROOT/'app/asset_build.py').read_text()
+        self.assertIn("'--minify-whitespace','--minify-syntax'",source)
+        self.assertNotIn('--minify-identifiers',source)
+
     def test_change_determinism_and_in_place_rebuild(self):
         with tempfile.TemporaryDirectory() as temp:
             parent=Path(temp);source=self.tree(parent);original=self.files(source)
@@ -50,7 +63,8 @@ class AssetBuildTests(unittest.TestCase):
             before=self.files(source);result=builder.build(source,parent/'docker')
             script=parent/'mobile/scripts/copy-web.mjs';script.parent.mkdir(parents=True);shutil.copy2(ROOT/'mobile/scripts/copy-web.mjs',script)
             shutil.copy2(ROOT/'app/asset_build.py',parent/'app/asset_build.py')
-            subprocess.run(['node',str(script)],check=True,capture_output=True)
+            env={**os.environ,'PATH':str(ROOT/'mobile/node_modules/.bin')+os.pathsep+os.environ.get('PATH','')}
+            subprocess.run(['node',str(script)],check=True,capture_output=True,env=env)
             expected=self.files(parent/'docker');expected.pop('sw.js')
             self.assertEqual(expected,self.files(parent/'mobile/www/static'))
             self.assertEqual((parent/'docker/index.html').read_bytes(),(parent/'mobile/www/index.html').read_bytes())
@@ -63,20 +77,20 @@ class AssetBuildTests(unittest.TestCase):
             self.assertNotIn('pages.js?v=',html,'the source runtime modules are bundled for the shell')
             critical=(parent/'docker/critical-shell.css').read_bytes()
             screens=(parent/'docker/route-screens.css').read_bytes()
-            self.assertEqual(critical,b'\n'.join(b'/* '+name.encode('ascii')+b' */\n'+(parent/'docker'/name).read_bytes() for name in builder.GENERATED_CSS['critical-shell.css']),'critical bundle preserves the original stylesheet bytes and order')
-            self.assertEqual(screens,b'\n'.join(b'/* '+name.encode('ascii')+b' */\n'+(parent/'docker'/name).read_bytes() for name in builder.GENERATED_CSS['route-screens.css']),'deferred bundle preserves the original stylesheet bytes and order')
-            self.assertLess(critical.index(b'/* theme.css */'),critical.index(b'/* paint-gate.css */'))
-            self.assertLess(critical.index(b'/* paint-gate.css */'),critical.index(b'/* style.css */'))
-            previous=critical.index(b'/* style.css */')
+            self.assertEqual(critical,b'\n'.join(b'/*! '+name.encode('ascii')+b' */\n'+builder.cssmin((parent/'docker'/name).read_text()).encode() for name in builder.GENERATED_CSS['critical-shell.css']),'critical bundle contains minified source modules in their original order')
+            self.assertEqual(screens,b'\n'.join(b'/*! '+name.encode('ascii')+b' */\n'+builder.cssmin((parent/'docker'/name).read_text()).encode() for name in builder.GENERATED_CSS['route-screens.css']),'deferred bundle contains minified source modules in their original order')
+            self.assertLess(critical.index(b'/*! theme.css */'),critical.index(b'/*! paint-gate.css */'))
+            self.assertLess(critical.index(b'/*! paint-gate.css */'),critical.index(b'/*! style.css */'))
+            previous=critical.index(b'/*! style.css */')
             for name in ('password-visibility.css','username-availability.css','email-account.css','login.css'):
-                marker=b'/* '+name.encode('ascii')+b' */'
+                marker=b'/*! '+name.encode('ascii')+b' */'
                 self.assertIn(marker,critical,'pre-route auth styles stay in the eager shell bundle: '+name)
                 self.assertGreater(critical.index(marker),previous,'pre-route auth CSS preserves its former order: '+name)
                 self.assertNotIn(marker,screens,'pre-route auth styles are absent from deferred screen CSS: '+name)
                 previous=critical.index(marker)
-            self.assertLess(screens.index(b'/* activity-import.css */'),screens.index(b'/* food.css */'))
-            self.assertLess(screens.index(b'/* activity-home.css */'),screens.index(b'/* activity-detail.css */'))
-            self.assertLess(screens.index(b'/* challenges.css */'),screens.index(b'/* recaps-ui.css */'))
+            self.assertLess(screens.index(b'/*! activity-import.css */'),screens.index(b'/*! food.css */'))
+            self.assertLess(screens.index(b'/*! activity-home.css */'),screens.index(b'/*! activity-detail.css */'))
+            self.assertLess(screens.index(b'/*! challenges.css */'),screens.index(b'/*! recaps-ui.css */'))
             for match in builder.REFERENCE.finditer(html):
                 url=urlsplit(match['url'])
                 if not url.path.startswith('/static/') and url.path!='/manifest.webmanifest':continue
@@ -88,10 +102,25 @@ class AssetBuildTests(unittest.TestCase):
             self.assertIn(result['shell'],(parent/'docker/sw.js').read_text())
             built_app=(parent/'docker/app.js').read_text()
             built_shell=(parent/'docker/app-shell.js').read_text()
-            self.assertEqual((parent/'docker/app-shell.js').read_bytes(),b'\n;\n'.join(b'/* '+name.encode('ascii')+b' */\n'+(parent/'docker'/name).read_bytes() for name in builder.GENERATED_JS['app-shell.js']),'shell bundle preserves runtime script bytes and order')
-            self.assertLess(built_shell.index('/* keyboard.js */'),built_shell.index('/* app.js */'))
-            self.assertLess(built_shell.index('/* app.js */'),built_shell.index('/* paint-gate.js */'))
-            self.assertLess(built_shell.index('/* pages.js */'),built_shell.index('/* recaps.js */'))
+            self.assertEqual((parent/'docker/app-shell.js').read_bytes(),b'\n;\n'.join(b'/*! '+name.encode('ascii')+b' */\n'+builder.jsmin((parent/'docker'/name).read_text()).encode() for name in builder.GENERATED_JS['app-shell.js']),'shell bundle contains every minified runtime source module in its original order')
+            self.assertLess(built_shell.index('/*! keyboard.js */'),built_shell.index('/*! app.js */'))
+            self.assertLess(built_shell.index('/*! app.js */'),built_shell.index('/*! paint-gate.js */'))
+            self.assertLess(built_shell.index('/*! pages.js */'),built_shell.index('/*! recaps.js */'))
+            if builder._esbuild_path():
+                self.assertLess(len((parent/'docker/app-shell.js').read_bytes()),sum((parent/'docker'/name).stat().st_size for name in builder.GENERATED_JS['app-shell.js']))
+                template='const deliberatelyLongName = `Shoes & bikes`; const match = /a b/.test("a b"); console.log(deliberatelyLongName,match);'
+                minified=builder.jsmin(template)
+                self.assertIn('Shoes & bikes',minified,'JS-aware minification preserves template literal whitespace')
+                self.assertIn('deliberatelyLongName',minified,'Syntax/whitespace minification does not rename identifiers')
+                checked=subprocess.run(['node','--check','--input-type=commonjs','-'],input=minified,text=True,check=True,capture_output=True)
+                self.assertEqual(checked.stdout,'')
+                evaluated=subprocess.run(['node','-e',minified],text=True,check=True,capture_output=True)
+                self.assertEqual(evaluated.stdout,'Shoes & bikes true\n','template and regex literals keep runtime values')
+            if builder._esbuild_path():
+                self.assertLess(len(critical),sum((parent/'docker'/name).stat().st_size for name in builder.GENERATED_CSS['critical-shell.css']))
+            self.assertNotIn(b'//# sourceMappingURL=',(parent/'docker/app-shell.js').read_bytes())
+            self.assertNotIn(b'/*# sourceMappingURL=',critical)
+            subprocess.run(['node','--check',str(parent/'docker/app-shell.js')],check=True,capture_output=True)
             self.assertIn('/static/route-screens.css?v='+result['assets']['route-screens.css'],built_shell,'screen styles use their generated content hash at runtime')
             self.assertIn('/static/explore.js?v='+result['assets']['explore.js'],built_shell,'the generated shell keeps Explore’s deferred content hash')
             self.assertIn('/static/route-screens.css?v='+result['assets']['route-screens.css'],built_app,'screen styles use their generated content hash at runtime')
@@ -117,7 +146,7 @@ class AssetBuildTests(unittest.TestCase):
             self.assertIn('/static/planner.js?v='+result['assets']['planner.js'],built_app,'the deferred Planner route points at its own content hash')
             self.assertIn('/static/recap-editor.js?v='+result['assets']['recap-editor.js'],built_app,'the action-loaded recap editor uses its own content hash')
             self.assertNotIn('/static/recap-editor.js?v=',html,'recap editor is absent before explicit share intent')
-            self.assertIn('/* recaps.js */',built_shell,'recap dates, summaries and entry helpers stay in the shell bundle')
+            self.assertIn('/*! recaps.js */',built_shell,'recap dates, summaries and entry helpers stay in the shell bundle')
             self.assertNotIn('/static/cook.js?v=',html,'Cook is not an eager HTML script')
             self.assertNotIn('/static/recipe-import.js?v=',html,'recipe import is not an eager HTML script')
             self.assertNotIn('/static/planner.js?v=',html,'Planner is not an eager HTML script')

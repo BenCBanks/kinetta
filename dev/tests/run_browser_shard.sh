@@ -6,6 +6,8 @@ if [[ $# -ne 1 ]]; then
   exit 2
 fi
 
+NODE_PATH="${NODE_PATH:-dev/tests/browser/node_modules}" node "$PWD/dev/tests/minified_bundle_guard.cjs"
+
 case "$1" in
   1)
     node dev/tests/interval_voice_ui.cjs
