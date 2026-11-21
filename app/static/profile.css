@@ -505,7 +505,7 @@
 /* Today uses one inset list, directly below the unchanged shareable Me card. */
 .me-today { margin:16px 0 16px; }
 .me-today-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; min-height:34px; margin:0 0 2px; }
-.me-today-head h2 { margin:0; font-size:20px; line-height:1.3; font-weight:700; }
+.me-today-head h2 { margin:0; font-size:1.25rem; line-height:1.3; font-weight:700; }
 .me-today-date { color:var(--tx3); font-size:13px; font-weight:500; text-align:right; white-space:nowrap; }
 .me-today-date small { display:block; color:var(--tx3); font-size:12px; }
 .me-today-list.card.list { margin:0; padding:0 12px; border:1px solid color-mix(in srgb,var(--line) 75%,transparent); border-radius:16px; background:var(--surface-raised); box-shadow:var(--elevation-rest); }
@@ -1056,7 +1056,7 @@
 .me-tools.card.list > .row-link + .row-link,.me-help-tools.card.list > .row-link + .row-link { margin-top:0; }
 .me-tools .row-link > .ri,.me-help-tools .row-link > .ri { flex:none; width:24px; height:24px; border-radius:8px; }
 .me-tools .row-link > .ri > svg,.me-help-tools .row-link > .ri > svg { width:20px; height:20px; }
-.me-tools .row-link .grow,.me-help-tools .row-link .grow { font-size:17px; font-weight:700; line-height:1.25; }
-.me-tools .row-link .grow small,.me-help-tools .row-link .grow small { margin-top:2px; font-size:15px; font-weight:500; line-height:1.3; }
+.me-tools .row-link .grow,.me-help-tools .row-link .grow { font-size:1rem; font-weight:600; line-height:1.25; }
+.me-tools .row-link .grow small,.me-help-tools .row-link .grow small { margin-top:2px; font-size:.875rem; font-weight:500; line-height:1.3; }
 .me-tools .row-link > .chev,.me-help-tools .row-link > .chev { display:grid; flex:none; width:20px; height:20px; place-items:center; }
 .me-tools.card.list > .row-link + .row-link::before,.me-help-tools.card.list > .row-link + .row-link::before { left:40px; right:0; }
