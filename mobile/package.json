@@ -12,7 +12,8 @@
     "@capacitor/ios": "8.5.3",
     "@capacitor/keyboard": "8.0.5",
     "@capacitor/preferences": "8.0.1",
-    "capacitor-health": "8.4.0"
+    "capacitor-health": "8.4.0",
+    "esbuild": "0.28.2"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3"

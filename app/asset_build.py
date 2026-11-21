@@ -8,8 +8,34 @@ import hashlib
 from html import escape, unescape
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import tempfile
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+def _esbuild_path():
+    installed=shutil.which('esbuild')
+    if installed:return installed
+    local=Path(__file__).resolve().parents[1]/'mobile/node_modules/.bin/esbuild'
+    return str(local) if local.is_file() else None
+
+
+def jsmin(text):
+    executable=_esbuild_path()
+    if not executable:
+        # Unit tests on the host can still check deterministic bundling without
+        # app dependencies; deployable Docker/native builds require esbuild.
+        return text
+    result=subprocess.run([executable,'--loader=js','--minify-whitespace','--minify-syntax','--target=es2020'],input=text,text=True,capture_output=True,check=True)
+    return result.stdout.strip()
+
+
+def cssmin(text):
+    executable=_esbuild_path()
+    if not executable:
+        # Host-only contract tests may run without the mobile build dependency.
+        return text
+    result=subprocess.run([executable,'--loader=css','--minify-whitespace'],input=text,text=True,capture_output=True,check=True)
+    return result.stdout.strip()
 
 ASSET = '__ASSET_HASH__'
 SHELL = '__SHELL_HASH__'
@@ -84,13 +110,13 @@ def build(source, output):
     for bundle,names in GENERATED_CSS.items():
         if not all((source/name).is_file() for name in names):continue
         files[bundle]=b'\n'.join(
-            b'/* '+name.encode('ascii')+b' */\n'+(source/name).read_bytes()
+            b'/*! '+name.encode('ascii')+b' */\n'+cssmin((source/name).read_text(encoding='utf-8')).encode('utf-8')
             for name in names
         )
     for bundle,names in GENERATED_JS.items():
         if not all((source/name).is_file() for name in names):continue
         files[bundle]=b'\n;\n'.join(
-            b'/* '+name.encode('ascii')+b' */\n'+(source/name).read_bytes()
+            b'/*! '+name.encode('ascii')+b' */\n'+jsmin((source/name).read_text(encoding='utf-8')).encode('utf-8')
             for name in names
         )
     if 'index.html' not in files or 'sw.js' not in files:raise ValueError('Missing web entry or service worker')

@@ -1,5 +1,5 @@
 """Run native layout evidence on isolated Simulator devices. Fixtures and artifacts contain no real data."""
-import argparse,hashlib,json,os,platform,re,subprocess,time,uuid
+import argparse,hashlib,importlib.util,json,os,platform,re,subprocess,time,uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 import urllib.request
@@ -13,7 +13,20 @@ def layout_stages(theme):
  # The bundled achievement share flow is covered once in light; both themes remain covered in browser UI.
  return [case for case in LAYOUT_STAGES if (case[0]!='achievement-share-track' or theme=='light') and (case[0]!='activity-photos-save' or theme=='light')]
 from startup_timing import phase_durations,summary_markdown
+asset_spec=importlib.util.spec_from_file_location('asset_build',Path('app/asset_build.py'))
+asset_build=importlib.util.module_from_spec(asset_spec);asset_spec.loader.exec_module(asset_build)
+def assert_minified_bundle(app):
+ shell=app/'public/static/app-shell.js';critical=app/'public/static/critical-shell.css'
+ assert shell.is_file() and critical.is_file(),'Built app is missing generated shell assets'
+ shell_text=shell.read_text();critical_text=critical.read_text()
+ assert 'sourceMappingURL=' not in shell_text+critical_text,'Native bundle must not ship sourcemaps'
+ for bundle,names in (('app-shell.js',asset_build.GENERATED_JS['app-shell.js']),('critical-shell.css',asset_build.GENERATED_CSS['critical-shell.css'])):
+  target=shell if bundle.endswith('.js') else critical
+  raw=sum((Path('app/static')/name).stat().st_size for name in names)
+  assert len(target.read_bytes())<raw,'Native app received an unminified '+bundle
+  for name in names:assert f'/*! {name} */' in target.read_text(),'Native bundle missing module marker: '+name
 p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+assert_minified_bundle(a.app)
 assert not (a.store and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
