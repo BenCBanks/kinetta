@@ -290,6 +290,31 @@ Object.assign(KitChat, (() => {
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/food/insights':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
     if(!el||!screen)return;
     const insights=path==='/food'&&new URLSearchParams(globalThis.location?.search).get('view')==='overview';
+    if(path==='/activity'){
+      const existing=el.querySelector('[data-kit-entry]');
+      if(!kitChatOn()){existing?.remove();el.querySelector('.home-quiet-kit')?.remove();return;}
+      const placement=new URLSearchParams(globalThis.location?.search).get('kit-home')==='row'?'row':'header';
+      const heading=el.querySelector('#feed-top .shell-topbar-root');
+      if(!heading)return;
+      const link=existing||document.createElement('a');
+      link.className='kit-help home-kit-entry';link.setAttribute('data-kit-entry','');link.innerHTML=svg('sparkle');
+      link.href=href('activity');link.setAttribute('aria-label','Ask Kit');link.title='Ask Kit';
+      const row=el.querySelector('.home-quiet-actions');
+      if(placement==='row'){
+        heading.removeAttribute('data-kit-home-placement');
+        link.classList.add('home-quiet-kit');
+        if(row&&!row.contains(link))row.append(link);
+        if(existing&&existing.parentElement===heading)existing.remove();
+      }else{
+        row?.querySelector('.home-quiet-kit')?.remove();
+        link.classList.remove('home-quiet-kit');
+        heading.setAttribute('data-kit-home-placement','header');
+        const title=heading.querySelector('h1');
+        if(title&&!heading.contains(link))title.after(link);
+        if(link.parentElement!==heading)heading.append(link);
+      }
+      return;
+    }
     const heading=insights?el.querySelector('#nt-coach'):el.querySelector('.top,.me-top');if(!heading)return;
     const enabled=kitChatOn();
     if(!entryRelevant(path,enabled)){el.querySelector('[data-kit-entry]')?.remove();return checkActivityEntry(el,path);}

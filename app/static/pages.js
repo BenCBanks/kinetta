@@ -619,7 +619,8 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 // the bell (2026-10-12: on Today, Activity, Progress and Nutrition), with the unread count; it opens the list only
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot${n > 9 ? ' many' : ''}"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
-const actTop = () => TopBar({title:'Home',root:true,actions:`<a class="icon-btn home-find-friends" href="/me/friends?find=1&from=home" aria-label="Find friends">${svg('search')}</a>${bellBtn()}<a class="icon-btn" href="/track" aria-label="Record or import a workout">${svg('plus')}</a>`});
+// Keep Home to two trailing actions. Find friends lives in the quiet row below the tabs.
+const actTop = () => TopBar({title:'Home',root:true,actions:`${bellBtn()}<a class="icon-btn" href="/track" aria-label="Record or import a workout">${svg('plus')}</a>`});
 route(/^\/activity$/, 'activity', async el=>{
   const q=new URLSearchParams(location.search);
   if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.toString()?'?'+q:''),{replace:true});}
