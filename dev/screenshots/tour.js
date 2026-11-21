@@ -101,31 +101,16 @@ async function stageChat(page) {
   await constrain(page);
 }
 
-async function saveChallengeCrop(page, name, scheme) {
-  const target = page.locator(name === 'challenge-start' ? '.sheet' : '#challenge-detail');
-  await target.scrollIntoViewIfNeeded();
-  if (name === 'challenge-start') {
-    const png = await target.screenshot({animations: 'disabled'});
-    const webp = await page.evaluate(async (data) => {
-      const image = new Image(); image.src = 'data:image/png;base64,' + data; await image.decode();
-      const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
-      canvas.getContext('2d').drawImage(image, 0, 0);
-      return canvas.toDataURL('image/webp', 0.9).split(',')[1];
-    }, png.toString('base64'));
-    fs.writeFileSync(`${OUT}/${name}-${scheme}.webp`, Buffer.from(webp, 'base64'));
-    return;
+async function saveChallengePhone(page, name, scheme) {
+  // Publish the complete app viewport as a phone screen. Cropping the sheet or
+  // detail card makes the website image wider and shorter than the iPhone frame.
+  await page.setViewportSize({width: 393, height: 852});
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const png = await page.screenshot({animations: 'disabled'});
+  if (RAW_OUT) {
+    fs.mkdirSync(RAW_OUT, {recursive: true});
+    fs.writeFileSync(path.join(RAW_OUT, `${name}-${scheme}.png`), png);
   }
-  const box = await target.boundingBox();
-  if (!box) throw Error(`Missing ${name} screenshot target`);
-  // Keep the app page's surrounding surface in the image. A locator-only crop
-  // cuts off the natural page gutter and makes the detail title look clipped.
-  const clip = {
-    x: Math.max(0, Math.floor(box.x - PAD)),
-    y: Math.max(0, Math.floor(box.y - PAD)),
-    width: Math.min(await page.evaluate(() => innerWidth), Math.ceil(box.x + box.width + PAD)) - Math.max(0, Math.floor(box.x - PAD)),
-    height: Math.ceil(box.height + 2 * PAD),
-  };
-  const png = await page.screenshot({clip, animations: 'disabled'});
   const webp = await page.evaluate(async (data) => {
     const image = new Image(); image.src = 'data:image/png;base64,' + data; await image.decode();
     const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
@@ -228,13 +213,13 @@ async function saveChallengeCrop(page, name, scheme) {
       assert.deepEqual(choices.map(text => text.trim().split('\n')[0]), ['Distance', 'Active days', 'Activities', 'Food logging days', 'Protein goal days']);
       await page.evaluate(() => document.fonts.ready);
       await saveRawViewport(page, `challenge-start-${scheme}.png`);
-      await saveChallengeCrop(page, 'challenge-start', scheme);
+      await saveChallengePhone(page, 'challenge-start', scheme);
       await page.goto(B + `/me/challenges/${challenge.code}`);
       await page.locator('#challenge-detail .challenge-hero').waitFor({state: 'visible'});
       await page.locator('#challenge-detail .challenge-person-row').nth(2).waitFor({state: 'visible'});
       await page.evaluate(() => document.fonts.ready);
       await saveRawViewport(page, `challenge-detail-${scheme}.png`);
-      await saveChallengeCrop(page, 'challenge-detail', scheme);
+      await saveChallengePhone(page, 'challenge-detail', scheme);
       }
       await context.close();
     }

@@ -36,7 +36,7 @@ Log a meal in a sentence.
 
 ## home-nutrition-description
 
-Tell Kit what you ate. Kit logs the matched foods and estimate, then offers a quick way to add another food.
+Tell Kit what you ate. Review the matched foods, portions and estimate, then choose Add to log.
 
 ## home-activity-kicker
 
@@ -67,7 +67,7 @@ Am I improving?
 
 ## home-kit-answer
 
-Your latest run total is below your recent average; this chart also shows stronger weeks. One week alone cannot establish a lasting trend.
+Your latest run total is below your recent average.
 
 ## home-badges-kicker
 
