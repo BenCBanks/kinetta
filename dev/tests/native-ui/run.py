@@ -41,12 +41,12 @@ print('Native UI runtime: '+runtime['name']+'; SDK '+sdk+'; '+platform.machine()
 types=json.loads(sim('list','devicetypes','-j'))['devicetypes'];iphones=[t for t in types if t.get('productFamily')=='iPhone' or t['name'].startswith('iPhone')]
 existing=json.loads(sim('list','devices','available','-j'))['devices'].get(runtime['identifier'],[])
 preferred=[]
-for names in [('iPhone SE (3rd generation)','iPhone 16e','iPhone 17'),('iPhone 17 Pro','iPhone 16 Pro','iPhone 16 Pro Max')]:
+for names in [('iPhone 18e','iPhone 18','iPhone 17','iPhone 16e','iPhone SE (3rd generation)'),('iPhone 18 Pro','iPhone 17 Pro','iPhone 16 Pro','iPhone 16 Pro Max')]:
  choice=next((t for name in names for t in iphones if t['name']==name),None)
  if choice:preferred.append(choice)
 if a.store:
- preferred=[next((t for t in iphones if t['name']=='iPhone 16 Pro Max'),None)]
- assert preferred[0], 'Exact1320x2868 iPhone16ProMax Simulator type required; no fallback/upscaling'
+ preferred=[next((t for name in ('iPhone 18 Pro Max','iPhone 17 Pro Max','iPhone 16 Pro Max') for t in iphones if t['name']==name),None)]
+ assert preferred[0], 'Native 1320x2868 6.9-inch iPhone Pro Max Simulator type required; no fallback/upscaling'
 assert a.store or len(preferred)==2,'Two phone device types are required'
 if not a.store and a.device!='all':preferred=[preferred[0 if a.device=='compact' else 1]]
 if a.store:
