@@ -81,7 +81,12 @@ const app=fs.readFileSync('app/static/app.js','utf8');
 
 // The actual router position helper: Back/Forward and same-page refresh retain place per account.
 {
- let owner='first';const c={App:{scroll:{}},scrollY:0,readOwner:()=>owner};vm.createContext(c);
+ let owner='first';const activityPath=path=>/^\/activity(?:\/|$)/.test(new URL(path,'https://fictional.invalid').pathname);
+ const c={App:{scroll:{}},scrollY:0,readOwner:()=>owner,
+  sectionTabForPath:path=>activityPath(path)?'activity':null,
+  savedSectionReturn:()=>null,
+  sectionReturnPathAllowed:(tab,path)=>tab==='activity'&&activityPath(path),
+  saveSectionReturn(){},skipSectionSaveOnNextRoute:false};vm.createContext(c);
  vm.runInContext(app.slice(app.indexOf('function pagePosition'),app.indexOf('function render(options)')),c);
  assert.equal(c.pagePosition('/activity'),0);c.scrollY=12000;assert.equal(c.pagePosition('/activity/7'),0);
  c.scrollY=900;assert.equal(c.pagePosition('/activity'),12000,'Back restores the list');
