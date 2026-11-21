@@ -27,6 +27,7 @@ const cases=[['signin',1],['signup',1],['invite',1],['temporary',2],['reset',1],
      if(kind==='delete')deleteSheet();
      if(kind==='change')passwordSheet();
     },kind);}
+    if(kind==='signup'){await p.locator('input[name=name]').fill('Fictional Member');await p.locator('input[name=email]').fill('member@example.test');await p.locator('.signup-next:visible').click();}
     const fields=admin?p.locator(kind==='admin-signin'?'#login .password-input':'#dialog .password-input'):p.locator('.password-input');
     await fields.first().waitFor();assert.equal(await fields.count(),count,kind+' expected password fields');
     if(['temporary','reset','delete','change'].includes(kind))assert(await fields.first().evaluate(n=>n===document.activeElement),'Initial password focus survives enhancement');
@@ -52,7 +53,7 @@ const cases=[['signin',1],['signup',1],['invite',1],['temporary',2],['reset',1],
      assert.equal(await input.getAttribute('type'),'password');assert.equal(await button.getAttribute('aria-pressed'),'false');assert.equal(await button.locator('svg').count(),1,'Submit handler keeps the eye control intact');
      tested++;
     }
-    const first=fields.first(),handle=await first.elementHandle();await first.fill('fictional passphrase');await first.locator('..').locator('.password-visibility-button').tap();
+    const first=fields.first(),handle=await first.elementHandle();if(kind!=='signup'){await first.fill('fictional passphrase');await first.locator('..').locator('.password-visibility-button').tap();}
     if(admin&&kind!=='admin-signin')await p.locator('#close').click();
     else if(!admin&&['email','delete','change'].includes(kind))await p.locator('.sheet header [data-close]').click();
     else if(admin)await p.evaluate(()=>document.querySelector('#login').hidden=true);
