@@ -1,0 +1,25 @@
+{
+  "topInsetPx": 59,
+  "captures": [
+    {
+      "scene": "light-challenge-start",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "light-challenge-detail",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-challenge-start",
+      "topInsetPx": 59,
+      "controlsClear": true
+    },
+    {
+      "scene": "dark-challenge-detail",
+      "topInsetPx": 59,
+      "controlsClear": true
+    }
+  ]
+}

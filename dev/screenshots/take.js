@@ -5,6 +5,7 @@
 // Like a real iPhone (2026-10-13): the app gets the status bar's 59 px at the top and the home bar's 34 px at the bottom
 // (its stylesheet's safe-area values are filled in), and a status bar with the Dynamic Island and the home bar are drawn over it.
 const {chromium} = require('playwright');
+const fs = require('node:fs');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 const SCREENSHOT_CLOCK = require('./fixture-time.json');
 const OWNER_LOGIN = process.env.KINETTA_SCREENSHOT_FIXTURE === '1' ? 'nia' : 'alex';
@@ -30,8 +31,26 @@ const H = Number(process.env.SCREENSHOT_HEIGHT || 852);
 const SCALE = Number(process.env.SCREENSHOT_SCALE || 2);
 const TOP = Number(process.env.SCREENSHOT_SAFE_TOP || 59), BOTTOM = Number(process.env.SCREENSHOT_SAFE_BOTTOM || 34);
 const SCHEMES = (process.env.SCREENSHOT_THEMES || 'light,dark').split(',').filter(value => ['light','dark'].includes(value));
+const SAFE_AREA_AUDIT = [];
 if (![W,H,SCALE,TOP,BOTTOM].every(Number.isFinite) || W < 320 || H < 600 || SCALE < 1 || SCALE > 4 || !SCHEMES.length) {
   throw Error('Invalid browser screenshot viewport/theme settings');
+}
+async function emulateSafeArea(route) {
+  if (new URL(route.request().url()).origin !== B) return route.fallback();
+  const response = await route.fetch(), css = (await response.text())
+    .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px')
+    .replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
+  await route.fulfill({response, body: css});
+}
+async function assertTopSafeControls(page, scene) {
+  const overlaps = await page.evaluate(top => [...document.querySelectorAll('a[href],button,[role="button"],input,select,textarea')]
+    .filter(el => {
+      const r=el.getBoundingClientRect(),s=getComputedStyle(el);
+      return r.width>0&&r.height>0&&r.bottom>0&&r.top<top&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)>.05&&s.pointerEvents!=='none';
+    })
+    .map(el => ({tag:el.tagName,label:(el.getAttribute('aria-label')||el.textContent||'').trim().replace(/\s+/g,' ').slice(0,48),top:Math.round(el.getBoundingClientRect().top),bottom:Math.round(el.getBoundingClientRect().bottom)})), TOP);
+  if(overlaps.length)throw Error(`${scene}: controls overlap the first ${TOP}px status-bar safe area: ${JSON.stringify(overlaps)}`);
+  SAFE_AREA_AUDIT.push({scene,topInsetPx:TOP,controlsClear:true});
 }
 async function enableKitForDemo(page) {
   // Kit requires the person's explicit opt-in; this is only the fictional screenshot account.
@@ -195,11 +214,7 @@ async function closeCaptureContext(context) {
     const context = await browser.newContext({viewport: {width: W, height}, deviceScaleFactor: SCALE, colorScheme: scheme,
       timezoneId: SCREENSHOT_CLOCK.timezone, serviceWorkers: 'block'});
     await context.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
-    await context.route('**/style.css*', async route => {
-      const r = await route.fetch(), css = (await r.text())
-        .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
-      await route.fulfill({response: r, body: css});
-    });
+    await context.route('**/*.css*', emulateSafeArea);
     const page = await context.newPage();
     await page.clock.setFixedTime(new Date(SCREENSHOT_CLOCK.instant));
     page.on('pageerror', e => errors.push(`${scheme}: ${e.message}`));
@@ -239,11 +254,7 @@ async function closeCaptureContext(context) {
       return route.fallback();
     });
     // the iPhone's status bar and home bar spaces: what env(safe-area-inset-*) is on a phone (0 in a desktop browser)
-    await page.route('**/style.css*', async (route) => {
-      const r = await route.fetch(), css = (await r.text())
-        .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
-      await route.fulfill({response: r, body: css});
-    });
+    await page.route('**/*.css*', emulateSafeArea);
     await page.route('**/api/food/photo', (route) => { const body = JSON.parse(route.request().postData() || '{}');
       route.fulfill({json: body.images || body.image ? BOWL(body.note) : SAMPLE(body.note)}); });
     await page.route('**/api/food/barcode/*', (route) => route.fulfill({json: PRODUCT}));
@@ -480,14 +491,15 @@ async function closeCaptureContext(context) {
         const renderedCounts=await summaryCounts.allTextContents(),legacyCount=await summaryButton.locator('.num').count(),summaryVisible=await summaryButton.isVisible();
         if(reactLabel!=='React'||!await reactIcon.isVisible()||!summaryVisible||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||renderedCounts.length!==3||renderedCounts.map(value=>value.trim()).join(',')!=='1,1,1'||legacyCount)throw Error('Demo feed reaction footer mismatch: '+JSON.stringify({reactLabel,reactIconVisible:await reactIcon.isVisible(),summaryVisible,kinds,shown,renderedCounts,legacyCount}));
         // The Home scene has a large Today card before the feed. Align the featured
-        // post below the fixed header so the complete post and its footer fit together.
+        // post below the safe-area inset so the view-switch links never sit under
+        // the simulated status bar while the complete post and its footer fit together.
         // The standalone feed scene keeps the prior footer clearance for taller layouts.
-        await group.evaluate((el, homeFeed)=>{
+        await group.evaluate((el, {homeFeed,safeTop})=>{
           const tabs=document.querySelector('nav.tabs');
           if(!tabs)return;
           if(homeFeed){
             const top=el.closest('.post')?.getBoundingClientRect().top;
-            if(Number.isFinite(top))window.scrollBy(0,top-66);
+            if(Number.isFinite(top))window.scrollBy(0,top-(safeTop+66));
             return;
           }
           const footer=el.closest('.post-ft');
@@ -496,7 +508,7 @@ async function closeCaptureContext(context) {
           const rowBottom=Math.max(...controls.map(node=>node.getBoundingClientRect().bottom));
           const safeBottom=tabs.getBoundingClientRect().top-8;
           if(rowBottom>safeBottom)window.scrollBy(0,rowBottom-safeBottom);
-        },name==='home-feed');
+        },{homeFeed:name==='home-feed',safeTop:TOP});
         const geometry=await group.evaluate(el=>{
           const footer=el.closest('.post-ft');
           const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count'),share=footer?.querySelector('[data-share-picture]');
@@ -608,8 +620,17 @@ async function closeCaptureContext(context) {
         await pane.waitFor();
         const content=pane.locator('.activity-splits-scroll tbody tr').first();
         await content.waitFor({state:'visible'});
-        await content.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));
+        await content.evaluate((el,safeTop)=>{
+          window.scrollTo({top:scrollY+el.getBoundingClientRect().top-390,behavior:'instant'});
+          const maps=[...document.querySelectorAll('.activity-detail .map-head,.activity-detail .detail-map-hero,.activity-detail .compact-media')];
+          const bottom=Math.max(0,...maps.map(map=>map.getBoundingClientRect().bottom));
+          if(bottom>safeTop)window.scrollTo({top:scrollY+bottom-safeTop,behavior:'instant'});
+        },TOP);
+        // The route map is partly scrolled off in this crop; its zoom widget would
+        // otherwise float into the status-bar zone while the split rows remain visible.
+        await page.locator('.activity-detail .leaflet-control-zoom').evaluateAll(nodes=>nodes.forEach(node=>node.style.display='none'));
       }
+      await assertTopSafeControls(page, `${scheme}-${name}`);
       await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
@@ -629,5 +650,6 @@ async function closeCaptureContext(context) {
     } finally { await browser.close(); }
   }
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
+  fs.writeFileSync(`${OUT}/safe-area-audit.json`, JSON.stringify({topInsetPx:TOP,captures:SAFE_AREA_AUDIT},null,2)+'\n');
   console.log('shots taken');
 })();

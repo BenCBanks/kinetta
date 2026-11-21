@@ -16,6 +16,13 @@ const widths=(process.env.KINETTA_WEBSITE_WIDTHS||'1280,768,430,390,320').split(
 const themes=(process.env.KINETTA_WEBSITE_THEMES||'light,dark').split(',');
 const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
 const engines=(process.env.KINETTA_WEBSITE_ENGINES||'chromium').split(',');
+function assertSafeAreaReport(file,required){
+ const report=JSON.parse(fs.readFileSync(file,'utf8'));assert.equal(report.topInsetPx,59,`${file} uses the iPhone 15 Pro's 59px top inset`);
+ const passed=new Set((report.captures||[]).filter(x=>x.topInsetPx===59&&x.controlsClear===true).map(x=>x.scene));
+ for(const name of required)assert(passed.has(name),`${file} confirms visible controls clear the 59px status zone for ${name}`);
+}
+assertSafeAreaReport(path.join(root,'assets/shots/safe-area-audit.json'),['light-activity-detail','dark-activity-detail','light-profile','dark-profile','light-activity','dark-activity','light-activity-splits','dark-activity-splits','light-route','dark-route','light-home-feed','dark-home-feed','light-feed','dark-feed']);
+assertSafeAreaReport(path.join(root,'assets/tour/safe-area-audit.json'),['light-challenge-start','dark-challenge-start','light-challenge-detail','dark-challenge-detail']);
 (async()=>{
  for(const page of ['index','compare','training','food','friends','about']){
   const html=fs.readFileSync(path.join(root,page+'.html'),'utf8');assert(!html.includes('class="pshot"'));
