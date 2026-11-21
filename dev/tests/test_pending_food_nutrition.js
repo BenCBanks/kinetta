@@ -7,6 +7,12 @@ vm.createContext(c);vm.runInContext(foodHome.slice(foodHome.indexOf('const r0 ='
 vm.runInContext(fs.readFileSync('app/static/food-nutrition.js','utf8')+'\nglobalThis.preview=FoodNutrition;',c);
 vm.runInContext(thread.slice(thread.indexOf('  function food('),thread.indexOf('  function choices(')),c);
 vm.runInContext(thread.slice(thread.indexOf('  function previewRows('),thread.indexOf('  const pendingReview=')),c);
+vm.runInContext(thread.slice(thread.indexOf('  function portionStep('),thread.indexOf('  function stepRow(')),c);
+assert.equal(c.portionStep({count:1},{ref:{serving:{label:'1 tbsp'}}},false).next,.5,'tablespoons step by half');
+assert.equal(c.portionStep({count:1},{ref:{serving:{label:'1 cup'}}},false).next,.75,'cups step by quarter');
+assert.equal(c.portionStep({count:1},{ref:{serving:{label:'1 serving'}}},false).next,.75,'servings step by quarter');
+assert.equal(c.portionStep({count:1},{ref:{serving:{label:'1 egg'}}},false).next,1,'whole eggs stay at a one-item minimum');
+assert.equal(c.portionStep({grams:50},{},false).next,45,'grams step by about ten percent with a five gram minimum');
 const pasta={name:'Fictional <penne>',brand:'Fictional & Co',amount:2,unit:'serving',kcal:400,protein_g:14,carbs_g:84,fat_g:2,fiber_g:6,sugar_g:2,sodium_mg:20,
  ref:{origin:'catalog',origin_ref:{source:'off',package_size:'16 oz (454 g)',serving:{label:'2 oz (56 g)',g:56},per_serving:{kcal:200,protein_g:7,carbs_g:42,fat_g:1,fiber_g:3,sugar_g:1,sodium_mg:10}}}};
 assert.equal(c.preview.macros(pasta),'Protein 14 g · Carbs 84 g · Fat 2 g');
@@ -21,8 +27,8 @@ assert.equal(c.preview.basis({...legacy,ref:{...legacy.ref,serving:{...legacy.re
 const label={...pasta,amount:112,unit:'g',ref:{origin:'label',per_serving:{kcal:210,protein_g:8,carbs_g:41,fat_g:2},serving:{label:'2 oz (56 g)',g:56},basis_unit:'g',basis_amount:56}};
 assert.equal(c.preview.basis(label).factor,2);assert.equal(c.preview.basis(c.preview.scale(label,168)).factor,3);
 const part={index:0,status:'ready',entries:[pasta],entry_drafts:[0],drafts:[{}],remove_entries:[0],remove_token:'a'.repeat(64)};
-html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[part]})[0]);assert.match(html,/Protein 14 g · Carbs 84 g · Fat 2 g/);assert.match(html,/aria-label="Nutrition for Fictional &lt;penne&gt;, Protein 14 g/);assert.match(html,/data-food-nutrition=/);assert.match(html,/data-step="-1"/);assert.match(html,/data-step="1"/);assert.doesNotMatch(html,/data-remove-food=/,'a multi-portion card uses its stepper before trash is available');
-const atOne={...part,entries:[{...pasta,amount:1}]};html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[atOne]})[0]);assert.match(html,/aria-label="Remove Fictional &lt;penne&gt;"/);assert.match(html,/class="icon-btn thread-remove"/);assert.match(html,/data-remove-food=/);assert.doesNotMatch(html,/data-step="-1"/,'at one portion, the minus control becomes trash');
+html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[part]})[0]);assert.match(html,/Protein 14 g · Carbs 84 g · Fat 2 g/);assert.match(html,/aria-label="Nutrition for Fictional &lt;penne&gt;, Protein 14 g/);assert.match(html,/data-food-nutrition=/);assert.match(html,/data-step="-1"/);assert.match(html,/data-step="1"/);assert.match(html,/data-remove-food=/,'removal stays separate from the minus stepper');
+const atOne={...part,entries:[{...pasta,amount:1}]};html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[atOne]})[0]);assert.match(html,/aria-label="Remove Fictional &lt;penne&gt;"/);assert.match(html,/class="icon-btn thread-remove(?: [^"]+)?"/);assert.match(html,/data-remove-food=/);assert.match(html,/data-step="-1"/,'at one portion, the minus remains a quantity control');
 const lookupEstimate={...part,catalog_fallback:true,entries:[{...pasta,source:'ai',ref:{origin:'ai'}}]};html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[lookupEstimate]})[0]);assert.match(html,/class="tf-source">Kit’s estimate<\/small>/,'a catalog-outage fallback is identified as Kit’s estimate on its review row');
 assert.match(c.food({...pasta,id:undefined},0),/tf-macros/,'typed/manual/photo pending rows share the macro line');
 console.log('Pending nutrition: source serving vs chosen amount, unknown/zero, fallback weight honesty, label correction scale, escaped compact cards and accessible macros PASS');
@@ -51,7 +57,7 @@ html=c.preview.html({...cup,kcal:160},'Kit estimate','40 g');assert.match(html,/
 c.kitChatOn=()=>false;c.kitFoodWords=s=>s||'';c.dayLabel=()=> 'Today';c.choices=()=>'<p>Choose another food</p>';c.removableFood=()=>true;c.removeButtonMarkup=floating=>`<button data-unlogged-remove${floating?' class="thread-remove-floating"':''}>×</button>`;
 vm.runInContext(thread.slice(thread.indexOf('  function changedNumbers('),thread.indexOf('  function previewRows(')),c);
 html=c.replyHtml({id:1,state:'answered',result:{review_only:true}},{entries:[],result:{kind:'preview',meal:'lunch',day:'2026-11-02',pending_count:1,can_resolve:true,parts:[part,{index:1,status:'unknown',entries:[]}]}});
-assert.match(html,/Fictional &lt;penne&gt;/);assert.match(html,/Checking the other foods/);assert(!html.includes('thread-thinking'),'a spinner does not hide a resolved source');assert.equal((html.match(/data-unlogged-remove/g)||[]).length,0,'the single-food card has no wasted close row');assert.equal((html.match(/data-remove-food/g)||[]).length,0,'a multi-portion card uses minus until one portion');assert.match(html,/data-step="-1"/,'the ready row keeps its minus action beside the amount');
+assert.match(html,/Fictional &lt;penne&gt;/);assert.match(html,/Checking the other foods/);assert(!html.includes('thread-thinking'),'a spinner does not hide a resolved source');assert.equal((html.match(/data-unlogged-remove/g)||[]).length,0,'the single-food card has no wasted close row');assert.equal((html.match(/data-remove-food/g)||[]).length,1,'a multi-portion card keeps a separate removal action');assert.match(html,/data-step="-1"/,'the ready row keeps its minus action beside the amount');
 console.log('Partial food resolution: ready numbers remain visible with a working status PASS');
 
 c.aiCan=()=>false;c.aiOffer=()=>false;

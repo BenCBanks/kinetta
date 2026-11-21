@@ -61,6 +61,11 @@ const unknown=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{estima
 assert.match(unknown,/Incomplete/);assert(!unknown.includes('≈ 0 kcal'));
 console.log('all estimate cards: visible row breakdown and total even one/zero, unknown total stays incomplete PASS');
 
+c.homeCalories=n=>String(Math.round(Number(n)/5)*5);
+const rounded=c.replyHtml(root,{entries:[],result:{kind:'preview',assumed:'I assumed a typical portion of 1 tbsp cream. Use − or + to change it.',parts:[{estimated:true,entries:[{name:'Coffee',kcal:2,ref:{origin_notes:'Assumed a typical portion of coffee.'}},{name:'Cream',kcal:7}]}]}});
+assert.equal((rounded.match(/thread-assumptions/g)||[]).length,1,'assumption text appears once for the card');assert.match(rounded,/Assumed a typical portion of 1 tbsp cream/);assert.doesNotMatch(rounded,/I assumed|Use − or \+ to change/);assert.match(rounded,/≈ 5 kcal/,'the card total adds the rounded row values');
+console.log('food chat assumptions: one concise guess line and totals use displayed rounded calories PASS');
+
 // A stepper decreases to one portion, where its minus control becomes a named trash action.
 Object.assign(c,{fmtAmount:()=>"0.25 serving",source:()=>"Kit’s estimate"});
 Object.assign(c,{FoodNutrition:{macros:()=> 'Protein unknown · Carbs unknown · Fat unknown'}});
@@ -68,9 +73,9 @@ vm.runInContext(source.slice(source.indexOf('  const nutritionAttr='),source.ind
 vm.runInContext(source.slice(source.indexOf('  function previewRows('),source.indexOf('  const queuedReview=')),c);
 const removable={index:0,status:'ready',entries:[{name:'Mayonnaise <test>',kcal:25}],drafts:[{portion:{count:.25}}],entry_drafts:[0],remove_entries:[0],remove_token:'a'.repeat(64)};
 const rows=c.previewRows(root,{parts:[removable]});
-const removedHtml=c.stepRow(rows[0]);assert.doesNotMatch(removedHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.doesNotMatch(removedHtml,/class="icon-btn thread-remove"/);
-assert.match(removedHtml,/data-step="-1"/);assert.match(removedHtml,/data-step="1"/);assert.doesNotMatch(removedHtml,/data-remove-food=/);
-const atOneHtml=c.stepRow({...rows[0],e:{...rows[0].e,amount:1,unit:'serving'}});assert.match(atOneHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(atOneHtml,/class="icon-btn thread-remove"/);assert.doesNotMatch(atOneHtml,/data-step="-1"/);assert.match(atOneHtml,/data-remove-food=/);
+const removedHtml=c.stepRow(rows[0]);assert.match(removedHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(removedHtml,/class="icon-btn thread-remove/);
+assert.match(removedHtml,/data-step="-1"/);assert.match(removedHtml,/data-step="1"/);assert.match(removedHtml,/data-remove-food=/,'removal stays separate from the quantity controls');
+const atOneHtml=c.stepRow({...rows[0],e:{...rows[0].e,amount:1,unit:'serving'}});assert.match(atOneHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(atOneHtml,/class="icon-btn thread-remove/);assert.match(atOneHtml,/data-step="-1"/,'one serving keeps a minus stepper');assert.match(atOneHtml,/data-remove-food=/);
 ctx.messages=[user(1),reply(1,[])];c.primary(ctx);assert.equal(nodes['#thread-review'].hidden,true);
 assert.equal(c.previewRows({result:{review_only:false}},{parts:[removable]}),null,'logged/legacy rows cannot expose removal');
 console.log('estimate removal: quantity-one trash names the food, portion controls remain, final-food review hidden PASS');
