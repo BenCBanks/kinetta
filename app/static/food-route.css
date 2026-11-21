@@ -225,7 +225,7 @@
 .compact-food .compact-food-title { grid-area:name;position:relative;display:flex;align-items:center;min-width:0;min-height:22px; }
 .compact-food .compact-food-title .tf-inspect { display:flex;align-items:center;flex:1;min-width:0;min-height:22px;height:auto;padding:0 40px 0 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left; }
 .compact-food .compact-food-title .thread-row-remove { position:absolute;top:50%;right:-4px;transform:translateY(-50%);display:grid;place-items:center;flex:none;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--tx2); }
-.compact-food .compact-food-title .tf-inspect strong { font-size:.875rem;line-height:1.15;overflow-wrap:anywhere; }
+.compact-food .compact-food-title .tf-inspect strong { display:block;min-width:0;overflow:hidden;font-size:.875rem;line-height:1.15;text-overflow:ellipsis;white-space:nowrap; }
 .compact-food .compact-food-meta { grid-area:quantity;display:flex;align-items:center;gap:5px;min-width:0;min-height:22px;overflow:hidden; }
 .compact-food .thread-amount { flex:none;min-width:0;min-height:22px;height:auto;padding:0;border:0;background:transparent;color:var(--tx2);font-size:.75rem;line-height:1.2;text-align:left;white-space:nowrap; }
 .compact-food .tf-kcal { grid-area:kcal;align-self:center;margin:0;padding:0;font-size:.875rem;white-space:nowrap; }
