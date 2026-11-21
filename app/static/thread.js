@@ -338,9 +338,9 @@ const FoodThread = (() => {
     const where=MEAL_NAMES[meal]||'Food log',target=`/food${day?'?d='+encodeURIComponent(day):''}${day?'&':'?'}meal=${encodeURIComponent(meal||'snacks')}`;
     const name=e=>String(e.name||'Food'),amount=e=>threadAmount(e),kcal=e=>e.kcal==null||e.ref?.unknown_nutrients?.includes('kcal')?'Unknown':`${homeCalories(e.kcal)} kcal`;
     const known=entries.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'));
-    const total=known?`≈ ${homeCalories(entries.reduce((sum,e)=>sum+Number(e.kcal),0))} kcal`:'Incomplete';
+    const total=known?`≈ ${entries.reduce((sum,e)=>sum+Number(homeCalories(Number(e.kcal)||0)),0)} kcal`:'Incomplete';
     const details=entries.map(e=>`<div class="thread-logged-detail"><span>${esc(name(e))} · ${esc(amount(e))}</span><span class="num">${esc(kcal(e))}</span></div>`).join('');
-    const repeated=!!result.same_as,repeatedTotal=known?`${homeCalories(entries.reduce((sum,e)=>sum+Number(e.kcal),0))} kcal`:'Incomplete';
+    const repeated=!!result.same_as,repeatedTotal=known?`${entries.reduce((sum,e)=>sum+Number(homeCalories(Number(e.kcal)||0)),0)} kcal`:'Incomplete';
     const w=result.weight,weightLine=w?`<a class="thread-logged-detail thread-logged-weight" href="/progress/weight"><span class="logged-check" aria-hidden="true">✓</span><span>Weight · ${Number(w.amount).toFixed(1)} ${esc(w.display_unit||w.unit)} · ${w.today?'today':esc(w.day)} ›</span></a>`:'';
     const summary=repeated?`<span class="thread-repeat-label">${esc(result.reuse_label||'Another '+name(entries[0]))}</span><span class="thread-logged-repeat-kcal"> · ${esc(repeatedTotal)}</span>`:null;
     const sameAs=repeated?`<div class="thread-logged-meta"><span>same as ${esc(new Date(result.same_as).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}</span><a class="thread-logged-change" href="${esc(target)}">Change</a></div>`:'';
@@ -363,13 +363,14 @@ const FoodThread = (() => {
     const visible=entries.length?entries:(['preview','needs'].includes(r.kind)||r.pending_count||r.parts?.some(p=>p.status==='ready'&&!p.logged)?preview:[]),changed=changedNumbers(r,entries),removed=r.kind==='log'&&!entries.length&&r.entry_ids?.length;
     const notes=[...new Set(visible.map(e=>e.ref?.origin_notes).filter(Boolean))];
     const sharedNote=visible.length>1&&notes.length===1?notes[0]:null;
+    const noteLine=(()=>{const raw=r.assumed||sharedNote;if(!raw)return null;let line=String(raw).trim().replace(/^I\s+assumed\b/i,'Assumed').replace(/\s*Use\s+[−-]\s+or\s+\+\s+to\s+change\s+it\.?\s*$/i,'').trim();return /^Assumed\b/i.test(line)?line:`Assumed ${line}`;})();
     const canLog=!root.result?.review_only&&!r.cancelled&&(r.kind==='preview'||r.parts?.some(p=>p.status==='ready'&&!p.logged));
     const compact=!!(root.result?.review_only&&rows?.length&&!entries.length),stripTotal=compact&&r.parts.every(p=>p.logged||p.status==='ready')&&visible.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'));
     const recentReuse=r.correction==='recent_reuse';
     return `<div class="thread-card${compact?' compact-thread-card':''}" data-mid="${root.id}">${showRemove&&!compact&&!missingBarcode&&!recentReuse?removeButtonMarkup():''}${r.daily_note?`<h3>Your daily food summary</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed&&(!root.result?.review_only||entries.length)?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
-      ${!compact&&root.result?.review_only&&visible.length&&r.kind!=='answer'&&!r.food_review&&!['reviewed','continued','cancelled'].includes(r.kind)?'<p class="small muted">Not logged yet</p>':''}${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${!compact&&visible.length?`<p class="thread-breakdown-title">${r.parts?.some(p=>p.estimated)?'Estimate breakdown':'Food breakdown'}</p>`:''}${rows?.length?rows.map(row=>stepRow({...row,hideNotes:!!sharedNote,hideItemRemove:!compact&&rows.length===1})).join(''):visible.map((e,i)=>food(e,i,!!sharedNote)).join('')}${sharedNote?`<p class="small muted thread-assumptions">${esc(sharedNote)}</p>`:''}${!stripTotal&&visible.length?`<p class="thread-total"><span>Total</span><b class="num">${visible.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'))?'≈ '+homeCalories(visible.reduce((n,e)=>n+e.kcal,0))+' kcal':'Incomplete'}</b></p>`:''}${!lookupRetry&&!missingBarcode&&!(working&&partial)&&(!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||(r.food_review&&r.confirmed)||r.parts?.some(p=>p.entered_numbers&&!p.logged))?`<p>${esc(removed?'This food was removed from your log.':foodReplyBody(reply)||(root.state==='cancelled'?'This food was removed before logging.':root.state==='answered'?'Food details were removed from this chat. Any food already in your log stays.':'Your food is waiting to be checked…'))}</p>`:''}
+      ${!compact&&root.result?.review_only&&visible.length&&r.kind!=='answer'&&!r.food_review&&!['reviewed','continued','cancelled'].includes(r.kind)?'<p class="small muted">Not logged yet</p>':''}${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${!compact&&visible.length?`<p class="thread-breakdown-title">${r.parts?.some(p=>p.estimated)?'Estimate breakdown':'Food breakdown'}</p>`:''}${rows?.length?rows.map(row=>stepRow({...row,hideNotes:!!noteLine,hideItemRemove:!compact&&rows.length===1})).join(''):visible.map((e,i)=>food(e,i,!!noteLine)).join('')}${noteLine?`<p class="small muted thread-assumptions">${esc(noteLine)}</p>`:''}${!stripTotal&&visible.length?`<p class="thread-total"><span>Total</span><b class="num">${visible.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'))?'≈ '+visible.reduce((sum,e)=>sum+Number(homeCalories(Number(e.kcal)||0)),0)+' kcal':'Incomplete'}</b></p>`:''}${!lookupRetry&&!missingBarcode&&!(working&&partial)&&(!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||(r.food_review&&r.confirmed)||r.parts?.some(p=>p.entered_numbers&&!p.logged))?`<p>${esc(removed?'This food was removed from your log.':foodReplyBody(reply)||(root.state==='cancelled'?'This food was removed before logging.':root.state==='answered'?'Food details were removed from this chat. Any food already in your log stays.':'Your food is waiting to be checked…'))}</p>`:''}
       ${r.kind==='answer'&&r.open_day?`<a class="linkbtn thread-answer-day" href="/food?d=${encodeURIComponent(r.open_day)}">Open ${esc(dayLabel(r.open_day))} food ${svg('chev')}</a>`:''}${r.kind==='answer'&&r.open_weight?`<a class="linkbtn thread-answer-weight" href="${esc(r.open_weight)}">Open weight ${svg('chev')}</a>`:''}${r.breakdown?.length?`<dl class="photo-breakdown">${r.breakdown.map(e=>`<div><dt>${esc(e.name)}${e.amount?`<small>${esc(e.amount)}</small>`:''}</dt><dd class="num">${e.kcal==null?'Unknown':`≈ ${esc(e.kcal)} kcal`}</dd></div>`).join('')}<div class="photo-breakdown-total"><dt>Total</dt><dd class="num">${r.breakdown_total==null?'Incomplete':`≈ ${esc(r.breakdown_total)} kcal`}</dd></div></dl>`:''}${r.breakdown_notes?.map(note=>`<p class="small muted">${esc(note)}</p>`).join('')||''}${r.photo_itemize&&App.me?.food_photo_itemize&&aiCan('food')?`<button type="button" class="ghost wide" data-photo-itemize="${r.photo_itemize}">Add photo for ingredient breakdown</button>`:''}
-      ${working&&partial?'<p class="small muted" role="status">Checking the other foods…</p>':''}${r.assumed&&!entries.length?`<p class="small muted thread-assumed">${esc(r.assumed)}</p>`:''}${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
+      ${working&&partial?'<p class="small muted" role="status">Checking the other foods…</p>':''}${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
       ${lookupRetry?lookupRetryCard(r):r.error?`<p class="${missingBarcode?'thread-barcode-not-found':'thread-error'}"${missingBarcode?' role="status"':''}>${esc(missingBarcode?"We couldn't find this barcode.":kitFoodWords(r.error.message||r.error))}</p>`:''}${missingBarcode?missingBarcodeActions(r.parts?.[0]?.index??0,showRemove,showMore):!lookupRetry&&!r.cancelled&&(r.kind==='needs'||r.pending_count||r.parts?.some(p=>p.entered_numbers&&!p.logged))?choices(r):''}
       ${kitHtml(r)}${missingBarcode||lookupRetry?'':`<div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${!missingBarcode&&(r.error||r.parts?.some(p=>p.needs_photo))?(root.result?.input?.kind==='photo'?'<button type="button" class="linkbtn" data-reattach>Add the photo again</button>':'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>'):''}${compact||showRemove||!showMore?'':`<button type="button" class="icon-btn thread-more" data-more aria-label="More food options">${svg('more')}</button>`}</div>`}${removalFailure}</div>`;
   }
@@ -379,7 +380,7 @@ const FoodThread = (() => {
   function previewRows(root,r){
     if(!root.result?.review_only||r.cancelled||r.food_review||!r.parts)return null;
     const rows=[];
-    for(const p of r.parts){if(p.logged)continue;(p.entries||[]).forEach((e,j)=>{const d=p.entry_drafts?.[j];rows.push({e,part:p.index,entry:j,draft:d,catalogFallback:!!p.catalog_fallback,remove:p.remove_entries?.includes(j)||p.remove_token?{part:p.index,entry:j,expected:p.remove_token}:null,step:p.status==='ready'&&(d!=null?!!p.drafts?.[d]:!!p.item?.kind&&!p.templates)});});}
+    for(const p of r.parts){if(p.logged)continue;(p.entries||[]).forEach((e,j)=>{const d=p.entry_drafts?.[j];rows.push({e,part:p.index,partData:p,entry:j,draft:d,catalogFallback:!!p.catalog_fallback,remove:p.remove_entries?.includes(j)||p.remove_token?{part:p.index,entry:j,expected:p.remove_token}:null,step:p.status==='ready'&&(d!=null?!!p.drafts?.[d]:!!p.item?.kind&&!p.templates)});});}
     return rows;
   }
   function threadAmount(e){
@@ -396,11 +397,23 @@ const FoodThread = (() => {
     // Complex source labels stay intact. A count must never become "2 × 1" or imply a weight.
     return `${n} servings · ${label} each`;
   }
+  function portionStep(old,e,up){
+    const label=String(e?.ref?.serving?.label||e?.ref?.portion_label||'').toLowerCase(),unit=String(old?.unit||e?.unit||'').toLowerCase();
+    const grams=Number(old?.grams),count=Number(old?.count);
+    if(Number.isFinite(grams)){
+      const step=Math.max(5,Math.round(grams*.1/5)*5),next=Math.max(5,grams+(up?step:-step));
+      return {next,minimum:5,body:{grams:Math.round(next)}};
+    }
+    const amount=Number.isFinite(count)?count:1;
+    const step=/tbsp|tablespoon|tsp|teaspoon|\boz\b|ounce/.test(label+' '+unit)?.5:/\bcup\b/.test(label+' '+unit)?.25:/egg|slice|piece/.test(label)?1:/serving|portion/.test(label+' '+unit)?.25:.5;
+    const minimum=step===1?1:.25,next=Math.max(minimum,Number((amount+(up?step:-step)).toFixed(3)));
+    return {next,minimum,body:{count:next,...(old?.unit?{unit:old.unit}:{})}};
+  }
   function stepRow(row){
     const {e}=row,data=`data-part="${row.part}"${row.draft!=null?` data-draft="${row.draft}"`:''}`,notes=row.hideNotes?null:e.ref?.origin_notes;
-    const countUnit=!['g','kg','oz','lb'].includes(e.unit),atOne=countUnit&&Math.abs(Number(e.amount)-1)<.001,remove=row.remove&&!row.hideItemRemove?`<button type="button" class="icon-btn thread-remove" data-remove-food="${esc(JSON.stringify(row.remove))}" aria-label="Remove ${esc(e.name)}">${svg('trash')}</button>`:'';
-    const less=row.step?(atOne&&remove?remove:`<button type="button" class="icon-btn" data-step="-1" ${data} aria-label="Less ${esc(e.name)}">−</button>`):remove,origin=source(e),sourceLine=origin==='Kit’s estimate'&&!row.catalogFallback?'':`<small class="tf-source">${esc(origin)}</small>`;
-    return `<div class="thread-food compact-food${row.step?' has-stepper':''}"><div class="compact-food-title"><button type="button" class="tf-inspect" ${nutritionAttr(row)}><strong>${esc(e.name)}</strong></button></div>
+    const old=row.draft!=null?row.partData?.drafts?.[row.draft]:null,remove=row.remove&&!row.hideItemRemove?`<button type="button" class="icon-btn thread-row-menu" data-row-food-menu="${esc(JSON.stringify(row.remove))}" aria-label="More options for ${esc(e.name)}">${svg('more')}</button>`:'';
+    const base=old?.portion||old,step=base?portionStep(base,e,false):null,disabled=step&&((Number(step.next)===Number(step.minimum))&&!((base?.grams!=null&&Number(base.grams)>step.minimum)||(base?.count!=null&&Number(base.count)>step.minimum))),less=row.step?`<button type="button" class="icon-btn" data-step="-1" ${data}${disabled?' disabled':''} aria-label="Less ${esc(e.name)}">−</button>`:'',origin=source(e),sourceLine=origin==='Kit’s estimate'&&!row.catalogFallback?'':`<small class="tf-source">${esc(origin)}</small>`;
+    return `<div class="thread-food compact-food${row.step?' has-stepper':''}"><div class="compact-food-title"><button type="button" class="tf-inspect" ${nutritionAttr(row)}><strong>${esc(e.name)}</strong></button>${remove}</div>
       <div class="compact-food-meta"><button type="button" class="thread-amount num" ${nutritionAttr(row,`Change amount of ${e.name}: ${threadAmount(e)}`)} data-amount-editor>${esc(threadAmount(e))}</button>${sourceLine}</div><span class="tf-kcal num">${e.kcal==null||e.ref?.unknown_nutrients?.includes('kcal')?'Unknown':homeCalories(e.kcal)+'<small> kcal</small>'}</span>
       <div class="thread-food-controls"><span class="thread-stepper">${less||''}${row.step?`<button type="button" class="icon-btn" data-step="1" ${data} aria-label="More ${esc(e.name)}">+</button>`:''}</span></div>${notes?`<small class="tf-notes">${esc(notes)}</small>`:''}</div>`;
   }
@@ -418,7 +431,7 @@ const FoodThread = (() => {
       const waiting=parts.filter(p=>!p.logged&&!(p.status==='ready'&&(!p.entered_numbers||p.manual)));
       if(waiting.length){open++;partial=true;}
       if(parts.some(p=>p.logged))partial=true;
-      const done=parts.filter(p=>!p.logged&&p.status==='ready'&&(!p.entered_numbers||p.manual));if(done.length){ids.push(m.id);selections.push({message:m.id,parts:done.map(p=>p.index)});for(const p of done){ready+=Math.max(1,(p.entries||[]).length);for(const e of p.entries||[]){foods.push(e);const value=Number(e.kcal),known=e.kcal!=null&&Number.isFinite(value)&&!(e.ref?.unknown_nutrients||[]).includes('kcal');if(known)kcal+=value;else kcalKnown=false;}}}
+      const done=parts.filter(p=>!p.logged&&p.status==='ready'&&(!p.entered_numbers||p.manual));if(done.length){ids.push(m.id);selections.push({message:m.id,parts:done.map(p=>p.index)});for(const p of done){ready+=Math.max(1,(p.entries||[]).length);for(const e of p.entries||[]){foods.push(e);const value=Number(e.kcal),known=e.kcal!=null&&Number.isFinite(value)&&!(e.ref?.unknown_nutrients||[]).includes('kcal');if(known)kcal+=Number(homeCalories(value));else kcalKnown=false;}}}
     }
     return {ids,ready,open,kcal,kcalKnown:foods.length>0&&kcalKnown,foods,selections:partial?selections:null};
   }
@@ -669,17 +682,29 @@ const FoodThread = (() => {
       catch(e){toast(e.message);}
       finally{ctx.preparingReview=false;if(node.isConnected)controls.forEach(c=>c.disabled=false);primary(ctx);}
     });
+    $$('[data-row-food-menu]',node).forEach(button=>button.onclick=()=>{
+      if(!active(ctx)||ctx.preparingReview||pendingReview())return;
+      sheet('Food options','<button type="button" class="linkbtn danger wide" data-remove-row-food>Remove food</button>',(box,close)=>{
+        $('[data-remove-row-food]',box).onclick=async()=>{
+          if(!active(ctx)||ctx.preparingReview||pendingReview())return;
+          close();button.disabled=true;ctx.preparingReview=true;primary(ctx);
+          try{await action(ctx,m.id,'remove-food',JSON.parse(button.dataset.rowFoodMenu));status(ctx,'Food removed.');}
+          catch(e){toast(e.message);}
+          finally{ctx.preparingReview=false;if(button.isConnected)button.disabled=false;primary(ctx);}
+        };
+      });
+    });
     $$('[data-step]',node).forEach(b=>b.onclick=async()=>{
       if(!active(ctx)||ctx.preparingReview||pendingReview())return;
       const p=r.parts?.find(x=>x.index===+b.dataset.part);if(!p)return;const up=+b.dataset.step>0;
-      const old=b.dataset.draft!=null?p.drafts?.[+b.dataset.draft]?.portion:p.item?.portion;if(!old)return;
-      const next=old.grams?null:old.count>1||up?Math.max(.5,(old.count>=1?Math.round(old.count):old.count)+(up?1:-1)):old.count/2;
-      const factor=old.grams?(up?1.25:.8):next/old.count;if(!(factor>0)||next!=null&&next<.25)return;
+      const old=b.dataset.draft!=null?p.drafts?.[+b.dataset.draft]:p.item?.portion;if(!old)return;
+      const base=old.portion||old,portion=portionStep(base,p.entries?.find((e,i)=>b.dataset.draft==null||p.entry_drafts?.[i]===+b.dataset.draft),up),next=portion.next;
+      if(!portion||!Number.isFinite(next)||next===Number(portion.minimum)&&!up)return;
       b.disabled=true;Native.haptic('selection');
-      const body=b.dataset.draft!=null?{part:p.index,draft:+b.dataset.draft,factor}:{part:p.index,portion:old.grams?{grams:Math.round(old.grams*factor)}:{count:next,...(old.unit?{unit:old.unit}:{})}};
+      const body=b.dataset.draft!=null?{part:p.index,draft:+b.dataset.draft,factor:base.grams?next/base.grams:next/(base.count||1)}:{part:p.index,portion:portion.body};
       // Show calories and macros together immediately; failed saves restore the
       // authoritative card. The final review cannot race this pending amount.
-      const ratio=body.portion?.grams?body.portion.grams/old.grams:factor;
+      const ratio=base.grams?next/base.grams:next/(base.count||1);
       const preview={...p,entries:(p.entries||[]).map((e,i)=>b.dataset.draft==null||p.entry_drafts?.[i]===+b.dataset.draft?FoodNutrition.scale(e,e.amount*ratio,true):e)};
       const card=$('.thread-card',node);if(card)card.outerHTML=replyHtml(m,{...reply,result:{...r,parts:r.parts.map(x=>x.index===p.index?preview:x)}},removableFood(m,reply));
       $$('button',node).forEach(control=>control.disabled=true);ctx.preparingReview=true;primary(ctx);
@@ -755,10 +780,25 @@ const FoodThread = (() => {
       saveReviewDraft(ctx,false);$('#thread-text',ctx.el).value='';ctx.chatView?.resize();draw(ctx);done();toast('Chat cleared');}
     catch(e){toast(e.message);}};});
   }
+  function resetFoodReturnUi(){
+    // Route/section restoration must never carry an Add-food sheet or the composer
+    // focus into a newly mounted chat. Closing the flow first releases its prior
+    // focus; blur again because SheetHistory restores the element that opened it.
+    try{
+      if(typeof SheetHistory!=='undefined')SheetHistory.closeAll(SheetHistory.top(),true);
+      // A route render cannot wait for a sheet's 270 ms exit animation. Remove
+      // the inert visual shell now so the new chat's first paint is interactive.
+      document.querySelectorAll('.scrim').forEach(node=>node.remove());
+      document.body.classList.remove('has-sheet');
+    }catch(_){/* best effort during a route swap */}
+    document.activeElement?.blur?.();
+    document.documentElement.classList.remove('keyboard-open');
+  }
   async function page(el,{day,meal}={}){
     const requestedOwner=ownerKey(),requestedSession=readOwner(),requestedLocation=location.pathname+location.search;
     await prepare();
     if(requestedOwner!==ownerKey()||requestedSession!==readOwner()||requestedLocation!==location.pathname+location.search||!el.isConnected)return;
+    resetFoodReturnUi();
     if(current){current.removeEvents?.abort();current.chatView?.dispose();clearTimeout(current.removeNoticeTimer);}
     if(new URLSearchParams(location.search).get('save')==='1'){el.innerHTML=`<header class="thread-heading">${backBtn('My Recipes')}<h1>Create recipe</h1></header><button type="button" class="primary wide" id="recipe-start">Create recipe</button>`;wireBack(el,'/food/meals');const button=$('#recipe-start',el);button.onclick=()=>newDish(button);newDish(button);return;}
     const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),resumeId=typeof resume==='string'?resume:resume?.id,localTimeZone=foodTimeZone(),profileTimeZone=localTimeZone,hasDay=/^\d{4}-\d{2}-\d{2}$/.test(day),hasMeal=Object.hasOwn(MEAL_NAMES,meal),cached=store.get(cacheKey(owner)),resumeContext=store.get(contextKey(owner)),unsent=String(store.get(draftKey(owner))||'').trim(),cachedWork=Array.isArray(cached)&&cached.some(m=>m.kind==='user'&&m.result?.draft_id===resumeId),resumeActive=!!resume&&(resume.active===true||!!resume.form||!!resumeContext||!!unsent||cachedWork),resumeHasDay=/^\d{4}-\d{2}-\d{2}$/.test(resume?.day),resumeExplicitDay=resume?.explicitDay===true&&resumeHasDay,resumeExplicitActive=resumeActive&&resumeExplicitDay,initialDay=hasDay?day:resumeExplicitActive?resume.day:isoDay(new Date(),localTimeZone),historyDay=hasDay||resumeExplicitActive?initialDay:(initialDay>isoDay(new Date(),profileTimeZone)?initialDay:isoDay(new Date(),profileTimeZone)),ctx={el,owner,day:initialDay,historyDay,meal:hasMeal?meal:resumeExplicitActive&&Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:guessMeal(localTimeZone),explicitDay:hasDay||resumeExplicitActive,session:readOwner(),draftId:resumeActive&&resumeId||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resumeActive?resume?.form||null:null,messages:[],visibleClients:new Set(),context:resumeActive?resumeContext:null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0,removeEvents:new AbortController(),resumeId};current=ctx;saveReviewDraft(ctx,resumeActive);
@@ -837,7 +877,7 @@ const FoodThread = (() => {
       if(tool==='scan')scanSheet(ctx.day||foodToday(),ctx.meal||guessMeal(),null,code=>send(ctx,barcodeChatInput(code)));
     });
     draw(ctx);const tool=new URLSearchParams(location.search).get('tool');
-    if(tool&&['snap','scan','library'].includes(tool)){const url=new URL(location.href);url.searchParams.delete('tool');history.replaceState(history.state,'',url.pathname+url.search+url.hash);$('[data-tool="'+tool+'"]',el).click();}else if(field.value.trim())field.focus({preventScroll:true});
+    if(tool&&['snap','scan','library'].includes(tool)){const url=new URL(location.href);url.searchParams.delete('tool');history.replaceState(history.state,'',url.pathname+url.search+url.hash);$('[data-tool="'+tool+'"]',el).click();}
     ThreadDB.list(owner).then(jobs=>{if(active(ctx)){ctx.jobs=jobs;for(const job of jobs)ctx.visibleClients.add(job.id);if(!resumeActive&&!hasDay&&!hasMeal&&resumeId&&jobs.some(job=>job.draft_id===resumeId&&!['remove','remove-failed','complete'].includes(job.phase))){ctx.draftId=resumeId;if(resumeExplicitDay){ctx.day=resume.day;if(Object.hasOwn(MEAL_NAMES,resume.meal))ctx.meal=resume.meal;ctx.explicitDay=true;}ctx.historyDay=ctx.day;ctx.reuseChips.refresh();saveReviewDraft(ctx,true);drawFoodContext(ctx);}draw(ctx);flush(ctx);foodRemoval.flush(removalSession());}}).catch(e=>status(ctx,e.message));
     refresh(ctx);
     retryPendingNativeEntryAfterMount(ctx);

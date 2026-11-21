@@ -23,29 +23,28 @@ async function until(page,fn,label,arg){for(let i=0;i<120;i++){if(await page.eva
     for(const [who,theme] of [['one','light'],['6381d','dark']]){
       const single=await open(who,theme,1),page=single.page,row=page.locator('.compact-food').first();
       assert.equal(await page.locator('.compact-food').count(),1,'the fictional single-food card starts with one food');
-      assert.equal(await row.locator('.compact-food-title [data-remove-food]').count(),0,'the title row has no separate × action');
+      assert.equal(await row.locator('.thread-stepper [data-remove-food]').count(),0,'the quantity stepper has no trash action');assert.equal(await row.locator('.compact-food-title [data-remove-food]').count(),0,'the title row has no direct trash action');const itemMenu=row.locator('.compact-food-title [data-row-food-menu]');assert.equal(await itemMenu.count(),1,'remove stays reachable through the item menu');assert.match(await itemMenu.getAttribute('aria-label'),/^More options for /);
       const minus=row.locator('.thread-stepper [data-step="-1"]');assert.equal(await minus.count(),1,'minus stays beside the amount while the food has two portions');
-      await minus.click();await until(page,()=>document.querySelector('.compact-food .thread-amount')?.textContent.trim()==='1 portion','minus reduces the food to one portion');
-      assert.equal(await row.locator('.thread-stepper [data-step="-1"]').count(),0,'minus disappears at one portion');
-      const trash=row.locator('.thread-stepper [data-remove-food]');assert.equal(await trash.count(),1,'trash replaces minus at one portion');assert.match(await trash.getAttribute('aria-label'),/^Remove /);
-      await trash.click();await until(page,()=>document.querySelectorAll('.compact-food').length===0,'trash removes the food');
+      const before=(await row.locator('.thread-amount').innerText()).trim();await minus.click();await until(page,text=>document.querySelector('.compact-food .thread-amount')?.textContent.trim()!==text,'minus changes the food amount',before);
+      assert.equal(await row.count(),1,'minus only changes quantity; it does not remove the food');
+      assert.equal(await row.locator('.thread-stepper [data-remove-food]').count(),0,'trash never replaces minus in the stepper');
+      const removeMenu=row.locator('.compact-food-title [data-row-food-menu]');await removeMenu.click();const remove=page.locator('.scrim:not(.is-closing) [data-remove-row-food]');await remove.waitFor();assert.equal(await remove.innerText(),'Remove food','the item menu exposes removal');
+      await remove.click();await until(page,()=>document.querySelectorAll('.compact-food').length===0,'menu removal removes the food');
       assert(await page.locator('#thread-review').isHidden(),'removing the last food hides the review action');
       const after=(await(await single.context.request.get(base+'/api/food/thread')).json()).messages.find(message=>message.reply_to===single.root.id);
       const remaining=(after?.result?.parts||[]).flatMap(part=>part.entries||[]);
       assert.equal(remaining.length,0,'the server draft no longer contains the removed food');
       assert.equal((await(await single.context.request.get(base+'/api/food/day?d='+single.root.local_day)).json()).entries.length,0,'removal does not create a diary row');
       assert.deepEqual(single.errors,[],'single-food removal has no browser errors');await single.context.close();contexts.splice(contexts.indexOf(single.context),1);
-      console.log(`Food removal ${theme}: minus becomes quantity-one trash and removes the draft food PASS`);
+      console.log(`Food removal ${theme}: minus stays quantity-only; item-menu removal deletes the draft food PASS`);
     }
 
     const multi=await open('three','light',3),rows=multi.page.locator('.compact-food');
     assert.equal(await rows.count(),3,'the fictional multi-food card has three rows');
     assert.equal(await multi.page.locator('.compact-thread-card [data-unlogged-remove]').count(),0,'the ready card has no separate whole-card ×');
     for(const row of await rows.all()){
-      assert.equal(await row.locator('.compact-food-title [data-remove-food]').count(),0,'food removal stays in the stepper');
-      const amount=await row.locator('.thread-amount').innerText();
-      if(/^1\b/.test(amount)){assert.equal(await row.locator('.thread-stepper [data-step="-1"]').count(),0);assert.equal(await row.locator('.thread-stepper [data-remove-food]').count(),1,'a one-portion row uses trash');}
-      else {assert.equal(await row.locator('.thread-stepper [data-step="-1"]').count(),1,'a multi-portion row keeps minus');assert.equal(await row.locator('.thread-stepper [data-remove-food]').count(),0);}
+      assert.equal(await row.locator('.thread-stepper [data-remove-food]').count(),0,'no row puts removal inside the quantity stepper');assert.equal(await row.locator('.compact-food-title [data-remove-food]').count(),0,'no row has a separate title trash');assert.equal(await row.locator('.compact-food-title [data-row-food-menu]').count(),1,'each row keeps a reachable item menu');
+      assert.equal(await row.locator('.thread-stepper [data-step="-1"]').count(),1,'every adjustable row keeps its quantity minus');
     }
     assert.deepEqual(multi.errors,[],'multi-food removal controls render without browser errors');await multi.context.close();contexts.splice(contexts.indexOf(multi.context),1);
 
