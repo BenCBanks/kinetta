@@ -41,6 +41,13 @@ try:
   # A greeting is a valid message; Kit can reply and ask what the person wants. Blank text is still rejected.
   req(a,'POST',root+'/messages',message('   '),422)
   hi=message('Hi');assert req(a,'POST',root+'/messages',hi)['question']=='Hi';assert req(a,'POST',root+'/messages/'+hi['client_id']+'/answer',{'generation':generation})['state']=='answered' and seen[-1][1].endswith('Question: Hi')
+  starter=message('Am I improving?');starter['context']={'screen':'progress','starter_index':0}
+  stored=req(a,'POST',root+'/messages',starter);assert stored['question']=='Am I improving?' and stored['context']['starter_index']==0
+  answered=req(a,'POST',root+'/messages/'+starter['client_id']+'/answer',{'generation':generation});assert answered['question']=='Am I improving?'
+  assert 'Optional guidance for the tapped starter' in seen[-1][1] and seen[-1][1].endswith('Question: Am I improving?'),'hidden starter guidance is separate and the actual visible question is last/primary'
+  typed=message('How did my running change this month?');typed['context']={'screen':'progress'}
+  req(a,'POST',root+'/messages',typed);req(a,'POST',root+'/messages/'+typed['client_id']+'/answer',{'generation':generation})
+  assert seen[-1][1].endswith('Question: How did my running change this month?') and 'Optional guidance for the tapped starter' not in seen[-1][1],'typed questions stay exact and never inherit starter guidance'
   # Bounded history and pagination use the same account; no source identity can be supplied.
   with db.connect() as c:
    for n in range(55):c.execute("INSERT INTO kit_turns(user_id,client_id,generation,question,state,answer) VALUES (%s,%s,%s,%s,'answered',%s)",(uid,uuid.uuid4(),generation,'Earlier question '+str(n),json.dumps(result['answer'])))
