@@ -100,7 +100,8 @@ _KIT_MEASUREMENT_PATHS = {
     'training_plan': {('summary','runs'),('weeks',_INDEX,'planned'),('weeks',_INDEX,'workouts',_INDEX,'dist')},
     'plan_options': {('facts','latest_load',field) for field in ('load','fitness','fatigue','form')},
     'period_compare': {(period,group,field) for period in ('current','previous')
-                       for group in ('totals','known_totals') for field in ('workouts','distance_m','duration_s','protein_g')},
+                       for group in ('totals','known_totals') for field in ('workouts','distance_m','duration_s','protein_g')} |
+                      {('change','distance_m','absolute')},
     'consistency': {('recorded_workout_days',),('food_log_days',),
                     ('training_plan','scheduled_run_days'),('training_plan','scheduled_days_with_recorded_run')},
     'nutrition_adequacy': {('summary',nutrient,field) for nutrient in ('kcal','protein_g')
@@ -240,7 +241,8 @@ def _compact_number(value, digits=1):
 
 def _kit_fact(tool, data, path, value, units):
     """Format verified measurements with short labels and the person's units."""
-    field=path[-1] if path and isinstance(path[-1],str) else ''
+    field=(path[-2] if tool=='period_compare' and path[:1]==['change'] and len(path)>1
+           else path[-1] if path and isinstance(path[-1],str) else '')
     sport=None
     if tool=='recent_runs' and path and path[0]=='runs': sport='Run'
     elif tool=='activities' and path and path[0]=='totals_by_sport':
@@ -276,6 +278,8 @@ def _kit_fact(tool, data, path, value, units):
             'comparable_target_subtotal':f'Saved {nutrient.lower()} target on comparison days',
             'full_range_difference':f'Difference from saved {nutrient.lower()} target',
         }[field]
+    if tool=='period_compare' and path[:1]==['change']:
+        label=f'Change in {label.lower()}'
     if field=='count':
         if tool not in {'recent_runs','weight_trend'}: raise ValueError('Unsupported count')
         label='Workouts' if tool=='recent_runs' else 'Weight entries'
@@ -331,13 +335,46 @@ def _weekly_sentence(text, facts):
     text=text.strip()
     if '\n' in text or not re.search(r'[.!?]$',text) or re.search(r'[.!?]\s+\S',text):
         raise ValueError('Weekly review sections must each be one sentence')
+    normalized=_normalise_kit_prose(text)
+    topic=_weekly_claim_topic(normalized)
+    for match in PLACEHOLDER.finditer(normalized):
+        evidence_id,index=match.group(1),int(match.group(2))
+        if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
+            continue  # _kit_prose reports the canonical invalid-reference error below.
+        fact_topic=_weekly_fact_topic(facts[index]['label'])
+        if topic and fact_topic and topic!=fact_topic:
+            raise ValueError('Weekly section topic does not match referenced fact')
     return _kit_prose(text,facts)
+
+
+def _weekly_claim_topic(text):
+    text=text.casefold()
+    specific=(('protein',r'\bprotein\b'),('calories',r'\bcalories?\b|\bkcal\b'),
+              ('distance',r'\bdistance\b|\bmileage\b'),('duration',r'\bduration\b|\bmoving time\b'))
+    found=[topic for topic,pattern in specific if re.search(pattern,text)]
+    if found:
+        return found[0] if len(set(found))==1 else 'mixed'
+    if re.search(r'\bfood\b|\bintake\b|\bnutrition\b|\bmeals?\b|\beating\b',text):
+        return 'nutrition'
+    if re.search(r'\bworkouts?\b|\btraining\b|\bruns?\b|\bactivities\b|\bsessions?\b',text):
+        return 'activity'
+    return None
+
+
+def _weekly_fact_topic(label):
+    label=label.casefold()
+    if 'protein' in label:return 'protein'
+    if 'calorie' in label:return 'calories'
+    if 'distance' in label:return 'distance'
+    if 'duration' in label or 'moving time' in label:return 'duration'
+    if any(word in label for word in ('workout','training','run','activity','session')):return 'activity'
+    return None
 
 
 def checked_answer(raw, evidence, *, kit=False, weekly_review=False):
     answer = (KitAnswer if kit else Answer).model_validate(raw)
     if weekly_review and not kit: raise ValueError('Weekly reviews require the Kit answer contract')
-    if kit and (not answer.reason and not weekly_review): raise ValueError('Kit answers need a reason')
+    if kit and not answer.reason.strip(): raise ValueError('Kit answers need a reason')
     if kit and weekly_review:
         if answer.weekly_review is None or answer.selection is not None or answer.actions:
             raise ValueError('Weekly reviews require three sections and cannot propose changes')
@@ -451,7 +488,7 @@ def _kit_retry_prompt(error):
 
 def _weekly_truncation_retry_prompt():
     return ('Your previous weekly-review JSON was truncated. Return one complete JSON object now, with no Markdown '
-            'or explanation outside it. Include verdict, reason as an empty string, facts (at most three), weekly_review '
+            'or explanation outside it. Include verdict, a short non-empty evidence-based reason, facts (at most three), weekly_review '
             'with all three one-sentence fields (what_went_well, what_to_change, next_week_focus), selection:null, '
             'actions:[], and follow_ups (at most two). Use only existing evidence and put every digit in a validated '
             'placeholder; do not request tools.')
@@ -530,11 +567,15 @@ and meal_combinations can produce confirmation proposals. For other changes, off
 KIT_WEEKLY_SYSTEM = KIT_SYSTEM + '''
 This answer was explicitly started by tapping “Review my week”. Return the same JSON shape, plus a required
 "weekly_review" object with exactly these three one-sentence fields: "what_went_well", "what_to_change",
-and "next_week_focus". Set "reason" to an empty string; the verdict is the overall summary. Keep the review
+and "next_week_focus". Include a short, non-empty evidence-based "reason"; the verdict is the overall summary. Keep the review
 brief and evidence-led. At most three facts support the whole answer, and at most two short follow-up questions.
 Return one complete JSON object with exactly these top-level keys before adding any prose:
-{"verdict":"...","reason":"","facts":[],"weekly_review":{"what_went_well":"...","what_to_change":"...","next_week_focus":"..."},"selection":null,"actions":[],"follow_ups":[]}
+{"verdict":"...","reason":"...","facts":[],"weekly_review":{"what_went_well":"...","what_to_change":"...","next_week_focus":"..."},"selection":null,"actions":[],"follow_ups":[]}
 Do not stream or abbreviate the object; all three weekly fields are required even when evidence is thin.
+Every placeholder uses the zero-based position of its matching item in the final "facts" array. The evidence ID
+must match that fact. In each sentence, the subject and topic must match the referenced fact's app-derived label;
+for example, do not use a protein subtotal to state that overall food intake reached a level, or a distance fact
+to make a food claim. Use a fact only for the metric its label names.
 The app already supplied profile, period_compare, consistency and nutrition_adequacy evidence for exactly the last
 seven completed account-local dates and the preceding seven. The range ends yesterday in the profile's timezone,
 not the provider's current date. Do not request tools or use previous-chat numbers as current facts. Treat a longer

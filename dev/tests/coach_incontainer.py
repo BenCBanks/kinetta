@@ -228,22 +228,27 @@ assert coach_chat._weekly_period('2026-12-01')['label']=='Nov 24–30, 2026'
 assert coach_chat._weekly_period('2027-01-01')['label']=='Dec 25–31, 2026'
 
 weekly_evidence=[profile_evidence,
- {'evidence_id':'e2','tool':'period_compare','data':{'current':{'totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}}}},
+ {'evidence_id':'e2','tool':'period_compare','data':{'current':{'known_totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}},'change':{'distance_m':{'absolute':4000}}}},
  {'evidence_id':'e3','tool':'consistency','data':{'recorded_workout_days':3,'food_log_days':2}},
  {'evidence_id':'e4','tool':'nutrition_adequacy','data':{'summary':{'protein_g':{'comparable_days':2,'comparable_day_subtotal':180.0}}}},]
-weekly_raw={'verdict':'Your records show a steady training week.','reason':'',
- 'facts':[{'evidence_id':'e2','path':['current','totals','distance_m'],'value':12000},
-          {'evidence_id':'e2','path':['previous','totals','distance_m'],'value':8000},
+weekly_raw={'verdict':'Your recorded distance increased.','reason':'That recorded change does not explain its cause.',
+ 'facts':[{'evidence_id':'e2','path':['current','known_totals','distance_m'],'value':12000},
+          {'evidence_id':'e2','path':['change','distance_m','absolute'],'value':4000},
           {'evidence_id':'e4','path':['summary','protein_g','comparable_day_subtotal'],'value':180.0}],
  'weekly_review':{'what_went_well':'You kept a useful training rhythm.','what_to_change':'Food records are too uneven to compare intake confidently.',
                   'next_week_focus':'Keep the next week steady and follow the saved plan.'},
  'selection':None,'actions':[],'follow_ups':['What should I keep doing?','How can I make food logging easier?']}
 weekly_checked=coach_chat.checked_answer(weekly_raw,weekly_evidence,kit=True,weekly_review=True)
 assert list(weekly_checked['weekly_review'])==['what_went_well','what_to_change','next_week_focus']
-assert weekly_checked['facts'][0]['label']=='Total current distance'
+assert weekly_checked['facts'][0]['label']=='Known total current distance'
+assert weekly_checked['facts'][0]['display_value']=='7.5 mi'
+assert weekly_checked['facts'][1]['label']=='Change in distance'
+assert weekly_checked['facts'][1]['display_value']=='2.5 mi'
 assert weekly_checked['facts'][2]['label']=='Known protein subtotal on comparison days'
+assert weekly_checked['facts'][2]['display_value']=='180 g'
 for bad in [
     {**weekly_raw,'weekly_review':None},
+    {**weekly_raw,'reason':'  '},
     {**weekly_raw,'follow_ups':['One?','Two?','Three?']},
     {**weekly_raw,'verdict':'Your records show 3 training days.'},
     {**weekly_raw,'reason':'You ran 3 days.'},
@@ -251,6 +256,8 @@ for bad in [
     {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food was logged on 2 days.'}},
     {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'next_week_focus':'Run 3 times.'}},
     {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food records are uneven. Intake changed.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Logged food intake reached only {e4:2}.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Logged food intake reached only {e2:1}.'}},
     {**weekly_raw,'actions':['food']},
 ]:
     try:coach_chat.checked_answer(bad,weekly_evidence,kit=True,weekly_review=True)
@@ -261,13 +268,18 @@ assert numeric_weekly_chip['follow_ups']==[], 'A model-written digit in a weekly
 placeholder_week={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'Your recorded distance was {e2:0}.'}}
 rendered_week=coach_chat.checked_answer(placeholder_week,weekly_evidence,kit=True,weekly_review=True)
 assert rendered_week['weekly_review']['what_went_well']=='Your recorded distance was '+rendered_week['facts'][0]['display_value']+'.', 'Weekly numeric prose may only use app-rendered verified placeholders'
+matching_protein={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Protein on comparison days was {e4:2}.'}}
+assert '180 g' in coach_chat.checked_answer(matching_protein,weekly_evidence,kit=True,weekly_review=True)['weekly_review']['what_to_change']
+try: coach_chat._kit_fact('period_compare',weekly_evidence[1]['data'],['change','distance_m','percent'],12.5,'metric')
+except ValueError as error: assert str(error)=='Unsupported measurement path'
+else: raise AssertionError('Unsupported period change paths must remain rejected')
 
 # A captured provider response that stops mid-object gets one shorter, no-tools retry;
 # the retry still goes through the same weekly validator and placeholder contract.
 weekly_retry_round=0
 def weekly_retry_tool(self,name,args,*,connection=None):
     if name=='profile': return {'units':'metric','today':'2026-11-22'}
-    if name=='period_compare': return {'current':{'totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}}}
+    if name=='period_compare': return {'current':{'known_totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}},'change':{'distance_m':{'absolute':4000}}}
     if name=='consistency': return {'recorded_workout_days':3,'food_log_days':2}
     if name=='nutrition_adequacy': return {'summary':{'protein_g':{'comparable_days':2,'comparable_day_subtotal':180.0}}}
     raise AssertionError('Unexpected weekly fixture tool '+name)
@@ -292,7 +304,7 @@ weekly_calls=[]
 def weekly_tool(self,name,args,*,connection=None):
     weekly_calls.append((name,args))
     if name=='profile':return {'units':'imperial','today':'2026-03-09'}
-    if name=='period_compare':return {'current':{'totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}}}
+    if name=='period_compare':return {'current':{'known_totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}},'change':{'distance_m':{'absolute':4000}}}
     if name=='consistency':return {'recorded_workout_days':3,'food_log_days':2}
     if name=='nutrition_adequacy':return {'summary':{'protein_g':{'comparable_days':2,'comparable_day_subtotal':180.0}}}
     raise AssertionError('Weekly prefetch must stay within reviewed tools')
@@ -310,7 +322,7 @@ assert [name for name,_ in weekly_calls]==['profile','period_compare','consisten
 assert all(args=={'start':'2026-03-02','end':'2026-03-08'} for _,args in weekly_calls[1:])
 assert len(weekly_turns)==1 and weekly['weekly_period']=={'start':'2026-03-02','end':'2026-03-08','label':'Mar 2–8, 2026'}
 assert weekly['weekly_review']['what_went_well']=='You kept a useful training rhythm.'
-assert weekly['interpretation']=='Your records show a steady training week.'
+assert weekly['interpretation']==weekly_raw['verdict']+' '+weekly_raw['reason']
 
 # Invalid weekly prose fails after the single answer call; unlike ordinary Kit, it cannot buy a retry.
 invalid_weekly_calls=[]
