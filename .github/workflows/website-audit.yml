@@ -1,0 +1,56 @@
+name: Website browser audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'dev/tests/website_screens_ui.cjs'
+      - 'dev/tests/browser/package.json'
+      - 'dev/tests/browser/package-lock.json'
+      - '.github/workflows/website-audit.yml'
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'dev/tests/website_screens_ui.cjs'
+      - 'dev/tests/browser/package.json'
+      - 'dev/tests/browser/package-lock.json'
+      - '.github/workflows/website-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  webkit:
+    name: WebKit iPhone 15 Pro site audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dev/tests/browser/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: webkit-${{ runner.os }}-${{ hashFiles('dev/tests/browser/package-lock.json') }}
+      - name: Install browser test dependencies
+        run: npm ci --prefix dev/tests/browser
+      - name: Install WebKit on Ubuntu
+        run: dev/tests/browser/node_modules/.bin/playwright install --with-deps webkit
+      - name: Audit the website in iPhone 15 Pro WebKit
+        env:
+          KINETTA_WEBSITE_ENGINES: webkit
+          KINETTA_WEBSITE_WIDTHS: '390'
+          KINETTA_WEBSITE_THEMES: light,dark
+          KINETTA_WEBSITE_DPRS: '1'
+          KINETTA_WEBSITE_SHOT_DIR: /tmp/website-webkit-shots
+          NODE_PATH: ${{ github.workspace }}/dev/tests/browser/node_modules
+        run: node dev/tests/website_screens_ui.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: website-webkit-390-${{ github.run_id }}
+          path: /tmp/website-webkit-shots/
+          if-no-files-found: warn
+          retention-days: 14
