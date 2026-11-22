@@ -18,6 +18,47 @@ async function waitForDocumentPosition(p,selector,expected,label){
  }
  throw Error(`${label}: fixture position did not settle within 5px of ${expected}: ${JSON.stringify(current)}`);
 }
+async function settledProgressCardGeometry(p,selector,label){
+ await waitForProgressAssets(p);
+ let previous=null,stable=0,current=null;
+ for(let frame=0;frame<300;frame++){
+  current=await p.locator(selector).evaluate(node=>{
+   const section=document.querySelector('.progress-home'),r=node.getBoundingClientRect(),s=section.getBoundingClientRect(),root=document.scrollingElement;
+   return{cardDocumentY:r.top+scrollY,cardViewportTop:r.top,cardOffsetFromSection:r.top-s.top,sectionDocumentY:s.top+scrollY,scrollY,scrollHeight:root.scrollHeight,clientHeight:root.clientHeight};
+  });
+  const still=previous&&Object.keys(current).every(key=>Math.abs(current[key]-previous[key])<.25);
+  stable=still?stable+1:0;
+  if(stable>=2)return current;
+  previous=current;
+  await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(resolve)));
+ }
+ throw Error(`${label}: fixture layout did not settle after fonts/images: ${JSON.stringify(current)}`);
+}
+async function waitForProgressAssets(p){
+ await p.evaluate(async()=>{
+  await document.fonts.ready;
+  const images=[...document.querySelectorAll('.progress-home img')].filter(img=>img.loading!=='lazy'||img.getBoundingClientRect().width>0);
+  await Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});})));
+ });
+}
+async function waitForClampedCardPosition(p,selector,before,label){
+ await waitForProgressAssets(p);
+ let previous=null,stable=0,current=null,expectedDocumentY=null;
+ for(let frame=0;frame<300;frame++){
+  current=await p.locator(selector).evaluate(node=>{
+   const section=document.querySelector('.progress-home'),r=node.getBoundingClientRect(),s=section.getBoundingClientRect(),root=document.scrollingElement;
+   return{cardDocumentY:r.top+scrollY,cardViewportTop:r.top,cardOffsetFromSection:r.top-s.top,sectionDocumentY:s.top+scrollY,scrollY,scrollHeight:root.scrollHeight,clientHeight:root.clientHeight};
+  });
+  expectedDocumentY=current.sectionDocumentY+before.cardOffsetFromSection;
+  const near=Math.abs(current.cardDocumentY-expectedDocumentY)<5&&current.scrollY>=0&&current.scrollY<=before.scrollY+5;
+  const still=previous&&Object.keys(current).every(key=>Math.abs(current[key]-previous[key])<.25);
+  stable=near&&still?stable+1:0;
+  if(stable>=2)return current;
+  previous=current;
+  await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(resolve)));
+ }
+ throw Error(`${label}: settled document position exceeded 5px of target ${JSON.stringify({expectedDocumentY,before,current})}`);
+}
 const plotPositionKeys=['x','y','width','height'];
 async function settledPlotPosition(locator,label){
  let previous=null,stable=0;
@@ -357,7 +398,7 @@ function assertPlotStayed(before,after,label){
     }
     await p.locator(weight?'.weight-heading [data-back]':'.progress-back').click();await p.waitForURL(url=>url.pathname==='/progress');await p.waitForSelector('.progress-home');await ready();assert.equal(await p.locator('.progress-home').count(),1);
    }
-   await home();await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));const bottom=await p.evaluate(()=>{const root=document.scrollingElement,max=Math.max(0,root.scrollHeight-root.clientHeight);window.scrollTo({top:max,behavior:'instant'});return{max,scrollY,scrollHeight:root.scrollHeight,clientHeight:root.clientHeight};});assert(bottom.max>1&&bottom.scrollY>0,'Progress scroll-preservation fixture reaches the document bottom after route scroll restoration settles: '+JSON.stringify(bottom));await p.evaluate(()=>document.addEventListener('click',e=>{const tile=e.target.closest('[data-progress-feature="lifting"]');if(tile){globalThis.progressLeaveScroll=scrollY;globalThis.progressLeaveCardTop=tile.getBoundingClientRect().top;}},{capture:true}));await p.locator('[data-progress-feature="lifting"]').click();await p.waitForURL('**/progress?view=lifting');await ready();const y=await p.evaluate(()=>globalThis.progressLeaveScroll);assert(y>0,'scroll-preservation case starts below the top');await p.locator('.progress-back').click();await p.waitForURL(base+'/progress');await p.locator('.progress-home').waitFor();await ready();const cardTop=await p.evaluate(()=>globalThis.progressLeaveCardTop),cardDocumentY=cardTop+y;await waitForDocumentPosition(p,'[data-progress-feature="lifting"]',cardDocumentY,'Home restores the Progress card position after end-of-content clamping');
+   await home();await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));const bottom=await p.evaluate(()=>{const root=document.scrollingElement,max=Math.max(0,root.scrollHeight-root.clientHeight);window.scrollTo({top:max,behavior:'instant'});return{max,scrollY,scrollHeight:root.scrollHeight,clientHeight:root.clientHeight};});assert(bottom.max>1&&bottom.scrollY>0,'Progress scroll-preservation fixture reaches the document bottom after route scroll restoration settles: '+JSON.stringify(bottom));const lifting=p.locator('[data-progress-feature="lifting"]');await lifting.scrollIntoViewIfNeeded();const before=await settledProgressCardGeometry(p,'[data-progress-feature="lifting"]','Progress card before detail navigation');assert(before.scrollY>0,'scroll-preservation case starts below the top');await lifting.click();await p.waitForURL('**/progress?view=lifting');await ready();await p.locator('.progress-back').click();await p.waitForURL(base+'/progress');await p.locator('.progress-home').waitFor();await ready();await until(p,()=>!document.querySelector('[data-progress-feature="lifting"] .progress-new:not(.seen)'),'visited Progress tile drops New');await waitForClampedCardPosition(p,'[data-progress-feature="lifting"]',before,'Home restores the Progress card position after end-of-content clamping');
    assert.equal(await p.locator('[data-progress-feature="lifting"] .progress-new:not(.seen)').count(),0,'visited tile drops New');
    // Keep volume reads failing until the screen shows Retry. warmTabs can prefetch this same URL, so a one-shot failure
    // can be consumed before the screen asks for it; invalidate its pending read and use in-app navigation here.
