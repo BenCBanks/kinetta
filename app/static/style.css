@@ -1462,9 +1462,9 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-reactions {display:contents;}
 .reaction-action {display:contents;}
 .activity-reactions .pf,.activity-comments,.post-hd .activity-share {background:none;border-color:transparent;box-shadow:none;min-height:44px;}
-.post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:3px 16px;min-height:44px;}
+.post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0 16px;height:40px;min-height:40px;box-sizing:border-box;}
 /* Give narrow feed-map attribution a full 8px clearance from the 44px comment target. */
-.activity-card:has(.fmap) > .post-ft {padding-top:4px;}
+.activity-card:has(.fmap) > .post-ft {padding-top:0;}
 .emoji-reactions .reaction-more {order:1;flex:none;min-width:44px;min-height:44px;justify-content:flex-start;gap:6px;padding:0;margin-right:8px;font-size:15px;font-weight:500;color:var(--tx2);}
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
 .emoji-reactions .reaction-more .reaction-emoji {font-size:22px;}
@@ -1476,24 +1476,26 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .emoji-reactions .reaction-count {order:4;display:flex;flex:none;align-items:center;justify-content:flex-end;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 auto;color:var(--tx2);font-size:15px;}
 .emoji-reactions .reaction-count[hidden] {display:none;}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
-.activity-comments {order:2;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0;margin:0;}
+.activity-comments {order:2;display:flex;flex:none;align-items:center;justify-content:center;gap:5px;min-width:44px;min-height:44px;height:44px;padding:0;margin-block:-2px;margin-inline:0;}
 .activity-comments>svg {width:20px;height:20px;flex:none;}
 .activity-comments .num[hidden] {display:none;}
+.activity-comments:has(.num[hidden])>svg {display:none;}
+.activity-comments:has(.num[hidden])::after {content:"Comment";font-size:12px;font-weight:500;line-height:1;color:var(--tx2);white-space:nowrap;}
 .post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
 .post-ft:has(.emoji-reactions) .activity-share {order:3;min-width:44px;height:44px;margin:0 0 0 8px;padding:0;display:flex;align-items:center;justify-content:center;}
 .post-ft:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
 .post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
 .post-hd .activity-share>svg {width:20px;height:20px;}
 /* Shared activity-card footer order: React, Comment, counts, then Share. */
-:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:3px 16px;min-height:48px;}
-:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more {order:1;display:flex;width:44px;min-width:44px;height:44px;min-height:44px;align-items:center;justify-content:center;gap:0;padding:0;margin:0;color:var(--tx2);}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0 16px;height:40px;min-height:40px;box-sizing:border-box;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more {order:1;display:flex;width:44px;min-width:44px;height:44px;min-height:44px;align-items:center;justify-content:center;gap:0;padding:0;margin-block:-2px;margin-inline:0;color:var(--tx2);}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:22px;height:22px;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:translateX(-11px);}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more {width:auto;justify-content:flex-start;gap:4px;font-size:14px;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:18px;height:18px;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:none;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:2;margin-left:8px;}
-:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments>svg {width:22px;height:22px;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments>svg {width:20px;height:20px;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments .num {font-size:14px;font-weight:500;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count {order:3;display:flex;flex:none;align-items:center;justify-content:flex-end;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 auto;color:var(--tx2);font-size:14px;font-weight:500;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {display:flex;align-items:center;gap:4px;overflow:visible;white-space:nowrap;}
@@ -1508,6 +1510,13 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:3;margin:0 0 0 auto;}
 .activity-home .activity-card .post-ft:not(:has(.reaction-count:not([hidden]))) .activity-share {margin-left:8px;}
 @media(max-width:380px){:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions){padding-inline:12px;}}
+.profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {gap:2px;}
+.profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji {gap:2px;}
+@media(max-width:380px){
+ :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji .reaction-emoji {font-size:15px;}
+ :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-count,
+ :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-more {font-size:12px;}
+}
 /* Full rows share the card's content edges; narrow cards use four columns. */
 .reaction-picker {position:fixed;z-index:2100;max-width:calc(100vw - 16px);padding:8px;border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
 .reaction-options {display:grid;grid-template-columns:repeat(var(--reaction-columns,4),minmax(44px,1fr));gap:8px;}
