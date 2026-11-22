@@ -291,7 +291,7 @@ for join in ['-', ' – ', ' — ']:
 serving_raw={**number_raw,'facts':[{'evidence_id':'e2','path':['records',0,'per_serving','protein_g'],'value':80}]}
 serving=coach_chat.checked_answer(serving_raw,[profile_evidence,{'evidence_id':'e2','tool':'stored_foods','data':{'records':[{'per_serving':{'protein_g':80}}]}}],kit=True)
 assert serving['facts'][0]['label']=='Protein per serving' and serving['facts'][0]['display_value']=='80 g'
-assert coach_chat._kit_prose('The saved serving was {e2:0}.',serving['facts'])=='The saved serving was 80 g.'
+assert coach_chat._kit_prose('The saved serving was {e2:0}.',serving['facts'])=='The saved serving was 80 g protein per serving.'
 # Newly allowed paths are scalar measurements actually returned by their named tools.
 for tool,path,value,data,expected_label,expected_display in [
     ('meal_options',['candidates',0,'kcal'],460,{'candidates':[{'kcal':460}]},'Meal candidate calories','460 kcal'),
@@ -356,21 +356,21 @@ for phrase,expected in [
     assert coach_chat.checked_answer(raw,number_evidence,kit=True)['verdict']==expected
 average_evidence=[profile_evidence,{'evidence_id':'e2','tool':'nutrition_summary','data':{'average_per_logged_day':{'protein_g':80}}}]
 average_fact={**number_raw,'facts':[{'evidence_id':'e2','path':['average_per_logged_day','protein_g'],'value':80}],
-              'verdict':'Average daily protein: {e2:0}.','reason':'Total protein: {e2:0}.'}
+              'verdict':'Average daily protein: {e2:0}.','reason':'The verified value was {e2:0}.'}
 average_answer=coach_chat.checked_answer(average_fact,average_evidence,kit=True)
-assert average_answer['reason']=='Total protein: 80 g.'
+assert average_answer['reason']=='The verified value was 80 g protein per logged day.'
 assert average_answer['facts'][0]['display_value']=='80 g'
 remote_label={**average_fact,'reason':'The total for the whole period was recorded: {e2:0}.'}
-assert coach_chat.checked_answer(remote_label,average_evidence,kit=True)['reason'].endswith('80 g.')
+assert coach_chat.checked_answer(remote_label,average_evidence,kit=True)['reason'].endswith('80 g protein per logged day.')
 
 # Rendered values never repeat their unit through an app-owned label.
 dedupe_cases=[
     ('nutrition_summary',['totals','kcal'],350,{'totals':{'kcal':350}},'Total calories','350 kcal','Lunch logged {e2:0}.','Lunch logged 350 kcal.'),
     ('body_profile',['weight_kg'],72,{'weight_kg':72},'Weight','158.7 lb','Your latest entry was {e2:0}.','Your latest entry was 158.7 lb.'),
     ('training_plan',['weeks',0,'planned'],19,{'plan':{'unit':'km'},'weeks':[{'planned':19}]},'Planned distance','19 km','Your upcoming week calls for {e2:0}.','Your upcoming week calls for 19 km.'),
-    ('profile',['protein_target'],120,{'protein_target':120},'Protein target','120 g','Your macro target is {e2:0}.','Your macro target is 120 g.'),
+    ('profile',['protein_target'],120,{'protein_target':120},'Protein target','120 g','Your macro target is {e2:0}.','Your macro target is 120 g protein target.'),
     ('training_load',['days',0,'form'],-18.8,{'days':[{'form':-18.8}]},'Form','-18.8','The estimated form reached {e2:0} after training.','The estimated form reached -18.8 after training.'),
-    ('training_load',['days',0,'fatigue'],24.1,{'days':[{'fatigue':24.1}]},'Fatigue','24.1','Your fatigue climbed to {e2:0}.','Your fatigue climbed to 24.1.'),
+    ('training_load',['days',0,'fatigue'],24.1,{'days':[{'fatigue':24.1}]},'Fatigue','24.1','The current value was {e2:0}.','The current value was 24.1 fatigue.'),
 ]
 for tool,path,value,data,label,display,prose,expected in dedupe_cases:
     fact=coach_chat.checked_answer({**number_raw,'facts':[{'evidence_id':'e2','path':path,'value':value}]},
@@ -378,9 +378,16 @@ for tool,path,value,data,label,display,prose,expected in dedupe_cases:
     assert (fact['label'],fact['display_value'])==(label,display),(tool,path,fact)
     assert coach_chat._kit_prose(prose,[fact])==expected,(tool,path,expected)
 deduped_output=' '.join(case[-1] for case in dedupe_cases)
-for duplicate in ('350 kcal calories','158.7 lb weight','19 km planned distance','120 g protein target',
-                 '-18.8 form','24.1 fatigue'):
+for duplicate in ('350 kcal calories','158.7 lb weight','19 km planned distance',
+                 '-18.8 form'):
     assert duplicate not in deduped_output,duplicate
+target_evidence={'evidence_id':'e2','tool':'profile','data':{'protein_target':120,'carbs_target':250}}
+targets=coach_chat.checked_answer({**number_raw,'verdict':'Your saved targets include {e2:0} and {e2:1}.',
+    'reason':'They are the current values in your profile.',
+    'facts':[{'evidence_id':'e2','path':['protein_target'],'value':120},
+             {'evidence_id':'e2','path':['carbs_target'],'value':250}]},
+    [profile_evidence,target_evidence],kit=True)
+assert '120 g protein target and 250 g carbohydrate target' in targets['verdict'],targets['verdict']
 planned_fact=coach_chat.checked_answer({**number_raw,
     'facts':[{'evidence_id':'e2','path':['weeks',0,'planned'],'value':6}]},
     [profile_evidence,{'evidence_id':'e2','tool':'training_plan','data':{'plan':{'unit':'km'},'weeks':[{'planned':6}]}}],kit=True)['facts'][0]

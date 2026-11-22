@@ -13,6 +13,7 @@ from pydantic import Field, StrictFloat, StrictInt, StrictStr
 
 from . import coach, db, ai_budget
 from .coach_tools import AccountTools, FoodTools, Empty, specifications
+from .kit_answer_format import has_ambiguous_mass_unit
 
 MAX_ROUNDS, MAX_CALLS = 5, 12
 PROMPT_VERSION = 'kit-tools-1'
@@ -185,9 +186,8 @@ def _placeholder_value(fact, before=''):
         noun=label.removeprefix('average daily ')
         label=f'{noun} per logged day'
     display=fact['display_value']
-    # A formatted unit already names the quantity (350 kcal, 158.7 lb, 19 km).
-    # Keep app labels only for unitless values such as fatigue, form and workout counts.
-    if _DISPLAY_UNIT.search(display):return display
+    # A unit alone is sufficient for unique quantities, but grams/milligrams need their app label.
+    if _DISPLAY_UNIT.search(display) and not has_ambiguous_mass_unit(fact):return display
     sentence_context=re.split(r'[.!?;\n]',before)[-1]
     if label and re.search(r'(?<!\w)'+re.escape(label)+r'(?!\w)',sentence_context,re.I):return display
     return f"{display} {label}"
