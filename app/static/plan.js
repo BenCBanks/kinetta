@@ -161,7 +161,7 @@ function planOverview(box, d) {
       ${d.vdot ? paceRow('Easy & long runs', pc.easy, 'chatty, relaxed - most of your running') + paceRow('Recovery', pc.recovery, 'the day after a long run') +
         paceRow('Tempo', pc.tempo, 'comfortably hard, about 1-hour race pace') + paceRow('Intervals', pc.intervals, 'hard repeats, about 5K effort') +
         paceRow(p.goal_s ? 'Goal race pace' : 'Race pace from fitness', p.goal_s ? pc.goal : pc[goalKey], p.goal_s ? `for your ${fmtT(p.goal_s)} goal` : 'from best efforts in the past 90 days')
-        + '<p class="small muted">Easy = conversational · Tempo = a few words · Intervals = hard and controlled.</p>'
+        + '<p class="small muted">Easy = conversational · Tempo = a few words · Intervals = hard and controlled. In heat or on hills, go by feel.</p>'
         : '<p class="small">Easy = conversational · Tempo = a few words · Intervals = hard and controlled.</p>'}</div>
     </details>`;
   wireWorkouts(box,d);
