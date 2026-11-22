@@ -112,6 +112,7 @@ _PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
 _PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached totaled totaling weighed shows show'.split())
 _PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with recorded compared previously currently overall before after earlier today yesterday across over toward while each daily recently your against for on though'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
+_DISPLAY_UNIT = re.compile(r'(?:\s(?:mi|km|ft|in|lb|kg|g|mg|kcal|bpm|min|h|m)\b|/\s?(?:mi|km)\b|°[CF])')
 
 
 class KitValidationError(ValueError):
@@ -178,12 +179,18 @@ def _placeholder_boundary_ok(context, *, before):
     return not rest or rest[-1 if before else 0].isspace() or rest[-1 if before else 0] in _PLACEHOLDER_PUNCTUATION
 
 
-def _placeholder_value(fact):
+def _placeholder_value(fact, before=''):
     label=fact['label'].casefold()
     if label.startswith('average daily '):
         noun=label.removeprefix('average daily ')
         label=f'{noun} per logged day'
-    return f"{fact['display_value']} {label}"
+    display=fact['display_value']
+    # A formatted unit already names the quantity (350 kcal, 158.7 lb, 19 km).
+    # Keep app labels only for unitless values such as fatigue, form and workout counts.
+    if _DISPLAY_UNIT.search(display):return display
+    sentence_context=re.split(r'[.!?;\n]',before)[-1]
+    if label and re.search(r'(?<!\w)'+re.escape(label)+r'(?!\w)',sentence_context,re.I):return display
+    return f"{display} {label}"
 
 
 def _kit_prose(text, facts):
@@ -206,7 +213,7 @@ def _kit_prose(text, facts):
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
             raise ValueError('Unknown or mismatched numeric reference')
     def replace(match):
-        return _placeholder_value(facts[int(match.group(2))])
+        return _placeholder_value(facts[int(match.group(2))],text[:match.start()])
     resolved=PLACEHOLDER.sub(replace,text).strip()
     if not resolved or len(resolved)>1600: raise ValueError('Answer text is empty or too long')
     return resolved
@@ -393,10 +400,14 @@ After tool calls return JSON only:
  "facts":[{"evidence_id":"e2","path":["totals","distance_m"],"value":5000}],
  "selection":null,"actions":[],"follow_ups":["What should I focus on next?"]}
 Every digit in verdict/reason must come from a placeholder {evidence_id:fact_index}. For example {e2:0} inserts
-the application-formatted value and its app-generated fact label, which must cite evidence e2. Multiple facts may use different paths in
+the application-formatted value, which must cite evidence e2. The formatted value includes its unit; the app adds a
+short metric label only for unitless values. Multiple facts may use different paths in
 the same evidence result. Use zero-based indexes into the facts array, at most three facts. Every fact must cite
 an exact finite numeric field from a successful current-turn tool result and its matching value; the app supplies
-labels, rounding and account units. Use a placeholder as a complete value; do not append a unit or repeat its label.
+rounding and account units. Use a placeholder as a complete value; do not append a unit or repeat its label. Do not
+put the metric label or unit immediately before or after its placeholder either. Use neutral framing such as
+"The recorded value was {e2:0}"; avoid "Protein was {e2:0} protein" and "{e2:0} kcal". For unitless metrics,
+the app appends one short label after the value, so do not name that metric immediately before the slot.
 Keep it beside only whitespace, simple punctuation or an approved connective. Both sides also allow
 about/around/roughly/to/and/or/from/of/vs/versus. A hyphen, en dash or em dash may join two placeholders as a
 range; never use one as a sign before a value. Before references, approved words include a/an/the/is/was/are/were/
@@ -410,9 +421,10 @@ and in follow-up questions are rejected; wording and number words are not verifi
 To choose a placeholder, first count entries in your own `facts` array from zero; the index is not an index
 into a tool result. Copy that entry's `evidence_id` exactly. Example: if the first fact is
 `{"evidence_id":"e2","path":["average_per_logged_day","protein_g"],"value":80}`, write
-`"verdict":"Your protein was {e2:0}."`; the app renders the verified value and label. Do not write
-`80 g protein`, `{e2:1}` for that first fact, or `... {e2:0} g`: each is rejected. Keep the numeric
-reference itself as the value in verdict/reason; its app-owned label already includes quantity and unit.
+`"verdict":"The recorded value was {e2:0}."`; the app renders the verified value with its unit, plus a short
+label only for unitless measurements. Do not write `Your protein was {e2:0} protein`, `{e2:1}` for that first
+fact, or `... {e2:0} g`: each repeats a label/unit or uses the wrong fact index. Keep the numeric reference itself
+as the value in verdict/reason; app formatting supplies the unit and any needed label.
 Only cite measurement fields, not IDs, dates, names, strings, unknown values, unlogged-day counts or metadata.
 Generic activity goal targets are not supported as numeric facts; nutrition targets are supported.
 Use totals/known_totals/average_per_logged_day accurately; known totals may omit unknown nutrients.
@@ -573,7 +585,11 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     try:checked=checked_answer(_json(retry_text),evidence,kit=True)
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
                 else: raise
-            return {**checked, 'prompt_version': 'kit-numbers-3' if kit else PROMPT_VERSION, 'usage': usage,
+            if kit:
+                # The UI consumes only interpretation. Keep the validated source fields internal
+                # to answer construction instead of serializing the same prose three times.
+                checked.pop('verdict',None);checked.pop('reason',None)
+            return {**checked, 'prompt_version': 'kit-numbers-4' if kit else PROMPT_VERSION, 'usage': usage,
                     'latency_ms': round((time.monotonic() - began) * 1000),
                     'health_included':kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and 'data' in e for e in evidence),
                     'tools_used': [e['tool'] for e in evidence]}
