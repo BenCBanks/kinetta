@@ -17,9 +17,10 @@ def run():
             {'start':'2026-03-07','end':'2026-03-12','user_id':1},
             {'start':'2026-03-07','end':'2026-03-12','sql':'SELECT * FROM activities'},
             {'start':'2026-03-07','end':'2026-03-12','end2':'2026-03-13'},
-            {'start':'2025-03-01','end':'2026-03-01'},
+            {'start':'2025-02-28','end':'2026-03-01'},
         ):
-            assert a.post('/api/coach/tools',{'name':'pace_vs_effort','arguments':invalid})[0]==400
+            response=a.post('/api/coach/tools',{'name':'pace_vs_effort','arguments':invalid})
+            assert response[0]==400,(invalid,response)
         subprocess.run(['docker','exec','-i',project+'-app-1','python','-'],
             input=Path(__file__).with_name('coach_pace_incontainer.py').read_text(),text=True,check=True)
         response=a.post('/api/coach/tools',{'name':'pace_vs_effort','arguments':{

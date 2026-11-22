@@ -42,11 +42,13 @@ assert future['finished_days']==0 and future['excluded_days']==6 and future['cov
 with patch.object(AccountTools,'_local_today',return_value=dt.date(2026,3,10)):
     limited=tool.call('pace_vs_effort',{**args,'limit':1})
 assert limited['coverage']['paired_count']==2 and limited['returned_count']==1 and limited['truncated']
-with db.coach_connect(a) as c:
-    assert c.execute('SHOW transaction_read_only').fetchone()['transaction_read_only']=='on'
-    assert c.execute('SELECT current_user AS role').fetchone()['role']=='fit_coach'
-    assert all(row['user_id']==a for row in c.execute("SELECT user_id FROM activities WHERE sport='run'").fetchall())
-    assert tool.call('pace_vs_effort',args,connection=c)==data
+with patch.object(AccountTools,'_local_today',return_value=dt.date(2026,3,10)):
+    with db.coach_connect(a) as c:
+        assert c.execute('SHOW transaction_read_only').fetchone()['transaction_read_only']=='on'
+        assert c.execute('SELECT current_user AS role').fetchone()['role']=='fit_coach'
+        assert all(row['user_id']==a for row in c.execute("SELECT user_id FROM activities WHERE sport='run'").fetchall())
+        scoped=tool.call('pace_vs_effort',args,connection=c)
+        assert scoped==data,(scoped,data)
 try:FoodTools(a).call('pace_vs_effort',args)
 except ValueError:pass
 else:raise AssertionError('Fitness pace/effort escaped food-only boundary')
@@ -54,6 +56,6 @@ with patch('app.coach.health_ok',return_value=False):
     try:KitTools(a).call('pace_vs_effort',args)
     except ValueError:pass
     else:raise AssertionError('Unconsented Health records disclosed')
-with patch('app.coach.health_ok',return_value=True):
+with patch('app.coach.health_ok',return_value=True), patch.object(AccountTools,'_local_today',return_value=dt.date(2026,3,10)):
     assert KitTools(a).call('pace_vs_effort',args)==data
 print('Pace/effort SQL: local DST boundary, today/future exclusion, missing values, fallback, read-only RLS and consent PASS')
