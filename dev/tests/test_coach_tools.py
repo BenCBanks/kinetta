@@ -33,7 +33,9 @@ check_consistency()
 from coach_adequacy_checks import run as check_adequacy
 check_adequacy()
 from coach_records_checks import run as check_personal_records
+from coach_pace_checks import run as check_pace_effort
 check_personal_records()
+check_pace_effort()
 
 a, b = person('zz_test_coach_a'), person('zz_test_coach_b')
 try:
