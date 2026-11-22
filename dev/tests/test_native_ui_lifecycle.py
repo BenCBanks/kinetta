@@ -30,6 +30,15 @@ class LifecycleTests(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual([c[0] for c in calls], ['terminate', 'prepare'])
 
+    def test_simulator_ui_setup_commands_use_short_bounds(self):
+        calls = []
+        def sim(command, *args, **kwargs):
+            calls.append((command, args, kwargs))
+        lifecycle.set_appearance(sim, 'fictional-device', 'dark')
+        lifecycle.set_fixture_status_bar(sim, 'fictional-device')
+        self.assertEqual([call[0] for call in calls], ['ui', 'status_bar'])
+        self.assertEqual([call[2]['timeout'] for call in calls], [10, 10])
+
     def test_timeout_requires_checked_restart_before_fixture_update(self):
         result, calls = self.exercise(stop_timeout=True)
         self.assertTrue(result)

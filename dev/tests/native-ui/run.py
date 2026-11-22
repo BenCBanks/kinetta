@@ -3,7 +3,7 @@ import argparse,hashlib,importlib.util,json,os,platform,re,subprocess,time,uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 import urllib.request
-from lifecycle import create_fresh_sim, stop_for_fixture
+from lifecycle import create_fresh_sim, set_appearance, set_fixture_status_bar, stop_for_fixture
 from header_geometry import check_headers
 # 6.9-inch App Store story order: Home feed, Activity, Track, Nutrition day,
 # Kit food chat, Progress, Me (including featured badges), then Friends.
@@ -96,10 +96,10 @@ for device in preferred:
   (a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
   print('Booting native UI device: '+device['name'],flush=True)
   # A fresh hosted runner must initialize the iOS runtime; this can exceed three minutes.
-  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=240);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100')
+  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=240);set_fixture_status_bar(sim,udid)
   installed=None;recovered=False
   for theme in (('light',) if a.store else ('light','dark')):
-   sim('ui',udid,'appearance',theme)
+   set_appearance(sim,udid,theme)
    if a.store:
     store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])]));stages=[(name,16) for name in store_stages]
    else: stages=layout_stages(theme)

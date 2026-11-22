@@ -2,6 +2,18 @@
 import subprocess, uuid
 
 
+def set_appearance(sim, udid, theme):
+    """Simulator appearance setup can hang too; keep it out of the long default timeout."""
+    return sim('ui', udid, 'appearance', theme, timeout=10)
+
+
+def set_fixture_status_bar(sim, udid):
+    """Apply deterministic status-bar values with a short bound."""
+    return sim('status_bar', udid, 'override', '--time', '9:41', '--dataNetwork', 'wifi',
+               '--wifiMode', 'active', '--wifiBars', '3', '--batteryState', 'charged',
+               '--batteryLevel', '100', timeout=10)
+
+
 def create_fresh_sim(sim, device, runtime):
     """Clear leftovers, then give each attempt a new Simulator UDID."""
     sim('shutdown', 'all', timeout=20)
@@ -29,7 +41,6 @@ def stop_for_fixture(sim, udid, theme, recovered=False):
     sim('erase', udid, timeout=45)
     sim('boot', udid, timeout=20)
     sim('bootstatus', udid, '-b', timeout=160)
-    sim('ui', udid, 'appearance', theme, timeout=10)
-    sim('status_bar', udid, 'override', '--time', '9:41', '--dataNetwork', 'wifi',
-        '--wifiMode', 'active', '--wifiBars', '3', '--batteryState', 'charged', '--batteryLevel', '100', timeout=10)
+    set_appearance(sim, udid, theme)
+    set_fixture_status_bar(sim, udid)
     return True
