@@ -1170,7 +1170,7 @@ const MeCard=(()=>{
       const recent=key==='recent',row=(recent?r.recent?.current:r.overview)||{},name=recent?'Last 30 days':'All time',range=recent&&r.recent?.start?`${name}, ${short(r.recent.start)} – ${short(r.recent.end)}`:name;
       return `<div class="me-card-sec me-card-figures" role="group" data-card-period="${key}" aria-label="${esc(range)} workout totals"><p class="me-card-period" data-type="secondary" title="${esc(range)}">${name}</p><dl class="me-card-numbers me-numbers-${layout.stats.length}">${layout.stats.map(stat=>{
         const n=row[{activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat]],precise=stat==='time'&&n!=null?dur(n,true):null;let value=n==null?'—':stat==='distance'?`${ProfileLayout.distance(n)} ${U.du()}`:stat==='time'?precise:Number(n).toLocaleString();
-        return `<div data-card-stat="${stat}"><dt data-type="secondary"><span>${ProfileLayout.labels.stats[stat]}</span></dt><dd${precise?` title="${esc(U.time(n,true))}" aria-label="${esc(U.time(n,true))}"`:''}><b class="me-metric-value" data-type="stat">${esc(value)}</b></dd></div>`;
+        return `<div data-card-stat="${stat}"><dt data-type="secondary"><span>${ProfileLayout.labels.stats[stat]}</span></dt><dd${precise?` title="${esc(U.time(n,true))}"`:''}><b class="me-metric-value" data-type="stat"${precise?' aria-hidden="true"':''}>${esc(value)}</b>${precise?`<span class="vh">${esc(U.time(n,true))}</span>`:''}</dd></div>`;
       }).join('')}</dl></div>`;
     };
     return ProfileLayout.singlePeriod(layout).sections.map(key=>key==='recent'?'totals':key).filter((key,index,all)=>all.indexOf(key)===index).map(key=>{

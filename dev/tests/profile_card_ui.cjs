@@ -192,8 +192,8 @@ const focusedOnly=durationOnly||unitsOnly||compositionOnly||profileClockOnly||sh
   for(const [surface,login] of [['owner','alex'],['friend',friendFixtureLogin]]){
    await p.goto(base+'/people/'+login);await until(p,()=>App.pageReady,'long-duration '+surface+' profile');assert.deepEqual(errors,[],'profile opens without script errors');await settled();await p.evaluate(()=>document.fonts.ready);
    const time=p.locator('.me-card [data-card-stat="time"] dd');
-   assert.equal((await time.innerText()).trim(),'69d 14h','large totals use days and hours on '+surface);
-   assert.equal(await time.getAttribute('aria-label'),'69 days 14 hours','duration is spoken in full on '+surface);
+   assert.equal((await time.locator('b').innerText()).trim(),'69d 14h','large totals use days and hours on '+surface);
+   assert.match(await time.ariaSnapshot(),/69 days 14 hours/,'duration is spoken in full on '+surface);
    const fit=await time.evaluate(node=>{const column=node.parentElement,box=column.getBoundingClientRect(),style=getComputedStyle(column),range=document.createRange();range.selectNodeContents(node.querySelector('b'));const rects=[...range.getClientRects()];return{contained:rects.every(r=>r.left>=box.left+parseFloat(style.paddingLeft)-.5&&r.right<=box.right-parseFloat(style.paddingRight)+.5),width:node.clientWidth,scroll:node.scrollWidth};});
    assert(fit.contained&&fit.scroll<=fit.width+1,'duration stays within its column padding: '+JSON.stringify(fit));
    await noOverflow(surface+' long duration');
