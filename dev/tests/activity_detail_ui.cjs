@@ -81,7 +81,7 @@ const timingCases={
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
  const b=await chromium.launch(),contexts=[];
 async function open(kind,theme,size,mouse=false,comments=false,reaction=false,loadOptions={}){
-  const friend=kind==='friend'||kind==='friend-close'||kind==='friend-no-map',timingOverride=Object.hasOwn(timingCases,kind),reviewOverride=['long-splits','no-hr-no-map'].includes(kind),comparisonOverride=kind==='compare',missingElapsed=kind.startsWith('missing-elapsed'),id=ids[friend||timingOverride||reviewOverride||comparisonOverride?'run':kind==='paused-sparse'?'paused':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
+  const friend=kind==='friend'||kind==='friend-close'||kind==='friend-no-map',timingOverride=Object.hasOwn(timingCases,kind),reviewOverride=['long-splits','no-hr-no-map','healthkit-no-map'].includes(kind),comparisonOverride=kind==='compare',missingElapsed=kind.startsWith('missing-elapsed'),id=ids[friend||timingOverride||reviewOverride||comparisonOverride?'run':kind==='paused-sparse'?'paused':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password:pw}})).status(),200);
   if(reaction)assert.equal((await c.request.post(base+`/api/activities/${id}/reaction`,{headers:{Origin:base,'Content-Type':'application/json'},data:{kind:'clap'}})).status(),200,'fictional detail reaction fixture');
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
@@ -100,6 +100,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
   if(reviewOverride)await c.route(`**/api/activities/${id}`,async r=>{
    if(r.request().method()!=='GET')return r.fallback();
    const response=await r.fetch(),activity=await response.json();
+   if(kind==='healthkit-no-map')return r.fulfill({response,json:{...activity,source:'healthkit',route_count:0,line:null,track_lines:[],geom:null}});
    const splits=Array.from({length:12},(_,i)=>({n:i+1,distance_m:1609.344,pace_s_per_km:300+i*6,avg_hr:null,elev_m:null}));
    splits.push({n:13,distance_m:320,pace_s_per_km:120,avg_hr:null,elev_m:null});
    const effort={id:7001,label:'5K',elapsed_s:1500,rank_then:1,rank_now:1};
@@ -380,6 +381,19 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    if(!friend){const details=p.locator('[data-dt=overview]');if(await details.isVisible())await details.click();assert.equal(await details.locator('.detail-action-row,[data-phadd],#d-photos,#d-comment-open').count(),0,'Details has no photo-add/comment action row');await p.evaluate(()=>scrollTo(0,0));if(mapped){const edit=p.locator('.detail-floating [data-detail-edit]');assert(await edit.isVisible(),'mapped owner detail keeps its floating Edit action');await edit.click();await p.waitForSelector('#e-form');assert(await p.locator('#e-form').isVisible());await p.keyboard.press('Escape');}}
    if(kind==='run'&&size.width===330){await p.evaluate(()=>scrollTo(0,600));await until(p,()=>!document.querySelector('.detail-sticky')?.hidden,'sticky detail chrome');await p.waitForTimeout(80);const stickyTitle=p.locator('.detail-sticky .detail-bar-title');const geometry=await stickyTitle.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);return{width:n.clientWidth,scroll:n.scrollWidth,height:n.clientHeight,scrollHeight:n.scrollHeight,text:n.textContent,font:getComputedStyle(n).fontSize,lineRects:range.getClientRects().length};});assert(geometry.scroll<=geometry.width+1&&geometry.scrollHeight<=geometry.height+1&&geometry.lineRects===1,'sticky title fits one untruncated line at 330px: '+JSON.stringify(geometry));await p.evaluate(()=>scrollTo(0,0));}
    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'layout/actions do not write private data');console.log(`Activity detail ${name}: layout/actions/tabs/empty/permitted fields/map modal PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
+  }
+  if(loadCases.includes('map-help'))for(const theme of ['light','dark']){
+   const {c,p,errors,writes,id}=await open('healthkit-no-map',theme,{width:390,height:844,root:16});
+   try{
+    await p.getByRole('tab',{name:'Details',exact:true}).click();const add=p.locator('#d-add-map');await add.waitFor({state:'visible'});await add.click();
+    const sheet=p.locator('.sheet');await sheet.getByRole('heading',{name:'Add the original map'}).waitFor();assert.match(await sheet.innerText(),/Health summaries may omit GPS\. Upload the original Garmin ZIP\/FIT to add the map; Kinetta matches sport, time and distance\./,'map-help leads with the concise accurate explanation');
+    const disclosure=sheet.locator('details');assert.equal(await disclosure.locator('summary').innerText(),'How to export from Garmin');assert.equal(await disclosure.evaluate(n=>n.open),false,'Garmin export steps start behind the named disclosure');
+    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-map-help-390-${theme}-collapsed.png`),animations:'disabled'});}
+    await disclosure.locator('summary').click();assert.match(await disclosure.innerText(),/Garmin Connect website[\s\S]*Export Original[\s\S]*downloaded ZIP or FIT/,'opening the disclosure reveals the existing export steps');
+    const upload=sheet.getByRole('link',{name:'Upload the original file'});assert.equal(new URL(await upload.getAttribute('href'),base).searchParams.get('map_for'),String(id),'upload remains linked to this activity');
+    if(out)await p.screenshot({path:path.join(out,`activity-map-help-390-${theme}-expanded.png`),animations:'disabled'});
+    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'opening map help performs no writes');
+   }finally{await c.close();contexts.splice(contexts.indexOf(c),1);}
   }
   if(loadCases.includes('retry')){
    const retry=await open('run','light',{width:390,height:844,root:16},false,false,false,{failDetailFirst:true,noWait:true});

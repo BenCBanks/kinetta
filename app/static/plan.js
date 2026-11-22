@@ -156,13 +156,13 @@ function planOverview(box, d) {
       ${detail('Plan target date', pday(p.race_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}
       ${s.peak_week ? detail('Biggest week', `${s.peak_week} ${U}`) + detail('Longest run', `${s.longest} ${U}`) : ''}${s.hard_per_week ? detail('Hard days', `up to ${s.hard_per_week} a week`) : ''}
       <h3 class="ghead">How it's built</h3><p class="small">${p.level === 'first' ? 'Run/walk sessions that slowly swap walking for running, until you can run 30 minutes and then a 5K.'
-        : `<b>Base</b>: easy miles to build up. <b>Build</b> and <b>Peak</b>: more distance and harder sessions. Every 4th week is a lighter <b>cutback</b> week so your body absorbs the training. <b>Taper</b> (last ${d.taper_weeks} week${d.taper_weeks > 1 ? 's' : ''}): less running, so you start the race fresh.`}</p></div>
+        : 'Base: easy miles. Build/Peak: more distance or harder sessions. Cutback: every 4th week. Taper: less running before race day.'}</p></div>
     <div class="plan-detail-section"><h2>Your paces</h2>
       ${d.vdot ? paceRow('Easy & long runs', pc.easy, 'chatty, relaxed - most of your running') + paceRow('Recovery', pc.recovery, 'the day after a long run') +
         paceRow('Tempo', pc.tempo, 'comfortably hard, about 1-hour race pace') + paceRow('Intervals', pc.intervals, 'hard repeats, about 5K effort') +
         paceRow(p.goal_s ? 'Goal race pace' : 'Race pace from fitness', p.goal_s ? pc.goal : pc[goalKey], p.goal_s ? `for your ${fmtT(p.goal_s)} goal` : 'from best efforts in the past 90 days')
-        + '<p class="small muted">From your best recent run; they update as you get faster. In heat, on hills or on tired legs, go by feel.</p>'
-        : '<p class="small">No fast runs recorded yet, so go by feel:</p><ul class="small"><li><b>Easy</b>: you can talk in full sentences.</li><li><b>Tempo</b>: comfortably hard, a few words at a time.</li><li><b>Intervals</b>: hard but controlled, like a 5K race.</li></ul>'}</div>
+        + '<p class="small muted">Easy = conversational · Tempo = a few words · Intervals = hard and controlled.</p>'
+        : '<p class="small">Easy = conversational · Tempo = a few words · Intervals = hard and controlled.</p>'}</div>
     </details>`;
   wireWorkouts(box,d);
   $$('[data-week]',box).forEach(details=>details.ontoggle=()=>{const n=+details.dataset.week;if(details.open)expanded.add(n);else expanded.delete(n);});
