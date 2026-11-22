@@ -45,6 +45,15 @@ console.log('Food chat: Search tool label PASS');
  assert.match(thread,/data-more aria-label="More food options"/);assert.match(thread,/class="thread-food" data-entry=/,'tap a logged food to edit it');
  console.log('Food chat: one bar (+, text, send), every tool in the + menu, labelled ⋯ controls, tap-to-edit foods PASS');
 }
+// Copy batch C keeps recipe guidance and privacy/destructive-action facts at their decision points.
+{
+ const cook=fs.readFileSync('app/static/cook.js','utf8'),recipe=fs.readFileSync('app/static/recipe-import.js','utf8'),thread=fs.readFileSync('app/static/thread.js','utf8');
+ for(const copy of ['Add ingredients or scan a label.','Set servings or cooked weight.','Choose a meal and portion, or save for later.'])assert(cook.includes(copy),copy+' is present');
+ assert.match(recipe,/Screenshot recipe · Kit estimates\. Check portions\./);assert.match(recipe,/Send only this ingredient to Kit\. Existing nutrition stays unchanged\. Check the portion\./);
+ assert.match(thread,/Clear chat on all devices\./);assert.match(thread,/Clears chat everywhere\. Logged food stays\./);
+ assert.doesNotMatch(recipe,/Recipe screenshot · Kit’s estimates\. Check the assumed amounts\./);
+ console.log('Copy batch C: cook, recipe import and food chat settings use approved concise copy; decision facts retained PASS');
+}
 // Profile-first Me keeps identity and private information visibly distinct (#353).
 {
  const pages=fs.readFileSync('app/static/pages.js','utf8');
@@ -53,8 +62,7 @@ console.log('Food chat: Search tool label PASS');
  assert.match(pages,/if\(activityUser\)rows\.push/,'activity users get a Today row');assert.match(pages,/if\(todayFoodUser\)rows\.push/,'food users get a Today row');
  assert.match(pages,/const markup=rows\.length\?'<section class="me-today"/,'Today markup exists only when at least one applicable row exists');assert.match(pages,/if\(todayRoot\.innerHTML!==markup\)todayRoot\.innerHTML=markup/,'the empty Today state clears both the cached and refreshed markup');assert.match(pages,/id="t-today-title">Today/,'Today replaces the old dashboard heading');assert.doesNotMatch(pages,/Your dashboard/);
  assert.doesNotMatch(profile,/class="me-divider"/,'no hairline above Today');assert.doesNotMatch(profile,/Only you below this line/);assert.match(profile,/Hi, \$\{/);
- assert.match(profile,/data-card-edit/);assert.match(profile,/aria-label="Share your profile"/);assert.match(profile,/profile_hidden/);assert.match(profile,/Private workouts count, but stay hidden/);
- assert.match(profile,/Totals include your private workouts\. Friends see the totals, not the workouts\./);
+ assert.match(profile,/data-card-edit/);assert.match(profile,/aria-label="Share your profile"/);assert.match(profile,/profile_hidden/);assert.match(profile,/Private workouts count in totals; friends don’t see them\./);
  assert.doesNotMatch(pages,/me-edit-profile|>View profile</,'Me has no large View/Edit profile buttons');
  assert.doesNotMatch(pages,/ME_SHORTCUTS|whoseSeg|wireWhose|Friends recently/,'retired home/feed components have no live callers');
  assert.match(pages,/href="\$\{profileHref\(App.me\)\}"/,'complete private history links to the canonical owner profile');

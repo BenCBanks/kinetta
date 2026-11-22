@@ -84,6 +84,19 @@ async function settleFeedHeaderBelowSafeArea(page) {
     if (header) header.style.setProperty('top', `${top + 8}px`, 'important');
   }, TOP);
 }
+async function settleHomeFeedReactionBelowSafeArea(group) {
+  await group.evaluate(async (el, safeTop) => {
+    const footer=el.closest('.post-ft'),tabs=document.querySelector('nav.tabs');
+    const controls=[footer?.querySelector('.reaction-more'),footer?.querySelector('.activity-comments'),el.querySelector('.reaction-count')].filter(Boolean);
+    if(!controls.length||!tabs)return;
+    const top=Math.min(...controls.map(node=>node.getBoundingClientRect().top));
+    const bottom=Math.max(...controls.map(node=>node.getBoundingClientRect().bottom));
+    const safeBottom=tabs.getBoundingClientRect().top-8;
+    const delta=top<safeTop?top-safeTop:bottom>safeBottom?bottom-safeBottom:0;
+    if(delta)window.scrollBy(0,delta);
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  },TOP);
+}
 async function assertTopSafeControls(page, scene, hiddenMediaControls = []) {
   const overlaps = await page.evaluate(top => [...document.querySelectorAll('a[href],button,[role="button"],input,select,textarea')]
     .filter(el => {
@@ -670,6 +683,10 @@ async function closeCaptureContext(context) {
       // Activity Charts scrolls the map offscreen, where Leaflet can unload its tiles intentionally.
       if (MAP_SHOTS.has(name)) await loadedMaps(page, {advanceMapFade: true, requireMap: true});
       if (name === 'feed' || name === 'home-feed') await settleFeedHeaderBelowSafeArea(page);
+      if (name === 'home-feed') {
+        const homeReaction = page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"] .post-ft [data-reaction-group][data-aid="${ids.FEED_ACTIVITY}"]`);
+        await settleHomeFeedReactionBelowSafeArea(homeReaction);
+      }
       if(opt.tab){
         const pane=page.locator(`#activity-pane-${opt.tab}:visible`);
         await pane.waitFor();
