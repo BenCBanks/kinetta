@@ -127,9 +127,13 @@ rendered=coach_chat.checked_answer(number_raw,number_evidence,kit=True)
 assert rendered['verdict']=='Your run covered 124 mi.' and '{' not in rendered['interpretation']
 metric_prose=coach_chat.checked_answer(number_raw,[{**profile_evidence,'data':{'units':'metric'}},run_evidence],kit=True)
 assert metric_prose['verdict']=='Your run covered 199.6 km.'
+assert coach_chat.checked_answer({**number_raw,'verdict':'Your run was recorded: {e2:0}.'},number_evidence,kit=True)['verdict']=='Your run was recorded: 124 mi.'
+assert coach_chat.checked_answer({**number_raw,'verdict':'Recorded distance: {e2:0}'},number_evidence,kit=True)['verdict']=='Recorded distance: 124 mi'
+assert coach_chat.checked_answer({**number_raw,'verdict':'{e2:0} was recorded.'},number_evidence,kit=True)['verdict']=='124 mi was recorded.'
 for prose in ['You ran 124 mi.','You ran twenty miles.','You doubled your distance ².','You doubled your distance.','Your volume tripled.',
-              'You logged a dozen workouts.','Your change was fourfold.',
-              'Distance {e2:0} km.','Distance {e2:0} percent higher.','Distance {e2:0} (km).',
+              'You logged a dozen workouts.','Your change was fourfold.','A third workout was longer.','You ran twice as far.','May first was the longest run.',
+              'Distance {e2:0} km.','Distance {e2:0} percent higher.','Distance {e2:0} per cent.','Distance {e2:0} (km).',
+              '$ {e2:0}','${e2:0}','{e2:0}:{e2:1}','Distance -\u200b{e2:0}.','Distance {e2:0}\u200b (km).',
               '-{e2:0}','{e2:0} - {e2:1}','Distance ({e2:0}).','Distance times {e2:0}.',
               'Distance {e9:0}.','Distance {e2:1}.','Distance {e1:0}.','Distance {e2:-1}.',
               'Distance {e2:0!r}.','Distance {e2:0.__class__}.','Distance {{e2:0}}.',
@@ -157,6 +161,16 @@ for tool,path,data in [
     try:coach_chat.checked_answer(unsafe,[profile_evidence,{'evidence_id':'e2','tool':tool,'data':data}],kit=True)
     except ValueError:pass
     else:raise AssertionError(('metadata path accepted',tool,path))
+wrong_noun={**number_raw,'verdict':'Your protein was {e2:0}.'}
+try:coach_chat.checked_answer(wrong_noun,number_evidence,kit=True)
+except ValueError:pass
+else:raise AssertionError('Distance fact cannot be labeled as protein')
+average_evidence=[profile_evidence,{'evidence_id':'e2','tool':'nutrition_summary','data':{'average_per_logged_day':{'protein_g':80}}}]
+average_fact={**number_raw,'facts':[{'evidence_id':'e2','path':['average_per_logged_day','protein_g'],'value':80}],
+              'verdict':'Average daily protein: {e2:0}.','reason':'Total protein: {e2:0}.'}
+try:coach_chat.checked_answer(average_fact,average_evidence,kit=True)
+except ValueError:pass
+else:raise AssertionError('A daily average cannot be relabelled as a total')
 for changes in [{'follow_ups':['Can I run 10 miles?']},{'follow_ups':['Can I run {e2:0}?']},{'verdict':' '},{'reason':''}]:
     try:coach_chat.checked_answer({**number_raw,**changes},number_evidence,kit=True)
     except ValueError:pass

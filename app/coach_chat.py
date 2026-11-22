@@ -4,6 +4,7 @@ import math
 import os
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from typing import Literal
@@ -65,7 +66,8 @@ class KitAnswer(Empty):
 
 
 PLACEHOLDER = re.compile(r'\{(e[1-9][0-9]*):([0-2])\}')
-NUMBER_WORDS = re.compile(r'\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|dozen|dozens|half|halved|quarter(?:ed)?|doubl(?:e|ed|ing)|twice|tripl(?:e|ed|ing)|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion)-?fold)\b', re.I)
+# Common written numbers are screened, but natural-language wording is not verified.
+NUMBER_WORDS = re.compile(r'\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|dozen|dozens|half|halved|quarter(?:ed)?|doubl(?:e|ed|ing)|twice|tripl(?:e|ed|ing)|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion)-?fold|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth)\b', re.I)
 _INDEX = object()
 _NUTRIENTS = ('kcal','protein_g','carbs_g','fat_g','fiber_g','sodium_mg','sugar_g','saturated_fat_g')
 _RUN_FIELDS = ('distance_m','moving_s','pace_s_per_km','avg_hr','avg_temp','effort')
@@ -101,33 +103,79 @@ def _kit_path_allowed(tool, path):
     return False
 
 
+_PLACEHOLDER_LEFT_WORDS = frozenset('a an the your my our its it is was are were be been has have had from to at of by with covered reached recorded averaged average daily known total current previous rose fell went increased decreased distance pace protein calories calorie kcal workouts workout runs run weight target moving heart rate effort fitness fatigue form load logged'.split())
+_PLACEHOLDER_RIGHT_WORDS = frozenset('to from previously currently overall before after today yesterday is was are were be been recorded measured logged'.split())
+_METRIC_WORDS = {
+    'distance': {'distance','run','runs','ride','rides','walk','walks','hike','hikes','swim','swims'},
+    'protein': {'protein'}, 'carbohydrates': {'carbohydrate','carbohydrates','carbs'},
+    'fat': {'fat'}, 'fibre': {'fibre','fiber'}, 'calories': {'calorie','calories','kcal','energy'},
+    'weight': {'weight'}, 'pace': {'pace'}, 'heart rate': {'heart','rate','bpm'},
+    'workouts': {'workout','workouts'}, 'elevation': {'elevation'}, 'time': {'time','duration'},
+    'fitness': {'fitness'}, 'fatigue': {'fatigue'}, 'form': {'form'}, 'load': {'load'},
+}
+_AGGREGATION_WORDS = {'total','average','known','current','previous'}
+
+
+def _normalise_kit_prose(text):
+    text=unicodedata.normalize('NFKC',text)
+    return ''.join(char for char in text if unicodedata.category(char)!='Cf')
+
+
+def _fact_semantics(fact):
+    label=fact['label'].casefold()
+    metric=next((name for name,words in _METRIC_WORDS.items() if any(word in label.split() for word in words)),None)
+    aggregation=set()
+    if label.startswith('average daily '): aggregation.update(('average','daily'))
+    elif label.startswith('known total '): aggregation.update(('known','total'))
+    elif label.startswith('total '): aggregation.add('total')
+    if label.startswith('current '): aggregation.add('current')
+    if label.startswith('previous '): aggregation.add('previous')
+    return metric,aggregation
+
+
+def _check_fact_wording(before,fact):
+    metric,aggregation=_fact_semantics(fact)
+    nearby=set(re.findall(r'[a-z]+',before.casefold())[-6:])
+    observed_metrics={name for name,words in _METRIC_WORDS.items() if nearby & words}
+    if observed_metrics and (metric is None or observed_metrics!={metric}):
+        raise ValueError('Measurement wording does not match the verified fact label')
+    observed_aggregation=nearby & _AGGREGATION_WORDS
+    if (('total' in observed_aggregation and 'total' not in aggregation)
+            or ('average' in observed_aggregation and 'average' not in aggregation)
+            or ('known' in observed_aggregation and 'known' not in aggregation)
+            or ('current' in observed_aggregation and 'current' not in aggregation)
+            or ('previous' in observed_aggregation and 'previous' not in aggregation)):
+        raise ValueError('Aggregation wording does not match the verified fact label')
+
+
 def _kit_prose(text, facts):
-    """Resolve bounded references; number-word screening is a guard, not semantic proof."""
+    """Resolve references; validation covers values and nearby labels, not all prose meaning."""
+    text=_normalise_kit_prose(text)
     remainder=PLACEHOLDER.sub('',text)
-    if any(c.isnumeric() for c in remainder) or NUMBER_WORDS.search(remainder) or any(c in remainder for c in '{}%'):
+    if any(char.isnumeric() for char in remainder) or NUMBER_WORDS.search(remainder) or any(char in remainder for char in '{}%'):
         raise ValueError('Unverified number or malformed reference')
-    operators='+-−–—*/×÷=<>^%'
-    wrappers='()[]{}\"\'`'
+    left_punctuation=frozenset('\t\r\n,.;):')
+    right_punctuation=frozenset('\t\r\n,.;)!?')
     for match in PLACEHOLDER.finditer(text):
         before,after=text[:match.start()],text[match.end():]
         left=before.rstrip()[-1:] if before.rstrip() else ''
         right=after.lstrip()[:1]
-        if left in operators+wrappers or right in operators+wrappers:
-            raise ValueError('Numeric references cannot be used in calculations or wrappers')
-        if re.search(r'(?:\b(?:plus|minus|times|divided by|multiplied by|added to|subtracted from)|[+\-−–—*/×÷=<>^])\s*$',before,re.I) or re.match(r'^\s*(?:plus|minus|times|divided by|multiplied by|added to|subtracted from)\b',after,re.I):
-            raise ValueError('Numeric references cannot be used in calculations')
-        if re.match(r'\s*(?:km|mi|miles?|kilomet(?:er|re)s?|met(?:er|re)s?|ft|feet|kg|lb|lbs|pounds?|g|mg|kcal|calories?|bpm|hours?|minutes?|seconds?|percent(?:age)?|times|fold)\b',after,re.I):
-            raise ValueError('Numeric references already include application-owned units')
-        if (before and before[-1].isalnum()) or (after and after[0].isalnum()):
-            raise ValueError('Numeric reference must be a whole prose token')
-    def replace(match):
+        left_word=re.search(r'([a-z]+)$',before.rstrip(),re.I)
+        right_word=re.match(r'([a-z]+)',after.lstrip(),re.I)
+        if left and not left.isspace() and left not in left_punctuation and not (left_word and left_word.group(1).casefold() in _PLACEHOLDER_LEFT_WORDS):
+            raise ValueError('Unsupported text attached to numeric reference')
+        if right and not right.isspace() and right not in right_punctuation and not (right_word and right_word.group(1).casefold() in _PLACEHOLDER_RIGHT_WORDS):
+            raise ValueError('Unsupported text attached to numeric reference')
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
             raise ValueError('Unknown or mismatched numeric reference')
-        return facts[index]['display_value']
+        _check_fact_wording(before,facts[index])
+    def replace(match):
+        return facts[int(match.group(2))]['display_value']
     resolved=PLACEHOLDER.sub(replace,text).strip()
     if not resolved or len(resolved)>1600: raise ValueError('Answer text is empty or too long')
     return resolved
+
 
 
 def _compact_number(value, digits=1):
