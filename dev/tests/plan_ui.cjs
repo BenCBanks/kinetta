@@ -7,6 +7,16 @@ const planCss=fs.readFileSync(path.join(__dirname,'../../app/static/plan-ui.css'
 assert(!sharedCss.includes('/* ---------- training plans ---------- */'),'Plan styles stay in the Plan-owned stylesheet');
 assert(planCss.includes('/* ---------- training plans ---------- */'),'Plan-owned stylesheet contains setup and workout primitives');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
+// The DOM open flag changes before the queued toggle handler saves the choice.
+async function setWeekOpen(p,week,open,planId,currentWeek){
+ const details=p.locator(`.pweek[data-week="${week}"]`);
+ if(await details.evaluate(n=>n.open)!==open)await details.locator('summary').click();
+ await until(p,({week,open,planId,currentWeek})=>{
+  const details=document.querySelector(`.pweek[data-week="${week}"]`);
+  return details?.open===open&&planWeekOpen.get(`${readOwner()}:${planId}:${currentWeek}`)?.has(Number(week))===open;
+ },`week ${week} toggle saved`,{week,open,planId,currentWeek});
+}
+async function dismissSheet(p){await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});}
 async function headerMetrics(p){return p.locator('.plan-top').evaluate(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n),items=[...n.children].filter(x=>x.getBoundingClientRect().width&&x.getBoundingClientRect().height),centers=items.map(x=>x.getBoundingClientRect().top+x.getBoundingClientRect().height/2),children=[...n.children].map(x=>{const b=x.getBoundingClientRect(),c=getComputedStyle(x);return{tag:x.tagName,id:x.id,cls:x.className,display:c.display,x:b.x,y:b.y,width:b.width,height:b.height,flex:c.flex,position:c.position}});return{height:r.height,width:r.width,display:s.display,flexWrap:s.flexWrap,centers,children};});}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'plan_fixture.py')],{env:process.env,stdio:'inherit'});
@@ -36,24 +46,29 @@ async function headerMetrics(p){return p.locator('.plan-top').evaluate(n=>{const
     if(who==='week3'||who==='race'){
      // Keep the default current-week checks above; Monday may need an elapsed week for both outcomes.
      const shown=[cur,...d.weeks.filter(w=>w.n<cur.n)].find(w=>w.workouts.some(x=>x.status==='done')&&w.workouts.some(x=>x.status==='missed'));assert(shown,'completed and missed runs remain covered');
-     const result=p.locator(`.pweek[data-week="${shown.n}"]`),wasOpen=await result.evaluate(n=>n.open);if(!wasOpen)await result.locator('summary').click();
+     const result=p.locator(`.pweek[data-week="${shown.n}"]`),wasOpen=await result.evaluate(n=>n.open);if(!wasOpen)await setWeekOpen(p,shown.n,true,d.plan.id,cur.n);
      assert(await result.locator('.plan-day-check svg').count()>0,'completed run uses a clear check mark');assert.match(await result.innerText(),/Missed/);const done=shown.workouts.find(w=>w.status==='done');assert.match(await result.innerText(),new RegExp(String(done.actual).replace('.','\\.')),'actual completed distance');
-     if(!wasOpen)await result.locator('summary').click();assert(await current.evaluate(n=>n.open),'current week remains open');
+     if(!wasOpen)await setWeekOpen(p,shown.n,false,d.plan.id,cur.n);assert(await current.evaluate(n=>n.open),'current week remains open');
     }
     assert.doesNotMatch(await p.locator('#page').innerText(),/last 1 weeks/,'single-week taper stays singular');
     if(who==='paced'){assert(d.vdot>0&&d.paces.easy);assert.equal(await p.locator('.plan-summary-stats .plan-summary-stat').count(),3);assert((await current.innerText()).includes(d.paces.easy[0].split('/')[0]),'server target pace shown');}
     const next=d.today_workout&&d.today_workout.status!=='done'?d.today_workout:d.next_workout;assert.equal(await p.locator('.plan-next-workout b').innerText(),next.title);
-    await p.locator('.plan-next-workout').click();await p.waitForSelector('#pw-done');assert.match(await p.locator('.sheet').innerText(),/What to do/i);assert.match(await p.locator('.sheet').innerText(),/Why/i);assert((await p.locator('.sheet').innerText()).includes(next.detail),'full coaching retained');await p.keyboard.press('Escape');
-    const other=p.locator('.pweek').nth(1);await other.locator('summary').click();assert(await other.evaluate(n=>n.open));await p.evaluate(()=>render());await until(p,()=>!!document.querySelector('.plan-overview'),'rerender');assert(await p.locator('.pweek').nth(1).evaluate(n=>n.open),'chosen expansion survives rerender');
-    await p.locator('#pl-more > summary').click();await until(p,()=>!!document.querySelector('#pl-chart svg'),'details chart');assert.match(await p.locator('#pl-more').innerText(),/Your paces/);if(who==='paced')assert((await p.locator('#pl-more').innerText()).includes(await p.evaluate(n=>dur(n),d.plan.goal_s)),'supplied goal remains in Plan details');assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'details chart fits its viewport');
-    await p.locator('#pl-actions').click();await p.waitForSelector('#pl-end');assert(await p.locator('a[href="/plan?new=1"]').isVisible());assert(await p.locator('#pl-restart').isVisible());await p.locator('#pl-end').click();await p.locator('[data-confirm-cancel]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal((await(await get('/api/plans/current')).json()).plan.id,d.plan.id,'cancel keeps plan');await p.keyboard.press('Escape');
+    await p.locator('.plan-next-workout').click();await p.waitForSelector('#pw-done');assert.match(await p.locator('.sheet').innerText(),/What to do/i);assert.match(await p.locator('.sheet').innerText(),/Why/i);assert((await p.locator('.sheet').innerText()).includes(next.detail),'full coaching retained');await dismissSheet(p);
+    const otherWeek=await p.locator('.pweek').nth(1).getAttribute('data-week');
+    await setWeekOpen(p,otherWeek,true,d.plan.id,cur.n);
+    // A closing scrim blocks section-state saving. Wait for dismissal above, then
+    // await the real render promise (including disclosure restoration), not old DOM.
+    assert(await p.evaluate(async()=>{const old=document.querySelector('#pl');await render();return App.pageReady&&!old.isConnected&&!!document.querySelector('#pl.plan-overview');}),'Plan rerender completed');
+    assert(await p.locator(`.pweek[data-week="${otherWeek}"]`).evaluate(n=>n.open),'chosen expansion survives rerender');
+    await p.locator('#pl-more > summary').click();await until(p,()=>document.querySelector('#pl-more')?.open&&!!document.querySelector('#pl-chart svg'),'open details chart');assert.match(await p.locator('#pl-more').innerText(),/Your paces/);if(who==='paced')assert((await p.locator('#pl-more').innerText()).includes(await p.evaluate(n=>dur(n),d.plan.goal_s)),'supplied goal remains in Plan details');assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'details chart fits its viewport');
+    await p.locator('#pl-actions').click();await p.waitForSelector('#pl-end');assert(await p.locator('a[href="/plan?new=1"]').isVisible());assert(await p.locator('#pl-restart').isVisible());await p.locator('#pl-end').click();await p.locator('[data-confirm-cancel]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal((await(await get('/api/plans/current')).json()).plan.id,d.plan.id,'cancel keeps plan');await dismissSheet(p);
    }
    if(who==='empty'||who==='future'){
     const original=await(await get('/api/plans/current')).json();
     if(who==='future'){await p.locator('#pl-actions').click();await p.locator('a[href="/plan?new=1"]').click();}
     await until(p,()=>!!document.querySelector('#ps-prev [data-wday]'),'preview workouts');
     const days=await p.locator('#ps-prev [data-wday]').evaluateAll(nodes=>nodes.map(n=>n.dataset.wday)),activeDays=new Set((original.weeks||[]).flatMap(w=>w.workouts.map(x=>x.day))),day=who==='future'?days.find(day=>activeDays.has(day)):days[0];assert(day,'replacement preview overlaps an existing plan day');
-    await p.locator(`#ps-prev [data-wday="${day}"]`).click();assert.equal(await p.locator('#pw-done,#pw-undo').count(),0,'unsaved preview has no completion actions');assert((await p.locator('.sheet').innerText()).includes('Save this plan before tracking completion.'));await p.keyboard.press('Escape');
+    await p.locator(`#ps-prev [data-wday="${day}"]`).click();assert.equal(await p.locator('#pw-done,#pw-undo').count(),0,'unsaved preview has no completion actions');assert((await p.locator('.sheet').innerText()).includes('Save this plan before tracking completion.'));await dismissSheet(p);
     const after=await(await get('/api/plans/current')).json();assert.deepEqual(after.plan,original.plan,'preview never replaces the active plan');assert.deepEqual(after.weeks,original.weeks,'preview never marks the active plan');
    }
    assert.deepEqual(errors,[]);assert(!writes.some(x=>x!=='/api/plans/preview'&&x!=='/api/challenges/signup/continue'),'layout opens no plan/activity writes');console.log(`Plan ${name}: summary/week/rest/matched distances/details/menu/layout PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
