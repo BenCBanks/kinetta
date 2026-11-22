@@ -25,6 +25,12 @@ def run():
         subprocess.run(['docker', 'exec', '-i', project + '-app-1', 'python', '-'],
                        input=body, text=True, check=True)
 
+    def ddl(statement):
+        # Only this disposable fixture relaxes the production NOT NULL constraint
+        # briefly so the SQL aggregate's genuine NULL path is covered.
+        subprocess.run(['docker', 'exec', project + '-db-1', 'psql', '-U', 'postgres', '-d', 'fit',
+                        '-v', 'ON_ERROR_STOP=1', '-c', statement], check=True, capture_output=True)
+
     try:
         check(Client().post('/api/coach/tools', {'name': 'period_compare', 'arguments': args})[0] == 401, 'auth required')
         for invalid in ({**args, 'user_id': 1}, {**args, 'sql': 'SELECT * FROM users'},
@@ -74,6 +80,72 @@ with db.connect() as c:
         check(result['current']['duration_elapsed_fallbacks'] == 1, 'fallback is explicit')
         check(result['change']['protein_g'] == {'absolute': 60, 'percent': 100}, 'protein arithmetic from fully logged days')
         check(result['change']['distance_m'] == {'absolute': 4000, 'percent': 133.33}, 'distance arithmetic')
+        # Exercise the actual SQL NULL representation even though production
+        # currently stores unknown nutrients as zero plus a JSON flag.
+        ddl('ALTER TABLE food_entries ALTER COLUMN protein_g DROP NOT NULL')
+        sql('''
+from app import db
+with db.connect() as c:
+ uid=c.execute("SELECT id FROM users WHERE login='zz_test_period_a'").fetchone()['id']
+ c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) VALUES(%s,'2004-03-01','Actual NULL protein',10,NULL)",(uid,))
+''')
+        try:
+            null_food = compare()['current']
+            check(null_food['totals']['protein_g'] is None and null_food['known_totals']['protein_g'] == 120,
+                  'actual SQL NULL protein invalidates total but preserves known subtotal')
+            check(null_food['unknown_measurement_counts']['protein_g'] == 1,
+                  'actual SQL NULL protein is counted as unknown')
+        finally:
+            sql('''
+from app import db
+with db.connect() as c:
+ c.execute("DELETE FROM food_entries WHERE name='Actual NULL protein'")
+''')
+            ddl('ALTER TABLE food_entries ALTER COLUMN protein_g SET NOT NULL')
+        # March 14, 2021 is a 23-hour local day in New York. Local calendar
+        # boundaries, not UTC midnights or fixed 24-hour windows, define both periods.
+        sql('''
+from app import db
+with db.connect() as c:
+ uid=c.execute("SELECT id FROM users WHERE login='zz_test_period_a'").fetchone()['id']
+ c.execute("UPDATE profile SET tz='America/New_York' WHERE user_id=%s",(uid,))
+ for stamp,distance,moving,elapsed in [
+  ('2021-03-13T04:59:59Z',9999,9999,9999),
+  ('2021-03-13T05:00:00Z',125,100,110),
+  ('2021-03-15T03:30:00Z',250,0,900),
+  ('2021-03-15T04:00:00Z',9999,9999,9999)]:
+  c.execute("INSERT INTO activities(user_id,sport,name,source,start_time,distance_m,moving_s,elapsed_s) VALUES(%s,'run','DST fixture','manual',%s,%s,%s,%s)",(uid,stamp,distance,moving,elapsed))
+''')
+        dst = compare(dates={'start': '2021-03-14', 'end': '2021-03-14'})
+        check(dst['timezone'] == 'America/New_York' and dst['current']['calendar_days'] == 1,
+              'DST comparison uses one account-local calendar day')
+        check(dst['current']['totals']['workouts'] == 1 and dst['previous']['totals']['workouts'] == 1,
+              '23-hour DST day includes both local boundaries and excludes adjacent UTC edges')
+        check(dst['current']['totals']['distance_m'] == 250 and dst['previous']['totals']['distance_m'] == 125,
+              'DST date boundaries include only each local date')
+        check(dst['current']['totals']['duration_s'] == 0 and dst['current']['duration_elapsed_fallbacks'] == 0,
+              'zero moving time is retained instead of falling back to nonzero elapsed time')
+        # Missing measurements only in the previous period must not poison current totals.
+        sql('''
+from app import db
+with db.connect() as c:
+ uid=c.execute("SELECT id FROM users WHERE login='zz_test_period_a'").fetchone()['id']
+ for stamp,distance,moving in [('2007-04-01T12:00:00Z',None,None),('2007-04-02T12:00:00Z',500,300)]:
+  c.execute("INSERT INTO activities(user_id,sport,name,source,start_time,distance_m,moving_s) VALUES(%s,'run','Prior-only gap','manual',%s,%s,%s)",(uid,stamp,distance,moving))
+''')
+        prior_gap = compare(dates={'start': '2007-04-02', 'end': '2007-04-02'})
+        check(prior_gap['current']['totals']['distance_m'] == 500 and prior_gap['current']['totals']['duration_s'] == 300,
+              'missing measurements in preceding period leave current totals known')
+        check(prior_gap['previous']['totals']['distance_m'] is None and prior_gap['previous']['totals']['duration_s'] is None,
+              'missing measurements only in preceding period invalidate only preceding totals')
+        check(prior_gap['change']['distance_m']['absolute'] is None and prior_gap['change']['duration_s']['absolute'] is None,
+              'comparison deltas stay unknown when preceding coverage is incomplete')
+        sql('''
+from app import db
+with db.connect() as c:
+ uid=c.execute("SELECT id FROM users WHERE login='zz_test_period_a'").fetchone()['id']
+ c.execute("UPDATE profile SET tz='Pacific/Kiritimati' WHERE user_id=%s",(uid,))
+''')
         other = compare(b)
         check(other['current']['totals']['distance_m'] == 99000 and other['current']['known_totals']['protein_g'] == 999,
               'second account never sees first account history')
@@ -92,9 +164,9 @@ with db.coach_connect(uid) as c:
  before=c.execute('SELECT count(*) AS n FROM activities').fetchone()['n']
  assert c.execute('SELECT current_user AS role').fetchone()['role']=='fit_coach'
  result=AccountTools(uid).call('period_compare',args,connection=c)
- assert result['current']['totals']['distance_m']==7000
- assert c.execute('SELECT count(*) AS n FROM activities').fetchone()['n']==before
- assert all(r['user_id']==uid for r in c.execute('SELECT user_id FROM activities').fetchall())
+ assert result['current']['totals']['distance_m']==7000, result['current']
+ assert c.execute('SELECT count(*) AS n FROM activities').fetchone()['n']==before, (before,c.execute('SELECT count(*) AS n FROM activities').fetchone()['n'])
+ assert all(r['user_id']==uid for r in c.execute('SELECT user_id FROM activities').fetchall()), 'RLS returned another account'
 try: FoodTools(uid).call('period_compare',args)
 except ValueError: pass
 else: raise AssertionError('Food-only boundary escaped')
