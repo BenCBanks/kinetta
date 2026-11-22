@@ -570,7 +570,7 @@ function groupListSubtitle(group){
 async function homeGroups(el) {
   const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner();
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('groups')}<section class="home-groups"><div class="home-groups-heading" hidden><button type="button" class="linkbtn" id="home-group-new">Create</button></div><div id="home-group-list"><div class="card empty">Loading your groups…</div></div></section>`;
-  homeKitEntry(el);
+  if(typeof homeKitEntry==='function')homeKitEntry(el);
   wireHomeChallengeLink(el);
   const create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url,group.title);});
   $('#home-group-new',el).onclick=create;
@@ -588,7 +588,7 @@ async function homeFeed(el) {
   el.classList?.add('activity-home');
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('feed')}<div class="home-quiet-actions" aria-label="Home actions"><a class="home-find-friends" href="/me/friends?find=1&from=home" aria-label="Find friends">${svg('search')}<span>Find friends</span></a></div><div id="activity-groups-strip"></div><div id="weekly-recap"></div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
-  homeKitEntry(el);
+  if(typeof homeKitEntry==='function')homeKitEntry(el);
   wireHomeChallengeLink(el);
   const list=$('#ff-list',el),more=$('#ff-more',el),recap=$('#weekly-recap',el),groupStrip=$('#activity-groups-strip',el),account=readOwner();
   void activityGroupStrip(groupStrip,account);
