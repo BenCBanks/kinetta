@@ -1244,7 +1244,7 @@ function installFriendListSearch(el){
   header.insertAdjacentElement('afterend',form);
   viewResources.set(form,()=>{});
 }
-route(/^\/me\/friends$/, 'me', async el=>{const find=new URLSearchParams(location.search).has('find')||new URLSearchParams(location.search).has('q');await FriendsUI.mount(el);if(!find)installFriendListSearch(el);ContactsUI.addEntry(el);});
+route(/^\/me\/friends$/, 'me', async el=>{await FriendsUI.mount(el);ContactsUI.addEntry(el);});
 
 // ---------- private event Groups (2026-11-07) ----------
 const GROUP_GOALS={distance:'Distance',elevation:'Elevation',long_outings:'Long outings',sessions:'Sessions'};

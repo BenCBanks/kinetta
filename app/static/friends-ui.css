@@ -186,6 +186,55 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .sharing-settings .settings-caption { margin:18px 4px 8px;color:var(--tx3);font-size:13px;font-weight:500;line-height:1.25;letter-spacing:0;text-transform:none; }
 .sharing-settings .social-settings-group { overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--card); }
 .sharing-settings .settings-footnote { margin:8px 4px 0;color:var(--tx3);font-size:13px;line-height:1.4; }
+
+/* Friends is one list with local matching and a distinct directory result group. */
+.friends-page.friends-list-page > .friends-list-top { gap:8px;margin-bottom:10px; }
+.friends-page.friends-list-page > .friends-list-top h1 { flex:1;min-width:0;margin:0;font-size:20px;font-weight:650;line-height:1.2; }
+.friends-page.friends-list-page #fr-list-add { width:44px;height:44px;min-width:44px;min-height:44px;margin-left:auto;padding:10px;color:var(--accent); }
+.friends-page.friends-list-page #fr-list-add svg { width:22px;height:22px; }
+.friends-page.friends-list-page .friend-list-search { min-height:44px;margin:0 0 8px; }
+.friends-page.friends-list-page .friend-list-search input { min-width:0;min-height:44px;padding-left:42px;font-size:max(16px,1rem); }
+.friends-page.friends-list-page #fr-list-clear { width:44px;height:44px;min-width:44px;min-height:44px; }
+.friends-page.friends-list-page .friend-request-summary { display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;margin:0 0 8px;padding:8px 0;border:0;border-radius:0;background:transparent;color:var(--tx);font:600 15px/1.3 var(--font);text-align:left;box-shadow:none; }
+.friends-page.friends-list-page .friend-request-summary svg { width:18px;height:18px;flex:none;color:var(--tx2); }
+.friends-page.friends-list-page .friend-groups-row { margin:0 0 8px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;box-shadow:none; }
+.friends-page.friends-list-page .friend-groups-row .list-row { min-height:48px;padding:8px 0;background:transparent; }
+.friends-page.friends-list-page .friend-groups-row .list-row .grow b { color:var(--tx2);font-size:15px;font-weight:500; }
+.friends-page.friends-list-page .friend-groups-row .list-row > svg { color:var(--tx3); }
+.friends-page.friends-list-page .friend-own > .sec-head,.friends-page.friends-list-page .friend-people-to-add > .sec-head { margin:12px 0 4px;font-size:15px;font-weight:600;color:var(--tx); }
+.friends-page.friends-list-page .friend-list-content { position:relative;min-width:0;padding-right:22px; }
+.friends-page.friends-list-page #fr-own-list { overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none; }
+.friends-page.friends-list-page .friend-alpha-group { scroll-margin-top:72px; }
+.friends-page.friends-list-page .friend-alpha-group h3 { margin:10px 0 2px;color:var(--tx2);font-size:17px;font-weight:600; }
+.friends-page.friends-list-page .friend-alpha-group .fr-friend { min-height:56px;padding:6px 0;border:0;border-bottom:1px solid var(--line);background:transparent;box-shadow:none; }
+.friends-page.friends-list-page .friend-alpha-group .person-link { flex:1;min-height:44px;min-width:0; }
+.friends-page.friends-list-page .friend-alpha-group .person-link .av { width:40px;height:40px; }
+.friends-page.friends-list-page .friend-alpha-group .person-link::after { content:none; }
+.friends-page.friends-list-page #fr-alpha-index:not([hidden]) { position:absolute;z-index:1;top:0;right:0;display:flex;flex-direction:column;align-items:center;max-height:64vh;overflow-y:auto;overscroll-behavior:contain; }
+.friends-page.friends-list-page #fr-alpha-index a { display:grid;place-items:center;min-width:20px;min-height:20px;color:var(--accent);font-size:12px;font-weight:600;text-decoration:none; }
+.friends-page.friends-list-page .friend-empty { padding:10px 0;background:transparent;border:0;border-radius:0;box-shadow:none; }
+.friends-page.friends-list-page .friend-empty > b { color:var(--tx);font-size:15px;font-weight:600; }
+.friends-page.friends-list-page .friend-empty > p { margin:4px 0;color:var(--tx2);font-size:14px; }
+.friends-page.friends-list-page #fr-people-to-add > .person { min-height:56px;padding:6px 0;border:0;border-bottom:1px solid var(--line);background:transparent;box-shadow:none; }
+.friends-page.friends-list-page .friend-search-status { display:flex;align-items:center;justify-content:flex-end;min-width:62px; }
+.friends-page.friends-list-page .friend-search-add { min-width:44px;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--accent);font:600 15px/1.2 var(--font); }
+.friends-page.friends-list-page .friend-search-empty { margin:8px 0;color:var(--tx2);font-size:14px; }
+.friends-page.friends-list-page .friend-search-empty button { min-height:44px; }
+.friend-add-sheet { display:grid; }
+.friend-add-sheet-row { display:flex;align-items:center;justify-content:space-between;width:100%;min-height:52px;padding:8px 4px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;color:var(--tx);font:500 16px/1.3 var(--font);text-align:left; }
+.friend-add-sheet-row svg { width:18px;height:18px;color:var(--tx2); }
+.friend-add-sheet-row:active { opacity:.7;background:transparent;box-shadow:none;transform:none; }
+.friend-request-sheet .fr-request,.friend-sent-sheet .fr-request { min-height:60px;padding:6px 0;border-bottom:1px solid var(--line); }
+.friend-request-sheet .person-link,.friend-sent-sheet .person-link { flex:1;min-width:0; }
+.friend-request-sheet .friend-inline-actions button,.friend-sent-sheet .friend-inline-muted { min-width:44px;min-height:44px; }
+.friends-page.friends-list-page .friend-alpha-group + .friend-alpha-group { margin-top:4px; }
+.friends-page.friends-list-page .person-link b,.friends-page.friends-list-page .person-link small { overflow-wrap:anywhere; }
+.friends-page.friends-list-page .friend-search-empty[hidden],.friends-page.friends-list-page #fr-people-section[hidden] { display:none!important; }
+@media(max-width:360px) {
+ .friends-page.friends-list-page > .friends-list-top h1 { font-size:19px; }
+ .friends-page.friends-list-page .friend-list-content { padding-right:18px; }
+ .friends-page.friends-list-page #fr-alpha-index a { min-width:18px;font-size:11px; }
+}
 .sharing-settings .sharing-choice,.sharing-settings .switch-row,.sharing-settings .sharing-nav { display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-width:0;min-height:56px;margin:0;padding:8px 14px;border:0;border-radius:0;background:transparent;color:var(--tx);font:500 15px/1.35 var(--font-ui);text-align:left; }
 .sharing-settings .sharing-choice + .sharing-choice,.sharing-settings .switch-row + .switch-row,.sharing-settings .sharing-nav + .sharing-nav { border-top:1px solid var(--line); }
 .sharing-settings .sharing-choice svg { width:18px;height:18px;flex:none;color:var(--accent); }

@@ -202,19 +202,18 @@ for device in preferred:
        assert part['x']>=header['x']-.5 and part['right']<=header['right']+.5 and part['y']>=header['y']-.5 and part['bottom']<=header['bottom']+.5,metrics
       target=card['target'];assert target['x']>=header['x']-.5 and target['right']<=header['right']+.5 and target['y']>=header['y']-.5 and target['bottom']<=header['bottom']+.5,metrics
     if stage.startswith('friends-'):
-     friends=metrics['friends'];assert friends['title']=='Friends' and friends['backLabel']=='Back to Me',metrics
+     friends=metrics['friends'];assert friends['backLabel']=='Back to Me',metrics
      expected_friends=40 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0
-     expected_requests=5 if stage=='friends-heavy' else 3 if stage=='friends-typical' else 0
-     assert friends['counts']==[expected_friends,1 if expected_requests else 0,0],metrics
-     expected_label='Friend requests' if expected_requests else ''
-     expected_badge='3' if stage=='friends-heavy' else '1' if stage=='friends-typical' else ''
-     assert friends['requestLabel']==expected_label and friends['requestCount']==expected_badge,metrics
+     expected_incoming=3 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0
+     assert friends['title']==('Friends · '+str(expected_friends) if expected_friends else 'Friends'),metrics
+     assert friends['counts']==[expected_friends,1 if expected_incoming else 0,0],metrics
+     expected_label='Requests · '+str(expected_incoming) if expected_incoming else ''
+     assert friends['requestLabel']==expected_label,metrics
      assert friends['findAction'] and friends['findAction']['width']>=44 and friends['findAction']['height']>=44 and not friends['fullChallenges'],metrics
      if friends['requestRow']:assert friends['requestRow']['height']>=44,metrics
      assert all(r['width']>=44 and r['height']>=44 for r in friends['controls']),metrics
      if stage=='friends-empty':
-      assert friends['empty'] and friends['emptyTitle']=='No friends yet' and friends['emptyCopy']=='Search by name or @username, or tap Add to share an invite link.' and friends['emptyAction'] is None,metrics
-      assert friends['emptyPadding']=='14px 16px',metrics
+      assert friends['empty'] and friends['emptyTitle']=='No friends yet' and friends['emptyCopy']=='Your friends will appear here.' and friends['emptyAction'] is None,metrics
       for box in (friends['emptyTitleBox'],friends['emptyCopyBox']):
        assert box and box['x']>=friends['empty']['x']-.5 and box['right']<=friends['empty']['right']+.5 and box['y']>=friends['empty']['y']-.5 and box['bottom']<=friends['empty']['bottom']+.5,metrics
      if stage=='friends-heavy' and root==16:assert friends['firstFriend']['bottom']<nav['box']['y'],metrics
