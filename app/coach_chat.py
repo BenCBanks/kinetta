@@ -65,22 +65,61 @@ class KitAnswer(Empty):
 
 
 PLACEHOLDER = re.compile(r'\{(e[1-9][0-9]*):([0-2])\}')
-NUMBER_WORDS = re.compile(r'\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|half|halved|quarter(?:ed)?|doubl(?:e|ed|ing)|twice|tripl(?:e|ed|ing))\b', re.I)
+NUMBER_WORDS = re.compile(r'\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|dozen|dozens|half|halved|quarter(?:ed)?|doubl(?:e|ed|ing)|twice|tripl(?:e|ed|ing)|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion)-?fold)\b', re.I)
+_INDEX = object()
+_NUTRIENTS = ('kcal','protein_g','carbs_g','fat_g','fiber_g','sodium_mg','sugar_g','saturated_fat_g')
+_RUN_FIELDS = ('distance_m','moving_s','pace_s_per_km','avg_hr','avg_temp','effort')
+_KIT_MEASUREMENT_PATHS = {
+    'profile': {(field,) for field in ('kcal_target','protein_target','carbs_target','fat_target','fiber_target','sodium_target_mg','sugar_target_g','saturated_fat_target_g')},
+    'nutrition_summary': {(group,field) for group in ('totals','known_totals','average_per_logged_day') for field in _NUTRIENTS},
+    'recent_runs': {('runs',_INDEX,field) for field in _RUN_FIELDS} | {('totals',field) for field in ('count','distance_m','moving_s')},
+    'activity': {(field,) for field in _RUN_FIELDS + ('elapsed_s','ascent_m','max_hr','calories')},
+    'comparable_routes': {('efforts',_INDEX,field) for field in _RUN_FIELDS + ('elapsed_s',)},
+    'weight_trend': {('samples',_INDEX,field) for field in ('kg','trend_kg')} | {('count',),('endpoint_change_kg',)},
+    'training_load': {('days',_INDEX,field) for field in ('load','fitness','fatigue','form')},
+    'activities': {('totals_by_sport',_INDEX,field) for field in ('workouts','distance_m','moving_s','ascent_m')} | {('activities',_INDEX,field) for field in ('distance_m','moving_s','ascent_m','avg_hr','effort','calories')},
+    'food_log': {('foods',_INDEX,field) for field in _NUTRIENTS},
+    'nutrition_days_vs_goal': {('days',_INDEX,field) for field in ('logged_kcal','goal_kcal','difference_kcal')} | {('logged_days',)},
+    'strength_history': {('sets',_INDEX,field) for field in ('reps','kg','secs')} | {('summary_by_exercise',_INDEX,field) for field in ('completed_sets','max_recorded_kg','max_recorded_reps','recorded_volume_kg')},
+    'goals': {('nutrition',field) for field in ('kcal_target','protein_target','carbs_target','fat_target','fiber_target','sodium_target_mg','sugar_target_g','saturated_fat_target_g')} | {('activity_goals',_INDEX,'target')},
+    'gear': {('gear',_INDEX,'distance_m')},
+    'resting_energy': {('days',_INDEX,'resting_kcal')},
+    'stored_foods': {('records',_INDEX,'totals',field) for field in _NUTRIENTS} | {('records',_INDEX,'per_serving',field) for field in _NUTRIENTS} | {('records',_INDEX,field) for field in _NUTRIENTS},
+    # Contract fixture for the approved phase-three period_compare result, not a registered tool.
+    'period_compare': {(period,field) for period in ('current','previous') for field in ('workouts','distance_m','moving_s','protein_g')},
+}
+
+
+def _kit_path_allowed(tool, path):
+    for pattern in _KIT_MEASUREMENT_PATHS.get(tool, ()):
+        if len(pattern) != len(path):
+            continue
+        if all((expected is _INDEX and type(actual) is int and actual >= 0)
+               or (expected is not _INDEX and type(actual) is type(expected) and actual == expected)
+               for expected,actual in zip(pattern,path)):
+            return True
+    return False
 
 
 def _kit_prose(text, facts):
-    """Resolve a bounded reference to an already verified current-turn scalar, with its units."""
+    """Resolve bounded references; number-word screening is a guard, not semantic proof."""
     remainder=PLACEHOLDER.sub('',text)
     if any(c.isnumeric() for c in remainder) or NUMBER_WORDS.search(remainder) or any(c in remainder for c in '{}%'):
         raise ValueError('Unverified number or malformed reference')
-    # Lexical guard for common numeric modifiers, not a proof of every prose claim.
-    unit=r'(?:km|mi|miles?|kilomet(?:er|re)s?|met(?:er|re)s?|ft|feet|kg|lb|lbs|pounds?|g|mg|kcal|calories?|bpm|hours?|minutes?|seconds?|percent(?:age)?|times|fold)\b'
+    operators='+-−–—*/×÷=<>^%'
+    wrappers='()[]{}\"\'`'
     for match in PLACEHOLDER.finditer(text):
         before,after=text[:match.start()],text[match.end():]
-        if (re.match(r'\s*(?:'+unit+r'|[%°/×*+−=]|-(?:fold|times)\b)',after,re.I)
-                or re.search(r'(?:\b(?:plus|minus|times|divided by|multiplied by)|[×*+−=])\s*$',before,re.I)
-                or (before and before[-1].isalnum()) or (after and after[0].isalnum())):
-            raise ValueError('Numeric references own their units and scale')
+        left=before.rstrip()[-1:] if before.rstrip() else ''
+        right=after.lstrip()[:1]
+        if left in operators+wrappers or right in operators+wrappers:
+            raise ValueError('Numeric references cannot be used in calculations or wrappers')
+        if re.search(r'(?:\b(?:plus|minus|times|divided by|multiplied by|added to|subtracted from)|[+\-−–—*/×÷=<>^])\s*$',before,re.I) or re.match(r'^\s*(?:plus|minus|times|divided by|multiplied by|added to|subtracted from)\b',after,re.I):
+            raise ValueError('Numeric references cannot be used in calculations')
+        if re.match(r'\s*(?:km|mi|miles?|kilomet(?:er|re)s?|met(?:er|re)s?|ft|feet|kg|lb|lbs|pounds?|g|mg|kcal|calories?|bpm|hours?|minutes?|seconds?|percent(?:age)?|times|fold)\b',after,re.I):
+            raise ValueError('Numeric references already include application-owned units')
+        if (before and before[-1].isalnum()) or (after and after[0].isalnum()):
+            raise ValueError('Numeric reference must be a whole prose token')
     def replace(match):
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
@@ -110,7 +149,7 @@ def _kit_fact(tool, data, path, value, units):
         'distance_m':'Distance','moving_s':'Moving time','elapsed_s':'Elapsed time','pace_s_per_km':'Pace',
         'avg_hr':'Heart rate','max_hr':'Peak heart rate','avg_temp':'Temperature','effort':'Effort',
         'workouts':'Workouts','count':'Workouts','activities':'Workouts','ascent_m':'Elevation gain',
-        'calories':'Calories','kcal':'Calories','protein_g':'Protein','carbs_g':'Carbohydrates',
+        'calories':'Calories','kcal':'Calories','resting_kcal':'Resting calories','protein_g':'Protein','saturated_fat_g':'Saturated fat','reps':'Reps','secs':'Set duration','carbs_g':'Carbohydrates',
         'fat_g':'Fat','fiber_g':'Fibre','sodium_mg':'Sodium','sugar_g':'Sugar',
         'kg':'Weight','max_recorded_kg':'Best recorded weight','trend_kg':'Weight trend',
         'protein_target':'Protein target','carbs_target':'Carbohydrate target','fat_target':'Fat target',
@@ -120,16 +159,17 @@ def _kit_fact(tool, data, path, value, units):
         'endpoint_change_kg':'Weight change','completed_sets':'Completed sets','max_recorded_reps':'Most reps',
         'recorded_volume_kg':'Recorded volume','fitness':'Fitness','fatigue':'Fatigue','form':'Form','load':'Training load',
     }
-    if field not in labels or 'unknown_food_counts' in path:
-        raise ValueError('Unsupported measurement field')
+    if not _kit_path_allowed(tool,path) or field not in labels:
+        raise ValueError('Unsupported measurement path')
     label=labels[field]
     if field=='count':
         if tool not in {'recent_runs','weight_trend'}: raise ValueError('Unsupported count')
         label='Workouts' if tool=='recent_runs' else 'Weight entries'
     if sport: label=f'{sport} {label.lower()}'
+    if path and path[0] in {'current','previous'}: label=f'{path[0].title()} {label.lower()}'
     if 'average_per_logged_day' in path: label=f'Average daily {label.lower()}'
-    elif 'totals' in path or 'totals_by_sport' in path: label=f'Total {label.lower()}'
     elif 'known_totals' in path: label=f'Known total {label.lower()}'
+    elif 'totals' in path or 'totals_by_sport' in path: label=f'Total {label.lower()}'
     metric=units=='metric';display=str(value)
     if field=='distance_m':
         factor,unit=(1000,'km') if metric else (1609.344,'mi')
@@ -154,7 +194,7 @@ def _kit_fact(tool, data, path, value, units):
     elif field in {'protein_target','carbs_target','fat_target','fiber_target'}: display=f'{_compact_number(float(value))} g'
     elif field.endswith('_g'): display=f'{_compact_number(float(value))} g'
     elif field.endswith('_mg'): display=f'{_compact_number(float(value))} mg'
-    elif field in {'calories','kcal','kcal_target','logged_kcal','goal_kcal'}: display=f'{round(float(value))} kcal'
+    elif field in {'calories','kcal','resting_kcal','kcal_target','logged_kcal','goal_kcal'}: display=f'{round(float(value))} kcal'
     elif isinstance(value,(int,float)): display=_compact_number(value)
     return label,display
 
