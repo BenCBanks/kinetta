@@ -3,12 +3,14 @@
 Run inside a throwaway app container with an explicitly configured key, using the
 same seeded database for baseline/candidate. Write output outside the public repo.
 """
-import argparse,datetime as dt,hashlib,importlib.util,json,os,time,uuid
+import argparse,datetime as dt,hashlib,importlib.util,json,os,threading,time,uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from app import db,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
+from kit_weekly_fixtures import (period_from_today, request_contract,
+                                 seed_fixture, seed_other_account, seed_prior_turn)
 
 p=argparse.ArgumentParser()
 p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,required=True)
@@ -26,6 +28,10 @@ requested_cases=parse_case_ids(args.cases)
 try:selected_cases=select_cases(CASES,requested_cases)
 except ValueError as error:p.error(str(error))
 diagnostics=RejectionDiagnostics(coach_chat)
+weekly_case_ids={case[0] for case in selected_cases
+                 if len(case)>3 and isinstance(case[3],dict) and case[3].get('weekly_review')}
+weekly_accounts={};weekly_manifests={}
+weekly_request_lock=threading.Lock()
 try:
  with db.connect() as c:
   for suffix in ('a','b','health_off'):
@@ -55,21 +61,78 @@ try:
   tuesday=today-dt.timedelta(days=(today.weekday()-1)%7)
   c.execute("INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,ref) VALUES (%s,%s,'lunch','Fictional Tuesday bean bowl',1,'bowl',420,18,'{}')",(uid,tuesday))
   c.execute("INSERT INTO training_plans(user_id,race,level,weeks,runs,long_day,start_day,race_day,unit,start_vol) VALUES (%s,'10k','beginner',12,3,6,%s,%s,'km',15)",(uid,today-dt.timedelta(days=14),today+dt.timedelta(days=70)))
+ # Weekly fixtures each get their own fictional account so one scenario cannot leak into another.
+ from app.kit_tools import KitTools
+ for case_id in sorted(weekly_case_ids):
+  suffix=uuid.uuid4().hex[:8]
+  with db.connect() as c:
+   weekly_uid=c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',
+                         ('zz_test_kit_week_'+suffix,'Fictional weekly review')).fetchone()['id']
+   uids.append(weekly_uid)
+   consent=case_id!='weekly-health-consent-off'
+   c.execute("""INSERT INTO profile(user_id,tz,ai_ok,ai_adult_at,health_ai_ok,health_weight_ai_ok,
+     weight_health_derived,kcal_target,protein_target,carbs_target,fat_target,fiber_target,weight_kg,
+     height_cm,birth_year,sex) VALUES (%s,'America/Los_Angeles',true,now(),%s,%s,%s,2200,120,250,70,30,72,175,1990,'male')""",
+     (weekly_uid,consent,consent,not consent))
+  profile=KitTools(weekly_uid).call('profile',{})
+  # Read the server-local date from the same profile tool the request will use.
+  raw_period=coach_chat._weekly_period(profile['today'])
+  period=period_from_today(profile['today'])
+  assert period=={key:raw_period[key] for key in period},'fixture and Kit weekly ranges must match'
+  with db.connect() as c:
+   manifest=seed_fixture(c,weekly_uid,case_id,period)
+   if case_id=='weekly-other-account':
+    other_uid=c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',
+                        ('zz_test_kit_week_other_'+suffix,'Fictional other account')).fetchone()['id']
+    uids.append(other_uid)
+    c.execute("INSERT INTO profile(user_id,tz,ai_ok,ai_adult_at,health_ai_ok) VALUES (%s,'America/Los_Angeles',true,now(),true)",(other_uid,))
+    seed_other_account(c,other_uid,period['end'])
+    manifest['foreign_account_id']=other_uid
+  weekly_accounts[case_id]=weekly_uid
+  weekly_manifests[case_id]={**manifest,'period':{key:value.isoformat() for key,value in period.items()}}
  def run(item):
   index,variant,case=item;cid,question,expected,*rest=case;began=time.monotonic();answer=None;error=None
   rejection=diagnostics.begin() if variant=='candidate' else None
   history=rest[0] if rest and isinstance(rest[0],list) else []
   options=(rest[1] if len(rest)>1 else {}) if rest and isinstance(rest[0],list) else (rest[0] if rest and isinstance(rest[0],dict) else {})
-  weekly_review=bool(options.get('weekly_review'))
-  case_uid=uids[2] if options.get('account')=='health-off' else uid
+  weekly=bool(options.get('weekly_review'))
+  case_uid=weekly_accounts[cid] if weekly else (uids[2] if options.get('account')=='health-off' else uid)
+  transport=None
   try:
-   with ai_budget.scope(case_uid,feature='Kit evaluation '+variant):
-    answer=(coach_chat.answer(case_uid,question,kit=True,history=history or None,weekly_review=weekly_review)
-            if variant=='candidate' else baseline.answer(case_uid,question))
+   if weekly and variant=='candidate':
+    # Exercise the same visit -> create-message -> answer endpoints as kit.js.
+    from app import kit_thread
+    from unittest.mock import patch
+    actor={'id':case_uid};visit_id=uuid.uuid4()
+    # The opt-in eval is specifically for an unreviewed candidate, so release gating
+    # is bypassed only around these in-process endpoints; consent and budget checks remain.
+    with weekly_request_lock, patch('app.kit_thread.ai_release.enabled',return_value=True):
+     visit=kit_thread.start_visit(kit_thread.VisitIn(visit_id=visit_id),user=actor)
+     generation=visit['generation'];client_id=uuid.uuid4()
+     transport=request_contract(client_id,generation,visit_id)
+     fixture=weekly_manifests[cid]
+     if fixture.get('prior_turn'):
+      with db.connect() as c:
+       seed_prior_turn(c,case_uid,uuid.uuid4(),generation,visit_id,fixture['prior_turn'])
+     create=transport[0]['body']
+     kit_thread.create(kit_thread.MessageIn(**create),user=actor)
+     answer_row=kit_thread.generate(client_id,kit_thread.GenerationIn(**transport[1]['body']),user=actor)
+     answer=answer_row.get('answer')
+   else:
+    with ai_budget.scope(case_uid,feature='Kit evaluation '+variant):
+     # The pre-weekly baseline receives the same visible starter text; only the candidate
+     # path has the weekly route and app-derived evidence contract.
+     answer=(baseline.answer(case_uid,'Review my week') if weekly else
+             baseline.answer(case_uid,question) if variant=='baseline' else
+             coach_chat.answer(case_uid,question,kit=True,history=history or None))
   except Exception as x:error=type(x).__name__+': '+str(x)[:350]
   finally:
    if variant=='candidate':diagnostics.end()
-  row={'case':cid,'variant':variant,'question':question,'history':history,'fixture':options.get('fixture'),'weekly_review':weekly_review,'evaluation_account':'health-consent-off' if case_uid==uids[2] else 'primary','answer':answer,'error':error,'rejection':rejection if rejection and 'validation_error' in rejection else None,'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
+  row={'case':cid,'variant':variant,'question':'Review my week' if weekly else question,'history':history,
+       'fixture':weekly_manifests.get(cid),'weekly_request':transport,'weekly_review':weekly,
+       'evaluation_account':'health-consent-off' if weekly and cid=='weekly-health-consent-off' else 'primary',
+       'answer':answer,'error':error,'rejection':rejection if rejection and 'validation_error' in rejection else None,
+       'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
   print(json.dumps({'case':cid,'variant':variant,'answered':answer is not None,'tool_coverage':row['tool_coverage'],'error':error}),flush=True)
   return row
  previous=json.loads(Path(args.baseline_results).read_text()) if args.baseline_results else {}
