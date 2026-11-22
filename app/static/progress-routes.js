@@ -331,7 +331,7 @@ async function pFitnessLoaded(body, q) {
             return `<${rowTag} class="prediction-table-row" role="row" data-prediction-row data-prediction-label="${esc(p.label)}"${href}><span role="cell" class="prediction-distance">${esc(distance)}</span><b role="cell" class="num prediction-time">≈${esc(dur(p.seconds))}</b><span role="cell" class="num prediction-pace">${esc(U.pace(p.seconds / p.distance_m * 1000))}</span><span role="cell" class="num prediction-best">${predictionBestReference(p)}</span></${rowTag}>`;
           }).join('')}</div>
         </div></section>`
-      : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p><a class="primary wide prediction-start" data-fitness-empty-action href="/track">Record a run</a></div>';
+      : '<div class="card"><h2>Race predictions</h2><p class="muted">Run at least 1 mile in the last 90 days to see predictions.</p><a class="primary wide prediction-start" data-fitness-empty-action href="/track">Record a run</a></div>';
     pbox.hidden=!hasPredictions;
     if(hasPredictions){
       const sources=`<div class="prediction-sources"><p class="small muted">Recent efforts used</p><ul>${f.predictions.map(predictionSourceDetail).join('')}</ul></div>`;

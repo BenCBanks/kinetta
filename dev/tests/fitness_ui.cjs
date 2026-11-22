@@ -81,7 +81,7 @@ with db.connect() as c:
    }
    assert.equal(await p.locator('#fi-range-score').count(),0,'only Card A has range tabs');
    if(state!=='empty')assert((await p.locator('#fi-range').boundingBox()).y<(await p.locator('#fi-pred').boundingBox()).y,'Fitness range controls stay with the chart above predictions');
-   if(state==='empty'){assert.equal(await p.locator('#p-load .chart-expand').count(),0,'empty Fitness has no full-screen/zoom affordance');assert.equal(await p.locator('#fi-body .fitness-card-empty').count(),1,'empty Fitness shows one calm message instead of a chart');assert.equal(await p.locator('#fi-pred').isHidden(),true,'race predictions stay hidden until there is activity data');assert.equal(await p.locator('.pred').count(),0);}
+   if(state==='empty'){assert.equal(await p.locator('#p-load .chart-expand').count(),0,'empty Fitness has no full-screen/zoom affordance');assert.equal(await p.locator('#fi-body .fitness-card-empty').count(),1,'empty Fitness shows one calm message instead of a chart');assert.equal(await p.locator('#fi-pred').isHidden(),true,'race predictions stay hidden until there is activity data');assert((await p.locator('#fi-pred').textContent()).includes('Run at least 1 mile in the last 90 days to see predictions.'),'empty Fitness gives the race-prediction requirement in plain language');assert.equal(await p.locator('.pred').count(),0);}
    else{
     await predictionTable(p,data);
     if(state==='typical'&&size.width===390&&size.root===16&&theme==='light'){
