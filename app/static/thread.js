@@ -769,7 +769,7 @@ const FoodThread = (() => {
         <div class="food-tone-menu" id="thread-tone-menu" role="listbox" aria-label="Feedback tone" hidden>${toneRows}</div>
       </div>
       <div class="food-settings-divider" aria-hidden="true"></div>
-      <button type="button" class="food-settings-row food-settings-clear" id="thread-clear">Clear chat</button>
+      <button type="button" class="food-settings-row food-settings-clear" id="thread-clear">Clear chat on all devices.</button>
       <p class="food-settings-error" id="thread-tone-error" role="alert" hidden>Couldn’t save. Try again.<button type="button" class="linkbtn" id="thread-tone-retry">Retry</button></p>
     </div>`,(b,close)=>{
       const opener=$('#thread-tone-open',b),menu=$('#thread-tone-menu',b),error=$('#thread-tone-error',b),spinner=$('[data-tone-spinner]',b),label=$('[data-tone-label]',b);
@@ -803,7 +803,7 @@ const FoodThread = (() => {
     if(!active(ctx))return;
     if(ctx.preparingReview||pendingReview()){status(ctx,'Wait for your food to finish saving, then clear the chat.');return;}
     close();
-    sheet('Clear chat everywhere?','<div class="confirm-sheet"><p>Logged food stays.</p><div class="btnrow"><button type="button" class="ghost" data-clear-cancel>Cancel</button><button type="button" class="primary danger-btn" id="thread-clear-yes">Clear chat</button></div></div>',(b,done)=>{$('[data-clear-cancel]',b).onclick=done;$('#thread-clear-yes',b).onclick=async()=>{
+    sheet('Clear chat everywhere?','<div class="confirm-sheet"><p>Clears chat everywhere. Logged food stays.</p><div class="btnrow"><button type="button" class="ghost" data-clear-cancel>Cancel</button><button type="button" class="primary danger-btn" id="thread-clear-yes">Clear chat</button></div></div>',(b,done)=>{$('[data-clear-cancel]',b).onclick=done;$('#thread-clear-yes',b).onclick=async()=>{
     if(!active(ctx))return;
     try{await api('/api/food/thread/clear',json('POST',{confirm:true}));
       privacyEpoch++;photos.clear(ctx.owner);await ThreadDB.erase(ctx.owner);store.del(cacheKey(ctx.owner));store.del(contextKey(ctx.owner));store.del(draftKey(ctx.owner));
