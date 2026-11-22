@@ -1477,10 +1477,8 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .emoji-reactions .reaction-count[hidden] {display:none;}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
 .activity-comments {order:2;display:flex;flex:none;align-items:center;justify-content:center;gap:5px;min-width:44px;min-height:44px;height:44px;padding:0;margin-block:-2px;margin-inline:0;}
-.activity-comments>svg {width:20px;height:20px;flex:none;}
+.activity-comments>svg {width:22px;height:22px;flex:none;}
 .activity-comments .num[hidden] {display:none;}
-.activity-comments:has(.num[hidden])>svg {display:none;}
-.activity-comments:has(.num[hidden])::after {content:"Comment";font-size:12px;font-weight:500;line-height:1;color:var(--tx2);white-space:nowrap;}
 .post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
 .post-ft:has(.emoji-reactions) .activity-share {order:3;min-width:44px;height:44px;margin:0 0 0 8px;padding:0;display:flex;align-items:center;justify-content:center;}
 .post-ft:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
@@ -1495,7 +1493,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:18px;height:18px;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:none;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:2;margin-left:8px;}
-:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments>svg {width:20px;height:20px;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments>svg {width:22px;height:22px;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments .num {font-size:14px;font-weight:500;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count {order:3;display:flex;flex:none;align-items:center;justify-content:flex-end;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 auto;color:var(--tx2);font-size:14px;font-weight:500;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {display:flex;align-items:center;gap:4px;overflow:visible;white-space:nowrap;}
