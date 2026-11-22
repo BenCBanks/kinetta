@@ -71,6 +71,7 @@ _NUTRIENTS = ('kcal','protein_g','carbs_g','fat_g','fiber_g','sodium_mg','sugar_
 _RUN_FIELDS = ('distance_m','moving_s','pace_s_per_km','avg_hr','avg_temp','effort')
 _KIT_MEASUREMENT_PATHS = {
     'profile': {(field,) for field in ('kcal_target','protein_target','carbs_target','fat_target','fiber_target','sodium_target_mg','sugar_target_g','saturated_fat_target_g')},
+    'body_profile': {('height_cm',),('weight_kg',)},
     'nutrition_summary': {(group,field) for group in ('totals','known_totals','average_per_logged_day') for field in _NUTRIENTS},
     'recent_runs': {('runs',_INDEX,field) for field in _RUN_FIELDS} | {('totals',field) for field in ('count','distance_m','moving_s')},
     'activity': {(field,) for field in _RUN_FIELDS + ('elapsed_s','ascent_m','max_hr','calories')},
@@ -85,6 +86,10 @@ _KIT_MEASUREMENT_PATHS = {
     'gear': {('gear',_INDEX,'distance_m')},
     'resting_energy': {('days',_INDEX,'resting_kcal')},
     'stored_foods': {('records',_INDEX,'totals',field) for field in _NUTRIENTS} | {('records',_INDEX,'per_serving',field) for field in _NUTRIENTS} | {('records',_INDEX,field) for field in _NUTRIENTS},
+    'meal_options': {('candidates',_INDEX,field) for field in ('kcal','protein_g','carbs_g','fat_g')},
+    'meal_combinations': {('candidates',_INDEX,'totals',field) for field in ('kcal','protein_g','carbs_g','fat_g')},
+    'training_plan': {('summary','runs'),('weeks',_INDEX,'planned'),('weeks',_INDEX,'workouts',_INDEX,'dist')},
+    'plan_options': {('facts','latest_load',field) for field in ('load','fitness','fatigue','form')},
     'period_compare': {(period,group,field) for period in ('current','previous')
                        for group in ('totals','known_totals') for field in ('workouts','distance_m','duration_s','protein_g')},
 }
@@ -104,9 +109,38 @@ def _kit_path_allowed(tool, path):
 # These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
 _PLACEHOLDER_CONNECTIVES = frozenset('about around roughly to and or from of vs versus'.split())
 _PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
-_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('is was are were be been from with covered recorded measured logged at of compared'.split())
-_PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('was is are were be been from with compared previously currently overall before after today yesterday'.split())
+_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached totaled totaling weighed shows show'.split())
+_PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with recorded compared previously currently overall before after earlier today yesterday across over toward while each daily recently your against for on though'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
+_DISPLAY_UNIT = re.compile(r'(?:\s(?:mi|km|ft|in|lb|kg|g|mg|kcal|bpm|min|h|m)\b|/\s?(?:mi|km)\b|°[CF])')
+
+
+class KitValidationError(ValueError):
+    """A normal validation failure with optional evaluator-only diagnostic detail."""
+    def __init__(self, message, diagnostic_detail=None):
+        super().__init__(message)
+        self.diagnostic_detail=diagnostic_detail
+
+
+def _placeholder_boundary_detail(text, match, *, before):
+    side='before' if before else 'after'
+    if before:
+        context=text[max(0,match.start()-40):match.start()]
+        neighbor_context=context.rstrip()
+        while neighbor_context and neighbor_context[-1] in _PLACEHOLDER_PUNCTUATION:
+            neighbor_context=neighbor_context[:-1].rstrip()
+        token=re.search(r'(\w+)$',neighbor_context)
+        snippet=context+match.group(0)
+    else:
+        context=text[match.end():min(len(text),match.end()+40)]
+        neighbor_context=context.lstrip()
+        while neighbor_context and neighbor_context[0] in _PLACEHOLDER_PUNCTUATION:
+            neighbor_context=neighbor_context[1:].lstrip()
+        token=re.match(r'(\w+)',neighbor_context)
+        snippet=match.group(0)+context
+    neighbor=token.group(1).casefold() if token else None
+    return {'kind':'placeholder_neighbor','side':side,'neighbor':neighbor,
+            'offending_snippet':re.sub(r'\s+',' ',snippet).strip()[:96]}
 
 
 def _kit_numeric_symbol(char):
@@ -145,12 +179,18 @@ def _placeholder_boundary_ok(context, *, before):
     return not rest or rest[-1 if before else 0].isspace() or rest[-1 if before else 0] in _PLACEHOLDER_PUNCTUATION
 
 
-def _placeholder_value(fact):
+def _placeholder_value(fact, before=''):
     label=fact['label'].casefold()
     if label.startswith('average daily '):
         noun=label.removeprefix('average daily ')
         label=f'{noun} per logged day'
-    return f"{fact['display_value']} {label}"
+    display=fact['display_value']
+    # A formatted unit already names the quantity (350 kcal, 158.7 lb, 19 km).
+    # Keep app labels only for unitless values such as fatigue, form and workout counts.
+    if _DISPLAY_UNIT.search(display):return display
+    sentence_context=re.split(r'[.!?;\n]',before)[-1]
+    if label and re.search(r'(?<!\w)'+re.escape(label)+r'(?!\w)',sentence_context,re.I):return display
+    return f"{display} {label}"
 
 
 def _kit_prose(text, facts):
@@ -164,14 +204,16 @@ def _kit_prose(text, facts):
         before,after=text[:match.start()],text[match.end():]
         left_range=i>0 and text[matches[i-1].end():match.start()].strip() in _PLACEHOLDER_RANGES
         right_range=i+1<len(matches) and text[match.end():matches[i+1].start()].strip() in _PLACEHOLDER_RANGES
-        if (not left_range and not _placeholder_boundary_ok(before,before=True)
-                or not right_range and not _placeholder_boundary_ok(after,before=False)):
-            raise ValueError('Unsupported text attached to numeric reference')
+        left_ok=left_range or _placeholder_boundary_ok(before,before=True)
+        right_ok=right_range or _placeholder_boundary_ok(after,before=False)
+        if not left_ok or not right_ok:
+            detail=_placeholder_boundary_detail(text,match,before=not left_ok)
+            raise KitValidationError('Unsupported text attached to numeric reference',detail)
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
             raise ValueError('Unknown or mismatched numeric reference')
     def replace(match):
-        return _placeholder_value(facts[int(match.group(2))])
+        return _placeholder_value(facts[int(match.group(2))],text[:match.start()])
     resolved=PLACEHOLDER.sub(replace,text).strip()
     if not resolved or len(resolved)>1600: raise ValueError('Answer text is empty or too long')
     return resolved
@@ -198,7 +240,8 @@ def _kit_fact(tool, data, path, value, units):
         'workouts':'Workouts','count':'Workouts','activities':'Workouts','ascent_m':'Elevation gain',
         'calories':'Calories','kcal':'Calories','resting_kcal':'Resting calories','protein_g':'Protein','saturated_fat_g':'Saturated fat','reps':'Reps','secs':'Set duration','carbs_g':'Carbohydrates',
         'fat_g':'Fat','fiber_g':'Fibre','sodium_mg':'Sodium','sugar_g':'Sugar',
-        'kg':'Weight','max_recorded_kg':'Best recorded weight','trend_kg':'Weight trend',
+        'runs':'Runs per week','planned':'Planned distance','dist':'Planned distance',
+        'kg':'Weight','weight_kg':'Weight','height_cm':'Height','max_recorded_kg':'Best recorded weight','trend_kg':'Weight trend',
         'protein_target':'Protein target','carbs_target':'Carbohydrate target','fat_target':'Fat target',
         'fiber_target':'Fibre target','kcal_target':'Calorie target','sodium_target_mg':'Sodium target',
         'sugar_target_g':'Sugar target','saturated_fat_target_g':'Saturated fat target',
@@ -213,11 +256,13 @@ def _kit_fact(tool, data, path, value, units):
         if tool not in {'recent_runs','weight_trend'}: raise ValueError('Unsupported count')
         label='Workouts' if tool=='recent_runs' else 'Weight entries'
     if sport: label=f'{sport} {label.lower()}'
+    if tool=='plan_options' and path[:2]==['facts','latest_load']: label=f'Latest training {label.lower()}'
     if path and path[0] in {'current','previous'}: label=f'{path[0].title()} {label.lower()}'
     if 'average_per_logged_day' in path: label=f'Average daily {label.lower()}'
     elif 'known_totals' in path: label=f'Known total {label.lower()}'
     elif 'totals' in path or 'totals_by_sport' in path: label=f'Total {label.lower()}'
     elif 'per_serving' in path: label=f'{label} per serving'
+    if tool in {'meal_options','meal_combinations'} and path and path[0]=='candidates': label=f'Meal candidate {label.lower()}'
     metric=units=='metric';display=str(value)
     if field=='distance_m':
         factor,unit=(1000,'km') if metric else (1609.344,'mi')
@@ -239,10 +284,19 @@ def _kit_fact(tool, data, path, value, units):
     elif field.endswith('_kg') or field=='kg':
         shown=float(value) if metric else float(value)*2.2046226218
         display=f'{_compact_number(shown)} {"kg" if metric else "lb"}'
+    elif field=='height_cm':
+        if metric: display=f'{_compact_number(float(value))} cm'
+        else:
+            feet,inches=divmod(round(float(value)/2.54),12)
+            display=f'{feet} ft {inches} in'
     elif field in {'protein_target','carbs_target','fat_target','fiber_target'}: display=f'{_compact_number(float(value))} g'
     elif field.endswith('_g'): display=f'{_compact_number(float(value))} g'
     elif field.endswith('_mg'): display=f'{_compact_number(float(value))} mg'
     elif field in {'calories','kcal','resting_kcal','kcal_target','logged_kcal','goal_kcal'}: display=f'{round(float(value))} kcal'
+    elif tool=='training_plan' and field in {'planned','dist'}:
+        unit=data.get('plan',{}).get('unit')
+        if unit not in {'mi','km'}: raise ValueError('Unsupported training plan unit')
+        display=f'{_compact_number(float(value))} {unit}'
     elif isinstance(value,(int,float)): display=_compact_number(value)
     return label,display
 
@@ -313,19 +367,64 @@ def _json(text):
     return json.loads(text)
 
 
+def _kit_retry_feedback(error):
+    detail=getattr(error,'diagnostic_detail',None)
+    if isinstance(detail,dict) and detail.get('kind')=='placeholder_neighbor':
+        side=detail.get('side')
+        neighbor=detail.get('neighbor')
+        if side in {'before','after'} and isinstance(neighbor,str) and re.fullmatch(r'[a-z][a-z-]{0,24}',neighbor):
+            return f"Unexpected adjacent word {neighbor!r} on the {side} side of a numeric placeholder."
+        return 'Unsupported text is attached to a numeric placeholder.'
+    error_text=str(error)
+    if error_text=='Unsupported measurement path':
+        return 'A fact path is not a supported measurement in its tool result.'
+    if error_text=='Unknown or mismatched numeric reference':
+        return 'A numeric placeholder does not match an entry in the facts array.'
+    if error_text=='Unverified digit or malformed reference':
+        return 'A digit or malformed reference appears outside a valid placeholder.'
+    if error_text=='Unsupported text attached to numeric reference':
+        return 'Unsupported text is attached to a numeric placeholder.'
+    return 'A fact did not match the verified tool result or numeric format.'
+
+
+def _kit_retry_prompt(error):
+    return ('Your previous JSON failed validation: '+_kit_retry_feedback(error)+
+            ' Return corrected JSON only, using existing evidence and no tool calls. '
+            'If no supported numeric fact answers the question, use an empty facts array and answer qualitatively '
+            'without numeric claims. Keep every digit in verdict/reason inside a validated placeholder.')
+
+
 KIT_SYSTEM = CORE_SYSTEM + '''
 After tool calls return JSON only:
 {"verdict":"Direct answer to the actual question.","reason":"The strongest reason, using {e2:0} when helpful.",
  "facts":[{"evidence_id":"e2","path":["totals","distance_m"],"value":5000}],
  "selection":null,"actions":[],"follow_ups":["What should I focus on next?"]}
 Every digit in verdict/reason must come from a placeholder {evidence_id:fact_index}. For example {e2:0} inserts
-the application-formatted value and its app-generated fact label, which must cite evidence e2. Multiple facts may use different paths in
+the application-formatted value, which must cite evidence e2. The formatted value includes its unit; the app adds a
+short metric label only for unitless values. Multiple facts may use different paths in
 the same evidence result. Use zero-based indexes into the facts array, at most three facts. Every fact must cite
 an exact finite numeric field from a successful current-turn tool result and its matching value; the app supplies
-labels, rounding and account units. Keep a placeholder beside only whitespace, simple punctuation or an approved
-connective. Both sides also allow about/around/roughly/to/and/or/from/of/vs/versus. A hyphen, en dash or em dash
-may join two placeholders as a range; never use one as a sign before a value. Before references, connectives are is/was/are/were/be/been/from/with/covered/recorded/measured/logged/at/of/compared; after them, was/is/are/were/be/been/from/with/compared/previously/currently/overall/before/after/today/yesterday. Do not attach another unit, currency, ratio or arithmetic expression. Digits outside placeholders
+rounding and account units. Use a placeholder as a complete value; do not append a unit or repeat its label. Do not
+put the metric label or unit immediately before or after its placeholder either. Use neutral framing such as
+"The recorded value was {e2:0}"; avoid "Protein was {e2:0} protein" and "{e2:0} kcal". For unitless metrics,
+the app appends one short label after the value, so do not name that metric immediately before the slot.
+Keep it beside only whitespace, simple punctuation or an approved connective. Both sides also allow
+about/around/roughly/to/and/or/from/of/vs/versus. A hyphen, en dash or em dash may join two placeholders as a
+range; never use one as a sign before a value. Before references, approved words include a/an/the/is/was/are/were/
+be/been/from/with/covered/recorded/measured/logged/at/of/compared/across/by/for/include/includes/included/
+provides/providing/provided/delivers/covers/reached/totaled/totaling/weighed/shows/show; after them,
+was/is/are/were/be/been/from/with/recorded/compared/previously/currently/overall/before/after/earlier/today/
+yesterday/across/over/toward/while/each/daily/recently/your/against/for/on/though. Do not attach another unit, currency, ratio,
+measurement label, or an additional value written in words; if you cannot keep those separate, answer qualitatively
+with an empty facts array and no numeric claim. Arithmetic expressions are not allowed. Digits outside placeholders
 and in follow-up questions are rejected; wording and number words are not verified.
+To choose a placeholder, first count entries in your own `facts` array from zero; the index is not an index
+into a tool result. Copy that entry's `evidence_id` exactly. Example: if the first fact is
+`{"evidence_id":"e2","path":["average_per_logged_day","protein_g"],"value":80}`, write
+`"verdict":"The recorded value was {e2:0}."`; the app renders the verified value with its unit, plus a short
+label only for unitless measurements. Do not write `Your protein was {e2:0} protein`, `{e2:1}` for that first
+fact, or `... {e2:0} g`: each repeats a label/unit or uses the wrong fact index. Keep the numeric reference itself
+as the value in verdict/reason; app formatting supplies the unit and any needed label.
 Only cite measurement fields, not IDs, dates, names, strings, unknown values, unlogged-day counts or metadata.
 Generic activity goal targets are not supported as numeric facts; nutrition targets are supported.
 Use totals/known_totals/average_per_logged_day accurately; known totals may omit unknown nutrients.
@@ -338,7 +437,14 @@ You are the single assistant across Kinetta, not just a running or food logger. 
 exercise, strength, progress, recovery, goals and how to use Kinetta. Distinguish general educational advice from
 conclusions supported by personal records. Do not diagnose illness, encourage dangerous restriction or prescribe
 treatment. Ask a concise follow-up when the person's goal or needs are unclear. There is no need to invent a
-personal conclusion to answer a general question. Consult profile for the person's local date and units first.
+personal conclusion to answer a general question. Consult profile for the person's local date and units first. Profile contains
+units and nutrition targets, not body measurements. Use body_profile for an available height or weight; do not infer age
+from birth year. Supported path examples include body_profile height_cm or weight_kg, meal_options candidates/kcal,
+meal_combinations candidates/totals/kcal, training_plan summary/runs, weeks/index/planned or
+weeks/index/workouts/index/dist, and
+plan_options facts/latest_load/fitness or fatigue. Plan workouts expose their own `dist` measurement. Only cite a
+path present in that successful result. Do not add a second numeric estimate in words (for example a number of
+grams); if the tool fields do not support the answer, use no numeric facts and answer qualitatively.
 Prior conversation is context, not fresh evidence. Always get current personal measurements from tools.
 The application supplies a verified profile evidence record with today's date before the first turn; use it.
 Use the fewest relevant tools, usually one or two. Do not repeat identical lookups. Keep the answer concise,
@@ -454,10 +560,36 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         if not calls:
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
             try: checked = checked_answer(_json(text), evidence, kit=kit)
-            except ValueError:
-                if kit: raise ValueError('Kit could not verify that answer. Try again.') from None
-                raise
-            return {**checked, 'prompt_version': 'kit-numbers-2' if kit else PROMPT_VERSION, 'usage': usage,
+            except ValueError as error:
+                if kit:
+                    if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
+                    if not coach.allowed(uid):raise ValueError(coach.off())
+                    health_tools={'profile','nutrition_summary','meal_options','meal_combinations','food_log',
+                                  'nutrition_days_vs_goal','stored_foods','goals','app_features'}
+                    if any(e['tool'] not in health_tools and 'data' in e for e in evidence):
+                        with db.coach_connect(uid) as c:
+                            if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
+                    retry_message=_kit_retry_prompt(error)
+                    messages.append({'role':'user','parts':[{'text':retry_message}]} if provider=='gemini'
+                                    else {'role':'user','content':retry_message})
+                    try:
+                        with ai_budget.scope(uid):retry_calls,retry_text,retry_tokens=turn(messages,[])
+                    except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
+                    if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
+                    if not coach.allowed(uid):raise ValueError(coach.off())
+                    if any(e['tool'] not in health_tools and 'data' in e for e in evidence):
+                        with db.coach_connect(uid) as c:
+                            if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
+                    for key in usage:usage[key]+=int(retry_tokens.get(key) or 0)
+                    if retry_calls:raise ValueError('Kit could not verify that answer. Try again.')
+                    try:checked=checked_answer(_json(retry_text),evidence,kit=True)
+                    except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
+                else: raise
+            if kit:
+                # The UI consumes only interpretation. Keep the validated source fields internal
+                # to answer construction instead of serializing the same prose three times.
+                checked.pop('verdict',None);checked.pop('reason',None)
+            return {**checked, 'prompt_version': 'kit-numbers-4' if kit else PROMPT_VERSION, 'usage': usage,
                     'latency_ms': round((time.monotonic() - began) * 1000),
                     'health_included':kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and 'data' in e for e in evidence),
                     'tools_used': [e['tool'] for e in evidence]}
