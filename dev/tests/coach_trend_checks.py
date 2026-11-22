@@ -174,6 +174,10 @@ with db.connect() as c:
         check(trend(metric='workouts', end='2002-01-02', window=2)['slope_per_day'] == -105,
               'negative recorded-count slope computed exactly')
         sql(Path(__file__).with_name('coach_trend_clock_checks.py').read_text())
+        decimal = trend(metric='protein_g', window=2, end='2024-01-02')
+        check(isinstance(decimal['days'][0]['value'],float) and math.isclose(decimal['days'][0]['value'],0.1,rel_tol=1e-6)
+              and math.isclose(decimal['slope_per_day'],0.1,rel_tol=1e-6),
+              'non-binary 0.1 storage precision remains a JSON number, not a string or rounded zero')
         for metric, slope in [('distance_m',10.25),('duration_s',1.25),('protein_g',1.25),('kcal',100.125)]:
             fractional = trend(metric=metric, window=3, end='2024-06-03')
             check(fractional['slope_per_day'] == slope and fractional['days'][0]['value'] == slope,
