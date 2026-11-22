@@ -24,6 +24,9 @@ def sql(code):
     return subprocess.run(['docker', 'compose', '-p', os.environ.get('KINETTA_PROJECT', 'kinettatest'), 'exec', '-T', 'app', 'python', '-c', code], check=True)
 
 
+from coach_period_compare_checks import run as check_period_compare
+check_period_compare()
+
 a, b = person('zz_test_coach_a'), person('zz_test_coach_b')
 try:
     check(Client().post('/api/coach/tools', {'name': 'profile'})[0] == 401, 'tools require auth')

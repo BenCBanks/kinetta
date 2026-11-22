@@ -34,8 +34,18 @@ class Day(Empty):
     day: dt.date
 
 
+class ComparisonRange(Range):
+    @model_validator(mode='after')
+    def comparable(self):
+        days = (self.end - self.start).days + 1
+        if days > 366 or self.start.toordinal() <= days:
+            raise ValueError('Use up to 366 calendar days with room for a preceding equal period')
+        return self
+
+
 TOOLS = {
     'profile': (Empty, 'Read the current account time zone, units and nutrition targets; no identifying information.'),
+    'period_compare': (ComparisonRange, 'Compare own recorded workouts, distance, duration and protein with the preceding equal-length period. Inclusive account-local dates, at most 366 days. Exact aggregates, missing counts and known subtotals; protein changes require logging on every day in both periods. No causal or medical conclusions.'),
     'nutrition_summary': (Range, 'Exact SQL totals and average calories/protein/carbs/fat per logged day, inclusive dates. Missing days are unlogged, not zero intake. Use for averages since training began.'),
     'recent_runs': (Range, 'Recent running measurements including duration, distance, pace, heart rate, temperature and effort. At most 100 rows; exact aggregate counts report truncation. Easy effort is not inferred from missing data.'),
     'activity': (Activity, 'Own activity measurements by ID. Missing and other-account IDs are both not found. Never request someone else\'s data.'),
@@ -85,6 +95,59 @@ class AccountTools:
 
     def _profile(self, c, _):
         return c.execute('SELECT tz, units, max_hr, rest_hr, kcal_target, protein_target, carbs_target, fat_target FROM profile WHERE user_id = %s', (self._uid,)).fetchone() or {}
+
+    def _period_compare(self, c, r):
+        days = (r.end - r.start).days + 1
+        previous_end = r.start - dt.timedelta(days=1)
+        previous_start = r.start - dt.timedelta(days=days)
+        tz = self._profile(c, Empty()).get('tz') or db.DEFAULT_TZ
+
+        def period(start, end):
+            # Aggregate the full range in SQL; no row limit can silently undercount.
+            activity = c.execute('''SELECT count(*) AS workouts,
+                count(DISTINCT (start_time AT TIME ZONE %s)::date) AS workout_days,
+                sum(distance_m::double precision) AS distance_m,
+                sum(coalesce(moving_s, elapsed_s)::double precision) AS duration_s,
+                count(*) FILTER (WHERE distance_m IS NULL) AS distance_unknown,
+                count(*) FILTER (WHERE moving_s IS NULL AND elapsed_s IS NULL) AS duration_unknown,
+                count(*) FILTER (WHERE moving_s IS NULL AND elapsed_s IS NOT NULL) AS elapsed_fallbacks
+                FROM activities WHERE user_id=%s AND NOT lift_open
+                AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s''',
+                (tz, self._uid, tz, start, end)).fetchone()
+            food = c.execute('''SELECT count(*) AS items, count(DISTINCT day) AS logged_days,
+                sum(protein_g::double precision) FILTER (WHERE NOT unknown) AS protein_g,
+                count(*) FILTER (WHERE unknown) AS protein_unknown
+                FROM (SELECT day, protein_g, (protein_g IS NULL OR
+                    (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array'
+                     THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'protein_g') AS unknown
+                    FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s) AS entries''',
+                (self._uid, start, end)).fetchone()
+            missing = {'distance_m': activity['distance_unknown'], 'duration_s': activity['duration_unknown'],
+                       'protein_g': food['protein_unknown']}
+            known = {key: activity[key] for key in ('distance_m', 'duration_s')}
+            known['protein_g'] = food['protein_g']
+            totals = {key: value if not missing[key] else None for key, value in known.items()}
+            if food['logged_days'] != days:
+                totals['protein_g'] = None
+            totals['workouts'] = activity['workouts']
+            return {'start': start, 'end': end, 'calendar_days': days, 'totals': totals,
+                    'known_totals': known, 'unknown_measurement_counts': missing,
+                    'workout_days': activity['workout_days'], 'food_logged_days': food['logged_days'],
+                    'food_unlogged_days': days - food['logged_days'], 'food_items': food['items'],
+                    'duration_elapsed_fallbacks': activity['elapsed_fallbacks'], 'truncated': False}
+
+        current, previous = period(r.start, r.end), period(previous_start, previous_end)
+        change = {}
+        for key, value in current['totals'].items():
+            before = previous['totals'][key]
+            delta = value - before if value is not None and before is not None else None
+            change[key] = {'absolute': delta,
+                           'percent': round(delta / before * 100, 2) if delta is not None and before != 0 else None}
+        return {'timezone': tz, 'current': current, 'previous': previous, 'change': change, 'truncated': False,
+                'limitations': ['Counts describe recorded completed workouts, not all activity; unfinished lifting is excluded.',
+                    'Duration uses moving seconds, falling back to elapsed seconds only when moving time is missing.',
+                    'Unlogged food days and unknown protein make full-period protein totals and changes unknown. Even daily logging may be incomplete.',
+                    'Known totals include supplied measurements only; no measurements means unknown. Comparisons do not establish causes or health status.']}
 
     def _nutrition_summary(self, c, r):
         # Missing nutrients remain missing, even when an older storage path uses
