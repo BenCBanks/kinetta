@@ -245,13 +245,22 @@ assert weekly_checked['facts'][2]['label']=='Known protein subtotal on compariso
 for bad in [
     {**weekly_raw,'weekly_review':None},
     {**weekly_raw,'follow_ups':['One?','Two?','Three?']},
+    {**weekly_raw,'verdict':'Your records show 3 training days.'},
+    {**weekly_raw,'reason':'You ran 3 days.'},
     {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'You ran 3 days.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food was logged on 2 days.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'next_week_focus':'Run 3 times.'}},
     {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food records are uneven. Intake changed.'}},
     {**weekly_raw,'actions':['food']},
 ]:
     try:coach_chat.checked_answer(bad,weekly_evidence,kit=True,weekly_review=True)
     except ValueError:pass
     else:raise AssertionError('Weekly review shape, digit, sentence and no-action rules must fail closed')
+numeric_weekly_chip=coach_chat.checked_answer({**weekly_raw,'follow_ups':['Can I run 3 times?']},weekly_evidence,kit=True,weekly_review=True)
+assert numeric_weekly_chip['follow_ups']==[], 'A model-written digit in a weekly follow-up is dropped'
+placeholder_week={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'Your recorded distance was {e2:0}.'}}
+rendered_week=coach_chat.checked_answer(placeholder_week,weekly_evidence,kit=True,weekly_review=True)
+assert rendered_week['weekly_review']['what_went_well']=='Your recorded distance was '+rendered_week['facts'][0]['display_value']+'.', 'Weekly numeric prose may only use app-rendered verified placeholders'
 try:coach_chat.checked_answer(weekly_raw,weekly_evidence,kit=True)
 except ValueError:pass
 else:raise AssertionError('Ordinary Kit answers cannot smuggle in weekly-review sections')
