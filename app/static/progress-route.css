@@ -81,7 +81,6 @@
 .fitness-running-heading h2 { margin:0; }
 .fitness-running-heading .rng { margin:0; }
 .fitness-running-heading .range-btn { font-size:max(15px,.9375rem); }
-.progress-chart-card[data-progress-chart="run-score"] .stat-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .fitness-predictions { padding:16px; }
 .fitness-prediction-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; margin:0 0 8px; }
 .fitness-prediction-heading h2 { min-width:0; margin:0; font-size:max(17px,var(--text-app-card-title)); }
