@@ -32,6 +32,8 @@ from coach_consistency_checks import run as check_consistency
 check_consistency()
 from coach_adequacy_checks import run as check_adequacy
 check_adequacy()
+from coach_records_checks import run as check_personal_records
+check_personal_records()
 
 a, b = person('zz_test_coach_a'), person('zz_test_coach_b')
 try:
