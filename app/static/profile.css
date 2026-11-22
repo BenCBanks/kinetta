@@ -261,6 +261,7 @@
 .profile-achievement-history-head { display:flex; align-items:center; gap:16px; min-height:100px; margin:4px 0 16px; }
 .profile-achievement-history-head .profile-achievement-medallion { flex:0 0 100px; }
 .profile-achievement-history-copy { min-width:0; }
+.profile-achievement-detail-share { flex:none; min-width:64px; min-height:44px; padding:0 8px; border:0; background:transparent; color:var(--accent); font:inherit; font-weight:600; cursor:pointer; }
 .profile-achievement-history-copy h1 { overflow-wrap:anywhere; }
 .profile-achievement-current { margin:6px 0 0; color:var(--tx2); font-size:.8125rem; line-height:1.25; white-space:nowrap; }
 .profile-achievement-current-value { margin:2px 0 0; color:var(--tx); font-size:.875rem; font-weight:650; line-height:1.25; white-space:nowrap; }
@@ -691,7 +692,7 @@
 .profile-achievement-sport-chip svg { width:18px; height:18px; flex:none; }
 .profile-achievement-sport-chip b { color:var(--tx); font-size:.75rem; font-weight:700; }
 .profile-achievement-sport-chip.is-selected { border-color:var(--accent); background:var(--accent2); color:var(--tx); box-shadow:inset 0 0 0 1px var(--accent); }
-.profile-achievement-sport-chip:focus-visible,.profile-achievement-sport-share:focus-visible,.profile-achievement-track-share:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.profile-achievement-sport-chip:focus-visible,.profile-achievement-sport-share:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .profile-achievement-sport-header { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:96px; padding:16px; border-radius:18px; background:var(--card); box-shadow:var(--elevation-raised); }
 .profile-achievement-sport-heading { display:flex; flex:1; align-items:center; gap:12px; min-width:0; }
 .profile-achievement-sport-heading > div { flex:1; min-width:0; }
@@ -708,9 +709,6 @@
 .profile-achievement-sport-card { min-width:0; padding:16px; border:0; border-radius:16px; background:var(--card); box-shadow:var(--elevation-raised); }
 .profile-achievement-sport-card .profile-achievement-track-head { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; padding:0; }
 .profile-achievement-track-link { display:flex; flex:1; align-items:center; min-width:0; min-height:44px; color:var(--tx); text-decoration:none; }
-.profile-achievement-track-share { flex:0 0 44px; width:44px; min-width:44px; height:44px; padding:10px; }
-.profile-achievement-track-heading { display:flex; align-items:flex-start; gap:8px; min-width:0; }
-.profile-achievement-track-heading svg { flex:none; width:20px; height:20px; color:var(--accent); }
 .profile-achievement-track-heading-copy { display:flex; flex-direction:column; gap:3px; min-width:0; }
 .profile-achievement-sport-card .profile-achievement-track-title { font-size:20px; font-weight:600; line-height:1.2; }
 .profile-achievement-sport-card .profile-achievement-track-summary { color:var(--tx2); font-size:14px; font-weight:400; line-height:1.25; }
@@ -760,13 +758,8 @@
 .profile-achievement-sport-card { min-width:0; padding:10px 16px 12px; border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
 .profile-achievement-sport-card .profile-achievement-track-head { min-height:44px; }
 .profile-achievement-track-link { display:flex; flex:1; align-items:center; justify-content:space-between; gap:8px; min-width:0; min-height:44px; color:var(--tx); text-decoration:none; }
-.profile-achievement-track-heading { align-items:center; gap:10px; }
-.profile-achievement-track-heading svg { width:22px; height:22px; color:var(--tx3); }
 .profile-achievement-sport-card .profile-achievement-track-title { font-size:1rem; font-weight:600; }
 .profile-achievement-sport-card .profile-achievement-track-summary { font-size:.8125rem; font-weight:500; }
-.profile-achievement-track-open { display:grid; flex:none; place-items:center; width:18px; height:22px; color:var(--tx3); }
-.profile-achievement-track-open svg { width:18px; height:18px; }
-.profile-achievement-sport-card .profile-achievement-track-share { flex:none; width:44px; height:44px; color:var(--color-text-muted); }
 .profile-achievement-ladder-scroll { gap:12px; padding:8px 8px 10px; -webkit-mask-image:none; mask-image:none; }
 .profile-achievement-ladder-scroll .profile-achievement-ladder-badge { flex:0 0 auto; width:max-content; min-width:64px; max-width:none; }
 .profile-achievement-ladder-scroll .profile-achievement-medallion { flex-basis:44px; width:44px; min-width:44px; max-width:44px; height:44px; }
@@ -774,7 +767,6 @@
 .profile-achievement-ladder-scroll .profile-achievement-ladder-name { width:max-content; min-width:64px; max-width:none; font-size:.75rem; white-space:nowrap; }
 .profile-achievement-ladder-scroll .profile-achievement-ladder-threshold { display:none; }
 .profile-achievement-ladder-scroll .profile-achievement-ladder-progress { width:52px; max-width:52px; height:3px; margin:6px 0 0; }
-.profile-achievement-track-share:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 @media (max-width:360px) { .profile-achievement-sport-switcher { gap:14px; } .profile-achievement-sport-card { padding-inline:12px; } }
 .profile-achievement-fastest-group { min-width:0; margin:0; padding:10px 16px 8px; border-top:1px solid var(--line); }
 .profile-achievement-fastest-group h3 { margin:0 0 4px; color:var(--tx2); font-size:.8125rem; font-weight:500; }
@@ -784,7 +776,6 @@
 .profile-achievement-fastest-link { display:flex; flex:1; align-items:center; justify-content:space-between; gap:10px; min-width:0; min-height:48px; color:var(--tx); text-decoration:none; }
 .profile-achievement-fastest-link > span { overflow-wrap:anywhere; font-size:1rem; font-weight:500; }
 .profile-achievement-fastest-link > small { flex:none; max-width:56%; color:var(--tx2); text-align:right; font-size:.8125rem; line-height:1.3; }
-.profile-achievement-fastest-row .profile-achievement-track-share { flex:none; }
 .profile-achievement-fastest-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:10px 0; padding:10px 0; border-block:1px solid var(--line); }
 .profile-achievement-fastest-stats > div { display:flex; flex-direction:column-reverse; gap:3px; min-width:0; }
 .profile-achievement-fastest-stats dt { color:var(--tx2); font-size:.8125rem; }
