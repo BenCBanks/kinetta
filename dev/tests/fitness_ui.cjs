@@ -35,13 +35,14 @@ async function fitnessWarning(p,ramp){
  if(ramp>8){assert(await warning.isVisible(),'high load has a visible warning');assert.doesNotMatch(await warning.innerText(),/\bramp\b|\b8\.1\b/i,'warning hides the raw load increase');}
 }
 async function fitnessLanguage(p,data){
- const last=data.days.at(-1),load=p.locator('[data-progress-chart="training-load"]'),score=p.locator('[data-progress-chart="run-score"]');
+ const last=data.days.at(-1),load=p.locator('[data-progress-chart="training-load"]'),score=p.locator('#fi-pred .fitness-run-score');
  assert.deepEqual(await load.locator('.stat-row-item small').allTextContents(),['Fitness','Fatigue','Form']);
  const values=await load.locator('.stat-row-item b').allTextContents(),formValue=(last.form>0?'+':'')+Math.round(last.form);
  assert.equal(values[0],String(Math.round(last.fitness)),'Fitness retains its API value');
  assert.equal(values[1],String(Math.round(last.fatigue)),'Fatigue retains its API value');
  assert.equal(values[2],formValue,'Form retains its signed API value');
- assert.deepEqual(await score.locator('.stat-row-item small').allTextContents(),['Best in range','Best ever']);
+ assert.equal(await score.count(),1,'the current Run score is shown only in Card B');
+ assert.equal(await p.locator('[data-progress-chart="run-score"]').count(),0,'there is no repeated standalone Run score card');
  assert.doesNotMatch(await p.locator('#fi-pred,#fi-body').allInnerTexts().then(texts=>texts.join('\n')),/\b(?:VDOT|ramp)\b/i,'visible Fitness wording uses Run score and hides raw internals');
  await fitnessWarning(p,data.ramp_7d);
 }
@@ -61,7 +62,7 @@ with db.connect() as c:
   const login=await b.newContext();assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_subpages_'+state,password:'green teapot on the hill'}})).status(),200);const units=state==='typical'?'metric':'imperial',unitUpdate=await login.request.put(base+'/api/profile',{data:{units}});assert.equal(unitUpdate.status(),200,'fictional runner units update');const auth=await login.storageState(),data=await(await login.request.get(base+'/api/fitness?days=3650')).json();await login.close();
   if(state!=='empty')assert(data.predictions.every(row=>'best_year'in row),'every prediction carries a dated all-time-best reference');
   if(state==='typical'){const five=data.predictions.find(row=>row.label==='5K');assert(five&&five.seconds>five.best_s&&five.best_s===1170&&five.best_year===2024,'slower current 5K estimate keeps the faster 2024 record as a reference');assert.equal(data.predictions.find(row=>row.label==='10K').best_s,null,'a prediction can have no recorded best at its exact distance');}
-  for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16},...(state==='typical'&&theme==='light'?[{width:330,height:844,root:16}]:[])]){
+  for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16},...(state==='typical'?[{width:330,height:844,root:16}]:[])]){
    const c=await b.newContext({storageState:auth,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'}),p=await c.newPage(),errors=[],writes=[];
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',r=>{const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(req.method())){if(u.pathname!=='/api/challenges/signup/continue')writes.push(u.pathname);return r.fulfill({json:{}});}return r.continue();});
@@ -78,7 +79,7 @@ with db.connect() as c:
     assert.equal(await loadRanges.count(),4,'training load keeps four range choices');
     for(const button of await loadRanges.all()){const target=await button.boundingBox();assert(target.height>=44&&target.width>=44,'training-load range tabs keep 44px targets');}
    }
-   assert.equal(await p.locator('#fi-range-score [data-fitness-range]').count(),state==='empty'?0:4,'Run score range appears only with its chart');
+   assert.equal(await p.locator('#fi-range-score').count(),0,'only Card A has range tabs');
    if(state!=='empty')assert((await p.locator('#fi-range').boundingBox()).y<(await p.locator('#fi-pred').boundingBox()).y,'Fitness range controls stay with the chart above predictions');
    if(state==='empty'){assert.equal(await p.locator('#p-load .chart-expand').count(),0,'empty Fitness has no full-screen/zoom affordance');assert.equal(await p.locator('#fi-body .fitness-card-empty').count(),1,'empty Fitness shows one calm message instead of a chart');assert.equal(await p.locator('#fi-pred').isHidden(),true,'race predictions stay hidden until there is activity data');assert.equal(await p.locator('.pred').count(),0);}
    else{
@@ -91,9 +92,7 @@ with db.connect() as c:
     const geometry=await p.evaluate(()=>{const card=document.querySelector('.fitness-predictions'),s=getComputedStyle(card),rows=[...card.querySelectorAll('[data-prediction-row]')].map(n=>{const r=n.getBoundingClientRect(),cells=[...n.querySelectorAll('[role="cell"]')].map(c=>{const b=c.getBoundingClientRect();return{x:b.x,right:b.right,scroll:c.scrollWidth,client:c.clientWidth};});return{x:r.x,right:r.right,y:r.y,height:r.height,cells};}),head=card.querySelector('.prediction-table-head').getBoundingClientRect();return{padding:[s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft].map(parseFloat),rows,headRight:head.right,cardRight:card.getBoundingClientRect().right};});assert(geometry.padding.every(v=>v>=16),'Card B has 16px insets');assert(geometry.rows.every(r=>r.height>=44&&r.x>=geometry.rows[0].x&&r.right<=geometry.cardRight+1),'prediction rows fit without clipping');for(const row of geometry.rows){assert(row.cells.every((c,i)=>c.scroll<=c.client+1&&(i===0||row.cells[i-1].right<=c.x+1)),`prediction values fit distinct columns: ${JSON.stringify(row.cells)}`);}
     if(size.root<=16){const type=await p.locator('.prediction-time').first().evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(type<=22,'prediction times respect the compact type scale');const cardA=p.locator('[data-progress-chart="training-load"]'),cardBox=await cardA.boundingBox(),nav=await p.locator('nav.tabs').boundingBox();assert(await cardA.isVisible(),'the Fitness Card A chart is visible');if(size.width===390)assert(cardBox.y+cardBox.height<nav.y,'Fitness Card A remains above the tab bar on the initial phone screen');}
     console.log('Fitness spacing',state,size.width,size.root,theme,JSON.stringify(geometry));
-    assert.match(await p.locator('[data-progress-chart="run-score"] .progress-chart-heading').innerText(),/Run score/i);assert.match(await p.locator('#p-vdot .legend').innerText(),/6-month average of monthly bests/);
-    const swatches=await p.locator('#p-vdot .sw').evaluateAll(ns=>ns.map(n=>getComputedStyle(n).backgroundColor));assert(swatches.length===2&&swatches.every(c=>c!=='rgba(0, 0, 0, 0)'&&c!=='transparent'),'fitness keys have a visible color');
-    await p.locator('#p-vdot .chart-expand').click();await until(p,()=>!!document.querySelector('.fitness-inspect svg'),'full Run score chart');assert.doesNotMatch(await p.locator('.sheet').innerText(),/\bVDOT\b/i,'expanded chart keeps the Run score name');await p.locator('.sheet [data-close]').click();assert.equal(await p.locator('.fitness-inspect').count(),0);
+    assert.equal(await p.locator('[data-progress-chart="run-score"],#p-vdot,#fi-range-score').count(),0,'the third Run score chart is absent');assert.equal(await p.locator('#fi-pred .fitness-run-score').count(),1,'the score appears once beside Race predictions');
    }
    if(out&&state==='empty'&&size.width===390&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/race-predictions-empty-390-'+theme+'.png'});}
    if(out&&state==='typical'&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.locator('#fi-pred').screenshot({path:out+`/race-predictions-${size.width}-${theme}.png`,animations:'disabled'});}

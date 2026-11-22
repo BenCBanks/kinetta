@@ -117,7 +117,7 @@
   },
   {
     "id": "compact-axis-ticks",
-    "selector": ":is(#d-charts,#m-chart,#nt-overview-chart,#p-vdot,#p-load) .chartbox > svg > text.yl",
+    "selector": ":is(#d-charts,#m-chart,#nt-overview-chart,#p-load) .chartbox > svg > text.yl",
     "metric": "font-min",
     "kind": "chart-tick",
     "minimum": 10,

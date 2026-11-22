@@ -305,7 +305,6 @@ async function pFitnessLoaded(body, q) {
     else if(selectedRange==='3m')cutoff.setMonth(cutoff.getMonth()-3);
     else if(selectedRange==='1y')cutoff.setFullYear(cutoff.getFullYear()-1);
     const chartDays=selectedRange==='all'?f0.days:f0.days.filter(d=>new Date(`${d.d}T00:00:00`)>cutoff);
-    const chartMonths=selectedRange==='all'?f0.vdot_months:f0.vdot_months.filter(m=>new Date(`${m.m}-01T00:00:00`)>new Date(cutoff.getFullYear(),cutoff.getMonth(),1));
     const f=f0;
     const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0};
     const form = last.form, [kind, word] = form > 5 ? ['good', 'Fresh'] : form < -15 ? ['warn', 'Tired'] : ['steady', 'Steady'];
@@ -338,27 +337,18 @@ async function pFitnessLoaded(body, q) {
       const sources=`<div class="prediction-sources"><p class="small muted">Recent efforts used</p><ul>${f.predictions.map(predictionSourceDetail).join('')}</ul></div>`;
       $('#fitness-estimates-info',pbox).onclick=()=>sheet('How estimates work',`<p>Each estimate uses the recent effort from the past 90 days that best matches that race distance, plus your last 8 weeks of running mileage. Course, weather and race-day pacing aren’t included.</p>${sources}`);
     }
-    const rangeScores=chartMonths.map(m=>m.v);
-    const hasRunScoreHistory=rangeScores.filter(Number.isFinite).length>=2;
-    const runScoreStats = hasRunScoreHistory ? ProgressUI.statRow([
-      {label:'Best in range',value:Math.max(...rangeScores).toFixed(1)},
-      {label:'Best ever',value:f0.vdot_months.length?Math.max(...f0.vdot_months.map(m=>m.v)).toFixed(1):'–'}
-    ]) : '';
     const fitnessStatus=`<div class="fitness-card-status"><span class="fitness-status-dot ${kind}" aria-hidden="true"></span><span class="fitness-status-word">${word}</span></div>`;
     const rampWarning=f0.ramp_7d>8?'<p class="fitness-ramp-warning" role="status">Your training load jumped this week. Build up gradually to stay healthy.</p>':'';
     const fitnessMarkup=`<section class="card progress-chart-card fitness-card-a" data-progress-chart="training-load"><header class="progress-chart-heading fitness-card-heading"><h2>Fitness</h2><div id="fi-range"></div></header>${fitnessStatus}${fitnessStats}<div class="fitness-load-chart" id="p-load"></div>${rampWarning}</section>`;
-    box.innerHTML = hasFitness ? `${fitnessMarkup}
-      ${hasPredictions&&chartMonths.length?progressChartCard('run-score','Run score',runScoreStats,'fi-range-score','<div id="p-vdot"></div>'):''}`
+    box.innerHTML = hasFitness ? fitnessMarkup
       : '<section class="card progress-chart-card fitness-card-a" data-progress-chart="training-load"><h2>Fitness</h2><p class="small muted fitness-card-empty">Log an activity with effort data to see your Fitness trend.</p></section>';
     const fitnessCard=$('[data-progress-chart="training-load"]',box),rangeBox=$('#fi-range',box);
     if(hasFitness&&rangeBox)rangeBox.innerHTML=ProgressUI.underlineTabs(rangeOptions,selectedRange,{label:'Fitness chart range',attribute:'fitness-range'});
-    const runRangeBox=$('#fi-range-score',box);if(runRangeBox)runRangeBox.innerHTML=ProgressUI.rangeText(rangeOptions,selectedRange,{label:'Run score chart range',attribute:'fitness-range'});
     $$('[data-fitness-range]',box).forEach(button=>button.onclick=()=>{const next=new URLSearchParams(location.search);next.set('range',button.dataset.fitnessRange);go('/progress?'+next.toString(),{replace:true});});
     const formItem=$$('.stat-row-item',fitnessCard)[2];if(formItem&&hasFitness){formItem.dataset.formState=kind;}
     requestAnimationFrame(() => {
       if (!body.isConnected || !box.isConnected || !pbox.isConnected) return;
       if(hasFitness){const plot=$('#p-load',box);if(plot){fitnessChart(plot,'Fitness',(mount,height,options)=>fitnessLoadChart(mount,chartDays,{height,...options}),180);const delta=Math.round((chartDays.at(-1)?.fitness||0)-(chartDays[0]?.fitness||0));const label=({'1m':'1 month','3m':'3 months','1y':'1 year','all':'all time'}[selectedRange]);$('.fitness-chart-readout',plot)?.replaceChildren(Object.assign(document.createElement('span'),{textContent:`Fitness ${delta>0?'+':''}${delta} over ${label}`}));}}
-      if(hasPredictions&&chartMonths.length){const plot=$('#p-vdot',box);if(plot)fitnessChart(plot,'Run score',(mount,height,options)=>{trendLine(mount,monthSeries(chartMonths[0].m,m=>{const r=chartMonths.find(x=>x.m===m);return r?{y:r.v}:{y:null};}),{fmt:v=>v.toFixed(1),rollName:'6-month average of monthly bests',color:'brand',height,...options});const key=$('.legend span:last-child',mount);if(key)key.lastChild.textContent='Monthly best';});}
     });
   });
 }
