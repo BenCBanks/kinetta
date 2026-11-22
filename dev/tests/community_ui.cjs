@@ -38,6 +38,9 @@ const fixtureVersion='fixture-approved-v1';
     const shot=async name=>{if(out&&width===390){await p.waitForTimeout(250);fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${name}-${theme}.png`),fullPage:name==='signup'});const metrics=await p.evaluate(()=>({url:location.pathname,title:document.title,buttons:[...document.querySelectorAll('.scrim:not(.is-closing) button')].filter(n=>n.getClientRects().length&&!n.hidden).map(n=>({text:n.textContent.trim(),width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height}))}));fs.writeFileSync(path.join(out,`${name}-${theme}.json`),JSON.stringify(metrics));}};
     const fit=async()=>{assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'No horizontal overflow');};
     await p.goto(base+'/signup');await p.locator('.signup-wizard [data-signup-step="0"]:visible').waitFor();
+    // Agreement links arrive asynchronously after the first signup step renders.
+    // They are mounted in the later agreement step, so wait for attachment, not visibility.
+    await p.locator('input[name=terms_ok]').waitFor({state:'attached'});
     assert.equal(await p.locator('a[href="https://kinetta.app/terms"]').count(),1);assert.equal(await p.locator('a[href="https://kinetta.app/privacy"]').count(),1);
     await p.locator('input[name=name]').fill('Casey Example');await p.locator('input[name=email]').fill('fictional@example.com');await p.locator('.signup-next:visible').click();await p.locator('.signup-wizard [data-signup-step="1"]:visible').waitFor();await p.locator('input[name=password]').fill('fictional long passphrase');await p.locator('input[name=age_ok]').check();await p.locator('.signup-next:visible').click();await p.locator('input[name=terms_ok]').waitFor();
     await p.locator('input[name=terms_ok]').check();await shot('signup');await p.locator('input[name=terms_ok]').uncheck();
