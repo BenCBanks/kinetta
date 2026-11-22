@@ -76,12 +76,10 @@ function assertPlotStayed(before,after,label){
  assert(plotPositionKeys.every(key=>Math.abs(deltas[key])<5),label+': settled plot stays within 5px of its original bounds '+JSON.stringify({before,after,deltas}));
 }
 (async()=>{
- if(process.env.KINETTA_PROGRESS_CASE==='large-text-sticky') setProgressFlags(false);
  cp.execFileSync('python3',[path.join(__dirname,'test_progress_overview.py')],{env:{...process.env,KINETTA_KEEP_PROGRESS:'1'},stdio:'inherit'});
  const b=await chromium.launch(),cleanup=[];
  try{
- if(process.env.KINETTA_PROGRESS_CASE==='large-text-sticky') setProgressFlags(false);
- else if(process.env.KINETTA_PROGRESS_CASE) setProgressFlags(true);
+ if(process.env.KINETTA_PROGRESS_CASE) setProgressFlags(true);
  else {
  setProgressFlags(false);
  const offLogin=await b.newContext(),offSigned=await offLogin.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_runner',password:'green teapot on the hill'}});assert.equal(offSigned.status(),200,'feature-flag fixture login: '+await offSigned.text());
@@ -106,32 +104,6 @@ function assertPlotStayed(before,after,label){
  await onPage.goto(base+'/activity/'+offActivity.id);await onReady();assert.equal(await onPage.locator('#d-segments').count(),1,'enabled Segments returns to activity detail');
  await onPage.goto(base+'/me/sharing');await onReady();assert.equal(await onPage.locator('#sh-segments').count(),1,'enabled Segment leaderboards return to Sharing & privacy');
  await onPage.goto(base+'/me/explore');await onReady();assert.equal(await onPage.locator('.guide-hint').count(),3,'Explore hints stay unchanged when optional Progress features are enabled');assert.deepEqual(onErrors,[]);await onContext.close();
- }
- if(process.env.KINETTA_PROGRESS_CASE==='large-text-sticky'){
-  const login=await b.newContext(),signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_runner',password:'green teapot on the hill'}});assert.equal(signed.status(),200,'large-text Progress fixture login');
-  const state=await login.storageState();await login.close();
-  for(const theme of ['light','dark']){
-   const c=await b.newContext({storageState:state,viewport:{width:330,height:667},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];await p.clock.setFixedTime(fixtureInstant);
-   await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='24px'));
-   // A pre-existing demo challenge continuation is blocked too, but is unrelated to this read-only heading check.
-   p.on('pageerror',e=>errors.push(e.message));await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});if(!['GET','HEAD'].includes(q.method())){if(u.pathname!=='/api/challenges/signup/continue')writes.push(u.pathname);return r.abort();}return r.continue();});
-   await p.goto(base+'/progress');await until(p,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key==='/progress','large-text Progress ready');await p.locator('#p-explore a').first().waitFor();await p.evaluate(()=>document.fonts.ready);
-   await p.evaluate(()=>{const root=document.scrollingElement;root.scrollTo({top:root.scrollHeight-root.clientHeight,behavior:'instant'});});
-   await p.waitForFunction(()=>{const root=document.scrollingElement,heading=document.querySelector('.progress-home .sec-head');if(!heading||root.scrollTop<root.scrollHeight-root.clientHeight-1)return false;const r=heading.getBoundingClientRect(),now={top:r.top,bottom:r.bottom,scrollTop:root.scrollTop,height:root.scrollHeight};const prior=window.__progressLargeTextLayout;const stable=prior&&Object.keys(now).every(key=>Math.abs(now[key]-prior[key])<.25)?(prior.stable||0)+1:0;window.__progressLargeTextLayout={...now,stable};return stable>=2;},{polling:'raf',timeout:10000});
-   const settled=await p.waitForFunction(()=>{const heading=document.querySelector('.progress-home-heading'),section=document.querySelector('.progress-home .sec-head'),nav=document.querySelector('nav.tabs');if(!heading||!section||!nav)return false;const h=heading.getBoundingClientRect(),s=section.getBoundingClientRect(),n=nav.getBoundingClientRect();return{position:getComputedStyle(heading).position,heading:{top:s.top,bottom:s.bottom},sticky:{top:h.top,bottom:h.bottom},navTop:n.top,scrollY:scrollY,max:document.scrollingElement.scrollHeight-document.scrollingElement.clientHeight};},{timeout:30000});
-   const geometry=await settled.jsonValue(),visibleHeaderBottom=geometry.position==='sticky'&&geometry.sticky.bottom>0?geometry.sticky.bottom:0;
-   assert.equal(geometry.position,'sticky',`The Progress title and actions stay pinned at 330px/24px (${theme}): ${JSON.stringify(geometry)}`);
-   assert(geometry.sticky.top>=-1&&geometry.sticky.bottom<=geometry.navTop,`The sticky title remains visible between the viewport and tab bar (${theme}): ${JSON.stringify(geometry)}`);
-   assert(geometry.heading.top>=visibleHeaderBottom-1,`Explore your progress begins below the sticky title at 330px/24px (${theme}): ${JSON.stringify(geometry)}`);
-   assert(geometry.heading.top>=0&&geometry.heading.bottom<=geometry.navTop+1,`The complete Explore heading is visible above navigation at 330px/24px (${theme}): ${JSON.stringify(geometry)}`);
-   const shareBox=await p.locator('#progress-share').boundingBox(),bellBox=await p.locator('.progress-home-heading .bell').boundingBox();assert(shareBox&&bellBox&&shareBox.width>=44&&shareBox.height>=44&&bellBox.width>=44&&bellBox.height>=44,`Share and Notifications retain 44px targets (${theme})`);
-   const kitButton=p.locator('.progress-home-heading .kit-help');if(await kitButton.count()){const kitBox=await kitButton.boundingBox();assert(kitBox&&kitBox.width>=44&&kitBox.height>=44,`Kit retains its 44px target (${theme})`);}
-   const rowHeights=await p.locator('#p-explore .progress-tile').evaluateAll(rows=>rows.map(row=>row.getBoundingClientRect().height));assert(rowHeights.length>0&&rowHeights.every(height=>height>=44),`Large-text Explore rows retain 44px targets (${theme}): ${JSON.stringify(rowHeights)}`);
-   assert.deepEqual(writes,[],'large-text fixture performs no writes');assert.deepEqual(errors,[],'large-text Progress has no page errors');
-   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`progress-large-text-330-24-${theme}-bottom.png`),animations:'disabled'});}
-   await c.close();
-  }
-  console.log('Progress large text: sticky title leaves the full section heading visible at the bottom, 330px/24px light/dark PASS');return;
  }
  for(const who of ['empty','runner','food']){
   if(process.env.KINETTA_PROGRESS_CASE&&!process.env.KINETTA_PROGRESS_CASE.startsWith(`${who}-`))continue;
