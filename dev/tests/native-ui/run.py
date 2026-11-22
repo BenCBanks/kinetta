@@ -80,6 +80,11 @@ if a.store:
  assert map_config['kind']=='pmtiles' and url.scheme=='https' and url.hostname and not (url.username or url.password or url.query or url.fragment),'Public credential-free vector map required'
  assert not url.hostname.endswith('tile.openstreetmap.org'),'Never use public OSM tile servers'
  (a.output/'public-map.json').write_text(json.dumps(map_config,indent=2))
+# iOS 27 on the hosted arm64 image can take over a minute to bring a replaced
+# WebView back after the first fixture. Keep the assertion strict, but give the
+# native bridge enough time to export metrics before calling it a simulator failure.
+METRICS_WAIT_SECONDS=120
+METRICS_POLL_SECONDS=0.2
 results=[];startup_rows=[]
 for device in preferred:
  udid=None
@@ -118,12 +123,13 @@ for device in preferred:
     process_launch_monotonic_ns=time.monotonic_ns() if measure_startup else None
     sim('launch',udid,'com.kinetta.app')
     metrics=None
-    for _ in range(250):
+    deadline=time.monotonic()+METRICS_WAIT_SECONDS
+    while time.monotonic()<deadline:
      try:
       candidate=json.loads((container/'tmp/kinetta-ui-metrics.json').read_text())
       if candidate.get('run')==token:metrics=candidate;break
      except (OSError,ValueError):pass
-     time.sleep(.01 if measure_startup else .2)
+     time.sleep(.01 if measure_startup else METRICS_POLL_SECONDS)
     filename=device['name'].replace(' ','-').replace('(','').replace(')','')+'-'+theme+'-'+stage+'-'+str(root)
     if not metrics:
      sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)
