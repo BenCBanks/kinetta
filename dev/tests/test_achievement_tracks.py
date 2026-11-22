@@ -324,8 +324,15 @@ class AchievementTrackRules(unittest.TestCase):
     def test_legacy_run_best_efforts_remain_readable_but_are_not_reissued(self):
         legacy=tracks.fastest_effort_spec('sport:run:fastest')
         self.assertEqual(legacy,tracks.RUN_FASTEST_LEVELS)
-        self.assertEqual(tracks.track_label('sport:run:fastest'),'Fastest run efforts')
+        self.assertEqual(tracks.track_label('sport:run:fastest'),'Run times')
         self.assertNotIn('sport:run:fastest',tracks.fastest_effort_track_codes())
+
+    def test_effort_titles_name_the_measured_time(self):
+        expected = {'1mi': 'Mile time', '5k': '5K time', '10k': '10K time',
+                    'half': 'Half marathon time', 'marathon': 'Marathon time'}
+        for slug, title in expected.items():
+            self.assertEqual(tracks.track_label('sport:run:fastest:' + slug), title)
+        self.assertEqual(tracks.EFFORT_METRIC_LABEL, api_achievements._level_catalog()['effort_metric_label'])
 
     def test_fastest_ride_swim_and_walk_use_exact_standard_distances(self):
         class Cursor:

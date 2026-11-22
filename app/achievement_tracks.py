@@ -6,6 +6,8 @@ tail rules can be tested without a history scan or a running server.
 """
 from dataclasses import dataclass
 import math
+import json
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -337,15 +339,17 @@ for _sport, _label in SPORT_TRACK_LABELS.items():
         'run': 'Longest run', 'ride': 'Longest ride',
         'walk-hike': 'Longest walk or hike', 'swim': 'Longest swim',
     }[_sport]
-TRACK_LABELS['sport:run:fastest'] = 'Fastest run efforts'
-TRACK_LABELS['sport:run:fastest:1mi'] = 'Fastest mile'
-TRACK_LABELS['sport:run:fastest:5k'] = 'Fastest 5K'
-TRACK_LABELS['sport:run:fastest:10k'] = 'Fastest 10K'
-TRACK_LABELS['sport:run:fastest:half'] = 'Fastest half marathon'
-TRACK_LABELS['sport:run:fastest:marathon'] = 'Fastest marathon'
-TRACK_LABELS['sport:ride:fastest'] = 'Fastest ride efforts'
-TRACK_LABELS['sport:walk-hike:fastest'] = 'Fastest walk & hike efforts'
-TRACK_LABELS['sport:swim:fastest'] = 'Fastest swim efforts'
+# One presentation word is shared with the browser via the existing catalog.
+EFFORT_METRIC_LABEL = json.loads((Path(__file__).parent / 'static/profile.achievement-levels.json').read_text())['effort_metric_label']
+for _code, _name in {
+    'sport:run:fastest': 'Run', 'sport:ride:fastest': 'Ride',
+    'sport:walk-hike:fastest': 'Walk & hike', 'sport:swim:fastest': 'Swim',
+    'sport:run:fastest:1mi': 'Mile', 'sport:run:fastest:5k': '5K',
+    'sport:run:fastest:10k': '10K', 'sport:run:fastest:half': 'Half marathon',
+    'sport:run:fastest:marathon': 'Marathon',
+}.items():
+    TRACK_LABELS[_code] = f"{_name} {EFFORT_METRIC_LABEL}{'s' if _code.endswith(':fastest') else ''}"
+
 
 TRACK_UNITS = {
     'consistency': 'weeks',
