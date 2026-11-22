@@ -71,7 +71,7 @@ module.exports=async function({browser,storageState,base,shots}){
    mode=state;await p.evaluate(async()=>refreshMe(await api('/api/me')));
    for(const path of ['/me','/activity','/track','/progress','/food']){
     await go(path);if(path==='/activity')await p.evaluate(()=>document.querySelector('#page').refresh());
-    const entry=p.locator('.kit-help'),expected=path==='/me'||path==='/activity'?0:1;
+    const entry=p.locator('.kit-help'),expected=path==='/me'?0:1;
     assert.equal(await entry.count(),expected,state+' '+path+' Kit header entry count');
     if(!expected)continue;
     assert.equal(await entry.getAttribute('aria-label'),state==='on'?'Ask Kit':'Add food',state+' '+path+' label');
