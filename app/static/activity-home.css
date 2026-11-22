@@ -225,7 +225,7 @@
 .activity-home .feed-list .sk-card .d-ph-stats .sk:last-child { border-right:0; }
 /* Shared activity-card footer order is defined in style.css for Home and profile lists. */
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more>span:not(.reaction-emoji) { display:none; }
-.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more .reaction-clap-icon { width:24px;height:24px; }
+.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more .reaction-clap-icon { width:28px;height:28px; }
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more[data-kind] .reaction-emoji { color:var(--accent); }
 .activity-home .activity-card .post-ft {
   position:relative;
