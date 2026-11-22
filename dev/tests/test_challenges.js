@@ -1,6 +1,10 @@
 // Execute the actual picture boundary. Another participant's detail must never enter a shared picture.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const sharedStyles=fs.readFileSync('app/static/style.css','utf8'),challengeStyles=fs.readFileSync('app/static/challenges.css','utf8');
+assert(!sharedStyles.includes('.challenge-find-friends {margin-top:12px;}'),'Challenge friend-link spacing stays out of shared style.css');
+assert(challengeStyles.includes('.challenge-find-friends { min-height:48px;'),'challenge stylesheet owns the link target and color');
+assert(!challengeStyles.includes('.challenge-find-friends { margin-top:'),'the Challenge row inherits spacing from its parent group');
 let captured,owner='fictional-owner',challengeItems=[],signupResult={},leafLoads=0,leafError=null;const apiCalls=[],invalidations=[],navigations=[];
 const api=async(path,options)=>{apiCalls.push({path,options});if(path==='/api/challenges')return challengeItems;if(path==='/api/challenges/signup/continue')return signupResult;return {};};
 const commonjsModule={exports:{}};const ctx={Intl,Date,Math,JSON,Number,URLSearchParams,module:commonjsModule,route(){},readOwner:()=>owner,api,App:{me:{}},location:{pathname:'/me',search:''},json:(method,body)=>({method,body}),invalidate:path=>invalidations.push(path),go:path=>navigations.push(path),render(){},svg:name=>`<svg data-icon="${name}"></svg>`,loadShareArt:async()=>{leafLoads++;if(leafError)throw leafError;},SPORT_NAMES:{walk:'Walk',run:'Run'},ShareArt:{challengePicture:async options=>(captured=options)}};
