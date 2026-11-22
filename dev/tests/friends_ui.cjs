@@ -1,6 +1,7 @@
 // Fictional guarded accounts; real friend/search APIs, no providers or real devices.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
+const {seedWeeklyRecapDismissal}=require('./weekly_recap_fixture.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS,pw='green teapot on the hill',viewportWidth=Number(process.env.KINETTA_FRIEND_WIDTH||390);
 assert([330,390].includes(viewportWidth),'Friends UI width is 330px or 390px');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
@@ -24,6 +25,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   }
   const homeRoute=initialPath==='/activity',friends=homeRoute||options.holdFriends?null:p.waitForResponse(r=>new URL(r.url()).pathname==='/api/friends'&&r.request().method()==='GET');
   const suggested=initialPath.includes('find=1')&&!options.holdSuggestions&&!options.holdFriends?p.waitForResponse(r=>new URL(r.url()).pathname==='/api/people/suggested'&&r.request().method()==='GET'):null;
+  if(homeRoute){const profile=await (await c.request.get(base+'/api/me')).json();await seedWeeklyRecapDismissal(c,profile,base,new Date());}
   await p.goto(base+initialPath);if(friends&&!options.holdFriends)await friends;if(suggested)await suggested;
   const readySelector=homeRoute?'#feed-top .acts':initialPath.includes('find=1')?'.friends-page #fr-invite':'#fr-own-list';await until(p,arg=>arg.held?!!document.querySelector(arg.selector):App.pageReady&&!!document.querySelector(arg.selector),homeRoute?'Home ready':'Friends ready',{selector:readySelector,held:options.holdFriends||options.holdSuggestions});await p.evaluate(()=>document.fonts.ready.then(()=>true));
   if(suggested)await until(p,()=>{const box=document.querySelector('#fr-suggest');return box&&((box.parentElement.hidden)||box.querySelector('.pym-row,.friend-state-message'));},'suggestions loaded');
@@ -213,7 +215,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const kit=p.locator('#feed-top [data-kit-entry]');assert.equal(await kit.count(),1,'Home Kit/Add food action renders from the initial bundle');
    await p.evaluate(()=>{App.me.ai_ok=true;App.me.kit_chat=true;App.me.coach=true;homeKitEntry(document.querySelector('#page'));});assert.equal(await kit.getAttribute('href'),'/me/kit?from=activity','enabled Home Kit opens its dedicated route');
    const loadedKit=p.waitForRequest(request=>new URL(request.url()).pathname==='/static/kit.js');await kit.click();await p.waitForURL('**/me/kit?from=activity');await loadedKit;assert.equal(homeKitAssets.length,1,'full Kit code loads only after the Home action is opened');await p.evaluate(()=>go('/activity'));await until(p,()=>location.pathname==='/activity'&&App.pageReady,'Home restored after Kit route');
-   const progress=p.locator('nav.tabs [data-tab="progress"]');const progressRead=p.waitForResponse(response=>{const u=new URL(response.url());return u.pathname==='/api/progress/volume'&&u.searchParams.get('period')==='week';});await progress.click();await progressRead;await until(p,()=>location.pathname==='/progress'&&App.pageReady,'Progress route opened after intent');
+   const progress=p.locator('nav.tabs [data-tab="progress"]');await progress.evaluate(el=>{el.dispatchEvent(new PointerEvent('pointerenter',{bubbles:true,pointerType:'mouse'}));el.focus();});await p.waitForTimeout(100);assert.deepEqual(homeProgressWarmups,[],'Hover and programmatic focus do not warm Progress before activation');const progressRead=p.waitForResponse(response=>{const u=new URL(response.url());return u.pathname==='/api/progress/volume'&&u.searchParams.get('period')==='week';});await progress.click();await progressRead;await until(p,()=>location.pathname==='/progress'&&App.pageReady,'Progress route opened after intent');
    await p.goto(base+'/activity');await until(p,()=>App.pageReady&&!!document.querySelector('#feed-top .acts'),'Home restored after Progress route');
    assert.equal(await entry.getAttribute('aria-label'),'Find friends','Home exposes a named friend-search action');assert.equal(await entry.innerText(),'Find friends','the quiet action keeps its visible label');
    const action=await entry.boundingBox(),header=await p.locator('#feed-top .top').boundingBox(),titleLines=await p.locator('#feed-top h1').evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getClientRects().length;});
