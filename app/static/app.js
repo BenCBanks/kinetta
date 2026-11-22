@@ -1575,7 +1575,7 @@ function render(options) {
   if (!globalSyncDone && typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   let touched=false;const interactions=new AbortController();
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
-  const warmHomeCache=key==='/activity'&&!!(App.cache.get('feed:home')?.data||kept('feed:home'));
+  const warmHomeCache=['/','/activity'].includes(key)&&!!(App.cache.get('feed:home')?.data||kept('feed:home'));
   const result=page.fn(el,...m.slice(1));compactSubpageHeader(el);compactRootHeader(el);
   // A cached Home feed is already useful on a warm return; don't keep the route
   // behind its background feed and challenge refreshes.
