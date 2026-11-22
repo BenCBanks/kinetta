@@ -3,7 +3,7 @@ import argparse,hashlib,importlib.util,json,os,platform,re,subprocess,time,uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 import urllib.request
-from lifecycle import stop_for_fixture
+from lifecycle import create_fresh_sim, stop_for_fixture
 from header_geometry import check_headers
 # 6.9-inch App Store story order: Home feed, Activity, Track, Nutrition day,
 # Kit food chat, Progress, Me (including featured badges), then Friends.
@@ -28,7 +28,7 @@ def assert_minified_bundle(app):
 p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 assert_minified_bundle(a.app)
 assert not (a.store and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'
-def run(*args,check=True,timeout=180):
+def run(*args,check=True,timeout=30):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
  except subprocess.TimeoutExpired as error:
   print('Command timed out: '+' '.join(args),flush=True)
@@ -89,17 +89,14 @@ results=[];startup_rows=[]
 for device in preferred:
  udid=None
  try:
-  try:udid=sim('create','KinettaLayout-'+uuid.uuid4().hex[:8],device['identifier'],runtime['identifier'])
-  except subprocess.CalledProcessError:
-   if a.store:raise
-   candidate=next((d for d in existing if d.get('deviceTypeIdentifier') and (('Pro' in d['name'])==('Pro' in device['name']))),None)
-   if not candidate:raise
-   device={'name':candidate['name'],'identifier':candidate['deviceTypeIdentifier']};udid=sim('create','KinettaLayout-'+uuid.uuid4().hex[:8],device['identifier'],runtime['identifier'])
+  # Every invocation, including CI's retry, gets a newly created UDID. Never fall
+  # back to a pre-existing simulator that may have been left unhealthy by a hang.
+  udid=create_fresh_sim(sim,device,runtime)
   diagnostics={'fixture':True,'runtime':runtime['name'],'sdk':sdk,'architecture':platform.machine(),'device':device['name'],'phase':'booting'}
   (a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
   print('Booting native UI device: '+device['name'],flush=True)
   # A fresh hosted runner must initialize the iOS runtime; this can exceed three minutes.
-  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100')
+  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=240);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100')
   installed=None;recovered=False
   for theme in (('light',) if a.store else ('light','dark')):
    sim('ui',udid,'appearance',theme)
@@ -272,7 +269,9 @@ for device in preferred:
      assert metrics['composer']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
     results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2))
  finally:
-  if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
+  if udid:
+   sim('shutdown',udid,check=False,timeout=10)
+   sim('delete',udid,check=False,timeout=10)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
 expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else sum(len(layout_stages(theme)) for theme in ('light','dark'))*len(preferred)
