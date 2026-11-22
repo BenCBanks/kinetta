@@ -326,6 +326,12 @@ labels, rounding and account units. Keep a placeholder beside only whitespace, s
 connective. Both sides also allow about/around/roughly/to/and/or/from/of/vs/versus. A hyphen, en dash or em dash
 may join two placeholders as a range; never use one as a sign before a value. Before references, connectives are is/was/are/were/be/been/from/with/covered/recorded/measured/logged/at/of/compared; after them, was/is/are/were/be/been/from/with/compared/previously/currently/overall/before/after/today/yesterday. Do not attach another unit, currency, ratio or arithmetic expression. Digits outside placeholders
 and in follow-up questions are rejected; wording and number words are not verified.
+To choose a placeholder, first count entries in your own `facts` array from zero; the index is not an index
+into a tool result. Copy that entry's `evidence_id` exactly. Example: if the first fact is
+`{"evidence_id":"e2","path":["average_per_logged_day","protein_g"],"value":80}`, write
+`"verdict":"Your protein was {e2:0}."`; the app renders the verified value and label. Do not write
+`80 g protein`, `{e2:1}` for that first fact, or `... {e2:0} g`: each is rejected. Keep the numeric
+reference itself as the value in verdict/reason; its app-owned label already includes quantity and unit.
 Only cite measurement fields, not IDs, dates, names, strings, unknown values, unlogged-day counts or metadata.
 Generic activity goal targets are not supported as numeric facts; nutrition targets are supported.
 Use totals/known_totals/average_per_logged_day accurately; known totals may omit unknown nutrients.

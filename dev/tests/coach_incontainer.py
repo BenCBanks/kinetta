@@ -202,6 +202,16 @@ for tool,path,data in [
     else:raise AssertionError(('metadata path accepted',tool,path))
 wrong_noun={**number_raw,'verdict':'Your protein was {e2:0}.'}
 assert coach_chat.checked_answer(wrong_noun,number_evidence,kit=True)['verdict']=='Your protein was 124 mi run distance.'
+assert 'count entries in your own `facts` array from zero' in coach_chat.KIT_SYSTEM
+assert '... {e2:0} g`: each is rejected' in coach_chat.KIT_SYSTEM
+# Numeric answers remain natural while the app owns every rendered digit and label.
+for phrase,expected in [
+    ('Your protein was {e2:0}.','Your protein was 124 mi run distance.'),
+    ('Recorded distance: {e2:0}.','Recorded distance: 124 mi run distance.'),
+    ('About {e2:0}, compared with {e2:1} before.','About 124 mi run distance, compared with 124 mi run distance before.'),
+]:
+    raw={**boundary_raw,'verdict':phrase} if phrase.count('{e2:')>1 else {**number_raw,'verdict':phrase}
+    assert coach_chat.checked_answer(raw,number_evidence,kit=True)['verdict']==expected
 average_evidence=[profile_evidence,{'evidence_id':'e2','tool':'nutrition_summary','data':{'average_per_logged_day':{'protein_g':80}}}]
 average_fact={**number_raw,'facts':[{'evidence_id':'e2','path':['average_per_logged_day','protein_g'],'value':80}],
               'verdict':'Average daily protein: {e2:0}.','reason':'Total protein: {e2:0}.'}
