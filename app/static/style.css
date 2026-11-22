@@ -946,7 +946,6 @@ html.keyboard-open nav.tabs { display: none; }
 /* your own profile, editable in place (social.js wireProfileEditing) */
 #kit-settings-panel > .seg {margin:8px 0 16px;grid-template-columns:repeat(2,minmax(0,1fr));}
 #kit-settings-panel > .seg button {min-height:44px;font-size:max(15px,.9375rem);}
-.challenge-find-friends {margin-top:12px;}
 
 .sport-overview { display: grid; gap: 0; margin-top: 12px; }
 .sport-overview .row { font-size: 14px; flex-wrap: wrap; }
