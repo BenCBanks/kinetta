@@ -70,13 +70,24 @@ Object.assign(KitChat, (() => {
   function controls(c){
     const busy=c.sending||c.messages.some(m=>['pending','running'].includes(m.state));
     $('#kit-send',c.el).disabled=!c.loaded||!c.ready||busy||!kitChatOn()||!$('#kit-text',c.el).value.trim();
-    $$('[data-kit-start]',c.el).forEach(b=>b.disabled=!c.loaded||!c.ready||busy||!kitChatOn());
+    $$('[data-kit-start],[data-kit-followup]',c.el).forEach(b=>b.disabled=!c.loaded||!c.ready||busy||!kitChatOn());
   }
   function factLabel(f){
-    if(f.label)return f.label;
-    const labels={kcal:'Calories (kcal)',protein_g:'Protein (g)',carbs_g:'Carbohydrates (g)',fat_g:'Fat (g)',fiber_g:'Fiber (g)',sodium_mg:'Sodium (mg)',sugar_g:'Sugar (g)',saturated_fat_g:'Saturated fat (g)',protein_target:'Protein goal (g)',kcal_target:'Calorie goal (kcal)',distance_m:'Distance (m)',moving_s:'Moving time (seconds)'};
-    const path=f.path||[],last=path.at(-1),prefix={known_totals:'Known total',totals:'Total',average_per_logged_day:'Average per logged day',foods:'Food entry',activities:'Workout'}[path[0]];
-    return labels[last]?(prefix?prefix+' · ':'')+labels[last]:f.label;
+    if(f.display_value!=null&&f.label)return f.label;
+    const labels={kcal:'Calories',protein_g:'Protein',carbs_g:'Carbohydrates',fat_g:'Fat',fiber_g:'Fibre',sodium_mg:'Sodium',sugar_g:'Sugar',saturated_fat_g:'Saturated fat',protein_target:'Protein goal',kcal_target:'Calorie goal',distance_m:'Distance',moving_s:'Moving time',elapsed_s:'Elapsed time',duration_s:'Duration',workouts:'Workouts',count:'Workouts',kg:'Weight',avg_hr:'Heart rate'};
+    const path=f.path||[],last=path.at(-1),prefix=path.includes('average_per_logged_day')?'Average per logged day':path.includes('known_totals')?'Known total':path.some(k=>['totals','totals_by_sport'].includes(k))?'Total':'';
+    return labels[last]?(prefix?prefix+' · ':'')+labels[last]+(path.includes('per_serving')?' per serving':''):String(f.label||last||'Recorded value').replace(/[_–-]+/g,' ');
+  }
+  function factValue(f){
+    if(f.display_value!=null)return String(f.display_value);
+    const n=f.value,field=f.path?.at(-1),imperial=App.me?.units==='imperial';
+    if(typeof n!=='number'||!Number.isFinite(n))return '–';
+    const rounded=v=>Number(v.toFixed(1)).toLocaleString();
+    if(field==='distance_m')return rounded(n/(imperial?1609.344:1000))+' '+(imperial?'mi':'km');
+    if(['moving_s','elapsed_s','duration_s'].includes(field))return Math.round(n/60).toLocaleString()+' min';
+    if(field==='kg')return rounded(n*(imperial?2.2046226218:1))+' '+(imperial?'lb':'kg');
+    const unit=field?.endsWith('_g')||field==='protein_target'?'g':field?.endsWith('_mg')?'mg':['kcal','kcal_target'].includes(field)?'kcal':field==='avg_hr'?'bpm':'';
+    return rounded(n)+(unit?' '+unit:'');
   }
   function draw(c){
     if(!active(c))return;
@@ -85,8 +96,8 @@ Object.assign(KitChat, (() => {
     const pending=c.job&&!c.messages.some(m=>String(m.client_id)===c.job.client_id);
     const messages=[...c.messages,...(c.localMessages||[])],has=messages.length||pending||c.foodStarted;
     list.innerHTML=messages.map(m=>{
-      const a=m.answer,facts=(a?.facts||[]).filter(f=>!['id','source_id','route_id','candidate_id'].includes(f.path?.at(-1))), failed=m.state==='failed'||c.answerErrors?.[m.client_id];
-      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer"><p>${esc(a.interpretation)}</p>${facts.length?`<dl class="kit-facts">${facts.map(f=>`<div><dt>${esc(factLabel(f))}</dt><dd>${esc(String(f.display_value??f.value))}</dd></div>`).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${a.follow_ups?.length?`<div class="kit-starters kit-answer-followups" aria-label="Follow-up questions">${a.follow_ups.slice(0,3).map(q=>`<button type="button" data-kit-followup><span>${esc(q)}</span></button>`).join('')}</div>`:''}${a.actions?.filter(x=>Object.hasOwn(actions,x)).map(x=>`<a class="linkbtn kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}">${actions[x][0]} ${svg('chev')}</a>`).join('')||''}</div>`:failed?`<div class="thread-card"><p class="err">${esc(c.answerErrors?.[m.client_id]||m.error||'Kit could not finish. Your question is saved.')}</p>${kitChatOn()&&c.ready?'<button type="button" class="ghost" data-kit-retry>Retry</button>':''}</div>`:`<div class="thread-card thread-thinking"><div class="thread-typing" role="status" aria-label="Kit is checking your records"><span></span><span></span><span></span></div></div>`}</article>`;
+      const a=m.answer,facts=(a?.facts||[]).filter(f=>!['id','source_id','route_id','candidate_id','unlogged_days','food_unlogged_days'].includes(f.path?.at(-1))).slice(0,3), failed=m.state==='failed'||c.answerErrors?.[m.client_id];
+      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${a.verdict?`<p class="kit-verdict">${esc(a.verdict)}</p>${a.reason?`<p class="kit-reason">${esc(a.reason)}</p>`:''}`:`<p>${esc(a.interpretation||'')}</p>`}${facts.length?`<dl class="kit-facts">${facts.map(f=>`<div><dt>${esc(factLabel(f))}</dt><dd>${esc(factValue(f))}</dd></div>`).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${a.follow_ups?.length?`<div class="kit-starters kit-answer-followups" aria-label="Follow-up questions">${a.follow_ups.slice(0,3).map(q=>`<button type="button" data-kit-followup><span>${esc(q)}</span></button>`).join('')}</div>`:''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>`:failed?`<div class="thread-card"><p class="err">${esc(c.answerErrors?.[m.client_id]||m.error||'Kit could not finish. Your question is saved.')}</p>${kitChatOn()&&c.ready?'<button type="button" class="ghost" data-kit-retry>Retry</button>':''}</div>`:`<div class="thread-card thread-thinking"><div class="thread-typing" role="status" aria-label="Kit is checking your records"><span></span><span></span><span></span></div></div>`}</article>`;
     }).join('')+(pending?`<article><div class="thread-user"><p>${esc(c.job.question)}</p></div><div class="thread-card"><p>${esc(c.jobError||'Sending your question…')}</p>${c.jobError&&kitChatOn()&&c.ready?'<button type="button" class="ghost" id="kit-retry-send">Retry sending</button>':''}</div></article>`:'')+(c.foodStarted?'<div id="kit-food-slot"></div>':'');
     if(foodHost&&c.foodStarted)$('#kit-food-slot',list)?.append(foodHost);
     $('#kit-starters',c.el).hidden=!!has;
