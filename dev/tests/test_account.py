@@ -1,6 +1,6 @@
 """Your data (api_mydata.py): download my data (browser and the iPhone app's one-time link) and delete my account."""
 import io, sys, urllib.error, urllib.request, zipfile
-from kc import BASE, PW, Client, person
+from kc import BASE, PW, Client, login, person
 
 n = 0
 def ck(cond, what):
