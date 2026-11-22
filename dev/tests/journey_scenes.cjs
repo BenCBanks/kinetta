@@ -12,7 +12,7 @@ function journeys(fixtures){
  const cases=[
   // Open the full profile from the visible avatar/name identity link.
   {id:'me-profile',start:'/me',taps:['a.me-card-profile-link'],end:ownList},
-  {id:'me-friends',start:'/me',taps:['.me-friends-link[href]'],end:destination('/me/friends','Friends','.friends-page')},
+  {id:'me-friends',start:'/me',taps:['.me-tools .row-link[href="/me/friends"]'],end:destination('/me/friends','Friends','.friends-page')},
   {id:'me-progress',start:'/me',taps:['.me-insights .me-insight-row[href="/progress?sport=all"]'],end:destination('/progress?sport=all','Progress','#p-explore')},
   {id:'activity-detail-back',start:'/activity',startReady:'#feed-tools[aria-busy=false]',action:'feedBack',end:destination('/activity','Home','#feed-tools')},
   {id:'track-save-detail',start:'/track',native:true,action:'record',end:destination('/activity/{saved}','Fictional journey recording','.compact-detail-title')},

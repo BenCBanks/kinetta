@@ -1010,7 +1010,10 @@ async function foodWarmupCase(browser){
     await socialFirstTap.page.waitForFunction(()=>window.__socialIdleCallbacks.length>0);
     assert.equal(socialFirstTap.assets.length,0,'Social is still idle when Me becomes useful');
     assert.equal(await socialFirstTap.page.evaluate(()=>typeof Social),'undefined');
-    await socialFirstTap.page.locator('.me-friends-link').click();
+    const friendsRow=socialFirstTap.page.locator('.me-tools .row-link[href="/me/friends"]').first();
+    await friendsRow.scrollIntoViewIfNeeded();
+    await socialFirstTap.page.evaluate(()=>document.querySelector('.me-tools .row-link[href="/me/friends"]')?.scrollIntoView({block:'center',inline:'nearest'}));
+    await friendsRow.click();
     await ready(socialFirstTap.page,'#fr-own-list','Friends opens before idle warmup');
     assert.equal(socialFirstTap.assets.length,1,'the Friends tap loads Social directly without waiting for idle');
     assert.deepEqual(socialFirstTap.errors,[]);assert.deepEqual(socialFirstTap.writes,[]);

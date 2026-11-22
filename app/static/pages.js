@@ -435,7 +435,7 @@ async function meOverview(el) {
     '<div id="t-required"></div><div id="t-today"></div>'+
     '<div id="t-content"><div id="t-checkin"></div><div id="t-recap"></div><div id="t-goals"></div><div id="t-insights" hidden></div></div>'+
     '<div id="t-start"></div><div id="t-setup"></div>';
-  const cardRead=MeCard.mount(el,{viewer:'owner',period:'week',preview:true,reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'})?.ready||Promise.resolve();
+  const cardRead=MeCard.mount(el,{viewer:'owner',period:'week',reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'})?.ready||Promise.resolve();
   const milestoneRead=typeof Milestones!=='undefined'?Milestones.mount($('[data-me-milestones]',el),{row:true}):Promise.resolve();
   const setup=$('#t-setup',el),todayRoot=$('#t-today',el),owner=readOwner();
   if(me.needs_email_confirm)$('#t-required',el).innerHTML='<a class="card tap row-link" href="/me/settings?email=add"><span class="ri c-brand">'+svg('mail')+'</span><span class="grow"><b>Confirm your email</b><small class="muted">Your profile stays hidden until you confirm it.</small></span>'+svg('chev')+'</a>';
@@ -1813,9 +1813,10 @@ const SUPPORT_EMAIL = 'feedback@kinetta.app';
 route(/^\/me$/, 'me', async (el) => {
   if (new URLSearchParams(location.search).get('setup') === 'body') return go('/me/settings?setup=body', {replace:true});
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
-  const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
+  const friendsIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/></svg>';
+  const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${ico==='people'?friendsIcon:svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'Profile<small class="muted">Your activities and achievements</small>')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target).toLocaleString('en-US')} kcal · ${me.protein_target ? Math.round(me.protein_target).toLocaleString('en-US') + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}</div>
+    <div class="card list me-tools">${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', Number(me.friend_count||0).toLocaleString('en-US'))}${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'Profile<small class="muted">Your activities and achievements</small>')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target).toLocaleString('en-US')} kcal · ${me.protein_target ? Math.round(me.protein_target).toLocaleString('en-US') + ' g protein' : 'review'}` : 'Optional setup'}`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}</div>
     <section class="me-help"><h2 class="sec-head">Help</h2><div class="card list me-help-tools">${row('a', 'href="/me/explore"', 'search', 'c-brand', 'Explore Kinetta')}</div></section>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
   return meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
