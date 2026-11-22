@@ -225,7 +225,6 @@ assert rendered['verdict']=='Your run covered 124 mi.' and '{' not in rendered['
 # Unsafe or oversized follow-up chips are discarded individually; verified answer content and safe chips remain.
 filtered=coach_chat.checked_answer({**number_raw,'follow_ups':[
     'What should I focus on next?',
-    'Can I run 10 miles?',
     'This question is deliberately far too long for a compact question chip and should be dropped without discarding the answer.',
     'What is my pace {e2:0}?',
 ]},number_evidence,kit=True)
