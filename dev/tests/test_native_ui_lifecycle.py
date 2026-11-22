@@ -63,14 +63,26 @@ class LifecycleTests(unittest.TestCase):
         created = []
         def sim(command, *args, **kwargs):
             created.append((command, args, kwargs))
-            return args[0]
+            return args[0] if command == 'create' else ''
         device={'identifier':'com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro'}
         runtime={'identifier':'com.apple.CoreSimulator.SimRuntime.iOS-27-2'}
         first = lifecycle.create_fresh_sim(sim, device, runtime)
         second = lifecycle.create_fresh_sim(sim, device, runtime)
         self.assertNotEqual(first, second)
-        self.assertTrue(all(row[0]=='create' for row in created))
-        self.assertEqual([row[1][1:] for row in created], [(device['identifier'],runtime['identifier'])]*2)
+        self.assertEqual([row[0] for row in created], ['shutdown','create','shutdown','create'])
+        self.assertEqual(created[0][1], ('all',)); self.assertEqual(created[0][2]['timeout'], 20)
+        self.assertEqual(created[2][1], ('all',)); self.assertEqual(created[2][2]['timeout'], 20)
+        self.assertEqual([row[1][1:] for row in created if row[0]=='create'], [(device['identifier'],runtime['identifier'])]*2)
+
+    def test_failed_shutdown_all_prevents_reusing_or_creating_a_device(self):
+        calls=[]
+        def sim(command,*args,**kwargs):
+            calls.append(command)
+            if command=='shutdown': raise subprocess.TimeoutExpired(command,20)
+            return 'unexpected'
+        with self.assertRaises(subprocess.TimeoutExpired):
+            lifecycle.create_fresh_sim(sim, {'identifier':'fictional-device'}, {'identifier':'fictional-runtime'})
+        self.assertEqual(calls,['shutdown'])
 
     def test_repeated_stop_timeout_fails_immediately(self):
         import time

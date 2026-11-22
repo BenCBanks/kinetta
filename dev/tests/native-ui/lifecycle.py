@@ -3,7 +3,8 @@ import subprocess, uuid
 
 
 def create_fresh_sim(sim, device, runtime):
-    """Each attempt gets a new Simulator UDID; never reuse a pre-existing device."""
+    """Clear leftovers, then give each attempt a new Simulator UDID."""
+    sim('shutdown', 'all', timeout=20)
     return sim('create', 'KinettaLayout-' + uuid.uuid4().hex[:8], device['identifier'], runtime['identifier'])
 
 
