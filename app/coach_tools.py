@@ -65,9 +65,18 @@ class ConsistencyRange(Range):
         return self
 
 
+class AdequacyRange(Range):
+    @model_validator(mode='after')
+    def bounded_year(self):
+        if (self.end - self.start).days >= 366:
+            raise ValueError('Use at most 366 inclusive calendar days')
+        return self
+
+
 TOOLS = {
     'profile': (Empty, 'Read the current account time zone, units and nutrition targets; no identifying information.'),
     'consistency': (ConsistencyRange, 'Own recorded workout and food-log days over at most 366 inclusive local dates. Excludes today/future dates. Compare recorded run attendance only on dates covered by the active training plan, not prescribed workout completion. Missing plan or food-log commitment stays unknown; no health conclusions.'),
+    'nutrition_adequacy': (AdequacyRange, 'Compare own recorded daily calories and protein with saved calorie goals and protein target over at most 366 inclusive local dates. Exclude today/future dates. Missing/partial logs, unknown nutrients and targets stay explicit; do not call this medically adequate or a weight-loss recommendation. Targets are current saved settings, not historical target records.'),
     'period_compare': (ComparisonRange, 'Compare own recorded workouts, distance, duration and protein with the preceding equal-length period. Inclusive account-local dates, at most 366 days; ranges including today or future dates are rejected. Exact aggregates, missing counts and known subtotals; protein changes require logging on every day in both periods. No causal or medical conclusions.'),
     'trend': (Trend, 'Daily own recorded distance, duration, workout count, protein or calories over 2–366 inclusive local calendar days ending on end. Exact daily aggregates and least-squares slope per calendar day over known days only. Missing measurements/intake stay unknown. Uncertainty flags describe sparse, missing or variable observations, not statistical confidence or health status.'),
     'nutrition_summary': (Range, 'Exact SQL totals and average calories/protein/carbs/fat per logged day, inclusive dates. Missing days are unlogged, not zero intake. Use for averages since training began.'),
@@ -83,7 +92,7 @@ TOOLS = {
 }
 
 
-FOOD_TOOLS=frozenset({'profile','nutrition_summary','meal_combinations','meal_options'})
+FOOD_TOOLS=frozenset({'profile','nutrition_summary','nutrition_adequacy','meal_combinations','meal_options'})
 FOOD_NUM=('kcal','protein_g','carbs_g','fat_g','fiber_g')
 
 def specifications(food_only=False):
@@ -351,6 +360,76 @@ class AccountTools:
                     'Only the current active plan is compared, from its creation/start through race day. Past plan versions are not reconstructed.',
                     'A recorded run on a scheduled date is attendance evidence, not prescribed distance or effort completion. Manual ticks do not add recorded runs.',
                     'Today and future local dates are excluded. Rest-day and non-running workouts do not satisfy scheduled run dates. No medical or causal conclusions.']}
+
+    def _nutrition_adequacy(self, c, r):
+        tz = self._profile(c, Empty()).get('tz') or db.DEFAULT_TZ
+        today = self._local_today(tz)
+        requested = (r.end - r.start).days + 1
+        excluded = max(0, min(requested, (r.end - max(r.start, today)).days + 1)) if r.end >= today else 0
+        food = c.execute('''SELECT day, count(*) AS items,
+            sum(kcal::double precision) FILTER (WHERE NOT kcal_unknown) AS known_kcal,
+            count(*) FILTER (WHERE kcal_unknown) AS kcal_unknown,
+            sum(protein_g::double precision) FILTER (WHERE NOT protein_unknown) AS known_protein_g,
+            count(*) FILTER (WHERE protein_unknown) AS protein_unknown
+            FROM (SELECT day,kcal,protein_g,
+              (kcal IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array'
+                THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'kcal') AS kcal_unknown,
+              (protein_g IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array'
+                THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'protein_g') AS protein_unknown
+              FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s AND day < %s) AS entries
+            GROUP BY day ORDER BY day''', (self._uid, r.start, r.end, today)).fetchall()
+        by_day = {row['day']: row for row in food}
+        goals = energy.day_goals(c, self._uid, r.start, r.end)
+        profile = self._profile(c, Empty())
+        days = []
+        for offset in range(requested):
+            day = r.start + dt.timedelta(days=offset)
+            excluded_day = day >= today
+            row = by_day.get(day, {})
+            items = int(row.get('items') or 0)
+            kcal_unknown = int(row.get('kcal_unknown') or 0)
+            protein_unknown = int(row.get('protein_unknown') or 0)
+            known_kcal = float(row.get('known_kcal') or 0) if items else None
+            known_protein = float(row.get('known_protein_g') or 0) if items else None
+            kcal_total = known_kcal if items and not kcal_unknown and not excluded_day else None
+            protein_total = known_protein if items and not protein_unknown and not excluded_day else None
+            kcal_target = goals.get(day, {}).get('kcal')
+            protein_target = profile.get('protein_target')
+            kcal_comparable = kcal_total is not None and kcal_target is not None
+            protein_comparable = protein_total is not None and protein_target is not None
+            days.append({'day':day, 'excluded':excluded_day, 'items':items,
+                'kcal':{'logged_total':kcal_total, 'known_subtotal':known_kcal,
+                    'unknown_items':kcal_unknown, 'target':kcal_target,
+                    'comparable':kcal_comparable,
+                    'difference':kcal_total-kcal_target if kcal_comparable else None,
+                    'target_ratio':kcal_total/kcal_target if kcal_comparable and kcal_target > 0 else None},
+                'protein_g':{'logged_total':protein_total, 'known_subtotal':known_protein,
+                    'unknown_items':protein_unknown, 'target':protein_target,
+                    'comparable':protein_comparable,
+                    'difference':protein_total-protein_target if protein_comparable else None,
+                    'target_ratio':protein_total/protein_target if protein_comparable and protein_target > 0 else None}})
+        summary = {}
+        for nutrient, total_key, target_key in [('kcal','logged_total','target'),('protein_g','logged_total','target')]:
+            comparable = [d[nutrient] for d in days if d[nutrient]['comparable']]
+            complete = excluded == 0 and len(comparable) == requested
+            subtotal = sum(float(d[total_key]) for d in comparable)
+            targets = sum(float(d[target_key]) for d in comparable)
+            summary[nutrient] = {'comparable_days':len(comparable),
+                'comparable_day_subtotal':subtotal if comparable else None,
+                'comparable_target_subtotal':targets if comparable else None,
+                'full_range_comparable':complete,
+                'full_range_difference':subtotal-targets if complete else None,
+                'full_range_target_ratio':subtotal/targets if complete and targets > 0 else None}
+        return {'start':r.start, 'end':r.end, 'today':today, 'timezone':tz,
+            'calendar_days':requested, 'finished_days':requested-excluded, 'excluded_days':excluded,
+            'logged_days':sum(1 for row in food), 'unlogged_finished_days':requested-excluded-len(food),
+            'targets_basis':'Current saved profile protein target and current calorie goal rules/day overrides; prior target history is not stored.',
+            'days':days, 'summary':summary, 'truncated':False,
+            'limitations':['This compares recorded intake with saved targets; it does not establish medical or nutritional adequacy, diagnose a condition, or recommend restriction.',
+                'Unlogged days and unknown nutrient items are not zero. A logged day may still be partial; no completeness is inferred from a positive total.',
+                'Period-wide comparison is available only when every requested date is finished, logged, fully known for that nutrient and has a saved target. Otherwise only comparable-day subtotals are shown.',
+                'Targets use current saved settings and day-specific calorie overrides; historical target changes are not reconstructed. A zero target has no ratio.',
+                'Today and future account-local dates are excluded from intake and target comparisons.']}
 
     def _training_plan(self, c, _):
         # Reuse the engine and completion rules while substituting its DB connection with the bound RLS connection.

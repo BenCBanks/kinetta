@@ -8,9 +8,11 @@ from app.kit_tools import KitTools
 with db.connect() as c:
     a=c.execute("SELECT id FROM users WHERE login='zz_test_consistency_a'").fetchone()['id']
     b=c.execute("SELECT id FROM users WHERE login='zz_test_consistency_b'").fetchone()['id']
+    dst=c.execute("SELECT id FROM users WHERE login='zz_test_consistency_dst'").fetchone()['id']
     c.execute("UPDATE profile SET tz='America/New_York' WHERE user_id IN (%s,%s)",(a,b))
+    c.execute("UPDATE profile SET tz='America/New_York' WHERE user_id=%s",(dst,))
     pid=c.execute("""INSERT INTO training_plans(user_id,race,level,weeks,runs,long_day,start_day,race_day,unit,start_vol,created)
-        VALUES(%s,'5k','beginner',6,3,6,'2024-06-03','2024-07-14','mi',6,'2024-06-05T04:00:00Z') RETURNING id""",(a,)).fetchone()['id']
+        VALUES(%s,'5k','beginner',6,3,6,'2024-06-03','2024-06-09','mi',6,'2024-06-05T16:00:00Z') RETURNING id""",(a,)).fetchone()['id']
     c.execute("INSERT INTO plan_marks(plan_id,user_id,day,done) VALUES(%s,%s,'2024-06-09',true)",(pid,a))
     c.execute("INSERT INTO plan_adjustments(plan_id,user_id,day,workout) VALUES(%s,%s,'2024-06-06',%s::jsonb)",
               (pid,a,'{"dist": 0.5, "type": "easy"}'))
@@ -23,9 +25,14 @@ with db.connect() as c:
         c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g,ref) VALUES(%s,'2024-06-01'::date+%s,'Fictional log',0,0,%s::jsonb)",
                   (uid,day-1,'{"unknown_nutrients":["protein_g","kcal"]}'))
     for stamp in ('2020-03-08T04:59:59Z','2020-03-08T05:00:00Z','2020-03-09T03:59:59Z',
-                  '2020-03-09T04:00:00Z','2020-11-01T04:00:00Z','2020-11-01T05:30:00Z',
-                  '2020-11-01T06:30:00Z','2020-11-02T04:59:59Z','2020-11-02T05:00:00Z'):
-        c.execute("INSERT INTO activities(user_id,sport,name,source,start_time) VALUES(%s,'run','DST attendance','manual',%s)",(a,stamp))
+                  '2020-03-09T04:00:00Z','2020-11-01T03:59:59Z','2020-11-01T04:00:00Z',
+                  '2020-11-01T05:30:00Z','2020-11-01T06:30:00Z','2020-11-02T04:59:59Z',
+                  '2020-11-02T05:00:00Z'):
+        c.execute("INSERT INTO activities(user_id,sport,name,source,start_time) VALUES(%s,'run','DST attendance','manual',%s)",(dst,stamp))
+    dst_dates=c.execute("SELECT (start_time AT TIME ZONE 'America/New_York')::date AS day,count(*) AS n FROM activities WHERE user_id=%s GROUP BY 1 ORDER BY 1",(dst,)).fetchall()
+    assert [(row['day'].isoformat(),row['n']) for row in dst_dates]==[
+        ('2020-03-07',1),('2020-03-08',2),('2020-03-09',1),
+        ('2020-10-31',1),('2020-11-01',4),('2020-11-02',1)], dst_dates
 real_datetime=dt.datetime
 class Clock(real_datetime):
     @classmethod
@@ -53,11 +60,24 @@ for stamp,today,finished,workouts,foods,due in [
             assert absent['training_plan']['covered_days']==0 and absent['training_plan']['scheduled_run_days'] is None
         rest=AccountTools(a).call('consistency',{'start':'2024-06-05','end':'2024-06-05'})
         assert rest['training_plan']['scheduled_run_days']==0 and rest['training_plan']['attendance_fraction'] is None, rest
+        created_midday=AccountTools(a).call('consistency',{'start':'2024-06-04','end':'2024-06-05'})
+        assert created_midday['training_plan']['covered_days']==1 and created_midday['training_plan']['scheduled_run_days']==0, created_midday
+        before_created=AccountTools(a).call('consistency',{'start':'2024-06-04','end':'2024-06-04'})
+        assert before_created['training_plan']['covered_days']==0 and before_created['training_plan']['scheduled_run_days'] is None, before_created
+        if finished==7:
+            race_day=AccountTools(a).call('consistency',{'start':'2024-06-09','end':'2024-06-09'})
+            assert race_day['finished_days']==1 and race_day['training_plan']['covered_days']==1 and race_day['training_plan']['scheduled_run_days']==1, race_day
+            day_after=AccountTools(a).call('consistency',{'start':'2024-06-10','end':'2024-06-10'})
+            assert day_after['training_plan']['covered_days']==0 and day_after['training_plan']['scheduled_run_days'] is None, day_after
         future=AccountTools(a).call('consistency',{'start':'2024-06-10','end':'2024-06-12'})
         assert future['finished_days']==0 and future['excluded_days']==3 and future['recorded_workout_days']==future['food_log_days']==0
-        empty=AccountTools(b).call('consistency',{'start':'2020-01-01','end':'2020-12-31'})
-        assert empty['finished_days']==366 and empty['unlogged_finished_days']==366 and not empty['truncated']
-        assert empty['training_plan']['attendance_fraction'] is None and empty['food_plan']['expected_log_days'] is None
+        populated=AccountTools(b).call('consistency',{'start':'2020-01-01','end':'2020-12-31'})
+        assert populated['calendar_days']==366 and populated['finished_days']==366
+        assert populated['food_log_days']==2 and populated['unlogged_finished_days']==364 and not populated['truncated']
+        assert populated['training_plan']['attendance_fraction'] is None and populated['food_plan']['expected_log_days'] is None
+        with db.coach_connect(b) as c:
+            endpoint_rows=c.execute("SELECT day FROM food_entries WHERE day IN ('2020-01-01','2020-12-31') ORDER BY day").fetchall()
+            assert [row['day'].isoformat() for row in endpoint_rows]==['2020-01-01','2020-12-31'], endpoint_rows
         with db.coach_connect(a) as c:
             assert c.execute('SHOW transaction_read_only').fetchone()['transaction_read_only']=='on'
             assert c.execute('SELECT current_user AS role').fetchone()['role']=='fit_coach'
@@ -77,10 +97,23 @@ with db.connect() as c:
     c.execute('UPDATE training_plans SET active=false WHERE id=%s',(pid,))
 assert AccountTools(a).call('consistency',args)['training_plan']['scheduled_run_days'] is None
 with db.connect() as c: c.execute('UPDATE training_plans SET active=true WHERE id=%s',(pid,))
-for stamp,day in [('2020-03-09T04:00:00+00:00','2020-03-08'),('2020-11-02T05:00:00+00:00','2020-11-01')]:
-    moment=real_datetime.fromisoformat(stamp)
+dst_tool=AccountTools(dst)
+for before,at,first,second in [
+    ('2020-03-09T03:59:59+00:00','2020-03-09T04:00:00+00:00','2020-03-08','2020-03-09'),
+    ('2020-11-02T04:59:59+00:00','2020-11-02T05:00:00+00:00','2020-11-01','2020-11-02')]:
+    moment=real_datetime.fromisoformat(before)
     with patch('app.coach_tools.dt.datetime',Clock):
-        result=AccountTools(a).call('consistency',{'start':day,'end':day})
-        assert result['recorded_workout_days']==1 and result['finished_days']==1, result
-        assert result['training_plan']['scheduled_run_days'] is None, result
+        before_result=dst_tool.call('consistency',{'start':first,'end':second})
+        assert before_result['today'].isoformat()==first and before_result['finished_days']==0, before_result
+        assert before_result['recorded_workout_days']==0, before_result
+    moment=real_datetime.fromisoformat(at)
+    with patch('app.coach_tools.dt.datetime',Clock):
+        at_result=dst_tool.call('consistency',{'start':first,'end':second})
+        assert at_result['today'].isoformat()==second and at_result['finished_days']==1, at_result
+        assert at_result['recorded_workout_days']==1, at_result
+    moment=real_datetime.fromisoformat(at)+dt.timedelta(days=1)
+    with patch('app.coach_tools.dt.datetime',Clock):
+        for day in (first,second):
+            adjacent=dst_tool.call('consistency',{'start':day,'end':day})
+            assert adjacent['recorded_workout_days']==1 and adjacent['finished_days']==1, adjacent
 print('Consistency fixed-clock SQL: attendance/creation/rest/manual/adjusted/absent-plan, RLS and consent PASS')

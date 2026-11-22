@@ -53,7 +53,7 @@ class KitTools(AccountTools):
         ctx = db.coach_scope(connection, self._uid) if connection is not None else db.coach_connect(self._uid)
         with ctx as c:
             # Food/app tools remain usable without disclosing unconsented Health records.
-            if name not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and not coach.health_ok(c, self._uid):
+            if name not in {'profile','nutrition_summary','nutrition_adequacy','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and not coach.health_ok(c, self._uid):
                 raise ValueError(coach.HEALTH_NO)
             return getattr(self, '_' + name)(c, parsed)
 

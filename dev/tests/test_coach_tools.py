@@ -30,6 +30,8 @@ from coach_trend_checks import run as check_trend
 check_trend()
 from coach_consistency_checks import run as check_consistency
 check_consistency()
+from coach_adequacy_checks import run as check_adequacy
+check_adequacy()
 
 a, b = person('zz_test_coach_a'), person('zz_test_coach_b')
 try:
