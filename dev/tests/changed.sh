@@ -303,7 +303,7 @@ for group in $group_order; do
     track) tests="track_home_ui.cjs track_review_recovery_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs interval_voice_ui.cjs map_ui.cjs tracking_ui.cjs edit_activity_ui.cjs map_feedback_ui.cjs" ;;
     lift) tests="lift_compact_ui.cjs lift_ui.cjs lift_lazy_route_ui.cjs" ;;
     plan) tests="plan_ui.cjs" ;;
-    progress) tests="progress_ui.cjs fitness_ui.cjs heatmap_ui.cjs recaps_ui.cjs weight_progress_ui.cjs weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs profile_card_ui.cjs" ;;
+    progress) tests="progress_ui.cjs progress_large_text_ui.cjs fitness_ui.cjs heatmap_ui.cjs recaps_ui.cjs weight_progress_ui.cjs weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs profile_card_ui.cjs" ;;
     profile) tests="profile_card_ui.cjs me_card_ui.cjs personal_notifications_ui.cjs notification_settings_ui.cjs password_visibility_ui.cjs" ;;
     admin) tests="admin_features_ui.cjs feature_collection_ui.cjs"; node dev/tests/test_admin_logins.js; node dev/tests/test_admin_tools.js; node dev/tests/test_temporary_login.js ;;
     welcome) tests="signup_uniqueness_ui.cjs welcome_polish_ui.cjs" ;;

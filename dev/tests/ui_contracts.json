@@ -27,8 +27,8 @@
     {
       "screen": "Progress",
       "sources": ["app/static/pages.js", "app/static/progress-routes.js", "app/static/progress-route.css"],
-      "tests": ["progress_ui.cjs", "fitness_ui.cjs"],
-      "assertions": ["period and metric labels", "fitness screen controls"]
+      "tests": ["progress_ui.cjs", "progress_large_text_ui.cjs", "fitness_ui.cjs"],
+      "assertions": ["period and metric labels", "fitness screen controls", "large-text sticky title and row targets"]
     },
     {
       "screen": "Track",

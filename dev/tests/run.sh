@@ -112,6 +112,7 @@ node --check dev/tests/personal_notifications_ui.cjs
 node --check dev/tests/notification_settings_ui.cjs
 node --check dev/tests/me_card_ui.cjs # rendered checks run in the screenshot workflow
 node --check dev/tests/progress_ui.cjs
+node --check dev/tests/progress_large_text_ui.cjs
 node --check dev/tests/heatmap_ui.cjs
 node --check dev/tests/fitness_ui.cjs
 node --check dev/tests/profile_card_ui.cjs # rendered checks run in the screenshot workflow

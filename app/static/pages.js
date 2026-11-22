@@ -1452,7 +1452,11 @@ async function progressHome(el, q) {
   const cached=progressReads.every(path=>App.cache.has(path)||!!kept(path));
   const paint=PaintGate.begin(el,'progress',{cached});
   wireProgressFocus(el); wireProgressPeriods(el);
-  const heading=$('.progress-home-heading',el),compactHeading=()=>heading?.classList.toggle('is-compact',window.scrollY>28);
+  const heading=$('.progress-home-heading',el),compactHeading=()=>{
+    heading?.classList.toggle('is-compact',window.scrollY>28);
+    const rootSize=parseFloat(getComputedStyle(document.documentElement).fontSize)||16;
+    heading?.classList.toggle('is-large-text',rootSize>=24);
+  };
   window.addEventListener('scroll',compactHeading,{passive:true});compactHeading();viewResources.set(el,()=>window.removeEventListener('scroll',compactHeading));
   $('#progress-share',el).onclick=()=>Recaps.open('month');
   Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
