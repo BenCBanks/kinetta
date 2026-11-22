@@ -123,10 +123,10 @@ def _kit_path_allowed(tool, path):
 # These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
 _PLACEHOLDER_CONNECTIVES = frozenset('about around roughly to and or from of vs versus'.split())
 _PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
-_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached totaled totaling weighed shows show showing'.split())
-_PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with recorded compared previously currently overall before after earlier today yesterday across over toward while each daily recently your against for on though'.split())
+_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered covering spanning recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached reaching totaled totaling totalling nearly weighed shows show showing'.split())
+_PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with recorded compared previously currently overall before after earlier today yesterday across over toward while each daily recently your against for on though higher lower more less above below under up down longer shorter faster slower than'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
-_DISPLAY_UNIT = re.compile(r'(?:\s(?:mi|km|ft|in|lb|kg|g|mg|kcal|bpm|min|h|m)\b|/\s?(?:mi|km)\b|°[CF])')
+_DISPLAY_UNIT = re.compile(r'(?:\b\d+(?:\.\d+)?h(?:\s+\d+m)?\b|\s(?:mi|km|ft|in|lb|kg|g|mg|kcal|bpm|min|h|m)\b|/\s?(?:mi|km)\b|°[CF])')
 
 
 class KitValidationError(ValueError):
@@ -224,7 +224,11 @@ def _kit_prose(text, facts):
             raise KitValidationError('Unsupported text attached to numeric reference',detail)
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
-            raise ValueError('Unknown or mismatched numeric reference')
+            expected_id=facts[index].get('evidence_id') if index<len(facts) else None
+            detail={'kind':'placeholder_reference','placeholder':match.group(0),'position':i,
+                    'evidence_id':evidence_id,'fact_index':index,'fact_count':len(facts),
+                    'expected_evidence_id':expected_id}
+            raise KitValidationError('Unknown or mismatched numeric reference',detail)
     def replace(match):
         return _placeholder_value(facts[int(match.group(2))],text[:match.start()])
     resolved=PLACEHOLDER.sub(replace,text).strip()
@@ -239,7 +243,7 @@ def _compact_number(value, digits=1):
     return shown.rstrip('0').rstrip('.') if '.' in shown else shown
 
 
-def _kit_fact(tool, data, path, value, units):
+def _kit_fact(tool, data, path, value, units, *, weekly=False):
     """Format verified measurements with short labels and the person's units."""
     field=(path[-2] if tool=='period_compare' and path[:1]==['change'] and len(path)>1
            else path[-1] if path and isinstance(path[-1],str) else '')
@@ -291,6 +295,10 @@ def _kit_fact(tool, data, path, value, units):
     elif 'totals' in path or 'totals_by_sport' in path: label=f'Total {label.lower()}'
     elif 'per_serving' in path: label=f'{label} per serving'
     if tool in {'meal_options','meal_combinations'} and path and path[0]=='candidates': label=f'Meal candidate {label.lower()}'
+    if weekly:
+        if field=='distance_m':label='Distance'
+        elif field in {'duration_s','moving_s','elapsed_s'}:label='Time'
+        elif 'protein_g' in path:label='Protein'
     metric=units=='metric';display=str(value)
     if field=='distance_m':
         factor,unit=(1000,'km') if metric else (1609.344,'mi')
@@ -416,7 +424,7 @@ def checked_answer(raw, evidence, *, kit=False, weekly_review=False):
         tool=by_id[claim.evidence_id]['tool']
         if kit:
             if isinstance(value,str): raise ValueError('Kit facts must be measurements')
-            label,display=_kit_fact(tool,by_id[claim.evidence_id]['data'],claim.path,value,units)
+            label,display=_kit_fact(tool,by_id[claim.evidence_id]['data'],claim.path,value,units,weekly=weekly_review)
         else:
             label=' · '.join(str(x).replace('_',' ') for x in claim.path if not isinstance(x,int));display=None
         fact={'label':label,'value':value,'tool':tool,'path':claim.path,'evidence_id':claim.evidence_id}

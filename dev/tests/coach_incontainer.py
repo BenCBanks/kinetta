@@ -29,6 +29,15 @@ kit_raw={'verdict':'You are covering more ground.','reason':'That supports a vol
 imperial=coach_chat.checked_answer(kit_raw,[profile_evidence,run_evidence],kit=True)
 assert imperial['facts'][0]['label']=='Run distance' and imperial['facts'][0]['display_value']=='124 mi'
 assert imperial['follow_ups']==kit_raw['follow_ups'] and 'limitations' not in imperial
+
+# Natural words may surround an app-verified placeholder; digits still require references.
+neighbor_fact={'evidence_id':'e2','label':'Distance','display_value':'7.5 mi'}
+for word in ('covering','spanning','totaling','totalling','reaching','adding up to','amounting to',
+             'with','of','about','around','roughly','nearly'):
+    coach_chat._kit_prose('Recorded workouts '+word+' {e2:0}.',[neighbor_fact])
+for word in ('higher','lower','more','less','above','below','over','under','up','down','longer',
+             'shorter','faster','slower','than','from','versus'):
+    coach_chat._kit_prose('{e2:0} '+word+' than before.',[neighbor_fact])
 metric_raw={**kit_raw,'facts':[{'evidence_id':'e2','path':['runs',0,'distance_m'],'value':124000}]}
 metric=coach_chat.checked_answer(metric_raw,[{**profile_evidence,'data':{'units':'metric'}},
     {**run_evidence,'data':{'runs':[{'distance_m':124000}]}}],kit=True)
@@ -240,12 +249,17 @@ weekly_raw={'verdict':'Your recorded distance increased.','reason':'That recorde
  'selection':None,'actions':[],'follow_ups':['What should I keep doing?','How can I make food logging easier?']}
 weekly_checked=coach_chat.checked_answer(weekly_raw,weekly_evidence,kit=True,weekly_review=True)
 assert list(weekly_checked['weekly_review'])==['what_went_well','what_to_change','next_week_focus']
-assert weekly_checked['facts'][0]['label']=='Known total current distance'
+assert weekly_checked['facts'][0]['label']=='Distance'
 assert weekly_checked['facts'][0]['display_value']=='7.5 mi'
-assert weekly_checked['facts'][1]['label']=='Change in distance'
+assert weekly_checked['facts'][1]['label']=='Distance'
 assert weekly_checked['facts'][1]['display_value']=='2.5 mi'
-assert weekly_checked['facts'][2]['label']=='Known protein subtotal on comparison days'
+assert weekly_checked['facts'][2]['label']=='Protein'
 assert weekly_checked['facts'][2]['display_value']=='180 g'
+time_label,time_value=coach_chat._kit_fact('period_compare',{'current':{'known_totals':{'duration_s':5400}}},
+    ['current','known_totals','duration_s'],5400,'metric',weekly=True)
+assert (time_label,time_value)==('Time','1h 30m')
+time_fact={'evidence_id':'e2','label':time_label,'display_value':time_value}
+assert coach_chat._kit_prose('Recorded training reached {e2:0} across completed sessions.',[time_fact])=='Recorded training reached 1h 30m across completed sessions.'
 for bad in [
     {**weekly_raw,'weekly_review':None},
     {**weekly_raw,'reason':'  '},
@@ -613,6 +627,16 @@ assert detail_capture['validation_detail']=={'kind':'placeholder_neighbor','side
     'offending_snippet':'{e2:0} carbs and seventy grams of fat.'}
 assert coach_chat._kit_retry_feedback(coach_chat.KitValidationError('Unsupported text attached to numeric reference',detail_capture['validation_detail'])) \
     == "Unexpected adjacent word 'carbs' on the after side of a numeric placeholder."
+detailed.rejected='{"verdict":"Your run covered {e2:2}."}'
+reference_capture=detailed_hooks.begin()
+try:
+    _,reference_text,_=detailed._gemini_turn([],[])
+    try:detailed.checked_answer(detailed._json(reference_text),[],kit=True)
+    except ValueError:pass
+    else:raise AssertionError('Out-of-range numeric fact index should be rejected')
+finally:detailed_hooks.end()
+assert reference_capture['validation_detail']=={'kind':'placeholder_reference','placeholder':'{e2:2}',
+    'position':0,'evidence_id':'e2','fact_index':2,'fact_count':1,'expected_evidence_id':None}
 malformed='{"verdict":'
 fake._gemini_turn=lambda messages,definitions,**kwargs:([],malformed,{})
 captured=capture_hooks.begin()
