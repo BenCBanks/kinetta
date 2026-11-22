@@ -16,7 +16,7 @@ Your meals, workouts and Kit's coaching, together.
 
 ## home-hero-description
 
-Kinetta logs your meals and your workouts together, and Kit, your coach, tells you what the numbers mean.
+Kit, your coach, helps explain what the numbers mean.
 
 ## home-hero-action
 
@@ -79,7 +79,7 @@ Badges you earn step by step.
 
 ## home-badges-description
 
-Each sport has its own tracks. Progress through named levels, then earn a medal when you complete a track.
+Explore achievement tracks for running, riding, walking/hiking, swimming and lifting. See what you've earned and what's next.
 
 ## home-challenges-kicker
 
