@@ -536,11 +536,15 @@ try:select_cases([('a',)],{'unknown'})
 except ValueError as error:assert 'unknown' in str(error)
 else:raise AssertionError('Unknown evaluation case IDs must fail before a run starts')
 class FakeAnswer:
+    def __init__(self): self.checked_kwargs=[]
     def _gemini_turn(self,messages,definitions,*,system=None):
         return [],json.dumps({'verdict':'You ran 99 miles.'}),{}
     def _claude_turn(self,messages,definitions,*,system=None):return self._gemini_turn(messages,definitions,system=system)
     def _json(self,text):return json.loads(text)
-    def checked_answer(self,raw,evidence,*,kit=False):raise ValueError('Unverified numeric symbol')
+    def checked_answer(self,raw,evidence,**kwargs):
+        self.checked_kwargs.append(kwargs)
+        if kwargs.get('weekly_review'): return {'weekly_review':True}
+        raise ValueError('Unverified numeric symbol')
 fake=FakeAnswer();capture_hooks=RejectionDiagnostics(fake);captured=capture_hooks.begin()
 try:
     _,text,_=fake._gemini_turn([],[])
@@ -549,6 +553,11 @@ try:
     else:raise AssertionError('Fixture validator should reject direct digits')
 finally:capture_hooks.end()
 assert captured=={'raw_model_json':text,'validation_error_type':'ValueError','validation_error':'Unverified numeric symbol'}
+weekly_capture=RejectionDiagnostics(fake);weekly_capture.begin()
+try:
+    assert fake.checked_answer({},[],kit=True,weekly_review=True)=={'weekly_review':True}
+finally:weekly_capture.end()
+assert fake.checked_kwargs[-1]=={'kit':True,'weekly_review':True}, 'diagnostics forwards weekly review validation kwargs'
 class DetailedFake(FakeAnswer):
     rejected=json.dumps({'verdict':'The result was {e2:0} carbs and seventy grams of fat.'})
     def _gemini_turn(self,messages,definitions,*,system=None):return [],self.rejected,{}
