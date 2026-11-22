@@ -1334,7 +1334,7 @@ const MeCard=(()=>{
           <div class="me-editor-fields"><label class="vh" for="card-name">Name</label><input id="card-name" name="name" value="${esc(start.name)}" maxlength="60" autocomplete="name" placeholder="Name" required aria-describedby="card-name-error"><small class="danger" id="card-name-error" role="alert"></small><span class="small muted">@${esc(App.me.login)}</span>
           <label class="vh" for="card-bio">Bio</label><textarea id="card-bio" name="bio" rows="2" maxlength="280" placeholder="Bio" aria-describedby="card-bio-count">${esc(start.bio)}</textarea><div class="me-editor-bio-label"><small class="muted" id="card-bio-count" data-card-bio-count>${start.bio.length}/280</small></div></div></div>
         <p class="small muted me-editor-privacy">Your name, photo and bio are visible to people who find your profile.</p>
-        <button type="button" class="row-link me-editor-preview" data-card-preview-edit><span class="grow">Preview public profile</span>${svg('chev')}</button>
+        <button type="button" class="row-link me-editor-preview" data-card-preview-edit><span class="grow">Preview public profile</span><span class="chev">${svg('chev')}</span></button>
         <h3 id="card-period-label">Period</h3><div class="me-chips" data-card-period role="group" aria-labelledby="card-period-label"></div>
         <h3>Sections</h3><div class="me-editor-sections" data-card-sections></div>
         <h3 id="card-featured-label">Featured achievements <span>· up to 4</span></h3><p class="small muted me-editor-featured-note">Choose achievements you've earned. Changes save with your profile; Cancel discards them. Use the arrows to set their order.</p>
