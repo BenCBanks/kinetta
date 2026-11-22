@@ -73,10 +73,15 @@ class AdequacyRange(Range):
         return self
 
 
+class PersonalRecords(Empty):
+    limit: int = Field(default=20, ge=1, le=50, strict=True)
+
+
 TOOLS = {
     'profile': (Empty, 'Read the current account time zone, units and nutrition targets; no identifying information.'),
     'consistency': (ConsistencyRange, 'Own recorded workout and food-log days over at most 366 inclusive local dates. Excludes today/future dates. Compare recorded run attendance only on dates covered by the active training plan, not prescribed workout completion. Missing plan or food-log commitment stays unknown; no health conclusions.'),
     'nutrition_adequacy': (AdequacyRange, 'Compare own recorded daily calories and protein with saved calorie goals and protein target over at most 366 inclusive local dates. Exclude today/future dates. Missing/partial logs, unknown nutrients and targets stay explicit; do not call this medically adequate or a weight-loss recommendation. Targets are current saved settings, not historical target records.'),
+    'personal_records': (PersonalRecords, 'Read recent strictly faster-than-prior personal records from your own stored best efforts, grouped by exact sport and distance. The first effort at a sport/distance is a baseline, not an improvement. Returns newest improvements first, bounded to the requested limit, with exact total count and truncation status; no other account records.'),
     'period_compare': (ComparisonRange, 'Compare own recorded workouts, distance, duration and protein with the preceding equal-length period. Inclusive account-local dates, at most 366 days; ranges including today or future dates are rejected. Exact aggregates, missing counts and known subtotals; protein changes require logging on every day in both periods. No causal or medical conclusions.'),
     'trend': (Trend, 'Daily own recorded distance, duration, workout count, protein or calories over 2–366 inclusive local calendar days ending on end. Exact daily aggregates and least-squares slope per calendar day over known days only. Missing measurements/intake stay unknown. Uncertainty flags describe sparse, missing or variable observations, not statistical confidence or health status.'),
     'nutrition_summary': (Range, 'Exact SQL totals and average calories/protein/carbs/fat per logged day, inclusive dates. Missing days are unlogged, not zero intake. Use for averages since training began.'),
@@ -430,6 +435,35 @@ class AccountTools:
                 'Period-wide comparison is available only when every requested date is finished, logged, fully known for that nutrient and has a saved target. Otherwise only comparable-day subtotals are shown.',
                 'Targets use current saved settings and day-specific calorie overrides; historical target changes are not reconstructed. A zero target has no ratio.',
                 'Today and future account-local dates are excluded from intake and target comparisons.']}
+
+    def _personal_records(self, c, r):
+        rows = c.execute('''WITH ranked AS (
+            SELECT id, sport, distance_m, label, elapsed_s, start_time,
+                min(elapsed_s) OVER (PARTITION BY sport, distance_m ORDER BY start_time, id
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous_best_s
+            FROM best_efforts WHERE user_id=%s
+        ), records AS (
+            SELECT * FROM ranked WHERE previous_best_s IS NOT NULL AND elapsed_s < previous_best_s
+        ), total AS (
+            SELECT count(*) AS total_count FROM records
+        ), recent AS (
+            SELECT * FROM records ORDER BY start_time DESC, id DESC LIMIT %s
+        )
+        SELECT total.total_count, recent.id, recent.sport, recent.distance_m, recent.label,
+               recent.elapsed_s, recent.previous_best_s, recent.start_time
+        FROM total LEFT JOIN recent ON TRUE
+        ORDER BY recent.start_time DESC, recent.id DESC''', (self._uid, r.limit)).fetchall()
+        total = int(rows[0]['total_count']) if rows else 0
+        recent = []
+        for row in rows:
+            if row['id'] is None: continue
+            recent.append({'sport':row['sport'], 'distance_m':float(row['distance_m']),
+                'label':row['label'], 'elapsed_s':float(row['elapsed_s']),
+                'previous_best_s':float(row['previous_best_s']), 'recorded_at':row['start_time']})
+        return {'records':recent, 'total_personal_records':total, 'returned_count':len(recent),
+            'truncated':total>len(recent),
+            'limitations':['Only strictly faster stored efforts count as personal records; the first stored effort at a sport/distance is a baseline, not a PR.',
+                'Efforts are grouped by the exact stored sport and distance; incomplete or unimported activity history is not inferred.']}
 
     def _training_plan(self, c, _):
         # Reuse the engine and completion rules while substituting its DB connection with the bound RLS connection.
