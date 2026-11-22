@@ -399,10 +399,7 @@ function weeklyRecapPictureDateLabel(start,end){
   const fmt=d=>d.toLocaleDateString('en-US',{timeZone:'UTC',month:'short',day:'numeric'});return `${fmt(first)}–${fmt(last)}`;
 }
 function weeklyRecapSportLabel(sport){const key=String(sport||'');return SPORT_NAMES[key]||key.replace(/[-_]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
-function weeklyRecapShortDuration(seconds){
-  const minutes=Math.max(0,Math.round((Number(seconds)||0)/60)),hours=Math.floor(minutes/60),remainder=minutes%60;
-  return hours?`${hours}h ${remainder}m`:`${minutes}m`;
-}
+function weeklyRecapShortDuration(seconds){return U.time(Math.max(0,Number(seconds)||0));}
 function weeklyRecapRecordDuration(seconds){const elapsed=Math.max(0,Math.floor(Number(seconds)||0));return `${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')}`;}
 function weeklyRecapSingleLine(ctx,value,max=896,size=26){
   const text=String(value);if(!ctx)return text;ctx.font=`600 ${size}px ${ShareArt.family()}`;if(ctx.measureText(text).width<=max)return text;

@@ -19,7 +19,8 @@ const marker='FICTIONAL_INTERNAL_TRACE_MARKER';
     if(url.pathname==='/api/login'&&request.method()==='POST'){loginAttempts++;return route.fulfill({status:500,json:{detail:marker}});}
     return route.continue();
    });
-   await page.goto(base+'/',{waitUntil:'networkidle'});
+   await page.goto(base+'/');
+   await page.locator('#first-run-login').click();
    const login=page.locator('input[name=login]'),password=page.locator('input[name=password]');
    await login.fill('runner@example.test');await password.fill('fictional-passphrase');await page.getByRole('button',{name:'Log in'}).click();
    await page.getByRole('alert').filter({hasText:'Sign-in is temporarily unavailable'}).waitFor();
@@ -55,7 +56,8 @@ const marker='FICTIONAL_INTERNAL_TRACE_MARKER';
    await share.click();
    await page.locator('.sheet').waitFor();
    assert.equal(socialReads,2,'the second Share tap repeats the failed request');
-   assert.equal(await page.getByRole('tab',{name:'Card',exact:true}).count(),1,'retry opens the share sheet on the same screen');
+   assert.equal(await page.locator('[data-unified-share] [data-share-format-label]').innerText(),'Stats','retry opens the no-GPS activity share preview on the same screen');
+   assert.equal(new URL(page.url()).pathname,'/activity','retry keeps the feed beneath the sheet');
    await context.close();
   }
  }finally{await browser.close();}

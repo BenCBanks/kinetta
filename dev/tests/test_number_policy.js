@@ -22,7 +22,15 @@ assert.equal(U.swim(119.5/0.09144),'2:00','swim pace uses the same rollover');
 // Summary durations: hours and minutes; seconds stay for records, splits and intervals (dur).
 assert.equal(U.time(4020),'1h 7m');assert.equal(U.time(1200),'20m');assert.equal(U.time(10800),'3h');assert.equal(U.time(45),'45s');
 assert.equal(U.time(59.5),'1m');assert.equal(U.time(3599.6),'1h');assert.equal(U.time(0),'0m');assert.equal(U.time(null),'–');
-assert.equal(U.time(3600*1234),'1,234h','huge totals keep separators');
+assert.equal(U.time(99*3600+59*60),'99h 59m');
+assert.equal(U.time(100*3600),'4d 4h');
+assert.equal(U.time(1670*3600+20*60),'69d 14h');
+assert.equal(U.time(100*3600,true),'4 days 4 hours');
+assert.equal(U.time(1670*3600+20*60,true),'69 days 14 hours');
+assert.equal(U.time(121*3600,true),'5 days 1 hour');
+assert.equal(U.time(4020,true),'1 hour 7 minutes');
+assert.equal(U.time(0,true),'0 minutes');
+assert.equal(dur(100*3600),'100:00:00','precise workout durations retain hours and seconds');
 assert.equal(dur(4020,true),'1h 7m','older summary callers share the policy');assert.equal(dur(4023),'1:07:03');assert.equal(dur(83.6),'1:24');
 // Elevation whole numbers with separators; weight one decimal.
 assert.equal(U.elev(1000),'3,281');assert.equal(U.elev(12.4),'41');assert.equal(U.weight(63.5),'140.0');
@@ -31,3 +39,7 @@ set('metric');
 assert.equal(U.dist(4140),'4.1');assert.equal(U.dist(123456),'123');assert.equal(U.dist(1234567),'1,235');
 assert.equal(U.pace(299.5),'5:00');assert.equal(U.pace(299.4),'4:59');assert.equal(U.elev(1234.4),'1,234');assert.equal(U.weight(63.54),'63.5');
 console.log('Number policy: 1-decimal distance with separators, m:ss pace rollover, h/m summary time, whole elevation, 1-decimal weight PASS');
+
+const pages=fs.readFileSync('app/static/pages.js','utf8');
+vm.runInContext(pages.slice(pages.indexOf('const progressAxisTime ='),pages.indexOf('\n',pages.indexOf('const progressAxisTime =')))+'\nglobalThis.axisTime=progressAxisTime;',c);
+assert.equal(c.axisTime(100*3600),'4d 4h','Progress time axis uses the same days threshold');

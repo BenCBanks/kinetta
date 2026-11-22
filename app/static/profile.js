@@ -20,10 +20,10 @@ const ProfileLayout=(()=>{
     const layout=normalize(value),selected=layout.sections.includes('totals')?'totals':'recent';let used=false;
     layout.sections=layout.sections.flatMap(k=>{if(k!=='recent'&&k!=='totals')return[k];if(used)return[];used=true;return[selected];});return layout;
   }
-  // Thousands separators (Ben, 30 Oct 2026: "3044" and "11784 mi" read poorly); 100+ hours drop the minutes.
+  // Thousands separators and shared duration formatting keep large totals readable.
   const big=n=>Number(n).toLocaleString();
   const distance=m=>{const v=U.dist(m,1),n=Number(v);return n>=1000?n.toLocaleString(undefined,{maximumFractionDigits:1}):v;};
-  const hours=s=>s>=360000?`${big(Math.floor(s/3600))}h`:dur(s,true);
+  const hours=s=>dur(s,true);
   const achievementGlyphs={
     flame:'<path d="M12 2.4c-.2 2.7-1.5 4.5-3.3 6.3C6.8 10.6 5 12.5 5 15.3 5 19.1 8.1 22 12 22s7-2.9 7-6.7c0-3.2-1.8-5.8-4.2-8.4-.5 1.7-1.2 2.7-2.5 3.7.1-2.7-.7-5.5-2.3-8.2Z"/>',
     calendar:'<path d="M7 2h2v3h6V2h2v3h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2V2Zm-2 8v10h14V10H5Z"/><path fill="var(--achievement-color)" d="M7 12h3v3H7zm5 0h3v3h-3zm5 0h2v3h-2z"/>',
@@ -1172,7 +1172,7 @@ const MeCard=(()=>{
       const recent=key==='recent',row=(recent?r.recent?.current:r.overview)||{},name=recent?'Last 30 days':'All time',range=recent&&r.recent?.start?`${name}, ${short(r.recent.start)} – ${short(r.recent.end)}`:name;
       return `<div class="me-card-sec me-card-figures" role="group" data-card-period="${key}" aria-label="${esc(range)} workout totals"><p class="me-card-period" data-type="secondary" title="${esc(range)}">${name}</p><dl class="me-card-numbers me-numbers-${layout.stats.length}">${layout.stats.map(stat=>{
         const n=row[{activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat]],precise=stat==='time'&&n!=null?dur(n,true):null;let value=n==null?'—':stat==='distance'?`${ProfileLayout.distance(n)} ${U.du()}`:stat==='time'?precise:Number(n).toLocaleString();
-        return `<div data-card-stat="${stat}"><dt data-type="secondary"><span>${ProfileLayout.labels.stats[stat]}</span></dt><dd${precise?` title="${esc(precise)}"`:''}><b class="me-metric-value" data-type="stat">${esc(value)}</b></dd></div>`;
+        return `<div data-card-stat="${stat}"><dt data-type="secondary"><span>${ProfileLayout.labels.stats[stat]}</span></dt><dd${precise?` title="${esc(U.time(n,true))}"`:''}><b class="me-metric-value" data-type="stat"${precise?' aria-hidden="true"':''}>${esc(value)}</b>${precise?`<span class="vh">${esc(U.time(n,true))}</span>`:''}</dd></div>`;
       }).join('')}</dl></div>`;
     };
     return ProfileLayout.singlePeriod(layout).sections.map(key=>key==='recent'?'totals':key).filter((key,index,all)=>all.indexOf(key)===index).map(key=>{
