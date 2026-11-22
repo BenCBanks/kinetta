@@ -51,6 +51,7 @@ else:raise AssertionError('Unlogged-day counts cannot be numeric references')
 for tool,path,value,display,data in [
     ('recent_runs',['runs',0,'pace_s_per_km'],300,'8:03 /mi',{'runs':[{'pace_s_per_km':300}]}),
     ('activity',['elapsed_s'],3660,'1h 1m',{'elapsed_s':3660}),
+    ('period_compare',['current','totals','duration_s'],7200,'2h 0m',{'current':{'totals':{'duration_s':7200}}}),
     ('weight_trend',['samples',0,'kg'],70,'154.3 lb',{'samples':[{'kg':70}]}),
 ]:
     raw={**kit_raw,'facts':[{'evidence_id':'e2','path':path,'value':value}]}
@@ -86,61 +87,72 @@ with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',re
 assert fixture_calls==['profile','recent_runs'] and trend['tools_used']==['profile','recent_runs'],(fixture_calls,trend['tools_used'])
 assert trend['facts'][0]['display_value']=='5.6 mi' and len(trend['facts'])==2
 assert 'even when strength or nutrition records are empty' in coach_chat.KIT_SYSTEM
+assert 'app-generated fact label' in coach_chat.KIT_SYSTEM and 'number words are not verified' in coach_chat.KIT_SYSTEM
 
 # Integrated mocked period_compare -> evidence validation -> account-unit prose rendering.
 period_calls=[]
 def period_tool(self,name,args,*,connection=None):
     period_calls.append(name)
     if name=='profile': return {'units':'imperial','today':'2026-10-14'}
-    if name=='period_compare': return {'current':{'workouts':3,'distance_m':12000,'moving_s':7200,'protein_g':210},
-                                        'previous':{'workouts':2,'distance_m':8000,'moving_s':5100,'protein_g':160}}
+    if name=='period_compare': return {'current':{'totals':{'workouts':3,'distance_m':12000,'duration_s':7200,'protein_g':210}},
+                                        'previous':{'totals':{'workouts':2,'distance_m':8000,'duration_s':5100,'protein_g':160}}}
     raise AssertionError('Unexpected period comparison lookup: '+name)
 import app.kit_tools as kit_module
 period_specs=kit_module.specifications()
-period_specs.append({'name':'period_compare','description':'Fixture only: compare adjacent periods.',
-                     'input_schema':{'type':'object','properties':{},'additionalProperties':False}})
+assert any(spec['name']=='period_compare' for spec in period_specs)
 period_round=0
 def period_turn(messages,definitions):
     global period_round
     period_round+=1
     if period_round==1:return [{'name':'period_compare','args':{'start':'2026-10-08','end':'2026-10-14'},'id':'period'}],'',{}
     return [],json.dumps({'verdict':'Recorded distance increased between periods.',
-        'reason':'It went from {e2:0} to {e2:1}.',
-        'facts':[{'evidence_id':'e2','path':['previous','distance_m'],'value':8000},
-                 {'evidence_id':'e2','path':['current','distance_m'],'value':12000}],
+        'reason':'Recorded: {e2:0}; compared with {e2:1}.',
+        'facts':[{'evidence_id':'e2','path':['previous','totals','distance_m'],'value':8000},
+                 {'evidence_id':'e2','path':['current','totals','distance_m'],'value':12000}],
         'follow_ups':['How did my pace change?']}),{}
 with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
      patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.specifications',return_value=period_specs),\
      patch('app.kit_tools.KitTools.call',new=period_tool):
     comparison=coach_chat.answer(uid,'Compare my last two weeks',kit=True,turn=period_turn)
 assert period_calls==['profile','period_compare'] and comparison['tools_used']==['profile','period_compare']
-assert comparison['reason']=='It went from 5 mi to 7.5 mi.'
-assert [fact['label'] for fact in comparison['facts']]==['Previous distance','Current distance']
+assert comparison['reason']=='Recorded: 5 mi total previous distance; compared with 7.5 mi total current distance.'
+assert [fact['label'] for fact in comparison['facts']]==['Total previous distance','Total current distance']
 
 # Numeric prose is assembled only after validating exact current-turn evidence.
-assert trend['reason']=='It covered 5.6 mi, compared with 4.3 mi previously.'
+assert trend['reason']=='It covered 5.6 mi run distance, compared with 4.3 mi run distance previously.'
 assert trend['interpretation']==trend['verdict']+' '+trend['reason']
 assert trend['prompt_version']=='kit-numbers-2'
 number_raw={**kit_raw,'verdict':'Your run covered {e2:0}.','reason':'That is the recorded distance: {e2:0}.'}
 number_evidence=[profile_evidence,run_evidence]
 rendered=coach_chat.checked_answer(number_raw,number_evidence,kit=True)
-assert rendered['verdict']=='Your run covered 124 mi.' and '{' not in rendered['interpretation']
+assert rendered['verdict']=='Your run covered 124 mi run distance.' and '{' not in rendered['interpretation']
 metric_prose=coach_chat.checked_answer(number_raw,[{**profile_evidence,'data':{'units':'metric'}},run_evidence],kit=True)
-assert metric_prose['verdict']=='Your run covered 199.6 km.'
-assert coach_chat.checked_answer({**number_raw,'verdict':'Your run was recorded: {e2:0}.'},number_evidence,kit=True)['verdict']=='Your run was recorded: 124 mi.'
-assert coach_chat.checked_answer({**number_raw,'verdict':'Recorded distance: {e2:0}'},number_evidence,kit=True)['verdict']=='Recorded distance: 124 mi'
-assert coach_chat.checked_answer({**number_raw,'verdict':'{e2:0} was recorded.'},number_evidence,kit=True)['verdict']=='124 mi was recorded.'
-for prose in ['You ran 124 mi.','You ran twenty miles.','You doubled your distance ².','You doubled your distance.','Your volume tripled.',
-              'You logged a dozen workouts.','Your change was fourfold.','A third workout was longer.','You ran twice as far.','May first was the longest run.',
-              'Distance {e2:0} km.','Distance {e2:0} percent higher.','Distance {e2:0} per cent.','Distance {e2:0} (km).',
-              '$ {e2:0}','${e2:0}','{e2:0}:{e2:1}','Distance -\u200b{e2:0}.','Distance {e2:0}\u200b (km).',
-              '-{e2:0}','{e2:0} - {e2:1}','Distance ({e2:0}).','Distance times {e2:0}.',
-              'Distance {e9:0}.','Distance {e2:1}.','Distance {e1:0}.','Distance {e2:-1}.',
-              'Distance {e2:0!r}.','Distance {e2:0.__class__}.','Distance {{e2:0}}.',
-              'Distance {e2:0','Distance e2:0}.','Distance {e2:0}%.']:
-    try:coach_chat.checked_answer({**number_raw,'verdict':prose},number_evidence,kit=True)
+assert metric_prose['verdict']=='Your run covered 199.6 km run distance.'
+assert coach_chat.checked_answer({**number_raw,'verdict':'Your run was recorded: {e2:0}.'},number_evidence,kit=True)['verdict']=='Your run was recorded: 124 mi run distance.'
+assert coach_chat.checked_answer({**number_raw,'verdict':'Recorded distance: {e2:0}'},number_evidence,kit=True)['verdict']=='Recorded distance: 124 mi run distance'
+assert coach_chat.checked_answer({**number_raw,'verdict':'{e2:0} was recorded.'},number_evidence,kit=True)['verdict']=='124 mi run distance was recorded.'
+normalised=coach_chat.checked_answer({**number_raw,'verdict':'Recorded: {e\u034f2:0}.'},number_evidence,kit=True)
+assert normalised['verdict']=='Recorded: 124 mi run distance.'
+# Both references resolve, so arithmetic/ratio tests fail on their boundary, not an absent fact.
+boundary_raw={**number_raw,'facts':number_raw['facts']*2}
+for prose in [
+    '-{e2:0}.','{e2:0} - {e2:1}.','{e2:0} km.','{e2:0},km','{e2:0} USD',
+    '{e2:0}, km','{e2:0}, USD','{e2:0}, percentage','{e2:0} percentage','{e2:0} per cent','{e2:0} ratio {e2:1}','{e2:0} to {e2:1}',
+    '{e2:0}:{e2:1}','{e2:0} (km)','($ {e2:0})','{e2:0}\u200b (km)',
+    '-\u200b{e2:0}','-\u034f{e2:0}','{e2:0}\u034f (km)',
+    '{e9:0}.','{e2:2}.','{e1:0}.','{e2:-1}.','{e2:0!r}.','{e2:0.__class__}.',
+    '{{e2:0}}.','{e2:0','e2:0}.','{e2:0}%.','Run １２３\u034f.','Run ².','Run ፪.','{e2:0} was$','unrecorded{e2:0}',
+    'ratio {e2:0} to {e2:1}','{e2:0} U\u034fSD','{e2:0} Ⅳ'
+]:
+    try:coach_chat.checked_answer({**boundary_raw,'verdict':prose},number_evidence,kit=True)
     except ValueError:pass
-    else:raise AssertionError(('invalid numeric prose',prose))
+    else:raise AssertionError(('invalid digit slot boundary/reference',prose))
+word_text='A couple sessions, thrice this month, May thirtieth, Roman numeral Ⅳ, a third, and twice.'
+word_answer=coach_chat.checked_answer({**number_raw,'verdict':word_text},number_evidence,kit=True)
+assert word_answer['verdict']==word_text.replace('Ⅳ','IV'),'number words are outside the digit guarantee; NFKC normalized the numeral'
+wrapped=coach_chat.checked_answer({**number_raw,'verdict':'({e2:0}).'},number_evidence,kit=True)
+assert wrapped['verdict']=='(124 mi run distance).'
+
 for bad in [
     {**number_raw,'facts':[{**number_raw['facts'][0],'value':100}]},
     {**number_raw,'facts':[{**number_raw['facts'][0],'path':['id'],'value':7}]},
@@ -162,15 +174,15 @@ for tool,path,data in [
     except ValueError:pass
     else:raise AssertionError(('metadata path accepted',tool,path))
 wrong_noun={**number_raw,'verdict':'Your protein was {e2:0}.'}
-try:coach_chat.checked_answer(wrong_noun,number_evidence,kit=True)
-except ValueError:pass
-else:raise AssertionError('Distance fact cannot be labeled as protein')
+assert coach_chat.checked_answer(wrong_noun,number_evidence,kit=True)['verdict']=='Your protein was 124 mi run distance.'
 average_evidence=[profile_evidence,{'evidence_id':'e2','tool':'nutrition_summary','data':{'average_per_logged_day':{'protein_g':80}}}]
 average_fact={**number_raw,'facts':[{'evidence_id':'e2','path':['average_per_logged_day','protein_g'],'value':80}],
               'verdict':'Average daily protein: {e2:0}.','reason':'Total protein: {e2:0}.'}
-try:coach_chat.checked_answer(average_fact,average_evidence,kit=True)
-except ValueError:pass
-else:raise AssertionError('A daily average cannot be relabelled as a total')
+average_answer=coach_chat.checked_answer(average_fact,average_evidence,kit=True)
+assert average_answer['reason']=='Total protein: 80 g protein per logged day.'
+assert average_answer['facts'][0]['display_value']=='80 g'
+remote_label={**average_fact,'reason':'The total for the whole period was recorded: {e2:0}.'}
+assert coach_chat.checked_answer(remote_label,average_evidence,kit=True)['reason'].endswith('80 g protein per logged day.')
 for changes in [{'follow_ups':['Can I run 10 miles?']},{'follow_ups':['Can I run {e2:0}?']},{'verdict':' '},{'reason':''}]:
     try:coach_chat.checked_answer({**number_raw,**changes},number_evidence,kit=True)
     except ValueError:pass

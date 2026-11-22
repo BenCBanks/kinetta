@@ -66,8 +66,6 @@ class KitAnswer(Empty):
 
 
 PLACEHOLDER = re.compile(r'\{(e[1-9][0-9]*):([0-2])\}')
-# Common written numbers are screened, but natural-language wording is not verified.
-NUMBER_WORDS = re.compile(r'\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|dozen|dozens|half|halved|quarter(?:ed)?|doubl(?:e|ed|ing)|twice|tripl(?:e|ed|ing)|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion)-?fold|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth)\b', re.I)
 _INDEX = object()
 _NUTRIENTS = ('kcal','protein_g','carbs_g','fat_g','fiber_g','sodium_mg','sugar_g','saturated_fat_g')
 _RUN_FIELDS = ('distance_m','moving_s','pace_s_per_km','avg_hr','avg_temp','effort')
@@ -87,8 +85,8 @@ _KIT_MEASUREMENT_PATHS = {
     'gear': {('gear',_INDEX,'distance_m')},
     'resting_energy': {('days',_INDEX,'resting_kcal')},
     'stored_foods': {('records',_INDEX,'totals',field) for field in _NUTRIENTS} | {('records',_INDEX,'per_serving',field) for field in _NUTRIENTS} | {('records',_INDEX,field) for field in _NUTRIENTS},
-    # Contract fixture for the approved phase-three period_compare result, not a registered tool.
-    'period_compare': {(period,field) for period in ('current','previous') for field in ('workouts','distance_m','moving_s','protein_g')},
+    'period_compare': {(period,group,field) for period in ('current','previous')
+                       for group in ('totals','known_totals') for field in ('workouts','distance_m','duration_s','protein_g')},
 }
 
 
@@ -103,79 +101,64 @@ def _kit_path_allowed(tool, path):
     return False
 
 
-_PLACEHOLDER_LEFT_WORDS = frozenset('a an the your my our its it is was are were be been has have had from to at of by with covered reached recorded averaged average daily known total current previous rose fell went increased decreased distance pace protein calories calorie kcal workouts workout runs run weight target moving heart rate effort fitness fatigue form load logged'.split())
-_PLACEHOLDER_RIGHT_WORDS = frozenset('to from previously currently overall before after today yesterday is was are were be been recorded measured logged'.split())
-_METRIC_WORDS = {
-    'distance': {'distance','run','runs','ride','rides','walk','walks','hike','hikes','swim','swims'},
-    'protein': {'protein'}, 'carbohydrates': {'carbohydrate','carbohydrates','carbs'},
-    'fat': {'fat'}, 'fibre': {'fibre','fiber'}, 'calories': {'calorie','calories','kcal','energy'},
-    'weight': {'weight'}, 'pace': {'pace'}, 'heart rate': {'heart','rate','bpm'},
-    'workouts': {'workout','workouts'}, 'elevation': {'elevation'}, 'time': {'time','duration'},
-    'fitness': {'fitness'}, 'fatigue': {'fatigue'}, 'form': {'form'}, 'load': {'load'},
-}
-_AGGREGATION_WORDS = {'total','average','known','current','previous'}
+# These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
+_PLACEHOLDER_WORDS_BEFORE = frozenset('is was are were be been from with covered recorded measured logged at of compared'.split())
+_PLACEHOLDER_WORDS_AFTER = frozenset('was is are were be been from with compared previously currently overall before after today yesterday'.split())
+_PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
 
 
 def _normalise_kit_prose(text):
     text=unicodedata.normalize('NFKC',text)
-    return ''.join(char for char in text if unicodedata.category(char)!='Cf')
+    return ''.join(char for char in text if unicodedata.category(char)!='Cf' and not unicodedata.category(char).startswith('M'))
 
 
-def _fact_semantics(fact):
+def _placeholder_boundary_ok(context, *, before):
+    # A colon introduces a slot after a prose label. Its own noun still comes from the fact.
+    context=context.rstrip() if before else context.lstrip()
+    if before and context.endswith(':'):
+        return True
+    # Inspect the nearest token through whitespace/punctuation, so ", km" and "(USD)"
+    # cannot hide an unsupported unit behind an otherwise permitted character.
+    while context and (context[-1 if before else 0].isspace()
+                       or context[-1 if before else 0] in _PLACEHOLDER_PUNCTUATION):
+        context=context[:-1] if before else context[1:]
+    if not context:
+        return True
+    token=re.search(r'(\w+)$',context) if before else re.match(r'(\w+)',context)
+    allowed=_PLACEHOLDER_WORDS_BEFORE if before else _PLACEHOLDER_WORDS_AFTER
+    if not token or token.group(1).casefold() not in allowed:
+        return False
+    rest=context[:token.start()] if before else context[token.end():]
+    return not rest or rest[-1 if before else 0].isspace() or rest[-1 if before else 0] in _PLACEHOLDER_PUNCTUATION
+
+
+def _placeholder_value(fact):
     label=fact['label'].casefold()
-    metric=next((name for name,words in _METRIC_WORDS.items() if any(word in label.split() for word in words)),None)
-    aggregation=set()
-    if label.startswith('average daily '): aggregation.update(('average','daily'))
-    elif label.startswith('known total '): aggregation.update(('known','total'))
-    elif label.startswith('total '): aggregation.add('total')
-    if label.startswith('current '): aggregation.add('current')
-    if label.startswith('previous '): aggregation.add('previous')
-    return metric,aggregation
-
-
-def _check_fact_wording(before,fact):
-    metric,aggregation=_fact_semantics(fact)
-    nearby=set(re.findall(r'[a-z]+',before.casefold())[-6:])
-    observed_metrics={name for name,words in _METRIC_WORDS.items() if nearby & words}
-    if observed_metrics and (metric is None or observed_metrics!={metric}):
-        raise ValueError('Measurement wording does not match the verified fact label')
-    observed_aggregation=nearby & _AGGREGATION_WORDS
-    if (('total' in observed_aggregation and 'total' not in aggregation)
-            or ('average' in observed_aggregation and 'average' not in aggregation)
-            or ('known' in observed_aggregation and 'known' not in aggregation)
-            or ('current' in observed_aggregation and 'current' not in aggregation)
-            or ('previous' in observed_aggregation and 'previous' not in aggregation)):
-        raise ValueError('Aggregation wording does not match the verified fact label')
+    if label.startswith('average daily '):
+        noun=label.removeprefix('average daily ')
+        label=f'{noun} per logged day'
+    return f"{fact['display_value']} {label}"
 
 
 def _kit_prose(text, facts):
-    """Resolve references; validation covers values and nearby labels, not all prose meaning."""
+    """Only digits are guaranteed to come from validated, app-rendered placeholders; wording is not verified."""
     text=_normalise_kit_prose(text)
     remainder=PLACEHOLDER.sub('',text)
-    if any(char.isnumeric() for char in remainder) or NUMBER_WORDS.search(remainder) or any(char in remainder for char in '{}%'):
-        raise ValueError('Unverified number or malformed reference')
-    left_punctuation=frozenset('\t\r\n,.;):')
-    right_punctuation=frozenset('\t\r\n,.;)!?')
-    for match in PLACEHOLDER.finditer(text):
+    if any(char.isdigit() for char in remainder) or any(char in remainder for char in '{}'):
+        raise ValueError('Unverified digit or malformed reference')
+    matches=list(PLACEHOLDER.finditer(text))
+    for match in matches:
         before,after=text[:match.start()],text[match.end():]
-        left=before.rstrip()[-1:] if before.rstrip() else ''
-        right=after.lstrip()[:1]
-        left_word=re.search(r'([a-z]+)$',before.rstrip(),re.I)
-        right_word=re.match(r'([a-z]+)',after.lstrip(),re.I)
-        if left and not left.isspace() and left not in left_punctuation and not (left_word and left_word.group(1).casefold() in _PLACEHOLDER_LEFT_WORDS):
-            raise ValueError('Unsupported text attached to numeric reference')
-        if right and not right.isspace() and right not in right_punctuation and not (right_word and right_word.group(1).casefold() in _PLACEHOLDER_RIGHT_WORDS):
+        if not _placeholder_boundary_ok(before,before=True) or not _placeholder_boundary_ok(after,before=False):
             raise ValueError('Unsupported text attached to numeric reference')
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
             raise ValueError('Unknown or mismatched numeric reference')
-        _check_fact_wording(before,facts[index])
     def replace(match):
-        return facts[int(match.group(2))]['display_value']
+        return _placeholder_value(facts[int(match.group(2))])
     resolved=PLACEHOLDER.sub(replace,text).strip()
     if not resolved or len(resolved)>1600: raise ValueError('Answer text is empty or too long')
     return resolved
-
 
 
 def _compact_number(value, digits=1):
@@ -194,7 +177,7 @@ def _kit_fact(tool, data, path, value, units):
         try: sport={'run':'Run','ride':'Ride','walk':'Walk','hike':'Hike','swim':'Swim','strength':'Strength'}.get(data['totals_by_sport'][path[1]].get('sport'))
         except (IndexError,KeyError,TypeError): pass
     labels={
-        'distance_m':'Distance','moving_s':'Moving time','elapsed_s':'Elapsed time','pace_s_per_km':'Pace',
+        'distance_m':'Distance','moving_s':'Moving time','elapsed_s':'Elapsed time','duration_s':'Duration','pace_s_per_km':'Pace',
         'avg_hr':'Heart rate','max_hr':'Peak heart rate','avg_temp':'Temperature','effort':'Effort',
         'workouts':'Workouts','count':'Workouts','activities':'Workouts','ascent_m':'Elevation gain',
         'calories':'Calories','kcal':'Calories','resting_kcal':'Resting calories','protein_g':'Protein','saturated_fat_g':'Saturated fat','reps':'Reps','secs':'Set duration','carbs_g':'Carbohydrates',
@@ -229,7 +212,7 @@ def _kit_fact(tool, data, path, value, units):
         seconds=float(value)*(1 if metric else 1609.344/1000)
         if not math.isfinite(seconds): raise ValueError('Converted pace must be finite')
         whole=max(0,round(seconds));display=f'{whole//60}:{whole%60:02d} /{"km" if metric else "mi"}'
-    elif field in {'moving_s','elapsed_s'}:
+    elif field in {'moving_s','elapsed_s','duration_s'}:
         seconds=max(0,round(float(value)));hours,rem=divmod(seconds,3600);minutes=rem//60
         display=f'{hours}h {minutes}m' if hours else f'{minutes} min'
     elif field in {'avg_hr','max_hr'}: display=f'{round(float(value))} bpm'
@@ -253,7 +236,7 @@ def checked_answer(raw, evidence, *, kit=False):
     follow_ups=[]
     for question in (answer.follow_ups if kit else []):
         question=question.strip()
-        if kit: _kit_prose(question,[])
+        if kit: question=_kit_prose(question,[])
         if len(question)>80 or re.search(r'\d|https?://|\b(?:unlogged days|cannot be assessed|cannot be evaluated)\b',question,re.I):
             raise ValueError('Kit follow-up is too long or unsuitable as a question chip')
         if question and question not in follow_ups: follow_ups.append(question)
@@ -318,12 +301,13 @@ After tool calls return JSON only:
 {"verdict":"Direct answer to the actual question.","reason":"The strongest reason, using {e2:0} when helpful.",
  "facts":[{"evidence_id":"e2","path":["totals","distance_m"],"value":5000}],
  "selection":null,"actions":[],"follow_ups":["What should I focus on next?"]}
-Every number in verdict/reason must be a placeholder {evidence_id:fact_index}. For example {e2:0} inserts the
-application-formatted value of facts[0], which must cite evidence e2. Multiple facts may use different paths in
+Every digit in verdict/reason must come from a placeholder {evidence_id:fact_index}. For example {e2:0} inserts
+the application-formatted value and its app-generated fact label, which must cite evidence e2. Multiple facts may use different paths in
 the same evidence result. Use zero-based indexes into the facts array, at most three facts. Every fact must cite
 an exact finite numeric field from a successful current-turn tool result and its matching value; the app supplies
-labels, rounding and account units. Use the whole placeholder without adding another unit, percent sign, scale,
-arithmetic, or number. Never write literal digits or spelled-out amounts in prose or follow-up questions.
+labels, rounding and account units. Keep a placeholder beside only whitespace, simple punctuation or an approved
+connective. Before references, connectives are is/was/are/were/be/been/from/with/covered/recorded/measured/logged/at/of/compared; after them, was/is/are/were/be/been/from/with/compared/previously/currently/overall/before/after/today/yesterday. Do not attach another unit, currency, ratio or arithmetic. Digits outside placeholders
+and in follow-up questions are rejected; wording and number words are not verified.
 Only cite measurement fields, not IDs, dates, names, strings, unknown values, unlogged-day counts or metadata.
 Use totals/known_totals/average_per_logged_day accurately; known totals may omit unknown nutrients.
 Keep a general answer useful without invented personal facts. If current evidence cannot answer the question,
@@ -345,8 +329,8 @@ available running trend even when strength or nutrition records are empty. Follo
 facts. Never expose tool names, field paths, raw metres or seconds; use the account's units and round distances to
 one decimal at most. Do not report unlogged-day counts, scold about missing records, or list generic limitations.
 Mention missing data in one brief sentence only when it changes the answer. Finish with two or three useful, short
-follow-up questions in "follow_ups" (an array of strings), each asking something specific. Use the verified placeholders
-for useful numerical prose in verdict/reason. Do not use placeholders or numbers in follow-up questions.
+follow-up questions in "follow_ups" (an array of strings), each asking something specific. Use placeholders
+for numeric values in verdict/reason; each expands with its own fact label. Do not use placeholders or digits in follow-ups.
 For calorie restriction, pregnancy, minors or medical diets, clarify needs and avoid prescribing targets outside the validated app goal tools.
 Do not request unconsented Health data; an unavailable tool means that scope cannot be used.
 Optionally add "actions" to the final JSON: at most three IDs from food, nutrition, record, activities, plan,
