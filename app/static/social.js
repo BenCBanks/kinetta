@@ -786,13 +786,12 @@ const commentSkeletonMarkup='<div class="comments-skeleton" aria-hidden="true"><
 function commentsSheet(aid, s, onChange) {
   cleanViews();
   const account=readOwner();if(s&&!SocialData.peek(aid))SocialData.remember(aid,s);const cached=SocialData.peek(aid);
-  sheet('Comments', `<div class="social social-sheet"><div class="social-reactions">${reactionButtons(aid,cached||s||{cheers:[],my_reaction:null},false,true)}</div><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':commentSkeletonMarkup}</div>
+  sheet('Comments', `<div class="social social-sheet"><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':commentSkeletonMarkup}</div>
     <p class="social-read-status small muted" role="status" aria-live="polite"></p>
     <div class="c-quick" aria-label="Quick replies" hidden>${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
     <form class="c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Send comment" disabled>${commentArrowIcon}</button></form></div>`,b=>{
     const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box),send=$('.c-send',f),quick=$('.c-quick',box);
     const current=()=>box.isConnected&&account===readOwner();
-    wireReactionGroup($('[data-reaction-group]',box),aid);
     box._sync=()=>{const empty=!f.text.value.trim(),posting=send.dataset.posting==='1',failed=send.dataset.failed==='1';send.disabled=!!box._denied||posting||empty;
       send.setAttribute('aria-label',posting?'Sending comment':failed?'Retry sending comment':'Send comment');
       send.innerHTML=posting?'<span class="c-send-spinner" aria-hidden="true"></span>':failed?commentRetryIcon:commentArrowIcon;
@@ -805,10 +804,10 @@ function commentsSheet(aid, s, onChange) {
     requestAnimationFrame(()=>{if(current())box._sync();});
     const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
     if(cached)drawComments(box,aid,cached,onChange);
-    viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}}));
+    viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();box._denied=true;box._sync();}}));
     wireCommentActions(box,list);
     const refresh=async()=>{if(!cached){status.textContent='Loading comments';list.setAttribute('aria-busy','true');if(!list.querySelector('.comments-skeleton'))list.innerHTML=commentSkeletonMarkup;}try{const fresh=await SocialData.read(aid);update(fresh);}
-      catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}
+      catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();box._denied=true;box._sync();}
         list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
       let denied=false;delete button.dataset.failed;button.dataset.posting='1';button.setAttribute('aria-busy','true');status.textContent='Sending comment…';box._sync();
@@ -873,10 +872,7 @@ function wireCommentActions(box,list){
 }
 function drawComments(box,aid,s,onChange){
   if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
-  const list=$('.comments',box),reactions=$('.social-reactions',box);
-  let group=$('[data-reaction-group]',reactions);
-  if(!group){reactions.innerHTML=reactionButtons(aid,s,false,true);group=$('[data-reaction-group]',reactions);wireReactionGroup(group,aid);}
-  else group._sync?.(s);
+  const list=$('.comments',box);
   if(list.getAttribute('aria-busy')==='true')list.replaceChildren();list.setAttribute('aria-busy','false');
   const keep=new Set();let anchor=list.firstElementChild;
   for(const comment of s.comments){const id=String(comment.id);keep.add(id);let node=[...list.children].find(n=>n.dataset.commentId===id);const signature=JSON.stringify(comment);
