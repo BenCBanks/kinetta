@@ -170,7 +170,7 @@ const DETAIL_NAMES = {map: 'Map', heart_rate: 'Heart rate', pace: 'Pace and spee
 Object.assign(IC, {
   // a party popper (2026-10-12, was a star): the cone fills in once you've cheered
   cheer: '<path class="cone" d="M3.5 20.5 8 9l7 7z"/><path d="M10.5 6.5c.4-1.4-.3-2.4-1.3-2.8M17.5 13.5c1.4-.4 2.4.3 2.8 1.3M13 9.5c1-2.3 2.6-3.4 5-3.2"/><path d="M14.5 3v1M20.5 9h-1M18 4.8l-.7.7M21 4l-.1.1"/>',
-  comment: '<path d="M6 4.75h12A2.75 2.75 0 0 1 20.75 7.5v6A2.75 2.75 0 0 1 18 16.25h-7.2L5.25 20v-3.75H6A2.75 2.75 0 0 1 3.25 13.5v-6A2.75 2.75 0 0 1 6 4.75Z"/>',
+  comment: '<path d="M7 6h10a4.5 4.5 0 0 1 4.5 4.5v0a4.5 4.5 0 0 1-4.5 4.5h-3l-3.5 3.5 1-3.5H7a4.5 4.5 0 0 1-4.5-4.5v0A4.5 4.5 0 0 1 7 6Z"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   people: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/>',
   'user-plus': '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5 1.8 0 3.4.8 4.6 2.2M19 8v6M16 11h6"/>',
