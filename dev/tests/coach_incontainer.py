@@ -256,8 +256,7 @@ for bad in [
     {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food was logged on 2 days.'}},
     {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'next_week_focus':'Run 3 times.'}},
     {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food records are uneven. Intake changed.'}},
-    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Logged food intake reached only {e4:2}.'}},
-    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Logged food intake reached only {e2:1}.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food intake reached {e2:1}.'}},
     {**weekly_raw,'actions':['food']},
 ]:
     try:coach_chat.checked_answer(bad,weekly_evidence,kit=True,weekly_review=True)
@@ -270,6 +269,8 @@ rendered_week=coach_chat.checked_answer(placeholder_week,weekly_evidence,kit=Tru
 assert rendered_week['weekly_review']['what_went_well']=='Your recorded distance was '+rendered_week['facts'][0]['display_value']+'.', 'Weekly numeric prose may only use app-rendered verified placeholders'
 matching_protein={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Protein on comparison days was {e4:2}.'}}
 assert '180 g' in coach_chat.checked_answer(matching_protein,weekly_evidence,kit=True,weekly_review=True)['weekly_review']['what_to_change']
+matching_food={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food entries remain incomplete, showing {e4:2} across logged days.'}}
+assert '180 g' in coach_chat.checked_answer(matching_food,weekly_evidence,kit=True,weekly_review=True)['weekly_review']['what_to_change']
 try: coach_chat._kit_fact('period_compare',weekly_evidence[1]['data'],['change','distance_m','percent'],12.5,'metric')
 except ValueError as error: assert str(error)=='Unsupported measurement path'
 else: raise AssertionError('Unsupported period change paths must remain rejected')

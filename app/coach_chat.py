@@ -123,7 +123,7 @@ def _kit_path_allowed(tool, path):
 # These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
 _PLACEHOLDER_CONNECTIVES = frozenset('about around roughly to and or from of vs versus'.split())
 _PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
-_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached totaled totaling weighed shows show'.split())
+_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached totaled totaling weighed shows show showing'.split())
 _PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with recorded compared previously currently overall before after earlier today yesterday across over toward while each daily recently your against for on though'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
 _DISPLAY_UNIT = re.compile(r'(?:\s(?:mi|km|ft|in|lb|kg|g|mg|kcal|bpm|min|h|m)\b|/\s?(?:mi|km)\b|°[CF])')
@@ -336,38 +336,36 @@ def _weekly_sentence(text, facts):
     if '\n' in text or not re.search(r'[.!?]$',text) or re.search(r'[.!?]\s+\S',text):
         raise ValueError('Weekly review sections must each be one sentence')
     normalized=_normalise_kit_prose(text)
-    topic=_weekly_claim_topic(normalized)
     for match in PLACEHOLDER.finditer(normalized):
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
             continue  # _kit_prose reports the canonical invalid-reference error below.
-        fact_topic=_weekly_fact_topic(facts[index]['label'])
-        if topic and fact_topic and topic!=fact_topic:
+        topic=_weekly_claim_topic(normalized,match)
+        fact_topic=_weekly_fact_class(facts[index])
+        if topic and fact_topic and fact_topic not in topic:
             raise ValueError('Weekly section topic does not match referenced fact')
     return _kit_prose(text,facts)
 
 
-def _weekly_claim_topic(text):
+def _weekly_claim_topic(text, placeholder):
     text=text.casefold()
-    specific=(('protein',r'\bprotein\b'),('calories',r'\bcalories?\b|\bkcal\b'),
-              ('distance',r'\bdistance\b|\bmileage\b'),('duration',r'\bduration\b|\bmoving time\b'))
-    found=[topic for topic,pattern in specific if re.search(pattern,text)]
-    if found:
-        return found[0] if len(set(found))==1 else 'mixed'
-    if re.search(r'\bfood\b|\bintake\b|\bnutrition\b|\bmeals?\b|\beating\b',text):
-        return 'nutrition'
-    if re.search(r'\bworkouts?\b|\btraining\b|\bruns?\b|\bactivities\b|\bsessions?\b',text):
-        return 'activity'
-    return None
+    groups=(('food',r'\bkcal\b|\bcalories?\b|\bprotein\b|\bnutrition\b|\bintake\b|\bmeals?\b|\bfood\b|\bentries\b|\blogged\b|\bsnacks?\b'),
+            ('training',r'\bdistance\b|\bduration\b|\bruns?\b|\bsessions?\b|\bworkouts?\b|\bactivities\b|\bactivity\b|\bpace\b'))
+    nearest=[]
+    for category,pattern in groups:
+        for word in re.finditer(pattern,text):
+            gap=max(word.start()-placeholder.end(),placeholder.start()-word.end(),0)
+            nearest.append((gap,category))
+    if not nearest:return set()
+    gap=min(item[0] for item in nearest)
+    return {category for distance,category in nearest if distance==gap}
 
 
-def _weekly_fact_topic(label):
-    label=label.casefold()
-    if 'protein' in label:return 'protein'
-    if 'calorie' in label:return 'calories'
-    if 'distance' in label:return 'distance'
-    if 'duration' in label or 'moving time' in label:return 'duration'
-    if any(word in label for word in ('workout','training','run','activity','session')):return 'activity'
+def _weekly_fact_class(fact):
+    tool=fact['tool']
+    if tool in {'nutrition_adequacy','nutrition_summary'}:return 'food'
+    if tool in {'period_compare','consistency','recent_runs','activity','activities','training_load',
+                'training_plan','plan_options','comparable_routes','strength_history'}:return 'training'
     return None
 
 
