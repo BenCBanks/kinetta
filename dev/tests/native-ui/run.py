@@ -46,22 +46,25 @@ sdk=run('xcrun','--sdk','iphonesimulator','--show-sdk-version')
 sdk_version=tuple(map(int,sdk.split('.')))
 runtimes=json.loads(sim('list','runtimes','-j'))['runtimes']
 available=[r for r in runtimes if r.get('isAvailable') and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-')]
-matching=[r for r in available if tuple(map(int,r['version'].split('.')))==sdk_version]
-compatible=[r for r in available if int(r['version'].split('.')[0])==sdk_version[0]]
-assert matching or compatible,'No installed Simulator runtime matches the selected Xcode SDK'
-runtime=sorted(matching or compatible,key=lambda r:tuple(map(int,r['version'].split('.'))))[-1]
-print('Native UI runtime: '+runtime['name']+'; SDK '+sdk+'; '+platform.machine(),flush=True)
-types=json.loads(sim('list','devicetypes','-j'))['devicetypes'];iphones=[t for t in types if t.get('productFamily')=='iPhone' or t['name'].startswith('iPhone')]
-existing=json.loads(sim('list','devices','available','-j'))['devices'].get(runtime['identifier'],[])
-preferred=[]
-for names in [('iPhone SE (3rd generation)','iPhone 16e','iPhone 17'),('iPhone 17 Pro','iPhone 16 Pro','iPhone 16 Pro Max')]:
- choice=next((t for name in names for t in iphones if t['name']==name),None)
- if choice:preferred.append(choice)
-if a.store:
- preferred=[next((t for t in iphones if t['name']=='iPhone 16 Pro Max'),None)]
- assert preferred[0], 'Exact1320x2868 iPhone16ProMax Simulator type required; no fallback/upscaling'
-assert a.store or len(preferred)==2,'Two phone device types are required'
-if not a.store and a.device!='all':preferred=[preferred[0 if a.device=='compact' else 1]]
+runtime_candidates=sorted(available,key=lambda r:(tuple(map(int,r['version'].split('.')))==sdk_version,int(r['version'].split('.')[0])==sdk_version[0],tuple(map(int,r['version'].split('.')))),reverse=True)
+all_devices=json.loads(sim('list','devices','available','-j'))['devices']
+compact_names=('iPhone 18e','iPhone 18','iPhone 17','iPhone 16e','iPhone SE (3rd generation)')
+pro_names=('iPhone 18 Pro','iPhone 17 Pro','iPhone 16 Pro','iPhone 16 Pro Max')
+store_names=('iPhone 18 Pro Max','iPhone 17 Pro Max','iPhone 16 Pro Max')
+def choose_device(names,devices):
+ for name in names:
+  found=next((d for d in devices if d['name']==name and d.get('deviceTypeIdentifier')),None)
+  if found:return {'name':found['name'],'identifier':found['deviceTypeIdentifier']}
+ return None
+required=('store',) if a.store else (('compact','pro') if a.device=='all' else (a.device,))
+runtime=None;preferred=None;existing=[]
+for candidate in runtime_candidates:
+ devices=all_devices.get(candidate['identifier'],[])
+ selected=[choose_device(store_names if kind=='store' else compact_names if kind=='compact' else pro_names,devices) for kind in required]
+ if all(selected):
+  runtime=candidate;existing=devices;preferred=selected;break
+assert runtime and preferred, 'No installed iOS Simulator runtime has compatible device types for '+', '.join(required)+'. Available runtimes: '+json.dumps({r['name']:[d['name'] for d in all_devices.get(r['identifier'],[])] for r in runtime_candidates},sort_keys=True)
+print('Native UI runtime: '+runtime['name']+'; SDK '+sdk+'; '+platform.machine()+'; devices '+', '.join(d['name'] for d in preferred),flush=True)
 if a.store:
  expected=a.output/'expected-static'
  run('python3','app/asset_build.py','app/static',str(expected))
@@ -77,6 +80,11 @@ if a.store:
  assert map_config['kind']=='pmtiles' and url.scheme=='https' and url.hostname and not (url.username or url.password or url.query or url.fragment),'Public credential-free vector map required'
  assert not url.hostname.endswith('tile.openstreetmap.org'),'Never use public OSM tile servers'
  (a.output/'public-map.json').write_text(json.dumps(map_config,indent=2))
+# iOS 27 on the hosted arm64 image can take over a minute to bring a replaced
+# WebView back after the first fixture. Keep the assertion strict, but give the
+# native bridge enough time to export metrics before calling it a simulator failure.
+METRICS_WAIT_SECONDS=120
+METRICS_POLL_SECONDS=0.2
 results=[];startup_rows=[]
 for device in preferred:
  udid=None
@@ -115,12 +123,13 @@ for device in preferred:
     process_launch_monotonic_ns=time.monotonic_ns() if measure_startup else None
     sim('launch',udid,'com.kinetta.app')
     metrics=None
-    for _ in range(250):
+    deadline=time.monotonic()+METRICS_WAIT_SECONDS
+    while time.monotonic()<deadline:
      try:
       candidate=json.loads((container/'tmp/kinetta-ui-metrics.json').read_text())
       if candidate.get('run')==token:metrics=candidate;break
      except (OSError,ValueError):pass
-     time.sleep(.01 if measure_startup else .2)
+     time.sleep(.01 if measure_startup else METRICS_POLL_SECONDS)
     filename=device['name'].replace(' ','-').replace('(','').replace(')','')+'-'+theme+'-'+stage+'-'+str(root)
     if not metrics:
      sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)

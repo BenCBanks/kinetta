@@ -766,8 +766,9 @@ function warmTabs() {
     const tab=document.querySelector('nav.tabs [data-tab="progress"]');
     if(tab){
       let warmed=false;
-      const warm=()=>{if(warmed||!App.me||!navigator.onLine)return;warmed=true;for(const event of ['pointerenter','pointerdown','focusin'])tab.removeEventListener(event,warm);prefetch('/api/progress/volume?period=week');};
-      for(const event of ['pointerenter','pointerdown','focusin'])tab.addEventListener(event,warm,{passive:true});
+      // Hover and focus can happen during pointer movement or route settling. Warm only on an explicit activation.
+      const warm=event=>{if(event.type==='pointerdown'&&event.button!==0)return;if(warmed||!App.me||!navigator.onLine)return;warmed=true;for(const name of ['pointerdown','click'])tab.removeEventListener(name,warm);prefetch('/api/progress/volume?period=week');};
+      for(const event of ['pointerdown','click'])tab.addEventListener(event,warm,{passive:true});
     }
   }else prefetch('/api/progress/volume?period=week');
   if (typeof warmFeed === 'function') warmFeed();
