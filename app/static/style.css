@@ -1493,7 +1493,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:18px;height:18px;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:none;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:2;margin-left:8px;}
-:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments>svg {width:22px;height:22px;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments>svg {width:24px;height:24px;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments .num {font-size:15px;font-weight:500;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count {order:3;display:flex;flex:none;align-items:center;justify-content:flex-end;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 auto;color:var(--tx2);font-size:14px;font-weight:500;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {display:flex;align-items:center;gap:4px;overflow:visible;white-space:nowrap;}
