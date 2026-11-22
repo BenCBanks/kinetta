@@ -31,3 +31,4 @@ try: aggregate(fixtures, observations[:-1])
 except ValueError: pass
 else: raise AssertionError('Skipped cases must fail')
 print('AI evaluation contracts: 300 reference cases; nutrition/product/serving/schema/latency/cost regression gates passed. No model called.')
+import test_kit_weekly_fixtures
