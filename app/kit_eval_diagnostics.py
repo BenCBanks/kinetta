@@ -36,10 +36,13 @@ class RejectionDiagnostics:
         capture = getattr(self._state, 'capture', None)
         if capture is None:
             return
-        if raw is not None:
+        if raw is not None and 'raw_model_json' not in capture:
             capture['raw_model_json'] = raw
         capture['validation_error_type'] = type(error).__name__
         capture['validation_error'] = str(error)
+        detail=getattr(error,'diagnostic_detail',None)
+        if isinstance(detail,dict):
+            capture['validation_detail']=detail
 
     def _install(self, coach_chat):
         original_json = coach_chat._json
@@ -52,7 +55,7 @@ class RejectionDiagnostics:
                 result = original(*args, **kwargs)
                 calls, text, _ = result
                 capture = getattr(self._state, 'capture', None)
-                if capture is not None and not calls:
+                if capture is not None and not calls and 'raw_model_json' not in capture:
                     capture['raw_model_json'] = text
                 return result
             return wrapped

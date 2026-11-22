@@ -89,6 +89,101 @@ assert trend['facts'][0]['display_value']=='5.6 mi' and len(trend['facts'])==2
 assert 'even when strength or nutrition records are empty' in coach_chat.KIT_SYSTEM
 assert 'app-generated fact label' in coach_chat.KIT_SYSTEM and 'number words are not verified' in coach_chat.KIT_SYSTEM
 assert 'body_profile height_cm or weight_kg' in coach_chat.KIT_SYSTEM and 'meal_combinations candidates/totals/kcal' in coach_chat.KIT_SYSTEM
+assert 'answer qualitatively' in coach_chat.KIT_SYSTEM and 'weeks/index/workouts/index/dist' in coach_chat.KIT_SYSTEM
+
+# Replay sanitized shapes from the private run-3 rejections against the real validator.
+def prose_fixture_facts(text):
+    facts=[]
+    for match in coach_chat.PLACEHOLDER.finditer(text):
+        evidence_id,index=match.group(1),int(match.group(2))
+        while len(facts)<=index:facts.append({'evidence_id':evidence_id,'display_value':'1 mi','label':'Distance'})
+    return facts
+for text in [
+    'Your food today shows {e3:0} with {e3:1} recorded from lunch.',
+    'Known entries include {e2:0} each day, while another {e2:1} was logged.',
+    'That covers {e2:0} across recent sessions.',
+    'Your upcoming training weeks include three runs totaling {e2:0}.',
+    'An easy run of {e2:0} on Monday was followed by {e2:1} on Wednesday.',
+    'The saved meal provides {e2:0} for your review.',
+    'Your recovery was recorded at {e2:0}, though the evidence is limited.',
+]:
+    coach_chat._kit_prose(text,prose_fixture_facts(text))
+
+# Measurement nouns and separately written quantities stay outside the allowlist.
+for text,neighbor in [
+    ('Your plan includes {e2:0} carbs and seventy grams of fat.','carbs'),
+    ('Your logged walks were {e2:0} walks totaling {e2:1}.','walks'),
+]:
+    try:coach_chat._kit_prose(text,prose_fixture_facts(text))
+    except coach_chat.KitValidationError as error:
+        assert error.diagnostic_detail['neighbor']==neighbor,error.diagnostic_detail
+        assert error.diagnostic_detail['offending_snippet'] in text
+    else:raise AssertionError('An unsupported measurement noun must stay rejected: '+neighbor)
+punctuated='Your run covered {e2:0}, though it was notable.'
+coach_chat._kit_prose(punctuated,prose_fixture_facts(punctuated))
+punctuated_bad='Your run covered {e2:0}, carbs were not recorded.'
+try:coach_chat._kit_prose(punctuated_bad,prose_fixture_facts(punctuated_bad))
+except coach_chat.KitValidationError as error:assert error.diagnostic_detail['neighbor']=='carbs'
+else:raise AssertionError('Diagnostic should identify an unsupported word following punctuation')
+
+plan_data={'plan':{'unit':'mi'},'weeks':[{}, {}, {'workouts':[{'dist':1.0,'metadata_count':2}]}]}
+plan_evidence={'evidence_id':'e2','tool':'training_plan','data':plan_data}
+plan_raw={**kit_raw,'verdict':'Your plan includes {e2:0}.','reason':'The run is scheduled for {e2:0} on Monday.',
+    'facts':[{'evidence_id':'e2','path':['weeks',2,'workouts',0,'dist'],'value':1.0}],'follow_ups':[]}
+plan_answer=coach_chat.checked_answer(plan_raw,[profile_evidence,plan_evidence],kit=True)
+assert plan_answer['facts'][0]['display_value']=='1 mi'
+bad_plan_raw={**plan_raw,'facts':[{'evidence_id':'e2','path':['weeks',2,'workouts',0,'metadata_count'],'value':2}]}
+try:coach_chat.checked_answer(bad_plan_raw,[profile_evidence,plan_evidence],kit=True)
+except ValueError as error:assert str(error)=='Unsupported measurement path'
+else:raise AssertionError('Unlisted plan metadata must not become a numeric fact')
+
+# A qualitative escape is valid when no supported numeric fact is needed.
+qualitative=coach_chat.checked_answer({**kit_raw,'verdict':'The recent pattern looks mixed.',
+    'reason':'The available records do not support a more specific conclusion.','facts':[],'follow_ups':[]},
+    [profile_evidence,run_evidence],kit=True)
+assert qualitative['facts']==[] and qualitative['verdict']=='The recent pattern looks mixed.'
+
+# One validator-error retry is permitted, with tools disabled and without weakening the final check.
+retry_names=[];retry_round=0;retry_feedback_seen=False
+def retry_tool(self,name,args,*,connection=None):
+    retry_names.append(name)
+    if name=='profile':return {'units':'imperial','today':'2026-10-14'}
+    if name=='recent_runs':return {'runs':[{'distance_m':9000}]}
+    raise AssertionError('Retry fixture called an unexpected tool: '+name)
+def retry_turn(messages,definitions):
+    global retry_round,retry_feedback_seen
+    retry_round+=1
+    if retry_round==1:return [{'name':'recent_runs','args':{'start':'2026-10-01','end':'2026-10-14'},'id':'retry-run'}],'',{}
+    if retry_round==2:
+        return [],json.dumps({'verdict':'Your run covered {e2:0} carbs and seventy grams of fat.',
+            'reason':'The field does not support that extra nutrient value.','facts':[{'evidence_id':'e2',
+                'path':['runs',0,'distance_m'],'value':9000}],'follow_ups':[]}),{'promptTokenCount':10,'candidatesTokenCount':5}
+    assert definitions==[], 'The single correction attempt must not receive tools'
+    retry_feedback_seen=any('Unexpected adjacent word' in part.get('text','')
+        for message in messages if isinstance(message.get('parts'),list) for part in message['parts'])
+    return [],json.dumps({'verdict':'The recent pattern looks mixed.',
+        'reason':'The available records do not support a specific numeric conclusion.',
+        'facts':[],'follow_ups':[]}),{'promptTokenCount':12,'candidatesTokenCount':7}
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
+     patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=retry_tool):
+    retried=coach_chat.answer(uid,'How is my run volume?',kit=True,turn=retry_turn)
+assert retry_round==3 and retry_feedback_seen and retry_names==['profile','recent_runs']
+assert retried['facts']==[] and retried['usage']['candidatesTokenCount']==12
+
+failed_retry_round=0
+def failed_retry_turn(messages,definitions):
+    global failed_retry_round
+    failed_retry_round+=1
+    if failed_retry_round==1:return [{'name':'recent_runs','args':{'start':'2026-10-01','end':'2026-10-14'},'id':'retry-fail'}],'',{}
+    return [],json.dumps({'verdict':'Still unsupported {e2:0} carbs.',
+        'reason':'The extra claim remains.','facts':[{'evidence_id':'e2','path':['runs',0,'distance_m'],'value':9000}],
+        'follow_ups':[]}),{}
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
+     patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=retry_tool):
+    try:coach_chat.answer(uid,'How is my run volume?',kit=True,turn=failed_retry_turn)
+    except ValueError as error:assert str(error)=='Kit could not verify that answer. Try again.'
+    else:raise AssertionError('A failed single retry must surface the generic verification error')
+assert failed_retry_round==3, 'A rejected correction must not trigger another provider turn'
 
 # Integrated mocked period_compare -> evidence validation -> account-unit prose rendering.
 period_calls=[]
@@ -122,7 +217,7 @@ assert [fact['label'] for fact in comparison['facts']]==['Total previous distanc
 # Numeric prose is assembled only after validating exact current-turn evidence.
 assert trend['reason']=='It covered 5.6 mi run distance, compared with 4.3 mi run distance previously.'
 assert trend['interpretation']==trend['verdict']+' '+trend['reason']
-assert trend['prompt_version']=='kit-numbers-2'
+assert trend['prompt_version']=='kit-numbers-3'
 number_raw={**kit_raw,'verdict':'Your run covered {e2:0}.','reason':'That is the recorded distance: {e2:0}.'}
 number_evidence=[profile_evidence,run_evidence]
 rendered=coach_chat.checked_answer(number_raw,number_evidence,kit=True)
@@ -283,7 +378,7 @@ for ev in [[],[run_evidence],[profile_evidence,{**run_evidence,'error':'not allo
     try:coach_chat.checked_answer(number_raw,ev,kit=True)
     except ValueError:pass
     else:raise AssertionError('Only successful current-turn evidence with account units may render')
-# Invalid model output produces one plain failure, with no additional provider attempt.
+# Invalid model output gets exactly one correction attempt, then one plain failure.
 failed_turns=[]
 def invalid_kit_turn(messages,definitions):
     failed_turns.append(True)
@@ -292,7 +387,7 @@ with patch('app.coach.allowed',return_value=True),patch('app.coach.provider',ret
     try:coach_chat.answer(uid,'How far did I run?',kit=True,turn=invalid_kit_turn)
     except ValueError as error:assert str(error)=='Kit could not verify that answer. Try again.'
     else:raise AssertionError('Unsafe model answer must not reach the client')
-assert len(failed_turns)==1
+assert len(failed_turns)==2
 bad_refs=[]
 for prose,reason in [('{e9:0}.','Unknown or mismatched numeric reference'),('{e2:2}.','Unknown or mismatched numeric reference'),
                      ('{e2:0} miles.','Unsupported text attached to numeric reference')]:
@@ -325,6 +420,25 @@ try:
     else:raise AssertionError('Fixture validator should reject direct digits')
 finally:capture_hooks.end()
 assert captured=={'raw_model_json':text,'validation_error_type':'ValueError','validation_error':'Unverified numeric symbol'}
+class DetailedFake(FakeAnswer):
+    rejected=json.dumps({'verdict':'The result was {e2:0} carbs and seventy grams of fat.'})
+    def _gemini_turn(self,messages,definitions,*,system=None):return [],self.rejected,{}
+    def checked_answer(self,raw,evidence,*,kit=False):
+        return coach_chat._kit_prose(raw['verdict'],[{'evidence_id':'e2','display_value':'124 mi','label':'Run distance'}])
+detailed=DetailedFake();detailed_hooks=RejectionDiagnostics(detailed);detail_capture=detailed_hooks.begin()
+try:
+    _,detail_text,_=detailed._gemini_turn([],[])
+    try:detailed.checked_answer(detailed._json(detail_text),[],kit=True)
+    except ValueError:pass
+    else:raise AssertionError('Unsupported adjacent word should be rejected')
+    detailed.rejected='{"verdict":"corrected answer"}'
+    detailed._gemini_turn([],[])  # a correction must not overwrite the rejected raw response in diagnostics
+finally:detailed_hooks.end()
+assert detail_capture['raw_model_json']==detail_text
+assert detail_capture['validation_detail']=={'kind':'placeholder_neighbor','side':'after','neighbor':'carbs',
+    'offending_snippet':'{e2:0} carbs and seventy grams of fat.'}
+assert coach_chat._kit_retry_feedback(coach_chat.KitValidationError('Unsupported text attached to numeric reference',detail_capture['validation_detail'])) \
+    == "Unexpected adjacent word 'carbs' on the after side of a numeric placeholder."
 malformed='{"verdict":'
 fake._gemini_turn=lambda messages,definitions,**kwargs:([],malformed,{})
 captured=capture_hooks.begin()
