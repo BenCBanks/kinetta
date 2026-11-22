@@ -81,7 +81,7 @@ _KIT_MEASUREMENT_PATHS = {
     'food_log': {('foods',_INDEX,field) for field in _NUTRIENTS},
     'nutrition_days_vs_goal': {('days',_INDEX,field) for field in ('logged_kcal','goal_kcal','difference_kcal')} | {('logged_days',)},
     'strength_history': {('sets',_INDEX,field) for field in ('reps','kg','secs')} | {('summary_by_exercise',_INDEX,field) for field in ('completed_sets','max_recorded_kg','max_recorded_reps','recorded_volume_kg')},
-    'goals': {('nutrition',field) for field in ('kcal_target','protein_target','carbs_target','fat_target','fiber_target','sodium_target_mg','sugar_target_g','saturated_fat_target_g')} | {('activity_goals',_INDEX,'target')},
+    'goals': {('nutrition',field) for field in ('kcal_target','protein_target','carbs_target','fat_target','fiber_target','sodium_target_mg','sugar_target_g','saturated_fat_target_g')},
     'gear': {('gear',_INDEX,'distance_m')},
     'resting_energy': {('days',_INDEX,'resting_kcal')},
     'stored_foods': {('records',_INDEX,'totals',field) for field in _NUTRIENTS} | {('records',_INDEX,'per_serving',field) for field in _NUTRIENTS} | {('records',_INDEX,field) for field in _NUTRIENTS},
@@ -102,14 +102,27 @@ def _kit_path_allowed(tool, path):
 
 
 # These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
-_PLACEHOLDER_WORDS_BEFORE = frozenset('is was are were be been from with covered recorded measured logged at of compared'.split())
-_PLACEHOLDER_WORDS_AFTER = frozenset('was is are were be been from with compared previously currently overall before after today yesterday'.split())
+_PLACEHOLDER_CONNECTIVES = frozenset('about around roughly to and or from of vs versus'.split())
+_PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
+_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('is was are were be been from with covered recorded measured logged at of compared'.split())
+_PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('was is are were be been from with compared previously currently overall before after today yesterday'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
 
 
+def _kit_numeric_symbol(char):
+    code=ord(char)
+    return (unicodedata.numeric(char,None) is not None or unicodedata.category(char) in {'No','Nd'}
+            or code==0x1F51F or 0x2460<=code<=0x24FF or 0x2776<=code<=0x2793 or 0x1F100<=code<=0x1F10F)
+
+
 def _normalise_kit_prose(text):
-    text=unicodedata.normalize('NFKC',text)
-    return ''.join(char for char in text if unicodedata.category(char)!='Cf' and not unicodedata.category(char).startswith('M'))
+    def without_marks(value):
+        return ''.join(char for char in value if unicodedata.category(char)!='Cf' and not unicodedata.category(char).startswith('M'))
+    text=without_marks(text)
+    # Check original symbols too: NFKC can turn Roman/enclosed numerals into plain letters.
+    if any(_kit_numeric_symbol(char) for char in PLACEHOLDER.sub('',text)):
+        raise ValueError('Unverified numeric symbol')
+    return without_marks(unicodedata.normalize('NFKC',text))
 
 
 def _placeholder_boundary_ok(context, *, before):
@@ -144,12 +157,15 @@ def _kit_prose(text, facts):
     """Only digits are guaranteed to come from validated, app-rendered placeholders; wording is not verified."""
     text=_normalise_kit_prose(text)
     remainder=PLACEHOLDER.sub('',text)
-    if any(char.isdigit() for char in remainder) or any(char in remainder for char in '{}'):
+    if any(_kit_numeric_symbol(char) for char in remainder) or any(char in remainder for char in '{}'):
         raise ValueError('Unverified digit or malformed reference')
     matches=list(PLACEHOLDER.finditer(text))
-    for match in matches:
+    for i,match in enumerate(matches):
         before,after=text[:match.start()],text[match.end():]
-        if not _placeholder_boundary_ok(before,before=True) or not _placeholder_boundary_ok(after,before=False):
+        left_range=i>0 and text[matches[i-1].end():match.start()].strip() in _PLACEHOLDER_RANGES
+        right_range=i+1<len(matches) and text[match.end():matches[i+1].start()].strip() in _PLACEHOLDER_RANGES
+        if (not left_range and not _placeholder_boundary_ok(before,before=True)
+                or not right_range and not _placeholder_boundary_ok(after,before=False)):
             raise ValueError('Unsupported text attached to numeric reference')
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
@@ -201,6 +217,7 @@ def _kit_fact(tool, data, path, value, units):
     if 'average_per_logged_day' in path: label=f'Average daily {label.lower()}'
     elif 'known_totals' in path: label=f'Known total {label.lower()}'
     elif 'totals' in path or 'totals_by_sport' in path: label=f'Total {label.lower()}'
+    elif 'per_serving' in path: label=f'{label} per serving'
     metric=units=='metric';display=str(value)
     if field=='distance_m':
         factor,unit=(1000,'km') if metric else (1609.344,'mi')
@@ -306,9 +323,11 @@ the application-formatted value and its app-generated fact label, which must cit
 the same evidence result. Use zero-based indexes into the facts array, at most three facts. Every fact must cite
 an exact finite numeric field from a successful current-turn tool result and its matching value; the app supplies
 labels, rounding and account units. Keep a placeholder beside only whitespace, simple punctuation or an approved
-connective. Before references, connectives are is/was/are/were/be/been/from/with/covered/recorded/measured/logged/at/of/compared; after them, was/is/are/were/be/been/from/with/compared/previously/currently/overall/before/after/today/yesterday. Do not attach another unit, currency, ratio or arithmetic. Digits outside placeholders
+connective. Both sides also allow about/around/roughly/to/and/or/from/of/vs/versus. A hyphen, en dash or em dash
+may join two placeholders as a range; never use one as a sign before a value. Before references, connectives are is/was/are/were/be/been/from/with/covered/recorded/measured/logged/at/of/compared; after them, was/is/are/were/be/been/from/with/compared/previously/currently/overall/before/after/today/yesterday. Do not attach another unit, currency, ratio or arithmetic expression. Digits outside placeholders
 and in follow-up questions are rejected; wording and number words are not verified.
 Only cite measurement fields, not IDs, dates, names, strings, unknown values, unlogged-day counts or metadata.
+Generic activity goal targets are not supported as numeric facts; nutrition targets are supported.
 Use totals/known_totals/average_per_logged_day accurately; known totals may omit unknown nutrients.
 Keep a general answer useful without invented personal facts. If current evidence cannot answer the question,
 say so directly and briefly; do not manufacture a verdict or measurement. Missing data is not zero.

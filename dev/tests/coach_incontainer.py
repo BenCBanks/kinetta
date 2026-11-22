@@ -136,8 +136,8 @@ assert normalised['verdict']=='Recorded: 124 mi run distance.'
 # Both references resolve, so arithmetic/ratio tests fail on their boundary, not an absent fact.
 boundary_raw={**number_raw,'facts':number_raw['facts']*2}
 for prose in [
-    '-{e2:0}.','{e2:0} - {e2:1}.','{e2:0} km.','{e2:0},km','{e2:0} USD',
-    '{e2:0}, km','{e2:0}, USD','{e2:0}, percentage','{e2:0} percentage','{e2:0} per cent','{e2:0} ratio {e2:1}','{e2:0} to {e2:1}',
+    '-{e2:0}.','{e2:0} + {e2:1}.','{e2:0} − {e2:1}.','–{e2:0}.','{e2:0}—.','{e2:0} km.','{e2:0},km','{e2:0} USD',
+    '{e2:0}, km','{e2:0}, USD','{e2:0}, percentage','{e2:0} percentage','{e2:0} per cent','{e2:0} ratio {e2:1}',
     '{e2:0}:{e2:1}','{e2:0} (km)','($ {e2:0})','{e2:0}\u200b (km)',
     '-\u200b{e2:0}','-\u034f{e2:0}','{e2:0}\u034f (km)',
     '{e9:0}.','{e2:2}.','{e1:0}.','{e2:-1}.','{e2:0!r}.','{e2:0.__class__}.',
@@ -147,9 +147,36 @@ for prose in [
     try:coach_chat.checked_answer({**boundary_raw,'verdict':prose},number_evidence,kit=True)
     except ValueError:pass
     else:raise AssertionError(('invalid digit slot boundary/reference',prose))
-word_text='A couple sessions, thrice this month, May thirtieth, Roman numeral Ⅳ, a third, and twice.'
+word_text='A couple sessions, thrice this month, May thirtieth, Roman numeral IV, a third, and twice.'
 word_answer=coach_chat.checked_answer({**number_raw,'verdict':word_text},number_evidence,kit=True)
-assert word_answer['verdict']==word_text.replace('Ⅳ','IV'),'number words are outside the digit guarantee; NFKC normalized the numeral'
+assert word_answer['verdict']==word_text,'number words are outside the digit guarantee'
+# Unicode numeric properties and the requested enclosed/keycap blocks fail before compatibility folding.
+for symbol in ['🔟','Ⅳ','½','一','1️⃣',*(chr(n) for lo,hi in [(0x2460,0x24FF),(0x2776,0x2793),(0x1F100,0x1F10F)] for n in range(lo,hi+1))]:
+    try:coach_chat.checked_answer({**number_raw,'verdict':f'Recorded {symbol} workouts.'},number_evidence,kit=True)
+    except ValueError:pass
+    else:raise AssertionError(('Unverified Unicode number',symbol))
+assert coach_chat.checked_answer({**number_raw,'verdict':'Keep going 🏁.'},number_evidence,kit=True)['verdict']=='Keep going 🏁.'
+# Natural connecting words work on either side; dash ranges require two validated endpoints.
+for word in 'about around roughly to and or from of vs versus'.split():
+    for prose in [f'{word} {{e2:0}}.',f'{{e2:0}} {word} {{e2:1}}.']:
+        result=coach_chat.checked_answer({**boundary_raw,'verdict':prose},number_evidence,kit=True)
+        assert result['verdict']==prose.replace('{e2:0}','124 mi run distance').replace('{e2:1}','124 mi run distance')
+for join in ['-', ' – ', ' — ']:
+    result=coach_chat.checked_answer({**boundary_raw,'verdict':'{e2:0}'+join+'{e2:1}.'},number_evidence,kit=True)
+    assert result['verdict']=='124 mi run distance'+join+'124 mi run distance.'
+    try:coach_chat.checked_answer({**number_raw,'verdict':'{e2:0}'+join+'{e9:1}.'},number_evidence,kit=True)
+    except ValueError:pass
+    else:raise AssertionError('Range endpoint must resolve to a validated fact')
+# Recipe servings keep their scope in both the displayed fact and the sentence.
+serving_raw={**number_raw,'facts':[{'evidence_id':'e2','path':['records',0,'per_serving','protein_g'],'value':80}]}
+serving=coach_chat.checked_answer(serving_raw,[profile_evidence,{'evidence_id':'e2','tool':'stored_foods','data':{'records':[{'per_serving':{'protein_g':80}}]}}],kit=True)
+assert serving['facts'][0]['label']=='Protein per serving' and '80 g protein per serving' in serving['verdict']
+# Generic goal targets have no single unit/meaning; remove that path until a formatter exists.
+assert not coach_chat._kit_path_allowed('goals',['activity_goals',0,'target'])
+goal_raw={**number_raw,'facts':[{'evidence_id':'e2','path':['activity_goals',0,'target'],'value':80}]}
+try:coach_chat.checked_answer(goal_raw,[profile_evidence,{'evidence_id':'e2','tool':'goals','data':{'activity_goals':[{'target':80}]}}],kit=True)
+except ValueError:pass
+else:raise AssertionError('Unsupported generic goal target cannot become a fact')
 wrapped=coach_chat.checked_answer({**number_raw,'verdict':'({e2:0}).'},number_evidence,kit=True)
 assert wrapped['verdict']=='(124 mi run distance).'
 
