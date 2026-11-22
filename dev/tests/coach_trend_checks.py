@@ -36,7 +36,7 @@ def run():
         empty = trend()
         check(empty['observed_days'] == 0 and empty['unknown_days'] == 7 and empty['slope_per_day'] is None,
               'empty measurements stay unknown; no invented flat slope')
-        check(empty['uncertain'] and len(empty['uncertainty_reasons']) == 2, 'empty has sparse and missing flags')
+        check(empty['uncertain'] and len(empty['uncertainty_reasons']) == 3, 'empty has undefined, sparse and missing flags')
         check(all(day['value'] is None for day in trend(metric='protein_g')['days']), 'unlogged food is unknown')
         check(all(day['value'] == 0 for day in trend(metric='workouts')['days']), 'zero means no recorded workouts only')
         check(trend(end='9999-12-31', window=366)['calendar_days'] == 366, 'max window and date do not overflow')
@@ -71,12 +71,21 @@ with db.connect() as c:
         check(duration['slope_per_day'] == 10 and duration['duration_elapsed_fallbacks'] == 1, 'duration fallback exposed')
         check(trend(metric='protein_g')['slope_per_day'] == 10, 'protein slope from daily totals')
         check(trend(metric='kcal')['slope_per_day'] == 100, 'calorie slope from daily totals')
-        check(trend(metric='workouts')['slope_per_day'] == 0, 'stable recorded count is a real zero slope')
+        constant = trend(metric='workouts')
+        check(constant['slope_per_day'] == 0 and constant['residual_rms'] == 0 and not constant['uncertain'],
+              'complete constant series has zero slope/residual and no uncertainty reasons')
         check(trend(b)['records'] == 1 and trend(b)['days'][3]['value'] == 99999, 'other account only sees own workout')
         check(trend(b, metric='protein_g')['days'][3]['value'] == 999, 'other account only sees own food')
-        check(trend(b)['slope_per_day'] is None and trend(b)['uncertain'], 'single observation has no slope')
+        single = trend(b)
+        check(single['observed_days'] == 1 and single['unknown_days'] == 6 and single['slope_per_day'] is None
+              and single['residual_rms'] is None and single['observed_span_days'] is None,
+              'single known day has undefined slope, residual and observed fit span')
+        check('Slope is undefined with fewer than two known daily observations.' in single['uncertainty_reasons'],
+              'single-day result explicitly explains why slope is undefined')
         sparse = trend(window=2)
-        check(sparse['slope_per_day'] == 100 and sparse['uncertain'], 'two-day slope has explicit sparse flag')
+        check(sparse['slope_per_day'] == 100 and sparse['uncertain'] and len(sparse['days']) == 2
+              and sparse['start'] == '2021-03-16' and sparse['end'] == '2021-03-17',
+              'minimum two-day window includes exactly its dates and has explicit sparse flag')
         sql('''
 from app import db
 from psycopg.types.json import Jsonb
@@ -113,6 +122,16 @@ with db.connect() as c:
  c.execute("DELETE FROM food_entries WHERE user_id=%s AND day='2021-03-15'",(uid,))
  for i,value in enumerate([0,100,0,100,0,100,0]):
   c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) VALUES(%s,'2001-01-01'::date+%s,'Variable meal',100,%s)",(uid,i,value))
+ for i,value in enumerate([100,100,100,1000,100,100,100]):
+  c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) VALUES(%s,'2003-01-01'::date+%s,'Outlier fixture',100,%s)",(uid,i,value))
+ c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) SELECT %s,'2020-01-01'::date+i,'Leap-year fixture',200,10+2*i FROM generate_series(0,365) AS i",(uid,))
+ for stamp,distance in [
+  ('2020-03-08T04:59:59Z',9999),('2020-03-08T05:00:00Z',100),('2020-03-09T03:59:59Z',200),
+  ('2020-03-09T04:00:00Z',400),('2020-03-10T03:59:59Z',500),('2020-03-10T04:00:00Z',9999),
+  ('2020-11-01T03:59:59Z',9999),('2020-11-01T04:00:00Z',100),('2020-11-02T04:59:59Z',200),
+  ('2020-11-02T05:00:00Z',400),('2020-11-03T04:59:59Z',500),('2020-11-03T05:00:00Z',9999),
+  ('2020-11-01T05:30:00Z',50),('2020-11-01T06:30:00Z',50)]:
+  c.execute("INSERT INTO activities(user_id,sport,name,source,start_time,distance_m,moving_s) VALUES(%s,'run','DST edge fixture','manual',%s,%s,10)",(uid,stamp,distance))
  c.execute("INSERT INTO activities(user_id,sport,name,source,start_time,distance_m,moving_s) SELECT %s,'run','Many fictional workouts','manual','2002-01-01T12:00:00Z',10,20 FROM generate_series(1,105)",(uid,))
 ''')
         check(True, 'real read-only/RLS identity, no writes, role restoration, Health consent and food-only guards')
@@ -131,6 +150,23 @@ with db.connect() as c:
         check(variable['slope_per_day'] == 0 and variable['uncertain'] and len(variable['uncertainty_reasons']) == 1,
               'complete variable series is flagged even when fitted slope is zero')
         check(math.isclose(variable['residual_rms'], math.sqrt(120000/49)), 'variation is deterministic RMS residual')
+        outlier = trend(metric='protein_g', end='2003-01-07')
+        check([d['value'] for d in outlier['days']] == [100,100,100,1000,100,100,100]
+              and outlier['slope_per_day'] == 0 and outlier['observed_days'] == 7, 'outlier is retained, not trimmed away')
+        check(outlier['uncertain'] and outlier['uncertainty_reasons'] == [
+              'Daily variation around the fitted line exceeds its end-to-end change.']
+              and math.isclose(outlier['residual_rms'], 900*math.sqrt(6)/7), 'outlier triggers the visible variation rule')
+        year = trend(metric='protein_g', window=366, end='2020-12-31')
+        check(len(year['days']) == year['observed_days'] == year['records'] == 366
+              and year['start'] == '2020-01-01' and year['days'][59]['day'] == '2020-02-29',
+              'maximum 366-day window includes the whole leap year without truncation')
+        check(year['days'][0]['value'] == 10 and year['days'][-1]['value'] == 740
+              and year['slope_per_day'] == 2 and not year['uncertain'] and not year['truncated'],
+              '366-day fit preserves exact aggregate values and slope')
+        for end,values,slope in [('2020-03-09',[300,900],600),('2020-11-02',[400,900],500)]:
+            dst = trend(window=2, end=end)
+            check([d['value'] for d in dst['days']] == values and dst['slope_per_day'] == slope,
+                  f'{end}: 23/25-hour DST day boundaries and repeated hour use local calendar dates: {dst}')
         many = trend(end='2002-01-02', window=2)
         check(many['records'] == 105 and many['days'][0]['value'] == 1050 and not many['truncated'],
               'daily aggregates include every record beyond a page limit')

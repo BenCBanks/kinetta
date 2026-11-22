@@ -208,6 +208,7 @@ class AccountTools:
             residual = math.sqrt(sum((y - mean_y - slope * (x - mean_x))**2 for x, y in points) / count)
             span = points[-1][0] - points[0][0]
         reasons = []
+        if count < 2: reasons.append('Slope is undefined with fewer than two known daily observations.')
         if count < 7: reasons.append('Fewer than seven known daily observations.')
         if count < r.window: reasons.append('Some calendar days have no complete measurement.')
         if residual is not None and residual > max(abs(slope) * span, 1e-9):
