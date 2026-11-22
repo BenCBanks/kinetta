@@ -463,9 +463,9 @@ async function removeItem(d, it, set) {
 function cookSteps(d) {
   const added = d.items.length > 0 || d.known.kcal != null;
   const steps = [
-    [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it the way you\'d text it, or tap + to scan a barcode or photograph the label.'],
-    [added, 'Say how it\'s measured', `Set the number of servings in the whole recipe, or enter its cooked weight and log grams. ${d.serving==='one'?`This recipe makes ${d.serving_count} serving${d.serving_count==1?'':'s'}.`:d.weight_g?`The whole recipe weighs ${gfmt(d.weight_g)}.`:'Add the total cooked weight before logging grams.'}`],
-    [false, 'Choose whether to log a portion', 'Tap Done to choose a meal today and the amount you ate, or save it for later. Reuse it from My Recipes any day.'],
+    [added, 'Add what goes in', 'Add ingredients or scan a label.'],
+    [added, 'Say how it\'s measured', 'Set servings or cooked weight.'],
+    [false, 'Choose whether to log a portion', 'Choose a meal and portion, or save for later.'],
   ];
   const now = added ? 2 : 0;
   return `<ol class="card cook-steps" aria-label="How recipes work">${steps.map(([done, title, sub], i) =>

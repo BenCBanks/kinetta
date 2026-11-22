@@ -1090,7 +1090,7 @@ const MeCard=(()=>{
       }
       if(sharingState?.share_achievements===true)items.push(ProfileLayout.earnedBadgeShareItem(live));
       if(typeof weeklyRecapShareItem==='function'){const week=await weeklyRecapShareItem().catch(()=>null);if(!live())return;if(week)items.push(week);}
-      if(meCard){meCard.note='Private workouts count, but stay hidden';meCard.description='Totals include your private workouts. Friends see the totals, not the workouts.';}
+      if(meCard){meCard.note='Private workouts count in totals; friends don’t see them.';meCard.description='Private workouts count in totals; friends don’t see them.';}
       if(live())ShareSheet.open({items});
     }catch(error){if(live())toast((error.message||'Couldn’t prepare your pictures.')+' Tap Share to try again.');}
     finally{openingShare=false;}
