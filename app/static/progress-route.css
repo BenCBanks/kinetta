@@ -251,6 +251,7 @@
 .progress-home-heading h1 { margin:0; font-size:32px; font-weight:700; line-height:1.15; letter-spacing:-.03em; transition:font-size var(--motion-settle) var(--motion-ease),line-height var(--motion-settle) var(--motion-ease); }
 .progress-home-heading:not(.is-compact) h1 { align-self:flex-start; }
 .progress-home-heading.is-compact { min-height:44px; padding-block:0; background:var(--card); border-bottom-color:var(--line); }
+.progress-home-heading.is-large-text { position:static; }
 .progress-home-heading.is-compact h1 { font-size:17px; line-height:1.2; font-weight:600; letter-spacing:-.01em; }
 .progress-home-heading .acts { flex-wrap:nowrap; gap:8px; }
 .progress-home #p-combined-week { margin-bottom:8px; }
