@@ -773,8 +773,15 @@ const U = {
   swu: () => (imp() ? '/100yd' : '/100m'),
   temp: (c) => c == null ? '–' : Math.round(imp() ? c * 9 / 5 + 32 : c) + '°',
   weight: (kg) => kg == null ? '' : (imp() ? kg * 2.20462 : kg).toFixed(1),
-  // Summary and hero durations: hours and minutes only ('1h 7m', '3h', '20m'); under a minute shows seconds ('45s').
-  time: (s) => { if (s == null || !isFinite(s)) return '–'; const t = Math.round(s / 60); if (s > 0 && s < 59.5) return `${Math.round(s)}s`; const h = Math.floor(t / 60), m = t % 60; return h ? `${h.toLocaleString()}h${m ? ` ${m}m` : ''}` : `${m}m`; },
+  // Summary durations use days/hours from 100h; exact workout times remain in dur().
+  time: (s, spoken = false) => {
+    if (s == null || !isFinite(s)) return '–';
+    const part = (n, unit) => spoken ? `${n.toLocaleString()} ${unit}${n === 1 ? '' : 's'}` : `${n.toLocaleString()}${{day:'d',hour:'h',minute:'m',second:'s'}[unit]}`;
+    if (s >= 100 * 3600) { const hours = Math.floor(s / 3600); return `${part(Math.floor(hours / 24), 'day')} ${part(hours % 24, 'hour')}`; }
+    if (s > 0 && s < 59.5) return part(Math.round(s), 'second');
+    const t = Math.round(s / 60), h = Math.floor(t / 60), m = t % 60;
+    return h ? `${part(h, 'hour')}${m ? ' ' + part(m, 'minute') : ''}` : part(m, 'minute');
+  },
 };
 function dur(s, long = false) {
   if (s == null || !isFinite(s)) return '–';

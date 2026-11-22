@@ -1601,7 +1601,7 @@ const progressTimeStep = (max, n) => {
   const raw = max / n, minutes = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1200].find(m => m * 60 >= raw);
   return minutes ? minutes * 60 : niceStep(raw / 3600, 1) * 3600;
 };
-const progressAxisTime = seconds => { const h = Math.floor(seconds / 3600), m = Math.round((seconds % 3600) / 60); return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`; };
+const progressAxisTime = seconds => U.time(seconds);
 const progressPeriodLabel = (d, period) => period === 'week' ? progressWeekLabel(d)
   : period === 'month' ? d.toLocaleDateString([], d.getFullYear() === new Date().getFullYear() ? {month: 'long'} : {month: 'long', year: 'numeric'}) : String(d.getFullYear());
 const progressPeriodTick = (d, period) => period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric'})
@@ -1698,7 +1698,7 @@ async function pMileage(body, q, {home=false}={}) {
     const footer=home?`<div class="progress-total-footer"><span class="progress-total-caption">${esc(`${label(cur)} · ${fmt(metricValue(cur))}`)}</span>${ProgressUI.rangeText(PPERIODS,period,{label:'Totals range',attribute:'progress-period'})}</div>`:'';
     box.innerHTML = `<div class="card progress-totals-card">${totalStats}
         ${paceMetric ? home?'':`<p class="small muted progress-pace-window">${period === 'week' ? 'Weekly averages · last 12 weeks' : period === 'month' ? 'Monthly averages · last 12 months' : 'Yearly averages'}</p>` : home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(metricValue(last)))} · ` : ''}best ${esc(label(bestEntry?.d || cur).replace('Week of ', 'week of '))}</p>`}
-        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">Distance ${U.du()}</th><th class="r">Moving time h/m/s</th><th class="r">Workouts</th><th class="r">Climb ${U.eu()}</th></tr></thead><tbody>
+        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">Distance ${U.du()}</th><th class="r">Moving time</th><th class="r">Workouts</th><th class="r">Climb ${U.eu()}</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(progressTableLabel(d, period))}</td>
           <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? U.time(val(d, 't')) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div>`:''}</div>${footer}</div>`;
     requestAnimationFrame(() => {
