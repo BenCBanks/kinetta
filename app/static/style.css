@@ -1803,6 +1803,11 @@ button.thread-food:active { opacity: .7; }
 .kit-facts>div {display:flex;justify-content:space-between;gap:14px;padding:6px 0;border-top:1px solid var(--line);}
 .kit-facts dt {color:var(--tx2);}
 .kit-facts dd {font-variant-numeric:tabular-nums;margin:0;overflow-wrap:anywhere;}
+.kit-weekly-review {margin:14px 0 0;}
+.kit-weekly-period {font-size:.875rem;color:var(--tx2);margin:0 0 12px;}
+.kit-weekly-review section {margin:12px 0 0;}
+.kit-weekly-review h3 {font-size:1rem;font-weight:600;line-height:1.35;margin:0 0 3px;}
+.kit-weekly-review section p {font-size:max(15px,.9375rem);line-height:1.45;margin:0;white-space:pre-line;overflow-wrap:anywhere;}
 .kit-action {display:flex;align-items:center;justify-content:space-between;min-height:44px;}
 .kit-action svg {width:16px;}
 .kit-memories p {white-space:pre-wrap;overflow-wrap:anywhere}
