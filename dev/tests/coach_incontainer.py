@@ -243,6 +243,50 @@ with patch('app.coach.allowed',return_value=True),patch('app.coach.provider',ret
     except ValueError as error:assert str(error)=='Kit could not verify that answer. Try again.'
     else:raise AssertionError('Unsafe model answer must not reach the client')
 assert len(failed_turns)==1
+bad_refs=[]
+for prose,reason in [('{e9:0}.','Unknown or mismatched numeric reference'),('{e2:2}.','Unknown or mismatched numeric reference'),
+                     ('{e2:0} miles.','Unsupported text attached to numeric reference')]:
+    try:coach_chat.checked_answer({**number_raw,'verdict':prose},number_evidence,kit=True)
+    except ValueError as error:bad_refs.append((str(error),prose))
+    else:raise AssertionError(('invalid numeric answer class passed',prose))
+assert [reason for reason,_ in bad_refs]==[
+    'Unknown or mismatched numeric reference','Unknown or mismatched numeric reference',
+    'Unsupported text attached to numeric reference']
+
+# The opt-in evaluator captures rejected JSON and exact validator errors without changing app output.
+import sys
+from app.kit_eval_diagnostics import RejectionDiagnostics,parse_case_ids,select_cases
+assert parse_case_ids(['a,b','c'])=={'a','b','c'}
+assert [case[0] for case in select_cases([('a',),('b',),('c',)],{'a','c'})]==['a','c']
+try:select_cases([('a',)],{'unknown'})
+except ValueError as error:assert 'unknown' in str(error)
+else:raise AssertionError('Unknown evaluation case IDs must fail before a run starts')
+class FakeAnswer:
+    def _gemini_turn(self,messages,definitions,*,system=None):
+        return [],json.dumps({'verdict':'You ran 99 miles.'}),{}
+    def _claude_turn(self,messages,definitions,*,system=None):return self._gemini_turn(messages,definitions,system=system)
+    def _json(self,text):return json.loads(text)
+    def checked_answer(self,raw,evidence,*,kit=False):raise ValueError('Unverified numeric symbol')
+fake=FakeAnswer();capture_hooks=RejectionDiagnostics(fake);captured=capture_hooks.begin()
+try:
+    _,text,_=fake._gemini_turn([],[])
+    try:fake.checked_answer(fake._json(text),[],kit=True)
+    except ValueError:pass
+    else:raise AssertionError('Fixture validator should reject direct digits')
+finally:capture_hooks.end()
+assert captured=={'raw_model_json':text,'validation_error_type':'ValueError','validation_error':'Unverified numeric symbol'}
+malformed='{"verdict":'
+fake._gemini_turn=lambda messages,definitions,**kwargs:([],malformed,{})
+captured=capture_hooks.begin()
+try:
+    _,text,_=fake._gemini_turn([],[])
+    try:fake._json(text)
+    except json.JSONDecodeError as error:expected_json_error=str(error)
+    else:raise AssertionError('Malformed fixture JSON should fail to parse')
+finally:capture_hooks.end()
+assert captured['raw_model_json']==malformed and captured['validation_error_type']=='JSONDecodeError'
+assert captured['validation_error']==expected_json_error
+print('Kit evaluation case filter and private rejection capture fixtures passed')
 print('Kit numeric prose: verified references, imperial/metric units, malformed/injected/unknown evidence and no paid retry PASS')
 
 plan = {'plan': {'unit': 'km'}, 'today': '2026-10-14', 'weeks': [{'workouts': [

@@ -7,14 +7,25 @@ import argparse,datetime as dt,hashlib,importlib.util,json,os,time,uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from app import db,coach_chat,ai_budget,ai_release
+from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
 
-p=argparse.ArgumentParser();p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,required=True);p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',required=True);p.add_argument('--candidate-commit',required=True);p.add_argument('--output',required=True);p.add_argument('--baseline-results');p.add_argument('--variant',choices=('both','baseline','candidate'),default='both');args=p.parse_args()
+p=argparse.ArgumentParser()
+p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,required=True)
+p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',required=True);p.add_argument('--candidate-commit',required=True)
+p.add_argument('--output',required=True);p.add_argument('--baseline-results')
+p.add_argument('--variant',choices=('both','baseline','candidate'),default='both')
+p.add_argument('--cases',action='append',metavar='ID',help='case ID; repeat or use comma-separated IDs')
+args=p.parse_args()
 if not args.accept_paid_calls or not 0<args.budget_usd<=5:p.error('Explicit paid authorization and budget up to $5 required')
 # Conservative request reservations leave a margin below the owner's total limit.
 os.environ['KINETTA_AI_DAILY_USD']=str(min(args.budget_usd*.9,4.5));os.environ['KINETTA_AI_USER_DAILY_MICROUSD']=str(round(args.budget_usd*.9*1e6));os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS']='400';os.environ['KINETTA_AI_DAILY_ATTEMPTS']='400'
 spec=importlib.util.spec_from_file_location('app._kit_baseline',args.baseline);baseline=importlib.util.module_from_spec(spec);spec.loader.exec_module(baseline)
 today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
+requested_cases=parse_case_ids(args.cases)
+try:selected_cases=select_cases(CASES,requested_cases)
+except ValueError as error:p.error(str(error))
+diagnostics=RejectionDiagnostics(coach_chat)
 try:
  with db.connect() as c:
   for suffix in ('a','b','health_off'):
@@ -46,6 +57,7 @@ try:
   c.execute("INSERT INTO training_plans(user_id,race,level,weeks,runs,long_day,start_day,race_day,unit,start_vol) VALUES (%s,'10k','beginner',12,3,6,%s,%s,'km',15)",(uid,today-dt.timedelta(days=14),today+dt.timedelta(days=70)))
  def run(item):
   index,variant,case=item;cid,question,expected,*rest=case;began=time.monotonic();answer=None;error=None
+  rejection=diagnostics.begin() if variant=='candidate' else None
   history=rest[0] if rest and isinstance(rest[0],list) else []
   options=(rest[1] if len(rest)>1 else {}) if rest and isinstance(rest[0],list) else (rest[0] if rest and isinstance(rest[0],dict) else {})
   case_uid=uids[2] if options.get('account')=='health-off' else uid
@@ -53,22 +65,24 @@ try:
    with ai_budget.scope(case_uid,feature='Kit evaluation '+variant):
     answer=(coach_chat.answer(case_uid,question,kit=True,history=history or None) if variant=='candidate' else baseline.answer(case_uid,question))
   except Exception as x:error=type(x).__name__+': '+str(x)[:350]
-  row={'case':cid,'variant':variant,'question':question,'history':history,'evaluation_account':'health-consent-off' if case_uid==uids[2] else 'primary','answer':answer,'error':error,'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
+  finally:
+   if variant=='candidate':diagnostics.end()
+  row={'case':cid,'variant':variant,'question':question,'history':history,'evaluation_account':'health-consent-off' if case_uid==uids[2] else 'primary','answer':answer,'error':error,'rejection':rejection if rejection and 'validation_error' in rejection else None,'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
   print(json.dumps({'case':cid,'variant':variant,'answered':answer is not None,'tool_coverage':row['tool_coverage'],'error':error}),flush=True)
   return row
  previous=json.loads(Path(args.baseline_results).read_text()) if args.baseline_results else {}
- reused=[r for r in previous.get('results',[]) if r['variant']=='baseline']
+ reused=[r for r in previous.get('results',[]) if r['variant']=='baseline' and (not requested_cases or r['case'] in requested_cases)]
  results.extend(reused)
  done={r['case'] for r in reused}
  variants=('baseline','candidate') if args.variant=='both' else (args.variant,)
- jobs=[(i,v,case) for i,case in enumerate(CASES) for v in variants if v!='baseline' or case[0] not in done]
+ jobs=[(i,v,case) for i,case in enumerate(selected_cases) for v in variants if v!='baseline' or case[0] not in done]
  with ThreadPoolExecutor(max_workers=2) as pool:
   for result in pool.map(run,jobs):
    results.append(result)
    with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
-   report={'reviewed':False,'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(CASES),'baseline_results_reused':bool(args.baseline_results),'results':results,'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],'owner_qualitative_review':'pending','food_comparison':'separate food-estimation release rules are unchanged'}
+   report={'reviewed':False,'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(selected_cases),'selected_case_ids':[case[0] for case in selected_cases],'baseline_results_reused':bool(args.baseline_results),'results':results,'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],'owner_qualitative_review':'pending','food_comparison':'separate food-estimation release rules are unchanged'}
    Path(args.output).write_text(json.dumps(report,default=str,indent=2))
- print(json.dumps({'complete':True,'cases':len(CASES),'responses':len(results),'cost':report['reserved_or_estimated_usd'],'requests':report['requests']}),flush=True)
+ print(json.dumps({'complete':True,'cases':len(selected_cases),'responses':len(results),'cost':report['reserved_or_estimated_usd'],'requests':report['requests']}),flush=True)
 finally:
  with db.connect() as c:
   for uid in uids:c.execute('DELETE FROM users WHERE id=%s',(uid,))
