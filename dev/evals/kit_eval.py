@@ -6,7 +6,7 @@ same seeded database for baseline/candidate. Write output outside the public rep
 import argparse,datetime as dt,hashlib,importlib.util,json,os,time,uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from app import db,coach_chat,ai_budget,ai_release
+from app import db,coach,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,

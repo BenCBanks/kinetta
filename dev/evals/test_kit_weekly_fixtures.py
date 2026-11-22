@@ -1,7 +1,10 @@
 """No-provider contracts for the weekly Progress request and every seeded case."""
 import datetime as dt
+import ast
 import uuid
+from pathlib import Path
 
+from app import coach
 from kit_cases import CASES
 from kit_weekly_fixtures import (
     WEEKLY_CONTEXT, WEEKLY_QUESTION, evaluation_case_passed, fixture_spec, is_expected_health_consent_refusal,
@@ -86,7 +89,12 @@ def check_weekly_answer_uses_provider_and_returns_result():
 
 
 def check_health_consent_refusal_is_a_pass_without_provider_use():
-    refusal='Review Apple Health and Garmin data sharing with Kit under Me > Connections first.'
+    refusal=coach.HEALTH_NO
+    evaluator=Path(__file__).with_name('kit_eval.py').read_text()
+    tree=ast.parse(evaluator)
+    assert any(isinstance(node,ast.ImportFrom) and node.module=='app'
+               and 'coach' in {alias.name for alias in node.names} for node in ast.walk(tree)), \
+        'The evaluator must import coach for the consent-off refusal message.'
     accepted=is_expected_health_consent_refusal(
         'weekly-health-consent-off',variant='candidate',answer=None,
         error='ValueError: '+refusal,provider_requests=0,refusal_message=refusal)

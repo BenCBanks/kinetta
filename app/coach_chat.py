@@ -298,7 +298,15 @@ def _kit_fact(tool, data, path, value, units, *, weekly=False):
     if weekly:
         if field=='distance_m':label='Distance'
         elif field in {'duration_s','moving_s','elapsed_s'}:label='Time'
+        elif field in {'workouts','activities'}:label='Workouts'
+        elif field=='recorded_workout_days':label='Workout days'
+        elif field=='food_log_days':label='Food days'
+        elif field in {'scheduled_run_days','scheduled_days_with_recorded_run'}:label='Planned run days'
+        elif field=='comparable_days':label='Comparison days'
+        elif field=='comparable_target_subtotal':label=f'{"Protein" if "protein_g" in path else "Calories"} target'
+        elif field=='full_range_difference':label=f'{"Protein" if "protein_g" in path else "Calories"} target difference'
         elif 'protein_g' in path:label='Protein'
+        elif 'kcal' in path:label='Calories'
     metric=units=='metric';display=str(value)
     if field=='distance_m':
         factor,unit=(1000,'km') if metric else (1609.344,'mi')
@@ -769,7 +777,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     if retry_calls:raise ValueError('Kit could not verify that answer. Try again.')
                     try:checked=checked_answer(_json(retry_text),evidence,kit=True)
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
-            if kit:
+            if kit and not weekly_review:
                 # The UI consumes only interpretation. Keep the validated source fields internal
                 # to answer construction instead of serializing the same prose three times.
                 checked.pop('verdict',None);checked.pop('reason',None)

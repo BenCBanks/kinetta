@@ -249,12 +249,27 @@ weekly_raw={'verdict':'Your recorded distance increased.','reason':'That recorde
  'selection':None,'actions':[],'follow_ups':['What should I keep doing?','How can I make food logging easier?']}
 weekly_checked=coach_chat.checked_answer(weekly_raw,weekly_evidence,kit=True,weekly_review=True)
 assert list(weekly_checked['weekly_review'])==['what_went_well','what_to_change','next_week_focus']
+try:
+    coach_chat.checked_answer({key:value for key,value in weekly_raw.items() if key!='verdict'},
+                              weekly_evidence,kit=True,weekly_review=True)
+except ValueError:pass
+else:raise AssertionError('Weekly Kit schema requires the model to return a verdict')
 assert weekly_checked['facts'][0]['label']=='Distance'
 assert weekly_checked['facts'][0]['display_value']=='7.5 mi'
 assert weekly_checked['facts'][1]['label']=='Distance'
 assert weekly_checked['facts'][1]['display_value']=='2.5 mi'
 assert weekly_checked['facts'][2]['label']=='Protein'
 assert weekly_checked['facts'][2]['display_value']=='180 g'
+weekly_workouts_label,_=coach_chat._kit_fact('period_compare',{'current':{'totals':{'workouts':4}}},
+    ['current','totals','workouts'],4,'metric',weekly=True)
+assert weekly_workouts_label=='Workouts'
+for tool,data,path,value,label in [
+    ('consistency',{'recorded_workout_days':3},['recorded_workout_days'],3,'Workout days'),
+    ('consistency',{'food_log_days':2},['food_log_days'],2,'Food days'),
+    ('nutrition_adequacy',{'summary':{'kcal':{'comparable_day_subtotal':2400}}},
+     ['summary','kcal','comparable_day_subtotal'],2400,'Calories'),
+]:
+    assert coach_chat._kit_fact(tool,data,path,value,'metric',weekly=True)[0]==label
 time_label,time_value=coach_chat._kit_fact('period_compare',{'current':{'known_totals':{'duration_s':5400}}},
     ['current','known_totals','duration_s'],5400,'metric',weekly=True)
 assert (time_label,time_value)==('Time','1h 30m')
@@ -337,6 +352,7 @@ assert [name for name,_ in weekly_calls]==['profile','period_compare','consisten
 assert all(args=={'start':'2026-03-02','end':'2026-03-08'} for _,args in weekly_calls[1:])
 assert len(weekly_turns)==1 and weekly['weekly_period']=={'start':'2026-03-02','end':'2026-03-08','label':'Mar 2–8, 2026'}
 assert weekly['weekly_review']['what_went_well']=='You kept a useful training rhythm.'
+assert weekly['verdict']==weekly_raw['verdict'] and weekly['reason']==weekly_raw['reason']
 assert weekly['interpretation']==weekly_raw['verdict']+' '+weekly_raw['reason']
 
 # Invalid weekly prose fails after the single answer call; unlike ordinary Kit, it cannot buy a retry.
