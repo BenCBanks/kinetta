@@ -307,10 +307,16 @@ def checked_answer(raw, evidence, *, kit=False):
     follow_ups=[]
     for question in (answer.follow_ups if kit else []):
         question=question.strip()
-        if kit: question=_kit_prose(question,[])
-        if len(question)>80 or re.search(r'\d|https?://|\b(?:unlogged days|cannot be assessed|cannot be evaluated)\b',question,re.I):
-            raise ValueError('Kit follow-up is too long or unsuitable as a question chip')
-        if question and question not in follow_ups: follow_ups.append(question)
+        if not question:
+            continue
+        try:
+            if kit: question=_kit_prose(question,[])
+            if len(question)>80 or re.search(r'\d|https?://|\b(?:unlogged days|cannot be assessed|cannot be evaluated)\b',question,re.I):
+                raise ValueError('Kit follow-up is too long or unsuitable as a question chip')
+        except ValueError:
+            # A malformed or unsafe chip must not discard an otherwise verified answer.
+            continue
+        if question not in follow_ups: follow_ups.append(question)
     by_id = {e['evidence_id']: e for e in evidence if 'error' not in e}
     profile=next((e.get('data',{}) for e in by_id.values() if e.get('tool')=='profile'),{}) if kit else {}
     units=profile.get('units')
