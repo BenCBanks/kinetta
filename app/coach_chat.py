@@ -449,6 +449,14 @@ def _kit_retry_prompt(error):
             'without numeric claims. Keep every digit in verdict/reason inside a validated placeholder.')
 
 
+def _weekly_truncation_retry_prompt():
+    return ('Your previous weekly-review JSON was truncated. Return one complete JSON object now, with no Markdown '
+            'or explanation outside it. Include verdict, reason as an empty string, facts (at most three), weekly_review '
+            'with all three one-sentence fields (what_went_well, what_to_change, next_week_focus), selection:null, '
+            'actions:[], and follow_ups (at most two). Use only existing evidence and put every digit in a validated '
+            'placeholder; do not request tools.')
+
+
 KIT_SYSTEM = CORE_SYSTEM + '''
 After tool calls return JSON only:
 {"verdict":"Direct answer to the actual question.","reason":"The strongest reason, using {e2:0} when helpful.",
@@ -524,6 +532,9 @@ This answer was explicitly started by tapping “Review my week”. Return the s
 "weekly_review" object with exactly these three one-sentence fields: "what_went_well", "what_to_change",
 and "next_week_focus". Set "reason" to an empty string; the verdict is the overall summary. Keep the review
 brief and evidence-led. At most three facts support the whole answer, and at most two short follow-up questions.
+Return one complete JSON object with exactly these top-level keys before adding any prose:
+{"verdict":"...","reason":"","facts":[],"weekly_review":{"what_went_well":"...","what_to_change":"...","next_week_focus":"..."},"selection":null,"actions":[],"follow_ups":[]}
+Do not stream or abbreviate the object; all three weekly fields are required even when evidence is thin.
 The app already supplied profile, period_compare, consistency and nutrition_adequacy evidence for exactly the last
 seven completed account-local dates and the preceding seven. The range ends yesterday in the profile's timezone,
 not the provider's current date. Do not request tools or use previous-chat numbers as current facts. Treat a longer
@@ -553,10 +564,12 @@ def _weekly_period(today):
 
 def _gemini_turn(messages, definitions, *, system=SYSTEM):
     declarations = [{'name': t['name'], 'description': t['description'], 'parametersJsonSchema': t['input_schema']} for t in definitions]
+    weekly = system == KIT_WEEKLY_SYSTEM
     body = {'systemInstruction': {'parts': [{'text': system}]}, 'contents': messages,
-            'tools': [{'functionDeclarations': declarations}], 'generationConfig': {'temperature': .2, 'maxOutputTokens': 2500}}
+            'tools': [{'functionDeclarations': declarations}],
+            'generationConfig': {'temperature': .2, 'maxOutputTokens': 4096 if weekly else 2500}}
     model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
-    if system == KIT_SYSTEM and model == 'gemini-3.8-flash':
+    if system in (KIT_SYSTEM, KIT_WEEKLY_SYSTEM) and model == 'gemini-3.8-flash':
         body['generationConfig']['thinkingConfig'] = {'thinkingLevel':'LOW'}
     if not declarations:
         body.pop('tools')
@@ -664,8 +677,29 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
             try: checked = checked_answer(_json(text), evidence, kit=kit,weekly_review=weekly_review)
             except ValueError as error:
-                if kit:
-                    if weekly_review: raise ValueError('Kit could not verify that weekly review. Try again.') from None
+                if not kit: raise
+                if weekly_review:
+                    # Gemini can spend the whole first response budget thinking and leave a
+                    # partial JSON object. A single shorter, no-tools correction keeps the
+                    # normal validator and digit guarantee in force without a tool round.
+                    if not isinstance(error, json.JSONDecodeError):
+                        raise ValueError('Kit could not verify that weekly review. Try again.') from None
+                    messages.append({'role':'user','parts':[{'text':_weekly_truncation_retry_prompt()}]} if provider=='gemini'
+                                    else {'role':'user','content':_weekly_truncation_retry_prompt()})
+                    try:
+                        with ai_budget.scope(uid):
+                            retry_calls,retry_text,retry_tokens=turn(messages,[])
+                    except ValueError:
+                        raise ValueError('Kit could not verify that weekly review. Try again.') from None
+                    if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
+                    if not coach.allowed(uid):raise ValueError(coach.off())
+                    for key in usage:usage[key]+=int(retry_tokens.get(key) or 0)
+                    if retry_calls:raise ValueError('Kit could not verify that weekly review. Try again.')
+                    try:
+                        checked=checked_answer(_json(retry_text),evidence,kit=True,weekly_review=True)
+                    except ValueError:
+                        raise ValueError('Kit could not verify that weekly review. Try again.') from None
+                else:
                     if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
                     if not coach.allowed(uid):raise ValueError(coach.off())
                     health_tools={'profile','nutrition_summary','meal_options','meal_combinations','food_log',
@@ -688,7 +722,6 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     if retry_calls:raise ValueError('Kit could not verify that answer. Try again.')
                     try:checked=checked_answer(_json(retry_text),evidence,kit=True)
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
-                else: raise
             if kit:
                 # The UI consumes only interpretation. Keep the validated source fields internal
                 # to answer construction instead of serializing the same prose three times.

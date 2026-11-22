@@ -261,6 +261,29 @@ assert numeric_weekly_chip['follow_ups']==[], 'A model-written digit in a weekly
 placeholder_week={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'Your recorded distance was {e2:0}.'}}
 rendered_week=coach_chat.checked_answer(placeholder_week,weekly_evidence,kit=True,weekly_review=True)
 assert rendered_week['weekly_review']['what_went_well']=='Your recorded distance was '+rendered_week['facts'][0]['display_value']+'.', 'Weekly numeric prose may only use app-rendered verified placeholders'
+
+# A captured provider response that stops mid-object gets one shorter, no-tools retry;
+# the retry still goes through the same weekly validator and placeholder contract.
+weekly_retry_round=0
+def weekly_retry_tool(self,name,args,*,connection=None):
+    if name=='profile': return {'units':'metric','today':'2026-11-22'}
+    if name=='period_compare': return {'current':{'totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}}}
+    if name=='consistency': return {'recorded_workout_days':3,'food_log_days':2}
+    if name=='nutrition_adequacy': return {'summary':{'protein_g':{'comparable_days':2,'comparable_day_subtotal':180.0}}}
+    raise AssertionError('Unexpected weekly fixture tool '+name)
+def weekly_retry_turn(messages,definitions):
+    global weekly_retry_round
+    weekly_retry_round+=1
+    assert definitions==[], 'Weekly answer and its one correction attempt never receive tools'
+    if weekly_retry_round==1:
+        return [], '{"verdict":"The week covered {e2:0} across {e3:0}.","reason":"","facts":[{"evidence_id":"e2","path":["current","totals","distance_m"],"value":12000},{"evidence_id":"e3","path":["recorded_workout_days"],"value":3}', {'promptTokenCount':10,'candidatesTokenCount':80,'thoughtsTokenCount':300}
+    assert any('truncated' in part.get('text','').lower() for message in messages if isinstance(message.get('parts'),list) for part in message['parts']), 'The retry explains the truncated JSON'
+    return [], json.dumps(weekly_raw), {'promptTokenCount':12,'candidatesTokenCount':90,'thoughtsTokenCount':20}
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
+     patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=weekly_retry_tool):
+    weekly_retried=coach_chat.answer(uid,'Review my week',kit=True,turn=weekly_retry_turn,weekly_review=True)
+assert weekly_retry_round==2 and weekly_retried['weekly_review']['what_went_well']==weekly_raw['weekly_review']['what_went_well']
+assert weekly_retried['usage']['candidatesTokenCount']==170 and weekly_retried['usage']['thoughtsTokenCount']==320
 try:coach_chat.checked_answer(weekly_raw,weekly_evidence,kit=True)
 except ValueError:pass
 else:raise AssertionError('Ordinary Kit answers cannot smuggle in weekly-review sections')
