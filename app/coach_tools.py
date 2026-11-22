@@ -77,11 +77,22 @@ class PersonalRecords(Empty):
     limit: int = Field(default=20, ge=1, le=50, strict=True)
 
 
+class PaceEffort(Range):
+    limit: int = Field(default=30, ge=1, le=50, strict=True)
+
+    @model_validator(mode='after')
+    def bounded_year(self):
+        if (self.end - self.start).days >= 366:
+            raise ValueError('Use at most 366 inclusive calendar days')
+        return self
+
+
 TOOLS = {
     'profile': (Empty, 'Read the current account time zone, units and nutrition targets; no identifying information.'),
     'consistency': (ConsistencyRange, 'Own recorded workout and food-log days over at most 366 inclusive local dates. Excludes today/future dates. Compare recorded run attendance only on dates covered by the active training plan, not prescribed workout completion. Missing plan or food-log commitment stays unknown; no health conclusions.'),
     'nutrition_adequacy': (AdequacyRange, 'Compare own recorded daily calories and protein with saved calorie goals and protein target over at most 366 inclusive local dates. Exclude today/future dates. Missing/partial logs, unknown nutrients and targets stay explicit; do not call this medically adequate or a weight-loss recommendation. Targets are current saved settings, not historical target records.'),
     'personal_records': (PersonalRecords, 'Read recent strictly faster-than-prior personal records from your own stored best efforts, grouped by exact sport and distance. The first effort at a sport/distance is a baseline, not an improvement. Returns newest improvements first, bounded to the requested limit, with exact total count and truncation status; no other account records.'),
+    'pace_vs_effort': (PaceEffort, 'Compare your own recorded running pace with the app-recorded effort measure over at most 366 inclusive account-local dates. Today and future dates are excluded. Returns bounded pace/effort pairs and exact sample coverage; missing measurements stay explicit. Effort is a calculated heart-rate training-load value, not self-reported exertion. Does not infer easy/hard intent, recovery or causes.'),
     'period_compare': (ComparisonRange, 'Compare own recorded workouts, distance, duration and protein with the preceding equal-length period. Inclusive account-local dates, at most 366 days; ranges including today or future dates are rejected. Exact aggregates, missing counts and known subtotals; protein changes require logging on every day in both periods. No causal or medical conclusions.'),
     'trend': (Trend, 'Daily own recorded distance, duration, workout count, protein or calories over 2–366 inclusive local calendar days ending on end. Exact daily aggregates and least-squares slope per calendar day over known days only. Missing measurements/intake stay unknown. Uncertainty flags describe sparse, missing or variable observations, not statistical confidence or health status.'),
     'nutrition_summary': (Range, 'Exact SQL totals and average calories/protein/carbs/fat per logged day, inclusive dates. Missing days are unlogged, not zero intake. Use for averages since training began.'),
@@ -464,6 +475,55 @@ class AccountTools:
             'truncated':total>len(recent),
             'limitations':['Only strictly faster stored efforts count as personal records; the first stored effort at a sport/distance is a baseline, not a PR.',
                 'Efforts are grouped by the exact stored sport and distance; incomplete or unimported activity history is not inferred.']}
+
+    def _pace_vs_effort(self, c, r):
+        tz = self._profile(c, Empty()).get('tz') or db.DEFAULT_TZ
+        today = self._local_today(tz)
+        requested_days = (r.end - r.start).days + 1
+        finished_end = min(r.end, today - dt.timedelta(days=1))
+        finished_days = max(0, (finished_end - r.start).days + 1)
+        excluded_days = requested_days - finished_days
+        if not finished_days:
+            totals = {'run_count':0, 'pace_known_count':0, 'effort_known_count':0,
+                      'paired_count':0, 'missing_pace_count':0, 'missing_effort_count':0,
+                      'elapsed_time_fallbacks':0}
+            rows = []
+        else:
+            totals = c.execute('''SELECT count(*) AS run_count,
+                count(*) FILTER (WHERE distance_m > 0 AND coalesce(moving_s, elapsed_s) > 0) AS pace_known_count,
+                count(*) FILTER (WHERE effort IS NOT NULL) AS effort_known_count,
+                count(*) FILTER (WHERE distance_m > 0 AND coalesce(moving_s, elapsed_s) > 0 AND effort IS NOT NULL) AS paired_count,
+                count(*) FILTER (WHERE distance_m IS NULL OR distance_m <= 0 OR coalesce(moving_s, elapsed_s) IS NULL OR coalesce(moving_s, elapsed_s) <= 0) AS missing_pace_count,
+                count(*) FILTER (WHERE effort IS NULL) AS missing_effort_count,
+                count(*) FILTER (WHERE moving_s IS NULL AND elapsed_s > 0 AND distance_m > 0 AND effort IS NOT NULL) AS elapsed_time_fallbacks
+                FROM activities WHERE user_id=%s AND sport='run' AND NOT lift_open
+                  AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s''',
+                (self._uid, tz, r.start, finished_end)).fetchone()
+            rows = c.execute('''SELECT (start_time AT TIME ZONE %s)::date AS day,
+                coalesce(moving_s, elapsed_s)::double precision /
+                    (distance_m::double precision / 1000.0) AS pace_s_per_km,
+                effort::double precision AS effort
+                FROM activities WHERE user_id=%s AND sport='run' AND NOT lift_open
+                  AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s
+                  AND distance_m > 0 AND coalesce(moving_s, elapsed_s) > 0 AND effort IS NOT NULL
+                ORDER BY start_time DESC, id DESC LIMIT %s''',
+                (tz, self._uid, tz, r.start, finished_end, r.limit)).fetchall()
+        samples = [{'day':row['day'], 'pace_s_per_km':float(row['pace_s_per_km']),
+                    'effort':float(row['effort'])} for row in rows]
+        paired_count = int(totals['paired_count'])
+        return {'start':r.start, 'end':r.end, 'today':today, 'timezone':tz,
+            'requested_days':requested_days, 'finished_days':finished_days, 'excluded_days':excluded_days,
+            'coverage':{'run_count':int(totals['run_count']),
+                'pace_known_count':int(totals['pace_known_count']),
+                'effort_known_count':int(totals['effort_known_count']),
+                'paired_count':paired_count, 'missing_pace_count':int(totals['missing_pace_count']),
+                'missing_effort_count':int(totals['missing_effort_count']),
+                'elapsed_time_fallbacks':int(totals['elapsed_time_fallbacks'])},
+            'samples':samples, 'returned_count':len(samples), 'truncated':paired_count>len(samples),
+            'limitations':['Only finished, recorded runs from this account are included; imports may be incomplete.',
+                'Pace uses moving time, falling back to elapsed time only when moving time is missing. Pace is seconds per kilometre.',
+                'Effort is the app-calculated heart-rate training-load value, not self-reported exertion. Missing effort is unknown.',
+                'Pairs show observed measurements only; they do not establish easy/hard intent, recovery, fitness change or causes.']}
 
     def _training_plan(self, c, _):
         # Reuse the engine and completion rules while substituting its DB connection with the bound RLS connection.
