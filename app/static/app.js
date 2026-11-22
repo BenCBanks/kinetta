@@ -126,7 +126,7 @@ for (const route of lazyRouteBundles) {
 }
 let lazyRouteGeneration = 0;
 let socialWarmupScheduledOwner = null, socialWarmupOwner = null;
-const kitEntryPaths = new Set(['/activity','/progress','/track','/plan','/food']);
+const kitEntryPaths = new Set(['/progress','/track','/plan','/food']);
 const kitWarmups = new Set();
 const routeStylePromises = new Map(), routeStylesLoaded = new Set();
 function loadRouteStyle(asset) {
@@ -451,6 +451,20 @@ function aiOffer(feature) {
 }
 // Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
 function kitChatOn() { return !!App.me?.kit_chat && !App.me?.ai_paused && aiCan('coach'); }
+// Keep Home's small Kit entry in the shell; the full chat bundle loads only after the person opens it.
+function homeKitEntry(el) {
+  const heading=el?.querySelector('#feed-top .shell-topbar-root');if(!heading||!App.me)return;
+  const link=el.querySelector('[data-kit-entry]')||document.createElement('a'),enabled=kitChatOn(),placement=new URLSearchParams(location.search).get('kit-home')==='row'?'row':'header';
+  link.className='kit-help home-kit-entry';link.setAttribute('data-kit-entry','');link.innerHTML=svg('sparkle');
+  link.href=enabled?'/me/kit?from=activity':'/food?add=1';link.setAttribute('aria-label',enabled?'Ask Kit':'Add food');link.title=enabled?'Ask Kit':'Add food';
+  const row=el.querySelector('.home-quiet-actions');
+  if(placement==='row'&&row){
+    heading.removeAttribute('data-kit-home-placement');link.classList.add('home-quiet-kit');if(row&&!row.contains(link))row.append(link);if(link.parentElement===heading)link.remove();
+  }else{
+    row?.querySelector('.home-quiet-kit')?.remove();link.classList.remove('home-quiet-kit');heading.setAttribute('data-kit-home-placement','header');
+    const title=heading.querySelector('h1');if(title&&!heading.contains(link))title.after(link);if(link.parentElement!==heading)heading.append(link);
+  }
+}
 // Calls render(data) at once with cached data (if any), then again with fresh data when it arrives.
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
 function screenHit(path) {
@@ -748,7 +762,14 @@ globalThis.applyActivityMapTransition=applyActivityMapTransition;
 // doesn't wait for the server (2026-10-16: on a phone each request is a noticeable pause).
 function warmTabs() {
   if (!App.me || !navigator.onLine) return;
-  prefetch('/api/progress/volume?period=week');
+  if(location.pathname==='/activity'){
+    const tab=document.querySelector('nav.tabs [data-tab="progress"]');
+    if(tab){
+      let warmed=false;
+      const warm=()=>{if(warmed||!App.me||!navigator.onLine)return;warmed=true;for(const event of ['pointerenter','pointerdown','focusin'])tab.removeEventListener(event,warm);prefetch('/api/progress/volume?period=week');};
+      for(const event of ['pointerenter','pointerdown','focusin'])tab.addEventListener(event,warm,{passive:true});
+    }
+  }else prefetch('/api/progress/volume?period=week');
   if (typeof warmFeed === 'function') warmFeed();
 }
 
@@ -1543,12 +1564,12 @@ function render(options) {
   // A cached Home feed is already useful on a warm return; don't keep the route
   // behind its background feed and challenge refreshes.
   const warmHomeReady=warmHomeCache&&result&&typeof result.then==='function';
-  if(path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path);
+  if(path!=='/me'&&path!=='/activity'&&typeof KitChat!=='undefined')KitChat.entry(el,path);
   requestAnimationFrame(()=>{if(!current())return;if(warmHomeReady)restoreSectionDisclosures(el,key);if(!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);}if(warmHomeReady)App.pageReady=true;});
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);}interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;if(!warmHomeCache)restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:warmHomeCache&&touched?scrollY:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
+    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;if(!warmHomeCache)restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:warmHomeCache&&touched?scrollY:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/me'&&path!=='/activity'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {

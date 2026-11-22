@@ -12,10 +12,10 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   const c=await browser.newContext({viewport:size,colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_'+state,password:pw}})).status(),200);
   await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
-  const p=await c.newPage(),errors=[],writes=[],searches=[],qrRequests=[];
+  const p=await c.newPage(),errors=[],writes=[],searches=[],qrRequests=[],homeKitAssets=[],homeProgressWarmups=[];
   if(options.captureLayoutShifts)await p.addInitScript(()=>{window.__friendShifts=[];try{new PerformanceObserver(list=>window.__friendShifts.push(...list.getEntries().map(entry=>({value:entry.value,sources:(entry.sources||[]).map(source=>source.node?.id||source.node?.tagName||'')})))).observe({type:'layout-shift',buffered:true});}catch{}});
   p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
-  p.on('request',r=>{if(new URL(r.url()).pathname==='/static/vendor/qrcode.js')qrRequests.push(r.url());});
+  p.on('request',r=>{const u=new URL(r.url());if(u.pathname==='/static/vendor/qrcode.js')qrRequests.push(r.url());if(u.pathname==='/static/kit.js')homeKitAssets.push(r.url());if(u.pathname==='/api/progress/volume'&&u.searchParams.get('period')==='week')homeProgressWarmups.push(r.url());});
   p.on('request',r=>{const u=new URL(r.url());if(u.origin===base&&u.pathname==='/api/people/search')searches.push(u.searchParams.get('q')||'');});
   await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(q.method()==='GET'&&u.pathname==='/api/groups')return r.fulfill({json:[{id:'00000000-0000-4000-8000-000000000091',title:'Fictional walk group',event_date:'2026-12-01',time_zone:'UTC',member_count:2,closed:false},{id:'00000000-0000-4000-8000-000000000092',title:'Closed fictional group',event_date:'2026-12-02',time_zone:'UTC',member_count:2,closed:true}]});if(q.method()==='GET'&&u.pathname==='/api/friends'){const response=await r.fetch();if(options.holdFriends)await new Promise(resolve=>{options.releaseFriends=resolve;});let data=await response.json();if(options.alphabetical)data={...data,friends:data.friends.map((person,i)=>({...person,name:`${String.fromCharCode(65+i%26)} Fictional Friend ${String(i+1).padStart(2,'0')}`}))};if(options.noRequests)data={...data,incoming:[],outgoing:[]};return r.fulfill({response,json:data});}if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname==='/api/friends'||u.pathname.startsWith('/api/friends/zz_test_fc_')||u.pathname.startsWith('/api/people/zz_test_fc_'))return r.continue();return r.fulfill({json:{}});}return r.continue();});
   if(state==='typical'&&initialPath.includes('find=1')){
@@ -27,7 +27,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.goto(base+initialPath);if(friends&&!options.holdFriends)await friends;if(suggested)await suggested;
   const readySelector=homeRoute?'#feed-top .acts':initialPath.includes('find=1')?'.friends-page #fr-invite':'#fr-own-list';await until(p,arg=>arg.held?!!document.querySelector(arg.selector):App.pageReady&&!!document.querySelector(arg.selector),homeRoute?'Home ready':'Friends ready',{selector:readySelector,held:options.holdFriends||options.holdSuggestions});await p.evaluate(()=>document.fonts.ready.then(()=>true));
   if(suggested)await until(p,()=>{const box=document.querySelector('#fr-suggest');return box&&((box.parentElement.hidden)||box.querySelector('.pym-row,.friend-state-message'));},'suggestions loaded');
-  return{c,p,errors,writes,searches,qrRequests};
+  return{c,p,errors,writes,searches,qrRequests,homeKitAssets,homeProgressWarmups};
  }
  async function close(c){await c.close();contexts.splice(contexts.indexOf(c),1);}
  async function closeSheet(p){await p.locator('[data-close]').last().click();await until(p,()=>!document.querySelector('[role="dialog"]'),'sheet closed');}
@@ -208,7 +208,13 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   }
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE.startsWith('home-search'))for(const width of [390,330])for(const theme of ['light','dark']){
    const name=`home-search-${width}-${theme}`;if(process.env.KINETTA_FRIEND_CASE&&process.env.KINETTA_FRIEND_CASE!=='home-search'&&process.env.KINETTA_FRIEND_CASE!==name)continue;
-   const {c,p,errors,writes}=await open('empty',theme,{width,height:844},'/activity'),entry=p.locator('.home-quiet-actions a.home-find-friends');
+   const {c,p,errors,writes,homeKitAssets,homeProgressWarmups}=await open('empty',theme,{width,height:844},'/activity'),entry=p.locator('.home-quiet-actions a.home-find-friends');
+   await p.waitForTimeout(1700);assert.deepEqual(homeKitAssets,[],'Home entry is in the shell; the full Kit module stays unloaded until opened');assert.deepEqual(homeProgressWarmups,[],'Home does not fetch Progress volume before Progress intent');
+   const kit=p.locator('#feed-top [data-kit-entry]');assert.equal(await kit.count(),1,'Home Kit/Add food action renders from the initial bundle');
+   await p.evaluate(()=>{App.me.ai_ok=true;App.me.kit_chat=true;App.me.coach=true;homeKitEntry(document.querySelector('#page'));});assert.equal(await kit.getAttribute('href'),'/me/kit?from=activity','enabled Home Kit opens its dedicated route');
+   const loadedKit=p.waitForRequest(request=>new URL(request.url()).pathname==='/static/kit.js');await kit.click();await p.waitForURL('**/me/kit?from=activity');await loadedKit;assert.equal(homeKitAssets.length,1,'full Kit code loads only after the Home action is opened');await p.evaluate(()=>go('/activity'));await until(p,()=>location.pathname==='/activity'&&App.pageReady,'Home restored after Kit route');
+   const progress=p.locator('nav.tabs [data-tab="progress"]');const progressRead=p.waitForResponse(response=>{const u=new URL(response.url());return u.pathname==='/api/progress/volume'&&u.searchParams.get('period')==='week';});await progress.click();await progressRead;await until(p,()=>location.pathname==='/progress'&&App.pageReady,'Progress route opened after intent');
+   await p.goto(base+'/activity');await until(p,()=>App.pageReady&&!!document.querySelector('#feed-top .acts'),'Home restored after Progress route');
    assert.equal(await entry.getAttribute('aria-label'),'Find friends','Home exposes a named friend-search action');assert.equal(await entry.innerText(),'Find friends','the quiet action keeps its visible label');
    const action=await entry.boundingBox(),header=await p.locator('#feed-top .top').boundingBox(),titleLines=await p.locator('#feed-top h1').evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getClientRects().length;});
    assert(action&&action.width>=44&&action.height>=44,'the friend search has a 44px touch target');assert(header&&header.width<=width+1,`Home header fits the ${width}px viewport`);assert.equal(titleLines,1,'Home title stays on one line');
