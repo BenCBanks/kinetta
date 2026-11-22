@@ -297,6 +297,16 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+      # Match the build job's asset pipeline. asset_build.py needs esbuild from
+      # mobile/node_modules to reproduce the stamped index.html asset hashes.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install pinned asset build dependencies
+        working-directory: mobile
+        run: npm ci
       - uses: actions/download-artifact@v4
         with:
           name: Kinetta-simulator
