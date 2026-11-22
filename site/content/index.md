@@ -4,7 +4,7 @@ Edit the text below each heading. Keep section keys stable unless the matching t
 
 ## home-page-title
 
-Your meals and workouts, with optional Kit coaching.
+Your meals, workouts and Kit's coaching, together.
 
 ## home-hero-kicker
 
@@ -12,11 +12,11 @@ Food and training, one app
 
 ## home-hero-title
 
-Your meals and workouts, with optional Kit coaching.
+Your meals, workouts and Kit's coaching, together.
 
 ## home-hero-description
 
-With a Kinetta account, bring meals and workouts together. Kit's optional AI can help explain your numbers when the server supports it and you turn it on. Kit is for adults 18+.
+Kit, your coach, helps explain what the numbers mean.
 
 ## home-hero-action
 
