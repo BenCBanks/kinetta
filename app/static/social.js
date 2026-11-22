@@ -31,9 +31,8 @@ function orderedReactionKinds(state){
   const first=new Map(reactionOrder(state).map((kind,index)=>[kind,index]));
   return REACTIONS().filter(([kind])=>state.reactions[kind]>0).sort((a,b)=>(state.reactions[b[0]]-state.reactions[a[0]])||((first.get(a[0])??Infinity)-(first.get(b[0])??Infinity)));
 }
-function reactionSummary(state,feedFooter=false){
-  const all=orderedReactionKinds(state),total=all.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0);
-  const visibleKinds=all;
+function reactionSummary(state,feedFooter=false,omitKind=null){
+  const all=orderedReactionKinds(state),visibleKinds=omitKind?all.filter(([kind])=>kind!==omitKind):all,total=visibleKinds.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0);
   const shown=visibleKinds.slice(0,3),extra=visibleKinds.length-shown.length;
   if(feedFooter){
     const html=shown.map(([kind])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
@@ -43,17 +42,17 @@ function reactionSummary(state,feedFooter=false){
   }
   const html=shown.map(([kind,label])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
   const visible=shown.map(([kind,,emoji])=>emoji+reactionNumber(state.reactions[kind])).join('')+(extra?'+'+extra:'');
-  const names=all.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
-  const label=all.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
-  return{used:all,html,label,total};
+  const names=visibleKinds.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
+  const label=visibleKinds.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
+  return{used:visibleKinds,html,label,total};
 }
 function reactionButtons(aid,s,detail=false,compact=false,moment=null,groupTarget=null){
-  const feedFooter=!detail&&!compact&&!moment&&!groupTarget,selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter);
+  const feedFooter=!detail&&!compact&&!moment&&!groupTarget,selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter,detail?selected:null);
   const choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏',triggerLabel=selected?`Remove your ${emoji} reaction`:'React',triggerContent=selected?reactionMark(selected):reactionAddIcon()+'<span>React</span>';
   const attrs=REACTIONS().map(([k])=>'data-count-'+k+'="'+(counts[k]||0)+'"').join(' ');
   const choices=REACTIONS().map(([kind,label])=>'<button type="button" role="menuitemradio" aria-label="React with '+esc(label)+'" aria-checked="'+(selected===kind)+'" data-react="'+kind+'" tabindex="-1">'+reactionMark(kind)+'</button>').join('');
   const target=groupTarget?'data-group-reaction-group data-group-id="'+esc(groupTarget.id)+'" '+(groupTarget.updateId?'data-group-update-id="'+esc(groupTarget.updateId)+'"':'data-group-week="1"'):moment?'data-moment-reaction-group data-moment-owner="'+esc(moment.owner)+'" data-moment-week="'+esc(moment.week)+'"':'data-reaction-group data-aid="'+aid+'"';
-  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+(feedFooter?' data-feed-footer="true"':'')+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
+  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+(feedFooter?' data-feed-footer="true"':'')+(detail?' data-detail-reactions="true"':'')+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
     '<div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="'+esc(triggerLabel)+'" aria-pressed="'+!!selected+'" aria-haspopup="menu" aria-expanded="false">'+triggerContent+'</button></div>'+
     '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.total?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
     '<div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">'+choices+'</div></div></div>';
@@ -108,7 +107,7 @@ function wireReactionGroup(group,aid,changed){
     const triggerContent=selected?reactionMark(selected):`${reactionAddIcon()}<span>React</span>`;
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    const compact=reactionSummary(state,group.dataset.feedFooter==='true');
+    const compact=reactionSummary(state,group.dataset.feedFooter==='true',group.dataset.detailReactions==='true'?state.my_reaction:null);
     if(summary._marks!==compact.html){summary.innerHTML=compact.html;summary._marks=compact.html;}
     count.hidden=!compact.total;count.disabled=busy;count.setAttribute('aria-label',compact.label);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
