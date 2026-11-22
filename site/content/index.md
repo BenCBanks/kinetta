@@ -4,7 +4,7 @@ Edit the text below each heading. Keep section keys stable unless the matching t
 
 ## home-page-title
 
-Your meals, workouts and Kit's coaching, together.
+Your meals and workouts, with optional Kit coaching.
 
 ## home-hero-kicker
 
@@ -12,11 +12,11 @@ Food and training, one app
 
 ## home-hero-title
 
-Your meals, workouts and Kit's coaching, together.
+Your meals and workouts, with optional Kit coaching.
 
 ## home-hero-description
 
-Kinetta logs your meals and your workouts together, and Kit, your coach, tells you what the numbers mean.
+With a Kinetta account, bring meals and workouts together. Kit's optional AI can help explain your numbers when the server supports it and you turn it on. Kit is for adults 18+.
 
 ## home-hero-action
 
@@ -79,7 +79,7 @@ Badges you earn step by step.
 
 ## home-badges-description
 
-Each sport has its own tracks. Progress through named levels, then earn a medal when you complete a track.
+Explore achievement tracks for running, riding, walking/hiking, swimming and lifting. See what you've earned and what's next.
 
 ## home-challenges-kicker
 
