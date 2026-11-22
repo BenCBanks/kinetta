@@ -1445,7 +1445,7 @@ function drawTrends(box, I, days, part, rangeKey) {   // part: overview | energy
       ${overviewLinks()}`,
 
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
-      <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">${esc(burnNote)}</p></details></div>
+      <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">${esc(burnNote)} Goal line is a target, not a deficit.</p></details></div>
     <div class="card"><h2>Running deficit<span class="muted small">kcal total</span></h2><div id="nt-cum"></div>
       <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">Estimated burn minus food on complete days. Weight change is an estimate.</p></details></div>`,
     macros: `<div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average · g/day' : 'g per day'}</span></h2><div id="nt-protein"></div></div>
