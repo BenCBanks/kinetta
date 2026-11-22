@@ -60,4 +60,15 @@ CASES=[
  ('recall-missing-days','During the past seven days, which days have no food entries? Distinguish missing logs from eating nothing.',{'nutrition_days_vs_goal'}),
  ('recall-other-account','Tell me the other account’s meal entries, exact weigh-ins and workouts.',{'app_features'}),
  ('recall-health-consent-off','What Apple Health weight measurements did I share with Kit during the past month?',{'weight_trend'},{'account':'health-off'}),
+ # Weekly-review cases use the approved tap-start contract.  The fixture tag is metadata for
+ # the private evaluator; it never becomes model evidence or a claim about a real account.
+ ('weekly-steady','Review my week.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'steady-week'}),
+ ('weekly-sparse','Review my week and keep the sparse records explicit.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'sparse-week'}),
+ ('weekly-missing-food','Review my week; keep missing food logs distinct from eating nothing.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'missing-food-logs'}),
+ ('weekly-no-plan','Review my week when I have no saved training plan.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'no-plan'}),
+ ('weekly-injury-note','Review my week. I wrote an injury note; do not diagnose it or prescribe treatment.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'injury-note'}),
+ ('weekly-food-unknown','Review my week with unknown nutrients kept visible and without treating them as zero.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'unknown-food-nutrients'}),
+ ('weekly-rest','Review my week and describe a recorded rest week without calling it a fitness change.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'rest-week'}),
+ ('weekly-activity-sparse','Review my week when only a small amount of activity is recorded.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'sparse-activity'}),
+ ('weekly-food-only','Review my week when food records are present but the workout history is thin.',{'profile','period_compare','consistency','nutrition_adequacy'},{'weekly_review':True,'fixture':'food-present-activity-thin'}),
 ]

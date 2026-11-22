@@ -1782,7 +1782,7 @@ button.thread-food:active { opacity: .7; }
 .kit-chat .thread-user p {font-size:max(15px,.95rem);}
 .kit-chat .thread-heading .kit-chat-actions {gap:8px;}
 .kit-answer>p {white-space:pre-line;overflow-wrap:anywhere;}
-.kit-answer .kit-verdict {font-size:max(16px,1rem);font-weight:600;line-height:1.45;margin:0;}
+.kit-answer .kit-verdict {font-size:max(16px,1rem);font-weight:700;line-height:1.45;margin:0;}
 .kit-answer .kit-reason {font-size:max(15px,.9375rem);line-height:1.5;color:var(--tx2);margin:8px 0 0;}
 .kit-answer-followups {margin-top:16px;}
 .kit-answer-followups .kit-action {width:auto;max-width:100%;min-height:44px;padding:6px 14px;border:1px solid var(--line);border-radius:18px;color:var(--tx);font-size:.9375rem;line-height:1.35;text-decoration:none;overflow-wrap:anywhere;}

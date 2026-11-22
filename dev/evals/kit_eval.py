@@ -60,14 +60,16 @@ try:
   rejection=diagnostics.begin() if variant=='candidate' else None
   history=rest[0] if rest and isinstance(rest[0],list) else []
   options=(rest[1] if len(rest)>1 else {}) if rest and isinstance(rest[0],list) else (rest[0] if rest and isinstance(rest[0],dict) else {})
+  weekly_review=bool(options.get('weekly_review'))
   case_uid=uids[2] if options.get('account')=='health-off' else uid
   try:
    with ai_budget.scope(case_uid,feature='Kit evaluation '+variant):
-    answer=(coach_chat.answer(case_uid,question,kit=True,history=history or None) if variant=='candidate' else baseline.answer(case_uid,question))
+    answer=(coach_chat.answer(case_uid,question,kit=True,history=history or None,weekly_review=weekly_review)
+            if variant=='candidate' else baseline.answer(case_uid,question))
   except Exception as x:error=type(x).__name__+': '+str(x)[:350]
   finally:
    if variant=='candidate':diagnostics.end()
-  row={'case':cid,'variant':variant,'question':question,'history':history,'evaluation_account':'health-consent-off' if case_uid==uids[2] else 'primary','answer':answer,'error':error,'rejection':rejection if rejection and 'validation_error' in rejection else None,'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
+  row={'case':cid,'variant':variant,'question':question,'history':history,'fixture':options.get('fixture'),'weekly_review':weekly_review,'evaluation_account':'health-consent-off' if case_uid==uids[2] else 'primary','answer':answer,'error':error,'rejection':rejection if rejection and 'validation_error' in rejection else None,'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
   print(json.dumps({'case':cid,'variant':variant,'answered':answer is not None,'tool_coverage':row['tool_coverage'],'error':error}),flush=True)
   return row
  previous=json.loads(Path(args.baseline_results).read_text()) if args.baseline_results else {}
