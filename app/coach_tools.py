@@ -6,6 +6,7 @@ Tool outputs are evidence; notes/names are untrusted data, never tool instructio
 import datetime as dt
 import math
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -58,7 +59,7 @@ class Trend(Empty):
 
 TOOLS = {
     'profile': (Empty, 'Read the current account time zone, units and nutrition targets; no identifying information.'),
-    'period_compare': (ComparisonRange, 'Compare own recorded workouts, distance, duration and protein with the preceding equal-length period. Inclusive account-local dates, at most 366 days. Exact aggregates, missing counts and known subtotals; protein changes require logging on every day in both periods. No causal or medical conclusions.'),
+    'period_compare': (ComparisonRange, 'Compare own recorded workouts, distance, duration and protein with the preceding equal-length period. Inclusive account-local dates, at most 366 days; ranges including today or future dates are rejected. Exact aggregates, missing counts and known subtotals; protein changes require logging on every day in both periods. No causal or medical conclusions.'),
     'trend': (Trend, 'Daily own recorded distance, duration, workout count, protein or calories over 2–366 inclusive local calendar days ending on end. Exact daily aggregates and least-squares slope per calendar day over known days only. Missing measurements/intake stay unknown. Uncertainty flags describe sparse, missing or variable observations, not statistical confidence or health status.'),
     'nutrition_summary': (Range, 'Exact SQL totals and average calories/protein/carbs/fat per logged day, inclusive dates. Missing days are unlogged, not zero intake. Use for averages since training began.'),
     'recent_runs': (Range, 'Recent running measurements including duration, distance, pace, heart rate, temperature and effort. At most 100 rows; exact aggregate counts report truncation. Easy effort is not inferred from missing data.'),
@@ -110,11 +111,16 @@ class AccountTools:
     def _profile(self, c, _):
         return c.execute('SELECT tz, units, max_hr, rest_hr, kcal_target, protein_target, carbs_target, fat_target FROM profile WHERE user_id = %s', (self._uid,)).fetchone() or {}
 
+    def _local_today(self, tz):
+        return dt.datetime.now(ZoneInfo(tz)).date()
+
     def _period_compare(self, c, r):
         days = (r.end - r.start).days + 1
         previous_end = r.start - dt.timedelta(days=1)
         previous_start = r.start - dt.timedelta(days=days)
         tz = self._profile(c, Empty()).get('tz') or db.DEFAULT_TZ
+        if r.end >= self._local_today(tz):
+            raise ValueError('Period comparisons require completed account-local days; exclude today and future dates.')
 
         def period(start, end):
             # Aggregate the full range in SQL; no row limit can silently undercount.
@@ -166,6 +172,7 @@ class AccountTools:
     def _trend(self, c, r):
         start = r.end - dt.timedelta(days=r.window - 1)
         tz = self._profile(c, Empty()).get('tz') or db.DEFAULT_TZ
+        today = self._local_today(tz)
         if r.metric in ('protein_g', 'kcal'):
             # Only these literal identifiers enter SQL; values and identity are bound.
             field = {'protein_g': 'protein_g', 'kcal': 'kcal'}[r.metric]
@@ -193,9 +200,11 @@ class AccountTools:
         for offset in range(r.window):
             day = start + dt.timedelta(days=offset)
             row = by_day.get(day, {})
-            known = row.get('known_total', 0 if r.metric == 'workouts' else None)
+            excluded = day >= today
+            known = row.get('known_total', 0 if r.metric == 'workouts' and not excluded else None)
             unknown = row.get('unknown_measurements', 0)
-            days.append({'day': day, 'value': known if not unknown else None, 'known_total': known,
+            days.append({'day': day, 'value': known if not unknown and not excluded else None,
+                         'known_total': known, 'excluded': excluded,
                          'records': row.get('records', 0), 'unknown_measurements': unknown})
         # Use actual calendar offsets, never compress gaps between observed days.
         points = [(i, row['value']) for i, row in enumerate(days) if row['value'] is not None]
@@ -208,13 +217,16 @@ class AccountTools:
             residual = math.sqrt(sum((y - mean_y - slope * (x - mean_x))**2 for x, y in points) / count)
             span = points[-1][0] - points[0][0]
         reasons = []
+        excluded_days = sum(row['excluded'] for row in days)
+        if excluded_days: reasons.append('Today and future account-local dates are excluded until the day finishes.')
         if count < 2: reasons.append('Slope is undefined with fewer than two known daily observations.')
         if count < 7: reasons.append('Fewer than seven known daily observations.')
-        if count < r.window: reasons.append('Some calendar days have no complete measurement.')
+        if count < r.window - excluded_days: reasons.append('Some finished calendar days have no complete measurement.')
         if residual is not None and residual > max(abs(slope) * span, 1e-9):
             reasons.append('Daily variation around the fitted line exceeds its end-to-end change.')
         return {'metric': r.metric, 'timezone': tz, 'start': start, 'end': r.end, 'calendar_days': r.window,
-                'days': days, 'observed_days': count, 'unknown_days': r.window - count,
+                'days': days, 'observed_days': count, 'unknown_days': r.window - count - excluded_days,
+                'excluded_days': excluded_days, 'today': today,
                 'records': sum(row['records'] for row in days), 'slope_per_day': slope,
                 'residual_rms': residual, 'observed_span_days': span,
                 'uncertain': bool(reasons), 'uncertainty_reasons': reasons, 'truncated': False,

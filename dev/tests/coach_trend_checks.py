@@ -2,6 +2,7 @@
 import math
 import os
 import subprocess
+from pathlib import Path
 from kc import Client, PW, person
 
 
@@ -172,6 +173,16 @@ with db.connect() as c:
               'daily aggregates include every record beyond a page limit')
         check(trend(metric='workouts', end='2002-01-02', window=2)['slope_per_day'] == -105,
               'negative recorded-count slope computed exactly')
+        sql(Path(__file__).with_name('coach_trend_clock_checks.py').read_text())
+        for metric, slope in [('distance_m',10.25),('duration_s',1.25),('protein_g',1.25),('kcal',100.125)]:
+            fractional = trend(metric=metric, window=3, end='2024-06-03')
+            check(fractional['slope_per_day'] == slope and fractional['days'][0]['value'] == slope,
+                  f'{metric} fractional aggregate and slope serialize as JSON numbers')
+        marker = 'fictional-private-error-marker'
+        status, body = a.post('/api/coach/tools', {'name':'trend','arguments':{**args,'metric':marker}})
+        check(status == 400 and body == {'detail':'Invalid tool request or record not found'}, 'invalid input is not echoed in error body')
+        logs = subprocess.run(['docker','logs',project+'-app-1'], capture_output=True, text=True, check=True)
+        check(marker not in logs.stdout + logs.stderr, 'invalid private argument does not enter server logs')
         print(f'Trend: {checks} SQL/schema/privacy checks PASS; no providers')
     finally:
         a.post('/api/account/delete', {'password': PW})
