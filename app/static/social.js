@@ -31,9 +31,8 @@ function orderedReactionKinds(state){
   const first=new Map(reactionOrder(state).map((kind,index)=>[kind,index]));
   return REACTIONS().filter(([kind])=>state.reactions[kind]>0).sort((a,b)=>(state.reactions[b[0]]-state.reactions[a[0]])||((first.get(a[0])??Infinity)-(first.get(b[0])??Infinity)));
 }
-function reactionSummary(state,feedFooter=false){
-  const all=orderedReactionKinds(state),total=all.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0);
-  const visibleKinds=all;
+function reactionSummary(state,feedFooter=false,omitKind=null){
+  const all=orderedReactionKinds(state),visibleKinds=omitKind?all.filter(([kind])=>kind!==omitKind):all,total=visibleKinds.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0);
   const shown=visibleKinds.slice(0,3),extra=visibleKinds.length-shown.length;
   if(feedFooter){
     const html=shown.map(([kind])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
@@ -43,17 +42,17 @@ function reactionSummary(state,feedFooter=false){
   }
   const html=shown.map(([kind,label])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
   const visible=shown.map(([kind,,emoji])=>emoji+reactionNumber(state.reactions[kind])).join('')+(extra?'+'+extra:'');
-  const names=all.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
-  const label=all.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
-  return{used:all,html,label,total};
+  const names=visibleKinds.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
+  const label=visibleKinds.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
+  return{used:visibleKinds,html,label,total};
 }
 function reactionButtons(aid,s,detail=false,compact=false,moment=null,groupTarget=null){
-  const feedFooter=!detail&&!compact&&!moment&&!groupTarget,selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter);
+  const feedFooter=!detail&&!compact&&!moment&&!groupTarget,selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter,detail?selected:null);
   const choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏',triggerLabel=selected?`Remove your ${emoji} reaction`:'React',triggerContent=selected?reactionMark(selected):reactionAddIcon()+'<span>React</span>';
   const attrs=REACTIONS().map(([k])=>'data-count-'+k+'="'+(counts[k]||0)+'"').join(' ');
   const choices=REACTIONS().map(([kind,label])=>'<button type="button" role="menuitemradio" aria-label="React with '+esc(label)+'" aria-checked="'+(selected===kind)+'" data-react="'+kind+'" tabindex="-1">'+reactionMark(kind)+'</button>').join('');
   const target=groupTarget?'data-group-reaction-group data-group-id="'+esc(groupTarget.id)+'" '+(groupTarget.updateId?'data-group-update-id="'+esc(groupTarget.updateId)+'"':'data-group-week="1"'):moment?'data-moment-reaction-group data-moment-owner="'+esc(moment.owner)+'" data-moment-week="'+esc(moment.week)+'"':'data-reaction-group data-aid="'+aid+'"';
-  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+(feedFooter?' data-feed-footer="true"':'')+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
+  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+(feedFooter?' data-feed-footer="true"':'')+(detail?' data-detail-reactions="true"':'')+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
     '<div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="'+esc(triggerLabel)+'" aria-pressed="'+!!selected+'" aria-haspopup="menu" aria-expanded="false">'+triggerContent+'</button></div>'+
     '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.total?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
     '<div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">'+choices+'</div></div></div>';
@@ -108,7 +107,7 @@ function wireReactionGroup(group,aid,changed){
     const triggerContent=selected?reactionMark(selected):`${reactionAddIcon()}<span>React</span>`;
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    const compact=reactionSummary(state,group.dataset.feedFooter==='true');
+    const compact=reactionSummary(state,group.dataset.feedFooter==='true',group.dataset.detailReactions==='true'?state.my_reaction:null);
     if(summary._marks!==compact.html){summary.innerHTML=compact.html;summary._marks=compact.html;}
     count.hidden=!compact.total;count.disabled=busy;count.setAttribute('aria-label',compact.label);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
@@ -171,7 +170,7 @@ const DETAIL_NAMES = {map: 'Map', heart_rate: 'Heart rate', pace: 'Pace and spee
 Object.assign(IC, {
   // a party popper (2026-10-12, was a star): the cone fills in once you've cheered
   cheer: '<path class="cone" d="M3.5 20.5 8 9l7 7z"/><path d="M10.5 6.5c.4-1.4-.3-2.4-1.3-2.8M17.5 13.5c1.4-.4 2.4.3 2.8 1.3M13 9.5c1-2.3 2.6-3.4 5-3.2"/><path d="M14.5 3v1M20.5 9h-1M18 4.8l-.7.7M21 4l-.1.1"/>',
-  comment: '<path d="M4 5h16v11H10l-5 4v-4H4z"/>',
+  comment: '<path d="M7 6h10a4.5 4.5 0 0 1 4.5 4.5v0a4.5 4.5 0 0 1-4.5 4.5h-3l-3.5 3.5 1-3.5H7a4.5 4.5 0 0 1-4.5-4.5v0A4.5 4.5 0 0 1 7 6Z"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   people: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/>',
   'user-plus': '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5 1.8 0 3.4.8 4.6 2.2M19 8v6M16 11h6"/>',
