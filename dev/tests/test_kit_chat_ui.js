@@ -26,7 +26,7 @@ assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the
 assert(source.includes('a.follow_ups.slice(0,3)')&&source.includes('data-kit-followup')&&source.includes('<span>${esc(q)}</span>'),'Kit presents visible, short follow-up prompts as tappable question chips');
 assert(source.includes('send(c,b.textContent.trim())'),'a follow-up chip asks Kit exactly the visible question');
 assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
-assert(source.includes('f.display_value??f.value'),'Kit renders its server-formatted unit-aware value');
+assert(source.includes('if(f.display_value!=null)return String(f.display_value)'),'Kit preserves server-formatted unit-aware values');
 {const starterHandler={sendArgs:null};starterHandler.send=(...args)=>starterHandler.sendArgs=args;vm.createContext(starterHandler);vm.runInContext(pick('  function sendStarter(c,button){','  async function send(c,text,starterIndex=null){')+'\nglobalThis.sendStarter=sendStarter;',starterHandler);const button={dataset:{kitStart:'0'},querySelector(selector){assert.equal(selector,'span');return {textContent:'Am I improving?'};}};starterHandler.sendStarter('chat',button);assert.deepEqual(starterHandler.sendArgs,['chat','Am I improving?',0],'a tapped starter preserves exactly its visible label and sends guidance index separately');}
 // Shared entries need consent, access, a reviewed release and an unpaused service.
 {const app=fs.readFileSync('app/static/app.js','utf8'),gate=app.slice(app.indexOf('function aiCan('),app.indexOf('// Calls render(data)'));
@@ -136,7 +136,7 @@ assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('Ab
 const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
 const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
 const followups=[{textContent:'How is my running trending?'},{textContent:'What should I focus on next?'}],sent=[];
-const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,controls(){},kitChatOn:()=>true,actions:{},svg(){},send:async(_c,q)=>sent.push(q)};
+const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){},send:async(_c,q)=>sent.push(q)};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
 drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
@@ -145,4 +145,16 @@ drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'Am I improvin
 assert(drawNodes['#kit-messages'].innerHTML.includes('Run distance')&&drawNodes['#kit-messages'].innerHTML.includes('124 mi'),'Kit answer uses a friendly fact label and converted display value');
 assert(!drawNodes['#kit-messages'].innerHTML.includes('Unlogged days do not count'),'Kit answer omits tool limitation lists');
 followups[0].onclick();assert.deepEqual(sent,['How is my running trending?'],'a follow-up chip sends its visible question unchanged');
+const response={verdict:'Yes, your recorded running is building.',reason:'You covered more ground across the completed weeks.',interpretation:'Do not duplicate the combined text.',facts:[{label:'Weekly running',display_value:'18.6 mi',value:29933.7984,path:['totals','distance_m']}],follow_ups:['How is my running trending?','What should I focus on next?'],actions:['progress']};
+const drawAnswer=answer=>{drawHarness.draw({el:{},messages:[{client_id:'answer',question:'Am I improving?',state:'answered',answer}],job:null,before:null});return drawNodes['#kit-messages'].innerHTML;};
+let answerHtml=drawAnswer(response);
+assert(answerHtml.indexOf('Am I improving?')<answerHtml.indexOf('kit-verdict'));
+assert(answerHtml.indexOf('kit-verdict')<answerHtml.indexOf('kit-reason')&&answerHtml.indexOf('kit-reason')<answerHtml.indexOf('kit-facts'),'verdict, reason and facts keep the approved reading order');
+assert(!answerHtml.includes('Do not duplicate')&&!answerHtml.includes('href="/progress"'),'follow-up questions replace generic destination links');
+assert.equal((answerHtml.match(/data-kit-followup/g)||[]).length,2);
+answerHtml=drawAnswer({interpretation:'Your earlier answer remains readable.',facts:[{label:'totals by sport - distance m',path:['totals_by_sport',0,'distance_m'],value:16093.44},{path:['unlogged_days'],value:27}],actions:['progress','javascript:bad']});
+assert(answerHtml.includes('Your earlier answer remains readable.')&&answerHtml.includes('Total · Distance')&&answerHtml.includes('10 mi'),'legacy facts get friendly labels and account units');
+assert(!answerHtml.includes('unlogged')&&!answerHtml.includes('javascript:')&&answerHtml.includes('aria-label="Next steps"'),'legacy next steps remain safe and clearly labelled');
+drawHarness.App.me.units='metric';assert(drawAnswer({facts:[{path:['distance_m'],value:16093.44}]}).includes('16.1 km'));
+assert.equal((drawAnswer({...response,facts:Array(5).fill(response.facts[0])}).match(/<dt>/g)||[]).length,3,'answers show at most three facts');
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
