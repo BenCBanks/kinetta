@@ -2122,10 +2122,6 @@ html.native body.has-sheet::before { display: none; }
 @media(max-width:360px){.chat-suggestions{margin-inline:-16px;}}
 @media(min-width:1000px){.chat-suggestions{margin-inline:-32px;}}
 
-/* Friends list and profile relationship count (#325). */
-/* Find people sits under the Friends title as a visible search field (Ben, 30 Oct 2026); invite + suggestions below the lists. */
-.friend-discovery{margin:12px 0 20px}.friend-discovery .people-search-help{margin-bottom:0}.friend-more{margin:20px 0}.friend-more #fr-suggest:not(:empty){margin-bottom:16px}.friend-filter{display:block;margin:12px 0}.friend-filter input{display:block;width:100%;margin-top:6px;font-size:16px}#fr-own-list .person[hidden]{display:none}#fr-own-list .person-link{min-width:0}#fr-own-list .person-link b,#fr-own-list .person-link small{overflow-wrap:anywhere}#fr-own-list .btnrow{flex:none}#fr-own-list .btnrow button{min-height:44px}#fr-own-list .btnrow svg{width:14px;height:14px}#fr-list-error:empty{display:none}
-@media(max-width:360px){#fr-own-list .person{gap:8px;padding-inline:10px}#fr-own-list .btnrow button{padding-inline:10px}}
 
 /* Deliberate progress recap pictures (#294). */
 .recap-offer{display:flex;align-items:center;gap:12px}
