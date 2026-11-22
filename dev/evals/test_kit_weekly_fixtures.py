@@ -4,7 +4,6 @@ import ast
 import uuid
 from pathlib import Path
 
-from app import coach
 from kit_cases import CASES
 from kit_weekly_fixtures import (
     WEEKLY_CONTEXT, WEEKLY_QUESTION, evaluation_case_passed, fixture_spec, is_expected_health_consent_refusal,
@@ -89,7 +88,11 @@ def check_weekly_answer_uses_provider_and_returns_result():
 
 
 def check_health_consent_refusal_is_a_pass_without_provider_use():
-    refusal=coach.HEALTH_NO
+    coach_source=Path(__file__).parents[2]/'app'/'coach.py'
+    coach_tree=ast.parse(coach_source.read_text())
+    refusal=next(node.value.value for node in coach_tree.body
+                 if isinstance(node,ast.Assign) and any(isinstance(target,ast.Name) and target.id=='HEALTH_NO'
+                    for target in node.targets) and isinstance(node.value,ast.Constant) and isinstance(node.value.value,str))
     evaluator=Path(__file__).with_name('kit_eval.py').read_text()
     tree=ast.parse(evaluator)
     assert any(isinstance(node,ast.ImportFrom) and node.module=='app'
