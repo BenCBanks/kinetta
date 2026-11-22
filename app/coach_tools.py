@@ -57,8 +57,17 @@ class Trend(Empty):
         return self
 
 
+class ConsistencyRange(Range):
+    @model_validator(mode='after')
+    def bounded_year(self):
+        if (self.end - self.start).days >= 366:
+            raise ValueError('Use at most 366 inclusive calendar days')
+        return self
+
+
 TOOLS = {
     'profile': (Empty, 'Read the current account time zone, units and nutrition targets; no identifying information.'),
+    'consistency': (ConsistencyRange, 'Own recorded workout and food-log days over at most 366 inclusive local dates. Excludes today/future dates. Compare recorded run attendance only on dates covered by the active training plan, not prescribed workout completion. Missing plan or food-log commitment stays unknown; no health conclusions.'),
     'period_compare': (ComparisonRange, 'Compare own recorded workouts, distance, duration and protein with the preceding equal-length period. Inclusive account-local dates, at most 366 days; ranges including today or future dates are rejected. Exact aggregates, missing counts and known subtotals; protein changes require logging on every day in both periods. No causal or medical conclusions.'),
     'trend': (Trend, 'Daily own recorded distance, duration, workout count, protein or calories over 2–366 inclusive local calendar days ending on end. Exact daily aggregates and least-squares slope per calendar day over known days only. Missing measurements/intake stay unknown. Uncertainty flags describe sparse, missing or variable observations, not statistical confidence or health status.'),
     'nutrition_summary': (Range, 'Exact SQL totals and average calories/protein/carbs/fat per logged day, inclusive dates. Missing days are unlogged, not zero intake. Use for averages since training began.'),
@@ -298,6 +307,50 @@ class AccountTools:
                               AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s''', (self._uid, tz, r.start, r.end)).fetchone()['n']
         return {'days': load_curve(rows, r.end, r.start), 'activities_without_effort': missing,
                 'limitations': ['Fitness/fatigue are training-load estimates, not measurements of recovery or health.']}
+
+    def _consistency(self, c, r):
+        tz = self._profile(c, Empty()).get('tz') or db.DEFAULT_TZ
+        today = self._local_today(tz)
+        days = (r.end - r.start).days + 1
+        finished = max(0, min(days, (today - r.start).days))
+        activity = c.execute('''SELECT (start_time AT TIME ZONE %s)::date AS day,
+            bool_or(sport='run') AS ran FROM activities WHERE user_id=%s AND NOT lift_open
+            AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s
+            AND (start_time AT TIME ZONE %s)::date < %s GROUP BY day''',
+            (tz, self._uid, tz, r.start, r.end, tz, today)).fetchall()
+        food = c.execute('''SELECT count(DISTINCT day) AS days FROM food_entries
+            WHERE user_id=%s AND day BETWEEN %s AND %s AND day < %s''',
+            (self._uid, r.start, r.end, today)).fetchone()['days']
+        p = c.execute('SELECT * FROM training_plans WHERE user_id=%s AND active', (self._uid,)).fetchone()
+        comparison = {'available': False, 'covered_days': 0, 'scheduled_run_days': None,
+                      'scheduled_days_with_recorded_run': None, 'attendance_fraction': None,
+                      'reason': 'No active training plan.'}
+        if p:
+            start = max(r.start, p['start_day'], p['created'].astimezone(ZoneInfo(tz)).date())
+            end = min(r.end, p['race_day'])
+            covered = max(0, min((end - start).days + 1, (today - start).days))
+            comparison['covered_days'] = covered
+            comparison['reason'] = 'No finished dates covered by the active plan in this range.'
+            if covered:
+                # Reuse schedule/adjustments, not UI completion status (which includes manual ticks).
+                weeks = plans.build(p, {})
+                plans.apply_adjustments(c, self._uid, p, weeks)
+                due = {w['day'] for wk in weeks for w in wk['workouts'] if start <= w['day'] <= end and w['day'] < today}
+                attended = len(due & {row['day'] for row in activity if row['ran']})
+                comparison.update(available=True, scheduled_run_days=len(due),
+                    scheduled_days_with_recorded_run=attended,
+                    attendance_fraction=attended / len(due) if due else None,
+                    reason=None if due else 'No scheduled runs on the covered finished dates.')
+        return {'start': r.start, 'end': r.end, 'today': today, 'timezone': tz, 'calendar_days': days,
+                'finished_days': finished, 'excluded_days': days - finished, 'truncated': False,
+                'recorded_workout_days': len(activity), 'food_log_days': food,
+                'unlogged_finished_days': finished - food, 'training_plan': comparison,
+                'food_plan': {'expected_log_days': None, 'attendance_fraction': None,
+                              'reason': 'No saved food-log-day commitment is defined by the training plan.'},
+                'limitations': ['Counts describe recorded dates, not all activity or complete food intake; unlogged food is unknown intake.',
+                    'Only the current active plan is compared, from its creation/start through race day. Past plan versions are not reconstructed.',
+                    'A recorded run on a scheduled date is attendance evidence, not prescribed distance or effort completion. Manual ticks do not add recorded runs.',
+                    'Today and future local dates are excluded. Rest-day and non-running workouts do not satisfy scheduled run dates. No medical or causal conclusions.']}
 
     def _training_plan(self, c, _):
         # Reuse the engine and completion rules while substituting its DB connection with the bound RLS connection.

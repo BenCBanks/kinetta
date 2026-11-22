@@ -10,6 +10,11 @@ with db.connect() as c:
         day = dt.date(2024, 6, i)
         c.execute("INSERT INTO activities(user_id,sport,name,source,start_time,distance_m,moving_s) VALUES(%s,'run','Fractional fixture','manual',(%s::date+interval '12 hours') AT TIME ZONE 'America/New_York',%s,%s)", (uid,day,10.25*i,1.25*i))
         c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) VALUES(%s,%s,'Fractional meal',%s,%s)", (uid,day,100.125*i,1.25*i))
+    for day in ('2024-06-05','2024-06-10'):
+        c.execute("INSERT INTO activities(user_id,sport,name,source,start_time,distance_m,moving_s) VALUES(%s,'run','Future fixture','manual',(%s::date+interval '12 hours') AT TIME ZONE 'America/New_York',99999,99999)",(uid,day))
+        c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) VALUES(%s,%s,'Future meal',99999,99999)",(uid,day))
+    for day,value in [('2024-01-01',0.1),('2024-01-02',0.2)]:
+        c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) VALUES(%s,%s,'Non-binary fraction',%s,%s)",(uid,day,value,value))
 real_datetime = dt.datetime
 class Clock(real_datetime):
     @classmethod
@@ -32,10 +37,12 @@ for stamp, today, observed, excluded in [('2024-06-04T03:59:59+00:00','2024-06-0
             mixed = tools.call('trend', {'metric':metric,'window':6,'end':'2024-06-06'})
             assert mixed['excluded_days'] == excluded+3 and mixed['observed_days'] == observed, mixed
             assert mixed['slope_per_day'] == slope and mixed['uncertain'], mixed
+            assert mixed['days'][4]['value'] is None and mixed['days'][4]['known_total'] == (1 if metric=='workouts' else 99999), mixed
             future = tools.call('trend', {'metric':metric,'window':7,'end':'2024-06-12'})
             assert future['excluded_days'] == 7 and future['observed_days'] == future['unknown_days'] == 0, future
             assert future['slope_per_day'] is None and future['uncertain'], future
-            assert all(d['value'] is None and d['known_total'] is None for d in future['days']), future
+            assert all(d['value'] is None for d in future['days']) and future['records']==1, future
+            assert future['days'][4]['excluded'] and future['days'][4]['known_total']==(1 if metric=='workouts' else 99999), future
         zero = tools.call('trend', {'metric':'workouts','window':7,'end':'2024-05-07'})
         assert zero['excluded_days'] == 0 and zero['slope_per_day'] == 0 and not zero['uncertain'], zero
         for start, end in [('2024-06-01','2024-06-03'),('2024-06-01','2024-06-06'),('2024-06-06','2024-06-12')]:

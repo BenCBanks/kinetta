@@ -28,6 +28,8 @@ from coach_period_compare_checks import run as check_period_compare
 check_period_compare()
 from coach_trend_checks import run as check_trend
 check_trend()
+from coach_consistency_checks import run as check_consistency
+check_consistency()
 
 a, b = person('zz_test_coach_a'), person('zz_test_coach_b')
 try:
