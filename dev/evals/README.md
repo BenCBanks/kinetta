@@ -99,6 +99,32 @@ The app-wide assistant has its own owner-approved gate: `KINETTA_KIT_ENABLED=1` 
 
 Session/memory revision: the Kit fingerprint also includes `kit_memory.py`. The previous ongoing-chat comparison does not approve fresh-visit memory behavior. Include multi-visit preference continuity, stale/conflicting statements, deletion/off during a running answer, independent devices, visit-close races, memory injection and Health consent changes in the next reviewed real-provider comparison. Synthetic visit/memory tests remain contract evidence only.
 
+### Run a Kit evaluation safely
+
+`dev/evals/kit_eval.py` is an opt-in real-provider evaluation. CI and fixture tests do not call a provider. Use it only after explicit approval for the specific run and budget.
+
+1. Build separate throwaway app containers for the baseline and candidate revisions. Seed only the evaluator's fictional accounts and records; never point it at production, a real account, or a database copied from production. Keep both isolated databases until comparison is complete, and delete them and their containers afterward.
+2. Supply the Kinetta provider credential to the app process through protected runtime environment injection as `GEMINI_API_KEY`. Do not put the value in a command, shell history, checked-in env file, image layer, log, output, or PR. Avoid shell tracing, do not print the variable, and remove it from the process environment when finished. The evaluator creates fictional accounts and never needs a user's own records.
+3. Set the approved spend ceiling explicitly with `--budget-usd <approved-cap>` and require `--accept-paid-calls`. The runner rejects a missing opt-in or cap outside its supported range, then sets conservative application reservation limits below the requested cap. These are application-side stops, not a provider billing guarantee: retries or in-flight requests can still incur usage. Keep the cap within the owner's approval, use a margin for retries, and stop before starting another run if the remaining allowance is unclear or exhausted. Never reset the ledger or database to get another allowance.
+4. Run the evaluator inside the disposable app container with the baseline implementation and both source revisions identified. Use `--variant baseline`, `candidate`, or `both`; `both` compares the same selected fictional cases against each implementation. Select a narrow first pass with repeatable or comma-separated `--cases` IDs. `--baseline-results <private-file>` reuses already captured baseline rows; verify their source and case selection match before reusing them. The runner records answers, errors, tool coverage, latency, request usage and reservation/estimated spend in its JSON output.
+
+Mount a private output directory into the disposable container, or copy its output directly to the private store after the run. Example shape (replace every placeholder; never paste a credential into this command):
+
+```sh
+docker exec -i -e GEMINI_API_KEY <throwaway-app-container> \
+  python /tmp/kit-eval/kit_eval.py \
+  --accept-paid-calls --budget-usd <approved-cap> \
+  --baseline /tmp/kit-eval/baseline/coach_chat.py \
+  --baseline-commit <baseline-revision> --candidate-commit <candidate-revision> \
+  --variant both --cases <case-id>,<case-id> \
+  --output <private-report-dir>/kit-candidate.json \
+  --baseline-results <private-report-dir>/kit-baseline.json
+```
+
+The evaluator captures rejected candidate output for diagnosis: the raw provider JSON or final provider text, validation error type/message and any structured validation detail. Treat this as sensitive evaluation material even though cases are fictional. Keep all reports, baseline captures, rejection details and comparison files in the owner's private research area (for example `~/pigserver/kinetta-research/<private-run>/`), outside the repository and public issues. Do not commit, attach, paste, or publish raw reports or answers. Share only an owner-approved summary with no answer text, secrets, or private diagnostics.
+
+Before preparing a rollout report, compare baseline and candidate on the same selected case set and review the complete captured answers, errors and rejected outputs privately. The reviewed report must include `reviewed: true` only after owner review; a candidate fingerprint matching `ai_release.kit_fingerprint()`; a `kit` block with `case_count` meeting the current gate minimum, `baseline_compared: true`, `unsupported_numeric_claims`, `isolation_failures`, `health_disclosures`, `conversation_review_passed` and `qualitative_review_passed`. Record the compared revisions, selected coverage, actual request/usage accounting, unresolved or rejected cases, and reviewer decisions in the private report. Required zero-failure fields must be measured from the real capture, not assumed. A passing schema or evidence check alone does not approve answer quality, safety or rollout. Never put real result values or model answers in this guide, fixtures, PR description or public repository.
+
 ## Photo descriptions and ingredient mode
 
 The optional photo `itemize` prompt variant is not approved by synthetic API/browser fixtures. Before rollout, compare production and candidate on the existing reviewed food benchmark, adding reviewed, nonpersonal mixed-food photos with known ingredients/portions (including subs, sauces, partial portions and multiple views). Review ingredient omissions, duplicated whole-food-plus-component calories, hidden-ingredient assumptions, totals, schemas, nutrition error, latency and cost under the existing criteria. Include an ordinary-photo control group: its prompt remains unchanged. No real-provider comparison or owner approval is supplied by this change. Food-photo release requirements remain separate from the app-wide Kit gate.
