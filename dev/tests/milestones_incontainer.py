@@ -178,11 +178,17 @@ class Milestones(unittest.TestCase):
   self.process()
   response=self.clients[0].get('/api/achievements');self.assertEqual(response.status_code,200,response.text)
   fastest=next(row for row in response.json()['tracks'] if row['code']=='sport:run:fastest:5k')
+  self.assertEqual(fastest['label'],'5K time')
   self.assertEqual(fastest['earned_ranks'],[1,2,3,4],'an exact 25:41 5K backfills each slower nested band')
   self.assertEqual(fastest['best_seconds'],{str(rank):1_541.0 for rank in range(1,10)},'a slower existing effort does not replace the lifetime best')
   with db.connect() as c:best_start=c.execute('SELECT start_time FROM activities WHERE user_id=%s AND id=%s',(self.ids[0],activity_ids[0])).fetchone()['start_time']
   best_day=best_start.astimezone(M.ZoneInfo('America/New_York')).date().isoformat()
   self.assertEqual(fastest['best_dates'],{str(rank):best_day for rank in range(1,10)},'each Fastest 5K tier reports the account-local date of the current best')
+
+  with db.connect() as c:
+   c.execute("UPDATE milestones SET details=jsonb_set(details,'{label}',%s::jsonb) WHERE user_id=%s AND code='track-state:sport:run:fastest:5k'", ('"Fastest 5K"',self.ids[0]))
+  refreshed=self.clients[0].get('/api/achievements').json()
+  self.assertEqual(next(row['label'] for row in refreshed['tracks'] if row['code']=='sport:run:fastest:5k'),'5K time','stored legacy labels do not require a migration')
 
  def test_five_run_distance_tracks_backfill_and_keep_lifetime_bests(self):
   cases=(('1mi',1609.344,435),('5k',5000,1500),('10k',10000,3000),

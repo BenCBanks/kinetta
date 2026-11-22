@@ -506,7 +506,7 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
         next_rule = None if tracks.fastest_effort_spec(code) else tracks.next_tier(code, next_value)
         current = {
             'code': code,
-            'label': details.get('label') or tracks.track_label(code),
+            'label': tracks.track_label(code) if tracks.fastest_effort_spec(code) else details.get('label') or tracks.track_label(code),
             'level': level,
             'unit': details.get('unit') or tracks.TRACK_UNITS.get(code, 'count'),
             'tiers': sorted(track_tiers, key=lambda x: (x.get('rank') or 0, x.get('day') or dt.date.min)),

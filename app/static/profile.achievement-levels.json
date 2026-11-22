@@ -1,5 +1,6 @@
 {
   "version": 9,
+  "effort_metric_label": "time",
   "source": "Ben canonical Medal Levels HTML (2026-11-11); #877; #921 fastest efforts; #1015 five per-distance Run tracks",
   "unit_preference": "App.me.units",
   "value_storage": "canonical metric values from /api/achievements",
