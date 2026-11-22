@@ -88,6 +88,7 @@ assert fixture_calls==['profile','recent_runs'] and trend['tools_used']==['profi
 assert trend['facts'][0]['display_value']=='5.6 mi' and len(trend['facts'])==2
 assert 'even when strength or nutrition records are empty' in coach_chat.KIT_SYSTEM
 assert 'app-generated fact label' in coach_chat.KIT_SYSTEM and 'number words are not verified' in coach_chat.KIT_SYSTEM
+assert 'body_profile height_cm or weight_kg' in coach_chat.KIT_SYSTEM and 'meal_combinations candidates/totals/kcal' in coach_chat.KIT_SYSTEM
 
 # Integrated mocked period_compare -> evidence validation -> account-unit prose rendering.
 period_calls=[]
@@ -161,6 +162,22 @@ for word in 'about around roughly to and or from of vs versus'.split():
     for prose in [f'{word} {{e2:0}}.',f'{{e2:0}} {word} {{e2:1}}.']:
         result=coach_chat.checked_answer({**boundary_raw,'verdict':prose},number_evidence,kit=True)
         assert result['verdict']==prose.replace('{e2:0}','124 mi run distance').replace('{e2:1}','124 mi run distance')
+for word in 'across over toward daily recently your against'.split():
+    prose=f'{{e2:0}} {word}.'
+    result=coach_chat.checked_answer({**number_raw,'verdict':prose},number_evidence,kit=True)
+    assert result['verdict']==prose.replace('{e2:0}','124 mi run distance')
+for word in 'a an the by for include totaling'.split():
+    prose=f'{word} {{e2:0}}.'
+    result=coach_chat.checked_answer({**number_raw,'verdict':prose},number_evidence,kit=True)
+    assert result['verdict']==prose.replace('{e2:0}','124 mi run distance')
+# Units are already included in the app-rendered value; model-added unit suffixes remain rejected.
+for unit in ('mi','km','kcal','minutes'):
+    try:coach_chat.checked_answer({**number_raw,'verdict':f'{{e2:0}} {unit}.'},number_evidence,kit=True)
+    except ValueError as error:assert str(error)=='Unsupported text attached to numeric reference'
+    else:raise AssertionError('The model must not append a second unit to the formatted fact')
+try:coach_chat.checked_answer({**number_raw,'verdict':'Recorded {e2:0} on 4 days.'},number_evidence,kit=True)
+except ValueError:pass
+else:raise AssertionError('Model-authored digits remain forbidden after prose widening')
 for join in ['-', ' – ', ' — ']:
     result=coach_chat.checked_answer({**boundary_raw,'verdict':'{e2:0}'+join+'{e2:1}.'},number_evidence,kit=True)
     assert result['verdict']=='124 mi run distance'+join+'124 mi run distance.'
@@ -171,6 +188,29 @@ for join in ['-', ' – ', ' — ']:
 serving_raw={**number_raw,'facts':[{'evidence_id':'e2','path':['records',0,'per_serving','protein_g'],'value':80}]}
 serving=coach_chat.checked_answer(serving_raw,[profile_evidence,{'evidence_id':'e2','tool':'stored_foods','data':{'records':[{'per_serving':{'protein_g':80}}]}}],kit=True)
 assert serving['facts'][0]['label']=='Protein per serving' and '80 g protein per serving' in serving['verdict']
+# Newly allowed paths are scalar measurements actually returned by their named tools.
+for tool,path,value,data,expected_label,expected_display in [
+    ('meal_options',['candidates',0,'kcal'],460,{'candidates':[{'kcal':460}]},'Meal candidate calories','460 kcal'),
+    ('meal_combinations',['candidates',0,'totals','kcal'],460,{'candidates':[{'totals':{'kcal':460}}]},'Meal candidate total calories','460 kcal'),
+    ('body_profile',['height_cm'],170.18,{'height_cm':170.18},'Height','5 ft 7 in'),
+    ('body_profile',['weight_kg'],62,{'weight_kg':62},'Weight','136.7 lb'),
+    ('training_plan',['summary','runs'],4,{'summary':{'runs':4}},'Runs per week','4'),
+    ('training_plan',['weeks',1,'planned'],17.5,{'plan':{'unit':'mi'},'weeks':[{}, {'planned':17.5}]},'Planned distance','17.5 mi'),
+    ('plan_options',['facts','latest_load','fitness'],37.1,{'facts':{'latest_load':{'fitness':37.1}}},'Latest training fitness','37.1'),
+    ('plan_options',['facts','latest_load','fatigue'],32.4,{'facts':{'latest_load':{'fatigue':32.4}}},'Latest training fatigue','32.4'),
+]:
+    raw={**number_raw,'facts':[{'evidence_id':'e2','path':path,'value':value}]}
+    result=coach_chat.checked_answer(raw,[profile_evidence,{'evidence_id':'e2','tool':tool,'data':data}],kit=True)['facts'][0]
+    assert (result['label'],result['display_value'])==(expected_label,expected_display),(tool,path,result)
+metric_height=coach_chat.checked_answer({**number_raw,'facts':[{'evidence_id':'e2','path':['height_cm'],'value':170.18}]},
+    [{**profile_evidence,'data':{'units':'metric'}},{'evidence_id':'e2','tool':'body_profile','data':{'height_cm':170.18}}],kit=True)['facts'][0]
+assert metric_height['display_value']=='170.2 cm'
+# AccountTools.profile intentionally has no body measurements; do not authorize imagined profile paths.
+assert not coach_chat._kit_path_allowed('profile',['height_cm'])
+assert not coach_chat._kit_path_allowed('profile',['weight_kg'])
+# Birth year and sex are returned by body_profile but are not supported measurement slots.
+assert not coach_chat._kit_path_allowed('body_profile',['birth_year'])
+assert not coach_chat._kit_path_allowed('body_profile',['sex'])
 # Generic goal targets have no single unit/meaning; remove that path until a formatter exists.
 assert not coach_chat._kit_path_allowed('goals',['activity_goals',0,'target'])
 goal_raw={**number_raw,'facts':[{'evidence_id':'e2','path':['activity_goals',0,'target'],'value':80}]}

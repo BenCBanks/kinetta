@@ -71,6 +71,7 @@ _NUTRIENTS = ('kcal','protein_g','carbs_g','fat_g','fiber_g','sodium_mg','sugar_
 _RUN_FIELDS = ('distance_m','moving_s','pace_s_per_km','avg_hr','avg_temp','effort')
 _KIT_MEASUREMENT_PATHS = {
     'profile': {(field,) for field in ('kcal_target','protein_target','carbs_target','fat_target','fiber_target','sodium_target_mg','sugar_target_g','saturated_fat_target_g')},
+    'body_profile': {('height_cm',),('weight_kg',)},
     'nutrition_summary': {(group,field) for group in ('totals','known_totals','average_per_logged_day') for field in _NUTRIENTS},
     'recent_runs': {('runs',_INDEX,field) for field in _RUN_FIELDS} | {('totals',field) for field in ('count','distance_m','moving_s')},
     'activity': {(field,) for field in _RUN_FIELDS + ('elapsed_s','ascent_m','max_hr','calories')},
@@ -85,6 +86,10 @@ _KIT_MEASUREMENT_PATHS = {
     'gear': {('gear',_INDEX,'distance_m')},
     'resting_energy': {('days',_INDEX,'resting_kcal')},
     'stored_foods': {('records',_INDEX,'totals',field) for field in _NUTRIENTS} | {('records',_INDEX,'per_serving',field) for field in _NUTRIENTS} | {('records',_INDEX,field) for field in _NUTRIENTS},
+    'meal_options': {('candidates',_INDEX,field) for field in ('kcal','protein_g','carbs_g','fat_g')},
+    'meal_combinations': {('candidates',_INDEX,'totals',field) for field in ('kcal','protein_g','carbs_g','fat_g')},
+    'training_plan': {('summary','runs'),('weeks',_INDEX,'planned')},
+    'plan_options': {('facts','latest_load',field) for field in ('load','fitness','fatigue','form')},
     'period_compare': {(period,group,field) for period in ('current','previous')
                        for group in ('totals','known_totals') for field in ('workouts','distance_m','duration_s','protein_g')},
 }
@@ -104,8 +109,8 @@ def _kit_path_allowed(tool, path):
 # These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
 _PLACEHOLDER_CONNECTIVES = frozenset('about around roughly to and or from of vs versus'.split())
 _PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
-_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('is was are were be been from with covered recorded measured logged at of compared'.split())
-_PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('was is are were be been from with compared previously currently overall before after today yesterday'.split())
+_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the is was are were be been from with covered recorded measured logged at of compared across by for include totaling'.split())
+_PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with compared previously currently overall before after today yesterday across over toward daily recently your against'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
 
 
@@ -198,7 +203,8 @@ def _kit_fact(tool, data, path, value, units):
         'workouts':'Workouts','count':'Workouts','activities':'Workouts','ascent_m':'Elevation gain',
         'calories':'Calories','kcal':'Calories','resting_kcal':'Resting calories','protein_g':'Protein','saturated_fat_g':'Saturated fat','reps':'Reps','secs':'Set duration','carbs_g':'Carbohydrates',
         'fat_g':'Fat','fiber_g':'Fibre','sodium_mg':'Sodium','sugar_g':'Sugar',
-        'kg':'Weight','max_recorded_kg':'Best recorded weight','trend_kg':'Weight trend',
+        'runs':'Runs per week','planned':'Planned distance',
+        'kg':'Weight','weight_kg':'Weight','height_cm':'Height','max_recorded_kg':'Best recorded weight','trend_kg':'Weight trend',
         'protein_target':'Protein target','carbs_target':'Carbohydrate target','fat_target':'Fat target',
         'fiber_target':'Fibre target','kcal_target':'Calorie target','sodium_target_mg':'Sodium target',
         'sugar_target_g':'Sugar target','saturated_fat_target_g':'Saturated fat target',
@@ -213,11 +219,13 @@ def _kit_fact(tool, data, path, value, units):
         if tool not in {'recent_runs','weight_trend'}: raise ValueError('Unsupported count')
         label='Workouts' if tool=='recent_runs' else 'Weight entries'
     if sport: label=f'{sport} {label.lower()}'
+    if tool=='plan_options' and path[:2]==['facts','latest_load']: label=f'Latest training {label.lower()}'
     if path and path[0] in {'current','previous'}: label=f'{path[0].title()} {label.lower()}'
     if 'average_per_logged_day' in path: label=f'Average daily {label.lower()}'
     elif 'known_totals' in path: label=f'Known total {label.lower()}'
     elif 'totals' in path or 'totals_by_sport' in path: label=f'Total {label.lower()}'
     elif 'per_serving' in path: label=f'{label} per serving'
+    if tool in {'meal_options','meal_combinations'} and path and path[0]=='candidates': label=f'Meal candidate {label.lower()}'
     metric=units=='metric';display=str(value)
     if field=='distance_m':
         factor,unit=(1000,'km') if metric else (1609.344,'mi')
@@ -239,10 +247,19 @@ def _kit_fact(tool, data, path, value, units):
     elif field.endswith('_kg') or field=='kg':
         shown=float(value) if metric else float(value)*2.2046226218
         display=f'{_compact_number(shown)} {"kg" if metric else "lb"}'
+    elif field=='height_cm':
+        if metric: display=f'{_compact_number(float(value))} cm'
+        else:
+            feet,inches=divmod(round(float(value)/2.54),12)
+            display=f'{feet} ft {inches} in'
     elif field in {'protein_target','carbs_target','fat_target','fiber_target'}: display=f'{_compact_number(float(value))} g'
     elif field.endswith('_g'): display=f'{_compact_number(float(value))} g'
     elif field.endswith('_mg'): display=f'{_compact_number(float(value))} mg'
     elif field in {'calories','kcal','resting_kcal','kcal_target','logged_kcal','goal_kcal'}: display=f'{round(float(value))} kcal'
+    elif tool=='training_plan' and field=='planned':
+        unit=data.get('plan',{}).get('unit')
+        if unit not in {'mi','km'}: raise ValueError('Unsupported training plan unit')
+        display=f'{_compact_number(float(value))} {unit}'
     elif isinstance(value,(int,float)): display=_compact_number(value)
     return label,display
 
@@ -322,9 +339,13 @@ Every digit in verdict/reason must come from a placeholder {evidence_id:fact_ind
 the application-formatted value and its app-generated fact label, which must cite evidence e2. Multiple facts may use different paths in
 the same evidence result. Use zero-based indexes into the facts array, at most three facts. Every fact must cite
 an exact finite numeric field from a successful current-turn tool result and its matching value; the app supplies
-labels, rounding and account units. Keep a placeholder beside only whitespace, simple punctuation or an approved
-connective. Both sides also allow about/around/roughly/to/and/or/from/of/vs/versus. A hyphen, en dash or em dash
-may join two placeholders as a range; never use one as a sign before a value. Before references, connectives are is/was/are/were/be/been/from/with/covered/recorded/measured/logged/at/of/compared; after them, was/is/are/were/be/been/from/with/compared/previously/currently/overall/before/after/today/yesterday. Do not attach another unit, currency, ratio or arithmetic expression. Digits outside placeholders
+labels, rounding and account units. Use a placeholder as a complete value; do not append a unit or repeat its label.
+Keep it beside only whitespace, simple punctuation or an approved connective. Both sides also allow
+about/around/roughly/to/and/or/from/of/vs/versus. A hyphen, en dash or em dash may join two placeholders as a
+range; never use one as a sign before a value. Before references, approved words include a/an/the/is/was/are/were/
+be/been/from/with/covered/recorded/measured/logged/at/of/compared/across/by/for/include/totaling; after them,
+was/is/are/were/be/been/from/with/compared/previously/currently/overall/before/after/today/yesterday/across/over/
+toward/daily/recently/your/against. Do not attach another unit, currency, ratio or arithmetic expression. Digits outside placeholders
 and in follow-up questions are rejected; wording and number words are not verified.
 To choose a placeholder, first count entries in your own `facts` array from zero; the index is not an index
 into a tool result. Copy that entry's `evidence_id` exactly. Example: if the first fact is
@@ -344,7 +365,11 @@ You are the single assistant across Kinetta, not just a running or food logger. 
 exercise, strength, progress, recovery, goals and how to use Kinetta. Distinguish general educational advice from
 conclusions supported by personal records. Do not diagnose illness, encourage dangerous restriction or prescribe
 treatment. Ask a concise follow-up when the person's goal or needs are unclear. There is no need to invent a
-personal conclusion to answer a general question. Consult profile for the person's local date and units first.
+personal conclusion to answer a general question. Consult profile for the person's local date and units first. Profile contains
+units and nutrition targets, not body measurements. Use body_profile for an available height or weight; do not infer age
+from birth year. Supported path examples include body_profile height_cm or weight_kg, meal_options candidates/kcal,
+meal_combinations candidates/totals/kcal, training_plan summary/runs or weeks/index/planned, and
+plan_options facts/latest_load/fitness or fatigue. Only cite a path present in that successful result.
 Prior conversation is context, not fresh evidence. Always get current personal measurements from tools.
 The application supplies a verified profile evidence record with today's date before the first turn; use it.
 Use the fewest relevant tools, usually one or two. Do not repeat identical lookups. Keep the answer concise,
