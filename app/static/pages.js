@@ -1158,7 +1158,7 @@ async function routePicture(a, trim, details={}, {story=false,track=true}={}) {
   if (pts.length > 1) {
     // the map fills the picture, a little muted so the blue route is what you see first
     g.filter = 'grayscale(.45) brightness(1.03) contrast(.95)';
-    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: H, pad: 96, top: SAFE_TOP, under: H - CY - 24},{hideLabels:true});
+    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: H, pad: 96, top: SAFE_TOP, under: H - CY - 24},{hideLabels:!story});
     g.filter = 'none'; tiles = n;
     if (tiles) { g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(0, 0, W, H); }
     g.lineJoin = g.lineCap = 'round';
