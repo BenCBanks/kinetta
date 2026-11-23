@@ -1517,13 +1517,13 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {gap:8px;}
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more .reaction-emoji {font-size:16px;}
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:3;margin:0;}
-.activity-home .activity-card .post-ft:has(.emoji-reactions) .activity-share {margin:0;}
-.activity-home .activity-card .post-ft:not(:has(.reaction-count:not([hidden]))) .activity-share {margin-left:0;}
+.activity-home .activity-card .post-ft:has(.emoji-reactions) .activity-share {margin-left:auto;}
 @media(max-width:380px){:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions){padding-inline:12px;}}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {gap:2px;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji {gap:2px;}
 @media(max-width:380px){
  :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji .reaction-emoji {font-size:15px;}
+ .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-more .reaction-emoji {font-size:15px;}
  :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments .num {font-size:15px;}
  :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-count,
  :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-more {font-size:15px;}
