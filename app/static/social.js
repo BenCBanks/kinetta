@@ -788,6 +788,7 @@ function socialChanged(aid) {
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
 const QUICK_REPLIES=['Nice work!','Great effort','Way to go'];
 function commentTime(iso){const time=Date.parse(iso);if(!Number.isFinite(time))return'';const age=Math.max(0,Date.now()-time);if(age<60_000)return'now';if(age<86_400_000)return`${Math.floor(age/3_600_000)}h`;if(age<604_800_000)return`${Math.floor(age/86_400_000)}d`;return fdate(iso,{month:'short',day:'numeric'});}
+function commentFirstName(comment){const name=String(comment.name||'').trim(),handle=String(comment.login||'').trim();return(name.split(/\s+/)[0]||handle||'Someone');}
 const commentSkeletonMarkup='<div class="comments-skeleton" aria-hidden="true"><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div></div>';
 function commentsSheet(aid, s, onChange) {
   cleanViews();
@@ -880,15 +881,6 @@ function wireCommentActions(box,list){
   list.addEventListener('pointerdown',down);list.addEventListener('contextmenu',context);list.addEventListener('keydown',key);document.addEventListener('click',click,true);document.addEventListener('pointermove',move,true);document.addEventListener('pointerup',up,true);document.addEventListener('pointercancel',up,true);
   const prior=viewResources.get(box);viewResources.set(box,()=>{if(disposed)return;disposed=true;clear();clearTimeout(suppressTimer);prior?.();list.removeEventListener('pointerdown',down);list.removeEventListener('contextmenu',context);list.removeEventListener('keydown',key);document.removeEventListener('click',click,true);document.removeEventListener('pointermove',move,true);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);});
 }
-function fitCommentLine(node){
-  const line=$('.c-line',node);if(!line||line.clientWidth<1)return;const name=$('b',line),text=$('span',line);
-  let visibleName=node._fullCommentName||'',visibleText=node._fullCommentText||'';
-  const trimEnd=value=>{const chars=[...value.replace(/…$/,'')];if(chars.length<=1)return'';chars.pop();return chars.join('').trimEnd()+'…';};
-  const measure=document.createElement('canvas').getContext('2d'),nameFont=getComputedStyle(name).font,textFont=getComputedStyle(text).font;
-  const lineWidth=()=>{measure.font=nameFont;const nameWidth=measure.measureText(visibleName).width;measure.font=textFont;return nameWidth+4+measure.measureText(' '+visibleText).width;};
-  while(lineWidth()>line.clientWidth+1&&visibleText){visibleText=trimEnd(visibleText);text.textContent=visibleText;}
-  while(lineWidth()>line.clientWidth+1&&visibleName){visibleName=trimEnd(visibleName);name.textContent=visibleName;}
-}
 function drawComments(box,aid,s,onChange){
   if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
   const list=$('.comments',box);
@@ -900,12 +892,12 @@ function drawComments(box,aid,s,onChange){
     if(node===anchor)anchor=anchor.nextElementSibling;else list.insertBefore(node,anchor);
     if(node._signature===signature)continue;node._signature=signature;
     node.tabIndex=0;node.setAttribute('aria-label',`${comment.name}: ${comment.text}`);node.setAttribute('aria-description','Long press or swipe left to open comment actions.');
-    node.innerHTML=`${avatar(comment,'c-row-avatar')}<div class="c-body"><p class="c-line"><b>${esc(comment.name)}</b> <span>${esc(comment.text)}</span></p></div><small class="c-time muted">${esc(commentTime(comment.created))}</small>`;
+    node.innerHTML=`${avatar(comment,'c-row-avatar')}<div class="c-body"><p class="c-line"><b>${esc(commentFirstName(comment))}</b> <span>${esc(comment.text)}</span></p></div><small class="c-time muted">${esc(commentTime(comment.created))}</small>`;
     node._fullCommentName=comment.name;node._fullCommentText=comment.text;
   }
   for(const node of [...list.children])if(!keep.has(node.dataset.commentId))node.remove();
   if(!s.comments.length)list.replaceChildren();
-  requestAnimationFrame(()=>{for(const node of list.querySelectorAll('.comment[data-comment-id]'))fitCommentLine(node);list.classList.remove('is-fading-in');});
+  requestAnimationFrame(()=>list.classList.remove('is-fading-in'));
   box._sync?.();
 }
 

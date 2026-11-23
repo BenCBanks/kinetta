@@ -517,8 +517,9 @@ body.ph-open { overflow: hidden; }
 .social-sheet-round3 .comments .comment { display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:start;gap:12px;margin:0;padding:5px 0;border:0;touch-action:pan-y; }
 .social-sheet-round3 .comments .comment > .av { width:28px;height:28px;margin:1px 0 0;font-size:15px; }
 .social-sheet-round3 .comment .c-body { width:100%;min-width:0; }
-.social-sheet-round3 .comment .c-line { margin:0;overflow:visible;color:var(--tx);font-size:15px;line-height:21px;white-space:nowrap; }
-.social-sheet-round3 .comment .c-line b { margin-right:4px;font-weight:650; }
+.social-sheet-round3 .comment .c-line { margin:0;overflow:visible;color:var(--tx);font-size:15px;line-height:21px;white-space:normal;overflow-wrap:break-word; }
+.social-sheet-round3 .comment .c-line b { margin-right:4px;font-weight:650;white-space:nowrap; }
+.social-sheet-round3 .comment .c-line span { white-space:normal;overflow-wrap:break-word; }
 .social-sheet-round3 .comment .c-time { padding-top:2px;color:var(--tx3);font-size:13px;line-height:18px;white-space:nowrap;font-variant-numeric:tabular-nums; }
 .social-sheet-round3 .comments-skeleton { gap:10px;padding:2px 0; }
 .social-sheet-round3 .comment-skeleton-row { align-items:center;gap:8px;min-height:38px; }
