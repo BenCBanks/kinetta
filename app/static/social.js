@@ -523,7 +523,7 @@ function openWeeklyRecapShare(box,data,usual,medals,days){
 }
 async function weeklyRecapShareItem(){
   const owner=readOwner(),zone=tz(),window=weeklyRecapWindow(new Date(),zone);if(!window.visible)return null;
-  const [data,volume,achievements]=await Promise.all([api(`/api/recaps?period=week&offset=${window.offset}`),api('/api/progress/volume?period=week'),api('/api/achievements')]);
+  const [data,volume,achievements]=await Promise.all([api(`/api/recaps?period=week&offset=${window.offset}`),load('/api/progress/volume?period=week',()=>{}),api('/api/achievements')]);
   if(owner!==readOwner()||zone!==tz()||data.tz!==zone||data.start!==window.start||Number(data.activities)<=0)return null;
   const usual=weeklyRecapUsual(volume.rows,data.start);let medals=weeklyRecapMedals(achievements,null,data.start,data.end);if(medals.length)medals=weeklyRecapMedals(achievements,await weeklyRecapCatalog(),data.start,data.end);
   if(owner!==readOwner()||zone!==tz())return null;return weeklyRecapPictureItem(data,usual,medals,weeklyRecapDays(data),()=>owner===readOwner());
@@ -532,7 +532,7 @@ async function weeklyRecapOffer(box){
   if(!box||!box.isConnected||!App.me)return;const owner=readOwner(),zone=tz(),window=weeklyRecapWindow(new Date(),zone);if(!window.visible)return;
   const key=weeklyRecapDismissKey(serverKey(),App.me.id,window.start);if(store.get(key))return;
   try{
-    const [data,volume,achievements]=await Promise.all([api(`/api/recaps?period=week&offset=${window.offset}`),api('/api/progress/volume?period=week'),api('/api/achievements')]);
+    const [data,volume,achievements]=await Promise.all([api(`/api/recaps?period=week&offset=${window.offset}`),load('/api/progress/volume?period=week',()=>{}),api('/api/achievements')]);
     if(!box.isConnected||owner!==readOwner()||zone!==tz()||data.tz!==zone||data.start!==window.start||Number(data.activities)<=0)return;
     const usual=weeklyRecapUsual(volume.rows,data.start);let medals=weeklyRecapMedals(achievements,null,data.start,data.end);if(medals.length)medals=weeklyRecapMedals(achievements,await weeklyRecapCatalog(),data.start,data.end);
     if(!box.isConnected||owner!==readOwner()||zone!==tz()||store.get(key))return;
