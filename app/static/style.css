@@ -1490,7 +1490,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:22px;height:22px;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:translateX(-11px);}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more {width:auto;justify-content:flex-start;gap:4px;font-size:14px;}
-.profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:18px;height:18px;}
+.profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:28px;height:28px;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:none;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:2;margin-left:8px;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .activity-comments>svg {width:24px;height:24px;}
@@ -2243,10 +2243,9 @@ html body .me-card-bars .me-week.now > span:first-child { background: var(--acce
 /* Comments sheet: move its body, height limit and keyboard fill on the same keyboard frame. */
 body .scrim.keyboard-attached.keyboard-inset:has(.social-sheet) { transition:bottom 250ms cubic-bezier(.2,.8,.2,1); }
 body .scrim.keyboard-attached.keyboard-inset:has(.social-sheet)::after { transition:height 250ms cubic-bezier(.2,.8,.2,1),bottom 250ms cubic-bezier(.2,.8,.2,1); }
-body .scrim.keyboard-attached.keyboard-inset:has(.social-sheet) > .sheet { box-sizing:border-box; padding-right:16px; padding-left:16px; border-radius:18px 18px 0 0; background:var(--surface-sheet); transition:max-height 250ms cubic-bezier(.2,.8,.2,1); }
-/* The light fill is the opaque stand-in below the simulated keyboard; keep the reply controls close and left aligned. */
-body .social-sheet .social-reactions { margin-bottom:4px; }
+body .scrim.keyboard-attached.keyboard-inset:has(.social-sheet) > .sheet { box-sizing:border-box; padding-right:16px; padding-left:16px; border-radius:18px 18px 0 0; background:var(--surface-sheet); box-shadow:none; transition:max-height 250ms cubic-bezier(.2,.8,.2,1); }
+/* Keep quick replies close to the composer and left aligned. */
 body .social-sheet .c-quick { justify-content:flex-start; gap:12px; }
-body .social-sheet .c-quick .c-chip { flex:none; }
+body .social-sheet .c-quick .c-chip { flex:none;color:var(--tx2);font-weight:500; }
 /* The tap target stays 44px while its visible dots use only the small trailing slot. */
-body .social-sheet .comment .c-comment-options { margin-left:-12px; }
+body .social-sheet .comment .c-comment-options { margin-left:auto; }

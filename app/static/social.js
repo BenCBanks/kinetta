@@ -17,6 +17,7 @@ const REACTIONS=()=>App.me?.reaction_choices||REACTION_FALLBACK;
 let closeReactionPicker = null;
 const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire',laugh:'clap',hike:'mountain',lift:'muscle','🥾':'mountain'})[k]||k;
 const reactionMark=kind=>'<span class="reaction-emoji" data-type="glyph" aria-hidden="true">'+esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')+'</span>';
+const reactionClapIcon=()=>'<svg class="reaction-clap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="translate(-3.6 -3.6) scale(1.3)"><path vector-effect="non-scaling-stroke" d="m3.5 19.6 2.1-2.8 1.1-4.1-.2-3.6c-.1-1.3 1.8-1.5 2-.2l.5 3.8.1-4.2c0-1.3 2-1.4 2.1-.1l.2 5.2c0 1.5-.4 2.7-1.2 3.9l-1.8 2.9c-.7 1-1.8 1.1-2.7.4l-2.2-1.2Z"/><path vector-effect="non-scaling-stroke" d="m20.5 19.6-2.1-2.8-1.1-4.1.2-3.6c.1-1.3-1.8-1.5-2-.2l-.5 3.8-.1-4.2c0-1.3-2-1.4-2.1-.1l-.2 5.2c0 1.5.4 2.7 1.2 3.9l1.8 2.9c.7 1 1.8 1.1 2.7.4l2.2-1.2Z"/><path vector-effect="non-scaling-stroke" d="m4.2 5.4 1.6 1.1m6-3.3v1.9m7.2.3-1.4 1.1"/></g></svg>';
 const reactionAddIcon=()=>'<svg class="reaction-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="13" r="7.5"/><path d="M6.5 14.5c.7 1 1.6 1.5 2.5 1.5s1.8-.5 2.5-1.5"/><path d="M6.5 10h.01 M11.5 10h.01"/><path d="M18.5 3.5v6 M15.5 6.5h6"/></svg>';
 const reactionCompact=new Intl.NumberFormat('en',{notation:'compact',maximumSignificantDigits:2});
 const reactionNumber=n=>n>=1000?reactionCompact.format(n).replace('K','k'):String(n);
@@ -32,29 +33,29 @@ function orderedReactionKinds(state){
   return REACTIONS().filter(([kind])=>state.reactions[kind]>0).sort((a,b)=>(state.reactions[b[0]]-state.reactions[a[0]])||((first.get(a[0])??Infinity)-(first.get(b[0])??Infinity)));
 }
 function reactionSummary(state,feedFooter=false,omitKind=null){
-  const all=orderedReactionKinds(state),visibleKinds=omitKind?all.filter(([kind])=>kind!==omitKind):all,total=visibleKinds.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0);
+  const all=orderedReactionKinds(state),visibleKinds=omitKind?all.filter(([kind])=>kind!==omitKind):all,total=all.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0),visibleTotal=visibleKinds.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0);
   const shown=visibleKinds.slice(0,3),extra=visibleKinds.length-shown.length;
   if(feedFooter){
     const html=shown.map(([kind])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
     const visible=shown.map(([kind,name,emoji])=>`${emoji} ${reactionNumber(state.reactions[kind])} (${name})`).join(', ')+(extra?`${shown.length?', ':''}+${extra}`:'');
     const label=total?`${visible}; ${reactionNumber(total)} reaction${total===1?'':'s'}, see who reacted`:'See who reacted';
-    return{used:visibleKinds,html,label,total};
+    return{used:visibleKinds,html,label,total,visibleTotal};
   }
   const html=shown.map(([kind,label])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
   const visible=shown.map(([kind,,emoji])=>emoji+reactionNumber(state.reactions[kind])).join('')+(extra?'+'+extra:'');
   const names=visibleKinds.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
   const label=visibleKinds.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
-  return{used:visibleKinds,html,label,total};
+  return{used:visibleKinds,html,label,total,visibleTotal};
 }
 function reactionButtons(aid,s,detail=false,compact=false,moment=null,groupTarget=null){
-  const feedFooter=!detail&&!compact&&!moment&&!groupTarget,selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter,detail?selected:null);
-  const choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏',triggerLabel=selected?`Remove your ${emoji} reaction`:'React',triggerContent=selected?reactionMark(selected):reactionAddIcon()+'<span>React</span>';
+  const feedFooter=!detail&&!compact&&!moment&&!groupTarget,clapTrigger=feedFooter||detail||(compact&&!moment&&!groupTarget),selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter,clapTrigger?selected:null);
+  const choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏',triggerLabel=selected?`Remove your ${emoji} reaction`:'React',triggerContent=selected?reactionMark(selected):clapTrigger?reactionClapIcon():reactionAddIcon()+'<span>React</span>';
   const attrs=REACTIONS().map(([k])=>'data-count-'+k+'="'+(counts[k]||0)+'"').join(' ');
   const choices=REACTIONS().map(([kind,label])=>'<button type="button" role="menuitemradio" aria-label="React with '+esc(label)+'" aria-checked="'+(selected===kind)+'" data-react="'+kind+'" tabindex="-1">'+reactionMark(kind)+'</button>').join('');
   const target=groupTarget?'data-group-reaction-group data-group-id="'+esc(groupTarget.id)+'" '+(groupTarget.updateId?'data-group-update-id="'+esc(groupTarget.updateId)+'"':'data-group-week="1"'):moment?'data-moment-reaction-group data-moment-owner="'+esc(moment.owner)+'" data-moment-week="'+esc(moment.week)+'"':'data-reaction-group data-aid="'+aid+'"';
-  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+(feedFooter?' data-feed-footer="true"':'')+(detail?' data-detail-reactions="true"':'')+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
+  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+(feedFooter?' data-feed-footer="true"':'')+(detail?' data-detail-reactions="true"':'')+(clapTrigger?' data-clap-trigger="true"':'')+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
     '<div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="'+esc(triggerLabel)+'" aria-pressed="'+!!selected+'" aria-haspopup="menu" aria-expanded="false">'+triggerContent+'</button></div>'+
-    '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.total?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
+    '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.visibleTotal?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
     '<div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">'+choices+'</div></div></div>';
 }
 
@@ -104,12 +105,13 @@ function wireReactionGroup(group,aid,changed){
     const triggerLabel=selected?`Remove your ${emoji} reaction`:'React';
     more.setAttribute('aria-label',triggerLabel);
     more.setAttribute('aria-pressed',String(!!selected));
-    const triggerContent=selected?reactionMark(selected):`${reactionAddIcon()}<span>React</span>`;
+    const clapTrigger=group.dataset.clapTrigger==='true';
+    const triggerContent=selected?reactionMark(selected):clapTrigger?reactionClapIcon():reactionAddIcon()+'<span>React</span>';
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    const compact=reactionSummary(state,group.dataset.feedFooter==='true',group.dataset.detailReactions==='true'?state.my_reaction:null);
+    const compact=reactionSummary(state,group.dataset.feedFooter==='true',group.dataset.clapTrigger==='true'?state.my_reaction:null);
     if(summary._marks!==compact.html){summary.innerHTML=compact.html;summary._marks=compact.html;}
-    count.hidden=!compact.total;count.disabled=busy;count.setAttribute('aria-label',compact.label);
+    count.hidden=!compact.visibleTotal;count.disabled=busy;count.setAttribute('aria-label',compact.label);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh),reaction_order:reactionOrder(fresh)};if(commentButton)commentButton.setAttribute('aria-label',commentActionLabel(commentCountFromButton(commentButton)));draw();}};
@@ -777,19 +779,19 @@ function socialChanged(aid) {
 }
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
 const QUICK_REPLIES=['Nice work!','Great effort','Way to go'];
+function commentTime(iso){const time=Date.parse(iso);if(!Number.isFinite(time))return'';const age=Math.max(0,Date.now()-time);if(age<60_000)return'now';if(age<86_400_000)return`${Math.floor(age/3_600_000)}h`;if(age<604_800_000)return`${Math.floor(age/86_400_000)}d`;return fdate(iso,{month:'short',day:'numeric'});}
 const commentArrowIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
 const commentRetryIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5M20 4v7h-7"/></svg>';
 const commentSkeletonMarkup='<div class="comments-skeleton" aria-hidden="true"><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div></div>';
 function commentsSheet(aid, s, onChange) {
   cleanViews();
   const account=readOwner();if(s&&!SocialData.peek(aid))SocialData.remember(aid,s);const cached=SocialData.peek(aid);
-  sheet('Comments', `<div class="social social-sheet"><div class="social-reactions">${reactionButtons(aid,cached||s||{cheers:[],my_reaction:null},false,true)}</div><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':commentSkeletonMarkup}</div>
+  sheet('Comments', `<div class="social social-sheet"><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':commentSkeletonMarkup}</div>
     <p class="social-read-status small muted" role="status" aria-live="polite"></p>
     <div class="c-quick" aria-label="Quick replies" hidden>${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
     <form class="c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Send comment" disabled>${commentArrowIcon}</button></form></div>`,b=>{
     const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box),send=$('.c-send',f),quick=$('.c-quick',box);
     const current=()=>box.isConnected&&account===readOwner();
-    wireReactionGroup($('[data-reaction-group]',box),aid);
     box._sync=()=>{const empty=!f.text.value.trim(),posting=send.dataset.posting==='1',failed=send.dataset.failed==='1';send.disabled=!!box._denied||posting||empty;
       send.setAttribute('aria-label',posting?'Sending comment':failed?'Retry sending comment':'Send comment');
       send.innerHTML=posting?'<span class="c-send-spinner" aria-hidden="true"></span>':failed?commentRetryIcon:commentArrowIcon;
@@ -802,9 +804,10 @@ function commentsSheet(aid, s, onChange) {
     requestAnimationFrame(()=>{if(current())box._sync();});
     const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
     if(cached)drawComments(box,aid,cached,onChange);
-    viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}}));
+    viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();box._denied=true;box._sync();}}));
+    wireCommentActions(box,list);
     const refresh=async()=>{if(!cached){status.textContent='Loading comments';list.setAttribute('aria-busy','true');if(!list.querySelector('.comments-skeleton'))list.innerHTML=commentSkeletonMarkup;}try{const fresh=await SocialData.read(aid);update(fresh);}
-      catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}
+      catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();box._denied=true;box._sync();}
         list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
       let denied=false;delete button.dataset.failed;button.dataset.posting='1';button.setAttribute('aria-busy','true');status.textContent='Sending comment…';box._sync();
@@ -818,25 +821,68 @@ function commentsSheet(aid, s, onChange) {
     refresh();
   },{keyboardAttached:true,focusContainer:true});
 }
+function commentOptionsSheet(box,aid,comment,trigger){
+  if(box._owner!==readOwner())return;
+  const own=comment.login===App.me.login,canDelete=!!comment.can_delete,reportable=!own,options=[];
+  if(reportable)options.push('<button type="button" data-comment-report>Report comment</button>','<button type="button" data-comment-block>Block '+esc(comment.name)+'</button>');
+  if(canDelete)options.push('<button type="button" class="comment-delete-action" data-comment-delete>Delete comment</button>');
+  if(!options.length)return;
+  const removeAuthor=()=>{
+    if(box._owner!==readOwner())return;
+    const current=SocialData.peek(aid)||box._social;
+    const next={...current,comments:current.comments.filter(item=>item.login!==comment.login)};
+    socialChanged(aid);SocialData.remember(aid,next);if(box.isConnected)drawComments(box,aid,next,box._onChange);box._onChange?.(next);
+  };
+  sheet('Comment actions',`<div class="comment-options-menu" role="group" aria-label="Comment actions">${options.join('')}</div>`,(menu,close)=>{
+    const report=$('[data-comment-report]',menu),block=$('[data-comment-block]',menu),remove=$('[data-comment-delete]',menu);
+    if(report)report.onclick=()=>{close();reportSheet(comment,{comment_id:comment.id},removeAuthor);};
+    if(block)block.onclick=()=>{close();friendChangeSheet(comment,true,removeAuthor);};
+    if(remove)remove.onclick=async()=>{
+      close();if(box._owner!==readOwner()||!await confirmSheet('Delete this comment?',{body:'This comment will be removed.',action:'Delete'})||box._owner!==readOwner())return;
+      if(trigger?.isConnected)trigger.disabled=true;
+      try{await api('/api/comments/'+comment.id,{method:'DELETE'});if(box._owner!==readOwner())return;const current=SocialData.peek(aid)||box._social,next={...current,comments:current.comments.filter(item=>item.id!==comment.id)};socialChanged(aid);SocialData.remember(aid,next);if(box.isConnected)drawComments(box,aid,next,box._onChange);box._onChange?.(next);}
+      catch(error){if(box._owner===readOwner())toast(error.message);if(trigger?.isConnected)trigger.disabled=false;}
+    };
+  });
+}
+function wireCommentActions(box,list){
+  if(box._commentActionsBound)return;box._commentActionsBound=true;
+  const owner=box._owner;let press=null,timer=0,suppressUntil=0,suppressTarget=null,suppressTimer=0,disposed=false;
+  const rowFor=target=>target instanceof Element?target.closest('.comment[data-comment-id]'):null;
+  const clear=()=>{clearTimeout(timer);timer=0;press=null;};
+  const suppress=target=>{suppressTarget=target||press?.target||null;suppressUntil=Date.now()+900;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressUntil=0;suppressTarget=null;},900);};
+  const open=row=>{if(!row?.isConnected||owner!==readOwner())return;const comment=box._social?.comments?.find(item=>String(item.id)===row.dataset.commentId),button=row.querySelector('[data-comment-options]');if(comment)commentOptionsSheet(box,box._aid,comment,button);};
+  const down=event=>{
+    const row=rowFor(event.target);if(!row||event.target.closest('button,a')||event.button!==0||event.isPrimary===false)return;
+    clear();press={row,target:event.target,id:event.pointerId,x:event.clientX,y:event.clientY,fired:false};
+    timer=setTimeout(()=>{if(press?.row.isConnected){press.fired=true;suppress(press.target);open(press.row);}},500);
+  };
+  const move=event=>{
+    if(!press||press.fired||event.pointerId!==press.id)return;const dx=event.clientX-press.x,dy=event.clientY-press.y;
+    if(dx<=-44&&Math.abs(dy)<=28){const row=press.row;press.fired=true;clearTimeout(timer);timer=0;suppress(press.target);open(row);return;}
+    if(dx<-10&&Math.abs(dy)<=28)return;
+    if(Math.abs(dy)>10||dx>10||Math.hypot(dx,dy)>16)clear();
+  };
+  const up=event=>{if(!press||event.pointerId!==press.id)return;if(press.fired)suppress();clear();};
+  const click=event=>{if(!suppressUntil||event.detail===0||event.target!==suppressTarget)return;const row=rowFor(event.target);if(!row)return;event.preventDefault();event.stopImmediatePropagation();suppressUntil=0;suppressTarget=null;clearTimeout(suppressTimer);};
+  const context=event=>{const row=rowFor(event.target);if(!row)return;event.preventDefault();suppress(event.target);open(row);};
+  const key=event=>{if(event.key!=='ContextMenu'&&!(event.key==='F10'&&event.shiftKey))return;const row=rowFor(event.target);if(!row)return;event.preventDefault();open(row);};
+  list.addEventListener('pointerdown',down);list.addEventListener('contextmenu',context);list.addEventListener('keydown',key);document.addEventListener('click',click,true);document.addEventListener('pointermove',move,true);document.addEventListener('pointerup',up,true);document.addEventListener('pointercancel',up,true);
+  const prior=viewResources.get(box);viewResources.set(box,()=>{if(disposed)return;disposed=true;clear();clearTimeout(suppressTimer);prior?.();list.removeEventListener('pointerdown',down);list.removeEventListener('contextmenu',context);list.removeEventListener('keydown',key);document.removeEventListener('click',click,true);document.removeEventListener('pointermove',move,true);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);});
+}
 function drawComments(box,aid,s,onChange){
   if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
-  const list=$('.comments',box),reactions=$('.social-reactions',box);
-  let group=$('[data-reaction-group]',reactions);
-  if(!group){reactions.innerHTML=reactionButtons(aid,s,false,true);group=$('[data-reaction-group]',reactions);wireReactionGroup(group,aid);}
-  else group._sync?.(s);
+  const list=$('.comments',box);
   if(list.getAttribute('aria-busy')==='true')list.replaceChildren();list.setAttribute('aria-busy','false');
   const keep=new Set();let anchor=list.firstElementChild;
   for(const comment of s.comments){const id=String(comment.id);keep.add(id);let node=[...list.children].find(n=>n.dataset.commentId===id);const signature=JSON.stringify(comment);
     if(!node){node=document.createElement('div');node.className='comment';node.setAttribute('role','listitem');node.dataset.commentId=id;}
     if(node===anchor)anchor=anchor.nextElementSibling;else list.insertBefore(node,anchor);
     if(node._signature===signature)continue;node._signature=signature;
-    node.innerHTML=`<a href="${profileHref(comment)}" data-close aria-label="View ${esc(comment.name)}'s profile">${avatar(comment)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(comment)}" data-close><b>${esc(comment.name)}</b></a><small class="muted">${esc(when(comment.created))}</small>${comment.can_delete?`<button type="button" class="c-comment-options" data-comment-options aria-label="Comment options">${svg('more')}</button>`:''}</div><p>${esc(comment.text)}</p><div class="c-acts">${comment.login!==App.me.login?`<button class="linkbtn muted" data-rep="${comment.id}" aria-label="Report comment from ${esc(comment.name)}">Report</button>`:''}</div></div>`;
-    const after=fresh=>{if(box._owner!==readOwner())return;socialChanged(aid);SocialData.remember(aid,fresh);if(box.isConnected)drawComments(box,aid,fresh,onChange);onChange?.(fresh);};
-    const options=$('[data-comment-options]',node);if(options)options.onclick=()=>{if(box._owner!==readOwner())return;sheet('Comment options','<div class="comment-options-menu"><button type="button" class="comment-delete-action" data-comment-delete>Delete comment</button></div>',(menu,close)=>{
-      $('[data-comment-delete]',menu).onclick=async()=>{close();if(box._owner!==readOwner()||!await confirmSheet('Delete this comment?',{body:'This comment will be removed.',action:'Delete'})||box._owner!==readOwner())return;options.disabled=true;
-        try{await api('/api/comments/'+comment.id,{method:'DELETE'});after({...SocialData.peek(aid)||box._social,comments:(SocialData.peek(aid)||box._social).comments.filter(c=>c.id!==comment.id)});}catch(error){if(box._owner===readOwner())toast(error.message);if(options.isConnected)options.disabled=false;}};
-    });};
-    const report=$('[data-rep]',node);if(report)report.onclick=()=>{if(box._owner===readOwner())reportSheet(comment,{comment_id:comment.id},()=>after({...box._social,comments:box._social.comments.filter(c=>c.login!==comment.login)}));};
+    node.tabIndex=0;node.setAttribute('aria-label',`${comment.name}: ${comment.text}`);node.setAttribute('aria-description','Comment actions are available from Comment options, by long press, or by swiping left.');
+    const initials=comment.name.trim().split(/\s+/).slice(0,2).map(word=>word[0]||'').join('').toUpperCase()||'?';
+    node.innerHTML=`<a href="${profileHref(comment)}" data-close aria-label="${esc(initials)}" aria-description="${esc(comment.name)}'s profile">${avatar(comment)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(comment)}" data-close><b>${esc(comment.name)}</b></a><small class="c-time muted">${esc(commentTime(comment.created))}</small><button type="button" class="c-comment-options" data-comment-options aria-label="Comment options" aria-haspopup="dialog" aria-keyshortcuts="Shift+F10">${svg('more')}</button></div><p>${esc(comment.text)}</p></div>`;
+    const options=$('[data-comment-options]',node);if(options)options.onclick=()=>commentOptionsSheet(box,aid,comment,options);
   }
   for(const node of [...list.children])if(!keep.has(node.dataset.commentId))node.remove();
   if(!s.comments.length)list.replaceChildren();
