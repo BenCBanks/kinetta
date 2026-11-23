@@ -582,21 +582,25 @@ async function closeCaptureContext(context) {
           const safeBottom=tabs.getBoundingClientRect().top-8;
           if(rowBottom>safeBottom)window.scrollBy(0,rowBottom-safeBottom);
         },{homeFeed:name==='home-feed',safeTop:TOP});
-        const geometry=await group.evaluate(el=>{
+        const geometry=await group.evaluate((el,{homeFeed,safeTop})=>{
           const footer=el.closest('.post-ft');
           const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count'),share=footer?.querySelector('[data-share-picture]');
           if(!footer||!action||!comments||!button)return{valid:false,missing:true};
           const style=getComputedStyle(footer),contentRight=footer.getBoundingClientRect().right-(parseFloat(style.paddingRight)||0);
           const actionRect=action.getBoundingClientRect(),commentRect=comments.getBoundingClientRect(),buttonRect=button.getBoundingClientRect(),shareRect=share?.getBoundingClientRect();
+          const headerRect=el.closest('.post')?.querySelector('.post-hd')?.getBoundingClientRect();
           const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
           const visible=r=>r.width>0&&r.height>=44&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit;
           const hasSummary=!button.hidden;
-          const valid=visible(actionRect)&&visible(commentRect)&&(!hasSummary||visible(buttonRect))
-            &&commentRect.left-actionRect.right>=7.99
+          const rowVisible=visible(actionRect)&&visible(commentRect)&&(!hasSummary||visible(buttonRect))&&(!share||visible(shareRect));
+          const gaps=commentRect.left-actionRect.right>=7.99
             &&(!hasSummary||Math.abs(buttonRect.left-actionRect.right-8)<1&&commentRect.left-buttonRect.right>=7.99)
-            &&(share?visible(shareRect)&&Math.abs(shareRect.right-contentRight)<1&&Math.abs(shareRect.left-commentRect.right-8)<1:Math.abs(commentRect.right-contentRight)<1);
-          return{valid,action:{x:actionRect.x,right:actionRect.right,top:actionRect.top,bottom:actionRect.bottom},comment:{x:commentRect.x,right:commentRect.right,top:commentRect.top,bottom:commentRect.bottom},summary:{x:buttonRect.x,right:buttonRect.right,top:buttonRect.top,bottom:buttonRect.bottom},share:shareRect&&{x:shareRect.x,right:shareRect.right,top:shareRect.top,bottom:shareRect.bottom},contentRight,limit,innerWidth,scrollY,scrollHeight:document.documentElement.scrollHeight};
-        });
+            &&(share?Math.abs(shareRect.right-contentRight)<1&&Math.abs(shareRect.left-commentRect.right-8)<1:Math.abs(commentRect.right-contentRight)<1);
+          const homeHeaderClear=!!headerRect&&headerRect.top>=safeTop;
+          const homeFooterClear=[actionRect,commentRect,...(hasSummary?[buttonRect]:[]),...(share?[shareRect]:[])].every(r=>r.top>=safeTop||r.bottom<=0);
+          const valid=homeFeed?homeHeaderClear&&homeFooterClear&&(!rowVisible||gaps):rowVisible&&gaps
+          return{valid,homeFeed,header:headerRect&&{top:headerRect.top,bottom:headerRect.bottom},rowVisible,action:{x:actionRect.x,right:actionRect.right,top:actionRect.top,bottom:actionRect.bottom},comment:{x:commentRect.x,right:commentRect.right,top:commentRect.top,bottom:commentRect.bottom},summary:{x:buttonRect.x,right:buttonRect.right,top:buttonRect.top,bottom:buttonRect.bottom},share:shareRect&&{x:shareRect.x,right:shareRect.right,top:shareRect.top,bottom:shareRect.bottom},contentRight,limit,innerWidth,scrollY,scrollHeight:document.documentElement.scrollHeight};
+        },{homeFeed:name==='home-feed',safeTop:TOP});
         if(!geometry.valid)throw Error('Demo feed heart/summary/comments/share targets do not match the shipped footer layout: '+JSON.stringify(geometry));
       }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
