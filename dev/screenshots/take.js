@@ -519,7 +519,15 @@ async function closeCaptureContext(context) {
         App.me.ai_ok = true; App.me.ai_paused = false; App.me.kit_chat = true; App.me.coach = true;
         App.me.ai_access ||= {}; App.me.ai_access.coach = {available: true, entitled: true};
       });
-      await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
+      await page.evaluate((p) => {
+        document.querySelectorAll('.scrim').forEach((x) => x.remove());
+        document.body.classList.remove('has-sheet');
+        // A prior visit can leave a saved route position. Clear it before Kit's chat
+        // locks document scrolling, or its header can be restored under the status bar.
+        if (App.scroll) App.scroll[p] = 0;
+        window.scrollTo({top: 0, behavior: 'instant'});
+        go(p);
+      }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
       if(name==='profile'){
         const entry=page.locator('.me-featured-title a');await entry.waitFor({state:'visible'});
@@ -545,7 +553,10 @@ async function closeCaptureContext(context) {
         await tab.waitFor({state:'visible'});await tab.click();
         await page.locator(`#activity-pane-${opt.tab}:visible`).waitFor();
       }
-      await page.evaluate(() => { window.scrollTo(0, 0); });
+      await page.evaluate((scene) => {
+        if (scene === 'kit-insight-progress' && App.scroll) App.scroll[location.pathname + location.search] = 0;
+        window.scrollTo({top: 0, behavior: 'instant'});
+      }, name);
       await page.evaluate(() => document.fonts.ready);
       // Locator/evaluate polling works under the app’s strict script policy.
       for(let n=0;n<40;n++){if(await page.evaluate(()=>!document.querySelector('.leaflet-tile-container')||document.querySelector('.leaflet-tile-loaded')))break;await page.waitForTimeout(100);}
