@@ -78,7 +78,7 @@
       else if(cfg.friends&&p==='/api/people/suggested')data=cfg.friends.suggested;
       else if(cfg.friends&&p==='/api/sharing')data={default:'friends'};
       else if(p==='/api/notifications/count')data={unread:0,friend_requests:0};
-      else if(p==='/api/map-config')data={kind:'off',attribution:'',personal_default:false};
+      else if(p==='/api/map-config')data=cfg.stage==='activity-photos-save'?{kind:'raster',url:location.origin+'/native-ui-map/{z}/{x}/{y}.svg',dark_url:location.origin+'/native-ui-map/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional test map'}:{kind:'off',attribution:'',personal_default:false};
       else if(p==='/api/stats')data={weeks:[],years:[],recent_days:[],chart_weeks:[],week_days:[],total:0};
       else if(p==='/api/coach/week')data={enabled:false,paused:false,latest:null};
       else if(p==='/api/fitness')data={days:[]};
@@ -89,6 +89,7 @@
       if(p==='/api/me'&&cfg.startupTiming)cfg.startupTiming.apiMeDonePerfMs=performance.now();
       return response;
     }
+    if(cfg.stage==='activity-photos-save'&&u.pathname.startsWith('/native-ui-map/'))return new Response('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e7ede8"/><path d="M-8 88Q42 112 88 82T174 84T266 72M-10 208Q48 180 106 207T266 190M76 -8Q98 45 82 101T96 266M208 -8Q182 50 209 102T188 266" fill="none" stroke="#fff" stroke-width="10"/><path d="M-4 138Q42 118 92 139T178 143T260 122" fill="none" stroke="#cbd8ce" stroke-width="7"/></svg>',{status:200,headers:{'Content-Type':'image/svg+xml','Cache-Control':'no-store'}});
     if(cfg.store&&raw===cfg.store.mapUrl)return nativeFetch(input,{...options,credentials:'omit'});
     if(u.origin!==location.origin)throw Error('Native UI fixture blocked external request');
     return nativeFetch(input,options);
