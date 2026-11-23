@@ -1084,7 +1084,7 @@ function sharePicture(id, known, origin=null) {
       const line=mapAllowed?activity.line:null,hasLine=!!(line&&decode(line).length>1),controls=hasLine?[{key:'hideEnds',label:'Hide where it starts and ends',checked:true}]:[];
       const safe={...activity,line,avg_hr:details.heart_rate?activity.avg_hr:null,calories:details.calories?activity.calories:null};
       const trimValue=state=>state.hideEnds?savedTrim:0;
-      const items=[{label:'Card',filename:'kinetta-activity.png',controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
+      const items=[{label:'Card',filename:'kinetta-activity.png',controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details,{story:true})}];
       const rateInfo=rate(activity),pace=details.pace&&rateInfo.label!=='Time'?`${rateInfo.v} ${rateInfo.u}`:'';
       if(hasLine)items.push({label:'Route',filename:'kinetta-route.png',controls,initial:{ink:'dark'},inkChoices:['dark','light'],build:state=>ShareArt.routeSilhouette({routePoints:trimRoute(decode(line),trimValue(state)),pace,totalTime:activityElapsedText(activity),ink:state.ink})});
       items.push({label:'Stats',filename:'kinetta-stats.png',initial:{ink:'dark'},inkChoices:['dark','light'],build:state=>ShareArt.statsPicture({distance:activity.distance_m?`${U.dist(activity.distance_m)} ${U.du()}`:'',pace,totalTime:activityElapsedText(activity),ink:state.ink})});
@@ -1139,12 +1139,12 @@ function drawMark(g, cx, cy, w, color) {
 }
 // The share picture (Ben, 2026-10-24): one 4:5 picture for texting, Instagram or anything else. The map fills it and the
 // details sit on a frosted, see-through card near the bottom. Start and finish get the app's markers unless hidden.
-async function routePicture(a, trim, details={}) {
+async function routePicture(a, trim, details={}, {story=false,track=true}={}) {
   const pictureOwner=readOwner();
-  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const W = 1080, H = story?1920:1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
   try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
-  const hue = PIC.route, M = 48, PAD = 56, SAFE_TOP = 40, SAFE_BOTTOM = M;
+  const hue = PIC.route, M = 48, PAD = 56, SAFE_TOP = story?250:40, SAFE_BOTTOM = story?250:M;
   // The approved Card includes only activity type, elapsed time, permitted pace and distance.
   const r = rate(a), cells = [];
   cells.push(['Elapsed time', activityElapsedText(a), '']);
@@ -1158,7 +1158,7 @@ async function routePicture(a, trim, details={}) {
   if (pts.length > 1) {
     // the map fills the picture, a little muted so the blue route is what you see first
     g.filter = 'grayscale(.45) brightness(1.03) contrast(.95)';
-    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: H, pad: 96, top: SAFE_TOP, under: H - CY - 24},{hideLabels:true});
+    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: H, pad: 96, top: SAFE_TOP, under: H - CY - 24},{hideLabels:!story});
     g.filter = 'none'; tiles = n;
     if (tiles) { g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(0, 0, W, H); }
     g.lineJoin = g.lineCap = 'round';
@@ -1169,6 +1169,7 @@ async function routePicture(a, trim, details={}) {
       const loop = loopEnds(pts[0], pts[pts.length - 1]), [sx, sy] = P(pts[0]), [ex, ey] = P(pts[pts.length - 1]);
       drawEnd(g, loop ? sx - 27 : sx, sy, 'start', 26); drawEnd(g, loop ? ex + 27 : ex, ey, 'end', 26);
     }
+    if(story&&!tiles)throw Error('The map is unavailable. Try sharing this picture again.');
   } else {
     // no GPS: the Kinetta mark takes the map's place, in blue
     const cy = SAFE_TOP + (CY - SAFE_TOP) / 2;
@@ -1177,9 +1178,10 @@ async function routePicture(a, trim, details={}) {
   }
   if(tiles){
     const text=MapTiles.credit(await MapTiles.config());
-    g.font=`600 20px ${ui}`;g.textAlign='right';g.textBaseline='alphabetic';
+    g.font=`600 20px ${ui}`;g.textAlign=story?'left':'right';g.textBaseline='alphabetic';
+    const creditX=story?M+8:W-M-8;
     const words=text.split(' '),lines=[];let line='';for(const word of words){if(g.measureText(line+' '+word).width>W-2*M&&line){lines.push(line);line=word;}else line+=(line?' ':'')+word;}if(line)lines.push(line);
-    for(let i=0;i<lines.length;i++){const y=CY-14-(lines.length-1-i)*25;g.lineWidth=5;g.strokeStyle='rgba(255,255,255,.9)';g.strokeText(lines[i],W-M-8,y);g.fillStyle=PIC.muted;g.fillText(lines[i],W-M-8,y);}
+    for(let i=0;i<lines.length;i++){const y=CY-14-(lines.length-1-i)*25;g.lineWidth=5;g.strokeStyle='rgba(255,255,255,.9)';g.strokeText(lines[i],creditX,y);g.fillStyle=PIC.muted;g.fillText(lines[i],creditX,y);}
   }
   // the card: the map behind it, blurred, under a light tint, so it reads as frosted glass rather than a white box
   const card = () => { g.beginPath(); g.roundRect(CX, CY, CW, CH, 40); };
@@ -1206,7 +1208,7 @@ async function routePicture(a, trim, details={}) {
     g.fillStyle = PIC.text; g.fillText(v, x, y + 14 + size);
     if (u) { const vw = g.measureText(v).width; g.font = `600 42px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, y + 14 + size); }
   });
-  return new Promise((res) => c.toBlob(b=>{if(b&&typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);res(b);}, 'image/png'));
+  return new Promise((res) => c.toBlob(b=>{if(b&&track&&typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);res(b);}, 'image/png'));
 }
 
 // ---------- Matched route ----------
