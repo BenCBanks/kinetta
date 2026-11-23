@@ -85,27 +85,20 @@ async function settleFeedHeaderBelowSafeArea(page) {
   }, TOP);
 }
 async function settleHomeFeedReactionBelowSafeArea(group) {
-  await group.evaluate(async (el, safeTop) => {
-    const footer=el.closest('.post-ft'),tabs=document.querySelector('nav.tabs');
-    if(!footer||!tabs)return;
-    const footerControls=[footer.querySelector('.reaction-more'),footer.querySelector('.activity-comments'),el.querySelector('.reaction-count')].filter(Boolean);
-    const homeLinks=[...document.querySelectorAll('.home-view-switch a[href]')].filter(node=>{
-      const rect=node.getBoundingClientRect();return rect.bottom>0&&rect.top<safeTop;
-    });
-    const controls=[...footerControls,...homeLinks];
-    if(!controls.length)return;
-    for(let pass=0;pass<3;pass++){
-      const top=Math.min(...controls.map(node=>node.getBoundingClientRect().top));
-      const bottom=Math.max(...controls.map(node=>node.getBoundingClientRect().bottom));
-      const safeBottom=tabs.getBoundingClientRect().top-8,lower=bottom-safeBottom,upper=top-safeTop;
-      if(lower<=0&&upper>=0)return;
-      if(lower>upper)return; // The final strict audit reports a real capture-layout conflict.
-      const delta=Math.max(lower,Math.min(0,upper)),next=Math.max(0,scrollY+delta);
-      if(next===scrollY)return;
-      window.scrollTo({top:next,behavior:'instant'});
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-    }
+  const header=await group.evaluate(async (el, safeTop) => {
+    const cardHeader=el.closest('.post')?.querySelector('.post-hd');
+    if(!cardHeader)return{valid:false,missing:true};
+    const nav=document.querySelector('.home-view-switch'),feedTop=document.querySelector('#feed-top');
+    const navRect=nav?.getBoundingClientRect(),feedRect=feedTop?.getBoundingClientRect(),top=cardHeader.getBoundingClientRect().top;
+    const gap=navRect&&top>navRect.bottom?top-navRect.bottom:0;
+    const target=Math.max(safeTop+8,(feedRect?.bottom??safeTop)+8+(navRect?.height??0)+gap);
+    const next=Math.max(0,scrollY+top-target);
+    if(next!==scrollY)window.scrollTo({top:next,behavior:'instant'});
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    const rect=cardHeader.getBoundingClientRect();
+    return{valid:rect.top>=safeTop&&Math.abs(rect.top-target)<2,top:rect.top,target,scrollY};
   },TOP);
+  if(!header.valid)throw Error('Home feed card header is not below the status-bar safe area: '+JSON.stringify(header));
 }
 async function assertTopSafeControls(page, scene, hiddenMediaControls = []) {
   const overlaps = await page.evaluate(top => [...document.querySelectorAll('a[href],button,[role="button"],input,select,textarea')]
@@ -581,11 +574,7 @@ async function closeCaptureContext(context) {
         await group.evaluate((el, {homeFeed,safeTop})=>{
           const tabs=document.querySelector('nav.tabs');
           if(!tabs)return;
-          if(homeFeed){
-            const top=el.closest('.post')?.getBoundingClientRect().top;
-            if(Number.isFinite(top))window.scrollBy(0,top-(safeTop+66));
-            return;
-          }
+          if(homeFeed)return;
           const footer=el.closest('.post-ft');
           const controls=[footer?.querySelector('.reaction-more'),footer?.querySelector('.activity-comments'),el.querySelector('.reaction-count')].filter(Boolean);
           if(!controls.length)return;
@@ -593,21 +582,25 @@ async function closeCaptureContext(context) {
           const safeBottom=tabs.getBoundingClientRect().top-8;
           if(rowBottom>safeBottom)window.scrollBy(0,rowBottom-safeBottom);
         },{homeFeed:name==='home-feed',safeTop:TOP});
-        const geometry=await group.evaluate(el=>{
+        const geometry=await group.evaluate((el,{homeFeed,safeTop})=>{
           const footer=el.closest('.post-ft');
           const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count'),share=footer?.querySelector('[data-share-picture]');
           if(!footer||!action||!comments||!button)return{valid:false,missing:true};
           const style=getComputedStyle(footer),contentRight=footer.getBoundingClientRect().right-(parseFloat(style.paddingRight)||0);
           const actionRect=action.getBoundingClientRect(),commentRect=comments.getBoundingClientRect(),buttonRect=button.getBoundingClientRect(),shareRect=share?.getBoundingClientRect();
+          const headerRect=el.closest('.post')?.querySelector('.post-hd')?.getBoundingClientRect();
           const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
           const visible=r=>r.width>0&&r.height>=44&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit;
           const hasSummary=!button.hidden;
-          const valid=visible(actionRect)&&visible(commentRect)&&(!hasSummary||visible(buttonRect))
-            &&commentRect.left-actionRect.right>=7.99
+          const rowVisible=visible(actionRect)&&visible(commentRect)&&(!hasSummary||visible(buttonRect))&&(!share||visible(shareRect));
+          const gaps=commentRect.left-actionRect.right>=7.99
             &&(!hasSummary||Math.abs(buttonRect.left-actionRect.right-8)<1&&commentRect.left-buttonRect.right>=7.99)
-            &&(share?visible(shareRect)&&Math.abs(shareRect.right-contentRight)<1&&Math.abs(shareRect.left-commentRect.right-8)<1:Math.abs(commentRect.right-contentRight)<1);
-          return{valid,action:{x:actionRect.x,right:actionRect.right,top:actionRect.top,bottom:actionRect.bottom},comment:{x:commentRect.x,right:commentRect.right,top:commentRect.top,bottom:commentRect.bottom},summary:{x:buttonRect.x,right:buttonRect.right,top:buttonRect.top,bottom:buttonRect.bottom},share:shareRect&&{x:shareRect.x,right:shareRect.right,top:shareRect.top,bottom:shareRect.bottom},contentRight,limit,innerWidth,scrollY,scrollHeight:document.documentElement.scrollHeight};
-        });
+            &&(share?Math.abs(shareRect.right-contentRight)<1&&Math.abs(shareRect.left-commentRect.right-8)<1:Math.abs(commentRect.right-contentRight)<1);
+          const homeHeaderClear=!!headerRect&&headerRect.top>=safeTop;
+          const homeFooterClear=[actionRect,commentRect,...(hasSummary?[buttonRect]:[]),...(share?[shareRect]:[])].every(r=>r.top>=safeTop||r.bottom<=0);
+          const valid=homeFeed?homeHeaderClear&&homeFooterClear&&(!rowVisible||gaps):rowVisible&&gaps
+          return{valid,homeFeed,header:headerRect&&{top:headerRect.top,bottom:headerRect.bottom},rowVisible,action:{x:actionRect.x,right:actionRect.right,top:actionRect.top,bottom:actionRect.bottom},comment:{x:commentRect.x,right:commentRect.right,top:commentRect.top,bottom:commentRect.bottom},summary:{x:buttonRect.x,right:buttonRect.right,top:buttonRect.top,bottom:buttonRect.bottom},share:shareRect&&{x:shareRect.x,right:shareRect.right,top:shareRect.top,bottom:shareRect.bottom},contentRight,limit,innerWidth,scrollY,scrollHeight:document.documentElement.scrollHeight};
+        },{homeFeed:name==='home-feed',safeTop:TOP});
         if(!geometry.valid)throw Error('Demo feed heart/summary/comments/share targets do not match the shipped footer layout: '+JSON.stringify(geometry));
       }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
@@ -706,6 +699,11 @@ async function closeCaptureContext(context) {
       if (name === 'feed' || name === 'home-feed') await settleFeedHeaderBelowSafeArea(page);
       if (name === 'home-feed') {
         const homeReaction = page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"] .post-ft [data-reaction-group][data-aid="${ids.FEED_ACTIVITY}"]`);
+        // Keep a fictional selected-clap state in the Home capture so the safe-area guard
+        // covers both the idle heart and the currently selected reaction without a server write.
+        await homeReaction.evaluate(el=>el._sync({my_reaction:'clap',reactions:{clap:2,starstruck:1,mindblown:1}}));
+        const selected=await homeReaction.evaluate(el=>({mine:el.dataset.mine,label:el.querySelector('.reaction-more')?.getAttribute('aria-label'),mark:el.querySelector('.reaction-more .reaction-emoji')?.textContent}));
+        if(selected.mine!=='clap'||selected.label!=='Remove your 👏 reaction'||selected.mark!=='👏')throw Error('Home feed capture did not render the selected-clap state: '+JSON.stringify(selected));
         await settleHomeFeedReactionBelowSafeArea(homeReaction);
       }
       if(opt.tab){
