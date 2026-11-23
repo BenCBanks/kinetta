@@ -1003,7 +1003,7 @@ async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,descript
   itemize=canItemize;
   let note=description??'';
   sheet(recipe?'Review recipe screenshots':label?'Photos of one ingredient':'Review your food photos','<div id="photo-selection"></div>',(root,close)=>{
-    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(recipe?'Choose views of one recipe, including its ingredients and nutrition. Kit will read them into a draft; check servings and numbers before saving.':label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div>'+(description!==null?`<label class="photo-description" for="photos-description">Describe this food <span class="muted">(optional)</span><textarea id="photos-description" rows="3" maxlength="4000" placeholder="For example, a 6-inch turkey sub with cheese and mayo; I ate half.">${esc(note)}</textarea></label><p class="small muted">Every estimate shows its food breakdown and total. Your photo appears temporarily in the chat, then disappears when you log the food or clear the chat.</p><p class="small muted">Kit estimates portions and hidden ingredients. Check the assumptions before logging.</p>`:'')+'<button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(recipe?'Read recipe screenshots':label?'Read these photos':description!==null?'Estimate with Kit':'Use these photos')+'</button>';
+    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div>'+(description!==null?`<label class="photo-description" for="photos-description">Describe this food <span class="muted">(optional)</span><textarea id="photos-description" rows="3" maxlength="4000" placeholder="For example, a 6-inch turkey sub with cheese and mayo; I ate half.">${esc(note)}</textarea></label>${recipe||label?'': '<p class="small muted">Photos stay in this chat until you log the food or clear the chat.</p>'}`:'')+'<button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(recipe?'Read recipe screenshots':label?'Read these photos':description!==null?'Estimate with Kit':'Use these photos')+'</button>';
       const field=$('#photos-description',box);if(field)field.oninput=()=>{note=field.value;};
       $$('[data-remove-photo]',box).forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.removePhoto,1);draw()});$('#photos-use',box).onclick=()=>{if(!active())return;close.closeAll(true);confirm(photos.slice(),{note:note.trim(),itemize})};};draw();
   },{flow:'auto'});
@@ -1417,17 +1417,17 @@ function drawTrends(box, I, days, part, rangeKey) {   // part: overview | energy
       eaten: r.eaten, burned: r.eaten == null ? null : r.burned, goal: r.goal, protein_g: r.protein_g, partial: r.today, day: r.day, counted: r.counted, weight: r.weight == null ? null : wconv(r.weight), trend: r.trend == null ? null : wconv(r.trend)}));
   }
   const burnNote=I.rows.some(r=>r.burn_source==='apple_health')
-    ? 'Burn uses synced Health app resting calories plus recorded activity calories, counted once. Missing resting data stays missing. These are source estimates, not a measurement of your exact needs.'
+    ? 'Health resting + activity calories; missing resting data stays missing.'
     : I.rows.some(r=>r.burn_source==='imported')
-      ? 'Some days use imported daily burn; other days use the formula estimate plus recorded workouts. These source values are estimates.'
-      : `Burn is a formula estimate of daily needs (about ${r0(homeCalories(S.tdee))} kcal before recorded workouts), plus recorded activity calories. It is not a measurement of your exact needs.`;
+      ? 'Imported daily burn.'
+      : 'Estimated daily needs before workouts + activity calories.';
   const kcalP = (S.avg_protein_g || 0) * 4, kcalC = (S.avg_carbs_g || 0) * 4, kcalF = (S.avg_fat_g || 0) * 9, kcalM = kcalP + kcalC + kcalF || 1;
   const pct = (v) => Math.round(v / kcalM * 100);
   const overviewLinks=()=>`<div class="insights-links" aria-label="Nutrition details">${NPROG.filter(v=>!['overview','weeks'].includes(v[0])).map(([key,name,,icon])=>`<a href="${esc(nutritionHref(key))}">${svg(icon)}<span>${esc(name)}</span>${svg('chev')}</a>`).join('')}</div>`;
   const complete=S.logged||0,partialRows=I.rows.filter(r=>r.entries>0&&!r.counted),partial=partialRows.length;
   const partialText=partial?`${partial} ${partial===1?'day':'days'} partly logged`:'';
   const countLine=days===7?`Food logged on ${complete} of 7 days`:`Logged ${complete} of ${days} days`;
-  const coverageNote=days===7?(complete<3?'A partial view of your week. Missing meals and days aren’t counted as zero.':partialText?`${partialText}.`:''):`Unlogged days aren’t counted as zero.${partialText?` ${partialText}.`:''}`;
+  const coverageNote=days===7?(complete<3?'Partial week · missing days excluded.':partialText?`${partialText}.`:''):`Unlogged days aren’t counted as zero.${partialText?` ${partialText}.`:''}`;
   const rowsForChart=weekly?cols:I.rows.map(r=>({label:dlabel(r.day,{month:'short',day:'numeric'}),tickLabel:dlabel(r.day,{month:'short',day:'numeric'}),tick:true,day:r.day,eaten:r.eaten,goal:r.goal,counted:r.counted,entries:r.entries,partial:r.entries>0&&!r.counted,padded:false}));
   const fmtKcal=v=>`${r0(homeCalories(v))} kcal`;
   const detailRows=`<details class="insights-detail-row"><summary>View logged-food breakdown</summary><div class="insights-detail-content insights-breakdown-content">
@@ -1445,9 +1445,9 @@ function drawTrends(box, I, days, part, rangeKey) {   // part: overview | energy
       ${overviewLinks()}`,
 
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
-      <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">${esc(burnNote)} The goal line is your food target; eating below it does not by itself establish a calorie deficit.</p></details></div>
+      <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">${esc(burnNote)} Goal line is a target, not a deficit.</p></details></div>
     <div class="card"><h2>Running deficit<span class="muted small">kcal total</span></h2><div id="nt-cum"></div>
-      <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">Adds estimated burn minus logged food across fully logged days with burn data. The weight conversion is a rough energy model, not measured fat loss. Water changes, missing food and burn-estimate errors can affect the comparison.</p></details></div>`,
+      <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">Estimated burn minus food on complete days. Weight change is an estimate.</p></details></div>`,
     macros: `<div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average · g/day' : 'g per day'}</span></h2><div id="nt-protein"></div></div>
     <div class="card"><h2>Where your calories come from</h2>
       ${MACROS.every(([k])=>S['avg_'+k]!=null) ? `<div class="split" role="img" aria-label="Protein ${pct(kcalP)}%, carbs ${pct(kcalC)}%, fat ${pct(kcalF)}%"><i class="m-protein_g" data-w="${(kcalP / kcalM).toFixed(3)}"></i><i class="m-carbs_g" data-w="${(kcalC / kcalM).toFixed(3)}"></i><i class="m-fat_g" data-w="${(kcalF / kcalM).toFixed(3)}"></i></div>
@@ -1577,6 +1577,6 @@ async function restingSourceCard(box) {
   };
   try {
     const status=await api('/api/health/resting');if(account!==readOwner()||!box.isConnected)return;
-    const latest=status.days?.[0];$('#resting-status',box).textContent=latest ? `Latest day: ${latest.day} · ${r0(latest.resting_kcal)} resting kcal · read ${when(latest.observed_at)}. Health totals can update after later syncs.` : 'No resting calories have synced. Allow Resting Energy in the iPhone app, then sync. Closing the permission screen does not confirm read access.';
+    const latest=status.days?.[0];$('#resting-status',box).textContent=latest ? `Latest: ${latest.day} · ${r0(latest.resting_kcal)} resting kcal.` : 'No resting data yet · sync in Apple Health.';
   }catch(e){if(account===readOwner()&&box.isConnected)$('#resting-status',box).textContent=e.message;}
 }

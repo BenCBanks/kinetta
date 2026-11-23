@@ -610,6 +610,7 @@ const healthStatus=(value)=>`<small class="health-row-status${value==='Needs per
 const healthNeedsPermission=(message)=>/health permissions|permission was denied|not authorized/i.test(message||'');
 const healthHowSyncs=`<details class="inset-nested-disclosure health-details health-how"><summary>How syncing works</summary>
   <p>Apple Health only shares categories you allow. Kinetta can import only data your recording app saved there. Workouts may include heart rate and outdoor routes when available and allowed.</p>
+  <p>To sync resting calories, choose Health app · Resting Energy in Nutrition. Allow Resting Energy in the iPhone app, then sync; closing the permission screen does not confirm access.</p>
   <p>Missing values stay unknown; an empty read does not mean zero. Manual weight entries take priority over Health samples on the same day.</p>
   <p>Imported workouts and weight belong to your Kinetta account. Kinetta updates or deletes only nutrition samples it wrote for this account; samples written by other apps stay untouched. Samples already saved in Apple Health remain there if sharing stops.</p>
   <p>Sync catches up when Kinetta opens or resumes. iOS may delay background workout delivery; unlock your iPhone and open Kinetta to catch up.</p></details>`;
