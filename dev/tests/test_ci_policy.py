@@ -142,7 +142,10 @@ class CIPolicyTests(unittest.TestCase):
         self.assertIn('cancel-in-progress: ${{ github.event_name != \'schedule\' && github.event_name != \'workflow_dispatch\' }}',ios)
         for name,next_name in (('build','native-ui'),('native-ui','store-ui'),('store-ui','testflight')):
             job=ios.split(f'\n  {name}:\n',1)[1].split(f'\n  {next_name}:\n',1)[0]
-            self.assertIn('github.event.pull_request.draft == false',job)
+            if name in ('build','store-ui'):
+                self.assertIn("needs.changes.outputs.store == 'true'",job)
+            else:
+                self.assertIn('github.event.pull_request.draft == false',job)
         self.assertIn("native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}",ios)
         self.assertIn('python3 dev/ci/policy.py',ios)
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping

@@ -284,7 +284,7 @@ jobs:
   store-ui:
     needs: [changes, build]
     if: needs.changes.outputs.native == 'true' && needs.changes.outputs.store == 'true'
-    # Owner: Basil; same 7-day PR-only quarantine expires 2026-11-22. Keep TestFlight's main-branch dependency.
+    # Listing Drafts may capture unsigned previews; TestFlight remains limited to a release run on main.
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     strategy:
       fail-fast: false
