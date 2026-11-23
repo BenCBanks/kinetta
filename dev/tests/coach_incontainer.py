@@ -29,6 +29,15 @@ kit_raw={'verdict':'You are covering more ground.','reason':'That supports a vol
 imperial=coach_chat.checked_answer(kit_raw,[profile_evidence,run_evidence],kit=True)
 assert imperial['facts'][0]['label']=='Run distance' and imperial['facts'][0]['display_value']=='124 mi'
 assert imperial['follow_ups']==kit_raw['follow_ups'] and 'limitations' not in imperial
+
+# Natural words may surround an app-verified placeholder; digits still require references.
+neighbor_fact={'evidence_id':'e2','label':'Distance','display_value':'7.5 mi'}
+for word in ('covering','spanning','totaling','totalling','reaching','adding up to','amounting to',
+             'with','of','about','around','roughly','nearly'):
+    coach_chat._kit_prose('Recorded workouts '+word+' {e2:0}.',[neighbor_fact])
+for word in ('higher','lower','more','less','above','below','over','under','up','down','longer',
+             'shorter','faster','slower','than','from','versus'):
+    coach_chat._kit_prose('{e2:0} '+word+' than before.',[neighbor_fact])
 metric_raw={**kit_raw,'facts':[{'evidence_id':'e2','path':['runs',0,'distance_m'],'value':124000}]}
 metric=coach_chat.checked_answer(metric_raw,[{**profile_evidence,'data':{'units':'metric'}},
     {**run_evidence,'data':{'runs':[{'distance_m':124000}]}}],kit=True)
@@ -213,6 +222,150 @@ with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',re
 assert period_calls==['profile','period_compare'] and comparison['tools_used']==['profile','period_compare']
 assert comparison['interpretation']=='Recorded distance increased between periods. Recorded: 5 mi; compared with 7.5 mi.'
 assert [fact['label'] for fact in comparison['facts']]==['Total previous distance','Total current distance']
+
+# The weekly review uses the profile's account-local date, excludes today, and compares exactly two complete weeks.
+for today,start,end,previous_start,previous_end in [
+    ('2026-03-09','2026-03-02','2026-03-08','2026-02-23','2026-03-01'), # Monday after the US spring DST change
+    ('2026-12-01','2026-11-24','2026-11-30','2026-11-17','2026-11-23'), # Month boundary
+    ('2027-01-01','2026-12-25','2026-12-31','2026-12-18','2026-12-24'), # Year boundary
+    ('2026-11-22','2026-11-15','2026-11-21','2026-11-08','2026-11-14'), # Sunday, completed week only
+]:
+    period=coach_chat._weekly_period(today)
+    assert tuple(period[k].isoformat() for k in ('start','end','previous_start','previous_end'))==(start,end,previous_start,previous_end)
+assert coach_chat._weekly_period('2026-11-22')['label']=='Nov 15–21, 2026'
+assert coach_chat._weekly_period('2026-12-01')['label']=='Nov 24–30, 2026'
+assert coach_chat._weekly_period('2027-01-01')['label']=='Dec 25–31, 2026'
+
+weekly_evidence=[profile_evidence,
+ {'evidence_id':'e2','tool':'period_compare','data':{'current':{'known_totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}},'change':{'distance_m':{'absolute':4000}}}},
+ {'evidence_id':'e3','tool':'consistency','data':{'recorded_workout_days':3,'food_log_days':2}},
+ {'evidence_id':'e4','tool':'nutrition_adequacy','data':{'summary':{'protein_g':{'comparable_days':2,'comparable_day_subtotal':180.0}}}},]
+weekly_raw={'verdict':'Your recorded distance increased.','reason':'That recorded change does not explain its cause.',
+ 'facts':[{'evidence_id':'e2','path':['current','known_totals','distance_m'],'value':12000},
+          {'evidence_id':'e2','path':['change','distance_m','absolute'],'value':4000},
+          {'evidence_id':'e4','path':['summary','protein_g','comparable_day_subtotal'],'value':180.0}],
+ 'weekly_review':{'what_went_well':'You kept a useful training rhythm.','what_to_change':'Food records are too uneven to compare intake confidently.',
+                  'next_week_focus':'Keep the next week steady and follow the saved plan.'},
+ 'selection':None,'actions':[],'follow_ups':['What should I keep doing?','How can I make food logging easier?']}
+weekly_checked=coach_chat.checked_answer(weekly_raw,weekly_evidence,kit=True,weekly_review=True)
+assert list(weekly_checked['weekly_review'])==['what_went_well','what_to_change','next_week_focus']
+try:
+    coach_chat.checked_answer({key:value for key,value in weekly_raw.items() if key!='verdict'},
+                              weekly_evidence,kit=True,weekly_review=True)
+except ValueError:pass
+else:raise AssertionError('Weekly Kit schema requires the model to return a verdict')
+assert weekly_checked['facts'][0]['label']=='Distance'
+assert weekly_checked['facts'][0]['display_value']=='7.5 mi'
+assert weekly_checked['facts'][1]['label']=='Distance'
+assert weekly_checked['facts'][1]['display_value']=='2.5 mi'
+assert weekly_checked['facts'][2]['label']=='Protein'
+assert weekly_checked['facts'][2]['display_value']=='180 g'
+weekly_workouts_label,_=coach_chat._kit_fact('period_compare',{'current':{'totals':{'workouts':4}}},
+    ['current','totals','workouts'],4,'metric',weekly=True)
+assert weekly_workouts_label=='Workouts'
+for tool,data,path,value,label in [
+    ('consistency',{'recorded_workout_days':3},['recorded_workout_days'],3,'Workout days'),
+    ('consistency',{'food_log_days':2},['food_log_days'],2,'Food days'),
+    ('nutrition_adequacy',{'summary':{'kcal':{'comparable_day_subtotal':2400}}},
+     ['summary','kcal','comparable_day_subtotal'],2400,'Calories'),
+]:
+    assert coach_chat._kit_fact(tool,data,path,value,'metric',weekly=True)[0]==label
+time_label,time_value=coach_chat._kit_fact('period_compare',{'current':{'known_totals':{'duration_s':5400}}},
+    ['current','known_totals','duration_s'],5400,'metric',weekly=True)
+assert (time_label,time_value)==('Time','1h 30m')
+time_fact={'evidence_id':'e2','label':time_label,'display_value':time_value}
+assert coach_chat._kit_prose('Recorded training reached {e2:0} across completed sessions.',[time_fact])=='Recorded training reached 1h 30m across completed sessions.'
+for bad in [
+    {**weekly_raw,'weekly_review':None},
+    {**weekly_raw,'reason':'  '},
+    {**weekly_raw,'follow_ups':['One?','Two?','Three?']},
+    {**weekly_raw,'verdict':'Your records show 3 training days.'},
+    {**weekly_raw,'reason':'You ran 3 days.'},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'You ran 3 days.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food was logged on 2 days.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'next_week_focus':'Run 3 times.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food records are uneven. Intake changed.'}},
+    {**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food intake reached {e2:1}.'}},
+    {**weekly_raw,'actions':['food']},
+]:
+    try:coach_chat.checked_answer(bad,weekly_evidence,kit=True,weekly_review=True)
+    except ValueError:pass
+    else:raise AssertionError('Weekly review shape, digit, sentence and no-action rules must fail closed')
+numeric_weekly_chip=coach_chat.checked_answer({**weekly_raw,'follow_ups':['Can I run 3 times?']},weekly_evidence,kit=True,weekly_review=True)
+assert numeric_weekly_chip['follow_ups']==[], 'A model-written digit in a weekly follow-up is dropped'
+placeholder_week={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'Your recorded distance was {e2:0}.'}}
+rendered_week=coach_chat.checked_answer(placeholder_week,weekly_evidence,kit=True,weekly_review=True)
+assert rendered_week['weekly_review']['what_went_well']=='Your recorded distance was '+rendered_week['facts'][0]['display_value']+'.', 'Weekly numeric prose may only use app-rendered verified placeholders'
+matching_protein={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Protein on comparison days was {e4:2}.'}}
+assert '180 g' in coach_chat.checked_answer(matching_protein,weekly_evidence,kit=True,weekly_review=True)['weekly_review']['what_to_change']
+matching_food={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_to_change':'Food entries remain incomplete, showing {e4:2} across logged days.'}}
+assert '180 g' in coach_chat.checked_answer(matching_food,weekly_evidence,kit=True,weekly_review=True)['weekly_review']['what_to_change']
+try: coach_chat._kit_fact('period_compare',weekly_evidence[1]['data'],['change','distance_m','percent'],12.5,'metric')
+except ValueError as error: assert str(error)=='Unsupported measurement path'
+else: raise AssertionError('Unsupported period change paths must remain rejected')
+
+# A captured provider response that stops mid-object gets one shorter, no-tools retry;
+# the retry still goes through the same weekly validator and placeholder contract.
+weekly_retry_round=0
+def weekly_retry_tool(self,name,args,*,connection=None):
+    if name=='profile': return {'units':'metric','today':'2026-11-22'}
+    if name=='period_compare': return {'current':{'known_totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}},'change':{'distance_m':{'absolute':4000}}}
+    if name=='consistency': return {'recorded_workout_days':3,'food_log_days':2}
+    if name=='nutrition_adequacy': return {'summary':{'protein_g':{'comparable_days':2,'comparable_day_subtotal':180.0}}}
+    raise AssertionError('Unexpected weekly fixture tool '+name)
+def weekly_retry_turn(messages,definitions):
+    global weekly_retry_round
+    weekly_retry_round+=1
+    assert definitions==[], 'Weekly answer and its one correction attempt never receive tools'
+    if weekly_retry_round==1:
+        return [], '{"verdict":"The week covered {e2:0} across {e3:0}.","reason":"","facts":[{"evidence_id":"e2","path":["current","totals","distance_m"],"value":12000},{"evidence_id":"e3","path":["recorded_workout_days"],"value":3}', {'promptTokenCount':10,'candidatesTokenCount':80,'thoughtsTokenCount':300}
+    assert any('truncated' in part.get('text','').lower() for message in messages if isinstance(message.get('parts'),list) for part in message['parts']), 'The retry explains the truncated JSON'
+    return [], json.dumps(weekly_raw), {'promptTokenCount':12,'candidatesTokenCount':90,'thoughtsTokenCount':20}
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
+     patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=weekly_retry_tool):
+    weekly_retried=coach_chat.answer(uid,'Review my week',kit=True,turn=weekly_retry_turn,weekly_review=True)
+assert weekly_retry_round==2 and weekly_retried['weekly_review']['what_went_well']==weekly_raw['weekly_review']['what_went_well']
+assert weekly_retried['usage']['candidatesTokenCount']==170 and weekly_retried['usage']['thoughtsTokenCount']==320
+try:coach_chat.checked_answer(weekly_raw,weekly_evidence,kit=True)
+except ValueError:pass
+else:raise AssertionError('Ordinary Kit answers cannot smuggle in weekly-review sections')
+
+weekly_calls=[]
+def weekly_tool(self,name,args,*,connection=None):
+    weekly_calls.append((name,args))
+    if name=='profile':return {'units':'imperial','today':'2026-03-09'}
+    if name=='period_compare':return {'current':{'known_totals':{'distance_m':12000}},'previous':{'totals':{'distance_m':8000}},'change':{'distance_m':{'absolute':4000}}}
+    if name=='consistency':return {'recorded_workout_days':3,'food_log_days':2}
+    if name=='nutrition_adequacy':return {'summary':{'protein_g':{'comparable_days':2,'comparable_day_subtotal':180.0}}}
+    raise AssertionError('Weekly prefetch must stay within reviewed tools')
+weekly_turns=[]
+def weekly_turn(messages,definitions):
+    weekly_turns.append((messages,definitions))
+    assert definitions==[],'Weekly review uses the app-bounded evidence set without requesting extra tools'
+    transcript=' '.join(part.get('text','') for part in messages[-1].get('parts',[]))
+    assert '2026-03-02' in transcript and '2026-03-08' in transcript and 'nutrition_adequacy' in transcript
+    return [],json.dumps(weekly_raw),{}
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
+     patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=weekly_tool):
+    weekly=coach_chat.answer(uid,'Review my week',kit=True,weekly_review=True,turn=weekly_turn)
+assert [name for name,_ in weekly_calls]==['profile','period_compare','consistency','nutrition_adequacy']
+assert all(args=={'start':'2026-03-02','end':'2026-03-08'} for _,args in weekly_calls[1:])
+assert len(weekly_turns)==1 and weekly['weekly_period']=={'start':'2026-03-02','end':'2026-03-08','label':'Mar 2–8, 2026'}
+assert weekly['weekly_review']['what_went_well']=='You kept a useful training rhythm.'
+assert weekly['verdict']==weekly_raw['verdict'] and weekly['reason']==weekly_raw['reason']
+assert weekly['interpretation']==weekly_raw['verdict']+' '+weekly_raw['reason']
+
+# Invalid weekly prose fails after the single answer call; unlike ordinary Kit, it cannot buy a retry.
+invalid_weekly_calls=[]
+def invalid_weekly_turn(messages,definitions):
+    invalid_weekly_calls.append(definitions)
+    return [],json.dumps({**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'You logged 3 days.'}}),{}
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
+     patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=weekly_tool):
+    try:coach_chat.answer(uid,'Review my week',kit=True,weekly_review=True,turn=invalid_weekly_turn)
+    except ValueError as error:assert str(error)=='Kit could not verify that weekly review. Try again.'
+    else:raise AssertionError('Invalid weekly number should fail closed')
+assert len(invalid_weekly_calls)==1,'weekly validation does not add a paid provider retry'
 
 # Numeric prose is assembled only after validating exact current-turn evidence.
 assert trend['interpretation']=='Your latest run was longer. It covered 5.6 mi, compared with 4.3 mi previously.'
@@ -449,11 +602,15 @@ try:select_cases([('a',)],{'unknown'})
 except ValueError as error:assert 'unknown' in str(error)
 else:raise AssertionError('Unknown evaluation case IDs must fail before a run starts')
 class FakeAnswer:
+    def __init__(self): self.checked_kwargs=[]
     def _gemini_turn(self,messages,definitions,*,system=None):
         return [],json.dumps({'verdict':'You ran 99 miles.'}),{}
     def _claude_turn(self,messages,definitions,*,system=None):return self._gemini_turn(messages,definitions,system=system)
     def _json(self,text):return json.loads(text)
-    def checked_answer(self,raw,evidence,*,kit=False):raise ValueError('Unverified numeric symbol')
+    def checked_answer(self,raw,evidence,**kwargs):
+        self.checked_kwargs.append(kwargs)
+        if kwargs.get('weekly_review'): return {'weekly_review':True}
+        raise ValueError('Unverified numeric symbol')
 fake=FakeAnswer();capture_hooks=RejectionDiagnostics(fake);captured=capture_hooks.begin()
 try:
     _,text,_=fake._gemini_turn([],[])
@@ -462,6 +619,11 @@ try:
     else:raise AssertionError('Fixture validator should reject direct digits')
 finally:capture_hooks.end()
 assert captured=={'raw_model_json':text,'validation_error_type':'ValueError','validation_error':'Unverified numeric symbol'}
+weekly_capture=RejectionDiagnostics(fake);weekly_capture.begin()
+try:
+    assert fake.checked_answer({},[],kit=True,weekly_review=True)=={'weekly_review':True}
+finally:weekly_capture.end()
+assert fake.checked_kwargs[-1]=={'kit':True,'weekly_review':True}, 'diagnostics forwards weekly review validation kwargs'
 class DetailedFake(FakeAnswer):
     rejected=json.dumps({'verdict':'The result was {e2:0} carbs and seventy grams of fat.'})
     def _gemini_turn(self,messages,definitions,*,system=None):return [],self.rejected,{}
@@ -481,6 +643,16 @@ assert detail_capture['validation_detail']=={'kind':'placeholder_neighbor','side
     'offending_snippet':'{e2:0} carbs and seventy grams of fat.'}
 assert coach_chat._kit_retry_feedback(coach_chat.KitValidationError('Unsupported text attached to numeric reference',detail_capture['validation_detail'])) \
     == "Unexpected adjacent word 'carbs' on the after side of a numeric placeholder."
+detailed.rejected='{"verdict":"Your run covered {e2:2}."}'
+reference_capture=detailed_hooks.begin()
+try:
+    _,reference_text,_=detailed._gemini_turn([],[])
+    try:detailed.checked_answer(detailed._json(reference_text),[],kit=True)
+    except ValueError:pass
+    else:raise AssertionError('Out-of-range numeric fact index should be rejected')
+finally:detailed_hooks.end()
+assert reference_capture['validation_detail']=={'kind':'placeholder_reference','placeholder':'{e2:2}',
+    'position':0,'evidence_id':'e2','fact_index':2,'fact_count':1,'expected_evidence_id':None}
 malformed='{"verdict":'
 fake._gemini_turn=lambda messages,definitions,**kwargs:([],malformed,{})
 captured=capture_hooks.begin()

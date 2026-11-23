@@ -6,10 +6,11 @@ same seeded database for baseline/candidate. Write output outside the public rep
 import argparse,datetime as dt,hashlib,importlib.util,json,os,time,uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from app import db,coach_chat,ai_budget,ai_release
+from app import db,coach,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
-from kit_weekly_fixtures import (period_from_today, request_contract, run_weekly_answer,
+from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
+                                 run_weekly_answer, is_expected_health_consent_refusal,
                                  seed_fixture, seed_other_account)
 
 p=argparse.ArgumentParser()
@@ -142,13 +143,22 @@ try:
   except Exception as x:error=type(x).__name__+': '+str(x)[:350]
   finally:
    if variant=='candidate':diagnostics.end()
+  expected_refusal=is_expected_health_consent_refusal(
+   cid,variant=variant,answer=answer,error=error,provider_requests=provider_requests,
+   refusal_message=coach.HEALTH_NO)
+  if expected_refusal:error=None
+  passed=evaluation_case_passed(cid,variant=variant,answer=answer,error=error,
+                                expected_refusal=expected_refusal)
   row={'case':cid,'variant':variant,'question':'Review my week' if weekly else question,'history':history,
        'fixture':weekly_manifests.get(cid),'weekly_request':transport,'weekly_review':weekly,
        'evaluation_account':'health-consent-off' if weekly and cid=='weekly-health-consent-off' else 'primary',
        'answer':answer,'error':error,'provider_requests':provider_requests,
+       'expected_refusal':expected_refusal,'passed':passed,
        'rejection':rejection if rejection and 'validation_error' in rejection else None,
        'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
-  print(json.dumps({'case':cid,'variant':variant,'answered':answer is not None,'tool_coverage':row['tool_coverage'],'error':error}),flush=True)
+  print(json.dumps({'case':cid,'variant':variant,'answered':answer is not None,
+                    'expected_refusal':expected_refusal,'passed':passed,
+                    'tool_coverage':row['tool_coverage'],'error':error}),flush=True)
   return row
  previous=json.loads(Path(args.baseline_results).read_text()) if args.baseline_results else {}
  reused=[r for r in previous.get('results',[]) if r['variant']=='baseline' and (not requested_cases or r['case'] in requested_cases)]
@@ -160,7 +170,7 @@ try:
   for result in pool.map(run,jobs):
    results.append(result)
    with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
-   failed_cases=[r['case'] for r in results if r['variant']=='candidate' and (r.get('answer') is None or r.get('error'))]
+   failed_cases=[r['case'] for r in results if r['variant']=='candidate' and not r.get('passed')]
    report={'reviewed':False,'complete':not failed_cases,'failed_cases':failed_cases,
            'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,
            'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(selected_cases),

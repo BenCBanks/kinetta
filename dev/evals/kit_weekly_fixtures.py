@@ -6,6 +6,20 @@ WEEKLY_QUESTION = 'Review my week'
 WEEKLY_CONTEXT = {'screen': 'progress', 'activity_id': None, 'starter_index': 3}
 
 
+def is_expected_health_consent_refusal(case_id, *, variant, answer, error, provider_requests, refusal_message):
+    """Only the consent-off candidate case may pass as an exact, pre-provider refusal."""
+    return (case_id == 'weekly-health-consent-off' and variant == 'candidate'
+            and answer is None and provider_requests == 0
+            and error == 'ValueError: ' + refusal_message)
+
+
+def evaluation_case_passed(case_id, *, variant, answer, error, expected_refusal=False):
+    """Require the exact refusal for the no-consent case; otherwise require an answer."""
+    if case_id == 'weekly-health-consent-off' and variant == 'candidate':
+        return expected_refusal
+    return answer is not None and error is None
+
+
 def request_contract(client_id, generation, visit_id):
     """The two POSTs after the client has opened its Kit visit."""
     client_id, generation, visit_id = map(str, (client_id, generation, visit_id))

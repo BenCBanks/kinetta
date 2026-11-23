@@ -3,11 +3,12 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const c={route(){},KitChat:{loaded:false},IC:{},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
 assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
 assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition)),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
+assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.progress)),['Am I improving?','Look at my consistency','Choose a focus','Review my week'],'the weekly review is an explicit fourth Progress question');
 assert(source.indexOf('id="kit-starters"')<source.indexOf('class="thread-compose-row kit-compose-row"'),'Kit suggestions are directly above the composer');
 assert(source.includes("$('#kit-starters',c.el).hidden=!!has"),'Kit suggestions disappear after the first message');
 assert(source.includes("el.classList.toggle('has-draft',drafted)")&&source.includes("$('#kit-starters',el).inert=drafted"),'Kit suggestions fade and stop taking taps while a draft is non-empty');
 assert.equal(c.Kit.href('nutrition'),'/me/kit?from=nutrition');assert.equal(c.Kit.href('activity',42),'/me/kit?from=activity&activity=42');assert.equal(c.Kit.href('javascript:bad'),'/me/kit?from=me');
-for(const group of Object.values(c.Kit.starters))assert.equal(group.length,3);
+for(const [name,group] of Object.entries(c.Kit.starters))assert.equal(group.length,name==='progress'?4:3);
 for(const [,path] of Object.values(c.Kit.actions))assert(path.startsWith('/')&&!path.startsWith('//'));
 assert.equal(c.Kit.foodIntent('Can you log my food')?.kind,'prompt','a food-log request without details asks a follow-up');
 assert.equal(c.Kit.foodIntent('Can you log my food?')?.kind,'prompt','a question mark does not hide a bare log request');
@@ -27,6 +28,10 @@ assert(source.includes('a.follow_ups.slice(0,3)')&&source.includes('data-kit-fol
 assert(source.includes('send(c,b.textContent.trim())'),'a follow-up chip asks Kit exactly the visible question');
 assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
 assert(source.includes('if(f.display_value!=null)return String(f.display_value)'),'Kit preserves server-formatted unit-aware values');
+assert(source.includes('a.weekly_review.what_went_well')&&source.includes('a.weekly_review.what_to_change')&&source.includes('a.weekly_review.next_week_focus'),'weekly review renders its three named sections');
+assert(source.includes('a.weekly_period?.label'),'weekly review shows the app-owned completed date range once');
+assert(source.includes('Review my week'),'weekly review is only a visible tap-to-start suggestion');
+assert(fs.readFileSync('app/static/style.css','utf8').includes('.kit-answer .kit-verdict')&&fs.readFileSync('app/static/style.css','utf8').includes('font-weight:700'),'weekly review verdict uses the same bold lead treatment as ordinary Kit answers');
 {const starterHandler={sendArgs:null};starterHandler.send=(...args)=>starterHandler.sendArgs=args;vm.createContext(starterHandler);vm.runInContext(pick('  function sendStarter(c,button){','  async function send(c,text,starterIndex=null){')+'\nglobalThis.sendStarter=sendStarter;',starterHandler);const button={dataset:{kitStart:'0'},querySelector(selector){assert.equal(selector,'span');return {textContent:'Am I improving?'};}};starterHandler.sendStarter('chat',button);assert.deepEqual(starterHandler.sendArgs,['chat','Am I improving?',0],'a tapped starter preserves exactly its visible label and sends guidance index separately');}
 // Shared entries need consent, access, a reviewed release and an unpaused service.
 {const app=fs.readFileSync('app/static/app.js','utf8'),gate=app.slice(app.indexOf('function aiCan('),app.indexOf('// Calls render(data)'));
@@ -152,6 +157,10 @@ assert(answerHtml.indexOf('Am I improving?')<answerHtml.indexOf('kit-verdict'));
 assert(answerHtml.indexOf('kit-verdict')<answerHtml.indexOf('kit-reason')&&answerHtml.indexOf('kit-reason')<answerHtml.indexOf('kit-facts'),'verdict, reason and facts keep the approved reading order');
 assert(!answerHtml.includes('Do not duplicate')&&!answerHtml.includes('href="/progress"'),'follow-up questions replace generic destination links');
 assert.equal((answerHtml.match(/data-kit-followup/g)||[]).length,2);
+const weeklyHtml=drawAnswer({...response,verdict:'Your week shows steady progress.',reason:'The recorded activity supports that summary.',weekly_review:{what_went_well:'You kept a steady rhythm.',what_to_change:'Food entries were sparse.',next_week_focus:'Keep the plan manageable.'}});
+assert(weeklyHtml.includes('<p class="kit-verdict">Your week shows steady progress.</p>'),'weekly answer preserves its bold verdict lead');
+assert(weeklyHtml.includes('<h3>What went well</h3>')&&weeklyHtml.includes('Keep the plan manageable.'),'weekly sections render below the verdict');
+assert(!weeklyHtml.includes('Do not duplicate the combined text.'),'weekly answer does not fall back to duplicate interpretation text');
 answerHtml=drawAnswer({interpretation:'Your earlier answer remains readable.',facts:[{label:'totals by sport - distance m',path:['totals_by_sport',0,'distance_m'],value:16093.44},{path:['unlogged_days'],value:27}],actions:['progress','javascript:bad']});
 assert(answerHtml.includes('Your earlier answer remains readable.')&&answerHtml.includes('Total · Distance')&&answerHtml.includes('10 mi'),'legacy facts get friendly labels and account units');
 assert(!answerHtml.includes('unlogged')&&!answerHtml.includes('javascript:')&&answerHtml.includes('aria-label="Next steps"'),'legacy next steps remain safe and clearly labelled');
