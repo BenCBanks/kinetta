@@ -136,6 +136,7 @@ node dev/tests/test_share_photo.js
 node dev/tests/test_push_invitation.js
 node dev/tests/test_kit_chat_ui.js
 node --check dev/tests/kit_answer_ui.cjs
+node --check dev/tests/kit_followups_voice_ui.cjs
 node dev/tests/test_kit_memory_ui.js
 node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
