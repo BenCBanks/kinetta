@@ -2204,6 +2204,14 @@ MIGRATIONS = [
     CREATE UNIQUE INDEX notifications_group_monday_recap ON notifications(user_id,group_id,group_week_start)
       WHERE group_id IS NOT NULL AND kind='group_monday_recap';""",
 
+    # 114. Replace the mountain reaction with thumbs-up without dropping any stored reaction.
+    #     These are in-place updates so the one-reaction-per-target keys remain intact.
+    """UPDATE cheers SET kind='thumbsup' WHERE kind IN ('mountain','hike','🥾');
+    UPDATE notifications SET reaction_kind='thumbsup' WHERE reaction_kind IN ('mountain','hike','🥾');
+    UPDATE achievement_moment_reactions SET kind='thumbsup' WHERE kind IN ('mountain','hike','🥾');
+    UPDATE group_update_reactions SET kind='thumbsup' WHERE kind IN ('mountain','hike','🥾');
+    UPDATE group_weekly_reactions SET kind='thumbsup' WHERE kind IN ('mountain','hike','🥾');""",
+
 ]
 
 

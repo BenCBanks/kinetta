@@ -11,11 +11,11 @@ const REACTION_FALLBACK=[
   ['clap','clapping hands','👏'],['muscle','flexed biceps','💪'],['fire','fire','🔥'],['heart','heart','❤️'],
   ['party','celebration','🎉'],['hands','raised hands','🙌'],['wow','surprise','😮'],['bolt','fast','⚡'],
   ['gold','gold medal','🥇'],['hundred','hundred points','💯'],['run','running','🏃'],['ride','cycling','🚴'],
-  ['swim','swimming','🏊'],['starstruck','star-struck','🤩'],['mindblown','mind blown','🤯'],['mountain','mountain','⛰️'],
+  ['swim','swimming','🏊'],['starstruck','star-struck','🤩'],['mindblown','mind blown','🤯'],['thumbsup','thumbs up','👍'],
 ];
 const REACTIONS=()=>App.me?.reaction_choices||REACTION_FALLBACK;
 let closeReactionPicker = null;
-const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire',laugh:'clap',hike:'mountain',lift:'muscle','🥾':'mountain'})[k]||k;
+const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire',laugh:'clap',hike:'thumbsup',lift:'muscle','🥾':'thumbsup',mountain:'thumbsup'})[k]||k;
 const reactionMark=kind=>'<span class="reaction-emoji" data-type="glyph" aria-hidden="true">'+esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')+'</span>';
 const reactionClapIcon=()=>'<svg class="reaction-clap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="translate(-3.6 -3.6) scale(1.3)"><path vector-effect="non-scaling-stroke" d="m3.5 19.6 2.1-2.8 1.1-4.1-.2-3.6c-.1-1.3 1.8-1.5 2-.2l.5 3.8.1-4.2c0-1.3 2-1.4 2.1-.1l.2 5.2c0 1.5-.4 2.7-1.2 3.9l-1.8 2.9c-.7 1-1.8 1.1-2.7.4l-2.2-1.2Z"/><path vector-effect="non-scaling-stroke" d="m20.5 19.6-2.1-2.8-1.1-4.1.2-3.6c.1-1.3-1.8-1.5-2-.2l-.5 3.8-.1-4.2c0-1.3-2-1.4-2.1-.1l-.2 5.2c0 1.5.4 2.7 1.2 3.9l1.8 2.9c.7 1 1.8 1.1 2.7.4l2.2-1.2Z"/><path vector-effect="non-scaling-stroke" d="m4.2 5.4 1.6 1.1m6-3.3v1.9m7.2.3-1.4 1.1"/></g></svg>';
 const reactionThumbIcon=()=>'<svg class="reaction-thumb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H6.5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2H8a2 2 0 0 0 1.8-1.1l2.4-4.8A2 2 0 0 1 15 5.88Z"/></svg>';
