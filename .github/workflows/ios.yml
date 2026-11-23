@@ -83,7 +83,7 @@ jobs:
       needs.changes.outputs.native == 'true' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       (github.event_name != 'schedule' || needs.changes.outputs.release == '1')
-    runs-on: xcode-27
+    runs-on: macos-26-intel
     timeout-minutes: 40
     defaults:
       run:
@@ -94,7 +94,7 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '27.1'
+          xcode-version: latest-stable
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -187,14 +187,14 @@ jobs:
       max-parallel: 1
       matrix:
         device: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft && '["pro"]' || '["compact","pro"]') }}
-    # Xcode 27 runner is Apple Silicon and includes the iOS 27 Simulator runtime.
-    runs-on: xcode-27
+    # Native iOS Simulator execution uses Apple Silicon; Intel remains the compile/archive runner.
+    runs-on: macos-26
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '27.1'
+          xcode-version: latest-stable
       - uses: actions/download-artifact@v4
         with:
           name: Kinetta-simulator
@@ -254,13 +254,13 @@ jobs:
   compact-retry:
     needs: [build, compact-retry-gate]
     if: needs.compact-retry-gate.outputs.retry_compact == 'true'
-    runs-on: xcode-27
+    runs-on: macos-26
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '27.1'
+          xcode-version: latest-stable
       - uses: actions/download-artifact@v4
         with:
           name: Kinetta-simulator
@@ -281,7 +281,7 @@ jobs:
           retention-days: 7
 
   store-ui:
-    needs: [changes, build, native-ui]
+    needs: [changes, build]
     if: >-
       needs.changes.outputs.native == 'true' && needs.changes.outputs.store == 'true' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
@@ -291,13 +291,13 @@ jobs:
       fail-fast: false
       matrix:
         device: [pro]
-    runs-on: xcode-27
+    runs-on: macos-26
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '27.1'
+          xcode-version: latest-stable
       # Match the build job's asset pipeline. asset_build.py needs esbuild from
       # mobile/node_modules to reproduce the stamped index.html asset hashes.
       - uses: actions/setup-node@v4
