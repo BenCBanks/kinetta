@@ -1488,6 +1488,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0 16px;height:40px;min-height:40px;box-sizing:border-box;}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more {order:1;display:flex;width:44px;min-width:44px;height:44px;min-height:44px;align-items:center;justify-content:center;gap:0;padding:0;margin-block:-2px;margin-inline:0;color:var(--tx2);}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:22px;height:22px;}
+:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>.reaction-heart-icon {width:24px;height:24px;transform:translateX(-11px);}
 :is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions) .reaction-more>:is(svg,.reaction-emoji) {transform:translateX(-11px);}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more {width:auto;justify-content:flex-start;gap:4px;font-size:14px;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-more>svg {width:28px;height:28px;}
