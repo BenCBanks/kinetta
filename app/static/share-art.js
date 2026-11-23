@@ -227,7 +227,7 @@ const ShareArt=(()=>{
     const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[])],metricX=656,metricWidth=360;
     metrics.forEach(([label,value],index)=>{const y=270+index*190;outlinedText(value,metricX,y,72,700,metricWidth);outlinedText(label,metricX,y+56,48,500,metricWidth);});
     drawMark(g,874,752,42,color);outlinedText('Kinetta',921,765,42,700,170);
-    if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:['Route',pace?'Pace '+pace:'',totalTime?'Total time '+totalTime:'','Kinetta'].filter(Boolean).join('. '),width:W,height:H};
+    if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:['Route',pace?'Pace '+pace:'',totalTime?'Total time '+totalTime:'','Kinetta'].filter(Boolean).join('. '),width:W,height:H,transparent:true};
   }
   async function statsPicture({distance='',pace='',totalTime='',ink='dark'}={}){
     const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=700,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='light'?'#FFFFFF':'#151719';
@@ -236,13 +236,15 @@ const ShareArt=(()=>{
     const outlinedText=(value,x,y,size,weight,max)=>{g.font=`${weight} ${size}px ${family()}`;g.textAlign='left';g.textBaseline='alphabetic';g.lineJoin='round';g.lineWidth=10;g.strokeStyle='rgba(255,255,255,.98)';while(g.measureText(String(value)).width>max&&size>18){size-=2;g.font=`${weight} ${size}px ${family()}`;}g.strokeText(String(value),x,y);g.fillStyle=palette().brand;g.fillText(String(value),x,y);};
     metrics.forEach(([label,value],i)=>{const y=150+i*170;outlinedText(value,72,y,108,700,520);outlinedText(label,640,y,48,500,360);});
     drawMark(g,874,650,42,palette().brand);outlinedText('Kinetta',921,663,42,700,170);
-    if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:[...metrics.map(([label,value])=>`${label} ${value}`),'Kinetta'].join('. '),width:W,height:H};
+    if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:[...metrics.map(([label,value])=>`${label} ${value}`),'Kinetta'].join('. '),width:W,height:H,transparent:true};
   }
   const dataUrl=blob=>new Promise((yes,no)=>{const reader=new FileReader();reader.onload=()=>yes(reader.result);reader.onerror=()=>no(Error('Couldn’t read this picture'));reader.readAsDataURL(blob);});
-  async function storyPicture(picture){
-    const image=await imageFromBlob(picture),W=1080,H=1920,side=64,safe=250,scale=Math.min((W-side*2)/image.naturalWidth,(H-safe*2)/image.naturalHeight),width=image.naturalWidth*scale,height=image.naturalHeight*scale,canvas=document.createElement('canvas');
+  async function storyPicture(picture,{transparent=false}={}){
+    const image=await imageFromBlob(picture),W=1080,H=1920;
+    if(image.naturalWidth===W&&image.naturalHeight===H)return{blob:picture,width:W,height:H,transparent:false,alt:'Full-bleed Instagram Story map picture.'};
+    const side=64,safe=250,scale=Math.min((W-side*2)/image.naturalWidth,(H-safe*2)/image.naturalHeight),width=image.naturalWidth*scale,height=image.naturalHeight*scale,canvas=document.createElement('canvas');
     canvas.width=W;canvas.height=H;const context=canvas.getContext('2d');context.clearRect(0,0,W,H);context.drawImage(image,(W-width)/2,(H-height)/2,width,height);
-    return{blob:await blob(canvas),width:W,height:H,alt:'Instagram Story picture with artwork centered inside the story safe area.'};
+    return{blob:await blob(canvas),width:W,height:H,transparent,alt:'Instagram Story picture with artwork centered inside the story safe area.'};
   }
   async function deliverInstagram(picture,filename,live){
     const file=new File([picture],filename,{type:'image/png'});if(!live())return false;
@@ -365,11 +367,11 @@ const ShareSheet=(()=>{
       const current=()=>cache.get(selected),selectedItem=()=>items[selected];
       const buttons=()=>{const disabled=busy||settling||pending.has(selected)||!current()?.previewBlob;destinations.forEach(button=>button.disabled=disabled);};
       if(hasPrivacy){controls.innerHTML='<label class="share-privacy-switch"><span>Hide start and end</span><input type="checkbox" role="switch" data-share-control="hideEnds"'+(hideEnds?' checked':'')+'><i aria-hidden="true"></i></label>';const input=$('[data-share-control="hideEnds"]',controls);input.onchange=()=>{hideEnds=input.checked;try{localStorage.setItem(privacyKey,String(hideEnds));}catch(_){};for(let index=0;index<items.length;index++)if((items[index].controls||[]).some(control=>control.key==='hideEnds')){values[index].hideEnds=hideEnds;if(index!==selected){const record=cache.get(index);if(record?.url?.startsWith('blob:'))URL.revokeObjectURL(record.url);cache.delete(index);}}void load(selected,true);};}
-      const paint=index=>{const record=cache.get(index),image=$(`[data-share-preview-image="${index}"]`,body),card=$(`[data-share-card="${index}"]`,body);if(!record||!image||!card)return;image.src=record.url;image.alt=record.alt;image.hidden=false;card.dataset.busy='false';};
+      const paint=index=>{const record=cache.get(index),image=$(`[data-share-preview-image="${index}"]`,body),card=$(`[data-share-card="${index}"]`,body);if(!record||!image||!card)return;image.src=record.url;image.alt=record.alt;image.hidden=false;card.dataset.transparent=String(record.transparent);card.dataset.busy='false';};
       async function load(index,redraw=false){
         const old=cache.get(index);if(old&&!redraw){paint(index);if(index===selected)buttons();return old;}
         if(old?.url?.startsWith('blob:'))URL.revokeObjectURL(old.url);cache.delete(index);const stamp=++versions[index],image=$(`[data-share-preview-image="${index}"]`,body),card=$(`[data-share-card="${index}"]`,body);card.dataset.busy='true';if(image){image.hidden=true;image.removeAttribute('src');}
-        pending.add(index);buttons();try{const result=await items[index].build({...values[index]}),blob=result instanceof Blob?result:result?.blob;if(!blob)throw Error('Couldn’t prepare this picture. Try again.');if(!live()||stamp!==versions[index])return null;const preview=await ShareArt.storyPicture(blob);if(!live()||stamp!==versions[index])return null;const url=Native.on?await inlineDataUrl(preview.blob):URL.createObjectURL(preview.blob);if(!live()||stamp!==versions[index]){if(url.startsWith('blob:'))URL.revokeObjectURL(url);return null;}const record={blob,previewBlob:preview.blob,url,filename:result.filename||items[index].filename||'kinetta.png',alt:result.alt||items[index].alt||items[index].label,link:result.link||items[index].link||null};cache.set(index,record);paint(index);if(index===selected){status.textContent='';buttons();}return record;}
+        pending.add(index);buttons();try{const result=await items[index].build({...values[index]}),blob=result instanceof Blob?result:result?.blob;if(!blob)throw Error('Couldn’t prepare this picture. Try again.');if(!live()||stamp!==versions[index])return null;const preview=await ShareArt.storyPicture(blob,{transparent:result?.transparent===true});if(!live()||stamp!==versions[index])return null;const url=Native.on?await inlineDataUrl(preview.blob):URL.createObjectURL(preview.blob);if(!live()||stamp!==versions[index]){if(url.startsWith('blob:'))URL.revokeObjectURL(url);return null;}const record={blob,previewBlob:preview.blob,transparent:preview.transparent===true,url,filename:result.filename||items[index].filename||'kinetta.png',alt:result.alt||items[index].alt||items[index].label,link:result.link||items[index].link||null};cache.set(index,record);paint(index);if(index===selected){status.textContent='';buttons();}return record;}
         catch(error){if(live()&&stamp===versions[index]){card.dataset.busy='false';if(index===selected){status.textContent=error.message||'Couldn’t make this picture.';buttons();}}return null;}
         finally{if(stamp===versions[index])pending.delete(index);if(index===selected)buttons();}
       }
