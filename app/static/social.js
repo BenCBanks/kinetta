@@ -589,7 +589,7 @@ async function homeGroups(el) {
 const feedEmpty=()=>`<div class="feed-empty"><p class="small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p><div class="btncol"><a class="primary wide" href="/track">Record or import a workout</a><a class="linkbtn" href="/me/friends?find=1">Find friends</a></div></div>`;
 async function homeFeed(el) {
   el.classList?.add('activity-home');
-  el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('feed')}<div class="home-quiet-actions" aria-label="Home actions"><a class="home-find-friends" href="/me/friends?find=1&from=home" aria-label="Find friends">${svg('search')}<span>Find friends</span></a></div><div id="activity-groups-strip"></div><div id="weekly-recap"></div><div id="feed-tools"></div>
+  el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('feed')}<div id="activity-groups-strip"></div><div id="weekly-recap"></div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   if(typeof homeKitEntry==='function')homeKitEntry(el);
   wireHomeChallengeLink(el);
