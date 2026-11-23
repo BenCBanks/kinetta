@@ -1202,6 +1202,7 @@ const TABS = [['activity', 'Home'], ['progress', 'Progress'], ['track', 'Track']
 const SECTION_RETURN_KEY = 'kinetta.sectionReturn';
 const SECTION_RETURN_TTL = 30 * 60 * 1000;
 let sectionReturnTimer = 0;
+let routeScrollAnchorBefore = null;
 function sectionReturnOwner() { return JSON.stringify([Native.base || location.origin, App.me?.id ?? App.me?.login ?? null]); }
 function sectionReturnStore() {
   const owner = sectionReturnOwner();
@@ -1486,6 +1487,20 @@ function render(options) {
   globalThis.PaintGate?.routeChanged?.(key);
   const useRoutePosition=routePosition?.key===key&&routePosition.owner===readOwner();
   const targetY=useRoutePosition?routePosition.y:pagePosition(key);
+  // Keep late route DOM growth from browser scroll anchoring moving an explicit section restore.
+  // Carry the original inline value through lazy route shells until the final render settles.
+  const scrollAnchorRoot = document.documentElement;
+  const inheritedScrollAnchor = options?.scrollAnchorBefore;
+  let scrollAnchorBefore = null;
+  if (targetY > 0 || inheritedScrollAnchor !== undefined) {
+    scrollAnchorBefore = inheritedScrollAnchor ?? routeScrollAnchorBefore ?? scrollAnchorRoot.style.overflowAnchor;
+    if (routeScrollAnchorBefore === null) routeScrollAnchorBefore = scrollAnchorBefore;
+    scrollAnchorRoot.style.overflowAnchor = 'none';
+  } else if (routeScrollAnchorBefore !== null) {
+    scrollAnchorRoot.style.overflowAnchor = routeScrollAnchorBefore;
+    routeScrollAnchorBefore = null;
+  }
+  const renderOptions = scrollAnchorBefore === null ? options : {...options,scrollAnchorBefore};
   const path = location.pathname.replace(/\/+$/, '') || '/activity';
   document.title = path === '/activity' ? 'Home · Kinetta' : 'Kinetta';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
@@ -1495,8 +1510,8 @@ function render(options) {
     const bundleMatch=path.match(bundle?.re||/^$/)||[],bundleTab=typeof bundle?.tab==='function'?bundle.tab(...bundleMatch.slice(1)):bundle?.tab;
     const el=lazyRouteShell(bundleTab);
     el.innerHTML='<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
-    loadRouteStyle(ROUTE_SCREENS_STYLE).then(()=>{if(current())render(options);}).catch(error=>{
-      if(current()){showError(el,error,{retry:()=>render({...options,globalSyncDone:true})});App.pageReady=true;}
+    loadRouteStyle(ROUTE_SCREENS_STYLE).then(()=>{if(current())render(renderOptions);}).catch(error=>{
+      if(current()){showError(el,error,{retry:()=>render({...renderOptions,globalSyncDone:true})});App.pageReady=true;}
     });
     return;
   }
@@ -1525,14 +1540,14 @@ function render(options) {
         App.pageReady = true;
         return;
       }
-      const rendered=render({globalSyncDone: true,routePosition:nextPosition});
+      const rendered=render({...renderOptions,globalSyncDone: true,routePosition:nextPosition});
       // The initial loader shell ran before Social existed, so its global refresh was skipped.
       // Refresh after the real route builds the tab bar; the request remains off the first useful paint.
       if(!globalSyncDone&&typeof Social!=='undefined'&&owner===readOwner()&&key===location.pathname+location.search)Social.refresh();
       return rendered;
     }).catch(error => {
       if (!current()) return;
-      showError(el, error, {retry: () => render({globalSyncDone:true,routePosition:nextPosition})});
+      showError(el, error, {retry: () => render({...renderOptions,globalSyncDone:true,routePosition:nextPosition})});
       App.pageReady = true;
     });
     return;
@@ -1569,7 +1584,9 @@ function render(options) {
   requestAnimationFrame(()=>{if(!current())return;if(warmHomeReady)restoreSectionDisclosures(el,key);if(!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);}if(warmHomeReady)App.pageReady=true;});
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
-    requestAnimationFrame(() => { if(current()&&!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);}interactions.abort(); });
+    // Set the restored position before pageReady so callers never observe the pre-RAF scroll.
+    if(current()&&!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);}
+    requestAnimationFrame(() => { if(current()&&!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);} interactions.abort(); });
     if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;if(!warmHomeCache)restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:warmHomeCache&&touched?scrollY:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/me'&&path!=='/activity'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
