@@ -529,12 +529,12 @@ body.ph-open { overflow: hidden; }
 .social-sheet-round3 .c-quick { display:flex;flex:none;align-items:center;justify-content:flex-start;gap:14px;min-height:44px;margin:0;padding:0;overflow-x:auto; }
 .social-sheet-round3 .c-quick[hidden] { display:none; }
 .social-sheet-round3 .c-chip { flex:none;min-height:44px;padding:0;border:0;border-radius:0;background:transparent;color:var(--accent);font-size:15px;font-weight:500;white-space:nowrap; }
-.social-sheet-round3 .c-form { flex:none;margin:0;padding:0;border:0; }
-.social-sheet-round3 .c-field { position:relative;display:flex;align-items:center;gap:8px;height:40px;min-height:40px;padding:0 5px;overflow:visible;border:1px solid var(--color-outline);border-radius:22px;background:var(--surface-raised); }
+.social-sheet-round3 .c-form { flex:none;width:100%;margin:0;padding:0;border:0; }
+.social-sheet-round3 .c-field { position:relative;display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;height:40px;min-height:40px;padding:0 5px;overflow:visible;border:1px solid var(--color-outline);border-radius:22px;background:var(--surface-raised); }
 .social-sheet-round3 .c-field > .av { flex:none;width:28px;height:28px;font-size:15px; }
-.social-sheet-round3 .c-field textarea { position:relative;flex:1;min-width:0;height:44px;min-height:44px;max-height:44px;margin:-2px 0;padding:4px 0;resize:none;overflow-y:auto;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font-size:16px;line-height:20px; }
+.social-sheet-round3 .c-field textarea { position:relative;flex:1;min-width:0;height:44px;min-height:44px;max-height:44px;box-sizing:border-box;margin:-2px 0;padding:12px 0;resize:none;overflow-y:auto;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font-size:16px;line-height:20px; }
 .social-sheet-round3 .c-field textarea:focus { border:0;box-shadow:none; }
-.social-sheet-round3 .c-send { position:relative;top:auto;right:auto;flex:none;width:auto;min-width:44px;height:44px;min-height:44px;margin:-2px 0;padding:0 7px;transform:none;border:0;border-radius:22px;background:transparent;color:var(--accent);font-size:15px;font-weight:650; }
+.social-sheet-round3 .c-send { position:relative;top:auto;right:auto;display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;min-width:44px;height:44px;min-height:44px;margin:-2px 0 -2px 2px;padding:0 7px 0 12px;transform:none;border:0;border-radius:22px;background:transparent;color:var(--accent);font-size:15px;font-weight:650; }
 .social-sheet-round3 .c-send:disabled { background:transparent;color:var(--tx3); }
 .social-sheet-round3 .c-send[aria-busy=true] { opacity:.65; }
 .social-sheet-round3 .comment-retry { min-height:36px;padding:0 4px;color:var(--accent);font-size:inherit;font-weight:600; }
