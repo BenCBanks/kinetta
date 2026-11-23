@@ -1,14 +1,21 @@
 // The route leads, followed by photos in one equally sized horizontal rail.
 'use strict';
-function activityMedia(a, {mapId = '', detail = false, full = false, openHref = '', compact = false, mapMetrics = '', mapLed = false} = {}) {
+function activityMedia(a, {mapId = '', detail = false, full = false, openHref = '', compact = false, mapMetrics = '', mapLed = false, deferPhotos = false} = {}) {
   const photos = a.photos || [], count = photos.length + (a.line ? 1 : 0);
   if (!count) return '';
+  const image=(p,i)=>{let html=pimg(photoSrc(p,true)).replace('alt=""',`alt="Activity photo ${i+1}"`);return deferPhotos?html.replace(/\s(?:src|data-asrc)=("[^"]+")/,' data-feed-src=$1'):html;};
   const map = a.line ? `<div class="media-item media-map"><div class="${detail ? 'map big lead' : 'fmap'}"${mapId ? ` id="${mapId}"` : ''} data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" role="img" aria-label="Route map">
     ${detail ? '' : miniRoute(a.line, a.sport)}${full ? '<button class="map-full" id="d-full" aria-label="Full-screen map">' + svg('expand') + '</button>' : ''}</div>${!detail?mapMetrics:''}</div>` : '';
-  return `<div class="activity-media${detail ? ' detail-media' : ''}${compact?' compact-media':''}" data-media="${a.id}" data-media-photos="${esc(JSON.stringify(photos))}" data-media-mine="${!a.owner || a.owner.login === App.me.login}">
-    <div class="media-track" tabindex="0" role="region" aria-label="Activity photos and route; swipe or use arrow buttons">${map}${photos.map((p, i) => mapLed?`<div class="media-item media-photo" data-media-index="${i}">${pimg(photoSrc(p,true)).replace('alt=""',`alt="Activity photo ${i+1}"`)}<button type="button" class="media-photo-open" data-media-photo="${i}" aria-label="Open photo ${i+1} of ${photos.length}"></button></div>`:`<button type="button" class="media-item media-photo" data-media-photo="${i}" aria-label="Open photo ${i + 1} of ${photos.length}">${pimg(photoSrc(p, true)).replace('alt=""', `alt="Activity photo ${i + 1}"`)}</button>`).join('')}</div>
+  return `<div class="activity-media${detail ? ' detail-media' : ''}${compact?' compact-media':''}" data-media="${a.id}" data-defer-photos="${deferPhotos}" data-media-photos="${esc(JSON.stringify(photos))}" data-media-mine="${!a.owner || a.owner.login === App.me.login}">
+    <div class="media-track" tabindex="0" role="region" aria-label="Activity photos and route; swipe or use arrow buttons">${map}${photos.map((p, i) => mapLed?`<div class="media-item media-photo" data-media-index="${i}">${image(p,i)}<button type="button" class="media-photo-open" data-media-photo="${i}" aria-label="Open photo ${i+1} of ${photos.length}"></button></div>`:`<button type="button" class="media-item media-photo" data-media-photo="${i}" aria-label="Open photo ${i + 1} of ${photos.length}">${image(p,i)}</button>`).join('')}</div>
     ${openHref ? `<a class="primary wide post-open" href="${esc(openHref)}">View activity ${svg('chev')}</a>` : ''}
     ${count > 1 ? `<div class="media-controls"><button type="button" class="icon-btn" data-media-step="-1" aria-label="Previous photo or map" disabled>${svg('back')}</button><span class="small muted num${compact?' vh':''}" data-media-position aria-live="polite">${a.line ? 'Map' : 'Photo 1'} · 1 of ${count}</span>${compact?`<span class="media-dots" aria-hidden="true">${Array.from({length:count},(_,i)=>`<i data-media-dot="${i}"${i===0?' class="current"':''}></i>`).join('')}</span>`:a.line && photos.length ? `<button class="linkbtn small" data-media-map>Map</button>` : ''}<button type="button" class="icon-btn" data-media-step="1" aria-label="Next photo or map">${svg('chev')}</button></div>` : ''}</div>`;
+}
+function loadFeedImage(img) {
+  const src=img?.dataset.feedSrc;if(!src)return;
+  img.removeAttribute('data-feed-src');img.loading='eager';
+  if(Native.on){const next=img.cloneNode(true);next.setAttribute('data-asrc',src);img.replaceWith(next);}
+  else img.src=src;
 }
 function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOnClose = true} = {}) {
   const btn = $('.map-full', box); if (!btn) return;
@@ -115,10 +122,19 @@ function wireActivityMedia(root) {
       };
     }
     const photos = JSON.parse(box.dataset.mediaPhotos), a = {id: +box.dataset.media, photos};
-    let index = 0;
+    const avatar=box.closest('.activity-card')?.querySelector('.post-av img[data-feed-src]');
+    if(avatar){const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();viewResources.delete(avatar);if(avatar.isConnected)loadFeedImage(avatar);}},{rootMargin:'200px'});viewResources.set(avatar,()=>observer.disconnect());observer.observe(box.closest('.activity-card'));}
+    let index = 0, feedNear=false;
+    const prefetchNext=()=>{if(feedNear&&box.dataset.deferPhotos==='true')loadFeedImage(items[index+1]?.querySelector('img[data-feed-src]'));};
+    if(box.dataset.deferPhotos==='true'){
+      const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){feedNear=true;observer.disconnect();viewResources.delete(box);prefetchNext();}});
+      viewResources.set(box,()=>observer.disconnect());observer.observe(box);
+    }
     const update = (fromScroll = true) => {
       if (!track.clientWidth) return;
       if (fromScroll) index = Math.max(0, Math.min(items.length - 1, Math.round(track.scrollLeft / track.clientWidth)));
+      loadFeedImage(items[index]?.querySelector('img[data-feed-src]'));
+      prefetchNext();
       const label = $('[data-media-position]', box);
       if (label) label.textContent = `${items[index].classList.contains('media-map') ? 'Map' : `Photo ${+(items[index].dataset.mediaIndex??items[index].dataset.mediaPhoto) + 1}`} · ${index + 1} of ${items.length}`;
       $$('[data-media-dot]',box).forEach(dot=>dot.classList.toggle('current',+dot.dataset.mediaDot===index));
