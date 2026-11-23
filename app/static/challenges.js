@@ -150,7 +150,7 @@ function challengeListRow(q,{past=false}={}){
 }
 function applyChallengeRingColors(root){root.querySelectorAll('.challenge-list-ring').forEach(node=>{const state=[...node.classList].find(name=>name.startsWith('is-'))?.slice(3)||'progress';node.style.color=window.ChallengeRingPalette.color(state);});}
 route(/^\/me\/challenges$/,'activity',async el=>{
-  const owner=readOwner();el.innerHTML=`<div class="top">${Challenges.activityBack(el)}<button type="button" class="icon-btn challenge-add" id="challenge-start" aria-label="Start a challenge"><span aria-hidden="true">+</span></button></div><h1>Challenges</h1><div id="challenge-list">${skel(1)}</div>`;$('#challenge-start',el).onclick=Challenges.create;
+  const owner=readOwner();el.innerHTML=`<div class="top">${Challenges.activityBack(el)}<a class="icon-btn home-find-friends" href="/me/friends?find=1&from=home" aria-label="Find friends">${svg('search')}</a><button type="button" class="icon-btn challenge-add" id="challenge-start" aria-label="Start a challenge"><span aria-hidden="true">+</span></button></div><h1>Challenges</h1><div id="challenge-list">${skel(1)}</div>`;$('#challenge-start',el).onclick=Challenges.create;
   try{
     const items=await api('/api/challenges');if(!el.isConnected||owner!==readOwner())return;$('#challenge-start',el).hidden=!items.length;
     const active=items.filter(q=>q.member&&!q.self?.finished&&!q.joining_closed),invitations=items.filter(q=>!q.member&&!q.joining_closed),past=items.filter(q=>q.self?.finished||q.joining_closed).sort((a,b)=>new Date((b.ended_on||b.end)+'T12:00:00Z')-new Date((a.ended_on||a.end)+'T12:00:00Z'));
