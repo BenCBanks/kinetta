@@ -457,13 +457,15 @@ body.ph-open { overflow: hidden; }
 .social-sheet .social-read-status:empty { display:none; }
 .social-sheet .c-quick { display:flex;flex:none;align-items:center;justify-content:space-between;gap:4px;margin:0;padding:0;overflow:hidden; }
 .social-sheet .c-quick[hidden] { display:none; }
-.social-sheet .c-form { flex:none;display:flex;align-items:flex-end;gap:8px;margin:0;padding-top:8px; }
-.social-sheet .c-form textarea { flex:1;min-width:0;min-height:44px;max-height:112px;resize:none;overflow-y:auto;padding:10px 14px;border:1px solid var(--color-outline);border-radius:22px;background:var(--card);line-height:1.35;box-shadow:none; }
+.social-sheet .c-form { flex:none;display:flex;align-items:flex-end;gap:8px;margin:0;padding-top:8px;border-top:1px solid var(--line); }
+.social-sheet .c-form textarea { flex:1;min-width:0;min-height:44px;max-height:112px;resize:none;overflow-y:auto;padding:10px 0;border:0;border-radius:0;background:transparent;font-size:max(16px,1rem);line-height:1.35;box-shadow:none; }
+.social-sheet .c-form textarea:focus { border:0;box-shadow:none; }
 .social-sheet .c-chip { flex:0 1 auto;min-width:0;min-height:44px;padding:0 4px;border:0;border-radius:0;background:transparent;color:var(--tx2);font-size:13px;font-weight:500;white-space:nowrap; }
-.social-sheet .c-send { flex:none;width:44px;height:44px;min-width:44px;min-height:44px;display:grid;place-items:center;border:0;border-radius:50%;background:var(--btn);color:var(--onbtn);transition:transform var(--motion-press),background-color var(--motion-press); }
-.social-sheet .c-send svg { width:20px;height:20px; }
-.social-sheet .c-send:disabled { background:var(--card2);color:var(--tx3);cursor:default; }
-.social-sheet .c-send:disabled[data-posting="1"] { background:var(--btn);color:var(--onbtn); }
+.social-sheet .c-send { flex:none;width:auto;height:44px;min-width:44px;min-height:44px;padding:0 4px;border:0;border-radius:0;background:transparent;color:var(--accent);font-size:16px;font-weight:650; }
+.social-sheet .c-send:disabled { background:transparent;color:var(--tx3);cursor:default; }
+.social-sheet .c-send:disabled[data-posting="1"] { background:transparent;color:var(--tx3); }
+.social-sheet .social-read-status.is-posting { opacity:.5; }
+.social-sheet .comment-retry { min-height:44px;padding:0 4px;color:var(--accent);font-size:inherit;font-weight:600; }
 .social-sheet .c-send:active:not(:disabled),.social-sheet .c-comment-options:active,.comment-options-menu button:active { transform:scale(.96); }
 .social-sheet .c-send-spinner { width:18px;height:18px;border:2px solid color-mix(in srgb,var(--onbtn) 35%,transparent);border-top-color:var(--onbtn);border-radius:50%;animation:comment-send-spin .8s linear infinite; }
 @keyframes comment-send-spin { to { transform:rotate(360deg); } }

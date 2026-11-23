@@ -782,8 +782,6 @@ function socialChanged(aid) {
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
 const QUICK_REPLIES=['Nice work!','Great effort','Way to go'];
 function commentTime(iso){const time=Date.parse(iso);if(!Number.isFinite(time))return'';const age=Math.max(0,Date.now()-time);if(age<60_000)return'now';if(age<86_400_000)return`${Math.floor(age/3_600_000)}h`;if(age<604_800_000)return`${Math.floor(age/86_400_000)}d`;return fdate(iso,{month:'short',day:'numeric'});}
-const commentArrowIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
-const commentRetryIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5M20 4v7h-7"/></svg>';
 const commentSkeletonMarkup='<div class="comments-skeleton" aria-hidden="true"><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div><div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i></i><i></i></span></div></div>';
 function commentsSheet(aid, s, onChange) {
   cleanViews();
@@ -791,12 +789,12 @@ function commentsSheet(aid, s, onChange) {
   sheet('Comments', `<div class="social social-sheet"><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}">${cached?'':commentSkeletonMarkup}</div>
     <p class="social-read-status small muted" role="status" aria-live="polite"></p>
     <div class="c-quick" aria-label="Quick replies" hidden>${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
-    <form class="c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Send comment" disabled>${commentArrowIcon}</button></form></div>`,b=>{
+    <form class="c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Post comment" disabled>Post</button></form></div>`,b=>{
     const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box),send=$('.c-send',f),quick=$('.c-quick',box);
     const current=()=>box.isConnected&&account===readOwner();
-    box._sync=()=>{const empty=!f.text.value.trim(),posting=send.dataset.posting==='1',failed=send.dataset.failed==='1';send.disabled=!!box._denied||posting||empty;
-      send.setAttribute('aria-label',posting?'Sending comment':failed?'Retry sending comment':'Send comment');
-      send.innerHTML=posting?'<span class="c-send-spinner" aria-hidden="true"></span>':failed?commentRetryIcon:commentArrowIcon;
+    box._sync=()=>{const empty=!f.text.value.trim(),posting=send.dataset.posting==='1';send.disabled=!!box._denied||posting||empty;
+      send.setAttribute('aria-label',posting?'Sending…':'Post comment');
+      send.textContent='Post';
       const showQuick=empty&&!!box._social?.comments?.length&&!box._denied;
       quick.hidden=!showQuick;
       if(showQuick&&quick.scrollWidth>quick.clientWidth+1)quick.hidden=true;
@@ -812,13 +810,13 @@ function commentsSheet(aid, s, onChange) {
       catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();box._denied=true;box._sync();}
         list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
-      let denied=false;delete button.dataset.failed;button.dataset.posting='1';button.setAttribute('aria-busy','true');status.textContent='Sending comment…';box._sync();
+      let denied=false;delete button.dataset.failed;button.dataset.posting='1';button.setAttribute('aria-busy','true');status.textContent='Sending…';status.classList.add('is-posting');box._sync();
       try{const fresh=await api(`/api/activities/${aid}/comments`,json('POST',{text}));if(account!==readOwner())return;
         SocialData.remember(aid,fresh);socialChanged(aid);
         if(f.text.value===raw){f.text.value='';if(SocialData.draft(aid)===raw)SocialData.draft(aid,'');}
         if(current())update(fresh,{posted:true});
-      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current()){if(!denied)button.dataset.failed='1';status.textContent=denied?'You can’t comment on this activity.':"Couldn't send comment. Try again.";}}
-      finally{if(current()){if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
+      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current()){status.classList.remove('is-posting');if(!denied){button.dataset.failed='1';status.innerHTML='<span>Not sent</span> <button type="button" class="linkbtn comment-retry">Retry</button>';$('.comment-retry',status).onclick=()=>{if(current())f.requestSubmit();};}else status.textContent='You can’t comment on this activity.';}}
+      finally{if(current()){status.classList.remove('is-posting');if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
     };
     refresh();
   },{keyboardAttached:true,focusContainer:true});
