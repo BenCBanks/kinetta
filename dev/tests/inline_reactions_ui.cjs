@@ -83,7 +83,7 @@ const assertFeedReactionName=async button=>{const label=await button.getAttribut
      await p.route(`**/api/activities/${aid}/social`,route=>allowSocial?route.continue():route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({detail:'Fictional internal comments trace marker'})}));
      await p.evaluate(()=>SocialData.invalidate());await p.evaluate(id=>commentsSheet(id,null,()=>{}),aid);
      const comments=p.locator('.sheet[aria-label="Comments"]');await comments.locator('.social-read-status [data-retry]').waitFor();
-     const commentsError=await comments.locator('.social-read-status').innerText();assert.match(commentsError,/Couldn't load this\. Check your connection and try again\./);assert(!commentsError.includes('Fictional internal comments trace marker')&&!commentsError.includes('Error 500'));
+     const commentsError=await comments.locator('.social-read-status').innerText();assert.match(commentsError,/Couldn't load comments/);assert(!commentsError.includes('Fictional internal comments trace marker')&&!commentsError.includes('Error 500'));
      assert(await comments.locator('header [aria-label="Close"]').isVisible(),'failed Comments load keeps its Close control');
      if(process.env.KINETTA_ERROR_SHOTS){fs.mkdirSync(process.env.KINETTA_ERROR_SHOTS,{recursive:true});await p.screenshot({path:path.join(process.env.KINETTA_ERROR_SHOTS,'failed-sheet-comments-390-'+theme+'.png'),animations:'disabled'});}
      allowSocial=true;await comments.locator('.social-read-status [data-retry]').click();await until(p,()=>document.querySelector('.sheet[aria-label="Comments"] .social-read-status')?.textContent.trim()==='','retry Comments load');
