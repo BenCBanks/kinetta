@@ -571,9 +571,9 @@ async function closeCaptureContext(context) {
         await react.waitFor({state:'visible'});await emojiNodes.first().waitFor({state:'visible'});
         const kinds=(await group.getAttribute('data-reaction-order')||'').split(',').filter(Boolean);
         const shown=await emojiNodes.allTextContents(),summaryCounts=summary.locator('.reaction-summary-count');
-        const reactLabel=await react.getAttribute('aria-label'),reactIcon=react.locator('.reaction-clap-icon');
+        const reactLabel=await react.getAttribute('aria-label'),heartIcon=react.locator('.reaction-heart-icon');
         const renderedCounts=await summaryCounts.allTextContents(),legacyCount=await summaryButton.locator('.num').count(),summaryVisible=await summaryButton.isVisible();
-        if(reactLabel!=='React'||!await reactIcon.isVisible()||!summaryVisible||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||renderedCounts.length!==3||renderedCounts.map(value=>value.trim()).join(',')!=='1,1,1'||legacyCount)throw Error('Demo feed reaction footer mismatch: '+JSON.stringify({reactLabel,reactIconVisible:await reactIcon.isVisible(),summaryVisible,kinds,shown,renderedCounts,legacyCount}));
+        if(reactLabel!=='React with a heart'||!await heartIcon.isVisible()||!summaryVisible||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||renderedCounts.length!==3||renderedCounts.map(value=>value.trim()).join(',')!=='1,1,1'||legacyCount)throw Error('Demo feed reaction footer mismatch: '+JSON.stringify({reactLabel,heartIconVisible:await heartIcon.isVisible(),summaryVisible,kinds,shown,renderedCounts,legacyCount}));
         // The Home scene has a large Today card before the feed. Align the featured
         // post below the safe-area inset so the view-switch links never sit under
         // the simulated status bar while the complete post and its footer fit together.
@@ -608,7 +608,7 @@ async function closeCaptureContext(context) {
             &&(share?visible(shareRect)&&Math.abs(shareRect.right-contentRight)<1&&Math.abs(shareRect.left-commentRect.right-8)<1:Math.abs(commentRect.right-contentRight)<1);
           return{valid,action:{x:actionRect.x,right:actionRect.right,top:actionRect.top,bottom:actionRect.bottom},comment:{x:commentRect.x,right:commentRect.right,top:commentRect.top,bottom:commentRect.bottom},summary:{x:buttonRect.x,right:buttonRect.right,top:buttonRect.top,bottom:buttonRect.bottom},share:shareRect&&{x:shareRect.x,right:shareRect.right,top:shareRect.top,bottom:shareRect.bottom},contentRight,limit,innerWidth,scrollY,scrollHeight:document.documentElement.scrollHeight};
         });
-        if(!geometry.valid)throw Error('Demo feed React/summary/comments/share targets do not match the shipped footer layout: '+JSON.stringify(geometry));
+        if(!geometry.valid)throw Error('Demo feed heart/summary/comments/share targets do not match the shipped footer layout: '+JSON.stringify(geometry));
       }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
