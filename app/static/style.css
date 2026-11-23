@@ -1798,6 +1798,12 @@ button.thread-food:active { opacity: .7; }
 .kit-answer .kit-verdict {font-size:max(16px,1rem);font-weight:700;line-height:1.45;margin:0;}
 .kit-answer .kit-reason {font-size:max(15px,.9375rem);line-height:1.5;color:var(--tx2);margin:8px 0 0;}
 .kit-answer-followups {margin-top:16px;}
+.kit-answer .kit-facts {margin:12px 0;}
+.kit-answer .kit-facts + .kit-answer-followups {margin-top:0;}
+.kit-chat .kit-answer-followups {display:grid;grid-template-columns:minmax(0,1fr);gap:8px;}
+.kit-chat .kit-answer-followups > button {display:flex;align-items:center;width:100%;max-width:none;min-height:44px;height:auto;padding:12px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);box-shadow:none;color:var(--tx);font-size:max(15px,.9375rem);font-weight:500;line-height:1.35;text-align:left;white-space:normal;overflow-wrap:anywhere;}
+.kit-chat .kit-answer-followups > button::before {content:none;}
+.kit-chat .kit-answer-followups > button span {position:static;display:block;flex:1;min-width:0;line-height:inherit;overflow-wrap:anywhere;}
 .kit-answer-followups .kit-action {width:auto;max-width:100%;min-height:44px;padding:6px 14px;border:1px solid var(--line);border-radius:18px;color:var(--tx);font-size:.9375rem;line-height:1.35;text-decoration:none;overflow-wrap:anywhere;}
 .kit-facts {font-size:max(15px,.9375rem);margin:12px 0;}
 .kit-facts>div {display:flex;justify-content:space-between;gap:14px;padding:6px 0;border-top:1px solid var(--line);}
