@@ -1,11 +1,13 @@
 """No-provider contracts for the weekly Progress request and every seeded case."""
 import datetime as dt
+import ast
 import uuid
+from pathlib import Path
 
 from kit_cases import CASES
 from kit_weekly_fixtures import (
-    WEEKLY_CONTEXT, WEEKLY_QUESTION, fixture_spec, period_from_today,
-    request_contract, run_weekly_answer, seed_fixture, seed_other_account, seed_prior_turn,
+    WEEKLY_CONTEXT, WEEKLY_QUESTION, evaluation_case_passed, fixture_spec, is_expected_health_consent_refusal,
+    period_from_today, request_contract, run_weekly_answer, seed_fixture, seed_other_account, seed_prior_turn,
 )
 
 
@@ -85,6 +87,39 @@ def check_weekly_answer_uses_provider_and_returns_result():
     assert empty['answer'] is None and empty['error']
 
 
+def check_health_consent_refusal_is_a_pass_without_provider_use():
+    coach_source=Path(__file__).parents[2]/'app'/'coach.py'
+    coach_tree=ast.parse(coach_source.read_text())
+    refusal=next(node.value.value for node in coach_tree.body
+                 if isinstance(node,ast.Assign) and any(isinstance(target,ast.Name) and target.id=='HEALTH_NO'
+                    for target in node.targets) and isinstance(node.value,ast.Constant) and isinstance(node.value.value,str))
+    evaluator=Path(__file__).with_name('kit_eval.py').read_text()
+    tree=ast.parse(evaluator)
+    assert any(isinstance(node,ast.ImportFrom) and node.module=='app'
+               and 'coach' in {alias.name for alias in node.names} for node in ast.walk(tree)), \
+        'The evaluator must import coach for the consent-off refusal message.'
+    accepted=is_expected_health_consent_refusal(
+        'weekly-health-consent-off',variant='candidate',answer=None,
+        error='ValueError: '+refusal,provider_requests=0,refusal_message=refusal)
+    assert accepted
+    assert evaluation_case_passed('weekly-health-consent-off',variant='candidate',answer=None,
+                                  error=None,expected_refusal=accepted)
+    assert not evaluation_case_passed('weekly-health-consent-off',variant='candidate',
+                                      answer={'verdict':'I reviewed your health data.'},error=None)
+    for changes in [
+        {'error':'ValueError: different refusal'},
+        {'answer':{'verdict':'I reviewed your health data.'}},
+        {'provider_requests':1},
+        {'variant':'baseline'},
+        {'case_id':'weekly-sparse'},
+    ]:
+        values={'case_id':'weekly-health-consent-off','variant':'candidate','answer':None,
+                'error':'ValueError: '+refusal,'provider_requests':0,'refusal_message':refusal}
+        values.update(changes)
+        case_id=values.pop('case_id')
+        assert not is_expected_health_consent_refusal(case_id,**values), changes
+
+
 def check_weekly_seeds():
     today = dt.date(2026, 11, 22)
     period = period_from_today(today)
@@ -150,5 +185,6 @@ def check_weekly_seeds():
 
 check_weekly_request_shape()
 check_weekly_answer_uses_provider_and_returns_result()
+check_health_consent_refusal_is_a_pass_without_provider_use()
 check_weekly_seeds()
 print('Kit weekly evaluator: exact request, stubbed weekly answer/provider count, and ten fictional fixture seeds pass; no live provider called.')

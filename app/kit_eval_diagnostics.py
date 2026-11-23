@@ -67,9 +67,9 @@ class RejectionDiagnostics:
                 self._record(error, text)
                 raise
 
-        def check(raw, evidence, *, kit=False):
+        def check(raw, evidence, **kwargs):
             try:
-                return original_checked(raw, evidence, kit=kit)
+                return original_checked(raw, evidence, **kwargs)
             except Exception as error:
                 self._record(error)
                 raise

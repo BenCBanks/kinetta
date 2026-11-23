@@ -87,14 +87,24 @@ async function settleFeedHeaderBelowSafeArea(page) {
 async function settleHomeFeedReactionBelowSafeArea(group) {
   await group.evaluate(async (el, safeTop) => {
     const footer=el.closest('.post-ft'),tabs=document.querySelector('nav.tabs');
-    const controls=[footer?.querySelector('.reaction-more'),footer?.querySelector('.activity-comments'),el.querySelector('.reaction-count')].filter(Boolean);
-    if(!controls.length||!tabs)return;
-    const top=Math.min(...controls.map(node=>node.getBoundingClientRect().top));
-    const bottom=Math.max(...controls.map(node=>node.getBoundingClientRect().bottom));
-    const safeBottom=tabs.getBoundingClientRect().top-8;
-    const delta=top<safeTop?top-safeTop:bottom>safeBottom?bottom-safeBottom:0;
-    if(delta)window.scrollBy(0,delta);
-    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    if(!footer||!tabs)return;
+    const footerControls=[footer.querySelector('.reaction-more'),footer.querySelector('.activity-comments'),el.querySelector('.reaction-count')].filter(Boolean);
+    const homeLinks=[...document.querySelectorAll('.home-view-switch a[href]')].filter(node=>{
+      const rect=node.getBoundingClientRect();return rect.bottom>0&&rect.top<safeTop;
+    });
+    const controls=[...footerControls,...homeLinks];
+    if(!controls.length)return;
+    for(let pass=0;pass<3;pass++){
+      const top=Math.min(...controls.map(node=>node.getBoundingClientRect().top));
+      const bottom=Math.max(...controls.map(node=>node.getBoundingClientRect().bottom));
+      const safeBottom=tabs.getBoundingClientRect().top-8,lower=bottom-safeBottom,upper=top-safeTop;
+      if(lower<=0&&upper>=0)return;
+      if(lower>upper)return; // The final strict audit reports a real capture-layout conflict.
+      const delta=Math.max(lower,Math.min(0,upper)),next=Math.max(0,scrollY+delta);
+      if(next===scrollY)return;
+      window.scrollTo({top:next,behavior:'instant'});
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    }
   },TOP);
 }
 async function assertTopSafeControls(page, scene, hiddenMediaControls = []) {
@@ -550,7 +560,7 @@ async function closeCaptureContext(context) {
         await react.waitFor({state:'visible'});await emojiNodes.first().waitFor({state:'visible'});
         const kinds=(await group.getAttribute('data-reaction-order')||'').split(',').filter(Boolean);
         const shown=await emojiNodes.allTextContents(),summaryCounts=summary.locator('.reaction-summary-count');
-        const reactLabel=await react.getAttribute('aria-label'),reactIcon=react.locator('.reaction-add-icon');
+        const reactLabel=await react.getAttribute('aria-label'),reactIcon=react.locator('.reaction-clap-icon');
         const renderedCounts=await summaryCounts.allTextContents(),legacyCount=await summaryButton.locator('.num').count(),summaryVisible=await summaryButton.isVisible();
         if(reactLabel!=='React'||!await reactIcon.isVisible()||!summaryVisible||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||renderedCounts.length!==3||renderedCounts.map(value=>value.trim()).join(',')!=='1,1,1'||legacyCount)throw Error('Demo feed reaction footer mismatch: '+JSON.stringify({reactLabel,reactIconVisible:await reactIcon.isVisible(),summaryVisible,kinds,shown,renderedCounts,legacyCount}));
         // The Home scene has a large Today card before the feed. Align the featured
