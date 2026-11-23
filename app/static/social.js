@@ -18,7 +18,7 @@ let closeReactionPicker = null;
 const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire',laugh:'clap',hike:'mountain',lift:'muscle','🥾':'mountain'})[k]||k;
 const reactionMark=kind=>'<span class="reaction-emoji" data-type="glyph" aria-hidden="true">'+esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')+'</span>';
 const reactionClapIcon=()=>'<svg class="reaction-clap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="translate(-3.6 -3.6) scale(1.3)"><path vector-effect="non-scaling-stroke" d="m3.5 19.6 2.1-2.8 1.1-4.1-.2-3.6c-.1-1.3 1.8-1.5 2-.2l.5 3.8.1-4.2c0-1.3 2-1.4 2.1-.1l.2 5.2c0 1.5-.4 2.7-1.2 3.9l-1.8 2.9c-.7 1-1.8 1.1-2.7.4l-2.2-1.2Z"/><path vector-effect="non-scaling-stroke" d="m20.5 19.6-2.1-2.8-1.1-4.1.2-3.6c.1-1.3-1.8-1.5-2-.2l-.5 3.8-.1-4.2c0-1.3-2-1.4-2.1-.1l-.2 5.2c0 1.5.4 2.7 1.2 3.9l1.8 2.9c.7 1 1.8 1.1 2.7.4l2.2-1.2Z"/><path vector-effect="non-scaling-stroke" d="m4.2 5.4 1.6 1.1m6-3.3v1.9m7.2.3-1.4 1.1"/></g></svg>';
-const reactionHeartIcon=()=>'<svg class="reaction-heart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>';
+const reactionThumbIcon=()=>'<svg class="reaction-thumb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H6.5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2H8a2 2 0 0 0 1.8-1.1l2.4-4.8A2 2 0 0 1 15 5.88Z"/></svg>';
 const reactionAddIcon=()=>'<svg class="reaction-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="13" r="7.5"/><path d="M6.5 14.5c.7 1 1.6 1.5 2.5 1.5s1.8-.5 2.5-1.5"/><path d="M6.5 10h.01 M11.5 10h.01"/><path d="M18.5 3.5v6 M15.5 6.5h6"/></svg>';
 const reactionCompact=new Intl.NumberFormat('en',{notation:'compact',maximumSignificantDigits:2});
 const reactionNumber=n=>n>=1000?reactionCompact.format(n).replace('K','k'):String(n);
@@ -50,7 +50,7 @@ function reactionSummary(state,feedFooter=false,omitKind=null){
 }
 function reactionButtons(aid,s,detail=false,compact=false,moment=null,groupTarget=null){
   const feedFooter=!detail&&!compact&&!moment&&!groupTarget,clapTrigger=feedFooter||detail||(compact&&!moment&&!groupTarget),selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter,clapTrigger?selected:null);
-  const choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏',triggerLabel=feedFooter?(selected==='heart'?'Remove your heart reaction':selected?`Remove your ${emoji} reaction`:'React with a heart'):selected?`Remove your ${emoji} reaction`:'React',triggerContent=selected?reactionMark(selected):feedFooter?reactionHeartIcon():clapTrigger?reactionClapIcon():reactionAddIcon()+'<span>React</span>';
+  const choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏',triggerLabel=selected?(feedFooter&&selected==='heart'?'Remove your heart reaction':`Remove your ${emoji} reaction`):'React',triggerContent=selected?reactionMark(selected):feedFooter?reactionThumbIcon():clapTrigger?reactionClapIcon():reactionAddIcon()+'<span>React</span>';
   const attrs=REACTIONS().map(([k])=>'data-count-'+k+'="'+(counts[k]||0)+'"').join(' ');
   const choices=REACTIONS().map(([kind,label])=>'<button type="button" role="menuitemradio" aria-label="React with '+esc(label)+'" aria-checked="'+(selected===kind)+'" data-react="'+kind+'" tabindex="-1">'+reactionMark(kind)+'</button>').join('');
   const target=groupTarget?'data-group-reaction-group data-group-id="'+esc(groupTarget.id)+'" '+(groupTarget.updateId?'data-group-update-id="'+esc(groupTarget.updateId)+'"':'data-group-week="1"'):moment?'data-moment-reaction-group data-moment-owner="'+esc(moment.owner)+'" data-moment-week="'+esc(moment.week)+'"':'data-reaction-group data-aid="'+aid+'"';
@@ -103,11 +103,11 @@ function wireReactionGroup(group,aid,changed){
     if(!active())return;
     const selected=state.my_reaction,choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏';
     group.dataset.mine=selected||'';group.dataset.reactionOrder=reactionOrder(state).join(',');more.dataset.kind=selected||'';
-    const triggerLabel=group.dataset.feedFooter==='true'?(selected==='heart'?'Remove your heart reaction':selected?`Remove your ${emoji} reaction`:'React with a heart'):selected?`Remove your ${emoji} reaction`:'React';
+    const triggerLabel=selected?(group.dataset.feedFooter==='true'&&selected==='heart'?'Remove your heart reaction':`Remove your ${emoji} reaction`):'React';
     more.setAttribute('aria-label',triggerLabel);
     more.setAttribute('aria-pressed',String(!!selected));
     const clapTrigger=group.dataset.clapTrigger==='true';
-    const triggerContent=selected?reactionMark(selected):group.dataset.feedFooter==='true'?reactionHeartIcon():clapTrigger?reactionClapIcon():reactionAddIcon()+'<span>React</span>';
+    const triggerContent=selected?reactionMark(selected):group.dataset.feedFooter==='true'?reactionThumbIcon():clapTrigger?reactionClapIcon():reactionAddIcon()+'<span>React</span>';
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
     const compact=reactionSummary(state,group.dataset.feedFooter==='true',group.dataset.clapTrigger==='true'?state.my_reaction:null);
