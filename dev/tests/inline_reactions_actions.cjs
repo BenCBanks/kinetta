@@ -16,7 +16,7 @@ const waitForActivityStyles=async p=>p.evaluate(async()=>{
 });
 async function assertCardActions(card,{share,width,label}){
  const footer=card.locator('.post-ft'),react=card.locator('.reaction-more'),comment=card.locator('.activity-comments'),shareButton=card.locator('.post-ft [data-share-picture]');
- const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox(),surface=await card.evaluate(n=>({feed:!!n.closest('.activity-home'),profile:!!n.closest('.profile-activities')})),feed=surface.feed,profile=surface.profile,actionGap=width<=380?4:8;
+ const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox(),surface=await card.evaluate(n=>({feed:!!n.closest('.activity-home'),profile:!!n.closest('.profile-activities')})),feed=surface.feed,profile=surface.profile,actionGap=8;
  assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
  const count=card.locator('.reaction-count'),hasSummary=await count.isVisible(),padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0),statsBox=feed?await card.locator('.stats3').boundingBox():null,contentRight=feed?statsBox.x+statsBox.width:footerBox.x+footerBox.width-padding;
  let summaryBox=null;

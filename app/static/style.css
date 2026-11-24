@@ -1520,7 +1520,14 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-home .activity-card .post-ft:has(.emoji-reactions) .activity-comments {order:4;margin-left:auto;}
 .activity-home .activity-card .post-ft:has(.emoji-reactions):has(.activity-share) .activity-comments {margin-left:0;}
 @media(max-width:380px){:is(.activity-home,.profile-activities) .activity-card .post-ft:has(.emoji-reactions){padding-left:12px;padding-right:16px;}}
-@media(max-width:380px){.activity-home .activity-card .post-ft:has(.emoji-reactions){gap:4px;}.activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary{gap:4px;}}
+@media(max-width:380px){
+ .activity-home .activity-card .post-ft:has(.emoji-reactions){gap:8px;}
+ .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary{gap:8px;}
+ .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji:nth-of-type(n+3),
+ .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-more{display:none;}
+ .activity-home .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-compact-more{display:inline-flex;}
+}
+.reaction-summary-compact-more {display:none;font-size:15px;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--tx2);white-space:nowrap;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-summary {gap:2px;}
 .profile-activities .activity-card .post-ft:has(.emoji-reactions) .reaction-summary-emoji {gap:2px;}
 @media(max-width:380px){
