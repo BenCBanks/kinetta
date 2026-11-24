@@ -656,7 +656,6 @@ async function homeFeed(el) {
   };
   try{if(!hit||Date.now()-hit.at>=15000)await revalidate();}
   catch(x){if(!hit)throw x;if(typeof PageRefresh!=='undefined')PageRefresh.failed(x);}
-  await tools.ready;
 }
 
 // Read-only own social facts never replace feed cards or their live maps.
