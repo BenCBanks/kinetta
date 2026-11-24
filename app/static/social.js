@@ -794,9 +794,10 @@ const commentSkeletonMarkup='<div class="comments-skeleton" aria-hidden="true"><
 function commentsSheet(aid, s, onChange) {
   cleanViews();
   const account=readOwner();if(s&&!SocialData.peek(aid))SocialData.remember(aid,s);const cached=SocialData.peek(aid);
+  const draft=SocialData.draft(aid);
   sheet('Comments', `<div class="social social-sheet social-sheet-round3"><div class="comments" role="list" aria-label="Comments" aria-busy="${!cached}"></div>
     <p class="social-read-status small muted" role="status" aria-live="polite"></p>
-    <div class="c-quick" aria-label="Suggestions" hidden>${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
+    <div class="c-quick" aria-label="Suggestions"${draft?' hidden':''}>${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
     <form class="c-form"><label class="vh" for="c-${aid}">Add a comment</label><div class="c-field">${avatar(App.me,'c-avatar')}<textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Post comment" disabled>Post</button></div></form></div>`,b=>{
     const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box),send=$('.c-send',f),quick=$('.c-quick',box);
     const current=()=>box.isConnected&&account===readOwner();
@@ -810,7 +811,7 @@ function commentsSheet(aid, s, onChange) {
       quick.hidden=!showQuick;
       if(showQuick&&quick.scrollWidth>quick.clientWidth+1)quick.hidden=true;
       f.text.style.height='44px';};
-    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.onfocus=()=>{if(status.textContent==='Comment posted.')status.textContent='';};f.text.oninput=()=>{if(!current())return;if(send.dataset.failed){delete send.dataset.failed;status.textContent='';}SocialData.draft(aid,f.text.value);box._sync();};
+    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=draft;f.text.onfocus=()=>{if(status.textContent==='Comment posted.')status.textContent='';};f.text.oninput=()=>{if(!current())return;if(send.dataset.failed){delete send.dataset.failed;status.textContent='';}SocialData.draft(aid,f.text.value);box._sync();};
     $$('[data-quick]',quick).forEach(b=>b.onclick=()=>{if(!current())return;f.text.value=b.textContent;SocialData.draft(aid,f.text.value);box._sync();f.text.focus();});
     requestAnimationFrame(()=>{if(current())box._sync();});
     let loadTimer=0,loadGeneration=0;
@@ -885,7 +886,8 @@ function wireCommentActions(box,list){
 function drawComments(box,aid,s,onChange){
   if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
   const list=$('.comments',box);
-  list.classList.add('is-fading-in');
+  const fadeRows=s.comments.length>0&&!list.dataset.rowsShown;
+  if(fadeRows)list.classList.add('is-fading-in');
   if(list.getAttribute('aria-busy')==='true')list.replaceChildren();list.setAttribute('aria-busy','false');
   const keep=new Set();let anchor=list.firstElementChild;
   for(const comment of s.comments){const id=String(comment.id);keep.add(id);let node=[...list.children].find(n=>n.dataset.commentId===id);const signature=JSON.stringify(comment);
@@ -898,7 +900,8 @@ function drawComments(box,aid,s,onChange){
   }
   for(const node of [...list.children])if(!keep.has(node.dataset.commentId))node.remove();
   if(!s.comments.length)list.replaceChildren();
-  requestAnimationFrame(()=>list.classList.remove('is-fading-in'));
+  else list.dataset.rowsShown='1';
+  if(fadeRows)requestAnimationFrame(()=>list.classList.remove('is-fading-in'));
   box._sync?.();
 }
 
