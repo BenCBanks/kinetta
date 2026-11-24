@@ -57,6 +57,13 @@
 .share-sheet-story-shell>.grab{display:none;}
 .share-sheet-story-shell>header{position:relative;flex:none;box-sizing:border-box;grid-template-columns:44px minmax(0,1fr) 44px;height:56px;min-height:56px;margin:0;padding:0 8px;}
 .share-sheet-story-shell>header h2{grid-column:2;grid-row:1;margin:0;font-size:20px;font-weight:600;letter-spacing:0;text-align:center;}
+.share-sheet-story-shell>.share-sheet-menu-host{grid-column:3;grid-row:1;justify-self:end;position:relative;z-index:2;}
+.share-sheet-story-shell .share-sheet-menu-toggle{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:0;background:transparent;color:var(--tx2);box-shadow:none;}
+.share-sheet-story-shell .share-sheet-menu-toggle svg{width:20px;height:20px;}
+.share-sheet-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:5;min-width:176px;padding:4px;background:var(--surface-sheet);border:1px solid var(--line);border-radius:12px;box-shadow:var(--elevation-sheet);}
+.share-sheet-menu[hidden]{display:none;}
+.share-sheet-menu [role=menuitem]{display:flex;align-items:center;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--tx);text-align:left;box-shadow:none;}
+.share-sheet-menu [role=menuitem]:hover{background:var(--card2);}
 .scrim:has(.share-sheet-story) .sheet>header>.share-sheet-close{grid-column:1;grid-row:1;justify-self:start;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;}
 .share-sheet-story-shell .sbody{box-sizing:border-box;min-height:0;overflow:hidden;padding:0;}
 .share-sheet-story{--story-art-height:min(512px,calc(100dvh - 228px - max(0px,env(safe-area-inset-top) - 8px) - max(0px,env(safe-area-inset-bottom) - 8px)));--story-art-width:min(288px,calc(var(--story-art-height) * 9 / 16));display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:0;min-height:0;height:100%;overflow:hidden;}
