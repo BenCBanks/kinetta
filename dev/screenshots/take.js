@@ -586,7 +586,7 @@ async function closeCaptureContext(context) {
           const footer=el.closest('.post-ft');
           const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count'),share=footer?.querySelector('[data-share-picture]');
           if(!footer||!action||!comments||!button)return{valid:false,missing:true};
-          const style=getComputedStyle(footer),contentRight=footer.getBoundingClientRect().right-(parseFloat(style.paddingRight)||0);
+          const stats=el.closest('.post')?.querySelector('.stats3'),style=getComputedStyle(footer),contentRight=stats?.getBoundingClientRect().right??footer.getBoundingClientRect().right-(parseFloat(style.paddingRight)||0);
           const actionRect=action.getBoundingClientRect(),commentRect=comments.getBoundingClientRect(),buttonRect=button.getBoundingClientRect(),shareRect=share?.getBoundingClientRect();
           const headerRect=el.closest('.post')?.querySelector('.post-hd')?.getBoundingClientRect();
           const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
@@ -595,7 +595,7 @@ async function closeCaptureContext(context) {
           const rowVisible=visible(actionRect)&&visible(commentRect)&&(!hasSummary||visible(buttonRect))&&(!share||visible(shareRect));
           const gaps=commentRect.left-actionRect.right>=7.99
             &&(!hasSummary||Math.abs(buttonRect.left-actionRect.right-8)<1&&commentRect.left-buttonRect.right>=7.99)
-            &&(share?Math.abs(shareRect.right-contentRight)<1&&Math.abs(shareRect.left-commentRect.right-8)<1:Math.abs(commentRect.right-contentRight)<1);
+            &&(share?Math.abs(commentRect.right-contentRight)<1&&Math.abs(commentRect.left-shareRect.right-8)<1:Math.abs(commentRect.right-contentRight)<1);
           const homeHeaderClear=!!headerRect&&headerRect.top>=safeTop;
           const homeFooterClear=[actionRect,commentRect,...(hasSummary?[buttonRect]:[]),...(share?[shareRect]:[])].every(r=>r.top>=safeTop||r.bottom<=0);
           const valid=homeFeed?homeHeaderClear&&homeFooterClear&&(!rowVisible||gaps):rowVisible&&gaps
