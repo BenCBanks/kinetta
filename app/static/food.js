@@ -261,7 +261,10 @@ function drawDay(el, D) {
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
   // one card (2026-10-12 redesign): calories, macros, then the day's balance, with how it adds up folded underneath
   const energyDetails = B.day_burn != null && (watchResting || B.deficit != null);
-  const restingSourceLink = `<a class="small more-link" id="fd-resting-source" href="/food?view=needs">Resting calories: ${watchResting ? 'Health app' : 'Kinetta estimate'} · change ›</a>`;
+  const configuredRestingSource = App.me.resting_source || 'formula';
+  const deficitSourceNote = B.imported ? 'Imported burn'
+    : configuredRestingSource === 'apple_health' && B.source !== 'apple_health' ? 'Kinetta estimate · Health app not sharing'
+    : configuredRestingSource !== 'apple_health' && B.source === 'apple_health' ? 'Health app' : '';
   const fresh = !D.has_history && !D.entries.length && goal == null;
   $('#fd-details',el).replaceChildren();
   if (fresh) firstFood($('#fd-sum', el), D.day);
@@ -283,8 +286,8 @@ function drawDay(el, D) {
       <div class="nutrition-secondary">${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
       ${!energyDetails && goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
-      ${!watchResting && B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>' : B.day_burn == null ? `<p class="small muted tc-bal">Resting calories have not synced for this day. Activities: ${r0(B.kcal)} kcal. Total burn is waiting for resting data.</p>`
-        : `<details class="bd tc-bal"${!today && bdOpen() ? ' open' : ''}><summary><span>${today ? watchResting ? 'Energy balance so far' : 'Daily energy breakdown' : B.deficit == null ? 'Energy breakdown' : B.deficit >= 0 ? 'Deficit' : 'Surplus'}<small class="muted">${watchResting ? ' · Health resting + activities' : ' · estimate'}</small></span>
+      ${D.entries.length ? (!watchResting && B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>' : B.day_burn == null ? `<p class="small muted tc-bal">Resting calories have not synced for this day. Activities: ${r0(B.kcal)} kcal. Total burn is waiting for resting data.</p>`
+        : `<details class="bd tc-bal"${!today && bdOpen() ? ' open' : ''}><summary><span>${today ? watchResting ? 'Energy balance so far' : 'Daily energy breakdown' : B.deficit == null ? 'Energy breakdown' : B.deficit >= 0 ? 'Deficit' : 'Surplus'}${deficitSourceNote ? `<small class="muted"> · ${esc(deficitSourceNote)}</small>` : ''}</span>
             <b class="num${today ? ' day-balance-detail' : ''}">${B.deficit == null ? neg(B.day_burn) : B.deficit >= 0 ? neg(B.deficit) : pos(-B.deficit)}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
         ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
         ${B.partly ? '<p class="small muted">Looks only partly logged, so this day is left out of your averages and totals. Add the rest and it counts.</p>' : ''}
@@ -295,11 +298,11 @@ function drawDay(el, D) {
         ${row(today ? watchResting ? 'Burned so far' : 'Burned by end of day' : 'Total burned', neg(B.day_burn), 'sum', today ? watchResting ? 'synced resting calories + activities already in Kinetta' : 'estimate for the whole day' : '')}
         ${row('Eaten' + sofar, pos(eaten))}
         ${!watchResting && G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
-        ${watchResting ? `<p class="small muted">Your food goal stays independent of calories burned.${today ? ' Resting calories build throughout the day; this is not a full-day projection.' : ''}${B.items.some(a=>a.estimated) ? ' * Activity calories are estimated when no recorded value is available.' : ''}</p>` : ''}<a class="small more-link" href="/food?view=energy">Running total ›</a>${restingSourceLink}</details>`}${energyDetails ? '' : restingSourceLink}</div></div>`;
+        ${watchResting ? `<p class="small muted">Your food goal stays independent of calories burned.${today ? ' Resting calories build throughout the day; this is not a full-day projection.' : ''}${B.items.some(a=>a.estimated) ? ' * Activity calories are estimated when no recorded value is available.' : ''}</p>` : ''}<a class="small more-link" href="/food?view=energy">Running total ›</a></details>`) : ''}</div></div>`;
   }
   if (!watchResting && !B.bmr_exact) $('#fd-sum',el).insertAdjacentHTML('beforeend','<a class="small nutrition-body-prompt" href="/me?setup=body">Improve calorie estimates · add body details</a>');
   const secondary=$('.nutrition-secondary',el);
-  if(secondary){secondary.classList.add('card');$('#fd-details',el).replaceChildren(secondary);}
+  if(secondary){if(!secondary.children.length)secondary.remove();else{secondary.classList.add('card');$('#fd-details',el).replaceChildren(secondary);}}
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
   const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
   // No usual target yet: Set goals opens the full goal setup rather than a one-day override.
