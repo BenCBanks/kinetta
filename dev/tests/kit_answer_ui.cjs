@@ -23,6 +23,7 @@ async function main(){
   for(const width of [390,330])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
    const visitRequests=[],endRequests=[],conversationReads=[],clearRequests=[];
+   let serverEndedVisit=null,serverEndReported=false,fixtureAccountId=null;
    if(width===390&&theme==='light')await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
    p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',async route=>{
@@ -30,11 +31,11 @@ async function main(){
     if(u.origin!==base)return route.abort();
     if(u.pathname==='/api/me'&&req.method()==='GET'){
      const response=await route.fetch(),me=await response.json();
-     return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});
+     return route.fulfill({response,json:{...me,...(fixtureAccountId==null?{}:{id:fixtureAccountId}),ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});
     }
     if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST'){const id=req.postDataJSON().visit_id;visitRequests.push(id);return route.fulfill({json:{visit_id:id,generation,ready:true}});}
     if(/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(u.pathname)&&req.method()==='POST'){endRequests.push(decodeURIComponent(u.pathname.split('/').at(-2)));return route.fulfill({json:{ok:true}});}
-    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET'){const id=u.searchParams.get('visit_id');conversationReads.push(id);return route.fulfill({json:{generation,ready:true,before:null,messages:id===visitRequests[0]?[message]:[]}});}
+    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET'){const id=u.searchParams.get('visit_id');conversationReads.push(id);if(id===serverEndedVisit&&!serverEndReported){serverEndReported=true;return route.fulfill({status:409,json:{detail:'This Kit visit has ended. Open a fresh chat; your draft is kept.'}});}return route.fulfill({json:{generation,ready:true,before:null,messages:id===visitRequests[0]?[message]:[]}});}
     if(u.pathname==='/api/coach/conversation/clear'&&req.method()==='POST'){const body=req.postDataJSON();clearRequests.push(body.visit_id);return route.fulfill({json:{visit_id:'cleared-kit-visit',generation,ready:true,messages:[]}});}
     if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
     if(req.method()==='POST'||req.method()==='PUT'||req.method()==='PATCH'||req.method()==='DELETE'){
@@ -98,9 +99,42 @@ async function main(){
     await p.goto(base+'/me/kit?from=progress');await p.locator('#kit-text').waitFor({state:'visible'});
     assert.notEqual(visitRequests.at(-1),expiredVisit,'a server-age-expired visit is replaced by a fresh visit id');
     assert.deepEqual(endRequests,[originalVisit],'the client does not try to end a visit beyond the server 24-hour limit');
+    const serverExpired='server-expired-kit-visit',savedDraft='Keep this draft after the server ends the visit';
+    await p.locator('#kit-text').fill(savedDraft);
+    await p.evaluate(({owner,serverExpired})=>localStorage.setItem('fit.kit.visit:'+owner,JSON.stringify({visit_id:serverExpired,created_at:Date.now()-60_000,left_at:null})), {owner,serverExpired});
+    serverEndedVisit=serverExpired;serverEndReported=false;
+    const startsBeforeRecovery=visitRequests.length;
+    const freshHistory=p.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/coach/conversation'&&url.searchParams.get('visit_id')!==serverExpired;},{timeout:8000});
+    await p.goto(base+'/me/kit?from=progress');
+    assert.equal((await freshHistory).status(),200,'a server-ended response is followed by a successful fresh history load');
+    await p.locator('#kit-starters button').first().waitFor({state:'visible'});
+    assert.equal(serverEndReported,true,'the fixture returned the server ended-visit 409');
+    assert.equal(visitRequests[startsBeforeRecovery],serverExpired,'the returning chat first resumes its saved, server-ended visit');
+    assert.notEqual(visitRequests[startsBeforeRecovery+1],serverExpired,'a 409 visit-ended response starts a fresh server visit');
+    assert.equal(conversationReads.at(-1),visitRequests[startsBeforeRecovery+1],'fresh chat history loads under the replacement visit id');
+    assert.equal(await p.locator('.kit-answer').count(),0,'the server-ended chat does not reappear in the fresh chat');
+    assert.equal(await p.locator('#kit-text').inputValue(),savedDraft,'the draft survives server-side visit expiry');
+    assert.equal(await p.locator('#kit-status').innerText(),'','expired visit recovery does not leave an error message');
     await p.locator('#kit-settings').click();await p.locator('#kit-clear').click();
     await p.waitForFunction(()=>localStorage.getItem('fit.kit.visit:'+JSON.stringify([Native.base||location.origin,App.me.id]))?.includes('cleared-kit-visit'));
     assert.equal(clearRequests.at(-1),visitRequests.at(-1),'New chat explicitly clears the current visit');
+    const firstOwnerData=await p.evaluate(()=>({id:App.me.id,key:JSON.stringify([Native.base||location.origin,App.me.id])})),firstOwnerId=firstOwnerData.id,firstOwner=firstOwnerData.key,firstOwnerVisit=visitRequests.at(-1);
+    await p.locator('#kit-text').fill('A draft that logout must clear');
+    await p.evaluate(()=>KitChat.eraseDevice());
+    assert.equal(await p.evaluate(owner=>localStorage.getItem('fit.kit.visit:'+owner),firstOwner),null,'logout cleanup removes the prior account visit id');
+    assert.equal(await p.evaluate(owner=>localStorage.getItem('fit.kit.draft:'+owner),firstOwner),null,'logout cleanup removes the prior account draft');
+    fixtureAccountId=Number(firstOwnerId)+1;
+    const requestsBeforeAccountSwitch=visitRequests.length,readsBeforeAccountSwitch=conversationReads.length;
+    const newAccountHistory=p.waitForResponse(response=>response.url().includes('/api/coach/conversation?visit_id=')&&response.request().method()==='GET');
+    await p.reload();assert.equal((await newAccountHistory).status(),200,'the next account history loads successfully');
+    await p.locator('#kit-text').waitFor({state:'visible'});
+    const secondOwner=await p.evaluate(()=>JSON.stringify([Native.base||location.origin,App.me.id]));
+    assert.notEqual(secondOwner,firstOwner,'the next sign-in has a distinct storage owner');
+    assert.notEqual(visitRequests.at(-1),firstOwnerVisit,'the next account starts its own visit');
+    assert.equal(conversationReads.at(-1),visitRequests.at(-1),'the next account reads only its own visit history');
+    assert(!visitRequests.slice(requestsBeforeAccountSwitch).includes(firstOwnerVisit),'the prior account visit is never sent after owner change');
+    assert(!conversationReads.slice(readsBeforeAccountSwitch).includes(firstOwnerVisit),'the prior account history is never requested after owner change');
+    assert.equal(await p.locator('#kit-text').inputValue(),'','the prior account draft is not shown to the next account');
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'kit-visit-retained-390-light.png'),animations:'disabled'});}
    }
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-followups-${width}-${theme}.png`),animations:'disabled'});}
