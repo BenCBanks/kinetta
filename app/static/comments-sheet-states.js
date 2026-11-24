@@ -33,7 +33,8 @@
 
       let empty = box.querySelector('.comments-empty-state-message');
       const hasComments = !!list.querySelector('.comment[data-comment-id]');
-      const showEmpty = !busy && !retry && !box._denied && !hasComments;
+      const hasCommentError = !!status.querySelector('.comment-retry');
+      const showEmpty = !busy && !retry && !hasCommentError && !box._denied && !hasComments;
       if (showEmpty) {
         if (!empty) {
           empty = document.createElement('p');

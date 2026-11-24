@@ -503,6 +503,46 @@ body.ph-open { overflow: hidden; }
 .social-sheet .c-none { display:none; }
 @media(prefers-reduced-motion:reduce) { .scrim:has(.social-sheet),.scrim:has(.social-sheet)::after,.scrim:has(.social-sheet) .sheet { transition:none; } .social-sheet .c-send-spinner { animation:none; } }
 
+/* Hazel round 3: fixed 60% Comments sheet, with an explicit upward drag to full height. */
+.scrim:has(.social-sheet-round3) > .sheet {
+  box-sizing:border-box;height:min(60dvh,calc(100dvh - var(--sheet-keyboard-inset,0px) - env(safe-area-inset-top) - 8px));
+  max-height:calc(60dvh - var(--sheet-keyboard-inset,0px));padding:8px 16px calc(env(safe-area-inset-bottom) + 12px);
+  transition:height 220ms cubic-bezier(.2,.8,.2,1),max-height 220ms cubic-bezier(.2,.8,.2,1),transform 220ms cubic-bezier(.2,.8,.2,1);
+}
+.scrim:has(.social-sheet-round3) > .sheet.comments-expanded { height:calc(100dvh - var(--sheet-keyboard-inset,0px) - env(safe-area-inset-top) - 8px);max-height:calc(100dvh - var(--sheet-keyboard-inset,0px) - env(safe-area-inset-top) - 8px); }
+.scrim:has(.social-sheet-round3) > .sheet > header { margin-bottom:4px; }
+.scrim:has(.social-sheet-round3) > .sheet > .sbody { flex:1;min-height:0;overflow:hidden; }
+.social-sheet-round3 .comments { display:flex;flex:1;flex-direction:column;gap:10px;padding:2px 0;opacity:1;transition:opacity 160ms ease-out; }
+.social-sheet-round3 .comments.is-fading-in { opacity:0; }
+.social-sheet-round3 .comments .comment { display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:start;gap:12px;margin:0;padding:5px 0;border:0;touch-action:pan-y; }
+.social-sheet-round3 .comments .comment > .av { width:28px;height:28px;margin:1px 0 0;font-size:15px; }
+.social-sheet-round3 .comment .c-body { width:100%;min-width:0; }
+.social-sheet-round3 .comment .c-line { margin:0;overflow:visible;color:var(--tx);font-size:15px;line-height:21px;white-space:normal;overflow-wrap:break-word; }
+.social-sheet-round3 .comment .c-line b { margin-right:4px;font-weight:650;white-space:nowrap; }
+.social-sheet-round3 .comment .c-line span { white-space:normal;overflow-wrap:break-word; }
+.social-sheet-round3 .comment .c-time { padding-top:2px;color:var(--tx3);font-size:13px;line-height:18px;white-space:nowrap;font-variant-numeric:tabular-nums; }
+.social-sheet-round3 .comments-skeleton { gap:10px;padding:2px 0; }
+.social-sheet-round3 .comment-skeleton-row { align-items:center;gap:8px;min-height:38px; }
+.social-sheet-round3 .comment-skeleton-avatar,.social-sheet-round3 .comment-skeleton-copy i { background:color-mix(in srgb,var(--tx3) 28%,var(--surface-sheet)); }
+.social-sheet-round3 .comment-skeleton-avatar { width:28px;height:28px; }
+.social-sheet-round3 .social-read-status { flex:none;margin:0 0 4px;color:var(--tx2);font-size:13px; }
+.social-sheet-round3 .social-read-status:empty { display:none; }
+.social-sheet-round3 .c-quick { display:flex;flex:none;align-items:center;justify-content:flex-start;gap:14px;min-height:44px;margin:0;padding:0;overflow-x:auto; }
+.social-sheet-round3 .c-quick[hidden] { display:none; }
+.social-sheet-round3 .c-chip { flex:none;min-height:44px;padding:0;border:0;border-radius:0;background:transparent;color:var(--accent);font-size:15px;font-weight:500;white-space:nowrap; }
+.social-sheet-round3 .c-form { flex:none;width:100%;margin:0;padding:0;border:0; }
+.social-sheet-round3 .c-field { position:relative;display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;height:40px;min-height:40px;padding:0 5px;overflow:visible;border:1px solid var(--color-outline);border-radius:22px;background:var(--surface-raised); }
+.social-sheet-round3 .c-field > .av { flex:none;width:28px;height:28px;font-size:15px; }
+.social-sheet-round3 .c-field textarea { position:relative;flex:1;min-width:0;height:44px;min-height:44px;max-height:44px;box-sizing:border-box;margin:-2px 0;padding:12px 0;resize:none;overflow-y:auto;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font-size:16px;line-height:20px; }
+.social-sheet-round3 .c-field textarea:focus { border:0;box-shadow:none; }
+.social-sheet-round3 .c-send { position:relative;top:auto;right:auto;display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;min-width:44px;height:44px;min-height:44px;margin:-2px 0 -2px 2px;padding:0 7px 0 12px;transform:none;border:0;border-radius:22px;background:transparent;color:var(--accent);font-size:15px;font-weight:650; }
+.social-sheet-round3 .c-send:disabled { background:transparent;color:var(--tx3); }
+.social-sheet-round3 .c-send[aria-busy=true] { opacity:.65; }
+.social-sheet-round3 .comment-retry { min-height:36px;padding:0 4px;color:var(--accent);font-size:inherit;font-weight:600; }
+.social-sheet-round3 .comments-empty-state-message { flex:1; }
+.scrim.keyboard-attached.keyboard-inset:has(.social-sheet-round3) > .sheet { height:auto;max-height:calc(100dvh - var(--sheet-keyboard-inset,0px) - 8px);border-radius:18px 18px 0 0;padding-bottom:0; }
+.scrim.keyboard-attached.keyboard-inset:has(.social-sheet-round3) > .sheet.comments-expanded { max-height:calc(100dvh - var(--sheet-keyboard-inset,0px) - 8px); }
+
 
 /* Edit activity sheet; kept here with the activity editor instead of shared style.css. */
 #e-summary > .e-fields { margin-top: 8px; }     /* the edit-activity numbers keep the form's spacing inside the fold-out */
