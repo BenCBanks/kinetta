@@ -39,9 +39,32 @@ Object.assign(KitChat, (() => {
     track:['Choose a workout','Help me record','Talk about exercise']};
   const starterIcons={me:['trophy','calendar','help'],nutrition:['food','pot','chat'],activity:['run','calendar','heart'],progress:['trophy','calendar','sparkle','calendar'],plan:['calendar','edit','help'],strength:['workout','calendar','edit'],track:['run','edit','heart']};
   let current,entryDraft;
+  const VISIT_MAX_AGE=24*60*60*1000,ROUTE_IDLE_LIMIT=30*60*1000,visitExpiryTimers=new Map();
   const tabEntryUsers=new Set(),activityEntryUsers=new Map(),activityEntryRequests=new Map();
   const owner=()=>App.me&&JSON.stringify([Native.base||location.origin,App.me.id]);
   const key=(o,k)=>'fit.kit.'+k+':'+o;
+  function readVisit(o){try{const v=JSON.parse(localStorage.getItem(key(o,'visit'))||'null');return v&&typeof v.visit_id==='string'&&Number.isFinite(v.created_at)?v:null;}catch{return null;}}
+  function writeVisit(o,v){localStorage.setItem(key(o,'visit'),JSON.stringify(v));}
+  function cancelVisitExpiry(o){const timer=visitExpiryTimers.get(o);if(timer!=null)clearTimeout(timer);visitExpiryTimers.delete(o);}
+  async function endVisit(o,record){
+    if(owner()!==o||!record?.visit_id)return;
+    try{await api('/api/coach/conversation/visits/'+encodeURIComponent(record.visit_id)+'/end',{method:'POST'});}catch{}
+    const latest=readVisit(o);if(owner()===o&&latest?.visit_id===record.visit_id)store.del(o,'visit');
+  }
+  function scheduleVisitExpiry(o,record){
+    cancelVisitExpiry(o);if(!record?.left_at)return;
+    const wait=Math.max(0,ROUTE_IDLE_LIMIT-(Date.now()-record.left_at));
+    visitExpiryTimers.set(o,setTimeout(()=>{const latest=readVisit(o);if(latest?.visit_id===record.visit_id&&latest.left_at===record.left_at)void endVisit(o,latest);},wait));
+  }
+  function keepDraft(c){const field=$('#kit-text',c.el);if(field?.value)try{save(c,'draft',field.value);}catch{}}
+  function leaveRoute(c){
+    if(c.closed)return;c.closed=true;clearTimeout(c.timer);keepDraft(c);
+    const visit=readVisit(c.owner);if(visit?.visit_id!==c.visit_id)return;
+    const record=visit.left_at?visit:{...visit,left_at:Date.now()};
+    if(!visit.left_at)writeVisit(c.owner,record);scheduleVisitExpiry(c.owner,record);
+  }
+  function suspend(c){keepDraft(c);c.suspended=true;}
+  function resume(c){if(!active(c)||!c.suspended)return;c.suspended=false;refresh(c).catch(e=>status(c,e.message));}
   function entryRelevant(path,enabled=kitChatOn()){
     const o=owner();if(o&&['/food','/activity','/track'].includes(path))tabEntryUsers.add(o);
     return enabled||!!(App.me?.food_user||App.me?.kcal_target)||!!o&&(tabEntryUsers.has(o)||activityEntryUsers.get(o)===true);
@@ -148,8 +171,12 @@ Object.assign(KitChat, (() => {
     if(!field.value.trim())return true;
     throw Error(notice.textContent.trim()||'Food is still being saved on this phone. Keep this chat open and try again.');
   }
-  async function refresh(c,before=null){
-    const data=await api('/api/coach/conversation?visit_id='+encodeURIComponent(c.visit_id)+(before?'&before='+before:''));if(!active(c))return;
+  async function refresh(c,before=null,recovering=false){
+    if(!before&&Date.now()-c.visit_created_at>=VISIT_MAX_AGE){await begin(c,true);return;}
+    let data;
+    try{data=await api('/api/coach/conversation?visit_id='+encodeURIComponent(c.visit_id)+(before?'&before='+before:''));}
+    catch(e){if(!before&&!recovering&&e.status===409){await begin(c,true);return;}throw e;}
+    if(!active(c))return;
     if(c.generation&&c.generation!==data.generation){if(c.job&&!$('#kit-text',c.el).value){$('#kit-text',c.el).value=c.job.question;try{save(c,'draft',c.job.question);}catch{}}c.messages=[];c.job=null;c.sending=false;c.answerErrors={};store.del(key(c.owner,'pending'));status(c,'This chat was cleared on another device. Your draft is kept.');}
     c.generation=data.generation;c.ready=data.ready;c.before=data.before;c.loaded=true;
     const rows=before?[...data.messages,...c.messages]:data.messages;
@@ -227,23 +254,27 @@ Object.assign(KitChat, (() => {
       });
     });
   }
-  function leave(c){
-    if(c.closed)return;
-    const field=$('#kit-text',c.el),waiting=c.job?.question||c.messages.findLast(m=>['pending','running'].includes(m.state))?.question;
-    if(!field?.value&&waiting)try{save(c,'draft',waiting);}catch{}
-    c.closed=true;clearTimeout(c.timer);store.del(key(c.owner,'pending'));
-    if(c.session===readOwner())api('/api/coach/conversation/visits/'+c.visit_id+'/end',{method:'POST',keepalive:true}).catch(()=>{});
-  }
-  async function begin(c){
-    c.closed=false;c.loaded=false;c.messages=[];c.job=null;c.sending=false;c.before=null;c.answerErrors={};c.visit_id=newId();
-    const visit=c.visit_id;draw(c);status(c,'Opening a fresh chat…');
+  async function begin(c,forceFresh=false){
+    c.closed=false;c.loaded=false;c.messages=[];c.job=null;c.sending=false;c.before=null;c.answerErrors={};
+    let record=forceFresh?null:readVisit(c.owner),now=Date.now();
+    if(record&&now-record.created_at>=VISIT_MAX_AGE){cancelVisitExpiry(c.owner);store.del(c.owner,'visit');record=null;}
+    if(record?.left_at&&now-record.left_at>=ROUTE_IDLE_LIMIT){cancelVisitExpiry(c.owner);await endVisit(c.owner,record);record=null;}
+    if(!record){record={visit_id:newId(),created_at:now,left_at:null};writeVisit(c.owner,record);}
+    else if(record.left_at){cancelVisitExpiry(c.owner);record={...record,left_at:null};writeVisit(c.owner,record);}
+    c.visit_id=record.visit_id;c.visit_created_at=record.created_at;
+    const visit=c.visit_id;draw(c);status(c,'Opening your chat…');
     const start=async()=>{
       const data=await api('/api/coach/conversation/visits',json('POST',{visit_id:visit}));
       if(!active(c)||c.visit_id!==visit)return;
-      c.generation=data.generation;status(c,'');await refresh(c);
+      c.generation=data.generation;status(c,'');await refresh(c,null,true);
       if(active(c)&&c.visit_id===visit&&typeof FeatureUsage!=='undefined')void FeatureUsage.event('kit_conversation');
     };
-    try{await start();}catch(e){if(active(c)&&c.visit_id===visit){status(c,e.message);const retry=$('#kit-load-retry',c.el);retry.hidden=false;retry.onclick=async()=>{retry.hidden=true;try{await start();}catch(x){if(active(c)){status(c,x.message);retry.hidden=false;}}};}}
+    try{await start();}catch(e){
+      if(active(c)&&c.visit_id===visit&&record.left_at==null&&e.status===409&&!forceFresh){
+        store.del(c.owner,'visit');await begin(c,true);return;
+      }
+      if(active(c)&&c.visit_id===visit){status(c,e.message);const retry=$('#kit-load-retry',c.el);retry.hidden=false;retry.onclick=async()=>{retry.hidden=true;try{await start();}catch(x){if(active(c)){status(c,x.message);retry.hidden=false;}}};}
+    }
   }
   function memorySettings(){
     const session=readOwner();
@@ -290,29 +321,25 @@ Object.assign(KitChat, (() => {
     $('#kit-older',el).onclick=async()=>{const list=$('#kit-messages',el),h=list.scrollHeight,y=list.scrollTop;try{await refresh(c,c.before);list.scrollTop=y+list.scrollHeight-h;}catch(e){status(c,e.message);}};
     $('#kit-saved',el).onclick=savedReviews;
     $('#kit-settings',el).onclick=()=>sheet('Kit chat',`<button type="button" class="linkbtn wide" id="kit-about-open">About Kit</button><button type="button" class="linkbtn wide" id="kit-memory-open">What Kit remembers</button><a class="linkbtn wide" href="/me/settings#ai" data-close>Kit & data permissions</a><button type="button" class="ghost wide" id="kit-clear">Start a new chat</button><p class="small muted">Your food, workouts, plans, goals and saved memories stay available.</p>`,(body,close)=>{
-      $('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',`<p>New chat each visit.</p><p>Uses ${esc(providerName())}.</p><p>Kit checks your own records when needed and can keep useful details you share.</p>`);};
+      $('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',`<p>Your chat stays while you switch apps. Start a new one anytime.</p><p>Uses ${esc(providerName())}.</p><p>Kit checks your own records when needed and can keep useful details you share.</p>`);};
       $('#kit-memory-open',body).onclick=()=>{close();memorySettings();};
       $('#kit-clear',body).onclick=async e=>{
         if(!active(c)||!c.loaded)return;e.target.disabled=true;
         const previousVisit=c.visit_id;
-        try{const data=await api('/api/coach/conversation/clear',json('POST',{generation:c.generation,visit_id:previousVisit,confirmed:true}));if(!active(c)||c.visit_id!==previousVisit)return;clearTimeout(c.timer);c.visit_id=data.visit_id;c.generation=data.generation;c.sending=false;c.answerErrors={};c.messages=[];c.before=null;c.job=null;c.jobError='';store.del(key(c.owner,'pending'));store.del(key(c.owner,'draft'));field.value='';close();status(c,'');draw(c);}catch(x){if(active(c)){status(c,x.message);e.target.disabled=false;}}
+        try{const data=await api('/api/coach/conversation/clear',json('POST',{generation:c.generation,visit_id:previousVisit,confirmed:true}));if(!active(c)||c.visit_id!==previousVisit)return;clearTimeout(c.timer);cancelVisitExpiry(c.owner);c.visit_id=data.visit_id;c.visit_created_at=Date.now();writeVisit(c.owner,{visit_id:c.visit_id,created_at:c.visit_created_at,left_at:null});c.generation=data.generation;c.sending=false;c.answerErrors={};c.messages=[];c.before=null;c.job=null;c.jobError='';store.del(key(c.owner,'pending'));store.del(key(c.owner,'draft'));field.value='';close();status(c,'');draw(c);}catch(x){if(active(c)){status(c,x.message);e.target.disabled=false;}}
       };
     });
     c.view=foodChatViewport({list:$('#kit-messages',el),composer:$('#kit-composer',el),field,send:$('#kit-send',el),suggestions:$('#kit-starters',el),header:$('.thread-heading',el),active:()=>active(c)});
     const events=new AbortController();
-    document.addEventListener('visibilitychange',()=>{
-      if(document.hidden){leave(c);return;}
-      if(current===c&&c.el.isConnected&&c.owner===owner()&&c.session===readOwner()){
-        if(c.closed){field.value=store.get(key(c.owner,'draft'))||field.value;resize();begin(c);}else refresh(c).catch(e=>status(c,e.message));
-      }
-    },{signal:events.signal});
-    window.addEventListener('pagehide',()=>leave(c),{signal:events.signal});
-    window.addEventListener('pageshow',()=>{if(current===c&&c.closed&&c.el.isConnected&&c.session===readOwner())begin(c);},{signal:events.signal});
-    viewResources.set(el,()=>{leave(c);events.abort();c.view.dispose();});
+    $('.thread-heading .back',el)?.addEventListener('click',()=>leaveRoute(c),{capture:true,signal:events.signal});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend(c);else resume(c);},{signal:events.signal});
+    window.addEventListener('pagehide',()=>suspend(c),{signal:events.signal});
+    window.addEventListener('pageshow',()=>resume(c),{signal:events.signal});
+    viewResources.set(el,()=>{leaveRoute(c);events.abort();c.view.dispose();});
     controls(c);resize();await begin(c);
     if(active(c))c.view.pin(true);
   }
-  function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){tabEntryUsers.delete(o);activityEntryUsers.delete(o);activityEntryRequests.delete(o);for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
+  function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){cancelVisitExpiry(o);tabEntryUsers.delete(o);activityEntryUsers.delete(o);activityEntryRequests.delete(o);for(const k of ['draft','pending','visit'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
   function entry(el,path){
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/food/insights':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
     if(!el||!screen)return;

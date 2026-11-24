@@ -22,6 +22,8 @@ async function main(){
   const state=await login.storageState();
   for(const width of [390,330])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
+   const visitRequests=[],endRequests=[],conversationReads=[],clearRequests=[];
+   if(width===390&&theme==='light')await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
    p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',async route=>{
     const req=route.request(),u=new URL(req.url());
@@ -30,8 +32,10 @@ async function main(){
      const response=await route.fetch(),me=await response.json();
      return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});
     }
-    if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST')return route.fulfill({json:{visit_id:visitId,generation,ready:true}});
-    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation,ready:true,before:null,messages:[message]}});
+    if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST'){const id=req.postDataJSON().visit_id;visitRequests.push(id);return route.fulfill({json:{visit_id:id,generation,ready:true}});}
+    if(/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(u.pathname)&&req.method()==='POST'){endRequests.push(decodeURIComponent(u.pathname.split('/').at(-2)));return route.fulfill({json:{ok:true}});}
+    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET'){const id=u.searchParams.get('visit_id');conversationReads.push(id);return route.fulfill({json:{generation,ready:true,before:null,messages:id===visitRequests[0]?[message]:[]}});}
+    if(u.pathname==='/api/coach/conversation/clear'&&req.method()==='POST'){const body=req.postDataJSON();clearRequests.push(body.visit_id);return route.fulfill({json:{visit_id:'cleared-kit-visit',generation,ready:true,messages:[]}});}
     if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
     if(req.method()==='POST'||req.method()==='PUT'||req.method()==='PATCH'||req.method()==='DELETE'){
      unexpectedWrites.push(u.pathname);return route.fulfill({json:{}});
@@ -70,10 +74,39 @@ async function main(){
    assert.equal(await p.locator('.kit-facts > div').count(),2,'summary facts remain visible');
    assert.deepEqual(errors,[],`${width}px ${theme}: no page errors`);
    assert.deepEqual(unexpectedWrites,[],`${width}px ${theme}: fixture answer makes no writes or provider requests`);
+   if(width===390&&theme==='light'){
+    await p.locator('#kit-text').fill('Unsent question kept for later');
+    const originalVisit=visitRequests[0];assert(originalVisit,'the first chat creates a server visit');
+    await p.evaluate(()=>{
+     Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));
+     window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));
+     Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));
+     window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+    });
+    assert.deepEqual(endRequests,[],'backgrounding and pagehide do not end the Kit visit');
+    await p.reload();await p.locator('.kit-answer').waitFor({state:'visible'});
+    assert.equal(visitRequests.at(-1),originalVisit,'a discarded WebView resumes with the same server visit_id');
+    assert.equal(conversationReads.at(-1),originalVisit,'messages reload from the same visit');
+    assert.equal(await p.locator('.kit-answer').innerText().then(t=>t.includes('Your workout logging was steady')),true,'the saved conversation returns after reload');
+    assert.equal(await p.locator('#kit-text').inputValue(),'Unsent question kept for later','unsent draft survives app/page return');
+    await p.locator('.thread-heading .back').click();await p.waitForURL(/\/progress(?:\?.*)?$/);
+    await p.clock.fastForward(30*60*1000+50);
+    for(let i=0;i<50&&!endRequests.includes(originalVisit);i++)await new Promise(resolve=>setTimeout(resolve,10));
+    assert.deepEqual(endRequests,[originalVisit],'leaving Ask Kit for thirty minutes ends that visit');
+    const expiredVisit='expired-kit-visit',owner=await p.evaluate(()=>JSON.stringify([Native.base||location.origin,App.me.id]));
+    await p.evaluate(({owner,expiredVisit})=>localStorage.setItem('fit.kit.visit:'+owner,JSON.stringify({visit_id:expiredVisit,created_at:Date.now()-24*60*60*1000-1,left_at:null})),{owner,expiredVisit});
+    await p.goto(base+'/me/kit?from=progress');await p.locator('#kit-text').waitFor({state:'visible'});
+    assert.notEqual(visitRequests.at(-1),expiredVisit,'a server-age-expired visit is replaced by a fresh visit id');
+    assert.deepEqual(endRequests,[originalVisit],'the client does not try to end a visit beyond the server 24-hour limit');
+    await p.locator('#kit-settings').click();await p.locator('#kit-clear').click();
+    await p.waitForFunction(()=>localStorage.getItem('fit.kit.visit:'+JSON.stringify([Native.base||location.origin,App.me.id]))?.includes('cleared-kit-visit'));
+    assert.equal(clearRequests.at(-1),visitRequests.at(-1),'New chat explicitly clears the current visit');
+    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'kit-visit-retained-390-light.png'),animations:'disabled'});}
+   }
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-followups-${width}-${theme}.png`),animations:'disabled'});}
    await c.close();contexts.pop();
   }
-  console.log('Kit answer follow-ups: long text wraps inside full-width 44px+ single-border pills; fact summary spacing passes at 390/330 light/dark; no writes/provider calls.');
+  console.log('Kit answer follow-ups and visit retention: long text wraps in 44px+ pills; 390/330 light/dark; background/reload keeps visit+draft; 30m/24h/new-chat paths pass; no writes/provider calls.');
  }finally{for(const c of contexts)await c.close().catch(()=>{});await login.close();await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
