@@ -96,7 +96,7 @@ for device in preferred:
   (a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
   print('Booting native UI device: '+device['name'],flush=True)
   # A fresh hosted runner must initialize the iOS runtime; this can exceed three minutes.
-  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100')
+  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','discharging' if a.homepage else 'charged','--batteryLevel','100')
   installed=None;recovered=False
   for theme in (('light',) if a.store else ('light','dark')):
    sim('ui',udid,'appearance',theme)
@@ -156,6 +156,11 @@ for device in preferred:
     if a.homepage:
      assert metrics.get('store') and metrics.get('sceneReady') and not metrics.get('blocked'), 'Homepage screenshot must use the fictional Store API fixture: '+json.dumps({'stage':stage,'theme':theme,'store':metrics.get('store'),'sceneReady':metrics.get('sceneReady'),'blocked':metrics.get('blocked')},sort_keys=True)
      assert metrics['viewport']=={'width':393,'height':852,'offset':0},'Homepage capture must match the 393×852 site frame: '+json.dumps(metrics['viewport'])
+     if stage=='activity':
+      social=metrics.get('activity',{}).get('social',{})
+      assert not social.get('hidden') and social.get('triggerKind')=='thumbsup' and social.get('triggerGlyph')=='👍','Homepage Activity must show its fictional thumbs-up reaction trigger: '+json.dumps(social,sort_keys=True)
+      assert social.get('reactions')==[{'kind':'fire','count':'2'},{'kind':'clap','count':'1'}],'Homepage Activity must show Apple emoji reaction counts: '+json.dumps(social,sort_keys=True)
+      assert social.get('commentLabel')=='2 comments' and social.get('commentCount')=='2','Homepage Activity must show its fictional comment count: '+json.dumps(social,sort_keys=True)
     assert nav['visible']==(stage in ('activity','activity-photos-save','activity-sticky','activity-empty','achievements','achievement-share-track') or stage.startswith(('friends-','groups-','header-'))),metrics
     if stage=='activity-photos-save':
      proof=metrics.get('photosSave',{});assert proof.get('saved') is True and 'photos' in proof.get('status','').lower(), 'Unsigned Simulator must save the fictional activity PNG to its Photos library: '+json.dumps(proof,sort_keys=True)
