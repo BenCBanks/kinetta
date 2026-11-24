@@ -1181,7 +1181,7 @@ async function inviteFriends() {
   try { link = await api('/api/friends/link'); } catch (error) { if(same())toast(error.message); return; }
   if(!same())return;
   const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
-  const text = `Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: ${url}`;
+  const text = `Connect with me on Kinetta, the workout and food app. This friendship invite lasts 30 days: ${url}`;
   try { await loadShareArt(); } catch (error) { if(same())toast(error.message||'Couldn’t prepare this invitation.'); return; }
   if(!same())return;
   ShareSheet.open({mode:'story',title:'Invite friends',items:[{

@@ -133,7 +133,7 @@ async function runTheme(browser,theme){
  await invite.locator('#contacts-share-invite').click();
  await page.waitForFunction(()=>window.__contactsShares.length>0);
  const share=await page.evaluate(()=>window.__contactsShares.at(-1));
- assert.equal(share.text,'Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: https://login.kinetta.app/add/fictional-invite');assert.equal(Object.hasOwn(share,'recipients'),false,'the share sheet leaves recipient selection to iOS');
+ assert.equal(share.text,'Connect with me on Kinetta, the workout and food app. This friendship invite lasts 30 days: https://login.kinetta.app/add/fictional-invite');assert.equal(Object.hasOwn(share,'recipients'),false,'the share sheet leaves recipient selection to iOS');
  assert(!JSON.stringify(share).includes('Taylor Brooks'),'contact details are not placed in the invite share payload');
  await page.locator('#contacts-done').click();await page.waitForURL('**/me/friends?find=1');
  await page.locator('#contacts-entry').waitFor();
@@ -167,7 +167,7 @@ async function runTheme(browser,theme){
  const inviteOnly=page.getByRole('dialog',{name:'Invite Avery Patel'});await inviteOnly.waitFor();
  await inviteOnly.locator('#contacts-share-invite').click();await page.waitForFunction(()=>window.__contactsShares.length>0);
  const inviteOnlyShare=await page.evaluate(()=>window.__contactsShares.at(-1));
- assert.equal(inviteOnlyShare.text,'Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: https://login.kinetta.app/add/fictional-invite');
+ assert.equal(inviteOnlyShare.text,'Connect with me on Kinetta, the workout and food app. This friendship invite lasts 30 days: https://login.kinetta.app/add/fictional-invite');
  assert(!JSON.stringify(inviteOnlyShare).includes('Avery Patel'),'invite-only names stay out of the share payload');
  await capture('contacts-invite-only');
  const requestsBeforeCap=matchBodies.length;

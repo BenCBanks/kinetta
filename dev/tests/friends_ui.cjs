@@ -85,7 +85,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   for(const state of ['empty','typical','heavy'])for(const theme of ['light','dark']){
    const name=`${state}-${viewportWidth}-${theme}`;if(process.env.KINETTA_FRIEND_CASE&&process.env.KINETTA_FRIEND_CASE!==name)continue;
    const expectedIncoming={empty:0,typical:1,heavy:3}[state],expectedSuggestions={empty:0,typical:5,heavy:1}[state];
-   const {c,p,errors,writes,searches}=await open(state,theme);
+   const {c,p,errors,writes,searches,qrRequests}=await open(state,theme);
    assert.equal(await p.locator('#fr-title').innerText(),'Find friends');assert.equal(await p.locator('#fr-title').evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);return r.getClientRects().length;}),1,'complete heading stays on one line');
    for(const selector of ['#fr-own-list','#fr-lists','.friend-empty','#fr-sharing','.friend-footer','a[aria-label="Your profile"]','a[href="/me/sharing"]'])assert.equal(await p.locator(selector).count(),0,`removed from Find friends: ${selector}`);
    assert(!/Your friends will appear here|New activities:\s*Everyone/.test(await p.locator('#page').innerText()),'no friends explainer or sharing setting');
