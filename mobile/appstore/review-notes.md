@@ -1,34 +1,28 @@
-# App Review notes — fill and review before pasting
+# App Review notes — owner review required
 
-Server: `[REVIEW SERVER HTTPS URL]`
-Username: `[DEDICATED FICTIONAL REVIEWER LOGIN]`
-Password: `[SUPPLY PRIVATELY IN APP STORE CONNECT; NEVER COMMIT]`
-Contact: `[OWNER’S REVIEW CONTACT]`
-Submitted version/build: `[EXACT VERSION AND BUILD]`
+Fill these fields privately in App Store Connect for the exact submission. Do not commit credentials.
 
-This account contains fictional workouts, food, a recipe and a fictional friend. Its routes are deliberately synthetic and do not demonstrate real exercise or location accuracy. The reviewer does not need a real watch or personal Health history to inspect the populated app. Confirm the separate review server and its enabled services before providing this login.
+- Review server: `[DEDICATED REVIEW SERVER HTTPS URL]`
+- Username: `[DEDICATED FICTIONAL REVIEWER LOGIN]`
+- Password: `[SUPPLY PRIVATELY IN APP STORE CONNECT]`
+- Review contact: `[OWNER’S REVIEW CONTACT]`
+- Submitted version/build: `[EXACT VERSION AND BUILD]`
+- Kit features/provider enabled on this server: `[CONFIRM FOR THIS REVIEW BUILD]`
 
-- Sign in with the server and credentials above. The five tabs are Home, Progress, Track, Nutrition and Me. Home opens to Feed; use the Feed | Groups switch below the Home header to open Groups. [Features overview](https://kinetta.app/features).
-- Apple Health: open Me → Settings → Connections → Apple Health in the iPhone app. Reading supported workout/health categories and writing logged nutrition are separate choices. The user grants permissions in Apple Health; no unrelated category is granted by turning on a Kinetta setting. The demo account already has fictional activity history. [Training and connections](https://kinetta.app/training).
-- Track: choose a sport and Start to record a workout. Outdoor tracking asks for location; background location is used to continue that user-started recording while the screen is locked or another app is open. Pause, Finish and review before Save. Permission is not needed merely to browse the demo. [Workout recording](https://kinetta.app/training).
-- Nutrition → Add food: search, barcode and manual entry are available without AI consent. Kit’s description/photo estimates are optional, require the person’s AI opt-in, and may require server access. Review the proposed food, portion, meal and day, then confirm before saving. [Food logging](https://kinetta.app/food).
-- Kit: available only for18+ accounts with explicit opt-in and the server’s reviewed feature gate enabled. It sends relevant question/context/records to the configured provider; Apple Health and Garmin inclusion have separate consents. AI proposals require confirmation before changes. Confirm `[ENABLED KIT FEATURES AND PROVIDER]` for this exact review server. Do not claim that an unavailable feature is enabled. [Kit and privacy](https://kinetta.app/privacy).
-- Activity/Friends: view the fictional friend’s shared activity, open a profile and inspect cheers/comments. Per-activity audiences are Only me, Friends and Everyone on this server. The route’s privacy trimming stays in effect for other people. Food, weights and private notes stay private. [Friends](https://kinetta.app/friends).
-- Find friends with contacts (optional, iPhone): from Friends, choose “Find friends with contacts” and Continue. iOS asks for Contacts permission. Kinetta reads names, local contact IDs, email addresses and phone numbers on the phone, then sends a fresh salt and up to2,000 type-tagged salted SHA-256 email/phone digests to the selected server. It receives matching digests and public usernames; raw contact details and the name/ID mapping are not sent. These hashes are guessable if captured with their salt; this is not private-set-intersection. The app saves matched local contact IDs and usernames on the phone. Revoke Contacts permission in iPhone Settings to prevent another read. To remove saved matches, use Me → Settings → Sharing & privacy → Remove my contacts. To stop others matching your account, turn off the email/phone switches there; clear an optional account phone separately in the phone-number field. Source: `mobile/ios/App/App/NativeContacts.swift`, `mobile/ios/App/ContactMatchCore/Sources/ContactMatchCore/ContactMatchHasher.swift`, `app/static/contacts-ui.js`, `app/api_contacts.py`. Review the submitted server’s exact behavior and privacy answers before supplying credentials.
-- Data controls: Me → Settings → Your data offers export and account deletion. Health/fitness records are used for tracking, summaries and explicitly enabled review features; they are not sold or used for advertising. [Privacy policy](https://kinetta.app/privacy).
+The review account should contain fictional activity and food examples on a server chosen for App Review. Do not use a shared server unless its owner accepts that the reviewer can see activities shared with “Everyone.” A separate review server is recommended. Creating a reviewer account on a shared server does not hide other “Everyone” activities.
 
-## TestFlight “What to Test” draft
+## Where to review the app
 
-For a build that includes #724 and #725:
+- Sign in with the server and credentials above. The five tabs are Home, Progress, Track, Nutrition and Me. Home opens to the activity feed; the Home header also leads to Groups and Challenges.
+- Activity detail shows the shared activity, map and charts. Comments and reactions are available from its footer. The activity owner controls its audience; food details and protein targets are not exposed in challenge sharing.
+- To inspect recording, open Track, choose a sport and tap Start. Outdoor recording can request location. Background location continues a workout the person started while the screen is locked or another app is open. Location permission is not needed to browse the sample account.
+- In Nutrition, open Add food to search, scan a barcode or enter food manually. Kit’s estimate is optional, requires the account’s AI opt-in and an enabled server feature, and asks the person to review the food and portion before saving. The reviewer does not need Kit enabled to inspect ordinary food logging.
+- Apple Health is optional: Me → Settings → Connections → Apple Health. Kinetta imports only workout categories the person permits; body-mass reading and writing confirmed nutrition to Health have separate controls. The fictional activity history can be reviewed without connecting a real Health account or watch.
+- Friends and Challenges are optional. Joining a challenge does not send a friend request; food details and protein targets are not included in shared challenge progress. Find friends with contacts is also optional; declining the Contacts prompt does not block other features.
+- User content has Report and Block controls. Activity and comment text is filtered at submission. Me → Settings → Your data contains export and account-deletion controls.
 
-- Navigation: confirm the five tabs are Home, Progress, Track, Nutrition and Me. Home opens to Feed; switch to Groups from the Home header.
-- Reactions: in Feed or Groups, check the emoji row and total. Open it to inspect the people list and All/emoji filters; add or remove your reaction.
-- Add food: advance to a later Nutrition sheet, then tap the back chevron to return one step. Check that your search text and scroll position remain; X should still close the flow.
+Kit is available only to eligible adult accounts with explicit AI consent and the reviewed server feature enabled. Confirm the exact server configuration above; do not claim a disabled feature is available. AI-generated food proposals require review and confirmation before saving.
 
-- Community safety: activity/comment menus offer Report; profile menus offer Block. Submitted public text is filtered. The [Terms of Use](https://kinetta.app/terms), version 2026-11-01-v1, supply the EULA reference; the owner must enter the reviewed custom agreement in App Store Connect. Check the submitted build’s active agreement settings separately.
+## Owner review before pasting
 
-## Reviewer exposure decision — owner chooses before credentials are supplied
-
-Recommended: **use a separate review server populated only with fictional accounts**. This gives the reviewer a full friend/feed experience without exposing testers’ Everyone-audience activities.
-
-Other options are to accept exposure on a shared server, after considering that Everyone includes the reviewer, or temporarily suppress real Everyone-audience content for that account. The latter would require a separately reviewed visibility change; this issue does not implement it. Creating a fresh reviewer account does not by itself isolate the public feed. The script must not change other accounts or their activity audiences.
+Confirm the reviewer server, account, contact, exact build and enabled Kit features. Keep all credentials in App Store Connect only. Check the notes against the selected build and server; these notes do not authorize changing account visibility, creating a production account, or submitting the app.
