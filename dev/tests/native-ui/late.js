@@ -75,6 +75,15 @@
     }
     throw Error('Store scene did not finish painting: '+cfg.stage);
   }
+  async function waitForStoreCrop(selector){
+    for(let n=0;n<100;n++){
+      const target=document.querySelector(selector),text=(target?.innerText??target?.textContent??'').trim();
+      const box=target?.getBoundingClientRect();
+      if(box?.width>0&&box.height>0&&text.includes('Heart rate'))return;
+      await new Promise(ok=>setTimeout(ok,50));
+    }
+    throw Error('Store crop anchor did not render: '+selector);
+  }
   async function positionStoreCrop(selector){
     const target=document.querySelector(selector),nav=document.querySelector('nav.tabs');
     if(!target||!nav)throw Error('Store crop anchor missing: '+selector);
@@ -148,7 +157,7 @@
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
     let storeCrop=null;
     let storeMapCrop=null;
-    if(cfg.store&&cfg.stage==='activity')storeCrop=await positionStoreCrop('#d-charts .chartbox[data-chart-index="1"]');
+    if(cfg.store&&cfg.stage==='activity'){const selector='#d-charts .chartbox[data-chart-index="1"]';await waitForStoreCrop(selector);storeCrop=await positionStoreCrop(selector);}
     if(cfg.store&&cfg.stage==='header-progress')storeCrop=await positionStoreCrop('#p-explore [data-progress-feature="weight"]');
     if(cfg.store&&cfg.stage==='header-track')storeMapCrop=await frameStoreTrackMap();
     if(cfg.stage==='review')finishDish(cfg.dish);
