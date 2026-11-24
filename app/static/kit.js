@@ -211,7 +211,7 @@ Object.assign(KitChat, (() => {
       if(relations.avg_hr){const value=workoutRelation(relations.avg_hr,deltas.avg_hr,'hr',imperial);if(value)rows.push(['Heart rate',value]);}
       if(data.notable==='hillier'&&typeof deltas.ascent_m==='number'&&Number.isFinite(deltas.ascent_m)){
         const climb=Math.round(Math.abs(deltas.ascent_m)*(imperial?3.28084:1)),unit=imperial?'ft':'m';
-        const description=deltas.ascent_m>0?`${climb.toLocaleString()} ${unit} more climbing than usual`:deltas.ascent_m<0?`${climb.toLocaleString()} ${unit} less climbing than usual`:'About the same climbing as usual';
+        const description=deltas.ascent_m>0?`${climb.toLocaleString()} ${unit} more`:deltas.ascent_m<0?`${climb.toLocaleString()} ${unit} less`:'About the same';
         rows.push(['Climb',description]);
       }
     }

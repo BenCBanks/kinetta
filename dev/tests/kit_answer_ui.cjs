@@ -301,7 +301,7 @@ async function main(){
    }else{
     assert(text.includes(theme==='light'?'5 mi · 39 min · 8:03 /mi':'8 km · 39 min · 5:00 /km'),`${width}px ${theme}: summary uses profile units`);
     assert(text.includes('vs your last 3 runs of similar distance')&&text.includes(theme==='light'?'19 s/mi faster':'12 s/km faster'),`${width}px ${theme}: comparison rows are rendered in profile units`);
-    assert(text.includes('Heart rate')&&text.includes(theme==='light'?'131 ft more climbing than usual':'40 m more climbing than usual'),`${width}px ${theme}: comparison rows express climb as a delta`);
+    assert(text.includes('Heart rate')&&text.includes(theme==='light'?'131 ft more':'40 m more'),`${width}px ${theme}: comparison rows express climb as a delta`);
     assert.equal(await p.locator('.kit-workout-notable').innerText(),'Hillier than usual',`${width}px ${theme}: the app-selected notable appears under the rows`);
     assert.equal(await p.locator('.kit-workout-rows>div').evaluateAll(rows=>rows.every(row=>row.getBoundingClientRect().height>=44)),true,`${width}px ${theme}: comparison rows retain 44px targets`);
    }
