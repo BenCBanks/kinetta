@@ -408,7 +408,7 @@ Object.assign(KitChat, (() => {
       if(!entryRelevant(path,enabled)){el.querySelector('[data-kit-entry]')?.remove();checkActivityEntry(el,path);return;}
       const heading=el.querySelector('#feed-top .shell-topbar-root');
       if(!heading)return;
-      syncKitEntry(el,heading.querySelector('.shell-topbar-actions'),enabled?href('activity'):'/food?add=1',enabled?'Ask Kit':'Add food');
+      syncKitEntry(el,heading.querySelector('.shell-topbar-actions'),enabled?href('activity'):'/food?add=1',enabled?'Ask Kit':'Kit, Add food');
       return;
     }
     const heading=el.querySelector('.top,.me-top');if(!heading)return;
@@ -416,7 +416,7 @@ Object.assign(KitChat, (() => {
     const enabled=kitChatOn();
     if(!entryRelevant(path,enabled)){el.querySelector('[data-kit-entry]')?.remove();return checkActivityEntry(el,path);}
     const slot=heading.querySelector('.acts,.me-profile-tools')||heading;
-    syncKitEntry(el,slot,enabled?href(screen):'/food?add=1',enabled?'Ask Kit':'Add food');
+    syncKitEntry(el,slot,enabled?href(screen):'/food?add=1',enabled?'Ask Kit':'Kit, Add food');
   }
   return {loaded:true,mount,href,open,entry,entryRelevant,eraseDevice,starters,actions,memorySettings,savedReviews,foodIntent,rewriteFollowup};
 })());

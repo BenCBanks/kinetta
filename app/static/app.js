@@ -468,7 +468,7 @@ function syncKitEntry(root, slot, href, label) {
 function homeKitEntry(el) {
   const heading=el?.querySelector('#feed-top .shell-topbar-root');if(!heading||!App.me)return;
   const enabled=kitChatOn(),slot=heading.querySelector('.shell-topbar-actions');
-  syncKitEntry(el,slot,enabled?'/me/kit?from=activity':'/food?add=1',enabled?'Ask Kit':'Add food');
+  syncKitEntry(el,slot,enabled?'/me/kit?from=activity':'/food?add=1',enabled?'Ask Kit':'Kit, Add food');
 }
 // Calls render(data) at once with cached data (if any), then again with fresh data when it arrives.
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.

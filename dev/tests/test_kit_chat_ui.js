@@ -67,7 +67,7 @@ async function testEntryVisibility(){
  const entry=source.slice(source.indexOf('  function entry(el,path){'),source.indexOf('  return {loaded:true,mount,')).replace('function entry','globalThis.entry=function entry');
  vm.runInContext(relevant+'\n'+check+'\n'+entry,entryHarness);
  await entryHarness.entry(page,'/me');assert.equal(link,null,'a person with no Kit, food or activity use sees no icon');assert(entryHarness.apiCalls.includes('/api/activities?limit=1'),'activity relevance is checked with the current user’s own activity list');
- entryHarness.App.me={id:8,food_user:true};await entryHarness.entry(page,'/me');assert.equal(link.href,'/food?add=1');assert.equal(link['aria-label'],'Add food','a food user sees the icon while AI is off and opens Add food');
+ entryHarness.App.me={id:8,food_user:true};await entryHarness.entry(page,'/me');assert.equal(link.href,'/food?add=1');assert.equal(link['aria-label'],'Kit, Add food','a food user sees the icon while AI is off and opens Add food');
  link=null;entryHarness.App.me={id:9};entryHarness.activityRows=[{id:1}];await entryHarness.entry(page,'/me');assert.equal(link.href,'/food?add=1','a person with activity history sees the icon across tabs while AI is off');
  // Browser UI covers the shared rightmost slot; this unit harness checks the single component's destinations and labels.
  for(const path of ['/me','/track','/progress','/food','/plan']){entryHarness.location.pathname=path;const before=made;await entryHarness.entry(page,path);assert.equal(made,before,path+' keeps one icon for the active food/activity user');assert.equal(link.href,'/food?add=1');}
