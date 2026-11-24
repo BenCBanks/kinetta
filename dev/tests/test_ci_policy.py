@@ -157,8 +157,13 @@ class CIPolicyTests(unittest.TestCase):
         self.assertLess(wait,deploy)
         self.assertIn('actions: read',pages)
         self.assertIn('actions/runs/${GITHUB_RUN_ID}/artifacts',pages)
-        self.assertIn('any(.artifacts[]; .name == "github-pages" and (.expired | not))',pages)
+        self.assertIn('name: github-pages-${{ github.run_attempt }}',pages)
+        self.assertIn('PAGES_ARTIFACT_NAME: github-pages-${{ github.run_attempt }}',pages)
+        self.assertIn('name=os.environ["PAGES_ARTIFACT_NAME"]',pages)
+        self.assertIn('len(matches)==1',pages)
+        self.assertIn('artifact_name: github-pages-${{ github.run_attempt }}',pages)
         self.assertIn('for attempt in {1..10}',pages)
+        self.assertIn('sleep 5',pages)
 
     def test_signing_requires_release_main_and_successful_required_jobs(self):
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
