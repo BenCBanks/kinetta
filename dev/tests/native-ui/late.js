@@ -134,7 +134,7 @@
       if(!initialReady())throw Error('Fictional Me screen did not reach first useful render');
       await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);cfg.startupTiming.firstUsefulRenderPerfMs=performance.now();
     }
-    if(cfg.activity){let socialReady=false;for(let n=0;n<150;n++){const box=document.querySelector('#d-soc'),requested=cfg.requests.includes('/api/activities/1/social'),hasContent=cfg.activity.social.cheers.length||cfg.activity.social.comments.length;socialReady=!!box&&(requested||hasContent)&&(hasContent?!box.hidden:box.hidden);if(socialReady)break;await new Promise(ok=>setTimeout(ok,100));}if(!socialReady)throw Error('Owner activity empty-social state did not finish loading');}
+    if(cfg.activity){let socialReady=false;for(let n=0;n<150;n++){const box=document.querySelector('#d-soc'),requested=cfg.requests.includes('/api/activities/1/social'),social=cfg.store?.responses?.['/api/activities/1/social']||cfg.activity.social,hasContent=social.cheers.length||social.comments.length;socialReady=!!box&&(requested||hasContent)&&(hasContent?!box.hidden:box.hidden);if(socialReady)break;await new Promise(ok=>setTimeout(ok,100));}if(!socialReady)throw Error('Owner activity empty-social state did not finish loading');}
     if(cfg.groups){document.querySelector('#group-new')?.click();let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#group-create-form');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Groups create form did not open');}
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
     if(cfg.stage==='review')finishDish(cfg.dish);
