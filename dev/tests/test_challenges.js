@@ -1,10 +1,15 @@
 // Execute the actual picture boundary. Another participant's detail must never enter a shared picture.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const sharedStyles=fs.readFileSync('app/static/style.css','utf8'),challengeStyles=fs.readFileSync('app/static/challenges.css','utf8');
-assert(!sharedStyles.includes('.challenge-find-friends {margin-top:12px;}'),'Challenge friend-link spacing stays out of shared style.css');
-assert(challengeStyles.includes('.challenge-find-friends { min-height:48px;'),'challenge stylesheet owns the link target and color');
-assert(!challengeStyles.includes('.challenge-find-friends { margin-top:'),'the Challenge row inherits spacing from its parent group');
+const sharedStyles=fs.readFileSync('app/static/style.css','utf8'),challengeStyles=fs.readFileSync('app/static/challenges.css','utf8'),homeStyles=fs.readFileSync('app/static/activity-home.css','utf8'),socialSource=fs.readFileSync('app/static/social.js','utf8'),challengeSource=fs.readFileSync('app/static/challenges.js','utf8');
+assert(challengeStyles.includes('#page.has-back > .top.challenge-list-top { display:flex;flex-wrap:nowrap;'),'Challenges actions stay together on one header line');
+assert(/class="top challenge-list-top">[\s\S]*class="icon-btn home-find-friends"[\s\S]*id="challenge-start"/.test(challengeSource),'Challenges orders the search icon before the create action');
+assert(!challengeSource.includes('id="challenge-friends"'),'the redundant Find friends row is removed');
+assert(homeStyles.includes('.feed-social-strip .challenge-summary { min-height:44px;'),'Home challenge progress uses the slim list-line height');
+assert(homeStyles.includes('.challenge-summary-timing { display:block; }'),'narrow Home challenge progress gives timing its own line');
+assert(homeStyles.includes('.challenge-summary-separator { display:none; }'),'the narrow timing line starts cleanly without a bullet');
+assert(socialSource.includes("const countLabel=summary?summary.count+' '+(summary.count===1?'challenge':'challenges')"),'Home challenge progress uses singular/plural count copy');
+assert(socialSource.includes("summary.progress.replace(' / ','/')"),'Home challenge progress keeps the slash compact without ellipsis');
 let captured,owner='fictional-owner',challengeItems=[],signupResult={},leafLoads=0,leafError=null;const apiCalls=[],invalidations=[],navigations=[];
 const api=async(path,options)=>{apiCalls.push({path,options});if(path==='/api/challenges')return challengeItems;if(path==='/api/challenges/signup/continue')return signupResult;return {};};
 const commonjsModule={exports:{}};const ctx={Intl,Date,Math,JSON,Number,URLSearchParams,module:commonjsModule,route(){},readOwner:()=>owner,api,App:{me:{}},location:{pathname:'/me',search:''},json:(method,body)=>({method,body}),invalidate:path=>invalidations.push(path),go:path=>navigations.push(path),render(){},svg:name=>`<svg data-icon="${name}"></svg>`,loadShareArt:async()=>{leafLoads++;if(leafError)throw leafError;},SPORT_NAMES:{walk:'Walk',run:'Run'},ShareArt:{challengePicture:async options=>(captured=options)}};
