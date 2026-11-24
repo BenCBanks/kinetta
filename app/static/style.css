@@ -1000,15 +1000,16 @@ html.keyboard-open nav.tabs { display: none; }
   font-weight: 500; font-size: max(15px,.9375rem); }
 .kit-help::after { content: 'Kit'; }
 .kit-help svg { width: 18px; height: 18px; color: var(--accent); }
-.kit-help.kit-header-entry { flex:0 0 auto; width:auto; min-width:44px; height:44px; min-height:44px; padding:0 2px; gap:5px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--accent); font-size:14px; font-weight:600; line-height:1; text-decoration:none; white-space:nowrap; }
+.kit-help.kit-header-entry { flex:0 0 46px; width:46px; min-width:46px; height:44px; min-height:44px; padding:0; gap:5px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--accent); font-size:15px; font-weight:600; line-height:1; text-decoration:none; white-space:nowrap; }
 .kit-help.kit-header-entry::after { content:none; }
 .kit-help.kit-header-entry .kit-entry-word { color:var(--accent); }
 .kit-help.kit-header-entry svg { flex:none; width:18px; height:18px; color:var(--accent); }
-.shell-topbar-actions > .kit-header-entry { width:auto; min-width:44px; height:44px; }
+.shell-topbar-actions > .kit-header-entry { width:46px; min-width:46px; height:44px; }
+#page.plan-page .plan-top .acts > .kit-header-entry { width:46px; }
 @media (max-width:360px) {
-  #page.nutrition-detail > .top.subpage-header { grid-template-columns:44px minmax(0,1fr) max-content !important; column-gap:6px; }
-  #page.nutrition-detail > .top > .nutrition-back { width:44px; min-width:44px; gap:0; padding:0; font-size:0; justify-content:center; }
-  #page.nutrition-detail > .top > .nutrition-back > .vh { display:none !important; }
+  #page.nutrition-detail[data-nutrition-view="overview"] > .top.subpage-header { grid-template-columns:44px minmax(0,1fr) max-content !important; column-gap:6px; }
+  #page.nutrition-detail[data-nutrition-view="overview"] > .top > .nutrition-back { width:44px; min-width:44px; gap:0; padding:0; font-size:0; justify-content:center; }
+  #page.nutrition-detail[data-nutrition-view="overview"] > .top > .nutrition-back > .vh { display:none !important; }
 }
 .home-quiet-actions { display:flex; align-items:center; gap:8px; min-height:48px; margin:0 0 12px; }
 .home-quiet-actions > a { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 4px; color:var(--accent); font-size:15px; font-weight:600; text-decoration:none; }
