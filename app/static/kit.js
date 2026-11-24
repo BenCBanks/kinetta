@@ -210,11 +210,12 @@ Object.assign(KitChat, (() => {
       else if(speed&&relations.speed_mps){const value=workoutRelation(relations.speed_mps,deltas.speed_mps,'speed',imperial);if(value)rows.push(['Speed',value]);}
       if(relations.avg_hr){const value=workoutRelation(relations.avg_hr,deltas.avg_hr,'hr',imperial);if(value)rows.push(['Heart rate',value]);}
       if(data.notable==='hillier'&&typeof deltas.ascent_m==='number'&&Number.isFinite(deltas.ascent_m)){
-        const climb=Math.round(Math.abs(deltas.ascent_m)*(imperial?3.28084:1));
-        rows.push(['Climb',`${deltas.ascent_m>=0?'+':'−'}${climb.toLocaleString()} ${imperial?'ft':'m'}`]);
+        const climb=Math.round(Math.abs(deltas.ascent_m)*(imperial?3.28084:1)),unit=imperial?'ft':'m';
+        const description=deltas.ascent_m>0?`${climb.toLocaleString()} ${unit} more climbing than usual`:deltas.ascent_m<0?`${climb.toLocaleString()} ${unit} less climbing than usual`:'About the same climbing as usual';
+        rows.push(['Climb',description]);
       }
     }
-    const notable=({personal_record:'Personal record',longest_90d:`Longest ${sport[0]} in 90 days`,hillier:null})[data.notable]||null;
+    const notable=({hillier:'Hillier than usual',hotter:'Hotter than usual',personal_record:'Personal record',longest_90d:`Longest ${sport[0]} in 90 days`})[data.notable]||null;
     return `<section class="kit-workout-comparison" aria-label="Workout comparison">${summary?`<p class="kit-workout-summary">${esc(summary)}</p>`:''}<p class="kit-workout-baseline">vs your last ${count} ${sport[count===1?0:1]} of similar distance</p>${count<2?'<p class="kit-workout-empty">Not enough similar runs yet to compare.</p>':rows.length?`<dl class="kit-workout-rows">${rows.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`:''}${notable?`<p class="kit-workout-notable">${esc(notable)}</p>`:''}</section>`;
   }
   async function reviewLatestWorkout(c){
