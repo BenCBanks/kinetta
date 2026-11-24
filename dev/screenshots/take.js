@@ -677,7 +677,7 @@ async function closeCaptureContext(context) {
       }
       if (name === 'coach') await page.locator('#d-kit').click();
       if (name === 'dietcoach') {
-        const entry = page.locator('#nt-coach a[data-kit-entry][aria-label="Ask Kit"][href="/me/kit?from=nutrition"]');
+        const entry = page.locator('a[data-kit-entry][aria-label="Ask Kit"][href="/me/kit?from=nutrition"]');
         await entry.waitFor({state:'visible'});
         if (await entry.count() !== 1) throw Error('Nutrition screenshot needs exactly one visible Kit entry');
         await entry.click();
