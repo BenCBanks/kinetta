@@ -21,7 +21,8 @@ concurrency:
 jobs:
   homepage-simulator:
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: macos-26
+    # Match the native-ui runner: the Apple Silicon image can stall in iOS first-boot migration.
+    runs-on: macos-26-intel
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -195,6 +196,7 @@ jobs:
           KINETTA_PROJECT: shots
         run: |
           pip install pillow==11.0.0
+          python3 dev/tests/test_homepage_simulator_webp_conversion.py
           python3 "$GITHUB_WORKSPACE/dev/screenshots/to_webp.py" /tmp/png "$GITHUB_WORKSPACE/site/assets/shots"
           python3 "$GITHUB_WORKSPACE/dev/screenshots/homepage_simulator_webp.py" "$RUNNER_TEMP/homepage-simulator" "$GITHUB_WORKSPACE/site/assets/shots"
       - name: Validate website screenshots
