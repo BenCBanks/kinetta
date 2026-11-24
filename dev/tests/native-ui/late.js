@@ -75,14 +75,22 @@
     }
     throw Error('Store scene did not finish painting: '+cfg.stage);
   }
-  async function positionStoreCrop(){
-    const selector=cfg.stage==='header-me'?'.me-insights .me-insight:last-child':'#fd-copy',target=document.querySelector(selector),nav=document.querySelector('nav.tabs');
+  async function positionStoreCrop(selector){
+    const target=document.querySelector(selector),nav=document.querySelector('nav.tabs');
     if(!target||!nav)throw Error('Store crop anchor missing: '+selector);
     const before=target.getBoundingClientRect(),navTop=nav.getBoundingClientRect().top,delta=Math.max(0,before.bottom+12-navTop);
     if(delta)window.scrollTo(0,window.scrollY+delta);
     await new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)));
     const box=target.getBoundingClientRect(),tab=nav.getBoundingClientRect();
     return{selector,text:target.innerText.trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
+  }
+  async function frameStoreTrackMap(){
+    const wrap=document.querySelector('#track-ready-map-wrap'),container=document.querySelector('#track-ready-map'),map=container&&window.L?._targets?.[container._leaflet_id];
+    if(!wrap||!container||!map)throw Error('Track Store map fixture could not access its rendered Leaflet map');
+    wrap.style.height='250px';wrap.style.flex='none';container.style.height='100%';
+    map.invalidateSize({animate:false});map.setZoom(15,{animate:false});
+    for(let n=0;n<100;n++){if(map.getZoom()===15&&container.querySelectorAll('canvas.leaflet-tile-loaded').length)break;await new Promise(ok=>setTimeout(ok,100));}
+    const r=wrap.getBoundingClientRect();return{zoom:map.getZoom(),height:r.height,credit:!!container.querySelector('.leaflet-control-attribution')};
   }
   function storeActivityDiagnostics(){
     const box=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
@@ -137,6 +145,11 @@
     if(cfg.activity){let socialReady=false;for(let n=0;n<150;n++){const box=document.querySelector('#d-soc'),requested=cfg.requests.includes('/api/activities/1/social'),social=cfg.store?.responses?.['/api/activities/1/social']||cfg.activity.social,hasContent=social.cheers.length||social.comments.length;socialReady=!!box&&(requested||hasContent)&&(hasContent?!box.hidden:box.hidden);if(socialReady)break;await new Promise(ok=>setTimeout(ok,100));}if(!socialReady)throw Error('Owner activity empty-social state did not finish loading');}
     if(cfg.groups){document.querySelector('#group-new')?.click();let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#group-create-form');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Groups create form did not open');}
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
+    let storeCrop=null;
+    let storeMapCrop=null;
+    if(cfg.store&&cfg.stage==='activity')storeCrop=await positionStoreCrop('#d-charts [aria-label^="Heart rate"]');
+    if(cfg.store&&cfg.stage==='header-progress')storeCrop=await positionStoreCrop('#p-explore [data-progress-feature="weight"]');
+    if(cfg.store&&cfg.stage==='header-track')storeMapCrop=await frameStoreTrackMap();
     if(cfg.stage==='review')finishDish(cfg.dish);
     if(cfg.stage==='achievement-share-track'){
       let runTab=null;for(let n=0;n<100;n++){runTab=document.querySelector('#profile-achievement-page[aria-busy="false"] [data-achievement-sport="run"]');if(runTab)break;await new Promise(ok=>setTimeout(ok,100));}if(!runTab)throw Error('Run achievement tab is missing');runTab.click();
@@ -172,8 +185,7 @@
     for(let n=0;n<50&&!document.documentElement.classList.contains('native-display-ready');n++)await new Promise(ok=>setTimeout(ok,100));
     // Layout/display settling can replace tiles after the early paint check.
     if(cfg.store)await waitForStorePaint();
-    // Store scenes stay at the top of each page so the native safe-area header and full labelled nav are visible.
-    const storeCrop=null;
+    // Store scenes retain the safe-area header except the two deliberate content crops above.
     const nav=document.querySelector('nav.tabs'),navStyle=getComputedStyle(nav),navigation={
       ready:document.documentElement.classList.contains('native-display-ready'),visible:navStyle.display!=='none',box:rect('nav.tabs'),
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
@@ -181,7 +193,7 @@
     const featuredAchievements=cfg.stage==='header-me'?[...document.querySelectorAll('.me-featured-achievements .profile-achievement[data-achievement-code]')].map(item=>({code:item.dataset.achievementCode,box:rect(item)})):[];
     const headerSelector=cfg.stage==='track-review'?'.track-review-top':cfg.stage==='food'?'.thread-heading':'.top';
     if(cfg.startupTiming)cfg.startupTiming.metricsSnapshotPerfMs=performance.now();
-    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(headerSelector),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(photosSave?{photosSave}:{}),...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
+    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,storeMapCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(headerSelector),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(photosSave?{photosSave}:{}),...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
     if(cfg.stage==='achievement-share-track'){const tabs=[...document.querySelectorAll('[data-achievement-scope]')],preview=document.querySelector('[data-achievement-preview-image]'),send=document.querySelector('[data-achievement-share-send]');result.achievementShare={title:document.querySelector('.sheet header h2')?.textContent,tabs:tabs.map(tab=>({label:tab.textContent.trim(),selected:tab.getAttribute('aria-selected')})),preview:{loaded:!!preview?.complete&&preview.naturalWidth>0,alt:preview?.alt||'',width:preview?.naturalWidth||0,height:preview?.naturalHeight||0},sendText:send?.textContent.trim(),sendDisabled:send?.disabled};}
     if(cfg.groups){const fields=document.querySelector('.group-create-fields');result.groups={fields:{...rect('.group-create-fields'),clientWidth:fields.clientWidth,scrollWidth:fields.scrollWidth},date:rect('[name=event_date]'),name:rect('[name=title]'),grid:rect('.group-goal-fields'),labels:[...document.querySelectorAll('.group-create-fields>label')].map(label=>rect(label))};}
     if(cfg.headerPage){

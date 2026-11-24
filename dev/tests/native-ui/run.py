@@ -5,9 +5,8 @@ from urllib.parse import urlsplit
 import urllib.request
 from lifecycle import stop_for_fixture
 from header_geometry import check_headers
-# 6.9-inch App Store story order: Home feed, Activity, Track, Nutrition day,
-# Kit food chat, Progress, Me (including featured badges), then Friends.
-STORE_STAGES=('header-activity','activity','header-track','header-food','food','header-progress','header-me','friends-typical')
+# 6.9-inch App Store story order: Home, Activity, Progress, Kit chat, Nutrition, Track.
+STORE_STAGES=('header-activity','activity','header-progress','food','header-food','header-track')
 LAYOUT_STAGES=(('header-me',16),('header-activity',16),('header-track',16),('header-progress',16),('header-food',16),('achievement-share-track',16),('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-photos-save',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16))
 def layout_stages(theme):
  # The bundled achievement share flow is covered once in light; both themes remain covered in browser UI.
@@ -96,15 +95,17 @@ for device in preferred:
   (a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
   print('Booting native UI device: '+device['name'],flush=True)
   # A fresh hosted runner must initialize the iOS runtime; this can exceed three minutes.
-  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','discharging' if a.homepage else 'charged','--batteryLevel','100')
+  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--cellularMode','active','--cellularBars','4','--batteryState','discharging' if a.homepage else 'charged','--batteryLevel','100')
   installed=None;recovered=False
-  for theme in (('light',) if a.store else ('light','dark')):
+  store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else []
+  themes=(('light',store_stages),('dark',['activity'])) if a.store else tuple((theme,layout_stages(theme)) for theme in ('light','dark'))
+  for theme,theme_stages in themes:
    sim('ui',udid,'appearance',theme)
    if a.homepage:
     stages=[(name,16) for name in ('activity','header-me','achievements')]
    elif a.store:
-    store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])]));stages=[(name,16) for name in store_stages]
-   else: stages=layout_stages(theme)
+    stages=[(name,16) for name in theme_stages]
+   else: stages=theme_stages
    for stage,root in stages:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     measure_startup=a.startup_timing and theme=='light' and stage=='header-me'
@@ -176,6 +177,19 @@ for device in preferred:
      if stage in ('activity','header-activity'):
       assert re.search(r'\d+(?:\.\d+)?\s*mi\b',metrics['bodyText']) and re.search(r'\d+:\d{2}\s*/mi\b',metrics['bodyText']), 'US App Store activity scenes must use miles and min/mi pace'
       assert not re.search(r'\bkm\b|/km\b',metrics['bodyText']), 'US App Store activity scenes must not show metric distance or pace'
+     if stage=='header-activity':assert 'Only me' not in metrics['bodyText'], 'Home own card must not show a private-only audience'
+     if stage=='activity':
+      crop=metrics.get('storeCrop');assert crop and crop['selector']=='#d-charts [aria-label^="Heart rate"]' and crop['bottom']<=crop['tabTop']-8, 'Activity crop must show the complete heart-rate chart above the tab bar'
+     if stage=='header-food':
+      food_text=metrics['bodyText'];assert 'Improve calorie estimates' not in food_text and re.search(r'1,?200',food_text) and '90 / 110' in food_text and '180 / 220' in food_text and '52 / 70' in food_text, 'Nutrition Store fixture must show body details and filled macro bars'
+     if stage=='food':
+      assert 'Today' in metrics['bodyText'] and 'Kit’s estimate' in metrics['bodyText'] and 'estimated portion' in metrics['bodyText'], 'Kit chat must show Today and a fictional estimated portion'
+     if stage=='header-progress':
+      crop=metrics.get('storeCrop');assert crop and crop['selector']=='#p-explore [data-progress-feature="weight"]' and crop['bottom']<=crop['tabTop']-8, 'Progress crop must end on the full Weight row above the tab bar'
+      assert '26:30' in metrics['bodyText'] and '25:00' in metrics['bodyText'], 'Fitness and Records must show distinct fictional times'
+     if stage=='header-track':
+      assert 'GPS ready' in metrics['bodyText'] and 'OpenStreetMap contributors' in metrics['bodyText'], 'Track must show backed GPS status and map credit'
+      track_crop=metrics.get('storeMapCrop');assert track_crop and track_crop['zoom']==15 and track_crop['height']>=250 and track_crop['credit'], 'Track map crop must be zoomed out, taller, and retain its map credit'
      if stage.startswith('header-') or stage=='achievements':
       top=metrics.get('topBand',{});assert top.get('glyph',{}).get('y',-1)>=metrics['safeTop']-1, f'{stage} top heading is fully visible: {top}'
      if stage!='food' and metrics['navigation']['visible']:
@@ -189,6 +203,7 @@ for device in preferred:
       assert all(item['box'] and item['box']['y']>=metrics['safeTop'] and item['box']['bottom']<=metrics['navigation']['box']['y'] for item in metrics['featuredAchievements']), 'All three featured medals must be visible above the tab bar'
       assert not re.search(r'\b0\s+Workouts\b|\b0m\s+Time\b',me_text), 'Me screenshot must not show empty weekly count/time beside a nonzero distance'
      assert metrics['viewport']=={'width':440,'height':956,'offset':0},metrics
+     if a.store:assert metrics['theme']==theme, f'Store capture theme mismatch: {stage} {theme}'
      metrics['sha256']=hashlib.sha256(raw).hexdigest();metrics['captureToolRevision']=run('git','rev-parse','HEAD');metrics['bundleAssetsVerifiedAgainst']=metrics['captureToolRevision']
      (a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
      results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2));continue
@@ -286,7 +301,7 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else sum(len(layout_stages(theme)) for theme in ('light','dark'))*len(preferred)
+expected_count=(len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])]))+1) if a.store else sum(len(layout_stages(theme)) for theme in ('light','dark'))*len(preferred)
 if a.homepage:
  expected_count=6
  assert len(homepage_captures)==6 and {(item['stage'],item['theme']) for item in homepage_captures}=={(stage,theme) for stage in ('activity','header-me','achievements') for theme in ('light','dark')},'Homepage needs all three scenes in both themes'

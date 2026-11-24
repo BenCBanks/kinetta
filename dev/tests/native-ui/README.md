@@ -6,10 +6,12 @@ This check runs a copy of the unsigned Debug Simulator app against fictional, on
 
 This proves native layout under the selected Simulator runtime. It does not replace physical iPhone/Safari/VoiceOver, camera or locked-screen interval acceptance.
 
-The optional Pro-only 6.9-inch App Store artifact is an ordered eight-shot, light-mode story: Home feed, Activity
-detail, Track ready, Nutrition day (including the calorie ring), Kit food chat, Progress, Me (with featured earned
-achievements), and Friends. All content is fictional; screenshot mode hides geographic labels. The Nutrition scene
-requires the ring's 915-of-1,800 state before capture. Artifacts remain workflow-only and are never uploaded to App Store Connect.
+The optional Pro-only 6.9-inch App Store artifact is an ordered six-shot, light-mode story: Home feed, Activity
+detail, Progress, Kit food chat, Nutrition day, and Track ready. It adds one dark Activity detail for map/chart
+contrast review. All content is fictional; screenshot mode hides geographic labels, removes the Me badge, and uses
+a 9:41 charged/100% status bar with four cellular bars. The Store-only capture framing keeps the Activity heart-rate
+chart and Progress Weight row above the tab bar, and gives Track a wider view. Artifacts remain workflow-only and are
+never uploaded to App Store Connect.
 
 Execution uses a separate Apple Silicon `macos-26` job, consuming the unsigned universal Simulator artifact from the existing Intel compile/archive job. The layout job remains required before any tester release. An initial zero safe-area inset is not accepted: fictional measurements wait for a positive status-bar inset and stable layout. Runner boot failures are failures, never UI acceptance.
 

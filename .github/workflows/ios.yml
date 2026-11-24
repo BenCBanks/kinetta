@@ -81,7 +81,7 @@ jobs:
     needs: changes
     if: >-
       needs.changes.outputs.native == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false || needs.changes.outputs.store == 'true') &&
       (github.event_name != 'schedule' || needs.changes.outputs.release == '1')
     runs-on: macos-26-intel
     timeout-minutes: 40
@@ -284,7 +284,7 @@ jobs:
     needs: [changes, build]
     if: >-
       needs.changes.outputs.native == 'true' && needs.changes.outputs.store == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false || needs.changes.outputs.store == 'true')
     # Owner: Basil; same 7-day PR-only quarantine expires 2026-11-22. Keep TestFlight's main-branch dependency.
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     strategy:
