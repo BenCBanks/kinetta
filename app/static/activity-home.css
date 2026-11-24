@@ -17,7 +17,8 @@
 #feed-top { margin-bottom:0; }
 #feed-top .top { margin-bottom:0; }
 #feed-top .top .acts { gap:8px; }
-#feed-tools:empty { display:none; }
+/* Reserve only a previously measured challenge row; accounts without one use no blank slot. */
+#feed-tools { min-height:var(--feed-challenge-slot-height,0px); box-sizing:border-box; }
 .home-view-switch { display:flex; align-items:stretch; gap:20px; min-height:48px; margin:8px 0 12px; }
 .home-view-switch a { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 2px; border-bottom:2px solid transparent; color:var(--tx2); font-size:15px; font-weight:550; text-decoration:none; }
 .home-view-switch a[aria-current="page"] { border-bottom-color:var(--accent); color:var(--tx); font-weight:700; }
@@ -56,7 +57,7 @@
 .weekly-recap-average { position:absolute; z-index:1; left:0; right:0; top:calc((1 - var(--average-ratio,0)) * 110px + 2px); border-top:1px dashed color-mix(in srgb,var(--tx2) 45%,transparent); pointer-events:none; }
 .weekly-recap-share-stage { display:grid; place-items:center; min-height:200px; margin:0 0 12px; }
 .weekly-recap-share-stage img { display:block; width:min(100%,360px); max-height:58vh; aspect-ratio:4/5; object-fit:contain; border-radius:12px; }
-.feed-social-strip { margin:0 0 16px; }
+.feed-social-strip { margin:0; }
 .feed-social-strip .challenge-summary { min-height:44px; gap:8px; padding:0; border:0; }
 .challenge-summary .ri { flex:none; width:24px; height:24px; border-radius:0; background:transparent; }
 .challenge-summary .grow { display:block; min-width:0; line-height:1.25; }
