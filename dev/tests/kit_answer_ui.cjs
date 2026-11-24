@@ -24,7 +24,7 @@ async function main(){
   for(const width of [390,330])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
    const visitRequests=[],endRequests=[],conversationReads=[],clearRequests=[];
-   let serverEndedVisit=null,serverEndReported=false,fixtureAccountId=null,overflowMode=false;
+   let serverEndedVisit=null,serverEndReported=false,fixtureAccountId=null,overflowMode=false,forceEmpty=false;
    if(width===390&&theme==='light')await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
    p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',async route=>{
@@ -36,9 +36,10 @@ async function main(){
     }
     if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST'){const id=req.postDataJSON().visit_id;visitRequests.push(id);return route.fulfill({json:{visit_id:id,generation,ready:true}});}
     if(/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(u.pathname)&&req.method()==='POST'){endRequests.push(decodeURIComponent(u.pathname.split('/').at(-2)));return route.fulfill({json:{ok:true}});}
-    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET'){const id=u.searchParams.get('visit_id');conversationReads.push(id);if(id===serverEndedVisit&&!serverEndReported){serverEndReported=true;return route.fulfill({status:409,json:{detail:'This Kit visit has ended. Open a fresh chat; your draft is kept.'}});}const responseMessage=overflowMode?{...message,answer:{...message.answer,follow_ups:['Would you like to review your latest completed workouts from this training block and compare how they fit my plan?','Compare every recorded workout this month with my plan and explain the differences in effort, distance, pace and consistency.']}}:message;return route.fulfill({json:{generation,ready:true,before:null,messages:id===visitRequests[0]?[responseMessage]:[]}});}
+    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET'){const id=u.searchParams.get('visit_id');conversationReads.push(id);if(id===serverEndedVisit&&!serverEndReported){serverEndReported=true;return route.fulfill({status:409,json:{detail:'This Kit visit has ended. Open a fresh chat; your draft is kept.'}});}const responseMessage=overflowMode?{...message,answer:{...message.answer,follow_ups:['Would you like to review your latest completed workouts from this training block and compare how they fit my plan?','Compare every recorded workout this month with my plan and explain the differences in effort, distance, pace and consistency.']}}:message;return route.fulfill({json:{generation,ready:true,before:null,messages:!forceEmpty&&id===visitRequests[0]?[responseMessage]:[]}});}
     if(u.pathname==='/api/coach/conversation/clear'&&req.method()==='POST'){const body=req.postDataJSON();clearRequests.push(body.visit_id);return route.fulfill({json:{visit_id:'cleared-kit-visit',generation,ready:true,messages:[]}});}
     if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
+    if(u.pathname==='/__fixture-keyboard.css')return route.fulfill({status:200,contentType:'text/css',body:'#fixture-keyboard{position:fixed;z-index:2000;top:540px;right:0;bottom:0;left:0;background:#d7dbe0;border-top:1px solid #aeb5bd;}@media(prefers-color-scheme:dark){#fixture-keyboard{background:#343a40;border-color:#555d65;}}'});
     if(req.method()==='POST'||req.method()==='PUT'||req.method()==='PATCH'||req.method()==='DELETE'){
      unexpectedWrites.push(u.pathname);return route.fulfill({json:{}});
     }
@@ -55,6 +56,9 @@ async function main(){
    assert.equal(composer.send.width,44,`${width}px ${theme}: Send retains a 44px touch target`);
    assert.equal(composer.send.visible,'32px',`${width}px ${theme}: visible Send circle is 32px`);
    assert(composer.fieldHeight<=36,`${width}px ${theme}: one-line field fits the 40px composer`);
+   const closedDock=await p.locator('.kit-chat').evaluate(shell=>({padding:getComputedStyle(shell).paddingBottom,fieldBottom:shell.querySelector('.kit-compose-row').getBoundingClientRect().bottom,viewport:innerHeight}));
+   assert.equal(closedDock.padding,'8px',`${width}px ${theme}: Ask Kit reserves only 8px below its dock: ${JSON.stringify(closedDock)}`);
+   assert(closedDock.viewport-closedDock.fieldBottom<=8.5,`${width}px ${theme}: answered composer sits just above the home indicator: ${JSON.stringify(closedDock)}`);
    await p.locator('#kit-text').focus();
    const focus=await p.locator('.kit-compose-row').evaluate(row=>{const rules=[];const walk=items=>{for(const rule of items){if(rule.cssRules)walk(rule.cssRules);else if(rule.selectorText)try{if(row.matches(rule.selectorText)||rule.selectorText.includes('.kit-compose-row:focus-within')){const s=rule.style;if(s.getPropertyValue('border')||s.getPropertyValue('border-width')||s.getPropertyValue('outline'))rules.push({selector:rule.selectorText,border:s.getPropertyValue('border'),width:s.getPropertyValue('border-width'),outline:s.getPropertyValue('outline')});}}catch{}}};for(const sheet of document.styleSheets)try{walk(sheet.cssRules)}catch{}const s=getComputedStyle(row);return{focused:row.matches(':focus-within'),active:document.activeElement?.id,border:s.borderTopWidth,color:s.borderTopColor,outline:s.outlineStyle,outlineWidth:s.outlineWidth,outlineOffset:s.outlineOffset,outlineColor:s.outlineColor,shadow:s.boxShadow,rules};});
    assert.equal(focus.outline,'solid',`${width}px ${theme}: focus uses one brand outline: ${JSON.stringify(focus)}`);
@@ -107,7 +111,21 @@ async function main(){
    assert.deepEqual(errors,[],`${width}px ${theme}: no page errors`);
    assert.deepEqual(unexpectedWrites,[],`${width}px ${theme}: fixture answer makes no writes or provider requests`);
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-detail-${width}-${theme}.png`),animations:'disabled'});}
-   overflowMode=true;await p.reload();await p.locator('.kit-suggested-reply').first().waitFor({state:'visible'});
+   await p.evaluate(()=>{document.documentElement.classList.add('keyboard-open');document.documentElement.style.setProperty('--chat-height','540px');const link=document.createElement('link');link.rel='stylesheet';link.href='/__fixture-keyboard.css';document.head.append(link);const keyboard=document.createElement('div');keyboard.id='fixture-keyboard';keyboard.setAttribute('aria-hidden','true');document.body.append(keyboard);});
+   const keyboardDock=await p.locator('.kit-chat').evaluate(shell=>({bottom:shell.querySelector('.kit-compose-row').getBoundingClientRect().bottom,viewport:shell.getBoundingClientRect().bottom,padding:getComputedStyle(shell).paddingBottom,fine:getComputedStyle(shell.querySelector('#kit-fine')).display}));
+   assert.equal(keyboardDock.padding,'8px',`${width}px ${theme}: keyboard dock keeps 8px: ${JSON.stringify(keyboardDock)}`);
+   assert(Math.abs(keyboardDock.viewport-keyboardDock.bottom-8)<=1,`${width}px ${theme}: composer sits 8px above keyboard: ${JSON.stringify(keyboardDock)}`);
+   assert.equal(keyboardDock.fine,'none',`${width}px ${theme}: the provider footer clears the keyboard gap`);
+   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-keyboard-${width}-${theme}.png`),animations:'disabled'});}
+   await p.evaluate(()=>{document.documentElement.classList.remove('keyboard-open');document.documentElement.style.removeProperty('--chat-height');document.querySelector('#fixture-keyboard')?.remove();});
+   forceEmpty=true;await p.reload();await p.locator('#kit-starters button').first().waitFor({state:'visible'});
+   assert.equal(await p.locator('#kit-messages article').count(),0,`${width}px ${theme}: empty state has no answer card`);
+   const emptyDock=await p.locator('.kit-chat').evaluate(shell=>({padding:getComputedStyle(shell).paddingBottom,formBottom:shell.querySelector('#kit-composer').getBoundingClientRect().bottom,viewport:innerHeight,fine:getComputedStyle(shell.querySelector('#kit-fine')).display}));
+   assert.equal(emptyDock.padding,'8px',`${width}px ${theme}: empty Ask Kit keeps the safe-area dock: ${JSON.stringify(emptyDock)}`);
+   assert(emptyDock.viewport-emptyDock.formBottom<=8.5,`${width}px ${theme}: empty composer footer is docked above the home indicator: ${JSON.stringify(emptyDock)}`);
+   assert.notEqual(emptyDock.fine,'none',`${width}px ${theme}: Memory footer remains available in empty state`);
+   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-empty-${width}-${theme}.png`),animations:'disabled'});}
+   forceEmpty=false;overflowMode=true;await p.reload();await p.locator('.kit-suggested-reply').first().waitFor({state:'visible'});
    assert.equal(await p.locator('.kit-suggested-reply').count(),1,`${width}px ${theme}: an unrewriteable reply beyond two lines is dropped`);
    assert.equal((await p.locator('.kit-suggested-reply').first().innerText()).trim(),'Compare my workouts');
    overflowMode=false;
@@ -177,8 +195,8 @@ async function main(){
       await c.close();contexts.pop();
   }
   console.log('Ask Kit detail UI and #1493 visit retention: 390/330 light/dark; background/reload retains visit+draft; explicit/30m/24h paths pass; no writes/provider calls.');
-  for(const theme of ['light','dark']){
-   const c=await browser.newContext({storageState:state,viewport:{width:390,height:844},colorScheme:theme,reducedMotion:theme==='dark'?'reduce':'no-preference',serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
+  for(const width of [390,330])for(const theme of ['light','dark']){
+   const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,reducedMotion:theme==='dark'?'reduce':'no-preference',serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
    let row=null,failOnRead=false,question='';
    const visit='fixture-kit-wait-'+theme,gen='fixture-kit-wait-generation-'+theme;
    await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
@@ -196,24 +214,32 @@ async function main(){
    });
    await p.goto(base+'/me/kit?from=activity');await p.locator('#kit-text').fill(theme==='light'?'Review my latest workout':'Check my records');await p.locator('#kit-send').click();
    await p.locator('.kit-waiting-bubble .thread-typing').waitFor({state:'visible'});
+   await p.waitForFunction(()=>{const el=document.querySelector('.kit-waiting-bubble'),rect=el?.getBoundingClientRect();return rect?.width>0&&rect?.height>0;},null,{timeout:2000});
    assert.equal(question,theme==='light'?'Review my latest workout':'Check my records');
-   const typingBox=await p.locator('.kit-waiting-bubble').evaluate(el=>{const r=el.getBoundingClientRect();return{width:r.width,x:r.x};});
-   assert(typingBox.width<=112&&typingBox.x<=24,`${theme}: typing indicator is a small left-aligned bubble: ${JSON.stringify(typingBox)}`);
+   const typingBox=await p.locator('.kit-waiting-bubble').evaluate(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el),typing=el.querySelector('.thread-typing'),tr=typing?.getBoundingClientRect();return{width:r.width,height:r.height,x:r.x,radius:s.borderTopLeftRadius,border:s.borderTopWidth,display:s.display,cls:el.className,typingBox:tr&&{width:tr.width,height:tr.height}};});
+   assert.equal(typingBox.width,48,`${width}px ${theme}: typing pill is 48px wide: ${JSON.stringify(typingBox)}`);
+   assert.equal(typingBox.height,28,`${width}px ${theme}: typing pill is 28px high: ${JSON.stringify(typingBox)}`);
+   assert(typingBox.x<=24&&typingBox.radius==='14px'&&typingBox.border==='0px',`${width}px ${theme}: typing pill is rounded and left aligned: ${JSON.stringify(typingBox)}`);
    const dots=p.locator('.kit-waiting-bubble .thread-typing span');
-   let initialDots=await dots.evaluateAll(spans=>spans.map(node=>({name:getComputedStyle(node).animationName,
-    running:node.getAnimations().some(animation=>animation.animationName==='thread-typing'&&animation.playState==='running')})));
+   let initialDots=await dots.evaluateAll(spans=>spans.map(node=>({name:getComputedStyle(node).animationName,width:getComputedStyle(node).width,height:getComputedStyle(node).height,duration:getComputedStyle(node).animationDuration,transform:getComputedStyle(node).transform,
+    running:node.getAnimations().some(animation=>animation.animationName==='kit-typing'&&animation.playState==='running')})));
    assert(initialDots.length===3,`${theme}: the compact wait bubble has three dots`);
+   assert(initialDots.every(dot=>dot.width==='6px'&&dot.height==='6px'),`${theme}: dots measure 6px`);
+   assert(initialDots.every(dot=>dot.transform==='none'),`${theme}: dot animation does not translate`);
+   const dotLayout=await p.locator('.kit-waiting-bubble .thread-typing').evaluate(el=>({width:getComputedStyle(el).width,gap:getComputedStyle(el).gap}));
+   assert.deepEqual(dotLayout,{width:'30px',gap:'6px'},`${width}px ${theme}: dots have 6px gaps`);
    if(theme==='dark')assert(initialDots.every(dot=>dot.name==='none'),'reduced motion makes the three dots static');
    else{
+    assert(initialDots.every(dot=>dot.duration==='1.2s'),`${theme}: dot fade cycle is 1.2s`);
     const deadline=Date.now()+2000;
-    while(!initialDots.every(dot=>dot.name==='thread-typing'&&dot.running)&&Date.now()<deadline){
+    while(!initialDots.every(dot=>dot.name==='kit-typing'&&dot.running)&&Date.now()<deadline){
      await p.waitForTimeout(25);
      initialDots=await dots.evaluateAll(spans=>spans.map(node=>({name:getComputedStyle(node).animationName,
-      running:node.getAnimations().some(animation=>animation.animationName==='thread-typing'&&animation.playState==='running')})));
+      running:node.getAnimations().some(animation=>animation.animationName==='kit-typing'&&animation.playState==='running')})));
     }
-    assert(initialDots.every(dot=>dot.name==='thread-typing'&&dot.running),'normal motion starts the typing-dot animation within 2s');
+    assert(initialDots.every(dot=>dot.name==='kit-typing'&&dot.running),'normal motion starts the typing-dot animation within 2s');
    }
-   const capture=async state=>{if(out){await p.evaluate(()=>{document.scrollingElement?.scrollTo(0,0);document.querySelector('#kit-messages')?.scrollTo(0,0);});fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-waiting-390-${theme}-${state}.png`),animations:'disabled'});}};
+   const capture=async state=>{if(out){await p.evaluate(()=>{document.scrollingElement?.scrollTo(0,0);document.querySelector('#kit-messages')?.scrollTo(0,0);});fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-waiting-${width}-${theme}-${state}.png`),animations:'disabled'});}};
    await capture('sending');
    await p.clock.fastForward(4000);
    await p.locator('.kit-waiting-copy').waitFor({state:'visible'});
@@ -224,20 +250,22 @@ async function main(){
    await p.clock.fastForward(16000);
    await p.getByText('Still working…',{exact:true}).waitFor({state:'visible'});
    await capture('20s');
-   failOnRead=true;
-   await p.clock.fastForward(2500);
-   await p.locator('.kit-error-bubble').waitFor({state:'visible'});
-   const errorText=await p.locator('.kit-error-bubble').innerText(),errorBox=await p.locator('.kit-error-bubble').boundingBox();
-   assert(errorText.includes("Kit couldn't check that answer. Try a simpler question or Retry."),`${theme}: error uses the helpful client message`);
-   assert(!errorText.includes('raw model/provider detail'),`${theme}: raw server error is hidden`);
-   assert.equal(await p.locator('.kit-error-retry').innerText(),'Retry',`${theme}: Retry is the primary action`);
-   assert(Math.abs(errorBox.height-statusBox.height)<=6&&Math.abs(errorBox.y-statusBox.y)<=1&&Math.abs(errorBox.x-statusBox.x)<=1,`${theme}: replacing the wait bubble with an error does not jump: ${JSON.stringify({statusBox,errorBox})}`);
-   await capture('error');
+   if(width===390){
+    failOnRead=true;
+    await p.clock.fastForward(2500);
+    await p.locator('.kit-error-bubble').waitFor({state:'visible'});
+    const errorText=await p.locator('.kit-error-bubble').innerText(),errorBox=await p.locator('.kit-error-bubble').boundingBox();
+    assert(errorText.includes("Kit couldn't check that answer. Try a simpler question or Retry."),`${theme}: error uses the helpful client message`);
+    assert(!errorText.includes('raw model/provider detail'),`${theme}: raw server error is hidden`);
+    assert.equal(await p.locator('.kit-error-retry').innerText(),'Retry',`${theme}: Retry is the primary action`);
+    assert(Math.abs(errorBox.height-statusBox.height)<=6&&Math.abs(errorBox.y-statusBox.y)<=1&&Math.abs(errorBox.x-statusBox.x)<=1,`${theme}: replacing the wait bubble with an error does not jump: ${JSON.stringify({statusBox,errorBox})}`);
+    await capture('error');
+   }
    assert.deepEqual(errors,[],`${theme}: no page exceptions`);
    assert.deepEqual(unexpectedWrites,[],`${theme}: fixtures make no unexpected writes or provider calls`);
    await c.close();contexts.pop();
   }
-  console.log('Ask Kit detail rows, composer, replies and wait/error states: 390/330 detail checks; 390px light/dark sending, 4s, 20s and error; no writes/provider calls.');
+  console.log('Ask Kit detail rows, composer, replies and wait/error states: 390/330 light/dark empty, answer, keyboard and waiting; no writes/provider calls.');
  }finally{for(const c of contexts)await c.close().catch(()=>{});await login.close();await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
