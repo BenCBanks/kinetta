@@ -44,12 +44,16 @@ CASES = [
     fixture('reject number word',raw=answer(['deltas','pace_s_per_km'],-12,verdict='I was twice as fast.'),expected='numeric_unsupported'),
     fixture('reject foreign evidence',raw={**answer(['deltas','pace_s_per_km'],-12),'facts':[{'evidence_id':'e9','path':['deltas','pace_s_per_km'],'value':-12}]},expected='fact_unsupported'),
     fixture('reject follow-up addressed to the user',raw=answer(['deltas','pace_s_per_km'],-12,follow_ups=['I can tell you how you feel.']),expected='follow_up_invalid'),
+    fixture('reject missing comparison relation',raw=answer(['deltas','pace_s_per_km'],-12),data={**comparison(),'relations':{}},expected='relation_unsupported'),
+    fixture('reject health diagnosis claim',raw=answer(['deltas','pace_s_per_km'],-12,verdict='My training is safe and injury-free.'),expected='health_claim_unsupported'),
+    fixture('reject medical treatment claim',raw=answer(['deltas','pace_s_per_km'],-12,next_step='Treat the pain before training again.'),expected='health_claim_unsupported'),
+    fixture('relation rejection stays closed',raw=answer(['deltas','avg_hr'],-3),data={**comparison(),'relations':{'avg_hr':'unknown'}},expected='relation_unsupported'),
 ]
 
 
 def run():
-    assert len(CASES)==21
-    assert kit_workout_review.REJECTION_CODES==frozenset({'answer_shape','numeric_unsupported','fact_unsupported','follow_up_invalid'})
+    assert len(CASES)==25
+    assert kit_workout_review.REJECTION_CODES==frozenset({'answer_shape','numeric_unsupported','fact_unsupported','relation_unsupported','health_claim_unsupported','follow_up_invalid'})
     assert kit_workout_review.WorkoutReviewRejected('model supplied arbitrary text').reason_code=='answer_shape'
     for case in CASES:
         if case['expected']=='denied':
@@ -70,7 +74,7 @@ def run():
         assert all(f['tool']=='workout_compare' and f['evidence_id']=='e2' for f in result['facts']),case['name']
         if case['display']:
             assert result['facts'][0]['display_value']==case['display'],(case['name'],result['facts'][0]['display_value'])
-    return '21 fictional workout-review cases passed with stand-ins; no provider calls'
+    return '25 fictional workout-review cases passed with stand-ins; no provider calls'
 
 
 if __name__=='__main__':

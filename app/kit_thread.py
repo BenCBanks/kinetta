@@ -175,7 +175,8 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
             old_answer=old['answer'] or {}
             if (not health and old_answer.get('health_included')) or (not garmin_history_ok and old_answer.get('garmin_included')):continue
             health_context=health_context or bool(old_answer.get('health_included'))
-            history.extend([{'role':'user','text':old['question']},{'role':'assistant','text':json.dumps(old['answer'],default=str)[:2500]}])
+            history_answer={k:v for k,v in old_answer.items() if k != 'workout_comparison'}
+            history.extend([{'role':'user','text':old['question']},{'role':'assistant','text':json.dumps(history_answer,default=str)[:2500]}])
     answer=None;error=None;workout_review_evidence=None;workout_requirements=None
     try:
         brake(uid,limit=30,kind='kit_conversation',what='messages for Kit')

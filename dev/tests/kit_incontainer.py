@@ -81,7 +81,9 @@ try:
   with db.connect() as c:c.execute('UPDATE profile SET garmin_ai_ok=false WHERE user_id=%s',(uid,))
   after_garmin=message('What does my recent workout show?');after_garmin['context']={'screen':'activity'}
   req(a,'POST',root+'/messages',after_garmin);req(a,'POST',root+'/messages/'+after_garmin['client_id']+'/answer',{'generation':generation})
-  assert 'My Garmin-only fictional review' not in json.dumps(seen[-1][2]['history']),'a prior Garmin review is not reused after Garmin consent is off'
+  history_json=json.dumps(seen[-1][2]['history'])
+  assert 'My Garmin-only fictional review' not in history_json,'a prior Garmin review is not reused after Garmin consent is off'
+  assert 'workout_comparison' not in history_json,'app-computed comparison is never sent back through Kit history'
   weekly=message('Review my week');weekly['context']={'screen':'progress','starter_index':3}
   req(a,'POST',root+'/messages',weekly);req(a,'POST',root+'/messages/'+weekly['client_id']+'/answer',{'generation':generation})
   assert seen[-1][2]['weekly_review'] is True and seen[-1][1].endswith('Question: Review my week'),'the exact fourth Progress starter starts weekly mode with separate hidden guidance'

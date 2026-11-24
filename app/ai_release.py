@@ -21,7 +21,7 @@ ROOT=Path(__file__).parent
 FILES={
     'general':['ai_access.py','coach.py','coach_chat.py','coach_tools.py','coach_proposals.py','food_photo.py','cook_chat.py','food_coach.py','food_thread_kit.py','food_thread_photo.py','food_thread_compose.py','food_thread_resolve.py'],
     'understanding':['food_thread_understand.py','food_photo.py','food_thread_choices.py','food_thread_compose.py','food_thread_log.py','food_thread_photo.py','ai_budget.py'],
-    'kit':['kit_thread.py','kit_memory.py','kit_tools.py','coach_chat.py','coach_tools.py','coach_proposals.py','coach.py','ai_access.py','ai_budget.py','kit_workout_review.py'],
+    'kit':['kit_thread.py','kit_memory.py','kit_tools.py','coach_chat.py','coach_tools.py','coach_proposals.py','coach.py','ai_access.py','ai_budget.py','kit_workout_review.py','workout_compare.py'],
     'food_memory':['food_memory_understand.py','food_memory.py','food_thread_understand.py','food_photo.py'],
 }
 SQL=re.compile(r'\s*(?:SELECT|INSERT|UPDATE|DELETE|WITH|CREATE|ALTER|DROP)\b',re.I)

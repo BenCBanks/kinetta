@@ -27,13 +27,15 @@ class ReviewAnswer(Empty):
 
 
 REJECTION_CODES = frozenset({
-    'answer_shape', 'numeric_unsupported', 'fact_unsupported', 'follow_up_invalid',
+    'answer_shape', 'numeric_unsupported', 'fact_unsupported', 'relation_unsupported',
+    'health_claim_unsupported', 'follow_up_invalid',
 })
 USER_ERROR = 'Kit could not verify this workout review. Try again.'
 NO_RECENT_WORKOUT = 'No workout recorded in the last two weeks.'
 FIRST_PERSON = re.compile(r'\b(?:i|me|my|we|us|our)\b', re.I)
 QUESTION_TO_USER = re.compile(r'^(?:would you like|do you want|how do you feel|how did you feel|are your|did you|have you)\b', re.I)
 NUMBER_WORD = re.compile(r'\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|first|second|third|once|twice|both|couple|pair|dozen|single|double|triple)\b', re.I)
+HEALTH_CLAIM_DENY = re.compile(r'\b(?:diagnos(?:e|is|ed|ing)?|symptom(?:s)?|medical|injur(?:y|ies|ed)?|pain(?:ful)?|doctor|clinician|medication|disease|illness|treat(?:ment|ing)?|dehydrat(?:ed|ion)|overtrain(?:ed|ing)?|safe|unsafe|healthy|healthier|wellness|health[ -]?risk|blood[ -]?pressure)\b', re.I)
 FACT_PATHS = {
     ('current','distance_m'), ('current','moving_s'), ('current','pace_s_per_km'),
     ('current','speed_mps'), ('current','avg_hr'), ('current','ascent_m'), ('current','avg_temp_c'),
@@ -106,7 +108,7 @@ def _format_fact(data, path, value, units):
                              'speed_mps': {'faster','slower','about_the_same'},
                              'avg_hr': {'higher','lower','about_the_same'}}
         if field in allowed_relations and relation not in allowed_relations[field]:
-            _reject('fact_unsupported')
+            _reject('relation_unsupported')
         if field == 'ascent_m' and data.get('notable') != 'hillier':
             _reject('fact_unsupported')
         if relation == 'about_the_same':
@@ -189,6 +191,8 @@ def checked_answer(raw, evidence):
         next_step = coach_chat._kit_prose(review.next_step, facts)
     except ValueError:
         _reject('numeric_unsupported')
+    if HEALTH_CLAIM_DENY.search(verdict) or HEALTH_CLAIM_DENY.search(next_step):
+        _reject('health_claim_unsupported')
     follow_ups=[]
     for text in (review.verdict, review.next_step):
         if NUMBER_WORD.search(coach_chat.PLACEHOLDER.sub('', text)):
