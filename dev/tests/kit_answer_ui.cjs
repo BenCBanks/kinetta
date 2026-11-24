@@ -228,7 +228,7 @@ async function main(){
    assert(initialDots.every(dot=>dot.transform==='none'),`${theme}: dot animation does not translate`);
    const dotLayout=await p.locator('.kit-waiting-bubble .thread-typing').evaluate(el=>({width:getComputedStyle(el).width,gap:getComputedStyle(el).gap}));
    assert.deepEqual(dotLayout,{width:'30px',gap:'6px'},`${width}px ${theme}: dots have 6px gaps`);
-   if(theme==='dark')assert(initialDots.every(dot=>dot.name==='none'),'reduced motion makes the three dots static');
+   if(theme==='dark')assert(initialDots.every(dot=>!dot.running),'reduced motion keeps the three dots static');
    else{
     assert(initialDots.every(dot=>dot.duration==='1.2s'),`${theme}: dot fade cycle is 1.2s`);
     const deadline=Date.now()+2000;
