@@ -131,7 +131,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
      await p.locator('#fr-find input').fill('F');await p.waitForTimeout(240);assert(!searches.includes('F'),'one character does not query the directory');assert.match(await p.locator('#fr-status').innerText(),/2 characters/);
      await p.locator('#fr-find input').fill('Fictional Friend 03');await until(p,()=>document.querySelector('#fr-found')?.getAttribute('aria-busy')==='false'&&document.querySelector('#fr-found')?.textContent.includes('Fictional Friend 03'),'live search result');
      const result=p.locator('#fr-found .person').first();assert.equal(await result.locator('.btnrow > *').count(),1,'search results also have one trailing action');assert.equal(await result.locator('[data-hide]').count(),0);
-     await p.locator('#fr-clear').click();await p.locator('#fr-invite').click();await p.getByRole('dialog',{name:'Invite friends'}).waitFor();await p.locator('#iv-qr').click();await p.locator('#iv-qr-code svg[aria-label="QR code for your Kinetta invite link"]').waitFor();await closeSheet(p);
+     await p.locator('#fr-clear').click();await p.locator('#fr-invite').click();await p.getByRole('dialog',{name:'Invite friends'}).waitFor();await p.locator('[data-share-preview-image="0"]').waitFor();await p.waitForFunction(()=>{const img=document.querySelector('[data-share-preview-image="0"]');return img?.complete&&img.naturalWidth===1080&&img.naturalHeight===1920;});assert.equal(await p.locator('[data-share-format-label]').innerText(),'Friend invitation');assert.deepEqual(await p.locator('[data-share-destination]').allTextContents(),['Story','Save','Copy','More']);assert.equal(await p.locator('.share-sheet-menu-toggle').count(),1,'link renewal is in the invitation overflow menu');assert.equal(qrRequests.length,0,'the invitation artwork does not request a QR library');if(out)await capture(p,`friend-invitation-${viewportWidth}-light`);await closeSheet(p);
     }
    }
    assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'opening and reviewing the screens has no write side effects');await close(c);console.log(`Find friends ${name}: privacy, compact requests, connection-only suggestions and 44px actions PASS`);
@@ -253,25 +253,13 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'friend management sheets do not write until confirmation');await close(c);console.log(`Find friends management ${theme}: Remove and Block are reachable from a friend's profile PASS`);
    }
   }
-  if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='qr'){
-   const {c,p,errors,writes,qrRequests}=await open('empty','light');
+  if(!process.env.KINETTA_FRIEND_CASE||['invitation','qr'].includes(process.env.KINETTA_FRIEND_CASE)){
+   const theme=process.env.KINETTA_FRIEND_THEME||'light';assert(['light','dark'].includes(theme));const {c,p,errors,writes,qrRequests}=await open('empty',theme);
    assert.equal(qrRequests.length,0,'loading Social for Find friends does not preload QR');
-   await p.locator('#fr-invite').click();await p.getByRole('dialog',{name:'Invite friends'}).waitFor();
-   await p.locator('#iv-qr').click();await p.locator('#iv-qr-code svg[aria-label="QR code for your Kinetta invite link"]').waitFor();
-   assert.equal(qrRequests.length,1,'the invite action loads QR on demand');await p.locator('#iv-qr').click();assert.equal(qrRequests.length,1,'repeated QR action reuses the loaded script and graphic');
-   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'QR generation has no write side effects');await close(c);
-   const stale=await open('empty','light');assert.equal(stale.qrRequests.length,0);await stale.p.locator('#fr-invite').click();await stale.p.getByRole('dialog',{name:'Invite friends'}).waitFor();
-   await stale.p.evaluate(()=>{window.__pendingInviteQrBox=document.querySelector('#iv-qr-code');});let qrStarted=false,releaseQr;
-   await stale.p.route('**/static/vendor/qrcode.js*',async route=>{qrStarted=true;await new Promise(resolve=>{releaseQr=resolve;});await route.continue();});await stale.p.locator('#iv-qr').click();
-   for(let attempt=0;attempt<100&&!qrStarted;attempt++)await stale.p.waitForTimeout(20);assert(qrStarted,'the invite QR action starts its lazy request');
-   assert.equal((await stale.c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_typical',password:pw}})).status(),200,'second fictional owner signs in');
-   const newOwner=await(await stale.c.request.get(base+'/api/me')).json();await stale.p.evaluate(me=>refreshMe(me),newOwner);
-   await until(stale.p,()=>App.pageReady&&App.me?.login==='zz_test_fc_typical','second fictional owner becomes current');releaseQr();
-   let qrLoaded=false;for(let attempt=0;attempt<100;attempt++){qrLoaded=await stale.p.evaluate(()=>classicScriptsLoaded.has(QR_CODE_ASSET));if(qrLoaded)break;await stale.p.waitForTimeout(20);}
-   assert(qrLoaded,'the invite QR script load and stale callback complete after owner change');
-   assert.equal(stale.qrRequests.length,1,'the old invite QR request completes after owner change');assert.equal(await stale.p.evaluate(()=>window.__pendingInviteQrBox?.querySelector('svg')||null),null,'old-owner invite does not render after its deferred load');
-   assert.equal(await stale.p.locator('#iv-qr-code svg').count(),0,'new owner has no stale invite QR');assert.deepEqual(stale.errors,[]);await close(stale.c);
-   console.log('Find friends QR: action-only load, deduplication and late old-owner guard PASS');
+   await p.locator('#fr-invite').click();await p.getByRole('dialog',{name:'Invite friends'}).waitFor();await p.locator('[data-share-preview-image="0"]').waitFor();await p.waitForFunction(()=>{const img=document.querySelector('[data-share-preview-image="0"]');return img?.complete&&img.naturalWidth===1080&&img.naturalHeight===1920;});
+   assert.equal(await p.locator('[data-share-format-label]').innerText(),'Friend invitation');assert.deepEqual(await p.locator('[data-share-destination]').allTextContents(),['Story','Save','Copy','More']);assert.equal(await p.locator('.share-sheet-menu-toggle').count(),1,'link renewal stays reachable in the overflow menu');assert.equal(await p.locator('.share-picture-note').count(),0,'there are no extra explainer lines');assert.equal(qrRequests.length,0,'friend artwork carries no QR or QR-library request');
+   if(out)await capture(p,`friend-invitation-${viewportWidth}-${theme}`);assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'opening the Story invitation does not create or renew a link');await close(c);
+   console.log(`Find friends invitation ${viewportWidth}px ${theme}: Story artwork, four actions and link renewal menu PASS`);
   }
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='invite'){
    async function openInvite(theme,width){

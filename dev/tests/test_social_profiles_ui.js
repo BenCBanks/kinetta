@@ -18,16 +18,15 @@ const source=fs.readFileSync('app/static/social.js','utf8'),tick=()=>new Promise
  assert(!source.includes('function editProfile(')&&!source.includes('Draft preview')&&!source.includes('pf-editor'));
  assert(!profile.includes('data-card-identity')&&!profile.includes('function editor(box,initial'));
  assert(settings.includes("$('#m-profile', el).onclick = () => MeCard.openEditor()"));assert(profile.includes("openEditor:()=>go('/me?edit=profile')"));
- // Friend invites remain link-only and separate from picture sharing.
+ // Friend invites use the Story artwork while carrying the invitation URL in selectable text.
  c.invalidate=()=>{};c.keep=()=>{};c.invalidateFeed=()=>{};c.toast=()=>{};c.App={me:{name:'Old name'}};
  let shareSheet=null;const copyInput={select(){this.selected=true;},selected:false};
  c.appBase=()=> 'https://example.test';let shared=null,copied='';c.navigator={share:async data=>{shared=data;},clipboard:{writeText:async data=>{copied=data;}}};
  c.sheet=(title,html,mount)=>{const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{textContent:'',disabled:false,hidden:true}]));const box={nodes,isConnected:true};shareSheet={title,html,box};mount(box,()=>{box.isConnected=false;});};
  c.$=(sel,box)=>sel==='input'?copyInput:box?.nodes[sel]||null;
  vm.runInContext(source.slice(source.indexOf('async function inviteFriends()'),source.indexOf("route(/^\\/me\\/friends$/")),c);
- c.api=async()=>({url:'/add/fictional-invitation'});await c.inviteFriends();assert.equal(shareSheet.title,'Invite friends');for(const id of ['#iv-share','#iv-copy','#iv-qr'])assert(shareSheet.box.nodes[id],`invite action ${id} exists`);
- await c.$('#iv-share',shareSheet.box).onclick();assert.equal(shared.text,'Connect with me on Kinetta, the workout and food app. This friendship invite lasts 30 days: https://example.test/add/fictional-invitation');assert.equal(shared.url,undefined,'the invite URL is carried once in selectable share text');
- await c.$('#iv-copy',shareSheet.box).onclick();assert.equal(copied,shared.text,'Copy invite text and native share use the same complete message');
+ c.ShareSheet={open(options){shareSheet=options;}};c.loadShareArt=async()=>{};c.ShareArt={friendInvitationPicture:async()=>({blob:new Blob(['fictional'])})};
+ c.api=async()=>({url:'/add/fictional-invitation'});await c.inviteFriends();assert.equal(shareSheet.title,'Invite friends');assert.equal(shareSheet.mode,'story');assert.equal(shareSheet.items[0].label,'Friend invitation');assert.equal(shareSheet.items[0].link,'https://example.test/add/fictional-invitation');assert.equal(shareSheet.items[0].copyText,'Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: https://example.test/add/fictional-invitation');assert.equal(shareSheet.actions[0].label,'Make a new link');assert(await shareSheet.items[0].build(),'friend invitation exposes its no-identity Story artwork');
  let groupBox; c.sheet=(title,html,mount)=>{const nodes={};for(const selector of ['[data-group-copy]','[data-group-share]','[data-close]'])if(html.includes(selector.slice(1,-1)))nodes[selector]={onclick:null};groupBox={nodes,isConnected:true};mount(groupBox,()=>{});};
  c.$=(selector,box)=>box?.nodes[selector]||null;vm.runInContext(source.slice(source.indexOf('function groupInviteSheet('),source.indexOf('function groupCreateSheet('))+'\nglobalThis.groupInviteSheetTest=groupInviteSheet;',c);
  c.groupInviteSheetTest('https://example.test/group-invite/fictional-token','Fictional Trail Group');await c.$('[data-group-share]',groupBox).onclick();assert.equal(shared.text,"You’re invited to ‘Fictional Trail Group’ on Kinetta, the workout and food app: https://example.test/group-invite/fictional-token");assert.equal(shared.url,undefined);

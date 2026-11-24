@@ -1178,51 +1178,20 @@ function friendshipSheet(p, onChange) {
 async function inviteFriends() {
   const owner=readOwner(),same=()=>owner===readOwner();
   let link;
-  try { link = await api('/api/friends/link'); } catch (x) { if(same())toast(x.message); return; }
+  try { link = await api('/api/friends/link'); } catch (error) { if(same())toast(error.message); return; }
   if(!same())return;
   const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
-  const text = `Connect with me on Kinetta, the workout and food app. This friendship invite lasts 30 days: ${url}`;
-  const copySheet = () => sheet('Invite friends', `<p>Your friend invitation lasts 30 days. When someone opens it while signed in, they become your friend.</p>
-    <label class="form">Your invite link<input readonly value="${esc(url)}" aria-label="Invite link"></label>
-    <div class="btncol"><button type="button" class="primary wide" id="iv-share">Share invite</button><button type="button" class="ghost wide" id="iv-copy">Copy invite text</button><button type="button" class="ghost wide" id="iv-qr">Show QR code</button></div>
-    <div class="invite-qr-code" id="iv-qr-code" hidden></div><p class="small muted" id="iv-status" role="status"></p><button type="button" class="linkbtn muted" id="iv-new">Make a new link (the old one stops working)</button>`, (b, close) => {
-    const live=()=>same()&&b.isConnected;
-    const input = $('input', b); input.onclick = () => input.select();
-    $('#iv-share',b).onclick = async () => {
-      if(!live())return;
-      try {
-        if(navigator.share)await navigator.share({title:'Connect on Kinetta',text});
-        else {await navigator.clipboard.writeText(text);}
-        if(live())$('#iv-status',b).textContent=navigator.share?'Invite shared':'Link copied';
-      } catch(e) { if(live()&&e.name!=='AbortError')$('#iv-status',b).textContent='Select and copy the invite link above.'; }
-    };
-    $('#iv-copy', b).onclick = async () => {
-      if(!live())return;
-      try { await navigator.clipboard.writeText(text); if(live())$('#iv-status', b).textContent = 'Link copied'; }
-      catch { if(live()){input.select();$('#iv-status', b).textContent = 'Select and copy the link above.';} }
-    };
-    $('#iv-qr',b).onclick=async()=>{
-      if(!live())return;
-      const box=$('#iv-qr-code',b);box.hidden=false;
-      if(box.firstElementChild||box.dataset.loading)return;
-      box.dataset.loading='true';
-      try {
-        await loadQrCode();if(!live())return;
-        const code=qrcode(0,'M');code.addData(url);code.make();const n=code.getModuleCount(),m=4,ns='http://www.w3.org/2000/svg';let path='';
-        for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(code.isDark(y,x))path+=`M${x+m} ${y+m}h1v1h-1z`;
-        const graphic=document.createElementNS(ns,'svg');graphic.setAttribute('viewBox',`0 0 ${n+2*m} ${n+2*m}`);graphic.setAttribute('role','img');graphic.setAttribute('aria-label','QR code for your Kinetta invite link');
-        const background=document.createElementNS(ns,'rect');background.setAttribute('width',n+2*m);background.setAttribute('height',n+2*m);background.setAttribute('fill','#fff');
-        const marks=document.createElementNS(ns,'path');marks.setAttribute('d',path);marks.setAttribute('fill','#000');graphic.append(background,marks);box.append(graphic);
-      } catch { if(live()){box.hidden=true;$('#iv-status',b).textContent='The QR code could not be shown. Copy the invite link instead.';} }
-      finally{delete box.dataset.loading;}
-    };
-    $('#iv-new', b).onclick = async () => {
-      const button=$('#iv-new',b);if(!live()||button.disabled)return;button.disabled=true;
-      try { await api('/api/friends/link/new', json('POST', {}));if(!live())return;close();toast('New invite link made');inviteFriends(); }
-      catch (x) { if(live()){toast(x.message);button.disabled=false;} }
-    };
-  });
-  copySheet();
+  const text = `Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: ${url}`;
+  try { await loadShareArt(); } catch (error) { if(same())toast(error.message||'Couldn’t prepare this invitation.'); return; }
+  if(!same())return;
+  ShareSheet.open({mode:'story',title:'Invite friends',items:[{
+    label:'Friend invitation',actionGroupLabel:'Friend invitation actions',filename:'kinetta-friend-invite.png',
+    link:url,caption:text,copyText:text,copyStatus:'Friend invitation copied.',
+    build:()=>ShareArt.friendInvitationPicture()
+  }],actions:[{label:'Make a new link',run:async({close,live})=>{
+    if(!live())return;await api('/api/friends/link/new',json('POST',{}));if(!live())return;
+    close();toast('New invite link made');void inviteFriends();
+  }}]});
 }
 const hiddenKey = () => 'kinetta.hideSuggest:' + readOwner();
 const hiddenPeople = () => { try { return new Set(store.get(hiddenKey()) || []); } catch { return new Set(); } };

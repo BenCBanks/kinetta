@@ -39,11 +39,11 @@ const ChallengeRoutes=(()=>{
   const participants=q=>q.participants==null||!Number.isInteger(q.participants)||q.participants<0?'':q.participants+' '+(q.participants===1?'participant':'participants');
   const signature=(q,finish)=>JSON.stringify([q.title,q.start,q.end,q.target,q.unit,q.joining_closed,finish?q.self:null]);
   async function fetchOne(code){const owner=readOwner(),q=await api('/api/challenges/'+encodeURIComponent(code));if(owner!==readOwner())throw Error('The account changed.');return q;}
-  async function picture(q,finish=false,identity=false,live=()=>true){
+  async function picture(q,finish=false,identity=false,live=()=>true,storyFullBleed=false){
     const owner=readOwner(),picturePath=location.pathname+location.search;
     const own=q.self||{};
     await loadShareArt();if(owner!==readOwner()||picturePath!==location.pathname+location.search||!live())throw Error('The account changed.');
-    return ShareArt.challengePicture({kind:q.kind,start:q.start,end:q.end,target:number(q.target,q.unit),unit:q.unit,sports:q.sports||[],value:number(own.value,q.unit),finished:own.finished===true,identity,handle:App.me.login||'',photo:App.me.photo||null,sources:finish?own.garmin_sources||[]:[],manual:finish&&own.manual===true,finish});
+    return ShareArt.challengePicture({kind:q.kind,start:q.start,end:q.end,target:number(q.target,q.unit),unit:q.unit,sports:q.sports||[],value:number(own.value,q.unit),finished:own.finished===true,identity,handle:App.me.login||'',photo:App.me.photo||null,sources:finish?own.garmin_sources||[]:[],manual:finish&&own.manual===true,finish,storyFullBleed});
   }
   function confirmation(title,copy,action,onDone){
     const owner=readOwner();sheet(title,`<p>${esc(copy)}</p><p class="err" role="status"></p><div class="btncol"><button type="button" class="primary wide" id="challenge-confirm">${esc(action.label)}</button><button type="button" class="ghost wide" id="challenge-keep">Cancel</button></div>`,(b,close)=>{
@@ -55,6 +55,11 @@ const ChallengeRoutes=(()=>{
     try{q=await fetchOne(initial.code);if(!q.member)throw Error('Join the challenge before making a picture.');if(finish&&!q.self?.finished)throw Error('Your finish picture is available when your challenge ends.');if(!finish&&q.joining_closed)throw Error('This challenge is no longer accepting joins.');}
     catch(e){if(sourceLive())toast(e.message);return;}
     if(!sourceLive())return;
+    if(!finish){
+      try{await loadShareArt();if(!sourceLive())return;ShareSheet.open({mode:'story',title:'Invite to your challenge',items:[{label:'Challenge invitation',actionGroupLabel:'Challenge invitation actions',filename:'kinetta-challenge-invite.png',link:q.url,caption:invitationCaption(q),copyText:invitationText(q),copyStatus:'Invitation text copied.',controls:[{key:'identity',label:'Photo and username',checked:false}],initial:{identity:false},build:values=>picture(q,false,values.identity,sourceLive,true)}]});}
+      catch(error){if(sourceLive())toast(error.message||'Couldn’t prepare this invitation.');}
+      return;
+    }
     let current=null,url='',generation=0,busy=false;
     sheet(finish?'Your finish picture':'Invite to your challenge',`<div class="challenge-share-body"><p>${finish?'Your picture includes your challenge progress and any source credits. Photo and username start off.':'Your photo and username will be shared. Turn them off before sharing. Joining doesn’t send a friend request.'}</p><label class="check"><input type="checkbox" id="challenge-identity"${finish?'':' checked'}>Photo and username</label><div class="challenge-picture"><img id="challenge-picture" alt="Loading challenge picture"></div><p class="small" role="status" id="challenge-share-status"></p><button class="ghost wide" id="challenge-picture-retry" hidden>Retry picture</button></div><div class="challenge-share-actions"><button type="button" class="primary wide" id="challenge-send" disabled>Share picture${finish?'':' and link'}</button>${finish?'':'<button type="button" class="ghost wide" id="challenge-copy">Copy invite text</button>'}</div>`,(b,close)=>{
       const live=()=>b.isConnected&&sourceLive(),status=$('#challenge-share-status',b),send=$('#challenge-send',b),identity=$('#challenge-identity',b),image=$('#challenge-picture',b);
