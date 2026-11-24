@@ -199,10 +199,20 @@ async function main(){
    assert.equal(question,theme==='light'?'Review my latest workout':'Check my records');
    const typingBox=await p.locator('.kit-waiting-bubble').evaluate(el=>{const r=el.getBoundingClientRect();return{width:r.width,x:r.x};});
    assert(typingBox.width<=112&&typingBox.x<=24,`${theme}: typing indicator is a small left-aligned bubble: ${JSON.stringify(typingBox)}`);
-   const initialDots=await p.locator('.kit-waiting-bubble .thread-typing span').evaluateAll(spans=>spans.map(node=>getComputedStyle(node).animationName));
+   const dots=p.locator('.kit-waiting-bubble .thread-typing span');
+   let initialDots=await dots.evaluateAll(spans=>spans.map(node=>({name:getComputedStyle(node).animationName,
+    running:node.getAnimations().some(animation=>animation.animationName==='thread-typing'&&animation.playState==='running')})));
    assert(initialDots.length===3,`${theme}: the compact wait bubble has three dots`);
-   if(theme==='dark')assert(initialDots.every(name=>name==='none'),'reduced motion makes the three dots static');
-   else assert(initialDots.every(name=>name==='thread-typing'),'normal motion animates the typing dots');
+   if(theme==='dark')assert(initialDots.every(dot=>dot.name==='none'),'reduced motion makes the three dots static');
+   else{
+    const deadline=Date.now()+2000;
+    while(!initialDots.every(dot=>dot.name==='thread-typing'&&dot.running)&&Date.now()<deadline){
+     await p.waitForTimeout(25);
+     initialDots=await dots.evaluateAll(spans=>spans.map(node=>({name:getComputedStyle(node).animationName,
+      running:node.getAnimations().some(animation=>animation.animationName==='thread-typing'&&animation.playState==='running')})));
+    }
+    assert(initialDots.every(dot=>dot.name==='thread-typing'&&dot.running),'normal motion starts the typing-dot animation within 2s');
+   }
    const capture=async state=>{if(out){await p.evaluate(()=>{document.scrollingElement?.scrollTo(0,0);document.querySelector('#kit-messages')?.scrollTo(0,0);});fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-waiting-390-${theme}-${state}.png`),animations:'disabled'});}};
    await capture('sending');
    await p.clock.fastForward(4000);
