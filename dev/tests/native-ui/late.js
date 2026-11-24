@@ -81,6 +81,7 @@
     const before=target.getBoundingClientRect(),navTop=nav.getBoundingClientRect().top,delta=Math.max(0,before.bottom+12-navTop);
     if(delta)window.scrollTo(0,window.scrollY+delta);
     await new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)));
+    if(cfg.store&&typeof expandBottomNav==='function')expandBottomNav();
     const box=target.getBoundingClientRect(),tab=nav.getBoundingClientRect();
     return{selector,text:(target.innerText??target.textContent??'').trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
   }
