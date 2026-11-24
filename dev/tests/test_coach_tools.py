@@ -36,6 +36,8 @@ from coach_records_checks import run as check_personal_records
 check_personal_records()
 from coach_kit_isolation_checks import run as check_kit_isolation
 check_kit_isolation()
+from workout_compare_checks import run as check_workout_compare
+check_workout_compare()
 
 a, b = person('zz_test_coach_a'), person('zz_test_coach_b')
 try:
