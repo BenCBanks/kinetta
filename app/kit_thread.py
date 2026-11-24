@@ -242,7 +242,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         if not coach.allowed(uid,connection=c) or not ai_release.enabled('kit'):
             answer=comparison_only()
             error=('Kit is unavailable right now.' if answer else 'Kit access or consent changed. No answer was added.')
-        if answer and health_context and answer.get('workout_review'):answer['health_included']=True
+        if answer and health_context and (not workout_review or answer.get('workout_review')):answer['health_included']=True
         if answer and workout_review and workout_requirements and not workout_compare.review_consents_still_valid(uid,workout_requirements):
             answer=None;error='Kit access or consent changed. No answer was added.'
         # Consent can change while the last provider call is in flight. Do not save Health output after revocation.
