@@ -265,8 +265,8 @@ async function main(){
    assert.deepEqual(unexpectedWrites,[],`${theme}: fixtures make no unexpected writes or provider calls`);
    await c.close();contexts.pop();
   }
-  for(const width of [390,330])for(const theme of ['light','dark']){
-   const insufficient=width===330&&theme==='dark';
+   for(const width of [390,330])for(const theme of ['light','dark']){
+   const insufficient=width===330&&theme==='dark',fallbackOnly=insufficient;
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),compareCalls=[],kitMessagePosts=[],unexpectedWrites=[];let row=null,question='';contexts.push(c);
    await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
    p.on('pageerror',e=>unexpectedWrites.push('pageerror:'+e.message));
@@ -282,8 +282,8 @@ async function main(){
     }
     if(/^\/api\/coach\/conversation\/messages\/[^/]+\/answer$/.test(u.pathname)&&req.method()==='POST'){
      const comparison=insufficient?{status:'not_enough_similar',sport:'run',current:{distance_m:5000,moving_s:1800,pace_s_per_km:null,speed_mps:null,avg_hr:null,ascent_m:null},baseline_count:1,baseline_medians:{},deltas:{},relations:{},notable:'none',same_route_count:0}:{status:'compared',sport:'run',current:{distance_m:8046.72,moving_s:2340,pace_s_per_km:300,speed_mps:null,avg_hr:150,ascent_m:100,avg_temp_c:22},baseline_count:3,baseline_medians:{pace_s_per_km:312,avg_hr:153,ascent_m:60},deltas:{pace_s_per_km:-12,avg_hr:-3,ascent_m:40},relations:{pace_s_per_km:'faster',avg_hr:'lower'},notable:'hillier',same_route_count:1};
-     const review={workout_review:{verdict:'My workout felt steady.',next_step:'Keep my next effort comfortable.'},facts:[],follow_ups:[],workout_comparison:comparison};
-     row={...row,state:'answered',answer:review};
+     const review={workout_review:{verdict:'Your workout felt steady.',next_step:'You could keep a comfortable effort next time.'},facts:[],follow_ups:[],workout_comparison:comparison};
+     row={...row,state:'answered',answer:fallbackOnly?{workout_comparison:comparison}:review};
      return route.fulfill({json:row});
     }
     if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
@@ -297,10 +297,11 @@ async function main(){
    assert.equal(kitMessagePosts[0].question,'Review my latest workout',`${width}px ${theme}: exact starter text is the conversation question`);
    assert.equal(kitMessagePosts[0].context.starter_index,0,`${width}px ${theme}: tapped starter enters the dedicated answer mode`);
    assert(!JSON.stringify(kitMessagePosts).includes('workout_comparison'),`${width}px ${theme}: app comparison evidence is not sent in the user message`);
-   assert.equal(await p.locator('.kit-verdict').innerText(),'My workout felt steady.',`${width}px ${theme}: the direct answer renders above the comparison`);
+   if(fallbackOnly)assert.equal(await p.locator('.kit-verdict').count(),0,`${width}px ${theme}: comparison-only fallback has no Kit wording`);
+   else assert.equal(await p.locator('.kit-verdict').innerText(),'Your workout felt steady.',`${width}px ${theme}: the direct answer renders above the comparison`);
    assert.equal(await p.locator('.kit-facts').count(),0,`${width}px ${theme}: verified prose facts are not repeated below the app comparison`);
    const order=await p.locator('.kit-answer').evaluate(el=>Array.from(el.children).filter(n=>n.matches('.kit-verdict,.kit-workout-comparison,.kit-reason')).map(n=>n.classList.contains('kit-verdict')?'verdict':n.classList.contains('kit-workout-comparison')?'comparison':'next-step'));
-   assert.deepEqual(order,['verdict','comparison','next-step'],`${width}px ${theme}: render order follows the approved workout-review design`);
+   assert.deepEqual(order,fallbackOnly?['comparison']:['verdict','comparison','next-step'],`${width}px ${theme}: render order follows the approved workout-review design`);
    assert.deepEqual(unexpectedWrites,[],`${width}px ${theme}: comparison makes no writes or page errors`);
    const text=await comparison.innerText();
    if(insufficient){
@@ -311,7 +312,8 @@ async function main(){
    }else{
     assert(text.includes(theme==='light'?'5 mi · 39 min · 8:03 /mi':'8 km · 39 min · 5:00 /km'),`${width}px ${theme}: summary uses profile units`);
     assert(text.includes('vs your last 3 runs of similar distance')&&text.includes(theme==='light'?'19 s/mi faster':'12 s/km faster'),`${width}px ${theme}: comparison rows are rendered in profile units`);
-    assert(text.includes('Heart rate')&&text.includes(theme==='light'?'131 ft more':'40 m more'),`${width}px ${theme}: comparison rows express climb as a delta`);
+    assert(text.includes('Heart rate')&&text.includes(theme==='light'?'131 ft more':'40 m more'),`${width}px ${theme}: comparison rows express climb as a compact delta`);
+    if(theme==='light')assert.equal(await p.locator('.kit-workout-rows>div').last().locator('dd').innerText(),'131 ft more',`${width}px: climb value omits the duplicated usual wording`);
     assert.equal(await p.locator('.kit-workout-notable').innerText(),'Hillier than usual',`${width}px ${theme}: the app-selected notable appears under the rows`);
     assert.equal(await p.locator('.kit-workout-rows>div').evaluateAll(rows=>rows.every(row=>row.getBoundingClientRect().height>=44)),true,`${width}px ${theme}: comparison rows retain 44px targets`);
    }

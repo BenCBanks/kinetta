@@ -33,7 +33,7 @@ try:
   req(a,'POST',root+'/messages',message('Another concurrent question'),409)
   req(b,'POST',root+'/messages/'+body['client_id']+'/answer',{'generation':othergen},404)
   req(a,'POST',root+'/messages/'+body['client_id']+'/answer',{'generation':generation,'user_id':other},422)
-  result=req(a,'POST',root+'/messages/'+body['client_id']+'/answer',{'generation':generation});assert result['state']=='answered' and result['answer']['facts'][0]['value']==120
+  result=req(a,'POST',root+'/messages/'+body['client_id']+'/answer',{'generation':generation});assert result['state']=='answered' and result['answer']['facts'][0]['value']==120,(result,seen)
   assert req(a,'POST',root+'/messages/'+body['client_id']+'/answer',{'generation':generation})['answer']==result['answer'] and len(seen)==1
   assert req(b,'GET',root)['messages']==[]
   follow=message('What should I do about that?');req(a,'POST',root+'/messages',follow);req(a,'POST',root+'/messages/'+follow['client_id']+'/answer',{'generation':generation});assert seen[-1][2]['history'][0]['text']==body['question']
@@ -60,8 +60,8 @@ try:
   def review_response(user,question,**kwargs):
    assert question=='Review my latest workout' and kwargs.get('workout_review') is True
    evidence=kwargs.get('workout_evidence');assert evidence and kwargs.get('history')==[]
-   verdict='My Garmin-only fictional review is ready.' if evidence['required_consents']['garmin'] else 'My session felt steady.'
-   return {'workout_review':{'verdict':verdict,'next_step':'Keep my next effort comfortable.'},'facts':[],'follow_ups':[], 'workout_comparison':evidence['comparison'],'health_included':evidence['health_included'],'garmin_included':evidence['required_consents']['garmin']}
+   verdict='Your Garmin-only fictional review is ready.' if evidence['required_consents']['garmin'] else 'Your session felt steady.'
+   return {'workout_review':{'verdict':verdict,'next_step':'You could keep a comfortable effort next time.'},'facts':[],'follow_ups':[], 'workout_comparison':evidence['comparison'],'health_included':evidence['health_included'],'garmin_included':evidence['required_consents']['garmin']}
   workout=message('Review my latest workout');workout['context']={'screen':'activity','starter_index':0}
   with patch('app.workout_compare.review_for_user',return_value=review_evidence),patch('app.coach_chat.answer',side_effect=review_response):
    req(a,'POST',root+'/messages',workout)
@@ -98,9 +98,27 @@ try:
   with patch('app.workout_compare.review_for_user',return_value=review_evidence),patch('app.coach_chat.answer',side_effect=kit_workout_review.WorkoutReviewRejected('numeric_unsupported')):
    req(a,'POST',root+'/messages',rejected)
    failed=req(a,'POST',root+'/messages/'+rejected['client_id']+'/answer',{'generation':generation})
-  assert failed['state']=='failed' and failed['error']==kit_workout_review.USER_ERROR
+  assert failed['state']=='answered' and failed['error']==kit_workout_review.USER_ERROR
+  assert failed['answer']=={'workout_comparison':comparison},'a rejected Kit answer falls back to app rows only'
   with db.connect() as c: saved_reason=c.execute('SELECT error FROM kit_turns WHERE user_id=%s AND client_id=%s',(uid,rejected['client_id'])).fetchone()['error']
   assert saved_reason=='numeric_unsupported' and saved_reason not in json.dumps(failed),'only the closed diagnostic code is stored; the API returns generic copy'
+  provider_error=message('Review my latest workout');provider_error['context']={'screen':'activity','starter_index':0}
+  with patch('app.workout_compare.review_for_user',return_value=review_evidence),patch('app.coach_chat.answer',side_effect=RuntimeError('fictional provider failure')):
+   req(a,'POST',root+'/messages',provider_error)
+   fallback=req(a,'POST',root+'/messages/'+provider_error['client_id']+'/answer',{'generation':generation})
+  assert fallback['state']=='answered' and fallback['answer']=={'workout_comparison':comparison}
+  assert fallback['error']=='Kit could not finish this answer. Your question is saved; tap Retry.'
+  kit_off=message('Review my latest workout');kit_off['context']={'screen':'activity','starter_index':0}
+  with patch('app.workout_compare.review_for_user',return_value=review_evidence),patch('app.ai_release.enabled',return_value=False),patch('app.coach_chat.answer',side_effect=AssertionError('Kit-off fallback must not call the provider')):
+   req(a,'POST',root+'/messages',kit_off)
+   fallback=req(a,'POST',root+'/messages/'+kit_off['client_id']+'/answer',{'generation':generation})
+  assert fallback['state']=='answered' and fallback['answer']=={'workout_comparison':comparison},'Kit-off fallback keeps app comparison without Kit wording'
+  assert fallback['error']=='Kit is unavailable right now.','Kit-off fallback explains the missing Kit text without claiming the comparison was lost'
+  with patch('app.workout_compare.review_for_user',return_value=review_evidence),patch('app.coach_chat.answer',side_effect=RuntimeError('fictional provider failure')),patch('app.workout_compare.review_consents_still_valid',return_value=False):
+   revoked=message('Review my latest workout');revoked['context']={'screen':'activity','starter_index':0}
+   req(a,'POST',root+'/messages',revoked)
+   hidden=req(a,'POST',root+'/messages/'+revoked['client_id']+'/answer',{'generation':generation})
+  assert hidden['state']=='failed' and hidden['answer'] is None,'revoked source consent suppresses comparison fallback'
   req(a,'POST',root+'/clear',{'generation':generation,'confirmed':'true'},422)
   new=req(a,'POST',root+'/clear',{'generation':generation,'confirmed':True});assert not new['messages'] and new['generation']!=generation
   req(a,'POST',root+'/messages',body,409);generation=new['generation']

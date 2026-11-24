@@ -36,6 +36,13 @@ FIRST_PERSON = re.compile(r'\b(?:i|me|my|we|us|our)\b', re.I)
 QUESTION_TO_USER = re.compile(r'^(?:would you like|do you want|how do you feel|how did you feel|are your|did you|have you)\b', re.I)
 NUMBER_WORD = re.compile(r'\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|first|second|third|once|twice|both|couple|pair|dozen|single|double|triple)\b', re.I)
 HEALTH_CLAIM_DENY = re.compile(r'\b(?:diagnos(?:e|is|ed|ing)?|symptom(?:s)?|medical|injur(?:y|ies|ed)?|pain(?:ful)?|doctor|clinician|medication|disease|illness|treat(?:ment|ing)?|dehydrat(?:ed|ion)|overtrain(?:ed|ing)?|safe|unsafe|healthy|healthier|wellness|health[ -]?risk|blood[ -]?pressure)\b', re.I)
+COMPARISON_WORD = re.compile(r'\b(?:faster|slower|quicker|higher|lower|same|usual|than|versus|vs\.?|compared|comparison)\b', re.I)
+NOTABLE_WORDS = {
+    'hillier': re.compile(r'\bhillier\b', re.I),
+    'hotter': re.compile(r'\bhotter\b', re.I),
+    'longest_90d': re.compile(r'\blongest\b', re.I),
+    'personal_record': re.compile(r'\b(?:record|PR|best)\b', re.I),
+}
 FACT_PATHS = {
     ('current','distance_m'), ('current','moving_s'), ('current','pace_s_per_km'),
     ('current','speed_mps'), ('current','avg_hr'), ('current','ascent_m'), ('current','avg_temp_c'),
@@ -59,6 +66,7 @@ pace_s_per_km, speed_mps, avg_hr, ascent_m. Use the evidence ID and exact path; 
 must match. The app formats units. Verdict and next_step may contain numbers only as {eN:index} references to
 those facts; never type digits, number words, units, dates, or unverified comparisons directly. The app-selected
 comparison relation is authoritative for faster/slower/about the same; do not calculate or reverse it.
+Address the person as “you” in verdict and next_step; avoid speaking as “I” or “my”.
 
 Provide at most two short follow-ups as messages the person would send Kit, in first person (for example,
 “Compare it with my last run on this route”). Do not address a question to the person or ask how they feel.
@@ -156,6 +164,40 @@ def _has_first_person(text):
     return bool(FIRST_PERSON.search(text)) and not QUESTION_TO_USER.search(text) and not re.search(r'\byou\b', text, re.I)
 
 
+def _check_relations(text, data):
+    if not COMPARISON_WORD.search(text) and not any(pattern.search(text) for pattern in NOTABLE_WORDS.values()):
+        return
+    relations = data.get('relations') or {}
+    if data.get('status') != 'compared' or data.get('baseline_count', 0) < 2:
+        _reject('relation_unsupported')
+    lower = text.lower()
+    metrics=[]
+    if re.search(r'\bpace\b',lower): metrics.append('pace_s_per_km')
+    if re.search(r'\bspeed\b',lower): metrics.append('speed_mps')
+    if 'heart rate' in lower or re.search(r'\bhr\b',lower): metrics.append('avg_hr')
+    if not metrics:
+        metrics=['pace_s_per_km' if data.get('sport') in {'run','walk','hike'} else 'speed_mps']
+    expected={
+        'faster':{'pace_s_per_km':'faster','speed_mps':'faster'},
+        'quicker':{'pace_s_per_km':'faster','speed_mps':'faster'},
+        'slower':{'pace_s_per_km':'slower','speed_mps':'slower'},
+        'higher':{'pace_s_per_km':'slower','speed_mps':'faster','avg_hr':'higher'},
+        'lower':{'pace_s_per_km':'faster','speed_mps':'slower','avg_hr':'lower'},
+        'same':{'pace_s_per_km':'about_the_same','speed_mps':'about_the_same','avg_hr':'about_the_same'},
+    }
+    for word, by_metric in expected.items():
+        if re.search(rf'\b{word}\b',lower) and any(relations.get(metric)!=by_metric.get(metric) for metric in metrics):
+            _reject('relation_unsupported')
+    if re.search(r'\busual\b',lower):
+        notable_match=((data.get('notable')=='hillier' and re.search(r'\bhillier\b',lower))
+                       or (data.get('notable')=='hotter' and re.search(r'\bhotter\b',lower)))
+        if not notable_match and any(relations.get(metric) not in {'faster','slower','higher','lower','about_the_same'} for metric in metrics):
+            _reject('relation_unsupported')
+    for notable, pattern in NOTABLE_WORDS.items():
+        if pattern.search(text) and data.get('notable') != notable:
+            _reject('relation_unsupported')
+
+
 def checked_answer(raw, evidence):
     from . import coach_chat
     try:
@@ -193,6 +235,8 @@ def checked_answer(raw, evidence):
         _reject('numeric_unsupported')
     if HEALTH_CLAIM_DENY.search(verdict) or HEALTH_CLAIM_DENY.search(next_step):
         _reject('health_claim_unsupported')
+    _check_relations(verdict, compare['data'])
+    _check_relations(next_step, compare['data'])
     follow_ups=[]
     for text in (review.verdict, review.next_step):
         if NUMBER_WORD.search(coach_chat.PLACEHOLDER.sub('', text)):
@@ -200,7 +244,8 @@ def checked_answer(raw, evidence):
     for item in answer.follow_ups:
         text=item.strip()
         if (not text or len(text)>80 or not _has_first_person(text)
-                or re.search(r'\d|https?://', text, re.I) or NUMBER_WORD.search(text)):
+                or re.search(r'\d|https?://', text, re.I) or NUMBER_WORD.search(text)
+                or HEALTH_CLAIM_DENY.search(text)):
             _reject('follow_up_invalid')
         if text not in follow_ups:
             follow_ups.append(text)
