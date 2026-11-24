@@ -74,7 +74,7 @@ module.exports=async function({browser,storageState,base,shots}){
     const entry=p.locator('.kit-help'),expected=path==='/me'?0:1;
     assert.equal(await entry.count(),expected,state+' '+path+' Kit header entry count');
     if(!expected)continue;
-    assert.equal(await entry.getAttribute('aria-label'),state==='on'?'Ask Kit':'Add food',state+' '+path+' label');
+    assert.equal(await entry.getAttribute('aria-label'),state==='on'?'Ask Kit':'Kit, Add food',state+' '+path+' label');
     if(state!=='on')assert.equal(await entry.getAttribute('href'),'/food?add=1',state+' '+path+' destination');
    }
   }
