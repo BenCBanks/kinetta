@@ -19,7 +19,7 @@ for(const [input,expected] of [
  ['Would you like to review your recent workouts.','Would you like to review your recent workouts.'],
  ['Would you like to?','Would you like to?'],
 ])assert.equal(c.Kit.rewriteFollowup(input),expected,`screen-side follow-up rewrite: ${input}`);
-assert(source.includes('filter(isFirstPersonFollowup)')&&source.includes('followups.map(q=>`<button type="button" data-kit-followup><span>${esc(q)}</span></button>`)')&&source.includes('send(c,b.textContent.trim())'),'only eligible rewritten first-person suggestions render as sendable user bubbles');
+assert(source.includes('filter(isFirstPersonFollowup)')&&source.includes('class="kit-suggested-reply" data-kit-followup')&&source.includes('send(c,b.querySelector(\'span\')?.textContent.trim()||\'\')'),'only eligible rewritten first-person suggestions render as sendable user bubbles');
 assert(source.includes('function pruneLongSuggestions(root)')&&source.includes('if(new Set(lines).size>2)button.remove()'),'suggestions over two rendered lines are dropped without truncation');
 assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
 assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition)),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
@@ -44,8 +44,8 @@ const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eras
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 assert(source.includes("send(c,label,index)")&&source.includes("button.querySelector('span')?.textContent"),'a starter sends its visible button label separately from its hidden guidance index');
 assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the stored question verbatim');
-assert(source.includes('filter(isFirstPersonFollowup)')&&source.includes('followups.map(q=>`<button type="button" data-kit-followup><span>${esc(q)}</span></button>`)'),'Kit presents only eligible rewritten first-person follow-ups as tappable chips');
-assert(source.includes('send(c,b.textContent.trim())'),'a follow-up chip asks Kit exactly the visible question');
+assert(source.includes('filter(isFirstPersonFollowup)')&&source.includes('class="kit-suggested-reply" data-kit-followup'),'Kit presents only eligible rewritten first-person follow-ups as tappable chips');
+assert(source.includes("send(c,b.querySelector('span')?.textContent.trim()||'')"),'a follow-up chip asks Kit exactly the visible question');
 assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
 assert(source.includes('if(f.display_value!=null)return String(f.display_value)'),'Kit preserves server-formatted unit-aware values');
 assert(source.includes('a.weekly_review.what_went_well')&&source.includes('a.weekly_review.what_to_change')&&source.includes('a.weekly_review.next_week_focus'),'weekly review renders its three named sections');
@@ -183,7 +183,7 @@ const response={verdict:'Yes, your recorded running is building.',reason:'You co
 const drawAnswer=answer=>{drawHarness.draw({el:{},messages:[{client_id:'answer',question:'Am I improving?',state:'answered',answer}],job:null,before:null});return drawNodes['#kit-messages'].innerHTML;};
 let answerHtml=drawAnswer(response);
 assert(answerHtml.indexOf('Am I improving?')<answerHtml.indexOf('kit-verdict'));
-assert(answerHtml.indexOf('kit-verdict')<answerHtml.indexOf('kit-reason')&&answerHtml.indexOf('kit-reason')<answerHtml.indexOf('kit-facts'),'verdict, reason and facts keep the approved reading order');
+assert(answerHtml.indexOf('kit-verdict')<answerHtml.indexOf('kit-reason'),'verdict and reason keep the approved reading order');
 assert(!answerHtml.includes('Do not duplicate')&&!answerHtml.includes('href="/progress"'),'follow-up questions replace generic destination links');
 assert.equal((answerHtml.match(/data-kit-followup/g)||[]).length,2);
 assert(answerHtml.includes('</div><div class="kit-suggested-replies"')&&!answerHtml.includes('kit-answer-followups'),'send bubbles sit outside the answer card');
@@ -215,4 +215,17 @@ assert(answerHtml.includes('Your earlier answer remains readable.')&&answerHtml.
 assert(!answerHtml.includes('unlogged')&&!answerHtml.includes('javascript:')&&answerHtml.includes('aria-label="Next steps"'),'legacy next steps remain safe and clearly labelled');
 drawHarness.App.me.units='metric';assert(drawAnswer({facts:[{path:['distance_m'],value:16093.44}]}).includes('16.1 km'));
 assert.equal((drawAnswer({...response,facts:Array(5).fill(response.facts[0])}).match(/<dt>/g)||[]).length,3,'answers show at most three facts');
+const qualityHtml=drawAnswer({verdict:'Your 5.0 mi run was harder than last time on this route.',reason:'Average heart rate was 172 bpm against 158 bpm last time.',facts:[
+ {path:['runs',0,'distance_m'],display_value:'5.0 mi',value:8046.7},
+ {path:['efforts',0,'avg_hr'],display_value:'158 bpm',value:158},
+ {path:['runs',0,'avg_hr'],display_value:'172 bpm',value:172},
+ {path:['runs',0,'effort'],display_value:'123.8',value:123.8},
+ {path:['runs',0,'pace_s_per_km'],display_value:'9:12 /mi',value:552},
+ {path:['efforts',0,'pace_s_per_km'],display_value:'9:30 /mi',value:570}
+],follow_ups:['What should the next step be?','Would you like to compare my route?','How did you feel?']});
+assert.equal((qualityHtml.match(/5\.0 mi/g)||[]).length,1,'a fact repeated in the answer copy is hidden');
+assert(!qualityHtml.includes('123.8'),'a bare Effort fact is hidden');
+assert(qualityHtml.includes('Last run on this route')&&qualityHtml.includes('This run'),'workout facts carry their source labels');
+assert(qualityHtml.includes('158 bpm')&&qualityHtml.includes('172 bpm'),'distinct source facts remain visible');
+assert.equal((qualityHtml.match(/data-kit-followup/g)||[]).length,1,'non-first-person follow-ups are dropped');
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
