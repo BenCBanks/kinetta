@@ -14,19 +14,7 @@
       "hiddenMediaControls": []
     },
     {
-      "scene": "light-activity-detail",
-      "topInsetPx": 59,
-      "controlsClear": true,
-      "hiddenMediaControls": []
-    },
-    {
       "scene": "light-kit-insight-progress",
-      "topInsetPx": 59,
-      "controlsClear": true,
-      "hiddenMediaControls": []
-    },
-    {
-      "scene": "light-achievements",
       "topInsetPx": 59,
       "controlsClear": true,
       "hiddenMediaControls": []
@@ -217,19 +205,7 @@
       "hiddenMediaControls": []
     },
     {
-      "scene": "dark-activity-detail",
-      "topInsetPx": 59,
-      "controlsClear": true,
-      "hiddenMediaControls": []
-    },
-    {
       "scene": "dark-kit-insight-progress",
-      "topInsetPx": 59,
-      "controlsClear": true,
-      "hiddenMediaControls": []
-    },
-    {
-      "scene": "dark-achievements",
       "topInsetPx": 59,
       "controlsClear": true,
       "hiddenMediaControls": []
