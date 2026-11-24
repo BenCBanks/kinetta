@@ -70,6 +70,12 @@ class Reactions(unittest.TestCase):
    self.assertEqual(self.actor.post(self.path+'/reaction',json={'kind':legacy}).json()['my_reaction'],kind)
   self.assertEqual(len(self.notes()),1);self.assertEqual(self.notes()[0]['reaction_kind'],'thumbsup')
   shared=self.actor.get('/api/shared/'+str(self.aid)).json();self.assertEqual(shared['my_reaction'],'thumbsup');self.assertEqual(shared['reactions']['thumbsup'],1)
+  for emoji in ('👍','⛰️'):
+   with self.subTest(emoji=emoji):
+    r=self.actor.post(self.path+'/reaction',json={'kind':emoji});self.assertEqual(r.status_code,200,r.text)
+    self.assertEqual(r.json()['my_reaction'],'thumbsup');self.assertEqual(r.json()['cheers'][0]['kind'],'thumbsup')
+    with db.connect() as c:
+     self.assertEqual(c.execute('SELECT kind FROM cheers WHERE activity_id=%s AND user_id=%s',(self.aid,self.ids[1])).fetchone()['kind'],'thumbsup')
   self.actor.post(self.path+'/cheer');self.assertEqual(self.actor.get(self.path+'/social').json()['my_reaction'],'clap');self.assertEqual(self.notes()[0]['reaction_kind'],'clap')
   self.assertEqual(self.actor.post(self.path+'/reaction',json={}).json()['my_reaction'],'clap')
  def test_unlisted_input_rejected_without_changing_state(self):
@@ -220,28 +226,28 @@ class Reactions(unittest.TestCase):
      CREATE TEMP TABLE group_weekly_reactions(group_id text,week_start date,user_id bigint,kind text NOT NULL,created timestamptz NOT NULL,
        PRIMARY KEY(group_id,week_start,user_id)) ON COMMIT DROP;""")
    c.execute("""INSERT INTO cheers VALUES
-       (1,1,'hike','2026-11-01T01:00Z'),(1,2,'mountain','2026-11-01T02:00Z'),
+       (1,1,'hike','2026-11-01T01:00Z'),(1,2,'mountain','2026-11-01T02:00Z'),(1,3,'🥾','2026-11-01T03:00Z'),
        (2,1,'muscle','2026-11-02T01:00Z'),(2,2,'muscle','2026-11-02T02:00Z');
      INSERT INTO notifications VALUES
-       (11,'hike','2026-11-01T01:00Z',false),(12,'muscle','2026-11-02T01:00Z',true),(13,'fire','2026-11-03T01:00Z',false),(14,NULL,'2026-11-04T01:00Z',false);
+       (11,'hike','2026-11-01T01:00Z',false),(12,'muscle','2026-11-02T01:00Z',true),(13,'fire','2026-11-03T01:00Z',false),(14,NULL,'2026-11-04T01:00Z',false),(15,'🥾','2026-11-05T01:00Z',false);
      INSERT INTO achievement_moment_reactions VALUES
-       (10,'2026-11-02',1,'hike','2026-11-02T01:00Z'),(10,'2026-11-02',2,'mountain','2026-11-02T02:00Z'),
+       (10,'2026-11-02',1,'hike','2026-11-02T01:00Z'),(10,'2026-11-02',2,'mountain','2026-11-02T02:00Z'),(10,'2026-11-02',3,'🥾','2026-11-02T03:00Z'),
        (10,'2026-11-09',1,'muscle','2026-11-09T01:00Z'),(10,'2026-11-09',2,'muscle','2026-11-09T02:00Z');
      INSERT INTO group_update_reactions VALUES
-       (21,1,'hike','2026-11-02T01:00Z'),(21,2,'mountain','2026-11-02T02:00Z'),
+       (21,1,'hike','2026-11-02T01:00Z'),(21,2,'mountain','2026-11-02T02:00Z'),(21,3,'🥾','2026-11-02T03:00Z'),
        (22,1,'muscle','2026-11-09T01:00Z'),(22,2,'muscle','2026-11-09T02:00Z');
      INSERT INTO group_weekly_reactions VALUES
-       ('g','2026-11-02',1,'hike','2026-11-02T01:00Z'),('g','2026-11-02',2,'mountain','2026-11-02T02:00Z'),
+       ('g','2026-11-02',1,'hike','2026-11-02T01:00Z'),('g','2026-11-02',2,'mountain','2026-11-02T02:00Z'),('g','2026-11-02',3,'🥾','2026-11-02T03:00Z'),
        ('g','2026-11-09',1,'muscle','2026-11-09T01:00Z'),('g','2026-11-09',2,'muscle','2026-11-09T02:00Z');""")
    c.execute(migration)
    counts=c.execute('SELECT activity_id,kind,count(*) AS total FROM cheers GROUP BY activity_id,kind ORDER BY activity_id,kind').fetchall()
-   self.assertEqual([(r['activity_id'],r['kind'],r['total']) for r in counts],[(1,'thumbsup',2),(2,'muscle',2)])
+   self.assertEqual([(r['activity_id'],r['kind'],r['total']) for r in counts],[(1,'thumbsup',3),(2,'muscle',2)])
    self.assertEqual([(r['id'],r['reaction_kind'],r['cancelled']) for r in c.execute('SELECT id,reaction_kind,cancelled FROM notifications ORDER BY id').fetchall()],
-       [(11,'thumbsup',False),(12,'muscle',True),(13,'fire',False),(14,None,False)])
+       [(11,'thumbsup',False),(12,'muscle',True),(13,'fire',False),(14,None,False),(15,'thumbsup',False)])
    for table,object_column in [('achievement_moment_reactions','week_start'),('group_update_reactions','update_id'),('group_weekly_reactions','week_start')]:
     rows=c.execute(f'SELECT {object_column},kind,count(*) AS total FROM {table} GROUP BY {object_column},kind ORDER BY {object_column},kind').fetchall()
     self.assertEqual([(r[object_column] if object_column=='update_id' else str(r[object_column]),r['kind'],r['total']) for r in rows],
-        [('2026-11-02' if object_column!='update_id' else 21,'thumbsup',2),('2026-11-09' if object_column!='update_id' else 22,'muscle',2)])
+        [('2026-11-02' if object_column!='update_id' else 21,'thumbsup',3),('2026-11-09' if object_column!='update_id' else 22,'muscle',2)])
    # Re-running the data update is a no-op and leaves every row in place.
    c.execute(migration)
    self.assertEqual(c.execute('SELECT activity_id,kind,count(*) AS total FROM cheers GROUP BY activity_id,kind ORDER BY activity_id,kind').fetchall(),counts)
