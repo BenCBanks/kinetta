@@ -1,1 +1,86 @@
-{"generated_at": "2026-11-24T11:58:21.932005+00:00", "revision": "1d89fc20f182173be9d2398b78dc9aa8fcc72ecc"}
+{
+  "generated_at": "2026-11-24T13:30:07.696693+00:00",
+  "revision": "3bf926e04dd0a7f8fb8e1ce8729d8a03f389d779",
+  "simulator_captures": {
+    "source_revision": "5ccfc61156ec8d979ea3c451772a51b74b02ff9a",
+    "device": "iPhone 16",
+    "runtime": "iOS 26.5",
+    "sdk": "26.5",
+    "fixture": "dev/tests/native-ui/appstore.cjs",
+    "emoji_renderer": "Apple iOS Simulator",
+    "captures": [
+      {
+        "stage": "achievements",
+        "theme": "dark",
+        "device": "iPhone 16",
+        "runtime": "iOS 26.5",
+        "sdk": "26.5",
+        "safe_top_points": 59,
+        "fixture": "dev/tests/native-ui/appstore.cjs",
+        "source_sha256": "bdf43e91d500941802720d6f4177867da94f6327bc8d66aa7be93b36a6120f0e",
+        "two_x": "dark-achievements.webp",
+        "one_x": "dark-achievements-1x.webp"
+      },
+      {
+        "stage": "achievements",
+        "theme": "light",
+        "device": "iPhone 16",
+        "runtime": "iOS 26.5",
+        "sdk": "26.5",
+        "safe_top_points": 59,
+        "fixture": "dev/tests/native-ui/appstore.cjs",
+        "source_sha256": "6e27f357b33165750aa83c44d04473607e7ef71874fe2ba0ed96ee45fad3fdc9",
+        "two_x": "light-achievements.webp",
+        "one_x": "light-achievements-1x.webp"
+      },
+      {
+        "stage": "activity",
+        "theme": "dark",
+        "device": "iPhone 16",
+        "runtime": "iOS 26.5",
+        "sdk": "26.5",
+        "safe_top_points": 59,
+        "fixture": "dev/tests/native-ui/appstore.cjs",
+        "source_sha256": "de9b051a1cbfbfdf1ef98491478b1f4422be91a3715b5623609a8e4c9380a491",
+        "two_x": "dark-activity-detail.webp",
+        "one_x": "dark-activity-detail-1x.webp"
+      },
+      {
+        "stage": "activity",
+        "theme": "light",
+        "device": "iPhone 16",
+        "runtime": "iOS 26.5",
+        "sdk": "26.5",
+        "safe_top_points": 59,
+        "fixture": "dev/tests/native-ui/appstore.cjs",
+        "source_sha256": "933533da408665e37f04c2a74677ebdf34dd34cf63aed942093aa936f8325562",
+        "two_x": "light-activity-detail.webp",
+        "one_x": "light-activity-detail-1x.webp"
+      },
+      {
+        "stage": "header-me",
+        "theme": "dark",
+        "device": "iPhone 16",
+        "runtime": "iOS 26.5",
+        "sdk": "26.5",
+        "safe_top_points": 59,
+        "fixture": "dev/tests/native-ui/appstore.cjs",
+        "source_sha256": "1324ac646d9f59a0892fa9e9d90501e5515a240435684ab6b1a4d01e5e4ba85b",
+        "two_x": "1319-profile-dark.webp",
+        "one_x": "1319-profile-dark-1x.webp"
+      },
+      {
+        "stage": "header-me",
+        "theme": "light",
+        "device": "iPhone 16",
+        "runtime": "iOS 26.5",
+        "sdk": "26.5",
+        "safe_top_points": 59,
+        "fixture": "dev/tests/native-ui/appstore.cjs",
+        "source_sha256": "68587fd6e281725ca404069412ef46115e0bd553f084ca48dd83c03e47dfb980",
+        "two_x": "1319-profile-light.webp",
+        "one_x": "1319-profile-light-1x.webp"
+      }
+    ]
+  }
+}
