@@ -13,7 +13,7 @@ router = APIRouter()
 
 class CompareRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    activity_id: int = Field(gt=0, strict=True)
+    activity_id: int = Field(gt=0, le=2**63 - 1, strict=True)
 
 
 CONSENTS_SQL = """SELECT coalesce(health_ai_ok,false) AS health_ok,
@@ -28,6 +28,8 @@ BASELINE_SQL = """SELECT id,user_id,sport,source,healthkit_id,start_time,distanc
       AND start_time >= %s - interval '120 days' AND start_time < %s
       AND distance_m > 0 AND moving_s > 0
       AND distance_m BETWEEN %s * 0.8 AND %s * 1.2
+      AND NOT (start_time BETWEEN %s - interval '2 minutes' AND %s + interval '2 minutes'
+          AND distance_m BETWEEN %s * 0.85 AND %s * 1.15)
       AND (NOT (source='healthkit' OR healthkit_id IS NOT NULL) OR %s)
       AND (source<>'garmin_connect' OR %s)
     ORDER BY start_time DESC,id DESC LIMIT 5"""
@@ -36,6 +38,8 @@ LONGEST_SQL = """SELECT max(distance_m) AS distance_m FROM activities
     WHERE user_id=%s AND sport=%s AND id<>%s
       AND start_time >= %s - interval '90 days' AND start_time < %s
       AND distance_m > 0
+    AND NOT (start_time BETWEEN %s - interval '2 minutes' AND %s + interval '2 minutes'
+        AND distance_m BETWEEN %s * 0.85 AND %s * 1.15)
       AND (NOT (source='healthkit' OR healthkit_id IS NOT NULL) OR %s)
       AND (source<>'garmin_connect' OR %s)"""
 
@@ -47,11 +51,12 @@ def _health_activity(activity):
 
 
 def _source_allowed(activity, consents):
+    allowed = True
     if _health_activity(activity):
-        return consents['health_ok']
+        allowed = allowed and consents['health_ok']
     if activity['source'] == 'garmin_connect':
-        return consents['garmin_ok']
-    return True
+        allowed = allowed and consents['garmin_ok']
+    return allowed
 
 
 def _number(value):
@@ -90,7 +95,8 @@ def _comparison(c, uid, activity, consents):
     else:
         rows = c.execute(BASELINE_SQL, (
             uid, activity['sport'], activity['id'], activity['start_time'], activity['start_time'],
-            distance, distance, consents['health_ok'], consents['garmin_ok'],
+            distance, distance, activity['start_time'], activity['start_time'], distance, distance,
+            consents['health_ok'], consents['garmin_ok'],
         )).fetchall()
 
     count = len(rows)
@@ -113,6 +119,9 @@ def _comparison(c, uid, activity, consents):
     if 'pace_s_per_km' in deltas:
         delta = deltas['pace_s_per_km']
         relations['pace_s_per_km'] = 'about_the_same' if abs(delta) <= 5 else ('slower' if delta > 0 else 'faster')
+    if 'speed_mps' in deltas:
+        delta = deltas['speed_mps']
+        relations['speed_mps'] = 'about_the_same' if abs(delta) <= 0.1 else ('faster' if delta > 0 else 'slower')
     if 'avg_hr' in deltas:
         delta = deltas['avg_hr']
         relations['avg_hr'] = 'about_the_same' if abs(delta) <= 2 else ('higher' if delta > 0 else 'lower')
@@ -122,6 +131,7 @@ def _comparison(c, uid, activity, consents):
         notable = 'personal_record'
     longest = c.execute(LONGEST_SQL, (
         uid, activity['sport'], activity['id'], activity['start_time'], activity['start_time'],
+        activity['start_time'], activity['start_time'], distance, distance,
         consents['health_ok'], consents['garmin_ok'],
     )).fetchone()['distance_m']
     if notable == 'none' and distance is not None and (longest is None or distance > float(longest)):
