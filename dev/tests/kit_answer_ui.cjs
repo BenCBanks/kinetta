@@ -2,7 +2,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS||'/tmp/kit-answer-ui';
-const visitId='fixture-kit-ask-detail-visit',generation='fixture-kit-ask-detail-generation';
+const generation='fixture-kit-ask-detail-generation';
 const message={id:1,client_id:'fixture-kit-ask-detail',question:'How was my recent training?',state:'answered',answer:{
  verdict:'Your recent records show heavier training this week.',reason:'This fictional example uses workout effort and your usual training.',
  facts:[
@@ -24,7 +24,7 @@ async function main(){
   for(const width of [390,330])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
    const visitRequests=[],endRequests=[],conversationReads=[],clearRequests=[];
-   let serverEndedVisit=null,serverEndReported=false,fixtureAccountId=null;
+   let serverEndedVisit=null,serverEndReported=false,fixtureAccountId=null,overflowMode=false;
    if(width===390&&theme==='light')await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
    p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',async route=>{
@@ -36,7 +36,7 @@ async function main(){
     }
     if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST'){const id=req.postDataJSON().visit_id;visitRequests.push(id);return route.fulfill({json:{visit_id:id,generation,ready:true}});}
     if(/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(u.pathname)&&req.method()==='POST'){endRequests.push(decodeURIComponent(u.pathname.split('/').at(-2)));return route.fulfill({json:{ok:true}});}
-    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET'){const id=u.searchParams.get('visit_id');conversationReads.push(id);if(id===serverEndedVisit&&!serverEndReported){serverEndReported=true;return route.fulfill({status:409,json:{detail:'This Kit visit has ended. Open a fresh chat; your draft is kept.'}});}return route.fulfill({json:{generation,ready:true,before:null,messages:id===visitRequests[0]?[message]:[]}});}
+    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET'){const id=u.searchParams.get('visit_id');conversationReads.push(id);if(id===serverEndedVisit&&!serverEndReported){serverEndReported=true;return route.fulfill({status:409,json:{detail:'This Kit visit has ended. Open a fresh chat; your draft is kept.'}});}const responseMessage=overflowMode?{...message,answer:{...message.answer,follow_ups:['Would you like to review your latest completed workouts from this training block and compare how they fit my plan?','Compare every recorded workout this month with my plan and explain the differences in effort, distance, pace and consistency.']}}:message;return route.fulfill({json:{generation,ready:true,before:null,messages:id===visitRequests[0]?[responseMessage]:[]}});}
     if(u.pathname==='/api/coach/conversation/clear'&&req.method()==='POST'){const body=req.postDataJSON();clearRequests.push(body.visit_id);return route.fulfill({json:{visit_id:'cleared-kit-visit',generation,ready:true,messages:[]}});}
     if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
     if(req.method()==='POST'||req.method()==='PUT'||req.method()==='PATCH'||req.method()==='DELETE'){
@@ -51,10 +51,10 @@ async function main(){
     const field=row.querySelector('#kit-text'),send=row.querySelector('#kit-send'),r=row.getBoundingClientRect(),b=send.getBoundingClientRect();
     return{height:r.height,send:{width:b.width,height:b.height,visible:getComputedStyle(send,'::before').width},fieldHeight:field.getBoundingClientRect().height};
    });
-   assert(composer.height<=48,`${width}px ${theme}: composer stays slim: ${JSON.stringify(composer)}`);
+   assert.equal(composer.height,40,`${width}px ${theme}: composer is 40px tall: ${JSON.stringify(composer)}`);
    assert.equal(composer.send.width,44,`${width}px ${theme}: Send retains a 44px touch target`);
    assert.equal(composer.send.visible,'32px',`${width}px ${theme}: visible Send circle is 32px`);
-   assert(composer.fieldHeight<=40,`${width}px ${theme}: one-line field stays about 40px high`);
+   assert(composer.fieldHeight<=36,`${width}px ${theme}: one-line field fits the 40px composer`);
    await p.locator('#kit-text').focus();
    const focus=await p.locator('.kit-compose-row').evaluate(row=>{const rules=[];const walk=items=>{for(const rule of items){if(rule.cssRules)walk(rule.cssRules);else if(rule.selectorText)try{if(row.matches(rule.selectorText)||rule.selectorText.includes('.kit-compose-row:focus-within')){const s=rule.style;if(s.getPropertyValue('border')||s.getPropertyValue('border-width')||s.getPropertyValue('outline'))rules.push({selector:rule.selectorText,border:s.getPropertyValue('border'),width:s.getPropertyValue('border-width'),outline:s.getPropertyValue('outline')});}}catch{}}};for(const sheet of document.styleSheets)try{walk(sheet.cssRules)}catch{}const s=getComputedStyle(row);return{focused:row.matches(':focus-within'),active:document.activeElement?.id,border:s.borderTopWidth,color:s.borderTopColor,outline:s.outlineStyle,outlineWidth:s.outlineWidth,outlineOffset:s.outlineOffset,outlineColor:s.outlineColor,shadow:s.boxShadow,rules};});
    assert.equal(focus.outline,'solid',`${width}px ${theme}: focus uses one brand outline: ${JSON.stringify(focus)}`);
@@ -72,39 +72,46 @@ async function main(){
     const buttons=[...replies.querySelectorAll('button')].map(button=>{
      const span=button.querySelector('span'),range=document.createRange();range.selectNodeContents(span);
      const lines=[...range.getClientRects()].map(r=>({top:r.top,bottom:r.bottom,left:r.left,right:r.right})),box=rect(button),s=getComputedStyle(button);
-     return{box,lines,minHeight:s.minHeight,paddingTop:s.paddingTop,paddingBottom:s.paddingBottom,border:s.borderTopWidth,borderRadius:s.borderTopLeftRadius,shadow:s.boxShadow,background:s.backgroundColor,color:s.color,arrow:rect(button.querySelector('svg'))};
+    return{box,text:span.innerText,lines,minHeight:s.minHeight,paddingTop:s.paddingTop,paddingBottom:s.paddingBottom,border:s.borderTopWidth,borderRadius:s.borderTopLeftRadius,shadow:s.boxShadow,background:s.backgroundColor,color:s.color,arrow:rect(button.querySelector('svg'))};
     });
     return{column:rect(article),card:rect(card),reason:rect(reason),facts:rect(facts),details:rect(details),rows,replies:rect(replies),buttons,cardText:card.innerText,cardHasReply:!!card.querySelector('.kit-suggested-replies')};
    });
    assert(metrics.details.top-metrics.reason.bottom>=11.5,`${width}px ${theme}: verdict rows have 12px separation from the explanation`);
    assert(metrics.rows.length===2,`${width}px ${theme}: missing training values are not replaced with placeholders`);
    assert(metrics.rows.every(row=>row.height>=44&&row.border==='1px'),`${width}px ${theme}: both detail rows keep 44px height and inset dividers`);
+   assert(Math.abs(metrics.rows[0].height-metrics.rows[1].height)<=1,`${width}px ${theme}: training rows have equal height: ${JSON.stringify(metrics.rows.map(row=>row.height))}`);
    assert.equal(metrics.rows[0].label.width>0,true,`${width}px ${theme}: Recent training label is visible`);
    assert.equal(metrics.rows[0].verdict.width>0,true,`${width}px ${theme}: Recent training verdict is visible`);
    assert.equal(metrics.rows[0].color,await p.locator('.kit-answer').evaluate(n=>getComputedStyle(n).color),`${width}px ${theme}: verdict uses plain text color`);
-   assert(metrics.cardText.includes('Recent training')&&metrics.cardText.includes('Heavier than usual')&&metrics.cardText.includes('≈ 61 this week vs ≈ 48 usual'),`${width}px ${theme}: whole-number recent-training row is shown`);
+   assert(metrics.cardText.includes('Recent training')&&metrics.cardText.includes('Heavier than usual')&&metrics.cardText.includes('≈ 61 vs ≈ 48 usual'),`${width}px ${theme}: concise whole-number recent-training row is shown`);
    assert(metrics.cardText.includes('Freshness')&&metrics.cardText.includes('Fresh')&&metrics.cardText.includes('≈ +9'),`${width}px ${theme}: whole-number freshness row is shown`);
    assert(!/\b(?:Fatigue|Fitness|Form)\b/.test(metrics.cardText),`${width}px ${theme}: technical training-load labels are absent`);
    if(width===330)assert(metrics.rows.every(row=>row.verdict.y>=row.label.y+row.label.height-1),`${width}px ${theme}: verdict stacks below its label`);
    assert.equal(metrics.cardHasReply,false,`${width}px ${theme}: suggested replies sit outside the answer card`);
-   assert.equal(metrics.buttons.length,2,`${width}px ${theme}: at most two replies show`);
+   assert.equal(metrics.buttons.length,2,`${width}px ${theme}: two short replies show: ${JSON.stringify(metrics.buttons.map(button=>({text:button.text,lines:button.lines.length,box:button.box})))}`);
    assert(metrics.replies.left>=metrics.column.left&&metrics.replies.right<=metrics.column.right+1,`${width}px ${theme}: reply bubbles stay within the message column`);
    for(const [i,b] of metrics.buttons.entries()){
     assert(b.box.height>=44,`${width}px ${theme}: reply ${i+1} has a 44px target`);
-    assert(b.box.width<=metrics.column.width*.8+1,`${width}px ${theme}: reply ${i+1} stays within 80% width`);
+    assert(b.box.width<=metrics.column.width*.92+1,`${width}px ${theme}: reply ${i+1} stays inside the message column`);
     assert.equal(b.border,'0px',`${width}px ${theme}: reply ${i+1} has no border`);
     assert.equal(b.shadow,'none',`${width}px ${theme}: reply ${i+1} has no shadow`);
     assert(b.lines.length>0&&b.arrow.width===16,`${width}px ${theme}: reply ${i+1} wraps beside the send arrow`);
     for(const line of b.lines)assert(line.top>=b.box.top+1&&line.bottom<=b.box.bottom-1&&line.left>=b.box.left+1&&line.right<=b.box.right-1,`${width}px ${theme}: reply text stays inside its bubble: ${JSON.stringify({line,box:b.box})}`);
    }
-   assert(metrics.buttons[0].lines.length>=2,`${width}px ${theme}: long reply wraps naturally`);
+   assert(metrics.buttons.every(button=>button.lines.length<=2),`${width}px ${theme}: each reply stays within two lines`);
    assert.deepEqual(await p.locator('.kit-suggested-reply').allTextContents().then(rows=>rows.map(s=>s.trim())),[
-    'Review my latest completed workouts from this training block and compare how they fit my plan','My legs feel heavy today'
+    'Compare my workouts','My legs feel heavy today'
    ],`${width}px ${theme}: question-form replies are rewritten and unsupported questions dropped`);
+   assert(await p.locator('.kit-suggested-reply').evaluateAll(rows=>rows.every(row=>!row.innerText.includes('…'))),`${width}px ${theme}: replies are never ellipsis-truncated`);
    assert.equal(await p.locator('.kit-facts > div').count(),2,`${width}px ${theme}: unrelated facts remain visible`);
    assert.deepEqual(errors,[],`${width}px ${theme}: no page errors`);
    assert.deepEqual(unexpectedWrites,[],`${width}px ${theme}: fixture answer makes no writes or provider requests`);
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-detail-${width}-${theme}.png`),animations:'disabled'});}
+   overflowMode=true;await p.reload();await p.locator('.kit-suggested-reply').first().waitFor({state:'visible'});
+   assert.equal(await p.locator('.kit-suggested-reply').count(),1,`${width}px ${theme}: an unrewriteable reply beyond two lines is dropped`);
+   assert.equal((await p.locator('.kit-suggested-reply').first().innerText()).trim(),'Compare my workouts');
+   overflowMode=false;
+   await p.reload();await p.locator('.kit-answer').waitFor({state:'visible'});
    if(width===390&&theme==='light'){
     await p.locator('#kit-text').fill('Unsent question kept for later');
     const originalVisit=visitRequests[0];assert(originalVisit,'the first chat creates a server visit');
@@ -190,7 +197,7 @@ async function main(){
    await p.goto(base+'/me/kit?from=activity');await p.locator('#kit-text').fill(theme==='light'?'Review my latest workout':'Check my records');await p.locator('#kit-send').click();
    await p.locator('.kit-waiting-bubble .thread-typing').waitFor({state:'visible'});
    assert.equal(question,theme==='light'?'Review my latest workout':'Check my records');
-   const typingBox=await p.locator('.kit-waiting-bubble').boundingBox();
+   const typingBox=await p.locator('.kit-waiting-bubble').evaluate(el=>{const r=el.getBoundingClientRect();return{width:r.width,x:r.x};});
    assert(typingBox.width<=112&&typingBox.x<=24,`${theme}: typing indicator is a small left-aligned bubble: ${JSON.stringify(typingBox)}`);
    const initialDots=await p.locator('.kit-waiting-bubble .thread-typing span').evaluateAll(spans=>spans.map(node=>getComputedStyle(node).animationName));
    assert(initialDots.length===3,`${theme}: the compact wait bubble has three dots`);

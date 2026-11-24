@@ -3,6 +3,8 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const c={route(){},KitChat:{loaded:false},IC:{},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
 for(const [input,expected] of [
  ['Would you like to review your recent workouts?','Review my recent workouts'],
+ ['Would you like to review your latest completed workouts from this training block and compare how they fit your plan?','Compare my workouts'],
+ ['Would you like to review your latest completed workouts from this training block and compare how they fit my plan?','Compare my workouts'],
  ['Do you want to log meals for today?','Log meals for today'],
  ['Should we set up a training plan?','Set up a training plan'],
  ['Would you like to compare your recent strength sessions with your earlier workouts?','Compare my recent strength sessions with my earlier workouts'],
@@ -18,6 +20,7 @@ for(const [input,expected] of [
  ['Would you like to?','Would you like to?'],
 ])assert.equal(c.Kit.rewriteFollowup(input),expected,`screen-side follow-up rewrite: ${input}`);
 assert(source.includes('a.follow_ups.slice(0,2).map(rewriteFollowup).filter(Boolean)')&&source.includes('class="kit-suggested-reply" data-kit-followup')&&source.includes("send(c,b.querySelector('span')?.textContent.trim()||'')"),'at most two rewritten suggestions render as sendable user bubbles');
+assert(source.includes('function pruneLongSuggestions(root)')&&source.includes('if(new Set(lines).size>2)button.remove()'),'suggestions over two rendered lines are dropped without truncation');
 assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
 assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition)),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
 assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.progress)),['Am I improving?','Look at my consistency','Choose a focus','Review my week'],'the weekly review is an explicit fourth Progress question');
@@ -146,7 +149,7 @@ assert(css.includes('.chat-suggestions > button svg {flex:none;width:20px;height
 assert(css.includes('.kit-chat #kit-starters {flex:none;}')&&css.includes('.kit-chat #kit-composer {padding-top:0;margin-top:auto;}'),'Kit suggestions sit at the page bottom above its composer');
 assert(source.includes('elapsed<4000')&&source.includes('elapsed>=20000')&&source.includes('Looking at your recent workouts…')&&source.includes('Checking your data…')&&source.includes('Still working…'),'the wait bubble progresses from dots to contextual status to a long-wait note');
 assert(source.includes("Kit couldn't check that answer. Try a simpler question or Retry.")&&!source.includes('esc(c.answerErrors?.[m.client_id]'),'answer failures use the helpful client copy, not raw server errors');
-assert(css.includes('.kit-chat .kit-compose-row:focus-within {border-color:transparent;outline:1.5px solid var(--accent);outline-offset:-1.5px;box-shadow:none;}')&&css.includes('inset:6px;border-radius:50%;background:var(--btn);'),'composer focus is a thin brand outline and Send has a 32px visible circle');
+assert(css.includes('.kit-chat .kit-compose-row {display:flex;align-items:center;gap:6px;width:100%;height:40px;min-height:40px;')&&css.includes('.kit-chat .kit-compose-row:focus-within {border-color:transparent;outline:1.5px solid var(--accent);outline-offset:-1.5px;box-shadow:none;}')&&css.includes('inset:6px;border-radius:50%;background:var(--btn);'),'composer is 40px tall, with a 1.5px ring and a 32px visible Send circle');
 assert(css.includes('#kit-text {font-size:max(16px,1rem);'),'Kit composer follows large text settings while keeping a 16px minimum');
 assert.match(css,/--text-nav-title\s*:\s*17px/);
 assert(css.includes('.shell .top.subpage-header > h1')&&css.includes('text-overflow:ellipsis'),'shared pushed-page titles truncate in their centered row');
@@ -154,9 +157,9 @@ assert(css.includes('.subpage-header > .icon-btn:not(.progress-back)'),'Progress
 assert(css.includes('.shell .top.subpage-header {margin-inline:-8px;padding-inline:8px;}'),'narrow shared headers align Back with page content while keeping the title centered');
 assert(css.includes('.food-thread .thread-heading h1')&&css.includes('var(--text-nav-title)'),'chat headings use the same title token');
 assert(css.includes('.kit-chat .kit-food-inline:has(#thread-review:not([hidden])) #thread-messages article:last-child .thread-card {border-bottom:0;')&&css.includes('margin:0;border-top:0;border-bottom:1px solid var(--line);border-radius:0 0 20px 6px;'),'the inline review footer completes the same food card border and radius');
-assert(css.includes('.kit-training-row {display:grid;')&&css.includes('min-height:44px;padding:8px 0;border-top:1px solid var(--line);'),'training verdict rows keep a divider and 44px minimum height');
+assert(css.includes('.kit-training-row {display:grid;')&&css.includes('min-height:44px;padding:4px 0;border-top:1px solid var(--line);'),'training verdict rows keep an inset divider and equal compact padding');
 assert(css.includes('@media (max-width:350px)')&&css.includes('.kit-training-row dd {text-align:left;}'),'narrow Kit detail rows put the verdict below the label');
-assert(css.includes('.kit-suggested-reply {')&&css.includes('max-width:80%')&&css.includes('background:var(--accent2)')&&css.includes('color:var(--accent)')&&css.includes('border:0;'),'suggested replies are borderless brand bubbles no wider than 80%');
+assert(css.includes('.kit-suggested-reply {')&&css.includes('max-width:92%')&&css.includes('background:var(--accent2)')&&css.includes('color:var(--accent)')&&css.includes('border:0;'),'suggested replies are borderless brand bubbles within the message column');
 assert(css.includes('.food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2;'),'the narrow two-row food-chat layout does not move Ask Kit off its one-row navigation header');
 assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button>'),'empty chat reminder sits below the composer');
 assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('Your chat stays while you switch apps. Start a new one anytime.')&&source.includes('providerName()'),'About Kit explains visit retention and keeps provider details');
@@ -164,7 +167,7 @@ assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('Ab
 const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null,')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
 const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
 const followups=['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?'].map(q=>({onclick:null,querySelector(){return {textContent:c.Kit.rewriteFollowup(q)}}})),sent=[];
-const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,rewriteFollowup:c.Kit.rewriteFollowup,waitBubble:()=>'<div class="kit-status-bubble"></div>',controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){return '<svg></svg>';},send:async(_c,q)=>sent.push(q)};
+const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,rewriteFollowup:c.Kit.rewriteFollowup,pruneLongSuggestions(){},waitBubble:()=>'<div class="kit-status-bubble"></div>',controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){return '<svg></svg>';},send:async(_c,q)=>sent.push(q)};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
 drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
@@ -185,7 +188,7 @@ assert(!answerHtml.includes('Do not duplicate')&&!answerHtml.includes('href="/pr
 assert.equal((answerHtml.match(/data-kit-followup/g)||[]).length,2);
 assert(answerHtml.includes('</div><div class="kit-suggested-replies"')&&!answerHtml.includes('kit-answer-followups'),'send bubbles sit outside the answer card');
 const trainingHtml=drawAnswer({facts:[{path:['days',9,'fatigue'],value:61.4},{path:['days',9,'fitness'],value:48.4},{path:['days',9,'form'],value:8.7}]});
-assert(trainingHtml.includes('Recent training')&&trainingHtml.includes('Heavier than usual')&&trainingHtml.includes('≈ 61 this week vs ≈ 48 usual'),'recent training shows its verdict before whole-number estimates');
+assert(trainingHtml.includes('Recent training')&&trainingHtml.includes('Heavier than usual')&&trainingHtml.includes('≈ 61 vs ≈ 48 usual'),'recent training shows its verdict before concise whole-number estimates');
 assert(trainingHtml.includes('Freshness')&&trainingHtml.includes('>Fresh</strong>')&&trainingHtml.includes('≈ +9'),'freshness is a plain verdict with a whole number');
 assert(!trainingHtml.includes('Fatigue')&&!trainingHtml.includes('Fitness')&&!trainingHtml.includes('Form'),'technical training-load labels are replaced');
 const detailFor=(fatigue,fitness,form)=>drawAnswer({facts:[{path:['days',2,'fatigue'],value:fatigue},{path:['days',2,'fitness'],value:fitness},{path:['days',2,'form'],value:form}]});

@@ -9,7 +9,7 @@ const sourceReplies=[
  'Do you feel ready to train again?'
 ];
 const displayedReplies=[
- 'Review my latest completed workouts from this training block and compare how they fit my plan',
+ 'Compare my workouts',
  'My legs feel heavy today'
 ];
 const initial={id:1,client_id:'fixture-kit-voice-answer',question:'Look at my consistency',state:'answered',answer:{

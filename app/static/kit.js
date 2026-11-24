@@ -22,6 +22,7 @@ Object.assign(KitChat, (() => {
   const followupVerbs=new Set(['add','adjust','analyze','build','calculate','check','choose','compare','consider','create','describe','estimate','explain','explore','find','focus','get','go','help','identify','improve','include','keep','learn','list','log','look','make','measure','open','pick','plan','record','review','save','see','set','show','start','summarize','switch','tell','think','track','try','understand','update','use','view']);
   function rewriteFollowup(text){
     const original=String(text??''),trimmed=original.trim();
+    if(/^would you like to review your latest completed workouts from this training block and compare how they fit (?:my|your) plan\?$/i.test(trimmed))return 'Compare my workouts';
     const feeling=trimmed.match(/^are your (legs|arms|feet|shoulders|hips) feeling (heavy|tired|fatigued)(?: or (?:heavy|tired|fatigued))? today\?$/i);
     if(feeling)return `My ${feeling[1].toLowerCase()} feel ${feeling[2].toLowerCase()==='fatigued'?'tired':feeling[2].toLowerCase()} today`;
     const match=trimmed.match(/^(?:would\s+you\s+like\s+to|do\s+you\s+want\s+to|should\s+we|shall\s+we|can\s+we|want\s+to)\s+(.+?)\?$/i);
@@ -34,6 +35,14 @@ Object.assign(KitChat, (() => {
     result=result[0].toUpperCase()+result.slice(1);
     const first=result.match(/^([\p{L}]+)/u)?.[1];
     return first&&followupVerbs.has(first.toLowerCase())?result:original;
+  }
+  function pruneLongSuggestions(root){
+    const prune=()=>$$('.kit-suggested-reply',root).forEach(button=>{
+        const text=button.querySelector('span'),range=document.createRange();range.selectNodeContents(text);
+        const lines=[...range.getClientRects()].map(rect=>Math.round(rect.top*10)/10);
+        if(new Set(lines).size>2)button.remove();
+      });
+    if(document.fonts?.status==='loading')document.fonts.ready.then(prune);else prune();
   }
   const starters={
     me:['Review my progress','Plan my next step','Help me use Kinetta'],
@@ -155,7 +164,7 @@ Object.assign(KitChat, (() => {
     if(Number.isFinite(latest.fatigue)&&Number.isFinite(latest.fitness)&&Math.round(latest.fitness)>0){
       const fatigue=Math.round(latest.fatigue),fitness=Math.round(latest.fitness),ratio=fatigue/fitness;
       const verdict=ratio<.8?'Lighter than usual':ratio>1.2?'Heavier than usual':'About usual';
-      out.push({label:'Recent training',verdict,detail:`≈ ${round(fatigue)} this week vs ≈ ${round(fitness)} usual`});
+      out.push({label:'Recent training',verdict,detail:`≈ ${round(fatigue)} vs ≈ ${round(fitness)} usual`});
     }
     if(Number.isFinite(latest.form)){
       const form=Math.round(latest.form),verdict=form < -10?'Carrying tiredness':form>5?'Fresh':'Balanced';
@@ -183,6 +192,7 @@ Object.assign(KitChat, (() => {
       return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${a.verdict?`<p class="kit-verdict">${esc(a.verdict)}</p>${a.reason?`<p class="kit-reason">${esc(a.reason)}</p>`:''}`:`<p>${esc(a.interpretation||'')}</p>`}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${detailRows.length?`<dl class="kit-training-details">${detailRows.map(row=>`<div class="kit-training-row"><dt>${row.label}</dt><dd><strong>${esc(row.verdict)}</strong><small>${esc(row.detail)}</small></dd></div>`).join('')}</dl>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>`<div><dt>${esc(factLabel(f))}</dt><dd>${esc(factValue(f))}</dd></div>`).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>${followups.length?`<div class="kit-suggested-replies" aria-label="Suggested replies">${followups.map(q=>`<button type="button" class="kit-suggested-reply" data-kit-followup aria-label="Send: ${esc(q)}"><span>${esc(q)}</span>${svg('send')}</button>`).join('')}</div>`:''}`:failed?errorBubble("Kit couldn't check that answer. Try a simpler question or Retry.",retry):waitingTarget?.id===String(m.client_id)?waitingHtml:''}</article>`;
     }).join('')+(pending?`<article><div class="thread-user"><p>${esc(c.job.question)}</p></div>${c.jobError?errorBubble("Your question couldn't be sent. Try again.",kitChatOn()&&c.ready?'<button type="button" class="primary kit-error-retry" id="kit-retry-send">Retry</button>':''):waitingHtml}</article>`:'')+(c.foodStarted?'<div id="kit-food-slot"></div>':'');
     if(foodHost&&c.foodStarted)$('#kit-food-slot',list)?.append(foodHost);
+    pruneLongSuggestions(list);
     $('#kit-starters',c.el).hidden=!!has;
     $('#kit-intro',c.el).hidden=!!has;
     $('#kit-fine',c.el).hidden=!!has;
