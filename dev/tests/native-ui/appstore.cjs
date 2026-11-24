@@ -2,13 +2,13 @@
 'use strict';
 const assert=require('node:assert/strict');
 const achievementCatalog=require('../../../app/static/profile.achievement-levels.json');
-module.exports=()=>{
+module.exports=(homepage=false)=>{
  const today='2026-11-02',date=(days)=>new Date(Date.UTC(2026,10,2-days)).toISOString().slice(0,10);
  const activity=require('../../demo/activity_detail.cjs')(),friends=require('../../demo/friends.cjs')('typical');
  friends.friends=Array.from({length:3},(_,i)=>({...friends.friends[0],login:['jordan','casey','taylor'][i],name:['Jordan Example','Casey Example','Taylor Example'][i]}));
 assert.equal(friends.friends.length,3,'the App Store story includes a populated fictional Friends screen');
  activity.name='Morning park run';activity.start_time='2026-11-02T08:30:00Z';
- activity.social={...activity.social,visibility:'me',my_reaction:'thumbsup',reactions:{thumbsup:1,fire:2,clap:1},reaction_order:['fire','clap','thumbsup'],cheers:[
+ if(homepage)activity.social={...activity.social,visibility:'me',my_reaction:'thumbsup',reactions:{thumbsup:1,fire:2,clap:1},reaction_order:['fire','clap','thumbsup'],cheers:[
   {login:'alex',name:'Alex Example',kind:'thumbsup'},{login:'jordan',name:'Jordan Example',kind:'fire'},
   {login:'casey',name:'Casey Example',kind:'fire'},{login:'taylor',name:'Taylor Example',kind:'clap'}
  ],comments:[

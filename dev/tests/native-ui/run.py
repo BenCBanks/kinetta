@@ -113,7 +113,7 @@ for device in preferred:
     if installed:recovered=stop_for_fixture(sim,udid,theme,recovered)
     diagnostics['terminationRecovery']=recovered;(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     destination=installed or copy
-    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if store_fixture else []),*(['--startup-timing'] if measure_startup else []))
+    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if store_fixture else []),*(['--homepage'] if a.homepage else []),*(['--startup-timing'] if measure_startup else []))
     if not installed:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
     if stage=='activity-photos-save':sim('privacy',udid,'grant','photos-add','com.kinetta.app')
@@ -245,7 +245,7 @@ for device in preferred:
      assert grid and grid['x']>=fields['x']-.5 and grid['right']<=fields['right']+.5,metrics
      assert all(r and r['x']>=fields['x']-.5 and r['right']<=fields['right']+.5 for r in groups['labels']),metrics
     if stage.startswith('activity'):
-     detail=metrics['activity'];assert detail['social']['hidden'],metrics
+     detail=metrics['activity'];assert a.homepage or detail['social']['hidden'],metrics
      if stage=='activity-map':
       assert detail['expanded'] and detail['close']['y']>=metrics['safeTop'],metrics
      else:

@@ -2,7 +2,7 @@
 import argparse,json,math,re,shutil,subprocess,uuid
 from datetime import datetime
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-photos-save','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements','achievement-share-track'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');p.add_argument('--startup-timing',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-photos-save','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements','achievement-share-track'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--homepage',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');p.add_argument('--startup-timing',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
 assert a.destination.suffix=='.app' and a.destination.resolve()!=a.source.resolve()
 if a.update:
@@ -21,7 +21,7 @@ if a.stage=='header-activity' and not a.store:
  if fixture_data['friends']:
   fixture_data['friends'][0]['owner']['name']='River Friend 1 With a Long Fictional Name'
  config['activityFeed']=fixture_data
-if a.store:config['store']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',str(fixture/'appstore.cjs')],text=True))
+if a.store:config['store']=json.loads(subprocess.check_output(['node','-e',"process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2]==='true')))" ,str(fixture/'appstore.cjs'),str(a.homepage).lower()],text=True))
 fixture_now=config['store']['now'] if a.store else '2026-11-02T12:00:00Z'
 try:
  parsed_fixture_now=datetime.fromisoformat(str(fixture_now).replace('Z','+00:00'))
