@@ -123,7 +123,7 @@ async function testFoodThreadBridge(){
  for(const context of [{screen:'progress',starter_index:0},{screen:'progress'}]){
   const question=Object.hasOwn(context,'starter_index')?'Am I improving?':'How did my running change this month?';
   const pending={client_id:'saved-id',generation:'g',visit_id:'v',question,context},requests=[];
-  const retry={active:()=>true,kitChatOn:()=>true,draw(){},controls(){},status(){},key:()=>'',store:{del(){}},$:()=>({value:'A different unsent draft',style:{}}),json:(_method,body)=>JSON.parse(JSON.stringify(body)),answer:async()=>{},api:async(_url,body)=>{requests.push(body);if(requests.length===1)throw Error('offline');return {...body,id:1};}};
+  const retry={active:()=>true,kitChatOn:()=>true,draw(){},controls(){},status(){},clearWait(){},key:()=>'',store:{del(){}},$:()=>({value:'A different unsent draft',style:{}}),json:(_method,body)=>JSON.parse(JSON.stringify(body)),answer:async()=>{},api:async(_url,body)=>{requests.push(body);if(requests.length===1)throw Error('offline');return {...body,id:1};}};
   vm.createContext(retry);vm.runInContext(pick('  async function deliver(c){','  function sendStarter(c,button){'),retry);
   const restored={job:JSON.parse(JSON.stringify(pending)),ready:true,generation:'g',visit_id:'v',messages:[],view:{pin(){}}};
   await retry.deliver(restored);assert.deepEqual(JSON.parse(JSON.stringify(restored.job)),pending,'failed send retains the saved payload');
@@ -144,6 +144,9 @@ assert(css.includes('.chat-suggestions > button {position:relative;display:flex;
 assert(css.includes('left:52px;height:1px;background:var(--line);content:\'\';'),'suggestion hairlines begin after the 20px icon and 16px gap');
 assert(css.includes('.chat-suggestions > button svg {flex:none;width:20px;height:20px;color:var(--tx2);}'),'suggestion icons use a clear 20px glyph');
 assert(css.includes('.kit-chat #kit-starters {flex:none;}')&&css.includes('.kit-chat #kit-composer {padding-top:0;margin-top:auto;}'),'Kit suggestions sit at the page bottom above its composer');
+assert(source.includes('elapsed<4000')&&source.includes('elapsed>=20000')&&source.includes('Looking at your recent workouts…')&&source.includes('Checking your data…')&&source.includes('Still working…'),'the wait bubble progresses from dots to contextual status to a long-wait note');
+assert(source.includes("Kit couldn't check that answer. Try a simpler question or Retry.")&&!source.includes('esc(c.answerErrors?.[m.client_id]'),'answer failures use the helpful client copy, not raw server errors');
+assert(css.includes('.kit-chat .kit-compose-row:focus-within {border-color:transparent;outline:1.5px solid var(--accent);outline-offset:-1.5px;box-shadow:none;}')&&css.includes('inset:6px;border-radius:50%;background:var(--btn);'),'composer focus is a thin brand outline and Send has a 32px visible circle');
 assert(css.includes('#kit-text {font-size:max(16px,1rem);'),'Kit composer follows large text settings while keeping a 16px minimum');
 assert.match(css,/--text-nav-title\s*:\s*17px/);
 assert(css.includes('.shell .top.subpage-header > h1')&&css.includes('text-overflow:ellipsis'),'shared pushed-page titles truncate in their centered row');
@@ -161,7 +164,7 @@ assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('Ab
 const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null,')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
 const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
 const followups=['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?'].map(q=>({onclick:null,querySelector(){return {textContent:c.Kit.rewriteFollowup(q)}}})),sent=[];
-const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,rewriteFollowup:c.Kit.rewriteFollowup,controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){return '<svg></svg>';},send:async(_c,q)=>sent.push(q)};
+const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,rewriteFollowup:c.Kit.rewriteFollowup,waitBubble:()=>'<div class="kit-status-bubble"></div>',controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){return '<svg></svg>';},send:async(_c,q)=>sent.push(q)};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
 drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');

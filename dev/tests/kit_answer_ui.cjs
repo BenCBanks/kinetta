@@ -47,6 +47,21 @@ async function main(){
    await p.goto(base+'/me/kit?from=progress');
    await p.locator('.kit-suggested-reply').first().waitFor({state:'visible'});
    await p.waitForFunction(()=>document.fonts.status==='loaded');
+   const composer=await p.locator('.kit-compose-row').evaluate(row=>{
+    const field=row.querySelector('#kit-text'),send=row.querySelector('#kit-send'),r=row.getBoundingClientRect(),b=send.getBoundingClientRect();
+    return{height:r.height,send:{width:b.width,height:b.height,visible:getComputedStyle(send,'::before').width},fieldHeight:field.getBoundingClientRect().height};
+   });
+   assert(composer.height<=48,`${width}px ${theme}: composer stays slim: ${JSON.stringify(composer)}`);
+   assert.equal(composer.send.width,44,`${width}px ${theme}: Send retains a 44px touch target`);
+   assert.equal(composer.send.visible,'32px',`${width}px ${theme}: visible Send circle is 32px`);
+   assert(composer.fieldHeight<=40,`${width}px ${theme}: one-line field stays about 40px high`);
+   await p.locator('#kit-text').focus();
+   const focus=await p.locator('.kit-compose-row').evaluate(row=>{const rules=[];const walk=items=>{for(const rule of items){if(rule.cssRules)walk(rule.cssRules);else if(rule.selectorText)try{if(row.matches(rule.selectorText)||rule.selectorText.includes('.kit-compose-row:focus-within')){const s=rule.style;if(s.getPropertyValue('border')||s.getPropertyValue('border-width')||s.getPropertyValue('outline'))rules.push({selector:rule.selectorText,border:s.getPropertyValue('border'),width:s.getPropertyValue('border-width'),outline:s.getPropertyValue('outline')});}}catch{}}};for(const sheet of document.styleSheets)try{walk(sheet.cssRules)}catch{}const s=getComputedStyle(row);return{focused:row.matches(':focus-within'),active:document.activeElement?.id,border:s.borderTopWidth,color:s.borderTopColor,outline:s.outlineStyle,outlineWidth:s.outlineWidth,outlineOffset:s.outlineOffset,outlineColor:s.outlineColor,shadow:s.boxShadow,rules};});
+   assert.equal(focus.outline,'solid',`${width}px ${theme}: focus uses one brand outline: ${JSON.stringify(focus)}`);
+   assert(['1px','1.5px'].includes(focus.outlineWidth),`${width}px ${theme}: rendered outline stays thin: ${JSON.stringify(focus)}`);
+   assert(['-1px','-1.5px'].includes(focus.outlineOffset),`${width}px ${theme}: outline sits on the composer edge: ${JSON.stringify(focus)}`);
+   assert.notEqual(focus.outlineColor,'rgba(0, 0, 0, 0)',`${width}px ${theme}: focus outline remains visible in the brand color`);
+   assert.equal(focus.shadow,'none',`${width}px ${theme}: focus adds no blue box shadow`);
    const metrics=await p.locator('#kit-messages article').evaluate(article=>{
     const card=article.querySelector('.kit-answer'),reason=card.querySelector('.kit-reason'),facts=card.querySelector('.kit-facts'),details=card.querySelector('.kit-training-details'),replies=article.querySelector('.kit-suggested-replies');
     const rect=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
@@ -155,6 +170,57 @@ async function main(){
       await c.close();contexts.pop();
   }
   console.log('Ask Kit detail UI and #1493 visit retention: 390/330 light/dark; background/reload retains visit+draft; explicit/30m/24h paths pass; no writes/provider calls.');
+  for(const theme of ['light','dark']){
+   const c=await browser.newContext({storageState:state,viewport:{width:390,height:844},colorScheme:theme,reducedMotion:theme==='dark'?'reduce':'no-preference',serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
+   let row=null,failOnRead=false,question='';
+   const visit='fixture-kit-wait-'+theme,gen='fixture-kit-wait-generation-'+theme;
+   await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
+   p.on('pageerror',e=>errors.push(e.message));
+   await c.route('**/*',async route=>{
+    const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
+    if(u.pathname==='/api/me'&&req.method()==='GET'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});}
+    if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST')return route.fulfill({json:{visit_id:visit,generation:gen,ready:true}});
+    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation:gen,ready:true,before:null,messages:row?[{...row,state:failOnRead?'failed':'running',error:failOnRead?'raw model/provider detail must stay hidden':null}]:[]}});
+    if(u.pathname==='/api/coach/conversation/messages'&&req.method()==='POST'){const body=req.postDataJSON();question=body.question;row={id:1,client_id:body.client_id,generation:gen,visit_id:visit,question,state:'pending',answer:null,error:null};return route.fulfill({json:row});}
+    if(/^\/api\/coach\/conversation\/messages\/[^/]+\/answer$/.test(u.pathname)&&req.method()==='POST')return route.fulfill({json:{...row,state:'running'}});
+    if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
+    if(['POST','PUT','PATCH','DELETE'].includes(req.method())){unexpectedWrites.push(u.pathname);return route.fulfill({json:{}});}
+    return route.continue();
+   });
+   await p.goto(base+'/me/kit?from=activity');await p.locator('#kit-text').fill(theme==='light'?'Review my latest workout':'Check my records');await p.locator('#kit-send').click();
+   await p.locator('.kit-waiting-bubble .thread-typing').waitFor({state:'visible'});
+   assert.equal(question,theme==='light'?'Review my latest workout':'Check my records');
+   const typingBox=await p.locator('.kit-waiting-bubble').boundingBox();
+   assert(typingBox.width<=112&&typingBox.x<=24,`${theme}: typing indicator is a small left-aligned bubble: ${JSON.stringify(typingBox)}`);
+   const initialDots=await p.locator('.kit-waiting-bubble .thread-typing span').evaluateAll(spans=>spans.map(node=>getComputedStyle(node).animationName));
+   assert(initialDots.length===3,`${theme}: the compact wait bubble has three dots`);
+   if(theme==='dark')assert(initialDots.every(name=>name==='none'),'reduced motion makes the three dots static');
+   else assert(initialDots.every(name=>name==='thread-typing'),'normal motion animates the typing dots');
+   const capture=async state=>{if(out){await p.evaluate(()=>{document.scrollingElement?.scrollTo(0,0);document.querySelector('#kit-messages')?.scrollTo(0,0);});fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-waiting-390-${theme}-${state}.png`),animations:'disabled'});}};
+   await capture('sending');
+   await p.clock.fastForward(4000);
+   await p.locator('.kit-waiting-copy').waitFor({state:'visible'});
+   const workCopy=await p.locator('.kit-waiting-copy').innerText();
+   assert.equal(workCopy,theme==='light'?'Looking at your recent workouts…':'Checking your data…',`${theme}: waiting copy matches the question`);
+   await capture('4s');
+   const statusBox=await p.locator('.kit-waiting-bubble').boundingBox();
+   await p.clock.fastForward(16000);
+   await p.getByText('Still working…',{exact:true}).waitFor({state:'visible'});
+   await capture('20s');
+   failOnRead=true;
+   await p.clock.fastForward(2500);
+   await p.locator('.kit-error-bubble').waitFor({state:'visible'});
+   const errorText=await p.locator('.kit-error-bubble').innerText(),errorBox=await p.locator('.kit-error-bubble').boundingBox();
+   assert(errorText.includes("Kit couldn't check that answer. Try a simpler question or Retry."),`${theme}: error uses the helpful client message`);
+   assert(!errorText.includes('raw model/provider detail'),`${theme}: raw server error is hidden`);
+   assert.equal(await p.locator('.kit-error-retry').innerText(),'Retry',`${theme}: Retry is the primary action`);
+   assert(Math.abs(errorBox.height-statusBox.height)<=6&&Math.abs(errorBox.y-statusBox.y)<=1&&Math.abs(errorBox.x-statusBox.x)<=1,`${theme}: replacing the wait bubble with an error does not jump: ${JSON.stringify({statusBox,errorBox})}`);
+   await capture('error');
+   assert.deepEqual(errors,[],`${theme}: no page exceptions`);
+   assert.deepEqual(unexpectedWrites,[],`${theme}: fixtures make no unexpected writes or provider calls`);
+   await c.close();contexts.pop();
+  }
+  console.log('Ask Kit detail rows, composer, replies and wait/error states: 390/330 detail checks; 390px light/dark sending, 4s, 20s and error; no writes/provider calls.');
  }finally{for(const c of contexts)await c.close().catch(()=>{});await login.close();await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
