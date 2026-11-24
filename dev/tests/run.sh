@@ -15,6 +15,7 @@ MODE="${1:---full}"
 [[ "$MODE" == --full || "$MODE" == --quick ]] || { echo "Use --quick or --full" >&2; exit 2; }
 
 python3 dev/tests/test_asset_build.py
+python3 dev/tests/test_homepage_simulator_webp.py
 python3 dev/tests/test_ci_policy.py
 python3 dev/tests/test_ci_tiering.py
 python3 dev/tests/test_main_failure_watch.py
