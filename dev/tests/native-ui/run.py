@@ -179,7 +179,7 @@ for device in preferred:
       assert not re.search(r'\bkm\b|/km\b',metrics['bodyText']), 'US App Store activity scenes must not show metric distance or pace'
      if stage=='header-activity':assert 'Only me' not in metrics['bodyText'], 'Home own card must not show a private-only audience'
      if stage=='activity':
-      crop=metrics.get('storeCrop');assert crop and crop['selector']=='#d-charts [aria-label^="Heart rate"]' and crop['bottom']<=crop['tabTop']-8, 'Activity crop must show the complete heart-rate chart above the tab bar'
+      crop=metrics.get('storeCrop');assert crop and crop['selector']=='#d-charts .chartbox[data-chart-index="1"]' and 'Heart rate' in crop['text'] and crop['bottom']<=crop['tabTop']-8, 'Activity crop must show the complete heart-rate chart above the tab bar'
      if stage=='header-food':
       food_text=metrics['bodyText'];assert 'Improve calorie estimates' not in food_text and re.search(r'1,?200',food_text) and '90 / 110' in food_text and '180 / 220' in food_text and '52 / 70' in food_text, 'Nutrition Store fixture must show body details and filled macro bars'
      if stage=='food':

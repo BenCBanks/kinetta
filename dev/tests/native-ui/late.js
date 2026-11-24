@@ -82,7 +82,7 @@
     if(delta)window.scrollTo(0,window.scrollY+delta);
     await new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)));
     const box=target.getBoundingClientRect(),tab=nav.getBoundingClientRect();
-    return{selector,text:target.innerText.trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
+    return{selector,text:(target.innerText??target.textContent??'').trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
   }
   async function frameStoreTrackMap(){
     const wrap=document.querySelector('#track-ready-map-wrap'),container=document.querySelector('#track-ready-map'),map=container&&window.L?._targets?.[container._leaflet_id];
@@ -147,7 +147,7 @@
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
     let storeCrop=null;
     let storeMapCrop=null;
-    if(cfg.store&&cfg.stage==='activity')storeCrop=await positionStoreCrop('#d-charts [aria-label^="Heart rate"]');
+    if(cfg.store&&cfg.stage==='activity')storeCrop=await positionStoreCrop('#d-charts .chartbox[data-chart-index="1"]');
     if(cfg.store&&cfg.stage==='header-progress')storeCrop=await positionStoreCrop('#p-explore [data-progress-feature="weight"]');
     if(cfg.store&&cfg.stage==='header-track')storeMapCrop=await frameStoreTrackMap();
     if(cfg.stage==='review')finishDish(cfg.dish);
