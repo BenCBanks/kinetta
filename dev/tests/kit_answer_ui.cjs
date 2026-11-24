@@ -1,17 +1,18 @@
-// Fictional saved Kit answer rendered by the real app shell; no provider request or data write.
+// Fictional Kit answer: plain training verdicts and user-voice replies at phone widths.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS||'/tmp/kit-answer-ui';
-const visitId='fixture-kit-visit',generation='fixture-kit-generation';
-const message={id:1,client_id:'fixture-kit-answer',question:'Look at my consistency',state:'answered',answer:{
- verdict:'Your workout logging was steady across the last month.',
- reason:'You recorded workouts across 20 recorded workout days and logged food across 2 food-log days.',
- interpretation:'This combined text must not be rendered twice.',
- facts:[{label:'Recorded workout days',value:20,display_value:'20'},{label:'Food-log days',value:2,display_value:'2'}],
+const visitId='fixture-kit-ask-detail-visit',generation='fixture-kit-ask-detail-generation';
+const message={id:1,client_id:'fixture-kit-ask-detail',question:'How was my recent training?',state:'answered',answer:{
+ verdict:'Your recent records show heavier training this week.',reason:'This fictional example uses workout effort and your usual training.',
+ facts:[
+  {path:['days',13,'fatigue'],value:61.4},{path:['days',13,'fitness'],value:48.4},{path:['days',13,'form'],value:8.7},
+  {label:'Recorded workouts',value:6,display_value:'6'},{label:'Run distance',value:8046.7,display_value:'5.0 mi',path:['totals','distance_m']}
+ ],
  follow_ups:[
   'Would you like to review your latest completed workouts from this training block and compare how they fit your plan?',
-  'What should I focus on next week?',
-  'How can I make food logging easier?'
+  'Are your legs feeling heavy or fatigued today?',
+  'Do you feel ready to train again?'
  ]
 }};
 async function main(){
@@ -44,37 +45,51 @@ async function main(){
     return route.continue();
    });
    await p.goto(base+'/me/kit?from=progress');
-   await p.locator('.kit-answer-followups button').first().waitFor({state:'visible'});
+   await p.locator('.kit-suggested-reply').first().waitFor({state:'visible'});
    await p.waitForFunction(()=>document.fonts.status==='loaded');
-   const metrics=await p.locator('.kit-answer').evaluate(card=>{
-    const facts=card.querySelector('.kit-facts'),reason=card.querySelector('.kit-reason'),group=card.querySelector('.kit-answer-followups');
+   const metrics=await p.locator('#kit-messages article').evaluate(article=>{
+    const card=article.querySelector('.kit-answer'),reason=card.querySelector('.kit-reason'),facts=card.querySelector('.kit-facts'),details=card.querySelector('.kit-training-details'),replies=article.querySelector('.kit-suggested-replies');
     const rect=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
-    const buttons=[...group.querySelectorAll('button')].map(button=>{
-     const span=button.querySelector('span'),range=document.createRange();range.selectNodeContents(span);
-     const lines=[...range.getClientRects()].map(r=>({top:r.top,bottom:r.bottom,left:r.left,right:r.right})),b=rect(button),s=getComputedStyle(button);
-     return{box:b,lines,minHeight:s.minHeight,paddingTop:s.paddingTop,paddingBottom:s.paddingBottom,border:s.borderTopWidth,borderRadius:s.borderTopLeftRadius,shadow:s.boxShadow,pseudo:getComputedStyle(button,'::before').content};
+    const rows=[...details.querySelectorAll('.kit-training-row')].map(row=>{
+     const label=row.querySelector('dt'),verdict=row.querySelector('strong'),detail=row.querySelector('small'),box=rect(row),s=getComputedStyle(row);
+     return{box,label:rect(label),verdict:rect(verdict),detail:rect(detail),height:box.height,border:s.borderTopWidth,color:getComputedStyle(verdict).color};
     });
-    return{reason:rect(reason),facts:rect(facts),factsMarginTop:getComputedStyle(facts).marginTop,factsMarginBottom:getComputedStyle(facts).marginBottom,group:rect(group),buttons};
+    const buttons=[...replies.querySelectorAll('button')].map(button=>{
+     const span=button.querySelector('span'),range=document.createRange();range.selectNodeContents(span);
+     const lines=[...range.getClientRects()].map(r=>({top:r.top,bottom:r.bottom,left:r.left,right:r.right})),box=rect(button),s=getComputedStyle(button);
+     return{box,lines,minHeight:s.minHeight,paddingTop:s.paddingTop,paddingBottom:s.paddingBottom,border:s.borderTopWidth,borderRadius:s.borderTopLeftRadius,shadow:s.boxShadow,background:s.backgroundColor,color:s.color,arrow:rect(button.querySelector('svg'))};
+    });
+    return{column:rect(article),card:rect(card),reason:rect(reason),facts:rect(facts),details:rect(details),rows,replies:rect(replies),buttons,cardText:card.innerText,cardHasReply:!!card.querySelector('.kit-suggested-replies')};
    });
-   assert(metrics.facts.top-metrics.reason.bottom>=11.5,`${width}px ${theme}: fact summary has 12px above it: ${JSON.stringify(metrics)}`);
-   assert(metrics.group.top-metrics.facts.bottom>=11.5,`${width}px ${theme}: fact summary has 12px below it: ${JSON.stringify(metrics)}`);
-   assert.equal(metrics.buttons.length,3,`${width}px ${theme}: all three follow-ups remain visible`);
-   const firstX=metrics.buttons[0].box.x,firstWidth=metrics.buttons[0].box.width;
+   assert(metrics.details.top-metrics.reason.bottom>=11.5,`${width}px ${theme}: verdict rows have 12px separation from the explanation`);
+   assert(metrics.rows.length===2,`${width}px ${theme}: missing training values are not replaced with placeholders`);
+   assert(metrics.rows.every(row=>row.height>=44&&row.border==='1px'),`${width}px ${theme}: both detail rows keep 44px height and inset dividers`);
+   assert.equal(metrics.rows[0].label.width>0,true,`${width}px ${theme}: Recent training label is visible`);
+   assert.equal(metrics.rows[0].verdict.width>0,true,`${width}px ${theme}: Recent training verdict is visible`);
+   assert.equal(metrics.rows[0].color,await p.locator('.kit-answer').evaluate(n=>getComputedStyle(n).color),`${width}px ${theme}: verdict uses plain text color`);
+   assert(metrics.cardText.includes('Recent training')&&metrics.cardText.includes('Heavier than usual')&&metrics.cardText.includes('≈ 61 this week vs ≈ 48 usual'),`${width}px ${theme}: whole-number recent-training row is shown`);
+   assert(metrics.cardText.includes('Freshness')&&metrics.cardText.includes('Fresh')&&metrics.cardText.includes('≈ +9'),`${width}px ${theme}: whole-number freshness row is shown`);
+   assert(!/\b(?:Fatigue|Fitness|Form)\b/.test(metrics.cardText),`${width}px ${theme}: technical training-load labels are absent`);
+   if(width===330)assert(metrics.rows.every(row=>row.verdict.y>=row.label.y+row.label.height-1),`${width}px ${theme}: verdict stacks below its label`);
+   assert.equal(metrics.cardHasReply,false,`${width}px ${theme}: suggested replies sit outside the answer card`);
+   assert.equal(metrics.buttons.length,2,`${width}px ${theme}: at most two replies show`);
+   assert(metrics.replies.left>=metrics.column.left&&metrics.replies.right<=metrics.column.right+1,`${width}px ${theme}: reply bubbles stay within the message column`);
    for(const [i,b] of metrics.buttons.entries()){
-    assert(b.box.height>=44,`${width}px ${theme}: follow-up ${i+1} is at least 44px tall`);
-    assert(Math.abs(b.box.x-firstX)<.5&&Math.abs(b.box.width-firstWidth)<.5,`${width}px ${theme}: follow-up pills share one left edge and width`);
-    assert(parseFloat(b.paddingTop)>=12&&parseFloat(b.paddingBottom)>=12,`${width}px ${theme}: follow-up ${i+1} keeps 12px vertical padding`);
-    assert.equal(b.border,'1px',`${width}px ${theme}: follow-up ${i+1} has one direct border`);
-    assert.equal(b.pseudo,'none',`${width}px ${theme}: follow-up ${i+1} has no second pseudo border`);
-    assert.equal(b.shadow,'none',`${width}px ${theme}: follow-up ${i+1} has no shadow`);
-    assert(b.lines.length>0,`${width}px ${theme}: follow-up ${i+1} has visible text`);
-    for(const line of b.lines)assert(line.top>=b.box.top+1&&line.bottom<=b.box.bottom-1&&line.left>=b.box.left+1&&line.right<=b.box.right-1,`${width}px ${theme}: follow-up ${i+1} text stays inside its pill: ${JSON.stringify({line,box:b.box})}`);
+    assert(b.box.height>=44,`${width}px ${theme}: reply ${i+1} has a 44px target`);
+    assert(b.box.width<=metrics.column.width*.8+1,`${width}px ${theme}: reply ${i+1} stays within 80% width`);
+    assert.equal(b.border,'0px',`${width}px ${theme}: reply ${i+1} has no border`);
+    assert.equal(b.shadow,'none',`${width}px ${theme}: reply ${i+1} has no shadow`);
+    assert(b.lines.length>0&&b.arrow.width===16,`${width}px ${theme}: reply ${i+1} wraps beside the send arrow`);
+    for(const line of b.lines)assert(line.top>=b.box.top+1&&line.bottom<=b.box.bottom-1&&line.left>=b.box.left+1&&line.right<=b.box.right-1,`${width}px ${theme}: reply text stays inside its bubble: ${JSON.stringify({line,box:b.box})}`);
    }
-   assert(metrics.buttons[0].lines.length>=2,`${width}px ${theme}: long first follow-up wraps naturally`);
-   assert.equal(await p.locator('.kit-answer').innerText().then(t=>t.includes('This combined text must not be rendered twice.')),false,'the stored paragraph remains the only answer paragraph');
-   assert.equal(await p.locator('.kit-facts > div').count(),2,'summary facts remain visible');
+   assert(metrics.buttons[0].lines.length>=2,`${width}px ${theme}: long reply wraps naturally`);
+   assert.deepEqual(await p.locator('.kit-suggested-reply').allTextContents().then(rows=>rows.map(s=>s.trim())),[
+    'Review my latest completed workouts from this training block and compare how they fit my plan','My legs feel heavy today'
+   ],`${width}px ${theme}: question-form replies are rewritten and unsupported questions dropped`);
+   assert.equal(await p.locator('.kit-facts > div').count(),2,`${width}px ${theme}: unrelated facts remain visible`);
    assert.deepEqual(errors,[],`${width}px ${theme}: no page errors`);
    assert.deepEqual(unexpectedWrites,[],`${width}px ${theme}: fixture answer makes no writes or provider requests`);
+   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-detail-${width}-${theme}.png`),animations:'disabled'});}
    if(width===390&&theme==='light'){
     await p.locator('#kit-text').fill('Unsent question kept for later');
     const originalVisit=visitRequests[0];assert(originalVisit,'the first chat creates a server visit');
@@ -88,7 +103,7 @@ async function main(){
     await p.reload();await p.locator('.kit-answer').waitFor({state:'visible'});
     assert.equal(visitRequests.at(-1),originalVisit,'a discarded WebView resumes with the same server visit_id');
     assert.equal(conversationReads.at(-1),originalVisit,'messages reload from the same visit');
-    assert.equal(await p.locator('.kit-answer').innerText().then(t=>t.includes('Your workout logging was steady')),true,'the saved conversation returns after reload');
+    assert.equal(await p.locator('.kit-answer').innerText().then(t=>t.includes('Your recent records show heavier training')),true,'the saved conversation returns after reload');
     assert.equal(await p.locator('#kit-text').inputValue(),'Unsent question kept for later','unsent draft survives app/page return');
     await p.locator('.thread-heading .back').click();await p.waitForURL(/\/progress(?:\?.*)?$/);
     await p.clock.fastForward(30*60*1000+50);
@@ -137,10 +152,9 @@ async function main(){
     assert.equal(await p.locator('#kit-text').inputValue(),'','the prior account draft is not shown to the next account');
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'kit-visit-retained-390-light.png'),animations:'disabled'});}
    }
-   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-followups-${width}-${theme}.png`),animations:'disabled'});}
-   await c.close();contexts.pop();
+      await c.close();contexts.pop();
   }
-  console.log('Kit answer follow-ups and visit retention: long text wraps in 44px+ pills; 390/330 light/dark; background/reload keeps visit+draft; 30m/24h/new-chat paths pass; no writes/provider calls.');
+  console.log('Ask Kit detail UI and #1493 visit retention: 390/330 light/dark; background/reload retains visit+draft; explicit/30m/24h paths pass; no writes/provider calls.');
  }finally{for(const c of contexts)await c.close().catch(()=>{});await login.close();await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

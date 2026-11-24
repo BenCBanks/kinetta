@@ -21,8 +21,14 @@ Object.assign(KitChat, (() => {
   }
   const followupVerbs=new Set(['add','adjust','analyze','build','calculate','check','choose','compare','consider','create','describe','estimate','explain','explore','find','focus','get','go','help','identify','improve','include','keep','learn','list','log','look','make','measure','open','pick','plan','record','review','save','see','set','show','start','summarize','switch','tell','think','track','try','understand','update','use','view']);
   function rewriteFollowup(text){
-    const original=String(text??''),match=original.match(/^\s*(?:would\s+you\s+like\s+to|do\s+you\s+want\s+to|should\s+we|shall\s+we|can\s+we|want\s+to)\s+(.+?)\?\s*$/i);
-    if(!match)return original;
+    const original=String(text??''),trimmed=original.trim();
+    const feeling=trimmed.match(/^are your (legs|arms|feet|shoulders|hips) feeling (heavy|tired|fatigued)(?: or (?:heavy|tired|fatigued))? today\?$/i);
+    if(feeling)return `My ${feeling[1].toLowerCase()} feel ${feeling[2].toLowerCase()==='fatigued'?'tired':feeling[2].toLowerCase()} today`;
+    const match=trimmed.match(/^(?:would\s+you\s+like\s+to|do\s+you\s+want\s+to|should\s+we|shall\s+we|can\s+we|want\s+to)\s+(.+?)\?$/i);
+    if(!match){
+      if(/^(?:are your|do you|did you|have you|how are you|how do your)\b/i.test(trimmed)&&trimmed.endsWith('?'))return null;
+      return original;
+    }
     let result=match[1].trim();if(!result)return original;
     result=result.replace(/\b(yourself|your|you|we)\b(?!['’])/gi,word=>({yourself:'myself',your:'my',you:'I',we:'I'})[word.toLowerCase()]);
     result=result[0].toUpperCase()+result.slice(1);
@@ -122,15 +128,43 @@ Object.assign(KitChat, (() => {
     const unit=field?.endsWith('_g')||field==='protein_target'?'g':field?.endsWith('_mg')?'mg':['kcal','kcal_target'].includes(field)?'kcal':field==='avg_hr'?'bpm':'';
     return rounded(n)+(unit?' '+unit:'');
   }
+  function trainingDetails(facts){
+    const groups=new Map();
+    for(const fact of facts||[]){
+      const path=fact.path||[],field=path.at(-1),value=fact.value;
+      if(!['fitness','fatigue','form'].includes(field)||typeof value!=='number'||!Number.isFinite(value))continue;
+      const dayPath=path[0]==='days'&&Number.isInteger(path[1])?`day:${path[1]}`:path[0]==='facts'&&path[1]==='latest_load'?'latest':null;
+      if(dayPath==null)continue;
+      const row=groups.get(dayPath)||{};row[field]=value;row.index=path[0]==='days'?path[1]:-1;groups.set(dayPath,row);
+    }
+    const rows=[...groups.values()].sort((a,b)=>b.index-a.index),latest=rows[0]||{};
+    const round=value=>Math.round(value).toLocaleString('en-US');
+    const out=[];
+    if(Number.isFinite(latest.fatigue)&&Number.isFinite(latest.fitness)&&Math.round(latest.fitness)>0){
+      const fatigue=Math.round(latest.fatigue),fitness=Math.round(latest.fitness),ratio=fatigue/fitness;
+      const verdict=ratio<.8?'Lighter than usual':ratio>1.2?'Heavier than usual':'About usual';
+      out.push({label:'Recent training',verdict,detail:`≈ ${round(fatigue)} this week vs ≈ ${round(fitness)} usual`});
+    }
+    if(Number.isFinite(latest.form)){
+      const form=Math.round(latest.form),verdict=form < -10?'Carrying tiredness':form>5?'Fresh':'Balanced';
+      const value=round(Math.abs(form)),number=form>0?`+${value}`:form<0?`−${value}`:value;
+      out.push({label:'Freshness',verdict,detail:`≈ ${number}`});
+    }
+    return out;
+  }
   function draw(c){
     if(!active(c))return;
     const list=$('#kit-messages',c.el),foodHost=c.foodHost;
     if(foodHost?.isConnected)foodHost.remove();
     const pending=c.job&&!c.messages.some(m=>String(m.client_id)===c.job.client_id);
     const messages=[...c.messages,...(c.localMessages||[])],has=messages.length||pending||c.foodStarted;
-    list.innerHTML=messages.map(m=>{
-      const a=m.answer,facts=(a?.facts||[]).filter(f=>!['id','source_id','route_id','candidate_id','unlogged_days','food_unlogged_days'].includes(f.path?.at(-1))).slice(0,3), failed=m.state==='failed'||c.answerErrors?.[m.client_id];
-      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${a.verdict?`<p class="kit-verdict">${esc(a.verdict)}</p>${a.reason?`<p class="kit-reason">${esc(a.reason)}</p>`:''}`:`<p>${esc(a.interpretation||'')}</p>`}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>`<div><dt>${esc(factLabel(f))}</dt><dd>${esc(factValue(f))}</dd></div>`).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${a.follow_ups?.length?`<div class="kit-starters kit-answer-followups" aria-label="Follow-up questions">${a.follow_ups.slice(0,3).map(q=>`<button type="button" data-kit-followup><span>${esc(rewriteFollowup(q))}</span></button>`).join('')}</div>`:''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>`:failed?`<div class="thread-card"><p class="err">${esc(c.answerErrors?.[m.client_id]||m.error||'Kit could not finish. Your question is saved.')}</p>${kitChatOn()&&c.ready?'<button type="button" class="ghost" data-kit-retry>Retry</button>':''}</div>`:`<div class="thread-card thread-thinking"><div class="thread-typing" role="status" aria-label="Kit is checking your records"><span></span><span></span><span></span></div></div>`}</article>`;
+    const busy=c.sending||pending||messages.some(m=>['pending','running'].includes(m.state));
+    list.innerHTML=messages.map((m,index)=>{
+      const a=m.answer,rawFacts=a?.facts||[],detailRows=trainingDetails(rawFacts),
+        facts=rawFacts.filter(f=>!['id','source_id','route_id','candidate_id','unlogged_days','food_unlogged_days','fitness','fatigue','form','activities_without_effort'].includes(f.path?.at(-1))).slice(0,3),
+        followups=index===messages.length-1&&!busy&&Array.isArray(a?.follow_ups)?a.follow_ups.slice(0,2).map(rewriteFollowup).filter(Boolean):[],
+        failed=m.state==='failed'||c.answerErrors?.[m.client_id];
+      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${a.verdict?`<p class="kit-verdict">${esc(a.verdict)}</p>${a.reason?`<p class="kit-reason">${esc(a.reason)}</p>`:''}`:`<p>${esc(a.interpretation||'')}</p>`}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${detailRows.length?`<dl class="kit-training-details">${detailRows.map(row=>`<div class="kit-training-row"><dt>${row.label}</dt><dd><strong>${esc(row.verdict)}</strong><small>${esc(row.detail)}</small></dd></div>`).join('')}</dl>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>`<div><dt>${esc(factLabel(f))}</dt><dd>${esc(factValue(f))}</dd></div>`).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>${followups.length?`<div class="kit-suggested-replies" aria-label="Suggested replies">${followups.map(q=>`<button type="button" class="kit-suggested-reply" data-kit-followup aria-label="Send: ${esc(q)}"><span>${esc(q)}</span>${svg('send')}</button>`).join('')}</div>`:''}`:failed?`<div class="thread-card"><p class="err">${esc(c.answerErrors?.[m.client_id]||m.error||'Kit could not finish. Your question is saved.')}</p>${kitChatOn()&&c.ready?'<button type="button" class="ghost" data-kit-retry>Retry</button>':''}</div>`:`<div class="thread-card thread-thinking"><div class="thread-typing" role="status" aria-label="Kit is checking your records"><span></span><span></span><span></span></div></div>`}</article>`;
     }).join('')+(pending?`<article><div class="thread-user"><p>${esc(c.job.question)}</p></div><div class="thread-card"><p>${esc(c.jobError||'Sending your question…')}</p>${c.jobError&&kitChatOn()&&c.ready?'<button type="button" class="ghost" id="kit-retry-send">Retry sending</button>':''}</div></article>`:'')+(c.foodStarted?'<div id="kit-food-slot"></div>':'');
     if(foodHost&&c.foodStarted)$('#kit-food-slot',list)?.append(foodHost);
     $('#kit-starters',c.el).hidden=!!has;
@@ -138,7 +172,7 @@ Object.assign(KitChat, (() => {
     $('#kit-fine',c.el).hidden=!!has;
     $('#kit-older',c.el).hidden=!c.before;
     $$('[data-kit-retry]',list).forEach(b=>b.onclick=()=>answer(c,b.closest('[data-kit-id]').dataset.kitId));
-    $$('[data-kit-followup]',list).forEach(b=>b.onclick=()=>send(c,b.textContent.trim()));
+    $$('[data-kit-followup]',list).forEach(b=>b.onclick=()=>send(c,b.querySelector('span')?.textContent.trim()||''));
     $$('[data-kit-review]',list).forEach(b=>b.onclick=()=>{const m=c.messages.find(m=>String(m.client_id)===b.closest('[data-kit-id]').dataset.kitId);kitReview(m.answer.selection,{scopeKey:'kit:'+m.client_id,conversation:true,onSaved:()=>status(c,'Saved. You can ask Kit to check your updated records.'),onStale:()=>status(c,'Your records changed. Ask Kit again before confirming this proposal.')});});
     const retry=$('#kit-retry-send',list);if(retry)retry.onclick=()=>deliver(c);
     controls(c);c.view?.pin();
