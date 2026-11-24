@@ -1534,7 +1534,6 @@ function render(options) {
     if (!globalSyncDone) {
       if (typeof Track !== 'undefined') Track.sync();
       if (Native.syncPush) Native.syncPush();
-      if (typeof Social !== 'undefined') Social.refresh();
     }
     const current = () => generation === lazyRouteGeneration && owner === readOwner() && key === location.pathname + location.search && !!App.me;
     startRouteReads(path, owner, current);
@@ -1546,9 +1545,6 @@ function render(options) {
         return;
       }
       const rendered=render({...renderOptions,globalSyncDone: true,routePosition:nextPosition});
-      // The initial loader shell ran before Social existed, so its global refresh was skipped.
-      // Refresh after the real route builds the tab bar; the request remains off the first useful paint.
-      if(!globalSyncDone&&typeof Social!=='undefined'&&owner===readOwner()&&key===location.pathname+location.search)Social.refresh();
       return rendered;
     }).catch(error => {
       if (!current()) return;
@@ -1577,7 +1573,6 @@ function render(options) {
   // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab fades it in.
   if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t) && !document.documentElement.dataset.nav) el.classList.add('enter'); App.lastPath = location.pathname; }
   if (!globalSyncDone && Native.syncPush) Native.syncPush();
-  if (!globalSyncDone && typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   let touched=false;const interactions=new AbortController();
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
   const warmHomeCache=['/','/activity'].includes(key)&&!!(App.cache.get('feed:home')?.data||kept('feed:home'));
@@ -1592,7 +1587,7 @@ function render(options) {
     // Set the restored position before pageReady so callers never observe the pre-RAF scroll.
     if(current()&&!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);}
     requestAnimationFrame(() => { if(current()&&!touched){window.scrollTo(0,targetY);refreshCompactRootHeader(el);} interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;if(!warmHomeCache)restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:warmHomeCache&&touched?scrollY:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/me'&&path!=='/activity'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
+    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true;if(typeof Social!=='undefined'&&key===location.pathname+location.search)Social.refresh();if(!warmHomeCache)restoreSectionDisclosures(el,key);saveSectionReturn(sectionTabForPath(key),{path:key,y:warmHomeCache&&touched?scrollY:targetY,root:el});if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/me'&&path!=='/activity'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {
