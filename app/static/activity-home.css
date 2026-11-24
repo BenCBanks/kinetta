@@ -57,11 +57,18 @@
 .weekly-recap-share-stage { display:grid; place-items:center; min-height:200px; margin:0 0 12px; }
 .weekly-recap-share-stage img { display:block; width:min(100%,360px); max-height:58vh; aspect-ratio:4/5; object-fit:contain; border-radius:12px; }
 .feed-social-strip { margin:0 0 16px; }
-.feed-social-strip .challenge-summary { min-height:56px; gap:8px; padding:4px 0; border:0; }
-.challenge-summary .ri { flex:none; width:32px; height:32px; }
-.challenge-summary b { font-size:max(15px,.9375rem); font-weight:500; line-height:1.3; }
-.challenge-summary small { color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.4; }
-.challenge-summary svg { width:18px; height:18px; flex:none; }
+.feed-social-strip .challenge-summary { min-height:44px; gap:8px; padding:0; border:0; }
+.challenge-summary .ri { flex:none; width:24px; height:24px; border-radius:0; background:transparent; }
+.challenge-summary .grow { display:block; min-width:0; line-height:1.25; }
+.challenge-summary-main, .challenge-summary-timing { font-size:15px; font-weight:500; white-space:normal; overflow-wrap:normal; }
+.challenge-summary-timing { color:var(--tx2); }
+.challenge-summary-separator { white-space:pre; }
+.challenge-summary svg { width:20px; height:20px; flex:none; }
+@media (max-width:360px) {
+  .challenge-summary .grow { line-height:1.2; }
+  .challenge-summary-timing { display:block; }
+  .challenge-summary-separator { display:none; }
+}
 .feed-groups-strip { margin-bottom:12px; }
 .feed-groups-row { display:flex;align-items:center;gap:2px;min-width:0; }
 .feed-groups-link { flex:1;min-width:0;gap:4px;padding:4px 0; }
