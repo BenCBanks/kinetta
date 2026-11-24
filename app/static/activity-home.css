@@ -17,7 +17,8 @@
 #feed-top { margin-bottom:0; }
 #feed-top .top { margin-bottom:0; }
 #feed-top .top .acts { gap:8px; }
-#feed-tools:empty { display:none; }
+#feed-tools:empty:not([aria-busy="true"]) { display:none; }
+#feed-tools[aria-busy="true"] { min-height:60px; box-sizing:border-box; }
 .home-view-switch { display:flex; align-items:stretch; gap:20px; min-height:48px; margin:8px 0 12px; }
 .home-view-switch a { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 2px; border-bottom:2px solid transparent; color:var(--tx2); font-size:15px; font-weight:550; text-decoration:none; }
 .home-view-switch a[aria-current="page"] { border-bottom-color:var(--accent); color:var(--tx); font-weight:700; }
