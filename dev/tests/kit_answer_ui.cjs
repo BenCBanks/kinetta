@@ -265,7 +265,36 @@ async function main(){
    assert.deepEqual(unexpectedWrites,[],`${theme}: fixtures make no unexpected writes or provider calls`);
    await c.close();contexts.pop();
   }
-  console.log('Ask Kit detail rows, composer, replies and wait/error states: 390/330 light/dark empty, answer, keyboard and waiting; no writes/provider calls.');
+  for(const width of [390,330])for(const theme of ['light','dark']){
+   const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),compareCalls=[],kitMessagePosts=[],unexpectedWrites=[];contexts.push(c);
+   await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
+   p.on('pageerror',e=>unexpectedWrites.push('pageerror:'+e.message));
+   await c.route('**/*',async route=>{
+    const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
+    if(u.pathname==='/api/me'&&req.method()==='GET'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,units:theme==='light'?'imperial':'metric',ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});}
+    if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST')return route.fulfill({json:{visit_id:'fixture-workout-review',generation:'fixture-workout-review',ready:true}});
+    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation:'fixture-workout-review',ready:true,before:null,messages:[]}});
+    if(u.pathname==='/api/activities'&&req.method()==='GET')return route.fulfill({json:[{id:42,sport:'run',start_time:'2026-11-23T12:00:00Z'}]});
+    if(u.pathname==='/api/kit/workout-compare'&&req.method()==='POST'){compareCalls.push({method:req.method(),body:req.postDataJSON()});return route.fulfill({json:{status:'compared',current:{distance_m:8046.72,moving_s:2340,pace_s_per_km:300,speed_mps:null,avg_hr:150,ascent_m:100,avg_temp_c:22},baseline_count:3,baseline_medians:{pace_s_per_km:312,avg_hr:153,ascent_m:60},deltas:{pace_s_per_km:-12,avg_hr:-3,ascent_m:40},relations:{pace_s_per_km:'faster',avg_hr:'lower'},notable:'hillier',same_route_count:1}});}
+    if(u.pathname==='/api/coach/conversation/messages'&&req.method()==='POST')kitMessagePosts.push(req.postDataJSON());
+    if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
+    if(['POST','PUT','PATCH','DELETE'].includes(req.method()))unexpectedWrites.push(u.pathname);
+    return route.continue();
+   });
+   await p.goto(base+'/me/kit?from=activity');
+   const starter=p.locator('#kit-starters button').filter({hasText:'Review my latest workout'});await starter.waitFor({state:'visible'});await starter.click();
+   const comparison=p.locator('.kit-workout-comparison');await comparison.waitFor({state:'visible'});
+   assert.deepEqual(compareCalls,[{method:'POST',body:{activity_id:42}}],`${width}px ${theme}: tapping the starter requests the latest activity ID once`);
+   assert.deepEqual(kitMessagePosts,[],`${width}px ${theme}: app comparison is not sent to Kit`);
+   assert.deepEqual(unexpectedWrites,[],`${width}px ${theme}: comparison makes no writes or page errors`);
+   const text=await comparison.innerText();
+   assert(text.includes(theme==='light'?'5 mi · 39 min · 8:03 /mi':'8 km · 39 min · 5:00 /km'),`${width}px ${theme}: summary uses profile units`);
+   assert(text.includes('vs your last 3 runs of similar distance')&&text.includes(theme==='light'?'19 s/mi faster':'12 s/km faster'),`${width}px ${theme}: comparison rows are rendered in profile units`);
+   assert(text.includes('Heart rate')&&text.includes('Climb'),`${width}px ${theme}: available heart-rate and notable-climb rows show`);
+   assert.equal(await p.locator('.kit-workout-rows>div').evaluateAll(rows=>rows.every(row=>row.getBoundingClientRect().height>=44)),true,`${width}px ${theme}: comparison rows retain 44px targets`);
+   await c.close();contexts.pop();
+  }
+  console.log('Ask Kit detail rows, composer, replies, wait/error and workout comparison: 390/330 light/dark; no Kit message or writes/provider calls.');
  }finally{for(const c of contexts)await c.close().catch(()=>{});await login.close();await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

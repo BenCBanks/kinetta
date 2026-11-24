@@ -173,6 +173,72 @@ Object.assign(KitChat, (() => {
     }
     return out;
   }
+  function workoutDuration(seconds){
+    if(typeof seconds!=='number'||!Number.isFinite(seconds)||seconds<=0)return null;
+    const minutes=Math.round(seconds/60),hours=Math.floor(minutes/60),rest=minutes%60;
+    return hours?`${hours} hr ${rest} min`:`${minutes} min`;
+  }
+  function workoutDistance(meters,imperial){
+    if(typeof meters!=='number'||!Number.isFinite(meters)||meters<=0)return null;
+    const value=meters/(imperial?1609.344:1000),digits=value>=100?0:1;
+    return `${Number(value.toFixed(digits)).toLocaleString()} ${imperial?'mi':'km'}`;
+  }
+  function workoutPace(secondsPerKm,imperial){
+    if(typeof secondsPerKm!=='number'||!Number.isFinite(secondsPerKm)||secondsPerKm<=0)return null;
+    const seconds=Math.round(secondsPerKm*(imperial?1.609344:1));
+    return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')} /${imperial?'mi':'km'}`;
+  }
+  function workoutSport(sport){
+    return ({run:['run','runs'],walk:['walk','walks'],hike:['hike','hikes'],ride:['ride','rides'],swim:['swim','swims'],row:['rowing workout','rowing workouts'],ski:['ski workout','ski workouts']})[sport]||['workout','workouts'];
+  }
+  function workoutRelation(relation,delta,kind,imperial){
+    if(relation==='about_the_same')return 'about the same';
+    if(!['faster','slower','higher','lower'].includes(relation)||typeof delta!=='number'||!Number.isFinite(delta))return null;
+    if(kind==='pace')return `${Math.max(1,Math.round(Math.abs(delta)*(imperial?1.609344:1)))} s/${imperial?'mi':'km'} ${relation}`;
+    if(kind==='speed')return `${(Math.abs(delta)*(imperial?2.236936:3.6)).toFixed(1)} ${imperial?'mph':'km/h'} ${relation}`;
+    if(kind==='hr')return `${Math.max(1,Math.round(Math.abs(delta)))} bpm ${relation}`;
+    return null;
+  }
+  function workoutComparisonHtml(data){
+    if(!data)return '';
+    const current=data.current||{},deltas=data.deltas||{},relations=data.relations||{},imperial=App.me?.units==='imperial',sport=workoutSport(data.sport),count=Number.isInteger(data.baseline_count)?data.baseline_count:0;
+    const pace=workoutPace(current.pace_s_per_km,imperial),speed=typeof current.speed_mps==='number'&&Number.isFinite(current.speed_mps)?`${(current.speed_mps*(imperial?2.236936:3.6)).toFixed(1)} ${imperial?'mph':'km/h'}`:null;
+    const summary=[workoutDistance(current.distance_m,imperial),workoutDuration(current.moving_s),pace||speed].filter(Boolean).join(' · ');
+    const rows=[];
+    if(count>=2){
+      if(pace&&relations.pace_s_per_km){const value=workoutRelation(relations.pace_s_per_km,deltas.pace_s_per_km,'pace',imperial);if(value)rows.push(['Pace',value]);}
+      else if(speed&&relations.speed_mps){const value=workoutRelation(relations.speed_mps,deltas.speed_mps,'speed',imperial);if(value)rows.push(['Speed',value]);}
+      if(relations.avg_hr){const value=workoutRelation(relations.avg_hr,deltas.avg_hr,'hr',imperial);if(value)rows.push(['Heart rate',value]);}
+      if(data.notable==='hillier'&&typeof deltas.ascent_m==='number'&&Number.isFinite(deltas.ascent_m)){
+        const climb=Math.round(Math.abs(deltas.ascent_m)*(imperial?3.28084:1));
+        rows.push(['Climb',`${deltas.ascent_m>=0?'+':'−'}${climb.toLocaleString()} ${imperial?'ft':'m'}`]);
+      }
+    }
+    const notable=({personal_record:'Personal record',longest_90d:`Longest ${sport[0]} in 90 days`,hillier:null})[data.notable]||null;
+    return `<section class="kit-workout-comparison" aria-label="Workout comparison">${summary?`<p class="kit-workout-summary">${esc(summary)}</p>`:''}<p class="kit-workout-baseline">vs your last ${count} ${sport[count===1?0:1]} of similar distance</p>${count<2?'<p class="kit-workout-empty">Not enough similar runs yet to compare.</p>':rows.length?`<dl class="kit-workout-rows">${rows.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`:''}${notable?`<p class="kit-workout-notable">${esc(notable)}</p>`:''}</section>`;
+  }
+  async function reviewLatestWorkout(c){
+    if(!active(c)||c.sending||!c.loaded||!c.ready)return;
+    c.sending=true;c.localMessages||=[];
+    const item={client_id:'local-workout-'+newId(),question:'Review my latest workout',state:'running',answer:null};
+    c.localMessages.push(item);controls(c);draw(c);
+    try{
+      const activities=await api('/api/activities?limit=1');
+      if(!active(c))return;
+      const activity=Array.isArray(activities)?activities[0]:null,started=activity?.start_time?Date.parse(activity.start_time):NaN,age=Date.now()-started;
+      if(!activity||!Number.isSafeInteger(Number(activity.id))||Number(activity.id)<=0||!Number.isFinite(started)||age<0||age>14*24*60*60*1000){
+        item.answer={interpretation:'No workout recorded in the last two weeks.'};item.state='answered';return;
+      }
+      const comparison=await api('/api/kit/workout-compare',json('POST',{activity_id:Number(activity.id)}));
+      if(!active(c))return;
+      item.answer={workout_comparison:{...comparison,sport:activity.sport}};item.state='answered';
+    }catch{
+      if(!active(c))return;
+      item.answer={workout_error:true};item.state='answered';
+    }finally{
+      if(active(c)){c.sending=false;controls(c);draw(c);}
+    }
+  }
   function draw(c){
     if(!active(c))return;
     const list=$('#kit-messages',c.el),foodHost=c.foodHost;
@@ -189,7 +255,7 @@ Object.assign(KitChat, (() => {
         followups=index===messages.length-1&&!busy&&Array.isArray(a?.follow_ups)?a.follow_ups.slice(0,2).map(rewriteFollowup).filter(Boolean):[],
         failed=m.state==='failed'||c.answerErrors?.[m.client_id];
       const retry=kitChatOn()&&c.ready?'<button type="button" class="primary kit-error-retry" data-kit-retry>Retry</button>':'';
-      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${a.verdict?`<p class="kit-verdict">${esc(a.verdict)}</p>${a.reason?`<p class="kit-reason">${esc(a.reason)}</p>`:''}`:`<p>${esc(a.interpretation||'')}</p>`}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${detailRows.length?`<dl class="kit-training-details">${detailRows.map(row=>`<div class="kit-training-row"><dt>${row.label}</dt><dd><strong>${esc(row.verdict)}</strong><small>${esc(row.detail)}</small></dd></div>`).join('')}</dl>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>`<div><dt>${esc(factLabel(f))}</dt><dd>${esc(factValue(f))}</dd></div>`).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>${followups.length?`<div class="kit-suggested-replies" aria-label="Suggested replies">${followups.map(q=>`<button type="button" class="kit-suggested-reply" data-kit-followup aria-label="Send: ${esc(q)}"><span>${esc(q)}</span>${svg('send')}</button>`).join('')}</div>`:''}`:failed?errorBubble("Kit couldn't check that answer. Try a simpler question or Retry.",retry):waitingTarget?.id===String(m.client_id)?waitingHtml:''}</article>`;
+      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${a.verdict?`<p class="kit-verdict">${esc(a.verdict)}</p>${a.reason?`<p class="kit-reason">${esc(a.reason)}</p>`:''}`:a.interpretation?`<p>${esc(a.interpretation)}</p>`:''}${a.workout_comparison?workoutComparisonHtml(a.workout_comparison):''}${a.workout_error?`<p>The comparison couldn’t load. Try again.</p><button class="linkbtn kit-workout-retry" type="button" data-kit-workout-retry>Try again</button>`:''}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${detailRows.length?`<dl class="kit-training-details">${detailRows.map(row=>`<div class="kit-training-row"><dt>${row.label}</dt><dd><strong>${esc(row.verdict)}</strong><small>${esc(row.detail)}</small></dd></div>`).join('')}</dl>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>`<div><dt>${esc(factLabel(f))}</dt><dd>${esc(factValue(f))}</dd></div>`).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>${followups.length?`<div class="kit-suggested-replies" aria-label="Suggested replies">${followups.map(q=>`<button type="button" class="kit-suggested-reply" data-kit-followup aria-label="Send: ${esc(q)}"><span>${esc(q)}</span>${svg('send')}</button>`).join('')}</div>`:''}`:failed?errorBubble("Kit couldn't check that answer. Try a simpler question or Retry.",retry):waitingTarget?.id===String(m.client_id)?waitingHtml:''}</article>`;
     }).join('')+(pending?`<article><div class="thread-user"><p>${esc(c.job.question)}</p></div>${c.jobError?errorBubble("Your question couldn't be sent. Try again.",kitChatOn()&&c.ready?'<button type="button" class="primary kit-error-retry" id="kit-retry-send">Retry</button>':''):waitingHtml}</article>`:'')+(c.foodStarted?'<div id="kit-food-slot"></div>':'');
     if(foodHost&&c.foodStarted)$('#kit-food-slot',list)?.append(foodHost);
     pruneLongSuggestions(list);
@@ -198,6 +264,7 @@ Object.assign(KitChat, (() => {
     $('#kit-fine',c.el).hidden=!!has;
     $('#kit-older',c.el).hidden=!c.before;
     $$('[data-kit-retry]',list).forEach(b=>b.onclick=()=>answer(c,b.closest('[data-kit-id]').dataset.kitId));
+    $$('[data-kit-workout-retry]',list).forEach(b=>b.onclick=()=>reviewLatestWorkout(c));
     $$('[data-kit-followup]',list).forEach(b=>b.onclick=()=>send(c,b.querySelector('span')?.textContent.trim()||''));
     $$('[data-kit-review]',list).forEach(b=>b.onclick=()=>{const m=c.messages.find(m=>String(m.client_id)===b.closest('[data-kit-id]').dataset.kitId);kitReview(m.answer.selection,{scopeKey:'kit:'+m.client_id,conversation:true,onSaved:()=>status(c,'Saved. You can ask Kit to check your updated records.'),onStale:()=>status(c,'Your records changed. Ask Kit again before confirming this proposal.')});});
     const retry=$('#kit-retry-send',list);if(retry)retry.onclick=()=>deliver(c);
@@ -279,6 +346,7 @@ Object.assign(KitChat, (() => {
   }
   function sendStarter(c,button){
     const index=Number(button.dataset.kitStart),label=button.querySelector('span')?.textContent||'';
+    if(c.context.screen==='activity'&&!c.context.activity_id&&index===0&&label==='Review my latest workout')return reviewLatestWorkout(c);
     return send(c,label,index);
   }
   async function send(c,text,starterIndex=null){
