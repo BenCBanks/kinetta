@@ -1,12 +1,19 @@
-// Fictional Kit answer: follow-up pills should read as the user's question and send that exact text.
+// Fictional Kit follow-up: the user-style bubble sends exactly its visible rewrite.
 'use strict';
-const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS||'/tmp/kit-followups-voice';
+const {chromium}=require('playwright'),assert=require('node:assert/strict');
+const base=process.env.KINETTA_URL||'http://localhost:8798';
 const visit='fixture-kit-voice-visit',generation='fixture-kit-voice-generation';
-const sourcePills=['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?'];
-const displayed=['Review my recent workouts','Log meals for today','Set up a training plan'];
+const sourceReplies=[
+ 'Would you like to review your latest completed workouts from this training block and compare how they fit your plan?',
+ 'Are your legs feeling heavy or fatigued today?',
+ 'Do you feel ready to train again?'
+];
+const displayedReplies=[
+ 'Compare my workouts',
+ 'My legs feel heavy today'
+];
 const initial={id:1,client_id:'fixture-kit-voice-answer',question:'Look at my consistency',state:'answered',answer:{
- verdict:'Your recent records show three clear options.',reason:'This answer uses fictional records for the screenshot.',facts:[],follow_ups:sourcePills
+ verdict:'Your recent records show two options.',reason:'This fixture uses fictional training facts.',facts:[],follow_ups:sourceReplies
 }};
 async function main(){
  const browser=await chromium.launch(),login=await browser.newContext();
@@ -38,24 +45,19 @@ async function main(){
     return route.continue();
    });
    await page.goto(base+'/me/kit?from=progress');
-   const buttons=page.locator('.kit-answer-followups button');await buttons.first().waitFor({state:'visible'});
-   await page.waitForFunction(()=>document.fonts.status==='loaded');
-   await fs.promises.mkdir(out,{recursive:true});
-   await buttons.evaluateAll((nodes,labels)=>nodes.forEach((button,i)=>button.querySelector('span').textContent=labels[i]),sourcePills);
-   await page.evaluate(()=>{window.scrollTo(0,0);const list=document.querySelector('#kit-messages');if(list)list.scrollTop=0;});
-   await page.screenshot({path:path.join(out,`kit-voice-before-390-${theme}.png`),animations:'disabled'});
-   await buttons.evaluateAll((nodes,labels)=>nodes.forEach((button,i)=>button.querySelector('span').textContent=labels[i]),displayed);
-   assert.deepEqual(await buttons.allTextContents(),displayed,`${theme}: all three pills show the approved user-voice copy`);
-   for(const phrase of sourcePills)assert.equal((await page.locator('.kit-answer-followups').innerText()).includes(phrase),false,`${theme}: old question phrasing is absent`);
-   await page.evaluate(()=>{window.scrollTo(0,0);const list=document.querySelector('#kit-messages');if(list)list.scrollTop=0;});
-   await page.screenshot({path:path.join(out,`kit-voice-after-390-${theme}.png`),animations:'disabled'});
+   const buttons=page.locator('.kit-suggested-reply');await buttons.first().waitFor({state:'visible'});
+   assert.equal(await buttons.count(),2,`${theme}: no more than two replies are shown`);
+   assert.deepEqual(await buttons.allTextContents().then(rows=>rows.map(s=>s.trim())),displayedReplies,`${theme}: only safe user-voice rewrites remain`);
+   assert.equal(await buttons.first().getAttribute('aria-label'),'Send: '+displayedReplies[0],`${theme}: each bubble names its send action`);
+   for(const phrase of sourceReplies)assert.equal((await page.locator('.kit-suggested-replies').innerText()).includes(phrase),false,`${theme}: original question wording is hidden`);
    const request=page.waitForRequest(r=>r.url().endsWith('/api/coach/conversation/messages')&&r.method()==='POST');await buttons.first().click();const sent=await request;
-   assert.equal(sent.postDataJSON().question,displayed[0],`${theme}: tap submits exactly the displayed text`);
-   await page.waitForFunction(({id,text})=>document.querySelector(`[data-kit-id="${id}"] .thread-user p`)?.textContent.trim()===text,{id:sent.postDataJSON().client_id,text:displayed[0]});
+   assert.equal(sent.postDataJSON().question,displayedReplies[0],`${theme}: tap submits exactly the displayed text`);
+   await page.waitForFunction(({id,text})=>document.querySelector(`[data-kit-id="${id}"] .thread-user p`)?.textContent.trim()===text,{id:sent.postDataJSON().client_id,text:displayedReplies[0]});
+   await page.waitForFunction(()=>document.querySelectorAll('.kit-suggested-reply').length===0,`${theme}: suggestions disappear after send`);
    assert.deepEqual(errors,[],`${theme}: no page errors`);assert.deepEqual(unexpected,[],`${theme}: no unrelated writes or provider calls`);
-   await context.close();
+   assert.equal(submitted.question,displayedReplies[0]);await context.close();
   }
-  console.log('Kit follow-up voice: three exact display rewrites at 390 light/dark; first tapped pill is sent and displayed verbatim; no provider calls.');
+  console.log('Kit suggested reply: user-voice rewrite, unsupported question drop, immediate exact send and removal pass in light/dark.');
  }finally{await login.close();await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

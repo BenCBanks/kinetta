@@ -3,18 +3,24 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const c={route(){},KitChat:{loaded:false},IC:{},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
 for(const [input,expected] of [
  ['Would you like to review your recent workouts?','Review my recent workouts'],
+ ['Would you like to review your latest completed workouts from this training block and compare how they fit your plan?','Compare my workouts'],
+ ['Would you like to review your latest completed workouts from this training block and compare how they fit my plan?','Compare my workouts'],
  ['Do you want to log meals for today?','Log meals for today'],
  ['Should we set up a training plan?','Set up a training plan'],
  ['Would you like to compare your recent strength sessions with your earlier workouts?','Compare my recent strength sessions with my earlier workouts'],
  ['Shall we compare your 5 km run with Ben?','Compare my 5 km run with Ben'],
  ['Can we track your pace for yourself?','Track my pace for myself'],
  ['Want to check whether you can use Garmin?','Check whether I can use Garmin'],
+ ['Are your legs feeling heavy or fatigued today?','My legs feel heavy today'],
+ ['Do you feel ready to train again?',null],
+ ['How do your legs feel after yesterday?',null],
  ['What should I focus on next week?','What should I focus on next week?'],
  ['Would you like to better training?','Would you like to better training?'],
  ['Would you like to review your recent workouts.','Would you like to review your recent workouts.'],
  ['Would you like to?','Would you like to?'],
 ])assert.equal(c.Kit.rewriteFollowup(input),expected,`screen-side follow-up rewrite: ${input}`);
-assert(source.includes('a.follow_ups.slice(0,3).map(q=>`<button type="button" data-kit-followup><span>${esc(rewriteFollowup(q))}</span></button>`)')&&source.includes('send(c,b.textContent.trim())'),'the rewritten pill label is the text sent when it is tapped');
+assert(source.includes('a.follow_ups.slice(0,2).map(rewriteFollowup).filter(Boolean)')&&source.includes('class="kit-suggested-reply" data-kit-followup')&&source.includes("send(c,b.querySelector('span')?.textContent.trim()||'')"),'at most two rewritten suggestions render as sendable user bubbles');
+assert(source.includes('function pruneLongSuggestions(root)')&&source.includes('if(new Set(lines).size>2)button.remove()'),'suggestions over two rendered lines are dropped without truncation');
 assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
 assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition)),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
 assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.progress)),['Am I improving?','Look at my consistency','Choose a focus','Review my week'],'the weekly review is an explicit fourth Progress question');
@@ -38,8 +44,8 @@ const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eras
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 assert(source.includes("send(c,label,index)")&&source.includes("button.querySelector('span')?.textContent"),'a starter sends its visible button label separately from its hidden guidance index');
 assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the stored question verbatim');
-assert(source.includes('a.follow_ups.slice(0,3)')&&source.includes('data-kit-followup')&&source.includes('<span>${esc(rewriteFollowup(q))}</span>'),'Kit presents rewritten user-voice follow-ups as tappable question chips');
-assert(source.includes('send(c,b.textContent.trim())'),'a follow-up chip asks Kit exactly the visible question');
+assert(source.includes('class="kit-suggested-replies" aria-label="Suggested replies"')&&source.includes('<span>${esc(q)}</span>${svg(\'send\')}'),'Kit renders suggested replies as user-voice bubbles with a send arrow');
+assert(source.includes("b.querySelector('span')?.textContent.trim()||''"),'a suggested reply sends exactly its visible text, excluding the arrow');
 assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
 assert(source.includes('if(f.display_value!=null)return String(f.display_value)'),'Kit preserves server-formatted unit-aware values');
 assert(source.includes('a.weekly_review.what_went_well')&&source.includes('a.weekly_review.what_to_change')&&source.includes('a.weekly_review.next_week_focus'),'weekly review renders its three named sections');
@@ -120,7 +126,7 @@ async function testFoodThreadBridge(){
  for(const context of [{screen:'progress',starter_index:0},{screen:'progress'}]){
   const question=Object.hasOwn(context,'starter_index')?'Am I improving?':'How did my running change this month?';
   const pending={client_id:'saved-id',generation:'g',visit_id:'v',question,context},requests=[];
-  const retry={active:()=>true,kitChatOn:()=>true,draw(){},controls(){},status(){},key:()=>'',store:{del(){}},$:()=>({value:'A different unsent draft',style:{}}),json:(_method,body)=>JSON.parse(JSON.stringify(body)),answer:async()=>{},api:async(_url,body)=>{requests.push(body);if(requests.length===1)throw Error('offline');return {...body,id:1};}};
+  const retry={active:()=>true,kitChatOn:()=>true,draw(){},controls(){},status(){},clearWait(){},key:()=>'',store:{del(){}},$:()=>({value:'A different unsent draft',style:{}}),json:(_method,body)=>JSON.parse(JSON.stringify(body)),answer:async()=>{},api:async(_url,body)=>{requests.push(body);if(requests.length===1)throw Error('offline');return {...body,id:1};}};
   vm.createContext(retry);vm.runInContext(pick('  async function deliver(c){','  function sendStarter(c,button){'),retry);
   const restored={job:JSON.parse(JSON.stringify(pending)),ready:true,generation:'g',visit_id:'v',messages:[],view:{pin(){}}};
   await retry.deliver(restored);assert.deepEqual(JSON.parse(JSON.stringify(restored.job)),pending,'failed send retains the saved payload');
@@ -141,6 +147,9 @@ assert(css.includes('.chat-suggestions > button {position:relative;display:flex;
 assert(css.includes('left:52px;height:1px;background:var(--line);content:\'\';'),'suggestion hairlines begin after the 20px icon and 16px gap');
 assert(css.includes('.chat-suggestions > button svg {flex:none;width:20px;height:20px;color:var(--tx2);}'),'suggestion icons use a clear 20px glyph');
 assert(css.includes('.kit-chat #kit-starters {flex:none;}')&&css.includes('.kit-chat #kit-composer {padding-top:0;margin-top:auto;}'),'Kit suggestions sit at the page bottom above its composer');
+assert(source.includes('elapsed<4000')&&source.includes('elapsed>=20000')&&source.includes('Looking at your recent workouts…')&&source.includes('Checking your data…')&&source.includes('Still working…'),'the wait bubble progresses from dots to contextual status to a long-wait note');
+assert(source.includes("Kit couldn't check that answer. Try a simpler question or Retry.")&&!source.includes('esc(c.answerErrors?.[m.client_id]'),'answer failures use the helpful client copy, not raw server errors');
+assert(css.includes('.kit-chat .kit-compose-row {display:flex;align-items:center;gap:6px;width:100%;height:40px;min-height:40px;')&&css.includes('.kit-chat .kit-compose-row:focus-within {border-color:transparent;outline:1.5px solid var(--accent);outline-offset:-1.5px;box-shadow:none;}')&&css.includes('inset:6px;border-radius:50%;background:var(--btn);'),'composer is 40px tall, with a 1.5px ring and a 32px visible Send circle');
 assert(css.includes('#kit-text {font-size:max(16px,1rem);'),'Kit composer follows large text settings while keeping a 16px minimum');
 assert.match(css,/--text-nav-title\s*:\s*17px/);
 assert(css.includes('.shell .top.subpage-header > h1')&&css.includes('text-overflow:ellipsis'),'shared pushed-page titles truncate in their centered row');
@@ -148,14 +157,17 @@ assert(css.includes('.subpage-header > .icon-btn:not(.progress-back)'),'Progress
 assert(css.includes('.shell .top.subpage-header {margin-inline:-8px;padding-inline:8px;}'),'narrow shared headers align Back with page content while keeping the title centered');
 assert(css.includes('.food-thread .thread-heading h1')&&css.includes('var(--text-nav-title)'),'chat headings use the same title token');
 assert(css.includes('.kit-chat .kit-food-inline:has(#thread-review:not([hidden])) #thread-messages article:last-child .thread-card {border-bottom:0;')&&css.includes('margin:0;border-top:0;border-bottom:1px solid var(--line);border-radius:0 0 20px 6px;'),'the inline review footer completes the same food card border and radius');
+assert(css.includes('.kit-training-row {display:grid;')&&css.includes('min-height:44px;padding:4px 0;border-top:1px solid var(--line);'),'training verdict rows keep an inset divider and equal compact padding');
+assert(css.includes('@media (max-width:350px)')&&css.includes('.kit-training-row dd {text-align:left;}'),'narrow Kit detail rows put the verdict below the label');
+assert(css.includes('.kit-suggested-reply {')&&css.includes('max-width:92%')&&css.includes('background:var(--accent2)')&&css.includes('color:var(--accent)')&&css.includes('border:0;'),'suggested replies are borderless brand bubbles within the message column');
 assert(css.includes('.food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2;'),'the narrow two-row food-chat layout does not move Ask Kit off its one-row navigation header');
 assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button>'),'empty chat reminder sits below the composer');
 assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('Your chat stays while you switch apps. Start a new one anytime.')&&source.includes('providerName()'),'About Kit explains visit retention and keeps provider details');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
 const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null,')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
 const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
-const followups=['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?'].map(q=>({textContent:c.Kit.rewriteFollowup(q)})),sent=[];
-const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,rewriteFollowup:c.Kit.rewriteFollowup,controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){},send:async(_c,q)=>sent.push(q)};
+const followups=['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?'].map(q=>({onclick:null,querySelector(){return {textContent:c.Kit.rewriteFollowup(q)}}})),sent=[];
+const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,rewriteFollowup:c.Kit.rewriteFollowup,pruneLongSuggestions(){},waitBubble:()=>'<div class="kit-status-bubble"></div>',controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){return '<svg></svg>';},send:async(_c,q)=>sent.push(q)};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
 drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
@@ -164,7 +176,7 @@ drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'Am I improvin
 assert(drawNodes['#kit-messages'].innerHTML.includes('Run distance')&&drawNodes['#kit-messages'].innerHTML.includes('124 mi'),'Kit answer uses a friendly fact label and converted display value');
 assert(!drawNodes['#kit-messages'].innerHTML.includes('Unlogged days do not count'),'Kit answer omits tool limitation lists');
 drawHarness.draw({el:{},messages:[{client_id:'voice',question:'A fictional question',state:'answered',answer:{interpretation:'A concise answer.',follow_ups:['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?']}}],job:null,before:null});
-assert(drawNodes['#kit-messages'].innerHTML.includes('Review my recent workouts')&&drawNodes['#kit-messages'].innerHTML.includes('Log meals for today')&&drawNodes['#kit-messages'].innerHTML.includes('Set up a training plan'),'question-form pills render in the user voice');
+assert(drawNodes['#kit-messages'].innerHTML.includes('Review my recent workouts')&&drawNodes['#kit-messages'].innerHTML.includes('Log meals for today')&&!drawNodes['#kit-messages'].innerHTML.includes('Set up a training plan'),'only two question-form suggestions render in the user voice');
 assert(!drawNodes['#kit-messages'].innerHTML.includes('Would you like to review'),'matched question wording is not shown');
 followups[0].onclick();assert.deepEqual(sent,['Review my recent workouts'],'a tapped pill sends its displayed user-voice text');
 const response={verdict:'Yes, your recorded running is building.',reason:'You covered more ground across the completed weeks.',interpretation:'Do not duplicate the combined text.',facts:[{label:'Weekly running',display_value:'18.6 mi',value:29933.7984,path:['totals','distance_m']}],follow_ups:['How is my running trending?','What should I focus on next?'],actions:['progress']};
@@ -174,6 +186,26 @@ assert(answerHtml.indexOf('Am I improving?')<answerHtml.indexOf('kit-verdict'));
 assert(answerHtml.indexOf('kit-verdict')<answerHtml.indexOf('kit-reason')&&answerHtml.indexOf('kit-reason')<answerHtml.indexOf('kit-facts'),'verdict, reason and facts keep the approved reading order');
 assert(!answerHtml.includes('Do not duplicate')&&!answerHtml.includes('href="/progress"'),'follow-up questions replace generic destination links');
 assert.equal((answerHtml.match(/data-kit-followup/g)||[]).length,2);
+assert(answerHtml.includes('</div><div class="kit-suggested-replies"')&&!answerHtml.includes('kit-answer-followups'),'send bubbles sit outside the answer card');
+const trainingHtml=drawAnswer({facts:[{path:['days',9,'fatigue'],value:61.4},{path:['days',9,'fitness'],value:48.4},{path:['days',9,'form'],value:8.7}]});
+assert(trainingHtml.includes('Recent training')&&trainingHtml.includes('Heavier than usual')&&trainingHtml.includes('≈ 61 vs ≈ 48 usual'),'recent training shows its verdict before concise whole-number estimates');
+assert(trainingHtml.includes('Freshness')&&trainingHtml.includes('>Fresh</strong>')&&trainingHtml.includes('≈ +9'),'freshness is a plain verdict with a whole number');
+assert(!trainingHtml.includes('Fatigue')&&!trainingHtml.includes('Fitness')&&!trainingHtml.includes('Form'),'technical training-load labels are replaced');
+const detailFor=(fatigue,fitness,form)=>drawAnswer({facts:[{path:['days',2,'fatigue'],value:fatigue},{path:['days',2,'fitness'],value:fitness},{path:['days',2,'form'],value:form}]});
+assert(detailFor(39,50,-10).includes('Lighter than usual')&&detailFor(39,50,-10).includes('Balanced'),'lower comparison boundary and -10 freshness boundary remain balanced as specified');
+assert(detailFor(60,50,5).includes('About usual')&&detailFor(60,50,5).includes('Balanced'),'comparison and freshness upper thresholds are inclusive');
+assert(detailFor(61,50,-11).includes('Heavier than usual')&&detailFor(61,50,-11).includes('Carrying tiredness'),'values past the comparison and fatigue thresholds use their plain verdicts');
+assert(detailFor(50,50,6).includes('Fresh</strong>'),'freshness turns fresh above the inclusive upper threshold');
+assert(detailFor(50,0,6).includes('Freshness')&&!detailFor(50,0,6).includes('Recent training'),'a zero baseline hides only the comparison row');
+const sparseTrainingHtml=drawAnswer({facts:[{path:['days',9,'fatigue'],value:21.2},{path:['days',9,'form'],value:null}]});
+assert(!sparseTrainingHtml.includes('Recent training')&&!sparseTrainingHtml.includes('Freshness'),'missing comparison data hides the detail rows');
+const historyHtml=()=>{drawHarness.draw({el:{},messages:[
+ {client_id:'older',question:'Earlier question',state:'answered',answer:{interpretation:'Earlier answer.',follow_ups:['This older suggestion must stay hidden.']}},
+ {client_id:'newer',question:'Newest question',state:'answered',answer:{interpretation:'Newest answer.',follow_ups:['Would you like to review your recent workouts?','Are your legs feeling heavy or fatigued today?','Should we set up a training plan?']}}
+],job:null,before:null});return drawNodes['#kit-messages'].innerHTML;};
+const historyMarkup=historyHtml();assert.equal((historyMarkup.match(/data-kit-followup/g)||[]).length,2,'only the newest answer offers up to two suggestions');assert(!historyMarkup.includes('This older suggestion must stay hidden.'));
+drawHarness.draw({el:{},messages:[{client_id:'older',question:'Earlier question',state:'answered',answer:{interpretation:'Earlier answer.',follow_ups:['An old suggestion.']}},{client_id:'pending',question:'A new question',state:'running'}],job:null,before:null});
+assert.equal((drawNodes['#kit-messages'].innerHTML.match(/data-kit-followup/g)||[]).length,0,'suggestions hide while Kit is answering');
 const weeklyHtml=drawAnswer({...response,verdict:'Your week shows steady progress.',reason:'The recorded activity supports that summary.',weekly_review:{what_went_well:'You kept a steady rhythm.',what_to_change:'Food entries were sparse.',next_week_focus:'Keep the plan manageable.'}});
 assert(weeklyHtml.includes('<p class="kit-verdict">Your week shows steady progress.</p>'),'weekly answer preserves its bold verdict lead');
 assert(weeklyHtml.includes('<h3>What went well</h3>')&&weeklyHtml.includes('Keep the plan manageable.'),'weekly sections render below the verdict');
