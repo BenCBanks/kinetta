@@ -34,7 +34,7 @@ assert.equal(c.Kit.foodIntent('What did I eat today?'),null,'questions about log
 assert.equal(c.Kit.foodIntent('Can you record my bike ride?'),null,'activity requests stay with Kit');
 assert.equal(c.Kit.foodIntent('2 eggs and toast',true)?.kind,'food','the follow-up accepts a food description');
 assert.equal(c.Kit.foodIntent('How many calories was breakfast?',true),null,'a follow-up question stays in Kit');
-const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,2);assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
+const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,3);assert(accountKeys.some(k=>k.startsWith('fit.kit.visit:')),'device erasure also drops the locally retained visit identifier');assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 assert(source.includes("send(c,label,index)")&&source.includes("button.querySelector('span')?.textContent"),'a starter sends its visible button label separately from its hidden guidance index');
 assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the stored question verbatim');
@@ -104,8 +104,8 @@ async function testFoodThreadBridge(){
  promptField.value='How has my running changed this month?';await foodRouter.send(foodContext);assert.equal(promptDeliveries,1,'an activity question from any tab stays in Kit');
  // A server-accepted message after a lost acknowledgement reconciles the durable local send.
  const removed=[];field={value:'Accepted earlier',style:{}};
- const loader={kitChatOn:()=>true,aiCan:()=>true,App:{me:{ai_ok:true}},api:async()=>({generation:'generation-a',messages:[{id:1,client_id:'accepted',question:'Accepted earlier',state:'answered'}],ready:true,before:null}),active:()=>true,$:()=>field,store:{del:k=>removed.push(k)},key:(o,k)=>k,draw(){},status(){},Map,answer(){throw Error('Answered messages cannot call the model again')},later(){}};
- vm.createContext(loader);vm.runInContext(pick('  async function refresh(c,before=null){','  const later='),loader);
+ const loader={VISIT_MAX_AGE:24*60*60*1000,kitChatOn:()=>true,aiCan:()=>true,App:{me:{ai_ok:true}},api:async()=>({generation:'generation-a',messages:[{id:1,client_id:'accepted',question:'Accepted earlier',state:'answered'}],ready:true,before:null}),active:()=>true,$:()=>field,store:{del:k=>removed.push(k)},key:(o,k)=>k,draw(){},status(){},Map,answer(){throw Error('Answered messages cannot call the model again')},later(){}};
+ vm.createContext(loader);vm.runInContext(pick('  async function refresh(c,before=null,','  const later='),loader);
  const resumed={generation:'generation-a',owner:'one',messages:[],job:{client_id:'accepted',question:'Accepted earlier',generation:'generation-a'}};
  await loader.refresh(resumed);assert.equal(resumed.job,null);assert.equal(field.value,'');assert(removed.includes('pending')&&removed.includes('draft'));
  // Reorder the actual answer handler across Clear and account changes.
@@ -150,9 +150,9 @@ assert(css.includes('.food-thread .thread-heading h1')&&css.includes('var(--text
 assert(css.includes('.kit-chat .kit-food-inline:has(#thread-review:not([hidden])) #thread-messages article:last-child .thread-card {border-bottom:0;')&&css.includes('margin:0;border-top:0;border-bottom:1px solid var(--line);border-radius:0 0 20px 6px;'),'the inline review footer completes the same food card border and radius');
 assert(css.includes('.food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2;'),'the narrow two-row food-chat layout does not move Ask Kit off its one-row navigation header');
 assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button>'),'empty chat reminder sits below the composer');
-assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('New chat each visit.')&&source.includes('providerName()'),'About Kit keeps visit and provider details in the menu flow');
+assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('Your chat stays while you switch apps. Start a new one anytime.')&&source.includes('providerName()'),'About Kit explains visit retention and keeps provider details');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
-const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
+const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null,')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
 const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
 const followups=['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?'].map(q=>({textContent:c.Kit.rewriteFollowup(q)})),sent=[];
 const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,rewriteFollowup:c.Kit.rewriteFollowup,controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){},send:async(_c,q)=>sent.push(q)};
