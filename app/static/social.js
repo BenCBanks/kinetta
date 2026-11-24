@@ -550,6 +550,9 @@ async function weeklyRecapOffer(box){
     dismiss.onclick=()=>{if(!live())return;store.set(key,'dismissed');box.replaceChildren();};share.onclick=()=>{if(live())openWeeklyRecapShare(box,data,usual,medals,days);};
   }catch(_){/* The recap is optional; feed access must remain useful if one of its reads is offline. */}
 }
+function weeklyRecapAfterReady(box,owner){
+  const load=()=>{if(!box?.isConnected||owner!==readOwner())return;if(App.pageReady){requestAnimationFrame(()=>{if(box.isConnected&&owner===readOwner())void weeklyRecapOffer(box);});return;}setTimeout(load,16);};load();
+}
 // Persist only a small opening view; deeper browsing stays in this account's memory cache.
 function keepFeed(pg){
   const rows=pg.rows.slice(0,FEED_N);
@@ -602,7 +605,7 @@ async function homeFeed(el) {
   wireHomeChallengeLink(el);
   const list=$('#ff-list',el),more=$('#ff-more',el),recap=$('#weekly-recap',el),groupStrip=$('#activity-groups-strip',el),account=readOwner();
   void activityGroupStrip(groupStrip,account);
-  void weeklyRecapOffer(recap);
+  weeklyRecapAfterReady(recap,account);
   let items=[],shown=null,pageRevision=0;
   const active=()=>account===readOwner()&&list.isConnected,tools=feedTools(el,()=>account===readOwner()&&list.isConnected);
   const draw=pg=>{
