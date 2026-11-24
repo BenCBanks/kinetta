@@ -28,21 +28,34 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
+          # Artifacts survive a failed workflow attempt. Keep a rerun's artifact distinct so
+          # deploy-pages never sees both the stale and current github-pages artifacts.
+          name: github-pages-${{ github.run_attempt }}
           path: site
       - name: Wait for the current Pages artifact to be visible
         env:
           GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
         run: |
+          found=0
           for attempt in {1..10}; do
             if gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
-                --jq 'any(.artifacts[]; .name == "github-pages" and (.expired | not))' | grep -q '^true$'; then
-              echo "The current Pages artifact is visible to the deployment API."
-              exit 0
+                | python3 -c 'import json,os,sys; name=os.environ["PAGES_ARTIFACT_NAME"]; artifacts=json.load(sys.stdin).get("artifacts", []); matches=[a for a in artifacts if a.get("name")==name and not a.get("expired", False)]; raise SystemExit(0 if len(matches)==1 else 1)'; then
+              echo "The current Pages artifact is visible; allowing its deployment index to settle."
+              found=1
+              break
             fi
             echo "Waiting for the Pages artifact metadata ($attempt/10)."
             sleep 2
           done
-          echo "The current Pages artifact did not become visible within 20 seconds." >&2
-          exit 1
+          if [ "$found" -ne 1 ]; then
+            echo "The current Pages artifact did not become visible within 20 seconds." >&2
+            exit 1
+          fi
+          # The Actions artifact list became visible just before deploy-pages returned zero
+          # artifacts on 2026-11-24. Give the Pages deployment index a short settling window.
+          sleep 5
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
