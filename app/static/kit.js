@@ -244,28 +244,7 @@ Object.assign(KitChat, (() => {
     const notable=({hillier:'Hillier than usual',hotter:'Hotter than usual',personal_record:'Personal record',longest_90d:`Longest ${sport[0]} in 90 days`})[data.notable]||null;
     return `<section class="kit-workout-comparison" aria-label="Workout comparison">${summary?`<p class="kit-workout-summary">${esc(summary)}</p>`:''}<p class="kit-workout-baseline">vs your last ${count} ${sport[count===1?0:1]} of similar distance</p>${count<2?'<p class="kit-workout-empty">Not enough similar runs yet to compare.</p>':rows.length?`<dl class="kit-workout-rows">${rows.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`:''}${notable?`<p class="kit-workout-notable">${esc(notable)}</p>`:''}</section>`;
   }
-  async function reviewLatestWorkout(c){
-    if(!active(c)||c.sending||!c.loaded||!c.ready)return;
-    c.sending=true;c.localMessages||=[];
-    const item={client_id:'local-workout-'+newId(),question:'Review my latest workout',state:'running',answer:null};
-    c.localMessages.push(item);controls(c);draw(c);
-    try{
-      const activities=await api('/api/activities?limit=1');
-      if(!active(c))return;
-      const activity=Array.isArray(activities)?activities[0]:null,started=activity?.start_time?Date.parse(activity.start_time):NaN,age=Date.now()-started;
-      if(!activity||!Number.isSafeInteger(Number(activity.id))||Number(activity.id)<=0||!Number.isFinite(started)||age<0||age>14*24*60*60*1000){
-        item.answer={interpretation:'No workout recorded in the last two weeks.'};item.state='answered';return;
-      }
-      const comparison=await api('/api/kit/workout-compare',json('POST',{activity_id:Number(activity.id)}));
-      if(!active(c))return;
-      item.answer={workout_comparison:{...comparison,sport:activity.sport}};item.state='answered';
-    }catch{
-      if(!active(c))return;
-      item.answer={workout_error:true};item.state='answered';
-    }finally{
-      if(active(c)){c.sending=false;controls(c);draw(c);}
-    }
-  }
+  function reviewLatestWorkout(c){return send(c,'Review my latest workout',0);}
   function draw(c){
     if(!active(c))return;
     const list=$('#kit-messages',c.el),foodHost=c.foodHost;
@@ -277,12 +256,13 @@ Object.assign(KitChat, (() => {
       waitingTarget=waitingMessage&&!c.jobError&&!c.answerErrors?.[waitingMessage.client_id]?{id:String(waitingMessage.client_id),question:waitingMessage.question}:null;
     const waitingHtml=waitBubble(c,waitingTarget);
     list.innerHTML=messages.map((m,index)=>{
-      const a=m.answer,copy=answerCopy(a),rawFacts=a?.facts||[],detailRows=trainingDetails(rawFacts),
-        facts=rawFacts.filter(f=>!['id','source_id','route_id','candidate_id','unlogged_days','food_unlogged_days','fitness','fatigue','form','activities_without_effort'].includes(f.path?.at(-1))&&!isBareEffort(f)&&!copyIncludesValue(copy,factValue(f))).slice(0,3),
+      const a=m.answer,workoutMode=!!a?.workout_review,verdict=a?.workout_review?.verdict||a?.verdict,reason=a?.workout_review?.next_step||a?.reason,copy=answerCopy(a),rawFacts=a?.facts||[],detailRows=trainingDetails(rawFacts),
+        comparison=a?.workout_comparison?workoutComparisonHtml(a.workout_comparison):'',
+        facts=workoutMode?[]:rawFacts.filter(f=>!['id','source_id','route_id','candidate_id','unlogged_days','food_unlogged_days','fitness','fatigue','form','activities_without_effort'].includes(f.path?.at(-1))&&!isBareEffort(f)&&!copyIncludesValue(copy,factValue(f))).slice(0,3),
         followups=index===messages.length-1&&!busy&&Array.isArray(a?.follow_ups)?a.follow_ups.map(rewriteFollowup).filter(Boolean).filter(isFirstPersonFollowup).slice(0,2):[],
         failed=m.state==='failed'||c.answerErrors?.[m.client_id];
       const retry=kitChatOn()&&c.ready?'<button type="button" class="primary kit-error-retry" data-kit-retry>Retry</button>':'';
-      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${a.verdict?`<p class="kit-verdict">${esc(a.verdict)}</p>${a.reason?`<p class="kit-reason">${esc(a.reason)}</p>`:''}`:a.interpretation?`<p>${esc(a.interpretation)}</p>`:''}${a.workout_comparison?workoutComparisonHtml(a.workout_comparison):''}${a.workout_error?`<p>The comparison couldn’t load. Try again.</p><button class="linkbtn kit-workout-retry" type="button" data-kit-workout-retry>Try again</button>`:''}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${detailRows.length?`<dl class="kit-training-details">${detailRows.map(row=>`<div class="kit-training-row"><dt>${row.label}</dt><dd><strong>${esc(row.verdict)}</strong><small>${esc(row.detail)}</small></dd></div>`).join('')}</dl>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>{const source=factSource(f);return `<div><dt>${esc(factLabel(f))}${source?`<small class="kit-fact-source">${esc(source)}</small>`:''}</dt><dd>${esc(factValue(f))}</dd></div>`;}).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>${followups.length?`<div class="kit-suggested-replies" aria-label="Suggested replies">${followups.map(q=>`<button type="button" class="kit-suggested-reply" data-kit-followup aria-label="Send: ${esc(q)}"><span>${esc(q)}</span>${svg('send')}</button>`).join('')}</div>`:''}`:failed?errorBubble("Kit couldn't check that answer. Try a simpler question or Retry.",retry):waitingTarget?.id===String(m.client_id)?waitingHtml:''}</article>`;
+      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${verdict?`<p class="kit-verdict">${esc(verdict)}</p>`:a.interpretation?`<p>${esc(a.interpretation)}</p>`:''}${workoutMode?comparison:''}${reason?`<p class="kit-reason">${esc(reason)}</p>`:''}${!workoutMode?comparison:''}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${detailRows.length?`<dl class="kit-training-details">${detailRows.map(row=>`<div class="kit-training-row"><dt>${row.label}</dt><dd><strong>${esc(row.verdict)}</strong><small>${esc(row.detail)}</small></dd></div>`).join('')}</dl>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>{const source=factSource(f);return `<div><dt>${esc(factLabel(f))}${source?`<small class="kit-fact-source">${esc(source)}</small>`:''}</dt><dd>${esc(factValue(f))}</dd></div>`;}).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>${followups.length?`<div class="kit-suggested-replies" aria-label="Suggested replies">${followups.map(q=>`<button type="button" class="kit-suggested-reply" data-kit-followup aria-label="Send: ${esc(q)}"><span>${esc(q)}</span>${svg('send')}</button>`).join('')}</div>`:''}`:failed?errorBubble("Kit couldn't check that answer. Try a simpler question or Retry.",retry):waitingTarget?.id===String(m.client_id)?waitingHtml:''}</article>`;
     }).join('')+(pending?`<article><div class="thread-user"><p>${esc(c.job.question)}</p></div>${c.jobError?errorBubble("Your question couldn't be sent. Try again.",kitChatOn()&&c.ready?'<button type="button" class="primary kit-error-retry" id="kit-retry-send">Retry</button>':''):waitingHtml}</article>`:'')+(c.foodStarted?'<div id="kit-food-slot"></div>':'');
     if(foodHost&&c.foodStarted)$('#kit-food-slot',list)?.append(foodHost);
     pruneLongSuggestions(list);

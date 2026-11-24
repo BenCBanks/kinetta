@@ -4,7 +4,7 @@ import io,json,uuid,zipfile,threading
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from app import auth,db,coach_chat,kit_tools,ai_release
+from app import auth,db,coach_chat,kit_tools,ai_release,kit_workout_review
 from app.main import app
 from app.api_mydata import _write_export
 uids=[];clients=[];pw='green kettle on a quiet hill'
@@ -54,6 +54,34 @@ try:
    assert failed['error']=='Kit could not verify that answer. Try again.'
   answered=req(a,'POST',root+'/messages/'+starter['client_id']+'/answer',{'generation':generation});assert answered['question']=='Am I improving?'
   assert 'Optional guidance for the tapped starter' in seen[-1][1] and seen[-1][1].endswith('Question: Am I improving?'),'hidden starter guidance is separate and the actual visible question is last/primary'
+  from app import workout_compare
+  comparison={'status':'summary_only','sport':'workout','current':{'distance_m':None,'moving_s':1800},'baseline_count':0,'baseline_medians':{},'deltas':{},'relations':{},'notable':'none'}
+  review_evidence={'comparison':comparison,'required_consents':{'health':False,'garmin':False},'health_included':False}
+  def review_response(user,question,**kwargs):
+   assert question=='Review my latest workout' and kwargs.get('workout_review') is True
+   evidence=kwargs.get('workout_evidence');assert evidence and kwargs.get('history')==[]
+   verdict='My Garmin-only fictional review is ready.' if evidence['required_consents']['garmin'] else 'My session felt steady.'
+   return {'workout_review':{'verdict':verdict,'next_step':'Keep my next effort comfortable.'},'facts':[],'follow_ups':[], 'workout_comparison':evidence['comparison'],'health_included':evidence['health_included'],'garmin_included':evidence['required_consents']['garmin']}
+  workout=message('Review my latest workout');workout['context']={'screen':'activity','starter_index':0}
+  with patch('app.workout_compare.review_for_user',return_value=review_evidence),patch('app.coach_chat.answer',side_effect=review_response):
+   req(a,'POST',root+'/messages',workout)
+   reviewed=req(a,'POST',root+'/messages/'+workout['client_id']+'/answer',{'generation':generation})
+  assert reviewed['answer']['workout_comparison']==comparison and reviewed['state']=='answered'
+  typed_workout=message('Review my latest workout');typed_workout['context']={'screen':'activity'}
+  with patch('app.workout_compare.review_for_user',side_effect=AssertionError('typed text must not start workout mode')):
+   req(a,'POST',root+'/messages',typed_workout)
+   req(a,'POST',root+'/messages/'+typed_workout['client_id']+'/answer',{'generation':generation})
+  garmin_evidence={**review_evidence,'required_consents':{'health':False,'garmin':True},'health_included':False}
+  with db.connect() as c:c.execute('UPDATE profile SET garmin_ai_ok=true WHERE user_id=%s',(uid,))
+  garmin_workout=message('Review my latest workout');garmin_workout['context']={'screen':'activity','starter_index':0}
+  with patch('app.workout_compare.review_for_user',return_value=garmin_evidence),patch('app.coach_chat.answer',side_effect=review_response):
+   req(a,'POST',root+'/messages',garmin_workout)
+   garmin_answer=req(a,'POST',root+'/messages/'+garmin_workout['client_id']+'/answer',{'generation':generation})
+  assert garmin_answer['answer']['garmin_included'] and not garmin_answer['answer']['health_included']
+  with db.connect() as c:c.execute('UPDATE profile SET garmin_ai_ok=false WHERE user_id=%s',(uid,))
+  after_garmin=message('What does my recent workout show?');after_garmin['context']={'screen':'activity'}
+  req(a,'POST',root+'/messages',after_garmin);req(a,'POST',root+'/messages/'+after_garmin['client_id']+'/answer',{'generation':generation})
+  assert 'My Garmin-only fictional review' not in json.dumps(seen[-1][2]['history']),'a prior Garmin review is not reused after Garmin consent is off'
   weekly=message('Review my week');weekly['context']={'screen':'progress','starter_index':3}
   req(a,'POST',root+'/messages',weekly);req(a,'POST',root+'/messages/'+weekly['client_id']+'/answer',{'generation':generation})
   assert seen[-1][2]['weekly_review'] is True and seen[-1][1].endswith('Question: Review my week'),'the exact fourth Progress starter starts weekly mode with separate hidden guidance'
@@ -63,7 +91,14 @@ try:
   # Bounded history and pagination use the same account; no source identity can be supplied.
   with db.connect() as c:
    for n in range(55):c.execute("INSERT INTO kit_turns(user_id,client_id,generation,question,state,answer) VALUES (%s,%s,%s,%s,'answered',%s)",(uid,uuid.uuid4(),generation,'Earlier question '+str(n),json.dumps(result['answer'])))
-  page=req(a,'GET',root);assert len(page['messages'])==50 and page['before'];older=req(a,'GET',root+'?before='+str(page['before']));assert len(older['messages'])==11,'the weekly starter remains in the same visit history page'
+  page=req(a,'GET',root);assert len(page['messages'])==50 and page['before'];older=req(a,'GET',root+'?before='+str(page['before']));assert len(older['messages'])==15,'the weekly and workout starters remain in the same visit history pages'
+  rejected=message('Review my latest workout');rejected['context']={'screen':'activity','starter_index':0}
+  with patch('app.workout_compare.review_for_user',return_value=review_evidence),patch('app.coach_chat.answer',side_effect=kit_workout_review.WorkoutReviewRejected('numeric_unsupported')):
+   req(a,'POST',root+'/messages',rejected)
+   failed=req(a,'POST',root+'/messages/'+rejected['client_id']+'/answer',{'generation':generation})
+  assert failed['state']=='failed' and failed['error']==kit_workout_review.USER_ERROR
+  with db.connect() as c: saved_reason=c.execute('SELECT error FROM kit_turns WHERE user_id=%s AND client_id=%s',(uid,rejected['client_id'])).fetchone()['error']
+  assert saved_reason=='numeric_unsupported' and saved_reason not in json.dumps(failed),'only the closed diagnostic code is stored; the API returns generic copy'
   req(a,'POST',root+'/clear',{'generation':generation,'confirmed':'true'},422)
   new=req(a,'POST',root+'/clear',{'generation':generation,'confirmed':True});assert not new['messages'] and new['generation']!=generation
   req(a,'POST',root+'/messages',body,409);generation=new['generation']

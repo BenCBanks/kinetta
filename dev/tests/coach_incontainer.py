@@ -367,6 +367,16 @@ with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',re
     else:raise AssertionError('Invalid weekly number should fail closed')
 assert len(invalid_weekly_calls)==1,'weekly validation does not add a paid provider retry'
 
+# Workout-review is a separate response contract; legacy Kit and weekly shapes stay unchanged.
+legacy_with_workout={**kit_raw,'workout_review':{'verdict':'My effort felt steady.','next_step':'Keep going.'}}
+try: coach_chat.checked_answer(legacy_with_workout,[profile_evidence,run_evidence],kit=True)
+except ValueError: pass
+else: raise AssertionError('Ordinary Kit cannot accept the workout-review contract')
+weekly_with_workout={**weekly_raw,'workout_review':{'verdict':'My effort felt steady.','next_step':'Keep going.'}}
+try: coach_chat.checked_answer(weekly_with_workout,weekly_evidence,kit=True,weekly_review=True)
+except ValueError: pass
+else: raise AssertionError('Weekly review cannot accept the workout-review contract')
+
 # Numeric prose is assembled only after validating exact current-turn evidence.
 assert trend['interpretation']=='Your latest run was longer. It covered 5.6 mi, compared with 4.3 mi previously.'
 assert trend['prompt_version']=='kit-numbers-4'

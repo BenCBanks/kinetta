@@ -385,7 +385,10 @@ def _weekly_fact_class(fact):
     return None
 
 
-def checked_answer(raw, evidence, *, kit=False, weekly_review=False):
+def checked_answer(raw, evidence, *, kit=False, weekly_review=False, workout_review=False):
+    if workout_review:
+        from . import kit_workout_review
+        return kit_workout_review.checked_answer(raw, evidence)
     answer = (KitAnswer if kit else Answer).model_validate(raw)
     if weekly_review and not kit: raise ValueError('Weekly reviews require the Kit answer contract')
     if kit and not answer.reason.strip(): raise ValueError('Kit answers need a reason')
@@ -668,8 +671,12 @@ def _claude_turn(messages, definitions, *, system=SYSTEM):
                          'totalTokenCount': response.usage.input_tokens + response.usage.output_tokens}
 
 
-def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False):
+def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False,
+           workout_review=False, workout_evidence=None):
     """`turn` is a stand-in hook for deterministic tests; production uses the configured provider."""
+    if workout_review:
+        from . import kit_workout_review
+        return kit_workout_review.answer(uid, question, workout_evidence, turn=turn, active=active)
     if weekly_review and not kit: raise ValueError('Weekly reviews are only available through Kit')
     if not coach.allowed(uid): raise ValueError(coach.off())
     if not food_only and not kit:

@@ -49,6 +49,7 @@ assert(source.includes("send(c,b.querySelector('span')?.textContent.trim()||'')"
 assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
 assert(source.includes('if(f.display_value!=null)return String(f.display_value)'),'Kit preserves server-formatted unit-aware values');
 assert(source.includes('a.weekly_review.what_went_well')&&source.includes('a.weekly_review.what_to_change')&&source.includes('a.weekly_review.next_week_focus'),'weekly review renders its three named sections');
+assert(source.includes('a?.workout_review?.verdict')&&source.includes('a?.workout_review?.next_step'),'workout review renders its nested, separately validated answer contract');
 assert(source.includes('a.weekly_period?.label'),'weekly review shows the app-owned completed date range once');
 assert(source.includes('Review my week'),'weekly review is only a visible tap-to-start suggestion');
 assert(fs.readFileSync('app/static/style.css','utf8').includes('.kit-answer .kit-verdict')&&fs.readFileSync('app/static/style.css','utf8').includes('font-weight:700'),'weekly review verdict uses the same bold lead treatment as ordinary Kit answers');
