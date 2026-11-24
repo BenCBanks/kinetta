@@ -2,8 +2,9 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const sharedStyles=fs.readFileSync('app/static/style.css','utf8'),challengeStyles=fs.readFileSync('app/static/challenges.css','utf8'),homeStyles=fs.readFileSync('app/static/activity-home.css','utf8'),socialSource=fs.readFileSync('app/static/social.js','utf8'),challengeSource=fs.readFileSync('app/static/challenges.js','utf8');
-assert(challengeStyles.includes('#page.has-back > .top.challenge-list-top { display:flex;flex-wrap:nowrap;'),'Challenges actions stay together on one header line');
-assert(/class="top challenge-list-top">[\s\S]*class="icon-btn home-find-friends"[\s\S]*id="challenge-start"/.test(challengeSource),'Challenges orders the search icon before the create action');
+assert(challengeStyles.includes('#page.has-back > .top.challenge-list-top { display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);'),'Challenges title has a dedicated centered header column');
+assert(challengeStyles.includes('.challenge-list-actions > :is(a,button) { flex:none;width:44px;height:44px; }'),'Challenges keeps full-size header action targets');
+assert(/class="top challenge-list-top">[\s\S]*<h1>Challenges<\/h1><div class="challenge-list-actions"><a class="icon-btn home-find-friends"[\s\S]*id="challenge-start"/.test(challengeSource),'Challenges centers its title before Search then + actions');
 assert(!challengeSource.includes('id="challenge-friends"'),'the redundant Find friends row is removed');
 assert(homeStyles.includes('.feed-social-strip .challenge-summary { min-height:44px;'),'Home challenge progress uses the slim list-line height');
 assert(homeStyles.includes('.challenge-summary-timing { display:block; }'),'narrow Home challenge progress gives timing its own line');

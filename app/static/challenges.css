@@ -87,9 +87,11 @@
 /* #1024: compact challenge groups share the Settings InsetGroup surface and rows. */
 .challenge-add { display:grid; flex:none; place-items:center; width:44px; height:44px; border:0; background:transparent; color:var(--accent); }
 .challenge-add span { font-size:30px; font-weight:400; line-height:1; }
-#page.has-back > .top.challenge-list-top { display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:8px; }
-.challenge-list-top .home-find-friends { margin-left:auto; }
-.challenge-list-top .icon-btn { flex:none; }
+#page.has-back > .top.challenge-list-top { display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center; }
+.challenge-list-top > .back { justify-self:start;min-width:0; }
+.challenge-list-top > h1 { grid-column:2;min-width:0;max-width:100%;margin:0;font:600 var(--text-nav-title)/1.2 var(--font);letter-spacing:-.02em;text-align:center;white-space:nowrap; }
+.challenge-list-actions { grid-column:3;display:flex;justify-self:end;gap:8px;min-width:44px; }
+.challenge-list-actions > :is(a,button) { flex:none;width:44px;height:44px; }
 .challenge-list-group + .challenge-list-group { margin-top:18px; }
 .challenge-list-row { min-height:60px; gap:12px; }
 .challenge-list-row .inset-label { font-size:1rem; font-weight:400; }
