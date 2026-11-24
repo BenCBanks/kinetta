@@ -661,8 +661,14 @@ async function homeFeed(el) {
 // Read-only own social facts never replace feed cards or their live maps.
 function feedTools(el,current){
   if(typeof Discovery==='undefined')return{refresh:async()=>{},ready:Promise.resolve()};
-  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let challenges=[],ready=false,headerCleanup=()=>{};
+  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let challenges=[],ready=false,challengeKnown=false,headerCleanup=()=>{};
   const live=()=>current()&&readOwner()===owner;
+  const slotKey='fit.home.challenge-slot',slotOwner=JSON.stringify([Native.base||location.origin,App.me?.id||null]),slotSize=()=>innerWidth<=360?'compact':'regular';
+  function loadSlot(){try{const saved=JSON.parse(localStorage.getItem(slotKey)||'null');if(!saved)return null;if(saved.owner!==slotOwner){localStorage.removeItem(slotKey);return null;}return saved?.version===1&&typeof saved.expected==='boolean'?saved:null;}catch{return null;}}
+  let slotHint=loadSlot();
+  function applySlot(){const height=slotHint?.expected?(Number(slotHint.heights?.[slotSize()])||Number(slotHint.heights?.[slotSize()==='compact'?'regular':'compact'])||0):0;host.style.setProperty('--feed-challenge-slot-height',`${height}px`);host.dataset.challengeExpected=String(!!slotHint?.expected);host.dataset.challengeReservedHeight=String(height);}
+  function saveSlot(expected,height=0){const heights=expected?{...(slotHint?.owner===slotOwner?slotHint.heights:{}),[slotSize()]:height}:{compact:0,regular:0};slotHint={version:1,owner:slotOwner,expected,heights};try{localStorage.setItem(slotKey,JSON.stringify(slotHint));}catch{}applySlot();}
+  function measureSlot(){if(!live()||!ready)return;const row=host.querySelector('.feed-social-strip');if(!row){saveSlot(false);return;}requestAnimationFrame(()=>{if(!live()||!ready||!row.isConnected)return;const height=row.getBoundingClientRect().height;if(height>0)saveSlot(true,height);});}
   function fitHeader(){
     headerCleanup();const heading=$('.top',top),actions=$('.acts',top),title=$('h1',top),context=document.createElement('canvas').getContext('2d');
     const update=()=>{if(!live()||!heading.isConnected)return;context.font=getComputedStyle(title).font;const buttons=[...actions.children],gap=8;
@@ -679,12 +685,14 @@ function feedTools(el,current){
     const timing=q?(q.start>isoDay(new Date())?'Starts '+new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}):q.self.complete?'Goal reached':q.self.days_left===0?'Ends today':q.self.days_left===1?'1 day left':q.self.days_left+' days left'):'';
     const countLabel=summary?summary.count+' '+(summary.count===1?'challenge':'challenges'):'',progress=summary?summary.progress.replace(' / ','/') : '';
     host.innerHTML=summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}" aria-label="${esc(`${countLabel}, ${progress}, ${timing}`)}"><span class="ri">${svg('trophy')}</span><span class="grow"><span class="challenge-summary-main">${esc(countLabel)} · ${esc(progress)}</span><span class="challenge-summary-timing"><span class="challenge-summary-separator"> · </span>${esc(timing)}</span></span><span class="chev">${svg('chev')}</span></a></div>`:'';
+    if(ready&&challengeKnown)measureSlot();
   }
   host.addEventListener('click',e=>{if(!live()||e.metaKey||e.ctrlKey||e.button>0)return;const tile=e.target.closest('[data-activity-feature],[data-feed-tool]');if(!tile)return;const id=tile.dataset.activityFeature||tile.dataset.feedTool;Discovery.visit('activity',id);
     if(id==='invite'){e.preventDefault();e.stopPropagation();KinettaCard.open();}
   });
-  async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/challenges').then(rows=>{if(live())challenges=rows;})]);ready=true;draw();}
-  draw();const initial=refresh();return{refresh,ready:initial};
+  async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/challenges').then(rows=>{if(live()){challenges=rows;challengeKnown=true;}})]);ready=true;draw();}
+  const onResize=()=>{if(!live())return;applySlot();if(ready&&challengeKnown)measureSlot();};window.addEventListener('resize',onResize,{passive:true});viewResources.set(host,()=>window.removeEventListener('resize',onResize));
+  applySlot();draw();const initial=refresh();return{refresh,ready:initial};
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
