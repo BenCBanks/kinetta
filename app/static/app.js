@@ -451,19 +451,24 @@ function aiOffer(feature) {
 }
 // Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
 function kitChatOn() { return !!App.me?.kit_chat && !App.me?.ai_paused && aiCan('coach'); }
+// One eager, reusable entry keeps every screen's Kit affordance identical before kit.js loads.
+function syncKitEntry(root, slot, href, label) {
+  if (!root || !slot) return null;
+  const entries=[...root.querySelectorAll('[data-kit-entry]')];
+  const link=entries.shift()||document.createElement('a');
+  for(const duplicate of entries)duplicate.remove();
+  link.className='icon-btn kit-help kit-header-entry';
+  link.setAttribute('data-kit-entry','');
+  link.innerHTML=`<span class="kit-entry-word">Kit</span>${svg('sparkle')}`;
+  link.href=href;link.setAttribute('aria-label',label);link.title=label;
+  if(link.parentElement!==slot||slot.lastElementChild!==link)slot.append(link);
+  return link;
+}
 // Keep Home's small Kit entry in the shell; the full chat bundle loads only after the person opens it.
 function homeKitEntry(el) {
   const heading=el?.querySelector('#feed-top .shell-topbar-root');if(!heading||!App.me)return;
-  const link=el.querySelector('[data-kit-entry]')||document.createElement('a'),enabled=kitChatOn(),placement=new URLSearchParams(location.search).get('kit-home')==='row'?'row':'header';
-  link.className='kit-help home-kit-entry';link.setAttribute('data-kit-entry','');link.innerHTML=svg('sparkle');
-  link.href=enabled?'/me/kit?from=activity':'/food?add=1';link.setAttribute('aria-label',enabled?'Ask Kit':'Add food');link.title=enabled?'Ask Kit':'Add food';
-  const row=el.querySelector('.home-quiet-actions');
-  if(placement==='row'&&row){
-    heading.removeAttribute('data-kit-home-placement');link.classList.add('home-quiet-kit');if(row&&!row.contains(link))row.append(link);if(link.parentElement===heading)link.remove();
-  }else{
-    row?.querySelector('.home-quiet-kit')?.remove();link.classList.remove('home-quiet-kit');heading.setAttribute('data-kit-home-placement','header');
-    const title=heading.querySelector('h1');if(title&&!heading.contains(link))title.after(link);if(link.parentElement!==heading)heading.append(link);
-  }
+  const enabled=kitChatOn(),slot=heading.querySelector('.shell-topbar-actions');
+  syncKitEntry(el,slot,enabled?'/me/kit?from=activity':'/food?add=1',enabled?'Ask Kit':'Add food');
 }
 // Calls render(data) at once with cached data (if any), then again with fresh data when it arrives.
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
