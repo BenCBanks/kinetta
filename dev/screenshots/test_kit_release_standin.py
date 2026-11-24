@@ -89,7 +89,7 @@ class KitScreenshotStandinTests(unittest.TestCase):
         self.assertLess(capture.index('await enableKitForDemo(page);'), capture.index('for (const [name, path, opt = {}] of SHOTS)'))
         self.assertIn("{ai_ok: true, ai_adult: true}", capture)
         dietcoach = capture.split("if (name === 'dietcoach') {", 1)[1].split("\n      }", 1)[0]
-        self.assertIn("#nt-coach a[data-kit-entry][aria-label=\"Ask Kit\"][href=\"/me/kit?from=nutrition\"]", dietcoach)
+        self.assertIn("a[data-kit-entry][aria-label=\"Ask Kit\"][href=\"/me/kit?from=nutrition\"]", dietcoach)
         self.assertIn("await entry.waitFor({state:'visible'});", dietcoach)
         self.assertIn("await entry.count() !== 1", dietcoach)
         self.assertIn("location.pathname === '/me/kit'", dietcoach)

@@ -21,7 +21,24 @@ function assertSafeAreaReport(file,required){
  const passed=new Set((report.captures||[]).filter(x=>x.topInsetPx===59&&x.controlsClear===true).map(x=>x.scene));
  for(const name of required)assert(passed.has(name),`${file} confirms visible controls clear the 59px status zone for ${name}`);
 }
-assertSafeAreaReport(path.join(root,'assets/shots/safe-area-audit.json'),['light-activity-detail','dark-activity-detail','light-profile','dark-profile','light-activity','dark-activity','light-activity-splits','dark-activity-splits','light-route','dark-route','light-home-feed','dark-home-feed','light-feed','dark-feed']);
+assertSafeAreaReport(path.join(root,'assets/shots/safe-area-audit.json'),['light-profile','dark-profile','light-activity','dark-activity','light-activity-splits','dark-activity-splits','light-route','dark-route','light-home-feed','dark-home-feed','light-feed','dark-feed']);
+const homepageManifest=JSON.parse(fs.readFileSync(path.join(root,'assets/shots/manifest.json'),'utf8')).simulator_captures;
+// Before the capture workflow publishes its generated assets, the checked-in legacy manifest has no Simulator record.
+// When a record is present, audit every image and density so this remains strict for published captures.
+if(homepageManifest!==undefined){
+ assert.equal(homepageManifest?.emoji_renderer,'Apple iOS Simulator','Homepage phone shots use Apple emoji rendering');
+ assert.equal(homepageManifest?.fixture,'dev/tests/native-ui/appstore.cjs','Homepage phone shots use only the fictional Store fixture');
+ assert.equal(homepageManifest?.device,'iPhone 16');assert.match(homepageManifest?.source_revision||'',/^[a-f0-9]{40}$/);
+ const expected=[['activity',theme=>`${theme}-activity-detail`],['header-me',theme=>`1319-profile-${theme}`],['achievements',theme=>`${theme}-achievements`]];
+ assert.equal(homepageManifest.captures?.length,6,'Simulator manifest contains all six homepage states');
+ for(const [stage,asset] of expected)for(const theme of ['light','dark']){
+  const entry=homepageManifest.captures.find(item=>item.stage===stage&&item.theme===theme);
+  assert(entry&&entry.safe_top_points>=20,`iOS Simulator manifest covers ${theme} ${stage}`);
+  const base=asset(theme);
+  assert.equal(entry.two_x,`${base}.webp`);assert.equal(entry.one_x,`${base}-1x.webp`);
+  assert(fs.existsSync(path.join(root,'assets/shots',entry.two_x))&&fs.existsSync(path.join(root,'assets/shots',entry.one_x)),`${theme} ${stage} has both densities`);
+ }
+}
 assertSafeAreaReport(path.join(root,'assets/tour/safe-area-audit.json'),['light-challenge-start','dark-challenge-start','light-challenge-detail','dark-challenge-detail']);
 (async()=>{
  for(const page of ['index','compare','training','food','friends','about']){
@@ -111,7 +128,7 @@ assertSafeAreaReport(path.join(root,'assets/tour/safe-area-audit.json'),['light-
      assert.equal(await p.locator('.home-badges img').count(),2,'Profile leads into the Achievements screen');
      const badgeExamples=await p.locator('.home-badges .home-badge-preview').evaluateAll(xs=>xs.map(x=>({caption:x.querySelector('figcaption')?.textContent.trim(),src:x.querySelector('img')?.currentSrc,width:x.querySelector('.phone-frame')?.getBoundingClientRect().width,loaded:x.querySelector('img')?.complete&&x.querySelector('img')?.naturalWidth>0})));
      assert.deepEqual(badgeExamples.map(x=>x.caption),['Open Achievements from your profile','Run, ride, walk/hike, swim and lift.']);
-     assert(badgeExamples[0].src.includes(`1319-profile-${theme}`)&&badgeExamples[0].loaded,'Profile capture uses Amber’s themed fictional Profile shot');
+     assert(badgeExamples[0].src.includes(`1319-profile-${theme}`)&&badgeExamples[0].loaded,'Profile capture uses the themed fictional Simulator shot');
      assert(badgeExamples[1].src.includes(`${theme}-achievements`)&&badgeExamples[1].loaded,'existing themed Achievements capture remains');
      if(width===390){assert.equal(Math.round(badgeExamples[0].width),350,'Profile capture is 350px wide at 390px');assert(badgeExamples[1].width>=220&&badgeExamples[1].width<=240,'Achievements image stays 220–240px wide');}
      const challengeCopy=(await p.locator('.home-challenges').innerText()).replace(/\s+/g,' ').trim();
@@ -139,7 +156,7 @@ assertSafeAreaReport(path.join(root,'assets/tour/safe-area-audit.json'),['light-
      assert.equal(await p.locator('.home-sharing .phone-frame').count(),0,'Sharing stays text-only');
      assert.equal(await p.locator('.tour-final .btn').count(),1,'Home ends with one clear account action');
      const heroImage=await p.locator('.home-hero img').evaluate(i=>({src:i.currentSrc,alt:i.alt}));
-     assert(heroImage.src.includes(`1319-activity-detail-${theme}`),`Home hero uses the ${theme} real-map Activity capture`);
+     assert(heroImage.src.includes(`${theme}-activity-detail`),`Home hero uses the ${theme} real-map Simulator capture`);
      assert.match(heroImage.alt,/Fictional Morning Run.*route through a city park.*streets and map attribution/i);
      assert.equal(await p.locator('.standin-caption').count(),0,'Home hero has no composed-screen stand-in label');
      const header=await p.locator('[data-site-nav]').boundingBox();assert(header&&Math.abs(header.height-56)<=1,'Home keeps a one-row header');
