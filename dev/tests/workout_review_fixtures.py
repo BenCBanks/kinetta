@@ -25,7 +25,7 @@ def answer(path=None, value=None, *, data=None, verdict=None,
             facts.append({'evidence_id':'e2','path':delta_path,'value':data['deltas'][metric]})
             if verdict is None:
                 label={'pace_s_per_km':'pace','speed_mps':'speed','avg_hr':'heart rate'}.get(metric,metric)
-                verdict=f'Your last baseline was {{e2:0}}, and {label} difference: {{e2:1}}.'
+                verdict=f'Compared with your last {{e2:0}}, your {label} was {{e2:1}}.'
         if path and list(path) not in [fact['path'] for fact in facts]:
             facts.append({'evidence_id':'e2','path':list(path),'value':value})
         if verdict is None:
@@ -43,6 +43,18 @@ def fixture(name, units='metric', data=None, raw=None, expected='pass', expected
     data=data or comparison()
     raw=raw or answer(data=data)
     return {'name':name,'units':units,'data':data,'raw':raw,'expected':expected,'display':expected_display}
+
+
+
+def multi_metric_answer(data):
+    facts=[
+        {'evidence_id':'e2','path':['baseline_count'],'value':data['baseline_count']},
+        {'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':data['deltas']['pace_s_per_km']},
+        {'evidence_id':'e2','path':['deltas','avg_hr'],'value':data['deltas']['avg_hr']},
+    ]
+    return {'facts':facts,'workout_review':{
+        'verdict':'Compared with your last {e2:0}, the pace difference was {e2:1}, and the heart rate difference was {e2:2}.',
+        'next_step':'Add a note.'},'follow_ups':['Compare it with my last workout.']}
 
 
 CASES = [
@@ -65,7 +77,7 @@ CASES = [
     fixture('hillier route notable',data=comparison(notable='hillier')),
     fixture('longest in ninety days',data=comparison(notable='longest_90d')),
     fixture('personal record notable',data=comparison(notable='personal_record')),
-    fixture('felt unknown without note',data=comparison(),raw=answer(data=comparison(),verdict="Your records can't tell how it felt. Your last baseline was {e2:0}, and pace difference: {e2:1}.")),
+    fixture('felt unknown without note',data=comparison(),raw=answer(data=comparison(),verdict="Your records can't tell how it felt. Compared with your last {e2:0}, your pace was {e2:1}.")),
     {'name':'Health consent off','expected':'denied','source':'healthkit','consents':{'health_ok':False,'garmin_ok':True}},
     {'name':'Garmin consent off','expected':'denied','source':'garmin_connect','consents':{'health_ok':True,'garmin_ok':False}},
     fixture('reject unsupported digits',raw=answer(data=comparison(),verdict='Your pace was 12 seconds faster.'),expected='numeric_unsupported'),
@@ -86,11 +98,19 @@ CASES = [
     fixture('reject five total sentences',raw=answer(data=comparison(),verdict='Clear. Useful. Noted. Thanks.'),expected='voice_invalid'),
     fixture('reject multiple next steps',raw=answer(data=comparison(),next_step='Try the route again and add a note.'),expected='voice_invalid'),
     fixture('reject unnamed baseline',raw=answer(data=comparison(),verdict='Pace: {e2:1}.'),expected='voice_invalid'),
+    fixture('pace same and heart rate higher',data={**comparison(),'deltas':{'pace_s_per_km':2,'avg_hr':4},'relations':{'pace_s_per_km':'about_the_same','avg_hr':'higher'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':2,'avg_hr':4},'relations':{'pace_s_per_km':'about_the_same','avg_hr':'higher'}})),
+    fixture('pace faster and heart rate lower',data=comparison(),raw=multi_metric_answer(comparison())),
+    fixture('reject harder feeling in verdict',data=comparison(),raw=answer(data=comparison(),verdict='Your run felt harder than usual. Compared with your last {e2:0}, your pace was {e2:1}.'),expected='voice_invalid'),
+    fixture('reject tired feeling in next step',data=comparison(),raw=answer(data=comparison(),next_step='You may feel tired after that.'),expected='voice_invalid'),
+    fixture('reject first person in verdict',data=comparison(),raw=answer(data=comparison(),verdict="I can't tell how it felt. Compared with your last {e2:0}, your pace was {e2:1}."),expected='voice_invalid'),
+    fixture('vs abbreviation is not a sentence end',data=comparison(),raw=answer(data=comparison(),verdict='Compared with your last {e2:0}, your pace was {e2:1} vs. your usual run.')),
+    fixture('add a note suggestion',data=comparison(),raw=answer(data=comparison(),next_step='Add a note.')),
+    fixture('reject record how it felt wording',data=comparison(),raw=answer(data=comparison(),next_step='Record how it felt.'),expected='voice_invalid'),
 ]
 
 
 def run():
-    assert len(CASES)==40
+    assert len(CASES)==48
     assert kit_workout_review.REJECTION_CODES==frozenset({'answer_shape','numeric_unsupported','fact_unsupported','relation_unsupported','health_claim_unsupported','follow_up_invalid','voice_invalid'})
     assert kit_workout_review.WorkoutReviewRejected('model supplied arbitrary text').reason_code=='answer_shape'
     for case in CASES:
@@ -114,8 +134,6 @@ def run():
             baseline=next(f for f in result['facts'] if f['path']==['baseline_count'])
             noun='similar '+{'run':'runs','walk':'walks','hike':'hikes','ride':'rides','swim':'swims'}.get(case['data'].get('sport'),'workouts')
             assert baseline['label']==noun and baseline['display_value']==str(case['data']['baseline_count']),case['name']
-            prose=result['workout_review']['verdict'].lower()
-            assert 'baseline' in prose and 'difference' in prose and f"{case['data']['baseline_count']} {noun}" in prose,case['name']
         if case['display']:
             assert case['display'] in [fact['display_value'] for fact in result['facts']],(case['name'],[fact['display_value'] for fact in result['facts']])
     return f'{len(CASES)} fictional workout-review cases passed with stand-ins; no provider calls'

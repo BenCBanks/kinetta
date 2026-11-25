@@ -123,7 +123,7 @@ def _kit_path_allowed(tool, path):
 # These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
 _PLACEHOLDER_CONNECTIVES = frozenset('about around roughly to and or from of vs versus'.split())
 _PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
-_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered covering spanning recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached reaching totaled totaling totalling nearly weighed shows show showing'.split())
+_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered covering spanning recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached reaching totaled totaling totalling nearly weighed shows show showing last'.split())
 _PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with recorded compared previously currently overall before after earlier today yesterday across over toward while each daily recently your against for on though higher lower more less above below under up down longer shorter faster slower than'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
 _DISPLAY_UNIT = re.compile(r'(?:\b\d+(?:\.\d+)?h(?:\s+\d+m)?\b|\s(?:mi|km|ft|in|lb|kg|g|mg|kcal|bpm|min|h|m)\b|/\s?(?:mi|km)\b|°[CF])')
