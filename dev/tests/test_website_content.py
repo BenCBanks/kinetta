@@ -47,7 +47,7 @@ class CopyTests(unittest.TestCase):
   self.assertNotIn('One week alone cannot establish a lasting trend.',home)
   self.assertNotIn('Confirm lunch',home)
   self.assertNotIn('Lunch logged',home)
-  self.assertIn('2 foods - ~',home)
+  self.assertIn('2 foods · ~',home)
   self.assertIn('Add to log',home)
   self.assertEqual(home.count('class="kit-chat-stepper" aria-hidden="true"'),2)
   self.assertNotIn('data-chat-check',home)
