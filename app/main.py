@@ -14,7 +14,7 @@ from . import db, auth, api_activities, api_food, api_connections, api_account, 
 import threading
 from .auth import current_user
 from . import request_log
-from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread, workout_compare
+from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread, kit_history_api, workout_compare
 from . import api_routes_plan, api_segments, segments, route_sharing, map_config, api_contacts
 
 @asynccontextmanager
@@ -82,6 +82,7 @@ app.include_router(food_coach.router)
 app.include_router(notify.router)
 app.include_router(api_coach.router)
 app.include_router(kit_thread.router)
+app.include_router(kit_history_api.router)
 app.include_router(workout_compare.router)
 app.include_router(meal_chat.router)
 app.include_router(food_thread.router)
