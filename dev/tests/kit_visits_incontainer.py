@@ -98,7 +98,7 @@ try:
         with patch('app.coach_chat.answer',side_effect=slow),ThreadPoolExecutor(max_workers=1) as pool:
             future=pool.submit(request,a,'POST','/messages/'+pending['client_id']+'/answer',{'generation':fourth['generation'],'visit_id':fourth['visit_id']});assert started.wait(10)
             with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(uid,))
-            release.set();result=future.result();assert result['state']=='failed' and not result['answer']
+            release.set();result=future.result();assert result['cancelled']
         # Leaving during a provider round prevents a second paid round, not just late rendering.
         fifth=visit();pending=body(fifth,'Help me use Kinetta.');request(a,'POST','/messages',pending);turns=[]
         def end_during_turn(messages,definitions,**kwargs):
@@ -120,8 +120,10 @@ try:
             return value
         with patch('app.coach_chat.answer',side_effect=real_answer),patch('app.kit_tools.KitTools.call',new=revoke_after_profile),patch('app.coach_chat._gemini_turn') as transport:
             result=request(a,'POST','/messages/'+pending['client_id']+'/answer',{'generation':sixth['generation'],'visit_id':sixth['visit_id']})
-            assert result['state']=='failed' and not result['answer'] and not transport.called
-            assert result['error']=='Review the Health app and Garmin data sharing with Kit under Me > Connections first.'
+            assert result['cancelled'] and not transport.called
+            with db.connect() as c:
+                removed=c.execute('SELECT invalidated_at,answer FROM kit_turns WHERE user_id=%s AND client_id=%s',(uid,pending['client_id'])).fetchone()
+                assert removed['invalidated_at'] is not None and removed['answer'] is None
         # Memory is personal exported data; visits/messages/memories cascade on account deletion.
         with tempfile.NamedTemporaryFile(suffix='.zip') as f:
             _write_export(uid,f.name)
