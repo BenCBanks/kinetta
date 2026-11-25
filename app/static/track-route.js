@@ -293,7 +293,7 @@
           if(session.native){nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});if(!current())return;await TrackNative.call('clear',{id:session.id,intervalResultSaved:!!frozen.request.intervals});}
           if(!current())return;
           await TrackReviewStore.remove(k,active.id);if(!current())return;
-          store.del(k);session=null;reviewDraft=null;invalidate('/api/');toast(result.duplicate?'Activity saved. Check its sharing on the activity.':'Activity saved');
+          store.del(k);session=null;reviewDraft=null;invalidate('/api/');toast(result.warning || (result.duplicate?'Activity saved. Check its sharing on the activity.':'Activity saved'));
           if(result.duplicate)go(`/activity/${result.id}`);else if(location.pathname==='/track')go(`/track?done=${result.id}`,{replace:true});else sync();
         } catch(x) {
           if(!current())return;

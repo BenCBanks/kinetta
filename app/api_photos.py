@@ -111,7 +111,6 @@ def insert_activity_photo(c, aid, user_id, prepared):
 
 
 def lock_activity_photos(c, user_id):
-    email_confirmation.require_upload(user_id, c)
     # Erasure locks the account before its activities; match that order before any photo/activity lock.
     if not c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE', (user_id,)).fetchone():
         raise HTTPException(404, 'Account unavailable')

@@ -370,7 +370,13 @@ def _spread(points, run, counted):
 @router.post('/activities/track')
 def save_track(body: TrackIn, user=Depends(current_user)):
     """One activity per account/recording, using its reviewed or default audience. Retry after a lost acknowledgement returns the same id."""
-    from . import parsers
+    from . import parsers, email_confirmation
+    # Older clients freeze the photo request after confirmation and cannot edit a 403.
+    # Save their workout, without decoding or storing unconfirmed photos.
+    photo_warning = {}
+    if body.photos and email_confirmation.required(user['id']):
+        body = body.model_copy(update={'photos': []})
+        photo_warning = {'warning': 'Activity saved without photos. Confirm your email to upload photos.'}
     if body.route_plan and body.route_plan.source_kind=='shared' and not body.route_plan.snapshot_key:
         raise HTTPException(422,'A shared recording plan needs its reviewed snapshot identity')
     start = body.start
@@ -464,13 +470,13 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         if receipt:
             if receipt['activity_id'] is None:raise HTTPException(409,'This recording was saved and later deleted. Uploading it again won’t restore it.')
             if interval_result is not None and not interval_receipt:raise HTTPException(409,'This recording was already saved without intervals; review the existing activity before retrying.')
-            return {'id':receipt['activity_id'],'duplicate':True}
-        if interval_receipt:return {'id':interval_receipt['activity_id'],'duplicate':True}
+            return {'id':receipt['activity_id'],'duplicate':True, **photo_warning}
+        if interval_receipt:return {'id':interval_receipt['activity_id'],'duplicate':True, **photo_warning}
         found = c.execute("SELECT id FROM activities WHERE user_id = %s AND source = 'track' AND source_id = %s", (user['id'], body.client_id)).fetchone()
         if found:
             if interval_result is not None:raise HTTPException(409,'This recording was already saved without intervals; review the existing activity before retrying.')
             c.execute('INSERT INTO track_recording_receipts(user_id,client_id,activity_id) VALUES(%s,%s,%s)',(user['id'],body.client_id,found['id']))
-            return {'id': found['id'], 'duplicate': True}
+            return {'id': found['id'], 'duplicate': True, **photo_warning}
         if body.visibility is None and body.expected_sharing_default is None:
             # Installed app builds without the audience picker told people recordings start private.
             body.visibility = 'me'
@@ -510,7 +516,7 @@ def save_track(body: TrackIn, user=Depends(current_user)):
                 try:os.unlink(raw_path)
                 except OSError:pass
             raise
-    return {'id': aid, 'duplicate': False}
+    return {'id': aid, 'duplicate': False, **photo_warning}
 
 
 @router.delete('/activities/{aid}')

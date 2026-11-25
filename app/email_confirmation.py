@@ -12,9 +12,7 @@ def required(user_id, connection=None):
             return required(user_id, c)
     row = connection.execute('SELECT needs_email_confirm AND email_verified_at IS NULL AS required '
                              'FROM users WHERE id=%s', (user_id,)).fetchone()
-    if row is None:
-        raise HTTPException(404, 'Account unavailable')
-    return row['required']
+    return bool(row and row['required'])
 
 
 def require_upload(user_id, connection=None):
