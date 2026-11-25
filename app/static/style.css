@@ -1547,8 +1547,8 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 html:has(.food-thread, .recipe-page), html:has(.food-thread, .recipe-page) body { overflow: hidden; }
 .shell.food-thread, .shell.recipe-page { position: fixed; top: var(--chat-top, 0px); left: 0; right: 0;
   width: 100%; height: var(--chat-height, 100dvh); min-height: 0; overflow: hidden; }
-.shell.food-thread { padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
-.shell.food-thread.kit-chat { padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
+.shell.food-thread { padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); }
+.shell.food-thread.kit-chat { padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); }
 /* Focused chats have no tab bar; the keyboard already covers the home inset. */
 html.keyboard-open .shell.food-thread, html.keyboard-open .shell.recipe-page { padding-bottom: 8px; }
 .food-thread > *, .recipe-page > * { min-width: 0; }
@@ -1559,7 +1559,7 @@ html.keyboard-open .shell.food-thread, html.keyboard-open .shell.recipe-page { p
 html:has(.recipe-page) { --tab-h: 0px; }
 html:has(.recipe-page) nav.tabs { display: none; }
 .shell.recipe-page { min-height: 0; display: flex; flex-direction: column; overflow: hidden;
-  padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
+  padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); }
 .recipe-page > .top { flex: none; margin-bottom: 8px; gap: 4px; }
 .recipe-page .top .acts { gap: 8px; }
 .recipe-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; overflow-wrap: anywhere; padding: 2px 2px 12px; }
