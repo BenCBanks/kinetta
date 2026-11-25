@@ -32,10 +32,10 @@ class Usage(unittest.TestCase):
   with db.connect() as c:return c.execute('SELECT channel,outcome,stage FROM admin_login_events WHERE user_id=%s ORDER BY id',(uid or self.member,)).fetchall()
  def test_access_and_bounds(self):
   guest=TestClient(app)
-  for path in ('logins','usage'):
+  for path in ('logins','usage','readiness'):
    self.assertEqual(guest.get('/api/admin/'+path).status_code,401)
   self.assertEqual(guest.post('/api/login',json={'login':'zz_test_usage_admin','password':PW}).status_code,200)
-  for path in ('logins','usage'):self.assertEqual(guest.get('/api/admin/'+path).status_code,403)
+  for path in ('logins','usage','readiness'):self.assertEqual(guest.get('/api/admin/'+path).status_code,403)
   for query in ('days=0','days=91','before=0','account=-1','outcome=unknown'):
    self.assertEqual(self.client.get('/api/admin/logins?'+query).status_code,422)
   self.assertEqual(self.client.get('/api/admin/usage?days=91').status_code,422)
@@ -120,6 +120,41 @@ class Usage(unittest.TestCase):
   self.assertEqual(funnel['first_workout_or_food_7d']-baseline['first_workout_or_food_7d'],2)
   for key in ('signed_up','email_confirmed','first_workout_or_food_7d'):self.assertIsInstance(funnel[key],int)
   self.assertNotIn('PRIVATE_',str(after.json()))
+ def test_overview_email_health_and_kit_spend_are_aggregate_only(self):
+  before_mail=self.client.get('/api/admin/readiness').json()['email_health']
+  before_spend=self.client.get('/api/admin/usage?days=1').json()['kit_spend']
+  marker=secrets.token_hex(8);event_ids=[];attempt_ids=[]
+  with db.connect() as con:
+   today=con.execute("SELECT (now() AT TIME ZONE 'UTC')::date AS day").fetchone()['day']
+   month_start=today.replace(day=1);last_month=month_start-dt.timedelta(days=1)
+   for day in {today,month_start,last_month}:
+    con.execute('INSERT INTO ai_service_budget(day) VALUES (%s) ON CONFLICT DO NOTHING',(day,))
+   for state in ('sent','delivered','bounced','failed'):
+    eid='zz_test_signup7_'+marker+'_'+state;event_ids.append(eid)
+    con.execute('INSERT INTO admin_mail_events(id,provider_id,state) VALUES (%s,%s,%s)',(eid,'fictional-'+marker+'-'+state,state))
+   old='zz_test_signup7_'+marker+'_old';event_ids.append(old)
+   con.execute("INSERT INTO admin_mail_events(id,provider_id,state,created) VALUES (%s,%s,'delivered',now()-interval '8 days')",(old,'fictional-'+marker+'-old'))
+   rows=[(today,'Kit conversation',100_000),(today,'food chat daily note',200_000),
+         (month_start,'weekly review',300_000),(today,'recipe review',900_000),
+         (last_month,'Kit conversation',700_000)]
+   for day,kind,charge in rows:
+    aid=secrets.token_hex(16);attempt_ids.append(aid)
+    con.execute("""INSERT INTO ai_food_attempts(id,user_id,day,model,kind,reserved_micros,charged_micros)
+                   VALUES (%s,%s,%s,'gemini-3.8-flash',%s,%s,%s)""",(aid,self.member,day,kind,charge,charge))
+  try:
+   mail=self.client.get('/api/admin/readiness').json()['email_health']
+   spend=self.client.get('/api/admin/usage?days=1').json()['kit_spend']
+   for state in ('sent','delivered','bounced','failed'):self.assertEqual(mail[state],before_mail[state]+1,state)
+   self.assertAlmostEqual(spend['today_usd']-before_spend['today_usd'],.3 if today!=month_start else .6,places=6)
+   self.assertAlmostEqual(spend['month_usd']-before_spend['month_usd'],.6,places=6)
+   self.assertEqual(spend['zone'],'UTC')
+   self.assertEqual(set(mail),{'sent','delivered','bounced','failed'})
+   self.assertEqual(set(spend),{'today_usd','month_usd','zone'})
+   self.assertNotIn(marker,str(mail)+str(spend))
+  finally:
+   with db.connect() as con:
+    con.execute('DELETE FROM admin_mail_events WHERE id=ANY(%s)',(event_ids,))
+    con.execute('DELETE FROM ai_food_attempts WHERE id=ANY(%s)',(attempt_ids,))
  def test_sql_denial_and_account_deletion(self):
   role='zz_test_usage_reader';password=secrets.token_urlsafe(24)
   with db.connect() as c:

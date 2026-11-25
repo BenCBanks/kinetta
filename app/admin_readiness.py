@@ -37,6 +37,12 @@ def snapshot(c):
         f"Mode: {state['mode']}; " + (f"{state['accounts']} of {state['cap']} places." if state['cap'] is not None else 'no account cap configured.'))
     mail = admin_mail.settings()
     add('mail_config', 'Email configuration', mail['ready'], 'Sender, reply-to, key and webhook are configured. Delivery is a separate check.' if mail['ready'] else 'Email configuration is incomplete.')
+    mail_health = c.execute("""SELECT
+        count(*) FILTER (WHERE state='sent') AS sent,
+        count(*) FILTER (WHERE state='delivered') AS delivered,
+        count(*) FILTER (WHERE state='bounced') AS bounced,
+        count(*) FILTER (WHERE state='failed') AS failed
+        FROM admin_mail_events WHERE created >= now()-interval '7 days'""").fetchone()
     evidence = {r['check_key']: r for r in c.execute('SELECT e.*,u.name AS by FROM admin_readiness e LEFT JOIN users u ON u.id=e.actor_id').fetchall()}
     for key, (title, days, detail) in CHECKS.items():
         e = evidence.get(key)
@@ -48,6 +54,7 @@ def snapshot(c):
                      'by': e['by'] if e else None, 'detail': ('Evidence is out of date. ' if e and not fresh else '') + detail,
                      'action': 'readiness', 'manual': True, 'fresh_days': days})
     return {'checks': rows, 'at': now, 'version': os.environ.get('KINETTA_VERSION', 'Not supplied'),
+            'email_health': mail_health,
             'counts': {s: sum(r['status'] == s for r in rows) for s in ('verified', 'attention', 'not_checked')}}
 
 
