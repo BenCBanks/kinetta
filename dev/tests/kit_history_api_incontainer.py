@@ -100,6 +100,12 @@ class HistoryAPI(unittest.TestCase):
         self.assertEqual(resumed['messages'][0]['state'],'failed')
         answer=self.req('POST','/messages/'+pending['client_id']+'/answer',{k:resumed[k] for k in ['visit_id','generation']})
         self.assertEqual(answer['state'],'answered');self.assertEqual(len(self.seen),1)
+        self.send(resumed,generate=False)
+        with db.connect() as c:c.execute("UPDATE kit_visits SET created=now()-interval '2 days' WHERE id=%s",(resumed['visit_id'],))
+        fresh=self.resume(v)
+        self.assertEqual(fresh['messages'][-1]['state'],'failed')
+        self.send(fresh) # expired pending work must not block this new question
+
 
     def test_expiry_rollout_off_and_legacy_clear_preserve_saved_history(self):
         v=self.new();self.send(v)

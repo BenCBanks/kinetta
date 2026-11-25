@@ -59,3 +59,9 @@ def scope(conversation_id, generation, visit_id):
     # Only fixed SQL, never a caller-supplied condition or account identifier.
     return (('conversation_id=%s', (conversation_id,)) if conversation_id else
             ('generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid', (generation, visit_id)))
+
+
+
+def prune(c, uid):
+    preserve(c, uid)
+    c.execute("DELETE FROM kit_visits WHERE user_id=%s AND (created<now()-interval '24 hours' OR ended<now()-interval '24 hours')", (uid,))
