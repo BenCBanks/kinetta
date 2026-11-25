@@ -93,11 +93,11 @@ TABLES = {
     'connections': """SELECT jsonb_build_object('kind', kind, 'status', status, 'last_sync', last_sync, 'created', created)
                         FROM connections WHERE user_id = %s""",
     # friends (by username), and the cheers and comments you gave (2026-10-11, api_social.py)
-    'friends': """SELECT jsonb_build_object('login', u.login, 'name', u.name, 'status', f.status, 'you_asked', f.requester = me.id,
+    'friends': """SELECT jsonb_build_object('login', u.login, 'name', CASE WHEN f.status='accepted' THEN u.name ELSE u.first_name END, 'status', f.status, 'you_asked', f.requester = me.id,
                      'created', f.created, 'accepted', f.accepted)
                    FROM (SELECT %s::bigint AS id) me JOIN friendships f ON me.id IN (f.requester, f.addressee)
                    JOIN users u ON u.id = CASE WHEN f.requester = me.id THEN f.addressee ELSE f.requester END""",
-    'blocked': """SELECT jsonb_build_object('login', u.login, 'name', u.name, 'since', b.created)
+    'blocked': """SELECT jsonb_build_object('login', u.login, 'name', u.first_name, 'since', b.created)
                    FROM blocks b JOIN users u ON u.id = b.blocked WHERE b.user_id = %s""",
     'reports_made': """SELECT jsonb_build_object('about', u.login, 'what', r.what, 'reason', r.reason, 'note', r.note,
                      'created', r.created, 'status', r.status) FROM reports r JOIN users u ON u.id = r.person WHERE r.reporter = %s""",
@@ -136,7 +136,7 @@ Left out on purpose: your password (only a scrambled form is stored), login sess
 def _write_export(uid, path):
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z, db.connect() as c:
         z.writestr('README.txt', README.format(when=time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())))
-        u = c.execute('SELECT login::text AS login, name, email::text AS email, email_verified_at, created FROM users WHERE id = %s', (uid,)).fetchone()
+        u = c.execute('SELECT login::text AS login, name, first_name, last_name, email::text AS email, email_verified_at, created FROM users WHERE id = %s', (uid,)).fetchone()
         z.writestr('data/account.json', json.dumps(u, default=str, indent=1))
         for name, q in TABLES.items():
             with z.open(f'data/{name}.jsonl', 'w') as f, c.cursor(name=f'x_{name}') as cur:   # server-side: streams big tables

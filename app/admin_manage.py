@@ -26,7 +26,7 @@ def manage(uid: int, action: Literal['reset-email','signout','suspend','restore'
         if old: result = old
         else:
             if action == 'role': c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
-            p = c.execute('SELECT id,login::text AS login,name,is_admin,email,email_verified_at,sql_role,suspended_at,password_change_expires FROM users WHERE id=%s FOR UPDATE', (uid,)).fetchone()
+            p = c.execute('SELECT id,login::text AS login,name,first_name,last_name,is_admin,email,email_verified_at,sql_role,suspended_at,password_change_expires FROM users WHERE id=%s FOR UPDATE', (uid,)).fetchone()
             if not p: raise HTTPException(404, 'Account not found.')
             if body.confirm != p['login']: raise HTTPException(400, 'Type the account username exactly.')
             if action in ('reset-email','suspend','restore','remove') and (p['is_admin'] or uid == user['id']):
@@ -43,7 +43,7 @@ def manage(uid: int, action: Literal['reset-email','signout','suspend','restore'
                 pending = c.execute("SELECT email::text AS email FROM account_tokens WHERE user_id=%s AND kind='verify_email' AND email IS NOT NULL ORDER BY created DESC LIMIT 1", (uid,)).fetchone()
                 if not pending: raise HTTPException(409, 'This account has no email address waiting for confirmation.')
                 if not account_email.mail_ready(): raise HTTPException(503, 'Email is not set up on this server.')
-                account_email.confirmation(background, c, uid, p['name'], pending['email'], welcome=True)
+                account_email.confirmation(background, c, uid, p['first_name'], pending['email'], welcome=True)
             if action in ('signout','suspend','role','remove'):
                 for table in ('sessions','admin_sessions','admin_challenges','account_password_changes'):
                     # A role change must not sign ordinary app sessions out; match the existing role contract.
@@ -63,7 +63,7 @@ def manage(uid: int, action: Literal['reset-email','signout','suspend','restore'
             if action == 'remove': api_account.erase(c, p)
             if action in ('suspend','restore') and p['email_verified_at']:
                 background.add_task(account_email.send, p['email'], 'Your Kinetta account was '+('suspended' if action=='suspend' else 'restored'),
-                    'Hi '+p['name']+',\n\n'+('Your Kinetta account is suspended while we look into a report. Your data is kept, and nothing has been deleted.' if action=='suspend' else 'Good news: your Kinetta account is active again. You can log in as usual.')+'\n\nReply to this email if you have questions.'+account_email.SIGNATURE)
+                    'Hi '+p['first_name']+',\n\n'+('Your Kinetta account is suspended while we look into a report. Your data is kept, and nothing has been deleted.' if action=='suspend' else 'Good news: your Kinetta account is active again. You can log in as usual.')+'\n\nReply to this email if you have questions.'+account_email.SIGNATURE)
             result = complete(c, user, body, audit_action, uid, digest)
     if action == 'remove': api_account.erase_files(uid)  # Safe to repeat after a lost response; IDs are never reused.
     return result

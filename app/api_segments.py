@@ -76,7 +76,7 @@ def _points(g): return [[la, lo] for lo, la in json.loads(g)['coordinates']] if 
 
 SEG_COLS = """s.id, s.creator_id, s.name, s.description, s.sport, s.distance_m, s.ascent_m, s.elevation_source, s.source, s.created,
               s.audience, s.published, s.status, s.status_reason, s.status_changed, s.replaced_by, s.fingerprint,
-              ST_AsGeoJSON(s.geom) AS g, cu.login::text AS creator_login, cu.name AS creator_name"""
+              ST_AsGeoJSON(s.geom) AS g, cu.login::text AS creator_login, cu.first_name AS creator_name"""
 
 
 def _visible(c, uid, sid):
@@ -466,7 +466,7 @@ def leaderboard(sid: int, after: str | None = Query(None, max_length=80), user=D
         if after:
             try: a_s, a_tie = after.split(':', 1); args.update(a_s=int(a_s), a_tie=a_tie); where = 'WHERE (r.elapsed_s, r.tie) > (%(a_s)s, %(a_tie)s)'
             except ValueError: raise HTTPException(400, 'Bad page')
-        rows = c.execute(ranked + f"""SELECT r.*, u.login::text AS login, u.name, u.photo_v AS photo FROM ranked r JOIN users u ON u.id = r.user_id
+        rows = c.execute(ranked + f"""SELECT r.*, u.login::text AS login, u.first_name AS name, u.photo_v AS photo FROM ranked r JOIN users u ON u.id = r.user_id
                                      {where} ORDER BY r.elapsed_s, r.tie LIMIT {PAGE + 1}""", args).fetchall()
         count = c.execute(ranked + 'SELECT count(*) AS n FROM ranked', args).fetchone()['n']
         me = c.execute(ranked + 'SELECT rank, elapsed_s FROM ranked WHERE user_id = %(viewer)s', args).fetchone()

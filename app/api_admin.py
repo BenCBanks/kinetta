@@ -30,7 +30,7 @@ def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',s
            sort:Literal['joined','active','name']='joined',joined_after:dt.date|None=None,active_since:dt.date|None=None,user=Depends(admin_user)):
     where,args=['TRUE'],{'limit':PAGE,'offset':(page-1)*PAGE}
     if q.strip():
-        where.append('(u.name ILIKE %(m)s OR u.login ILIKE %(m)s OR u.email ILIKE %(m)s)')
+        where.append('(u.first_name ILIKE %(m)s OR u.last_name ILIKE %(m)s OR u.name ILIKE %(m)s OR u.login ILIKE %(m)s OR u.email ILIKE %(m)s)')
         args['m']='%'+q.strip().replace('\\','\\\\').replace('%','\\%').replace('_','\\_')+'%'
     if role:where.append('u.is_admin' if role=='admin' else 'NOT u.is_admin')
     if status:where.append(f'{STATUS} = %(status)s');args['status']=status
@@ -45,7 +45,7 @@ def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',s
     w=' AND '.join(where)
     with db.connect() as c:
         total=c.execute(f'SELECT count(*) AS n FROM users u WHERE {w}',args).fetchone()['n']
-        rows=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
+        rows=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.first_name,u.last_name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
             u.is_admin,u.created,{STATUS} AS status,EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled,
             p.birth_year,p.ai_access_allowed,p.ai_ok,p.ai_adult_at IS NOT NULL AS ai_adult_confirmed,p.ai_adult_by,
             (SELECT max(day) FROM admin_account_days d WHERE d.user_id=u.id) AS last_active,
@@ -65,7 +65,7 @@ def device(agent):
 
 
 def _person(c,uid):
-    p=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
+    p=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.first_name,u.last_name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
         u.is_admin,u.created,{STATUS} AS status,u.suspended_at,u.suspended_reason,u.password_change_expires,
         EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled,
         p.birth_year,p.ai_access_allowed,p.ai_ok,p.ai_adult_at IS NOT NULL AS ai_adult_confirmed,p.ai_adult_by

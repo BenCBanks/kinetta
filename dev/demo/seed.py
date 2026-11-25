@@ -1,4 +1,4 @@
-# Demo data for public screenshots: one made-up person ("Alex") on a throwaway copy. No real data.
+# Demo data for public screenshots: one made-up person ("Alex Example") on a throwaway copy. No real data.
 import json, os, urllib.request, http.cookiejar, uuid, glob, time, datetime as dt, random, sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -24,7 +24,7 @@ def main():
         return json.loads(op.open(r).read() or b'null')
 
     screenshot_fixture = os.environ.get('KINETTA_SCREENSHOT_FIXTURE') == '1'
-    q('POST', '/api/setup', {'name': 'Alex', 'login': 'alex', 'password': 'blue kettle morning run', 'tz': 'America/New_York', 'units': 'imperial'})
+    q('POST', '/api/setup', {'first_name': 'Alex', 'last_name': 'Example', 'login': 'alex', 'password': 'blue kettle morning run', 'tz': 'America/New_York', 'units': 'imperial'})
     q('PUT', '/api/profile', {'max_hr': 188, 'rest_hr': 52, 'weight_kg': 64, 'height_cm': 168, 'birth_year': 2002 if screenshot_fixture else 1990, 'sex': 'female', 'activity_factor': 1.3})
     bnd = uuid.uuid4().hex; parts = []
     for p in sorted(glob.glob(G + '/*.gpx')):

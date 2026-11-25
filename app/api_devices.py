@@ -59,11 +59,11 @@ def remember(c, background: BackgroundTasks, uid, agent):
     c.execute("""INSERT INTO known_devices (user_id, device) VALUES (%s, %s)
                  ON CONFLICT (user_id, device) DO UPDATE SET last_seen = now()""", (uid, name))
     if not seen or name in {r['device'] for r in seen}: return
-    u = c.execute("""SELECT u.name, u.login::text AS login, u.email::text AS email, p.signin_email FROM users u
+    u = c.execute("""SELECT u.first_name, u.login::text AS login, u.email::text AS email, p.signin_email FROM users u
                      LEFT JOIN profile p ON p.user_id = u.id WHERE u.id = %s AND u.email_verified_at IS NOT NULL""", (uid,)).fetchone()
     if u and u['email'] and u['signin_email'] is not False and account_email.mail_ready():
         background.add_task(account_email.send, u['email'], 'New sign-in to your Kinetta account',
-            f"Hi {u['name']},\n\nSomeone just signed in to your Kinetta account ({u['login']}) from a new device: {name}.\n\n"
+            f"Hi {u['first_name']},\n\nSomeone just signed in to your Kinetta account ({u['login']}) from a new device: {name}.\n\n"
             "If that was you, you're all set. If not, open Kinetta and change your password in Settings > Password, then "
             "sign out the other devices in Settings > Signed-in devices. Reply to this email and we'll help.\n\n"
             "(You can turn these emails off in Settings > Notifications.)" + account_email.SIGNATURE)

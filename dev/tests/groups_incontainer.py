@@ -114,6 +114,18 @@ class Groups(unittest.TestCase):
         check = f"count(*) FROM group_members fm WHERE fm.group_id=fi.group_id AND fm.status='active')<{groups.MAX_MEMBERS}"
         self.assertIn(check, notify.NOTICE_VISIBLE)
 
+    def test_group_update_names_are_first_only_for_non_friends(self):
+        group,token=self.make()
+        self.assertEqual(self.accept(token,who=1).status_code,200)
+        with db.connect() as c:
+            c.execute("UPDATE users SET name='Mina Sample',first_name='Mina',last_name='Sample' WHERE id=%s",(self.ids[1],))
+        posted=self.clients[1].post(f"/api/groups/{group['id']}/updates",json={'text':'Fictional group update'})
+        self.assertEqual(posted.status_code,200,posted.text)
+        detail=self.clients[0].get(f"/api/groups/{group['id']}").json()
+        update=next(row for row in detail['updates'] if row['id']==posted.json()['id'])
+        self.assertEqual(update['name'],'Mina')
+        self.assertNotIn('last_name',update)
+
     def test_friend_invites_are_member_scoped_and_decline_is_silent_with_group_hold(self):
         group,token=self.make()
         self.assertEqual(self.accept(token,who=1).status_code,200)

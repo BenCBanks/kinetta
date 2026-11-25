@@ -26,7 +26,12 @@ def main(a):
             for r in c.execute('SELECT login::text AS login, name, pw_hash IS NOT NULL AS has_pw, sql_role FROM users ORDER BY id'):
                 print(f"{r['login']:12} {r['name']:16} {'password set' if r['has_pw'] else 'NO PASSWORD YET':16} SQL: {r['sql_role'] or '-'}")
         elif a[0] == 'add' and len(a) == 3:
-            uid = c.execute('INSERT INTO users (login, name) VALUES (%s, %s) RETURNING id', (a[1], a[2])).fetchone()['id']
+            from . import names
+            first, last = names.split_legacy_name(a[2])
+            if not last: raise SystemExit('add requires a full name: first and last name')
+            from .api_account import _clean_person_names
+            first, last, full = _clean_person_names(first, last)
+            uid = c.execute('INSERT INTO users (login, name, first_name, last_name) VALUES (%s, %s, %s, %s) RETURNING id', (a[1], full, first, last)).fetchone()['id']
             c.execute('INSERT INTO profile (user_id) VALUES (%s)', (uid,))
             print(f'added {a[1]} - now set a password: python -m app.users password {a[1]}')
         elif a[0] == 'password' and len(a) == 2:

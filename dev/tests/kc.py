@@ -1,6 +1,6 @@
 """Tiny API client for the throwaway test server (one cookie jar per person). Made-up accounts only.
 The tests run after dev/demo/seed.py and dev/screenshots/stage.py: "alex" is the admin and makes the zz_test people."""
-import http.cookiejar, json, os, urllib.request, urllib.error, sys
+import http.cookiejar, json, os, re, urllib.request, urllib.error, sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from portal_fixture import admin_headers, is_admin_path
@@ -43,7 +43,10 @@ def login(name, pw=PW):
 
 def person(name, full_name=None):
     """A zz_test person, made by alex (the admin) the first time; logged in."""
-    s, r = login(*ALEX).post('/api/admin/people', {'login': name, 'name': full_name or name.split('_')[-1].title() + ' Test', 'password': PW})
+    label = full_name or name.split('_')[-1].title() + ' Test'
+    digit_words = ('zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine')
+    label = ' '.join(re.sub(r'\d', lambda match: ' ' + digit_words[int(match.group())] + ' ', label).split())
+    s, r = login(*ALEX).post('/api/admin/people', {'login': name, 'name': label, 'password': PW})
     assert s in (200, 409), f'make {name}: {s} {r}'
     return login(name)
 

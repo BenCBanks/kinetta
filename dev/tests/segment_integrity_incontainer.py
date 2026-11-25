@@ -66,6 +66,13 @@ class Integrity(unittest.TestCase):
         for bad in (False,'true',1):self.assertIn(self.clients['owner'].put(url,json=body|{'confirmed':bad}).status_code,(400,422))
         for _ in range(2):self.assertEqual(self.clients['owner'].put(url,json=body).status_code,200)
         self.assertEqual(self.mine(aid)['assistance_revision'],1);self.assertEqual(self.board()['count'],1)
+        for viewer in ('rival','admin'):
+            response=self.clients[viewer].get(f'/api/segments/{self.sid}/leaderboard')
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(response.json()['rows'][0]['name'],'Fictional')
+            self.assertNotIn('last_name',response.text)
+            self.assertNotIn('Fictional owner',response.text)
+
         self.assertEqual(self.clients['owner'].put(url,json=body|{'assistance':'assisted'}).status_code,409)
         self.assertEqual(self.clients['owner'].put(url,json=body|{'assistance':'assisted','revision':1}).status_code,200)
         self.assertEqual(self.board()['count'],0)
