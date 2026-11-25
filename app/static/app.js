@@ -104,6 +104,7 @@ const lazyRouteBundles = [
   {re: /^\/me\/friends\/contacts$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET]},
   {re: /^\/me\/groups$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/groups\/[0-9a-f-]{36}$/i, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/groups\/invites\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/group-invite\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/notifications$/, tab: null, scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},

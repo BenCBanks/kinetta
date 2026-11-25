@@ -481,6 +481,14 @@
       ]
     },
     {
+      "id": "social-10",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/groups\\/invites\\/(\\d+)$/",
+      "paths": [
+        "/groups/invites/{invite_id}"
+      ]
+    },
+    {
       "id": "track-1",
       "source": "app/static/track-route.js",
       "pattern": "/^\\/track$/",

@@ -97,7 +97,9 @@ class GroupInviteAction(BaseModel):
 
 class GroupLinkJoin(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    share_total: StrictBool = True
+    # Omitted by older clients must fail closed; current invite screens send an
+    # explicit value from the visible, default-on sharing switch.
+    share_total: StrictBool = False
 
 
 class GroupFriendInviteCreate(BaseModel):
@@ -115,7 +117,7 @@ class GroupFriendInviteCreate(BaseModel):
 
 class GroupFriendInviteAccept(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    share_total: StrictBool = True
+    share_total: StrictBool = False
 
 
 class GroupUpdateCreate(BaseModel):
@@ -361,14 +363,22 @@ def _clear_friend_invite_notices(c, invite_ids):
 
 def _revoke_friend_invites(c, group_id, inviter_id=None, invitee_id=None):
     params=[group_id]
-    where="group_id=%s AND status='pending'"
+    where="group_id=%s AND status IN ('pending','declined')"
     if inviter_id is not None:
         where+=' AND inviter_id=%s'
         params.append(inviter_id)
     if invitee_id is not None:
         where+=' AND invitee_id=%s'
         params.append(invitee_id)
-    rows=c.execute('UPDATE group_friend_invites SET status=\'revoked\' WHERE '+where+' RETURNING id',params).fetchall()
+    rows=c.execute("UPDATE group_friend_invites SET status='revoked',responded_at=NULL WHERE "+where+' RETURNING id',params).fetchall()
+    _clear_friend_invite_notices(c,[r['id'] for r in rows])
+
+
+def _revoke_friend_invites_between(c, first_id, second_id):
+    rows=c.execute("""UPDATE group_friend_invites SET status='revoked',responded_at=NULL
+        WHERE status IN ('pending','declined') AND
+          ((inviter_id=%s AND invitee_id=%s) OR (inviter_id=%s AND invitee_id=%s))
+        RETURNING id""",(first_id,second_id,second_id,first_id)).fetchall()
     _clear_friend_invite_notices(c,[r['id'] for r in rows])
 
 
@@ -1071,6 +1081,9 @@ def create_friend_invite(group_id: str, body: GroupFriendInviteCreate, user=Depe
     from . import challenges
     group_id=_group_id(group_id)
     with db.connect() as c:
+        # Check membership before resolving the submitted username so a
+        # non-member cannot use this endpoint as an account-existence oracle.
+        _group(c,group_id,user['id'])
         candidate=c.execute('''SELECT id,login FROM users WHERE lower(login)=lower(%s)
             AND NOT needs_email_confirm AND suspended_at IS NULL AND password_change_expires IS NULL''',
             (body.username,)).fetchone()

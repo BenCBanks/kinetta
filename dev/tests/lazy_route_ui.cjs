@@ -974,7 +974,7 @@ async function foodWarmupCase(browser){
     const mapped=await socialMe.page.evaluate(()=>[
       '/activity','/activity/123','/activity/friends/123','/people/zz_test_friend','/add/fictional-token','/me/explore','/food/cook/42','/progress',
       '/me/friends','/me/friends/contacts','/me/groups','/groups/12345678-1234-1234-1234-123456789012',
-      '/group-invite/fictional-token','/me/sharing','/me/sharing/routes','/me/sharing/blocked','/notifications','/me/notifications',
+      '/group-invite/fictional-token','/groups/invites/4301','/me/sharing','/me/sharing/routes','/me/sharing/blocked','/notifications','/me/notifications',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
     assert(mapped.every(([,included])=>included),`routes that render Social-owned icons or controls load social.js first: ${JSON.stringify(mapped)}`);
     const detailDependencies=await socialMe.page.evaluate(()=>[
