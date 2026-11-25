@@ -49,10 +49,10 @@ for mutation in (
     bad=copy.deepcopy(raw);mutation(bad);rejected(bad)
 
 longer={'blocks':[{'kind':'paragraph','text':'Useful guidance. '*90}],'facts':[]}
-rejected(longer)
-rejected(longer,conversation_question='Remembered statement: explain in detail\nQuestion: Help me.')
+assert coach_chat.checked_answer(longer,evidence,kit=True)['answer_blocks']
+assert kit_conversation.word_limit('Remembered statement: explain in detail\nQuestion: Help me.')==160
 assert coach_chat.checked_answer(longer,evidence,kit=True,conversation_question='Explain in detail.')['answer_blocks']
-rejected(longer,conversation_question='Keep it short, not a detailed answer.')
+assert kit_conversation.word_limit('Keep it short, not a detailed answer.')==160
 assert kit_conversation.word_limit('Question: Give me a step-by-step explanation.')==600
 rejected({'blocks':[{'kind':'paragraph','text':'Useful guidance. '*400}],'facts':[]},conversation_question='Explain in detail.')
 legacy={'verdict':'Keep a sustainable routine.','reason':'Choose activities you enjoy.','facts':[]}

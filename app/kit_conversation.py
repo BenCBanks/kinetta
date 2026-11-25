@@ -1,9 +1,30 @@
 """Kit-only conversational contract; calculations and display values remain application-owned."""
 import re
+from contextvars import ContextVar
+from contextlib import contextmanager
 from typing import Literal
 from pydantic import Field, StrictStr
 from . import coach_chat
 from .coach_chat import Empty, Fact, Selection
+
+_corrections = ContextVar('kit_corrections_enabled',default=True)
+
+
+@contextmanager
+def correction_policy(enabled):
+    token = _corrections.set(enabled)
+    try:yield
+    finally:_corrections.reset(token)
+
+
+def corrections_enabled():
+    return _corrections.get()
+
+
+def output_tokens(system, default):
+    # Thinking consumes the same provider output allowance; leave room for complete JSON.
+    return 6144 if system==SYSTEM else default
+
 
 REFERENCE = re.compile(r'\{(e[1-9][0-9]*):([0-7])\}')
 DETAIL = re.compile(r'\b(?:in detail|more detail|detailed|thorough|step.by.step|longer|expand|deep dive)\b', re.I)
@@ -51,11 +72,10 @@ use framing such as "The recorded value was {e2:0}." Never append units, do arit
 Only cite permitted measurements, not dates, identifiers, names, strings, unknowns or unlogged-day counts.
 Use totals and known subtotals accurately; incomplete food logs cannot establish a calorie deficit or complete intake.
 Prior chat values cannot supply evidence. A longer run alone does not establish improved fitness.
-Use each fact only for its own metric. Personal comparisons require a complete app-computed period_compare
-delta for that same metric; never infer fitness, causes or consistency from isolated values. Use plain higher/lower
-or more/less wording with the actual comparison, not better, fitter, stronger or typical.
-selection can only be an allowed candidate from plan_options or meal_combinations, with kind, evidence_id and
-candidate_id; it proposes a change for explicit confirmation, never performs it. actions can only open existing
+Use each fact only for its own metric. Use app-computed comparisons when available; distinguish general advice from personal results. Never infer
+fitness, causes or consistency from isolated values.
+selection is null or {"kind":"food","evidence_id":"e2","candidate_id":"an allowed candidate ID"}
+for meal_combinations, or kind:"plan" for plan_options. Never kind:"meal". Candidate IDs are copied exactly; it proposes a change for explicit confirmation, never performs it. actions can only open existing
 screens: food,nutrition,record,activities,plan,progress,strength,recipes,goals,connections.
 Offer at most two relevant first-person follow_ups the person could tap to send, without numbers or placeholders.
 Do not promise unsupported readers/actions. Do not request unconsented data or infer from unavailable tools.
@@ -88,6 +108,8 @@ def check_for_question(raw, evidence, question, *, weekly_review=False, require_
 
 
 def checked_answer(raw, evidence, *, question=None):
+    if isinstance(raw,dict) and isinstance(raw.get('selection'),dict) and raw['selection'].get('kind')=='meal':
+        raw={**raw,'selection':{**raw['selection'],'kind':'food'}}
     answer = ConversationAnswer.model_validate(raw)
     # Reuse exact measurement/path/unit and candidate checks; the legacy shape remains capped at three.
     facts = []
@@ -120,7 +142,7 @@ def checked_answer(raw, evidence, *, question=None):
     kit_claims.validate(texts, facts, evidence, question=user_question(question), reference=REFERENCE)
     interpretation = '\n\n'.join(block['text'] if block['kind']=='paragraph'
                                  else '\n'.join('• '+item for item in block['items']) for block in blocks)
-    if len(interpretation.split()) > word_limit(question):
+    if len(interpretation.split()) > 600:
         raise ValueError('Conversation exceeds requested length')
     return dict(answer_blocks=blocks, interpretation=interpretation, facts=facts,
                 selection=checked['selection'], actions=checked['actions'], follow_ups=checked['follow_ups'])

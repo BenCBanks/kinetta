@@ -628,7 +628,8 @@ try:
     except ValueError:pass
     else:raise AssertionError('Fixture validator should reject direct digits')
 finally:capture_hooks.end()
-assert captured=={'raw_model_json':text,'validation_error_type':'ValueError','validation_error':'Unverified numeric symbol'}
+assert captured['raw_model_json']==text and captured['validation_error_type']=='ValueError'
+assert captured['validation_error']=='Unverified numeric symbol' and len(captured['attempts'])==1
 weekly_capture=RejectionDiagnostics(fake);weekly_capture.begin()
 try:
     assert fake.checked_answer({},[],kit=True,weekly_review=True)=={'weekly_review':True}

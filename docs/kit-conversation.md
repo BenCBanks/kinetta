@@ -7,7 +7,8 @@ Weekly and workout reviews keep their dedicated response fields. General coach a
 The model supplies `blocks`, `facts`, optional `selection`, `actions` and up to two `follow_ups`.
 A block is exactly `{kind:"paragraph", text:string}` or `{kind:"list", items:string[]}`.
 There are 1–10 blocks, paragraphs up to 1,600 characters, and 1–6 list items up to 600 characters each.
-The server permits at most 160 words unless the actual user explicitly requests detail (then 600).
+The prompt asks for at most 160 words unless the actual user explicitly requests detail (then 600).
+The server enforces the 600-word absolute safety bound; a modest style-length miss is not a failed answer.
 Remembered context or starter guidance cannot enable a longer answer.
 
 Up to eight facts cite exact numeric paths and values in successful current-turn tool evidence.

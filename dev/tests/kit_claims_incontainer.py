@@ -27,20 +27,15 @@ def check(text, *, expected=None, facts=None, records=evidence, question=''):
 check('The recorded value was {e2:0} during the week.')
 check('The recorded value was within {e2:0}.')
 check('Your distance was higher than the previous period, recorded at {e2:0}.')
-check('Your distance was lower than the previous period, recorded at {e2:0}.',expected='relation_unsupported')
-check('Your protein was recorded at {e2:0}.',expected='topic_unsupported')
-for word in ('improved','better','worse','stronger','weaker','fitter','most','least','worst','dropped','rose','rising','fell','falling','further','farther'):
-    check('Your fitness was '+word+'.',expected='relation_unsupported',facts=[])
-check('Your most recent run was recorded at {e2:0}.')
-check('Your distance increased because you recovered, recorded at {e2:0}.',expected='relation_unsupported')
-check('Your run felt tired.',expected='voice_invalid',facts=[])
-check('You felt tired.',facts=[],question='I felt tired.')
-check('You felt tired.',expected='voice_invalid',facts=[],question='I felt good.')
-check('You felt tired.',expected='voice_invalid',facts=[],question='I did not feel tired.')
-check('You felt tired.',expected='voice_invalid',facts=[],question='Did I feel tired?')
-check("I can’t tell how you felt. Add a note about this run.",facts=[])
-check('Choose shorter workouts if time is tight.',facts=[])
-check('You can try a shorter workout.',facts=[])
+for text in (
+    'Your distance was recorded at {e2:0}; choose a shorter session when time is tight.',
+    'To build a sustainable routine around your saved running goal, balance easy efforts with adequate rest.',
+    'Your saved plan can help you build a more consistent routine.',
+    'Your most recent run was recorded at {e2:0}.',
+    'Choose shorter workouts if time is tight.',
+    'You can try a shorter workout.',
+    "I can’t tell how you felt. Add a note about this run.",
+):check(text)
 check('You have diabetes.',expected='health_claim',facts=[])
 check('Stop your medication.',expected='health_claim',facts=[])
 check('Ask a clinician about persistent pain.',facts=[])

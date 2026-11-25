@@ -637,9 +637,10 @@ def _gemini_turn(messages, definitions, *, system=SYSTEM):
     declarations = [{'name': t['name'], 'description': t['description'], 'parametersJsonSchema': t['input_schema']} for t in definitions]
     from . import kit_claims
     weekly = system == KIT_WEEKLY_SYSTEM or kit_claims.is_weekly_system(system)
+    from . import kit_conversation
     body = {'systemInstruction': {'parts': [{'text': system}]}, 'contents': messages,
             'tools': [{'functionDeclarations': declarations}],
-            'generationConfig': {'temperature': .2, 'maxOutputTokens': 4096 if weekly else 2500}}
+            'generationConfig': {'temperature': .2, 'maxOutputTokens': kit_conversation.output_tokens(system,4096 if weekly else 2500)}}
     model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
     from . import kit_conversation
     if (weekly or system == KIT_SYSTEM or kit_conversation.is_system(system)) and model == 'gemini-3.8-flash':
@@ -762,7 +763,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                 checked = (kit_conversation.check_for_question(raw, evidence, question, weekly_review=weekly_review, require_blocks=conversation_contract)
                            if kit else checked_answer(_json(text), evidence, kit=kit,weekly_review=weekly_review))
             except ValueError as error:
-                if not kit: raise
+                if not kit or not kit_conversation.corrections_enabled(): raise
                 if weekly_review:
                     # One bounded correction handles both truncation and invalid evidence references.
                     from . import kit_claims
