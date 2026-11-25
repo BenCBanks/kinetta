@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from .dish_access import NOTICE_VISIBLE
 from . import apns, db, notification_words, notification_facts, reactions
+from .group_limits import MAX_MEMBERS
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
 from .activity_metrics import week_streak as activity_week_streak
 
@@ -24,7 +25,7 @@ NOTICE_VISIBLE += " AND (n.kind<>'milestone' OR EXISTS(SELECT 1 FROM milestones 
 
 NOTICE_VISIBLE += " AND (n.challenge_id IS NULL OR EXISTS(SELECT 1 FROM challenges cq JOIN users cu ON cu.id=cq.user_id JOIN challenge_members cv ON cv.challenge_id=cq.id AND cv.user_id=n.user_id AND cv.status='active' JOIN challenge_members ca ON ca.challenge_id=cq.id AND ca.user_id=n.actor_id AND ca.status='active' WHERE cq.id=n.challenge_id AND NOT cu.needs_email_confirm AND cu.suspended_at IS NULL))"
 
-NOTICE_VISIBLE += " AND (n.group_id IS NULL OR (n.kind IN ('group_update','group_cheer','group_monday_recap') AND EXISTS(SELECT 1 FROM group_members gm WHERE gm.group_id=n.group_id AND gm.user_id=n.user_id AND gm.status='active' AND NOT gm.notifications_muted AND (n.kind<>'group_monday_recap' OR gm.monday_recap_enabled)) AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=n.user_id AND b.blocked=n.actor_id) OR (b.user_id=n.actor_id AND b.blocked=n.user_id))))"
+NOTICE_VISIBLE += " AND (n.group_id IS NULL OR (n.kind IN ('group_update','group_cheer','group_monday_recap') AND EXISTS(SELECT 1 FROM group_members gm WHERE gm.group_id=n.group_id AND gm.user_id=n.user_id AND gm.status='active' AND NOT gm.notifications_muted AND (n.kind<>'group_monday_recap' OR gm.monday_recap_enabled)) AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=n.user_id AND b.blocked=n.actor_id) OR (b.user_id=n.actor_id AND b.blocked=n.user_id))) OR (n.kind='group_invite' AND EXISTS(SELECT 1 FROM group_friend_invites fi JOIN event_groups fg ON fg.id=fi.group_id WHERE fi.id=n.group_friend_invite_id AND fi.group_id=n.group_id AND fi.invitee_id=n.user_id AND fi.inviter_id=n.actor_id AND fi.status='pending' AND fi.expires_at>now() AND fg.closed_at IS NULL AND NOT fg.joining_closed AND NOT EXISTS(SELECT 1 FROM users iu WHERE iu.id=fi.invitee_id AND (iu.needs_email_confirm OR iu.suspended_at IS NOT NULL OR iu.password_change_expires IS NOT NULL)) AND NOT EXISTS(SELECT 1 FROM users ru WHERE ru.id=fi.inviter_id AND (ru.needs_email_confirm OR ru.suspended_at IS NOT NULL OR ru.password_change_expires IS NOT NULL)) AND EXISTS(SELECT 1 FROM group_members fm WHERE fm.group_id=fi.group_id AND fm.user_id=fi.inviter_id AND fm.status='active') AND (SELECT count(*) FROM group_members fm WHERE fm.group_id=fi.group_id AND fm.status='active')<"+str(MAX_MEMBERS)+" AND EXISTS(SELECT 1 FROM friendships fr WHERE fr.status='accepted' AND ((fr.requester=fi.inviter_id AND fr.addressee=fi.invitee_id) OR (fr.requester=fi.invitee_id AND fr.addressee=fi.inviter_id))) AND NOT EXISTS(SELECT 1 FROM group_members fm JOIN blocks b ON (b.user_id=n.user_id AND b.blocked=fm.user_id) OR (b.user_id=fm.user_id AND b.blocked=n.user_id) WHERE fm.group_id=fi.group_id AND fm.status='active'))))"
 
 NOTICE_VISIBLE += " AND (n.kind<>'activity_ready' OR EXISTS(SELECT 1 FROM activities own WHERE own.id=n.activity_id AND own.user_id=n.user_id))"
 
@@ -49,10 +50,10 @@ NOTICE_VISIBLE += ''' AND (left(n.kind,16)<>'streak_reminder:' OR (
  ))'''
 
 router = APIRouter(prefix='/api')
-KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'monthly_summary', 'report', 'signup_admin')   # report: admins only, in the app only
-PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',),'challenge_joins':('challenge_join',),'challenge_reminders':('challenge_reminder',),'challenge_finished':('challenge_finished',),'monthly_summary':('monthly_summary',)}
+KINDS = ('friend_request', 'friend_accepted', 'group_invite', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'monthly_summary', 'report', 'signup_admin')   # report: admins only, in the app only
+PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted', 'group_invite'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',),'challenge_joins':('challenge_join',),'challenge_reminders':('challenge_reminder',),'challenge_finished':('challenge_finished',),'monthly_summary':('monthly_summary',)}
 log = logging.getLogger('uvicorn.error')
-CATCH_UP_KINDS = ('friend_request', 'friend_accepted', 'comment', 'cheer')
+CATCH_UP_KINDS = ('friend_request', 'friend_accepted', 'group_invite', 'comment', 'cheer')
 MAX_SUBS = 10           # devices per person
 AUTO_SOURCES = ('apple', 'healthkit', 'garmin', 'garmin_connect')   # workouts that arrive without the person doing anything
 SUMMARY_WINDOW = dt.timedelta(minutes=15)
@@ -136,6 +137,16 @@ def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=N
     nid=c.execute("""INSERT INTO notifications(user_id,kind,actor_id,activity_id,dish_id,comment_id,reaction_kind)
       VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id""",(user_id,kind,actor_id,activity_id,dish_id,comment_id,reaction_kind if kind=='cheer' else None)).fetchone()['id']
     threading.Thread(target=_push_later, args=(nid,), daemon=True).start()
+
+
+def add_group_invite(c, user_id, actor_id, group_id, invite_id):
+    """Create one invite notice; delivery rechecks the invitee-only visibility predicate."""
+    nid=c.execute('''INSERT INTO notifications(user_id,kind,actor_id,group_id,group_friend_invite_id)
+        VALUES(%s,'group_invite',%s,%s,%s)
+        ON CONFLICT(user_id,group_friend_invite_id) WHERE kind='group_invite' DO NOTHING
+        RETURNING id''',(user_id,actor_id,group_id,invite_id)).fetchone()
+    if nid:
+        threading.Thread(target=_push_later,args=(nid['id'],),daemon=True).start()
 
 
 
@@ -299,7 +310,7 @@ def summary_tick(now=None):
 
 
 # ---------- reading: the words are made here ----------
-_LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,
+_LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,n.group_friend_invite_id,
              q.kind AS challenge_kind, q.target AS challenge_target, q.unit AS challenge_unit, q.start_day, q.end_day,
              n.group_id,g.title AS group_title,
              u.login::text AS login, u.name, u.photo_v AS photo, recipient.name AS recipient_name,
@@ -337,6 +348,10 @@ def _words(r):
     if r['kind'] == 'group_monday_recap':
         title = notification_words.clean(r.get('group_title') or 'your group',80)
         return f'Monday recap from {title}', f"/groups/{r['group_id']}"
+    if r['kind'] == 'group_invite':
+        handle=notification_words.clean(r.get('login') or 'Someone',30)
+        title=notification_words.clean(r.get('group_title') or 'a group',80)
+        return f'@{handle} invited you to {title}', f"/groups/invites/{r['group_friend_invite_id']}"
     if r['kind'] in {'group_update','group_cheer'}:
         who = notification_words.clean(r['name'],40)
         title = notification_words.clean(r.get('group_title') or 'your group',80)
@@ -512,7 +527,7 @@ def _push_words(r, facts=None, c=None):
             detail = summary_detail(values, profile['units'])
         return summary_title(period_type, period), detail
     text,_=_words(r)
-    titles={'friend_request':'Friend request','friend_accepted':'You’re now friends',
+    titles={'friend_request':'Friend request','friend_accepted':'You’re now friends','group_invite':'Group invitation',
             'cheer':'New reaction','comment':'New comment','dish_shared':'Meal shared',
             'activity_ready':'Workout saved','milestone':'Milestone'}
     if r['kind']=='activity_ready':

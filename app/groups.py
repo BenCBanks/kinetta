@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from . import account_email, auth, community_filter, db, notify, reactions
+from .group_limits import MAX_MEMBERS
 from .parsers import SPORTS as ACTIVITY_SPORTS
 from .auth import current_user
 
@@ -23,7 +24,6 @@ GROUP_MISSING = 'Group not found.'
 KINDS = {'distance', 'elevation', 'long_outings', 'sessions'}
 UNITS = {'km', 'mi', 'm', 'ft', 'outings', 'sessions'}
 GROUP_SPORTS = tuple(ACTIVITY_SPORTS)
-MAX_MEMBERS = 50
 MAX_LIVE_INVITES = 20
 LONG_OUTING_SECONDS = 3600
 _GROUP_TOTAL_SHARING_SQL = "(m.sharing_level='total_shared' AND coalesce(p.share_achievements,false))"
@@ -93,6 +93,31 @@ class GroupInviteAction(BaseModel):
     """Invite sheet action: opening preserves links; an explicit renewal rotates them."""
     model_config = ConfigDict(extra='forbid')
     rotate: StrictBool = False
+
+
+class GroupLinkJoin(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    # Omitted by older clients must fail closed; current invite screens send an
+    # explicit value from the visible, default-on sharing switch.
+    share_total: StrictBool = False
+
+
+class GroupFriendInviteCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    username: str = Field(min_length=1, max_length=60)
+
+    @field_validator('username')
+    @classmethod
+    def clean_username(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError('Enter a username')
+        return value
+
+
+class GroupFriendInviteAccept(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    share_total: StrictBool = False
 
 
 class GroupUpdateCreate(BaseModel):
@@ -275,6 +300,93 @@ def _blocked(c, first, second):
     return bool(c.execute('''SELECT 1 FROM blocks WHERE (user_id=%s AND blocked=%s)
                              OR (user_id=%s AND blocked=%s) LIMIT 1''',
                           (first, second, second, first)).fetchone())
+
+
+def _accepted_friends(c, uid):
+    return c.execute('''SELECT u.id,u.login FROM friendships f
+        JOIN users u ON u.id=CASE WHEN f.requester=%s THEN f.addressee ELSE f.requester END
+        WHERE f.status='accepted' AND (f.requester=%s OR f.addressee=%s)
+          AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND u.password_change_expires IS NULL
+          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=%s AND b.blocked=u.id)
+            OR (b.user_id=u.id AND b.blocked=%s))
+        ORDER BY u.login''', (uid,uid,uid,uid,uid)).fetchall()
+
+
+def _friend_pair(c, first, second):
+    return bool(c.execute('''SELECT 1 FROM friendships WHERE status='accepted'
+        AND ((requester=%s AND addressee=%s) OR (requester=%s AND addressee=%s))''',
+        (first,second,second,first)).fetchone())
+
+
+def _invite_accounts_ready(c, *ids):
+    rows=c.execute('''SELECT id FROM users WHERE id=ANY(%s) AND NOT needs_email_confirm
+        AND suspended_at IS NULL AND password_change_expires IS NULL''',(list(ids),)).fetchall()
+    return {row['id'] for row in rows}==set(ids)
+
+
+def _friend_invite_unavailable(c, invite, invitee_id, *, check_capacity=True):
+    if (not invite or invite['invitee_id']!=invitee_id or invite['status']!='pending'
+            or invite['expires_at']<=_now()):
+        return True
+    group=c.execute('SELECT * FROM event_groups WHERE id=%s',(invite['group_id'],)).fetchone()
+    if not group or group['closed_at'] or group['joining_closed']:
+        return True
+    if not c.execute("SELECT 1 FROM group_members WHERE group_id=%s AND user_id=%s AND status='active'",
+                     (group['id'],invite['inviter_id'])).fetchone():
+        return True
+    if not _invite_accounts_ready(c,invite['inviter_id'],invitee_id):
+        return True
+    if not _friend_pair(c,invite['inviter_id'],invitee_id):
+        return True
+    prior=c.execute('SELECT status FROM group_members WHERE group_id=%s AND user_id=%s',
+                    (group['id'],invitee_id)).fetchone()
+    # A removed person can only return with a fresh organizer link.
+    if prior and prior['status']=='removed':
+        return True
+    members=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",
+                                               (group['id'],)).fetchall()]
+    if any(_blocked(c,invitee_id,member) for member in members):
+        return True
+    if check_capacity:
+        count=c.execute("SELECT count(*) AS n FROM group_members WHERE group_id=%s AND status='active'",
+                        (group['id'],)).fetchone()['n']
+        if count>=MAX_MEMBERS:
+            return True
+    return False
+
+
+def _clear_friend_invite_notices(c, invite_ids):
+    ids=list(invite_ids)
+    if ids:
+        c.execute("DELETE FROM notifications WHERE kind='group_invite' AND group_friend_invite_id=ANY(%s)",(ids,))
+
+
+def _revoke_friend_invites(c, group_id, inviter_id=None, invitee_id=None):
+    params=[group_id]
+    where="group_id=%s AND status IN ('pending','declined')"
+    if inviter_id is not None:
+        where+=' AND inviter_id=%s'
+        params.append(inviter_id)
+    if invitee_id is not None:
+        where+=' AND invitee_id=%s'
+        params.append(invitee_id)
+    rows=c.execute("UPDATE group_friend_invites SET status='revoked',responded_at=NULL WHERE "+where+' RETURNING id',params).fetchall()
+    _clear_friend_invite_notices(c,[r['id'] for r in rows])
+
+
+def _revoke_friend_invites_between(c, first_id, second_id):
+    rows=c.execute("""UPDATE group_friend_invites SET status='revoked',responded_at=NULL
+        WHERE status IN ('pending','declined') AND
+          ((inviter_id=%s AND invitee_id=%s) OR (inviter_id=%s AND invitee_id=%s))
+        RETURNING id""",(first_id,second_id,second_id,first_id)).fetchall()
+    _clear_friend_invite_notices(c,[r['id'] for r in rows])
+
+
+def _consume_pending_friend_invites(c, group_id, invitee_id):
+    rows=c.execute('''UPDATE group_friend_invites SET status='accepted',responded_at=now()
+        WHERE group_id=%s AND invitee_id=%s AND status='pending' AND expires_at>now() RETURNING id''',
+        (group_id,invitee_id)).fetchall()
+    _clear_friend_invite_notices(c,[r['id'] for r in rows])
 
 
 def _contributions(c, group, members, now=None):
@@ -905,7 +1017,7 @@ def _limit_accept(request, uid):
 
 
 @router.post('/api/group-invites/{token}/accept')
-def accept_invite(token: str, request: Request, user=Depends(current_user)):
+def accept_invite(token: str, request: Request, body: GroupLinkJoin = GroupLinkJoin(), user=Depends(current_user)):
     _limit_accept(request, user['id'])
     with db.connect() as c:
         invitation = _invite(c, token)
@@ -920,6 +1032,7 @@ def accept_invite(token: str, request: Request, user=Depends(current_user)):
         if not group or group['closed_at'] or group['joining_closed']:
             raise HTTPException(404, INVITE_UNAVAILABLE)
         if _active_member(c, group_id, user['id']):
+            _consume_pending_friend_invites(c,group_id,user['id'])
             return _answer(c, group, user['id'])
         prior = c.execute('SELECT * FROM group_members WHERE group_id=%s AND user_id=%s FOR UPDATE', (group_id, user['id'])).fetchone()
         if prior and prior['status'] == 'removed' and invitation['generation'] <= prior['removed_invite_generation']:
@@ -929,13 +1042,156 @@ def accept_invite(token: str, request: Request, user=Depends(current_user)):
             raise HTTPException(409, 'This group already has 50 members')
         if any(_blocked(c, user['id'], other) for other in other_ids):
             raise HTTPException(404, INVITE_UNAVAILABLE)
-        c.execute('''INSERT INTO group_members(group_id,user_id,status,joined_at,removed_invite_generation)
-                     VALUES(%s,%s,'active',now(),NULL)
+        sharing_level='total_shared' if body.share_total else 'just_in'
+        c.execute('''INSERT INTO group_members(group_id,user_id,status,joined_at,removed_invite_generation,sharing_level)
+                     VALUES(%s,%s,'active',now(),NULL,%s)
                      ON CONFLICT(group_id,user_id) DO UPDATE SET status='active',joined_at=now(),removed_invite_generation=NULL,
-                       sharing_level='just_in',monday_recap_enabled=false ''',
-                  (group_id, user['id']))
+                       sharing_level=EXCLUDED.sharing_level,monday_recap_enabled=false ''',
+                  (group_id, user['id'],sharing_level))
+        _consume_pending_friend_invites(c,group_id,user['id'])
         group = c.execute('SELECT * FROM event_groups WHERE id=%s', (group_id,)).fetchone()
         return _answer(c, group, user['id'])
+
+
+@router.get('/api/groups/{group_id}/friends')
+def group_friends(group_id: str, user=Depends(current_user)):
+    with db.connect() as c:
+        group=_group(c,group_id,user['id'])
+        friends=_accepted_friends(c,user['id'])
+        rows=[]
+        for friend in friends:
+            membership=c.execute('SELECT status FROM group_members WHERE group_id=%s AND user_id=%s',
+                                 (group['id'],friend['id'])).fetchone()
+            if membership and membership['status']=='active':
+                state='member'
+            else:
+                hold=c.execute('''SELECT 1 FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s
+                    AND status IN ('pending','declined') AND expires_at>now() LIMIT 1''',
+                    (group['id'],friend['id'])).fetchone()
+                state='invited' if hold else 'none'
+            rows.append({'username':friend['login'],'state':state})
+        count=c.execute("SELECT count(*) AS n FROM group_members WHERE group_id=%s AND status='active'",
+                        (group['id'],)).fetchone()['n']
+        can_invite=not group['closed_at'] and not group['joining_closed'] and count<MAX_MEMBERS
+        return {'friends':rows,'can_invite':can_invite}
+
+
+@router.post('/api/groups/{group_id}/friend-invites')
+def create_friend_invite(group_id: str, body: GroupFriendInviteCreate, user=Depends(current_user)):
+    from . import challenges
+    group_id=_group_id(group_id)
+    with db.connect() as c:
+        # Check membership before resolving the submitted username so a
+        # non-member cannot use this endpoint as an account-existence oracle.
+        _group(c,group_id,user['id'])
+        candidate=c.execute('''SELECT id,login FROM users WHERE lower(login)=lower(%s)
+            AND NOT needs_email_confirm AND suspended_at IS NULL AND password_change_expires IS NULL''',
+            (body.username,)).fetchone()
+        if not candidate or candidate['id']==user['id']:
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        members=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",
+                                                 (group_id,)).fetchall()]
+        challenges.account_locks(c,[user['id'],candidate['id'],*members])
+        group=_group(c,group_id,user['id'],lock=True)
+        challenges.confirmed_for_challenge(c,user['id'])
+        if group['closed_at'] or group['joining_closed']:
+            raise HTTPException(409,'This group is not accepting members')
+        count=c.execute("SELECT count(*) AS n FROM group_members WHERE group_id=%s AND status='active'",
+                        (group_id,)).fetchone()['n']
+        if count>=MAX_MEMBERS:
+            raise HTTPException(409,'This group already has 50 members')
+        if not _invite_accounts_ready(c,user['id'],candidate['id']) or not _friend_pair(c,user['id'],candidate['id']):
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        membership=c.execute('SELECT status FROM group_members WHERE group_id=%s AND user_id=%s FOR UPDATE',
+                             (group_id,candidate['id'])).fetchone()
+        if membership and membership['status'] in ('active','removed'):
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        active_ids=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",
+                                                    (group_id,)).fetchall()]
+        if any(_blocked(c,candidate['id'],member) for member in active_ids):
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        expired=c.execute('''UPDATE group_friend_invites SET status='expired'
+            WHERE group_id=%s AND invitee_id=%s AND status IN ('pending','declined') AND expires_at<=now()
+            RETURNING id''',(group_id,candidate['id'])).fetchall()
+        _clear_friend_invite_notices(c,[r['id'] for r in expired])
+        held=c.execute('''SELECT status FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s
+            AND status IN ('pending','declined') AND expires_at>now() FOR UPDATE''',
+            (group_id,candidate['id'])).fetchone()
+        if held:
+            # A declined invitation stays quiet and holds the pair until the original expiry.
+            return {'state':'invited'}
+        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',('group-friend-invite:'+str(user['id']),))
+        sent=c.execute('''SELECT count(DISTINCT invitee_id) AS n FROM group_friend_invites
+            WHERE inviter_id=%s AND created_at>now()-interval '24 hours' ''',(user['id'],)).fetchone()['n']
+        if sent>=30:
+            raise HTTPException(429,'Too many group invitations. Try again tomorrow.')
+        invite=c.execute('''INSERT INTO group_friend_invites(group_id,inviter_id,invitee_id,expires_at)
+            VALUES(%s,%s,%s,now()+interval '30 days') RETURNING id''',
+            (group_id,user['id'],candidate['id'])).fetchone()
+        notify.add_group_invite(c,candidate['id'],user['id'],group_id,invite['id'])
+        return {'state':'invited'}
+
+
+@router.get('/api/group-friend-invites/{invite_id}')
+def friend_invite_preview(invite_id: int, request: Request, user=Depends(current_user)):
+    _limit_invite_preview(request)
+    with db.connect() as c:
+        from . import challenges
+        challenges.confirmed_for_challenge(c,user['id'])
+        invite=c.execute('SELECT * FROM group_friend_invites WHERE id=%s',(invite_id,)).fetchone()
+        if _friend_invite_unavailable(c,invite,user['id']):
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        group=c.execute('SELECT title FROM event_groups WHERE id=%s',(invite['group_id'],)).fetchone()
+        inviter=c.execute('SELECT login FROM users WHERE id=%s',(invite['inviter_id'],)).fetchone()
+        return {'title':group['title'],'inviter':inviter['login'],'expires_at':invite['expires_at']}
+
+
+@router.post('/api/group-friend-invites/{invite_id}/accept')
+def accept_friend_invite(invite_id: int, body: GroupFriendInviteAccept, request: Request, user=Depends(current_user)):
+    _limit_accept(request,user['id'])
+    from . import challenges
+    with db.connect() as c:
+        seed=c.execute('SELECT group_id,invitee_id FROM group_friend_invites WHERE id=%s',(invite_id,)).fetchone()
+        if not seed or seed['invitee_id']!=user['id']:
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        members=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",
+                                                 (seed['group_id'],)).fetchall()]
+        challenges.account_locks(c,[user['id'],*members])
+        group=c.execute('SELECT * FROM event_groups WHERE id=%s FOR UPDATE',(seed['group_id'],)).fetchone()
+        invite=c.execute('SELECT * FROM group_friend_invites WHERE id=%s FOR UPDATE',(invite_id,)).fetchone()
+        challenges.confirmed_for_challenge(c,user['id'])
+        if _active_member(c,seed['group_id'],user['id']):
+            return _answer(c,group,user['id'])
+        prior=c.execute('SELECT status FROM group_members WHERE group_id=%s AND user_id=%s FOR UPDATE',
+                        (seed['group_id'],user['id'])).fetchone()
+        if prior and prior['status']=='removed':
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        if _friend_invite_unavailable(c,invite,user['id']):
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        sharing_level='total_shared' if body.share_total else 'just_in'
+        c.execute('''INSERT INTO group_members(group_id,user_id,status,joined_at,removed_invite_generation,sharing_level)
+            VALUES(%s,%s,'active',now(),NULL,%s)
+            ON CONFLICT(group_id,user_id) DO UPDATE SET status='active',joined_at=now(),removed_invite_generation=NULL,
+              sharing_level=EXCLUDED.sharing_level,monday_recap_enabled=false''',
+            (seed['group_id'],user['id'],sharing_level))
+        c.execute("UPDATE group_friend_invites SET status='accepted',responded_at=now() WHERE id=%s AND status='pending'",
+                  (invite_id,))
+        _clear_friend_invite_notices(c,[invite_id])
+        group=c.execute('SELECT * FROM event_groups WHERE id=%s',(seed['group_id'],)).fetchone()
+        return _answer(c,group,user['id'])
+
+
+@router.post('/api/group-friend-invites/{invite_id}/decline')
+def decline_friend_invite(invite_id: int, request: Request, user=Depends(current_user)):
+    _limit_accept(request,user['id'])
+    with db.connect() as c:
+        invite=c.execute('SELECT * FROM group_friend_invites WHERE id=%s AND invitee_id=%s FOR UPDATE',
+                         (invite_id,user['id'])).fetchone()
+        if not invite or invite['status']!='pending' or invite['expires_at']<=_now():
+            raise HTTPException(404,INVITE_UNAVAILABLE)
+        c.execute("UPDATE group_friend_invites SET status='declined',responded_at=now() WHERE id=%s",(invite_id,))
+        _clear_friend_invite_notices(c,[invite_id])
+        return {'ok':True}
 
 
 def _organizer_group(c, group_id, uid, lock=False):
@@ -963,6 +1219,7 @@ def stop_joining(group_id: str, user=Depends(current_user)):
         group = _organizer_group(c, group_id, user['id'], lock=True)
         c.execute('UPDATE event_groups SET joining_closed=true WHERE id=%s', (group['id'],))
         c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
+        _revoke_friend_invites(c,group['id'])
     return {'ok': True}
 
 
@@ -986,6 +1243,7 @@ def close_group(group_id: str, user=Depends(current_user)):
         group = _organizer_group(c, group_id, user['id'], lock=True)
         c.execute('UPDATE event_groups SET closed_at=now(),joining_closed=true WHERE id=%s', (group['id'],))
         c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
+        _revoke_friend_invites(c,group['id'])
     return {'ok': True}
 
 
@@ -1000,6 +1258,8 @@ def remove_member(group_id: str, body: MemberAction, user=Depends(current_user))
             raise HTTPException(404, 'Group member not found')
         c.execute("UPDATE group_members SET status='removed',removed_invite_generation=%s,monday_recap_enabled=false WHERE group_id=%s AND user_id=%s",
                   (group['invite_generation'], group['id'], target['id']))
+        _revoke_friend_invites(c,group['id'],inviter_id=target['id'])
+        _revoke_friend_invites(c,group['id'],invitee_id=target['id'])
         c.execute('DELETE FROM notifications WHERE user_id=%s AND group_id=%s', (target['id'], group['id']))
     return {'ok': True}
 
@@ -1014,6 +1274,9 @@ def leave_group(group_id: str, user=Depends(current_user)):
         if group['organizer_id'] == user['id']:
             c.execute('UPDATE event_groups SET closed_at=coalesce(closed_at,now()),joining_closed=true WHERE id=%s', (group['id'],))
             c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
+            _revoke_friend_invites(c,group['id'])
+        else:
+            _revoke_friend_invites(c,group['id'],inviter_id=user['id'])
         c.execute("UPDATE group_members SET status='left',removed_invite_generation=NULL,monday_recap_enabled=false WHERE group_id=%s AND user_id=%s",
                   (group['id'], user['id']))
         c.execute('DELETE FROM notifications WHERE user_id=%s AND group_id=%s', (user['id'], group['id']))

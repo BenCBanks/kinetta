@@ -2212,6 +2212,47 @@ MIGRATIONS = [
     UPDATE group_update_reactions SET kind='thumbsup' WHERE kind IN ('mountain','hike','🥾','⛰️');
     UPDATE group_weekly_reactions SET kind='thumbsup' WHERE kind IN ('mountain','hike','🥾','⛰️');""",
 
+    # 115. Member-scoped friend invitations. A declined invitation still reserves the
+    # group/person pair until its original expiry, but is never visible to the inviter.
+    """CREATE TABLE group_friend_invites (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      group_id uuid NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
+      inviter_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      invitee_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status text NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','accepted','declined','revoked','expired')),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      expires_at timestamptz NOT NULL,
+      responded_at timestamptz,
+      CHECK(inviter_id<>invitee_id),
+      CHECK(expires_at>created_at),
+      CHECK((status IN ('accepted','declined'))=(responded_at IS NOT NULL)),
+      UNIQUE(id,group_id));
+    CREATE UNIQUE INDEX group_friend_invites_hold ON group_friend_invites(group_id,invitee_id)
+      WHERE status IN ('pending','declined');
+    CREATE INDEX group_friend_invites_invitee ON group_friend_invites(invitee_id,status,expires_at);
+    CREATE INDEX group_friend_invites_inviter ON group_friend_invites(inviter_id,created_at DESC);
+    ALTER TABLE group_friend_invites ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_invitee_rows ON group_friend_invites FOR SELECT TO fit_readers USING(invitee_id=fit_me());
+    REVOKE ALL ON group_friend_invites FROM PUBLIC,fit_readers,fit_all_readers;
+    GRANT SELECT ON group_friend_invites TO fit_readers;
+
+    ALTER TABLE notifications
+      ADD COLUMN group_friend_invite_id bigint,
+      ADD CONSTRAINT notifications_group_friend_invite_fk
+        FOREIGN KEY(group_friend_invite_id,group_id)
+        REFERENCES group_friend_invites(id,group_id) ON DELETE CASCADE;
+    ALTER TABLE notifications DROP CONSTRAINT notifications_group_fields;
+    ALTER TABLE notifications ADD CONSTRAINT notifications_group_fields CHECK(
+      (group_id IS NULL AND group_update_id IS NULL AND group_week_start IS NULL AND group_friend_invite_id IS NULL) OR
+      (group_id IS NOT NULL AND (
+        (kind='group_update' AND group_update_id IS NOT NULL AND group_week_start IS NULL AND group_friend_invite_id IS NULL) OR
+        (kind='group_cheer' AND (group_update_id IS NOT NULL)<>(group_week_start IS NOT NULL) AND group_friend_invite_id IS NULL) OR
+        (kind='group_monday_recap' AND group_update_id IS NULL AND group_week_start IS NOT NULL AND group_friend_invite_id IS NULL) OR
+        (kind='group_invite' AND group_update_id IS NULL AND group_week_start IS NULL AND group_friend_invite_id IS NOT NULL))));
+    CREATE UNIQUE INDEX notifications_group_friend_invite
+      ON notifications(user_id,group_friend_invite_id) WHERE kind='group_invite';""",
+
 ]
 
 

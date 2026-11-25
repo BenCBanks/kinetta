@@ -65,13 +65,258 @@ class Groups(unittest.TestCase):
         return group, token
 
     def accept(self, token, who=1):
-        return self.clients[who].post(f'/api/group-invites/{token}/accept', json={})
+        # Legacy Groups fixtures stay private unless a case exercises the new join choice.
+        return self.clients[who].post(f'/api/group-invites/{token}/accept', json={'share_total':False})
 
     def activity(self, who, at, *, sport='hike', distance=1000, ascent=20, seconds=1200, name='PRIVATE WORKOUT', visibility='friends'):
         with db.connect() as c:
             return c.execute('''INSERT INTO activities(user_id,sport,name,private_note,start_time,distance_m,ascent_m,
                 moving_s,elapsed_s,source,visibility) VALUES(%s,%s,%s,'PRIVATE NOTE',%s,%s,%s,%s,%s,'manual',%s)
                 RETURNING id''', (self.ids[who], sport, name, at, distance, ascent, seconds, seconds, visibility)).fetchone()['id']
+
+    def friend(self, first, second):
+        with db.connect() as c:
+            c.execute('''INSERT INTO friendships(requester,addressee,status,accepted)
+                VALUES(%s,%s,'accepted',now()) ON CONFLICT(requester,addressee)
+                DO UPDATE SET status='accepted',accepted=now()''',(self.ids[first],self.ids[second]))
+
+    def test_groups_115_upgrades_a_main_114_schema_in_place(self):
+        # Simulate the main-branch schema in this same DB, apply only migration 115,
+        # then roll back the fixture so the rest of this run remains on the branch schema.
+        with db.connect() as c:
+            c.execute('SAVEPOINT groups_115_upgrade')
+            try:
+                c.execute('ALTER TABLE notifications DROP CONSTRAINT notifications_group_fields')
+                c.execute('DROP INDEX notifications_group_friend_invite')
+                c.execute('ALTER TABLE notifications DROP CONSTRAINT notifications_group_friend_invite_fk')
+                c.execute('ALTER TABLE notifications DROP COLUMN group_friend_invite_id')
+                c.execute('DROP TABLE group_friend_invites CASCADE')
+                c.execute('''ALTER TABLE notifications ADD CONSTRAINT notifications_group_fields CHECK(
+                    (group_id IS NULL AND group_update_id IS NULL AND group_week_start IS NULL) OR
+                    (group_id IS NOT NULL AND ((kind='group_update' AND group_update_id IS NOT NULL AND group_week_start IS NULL) OR
+                      (kind='group_cheer' AND (group_update_id IS NOT NULL)<>(group_week_start IS NOT NULL)) OR
+                      (kind='group_monday_recap' AND group_update_id IS NULL AND group_week_start IS NOT NULL))))''')
+                c.execute(db.MIGRATIONS[114])
+                self.assertTrue(c.execute("SELECT relrowsecurity FROM pg_class WHERE relname='group_friend_invites'").fetchone()['relrowsecurity'])
+                self.assertTrue(c.execute("SELECT has_table_privilege('fit_readers','group_friend_invites','SELECT') AS ok").fetchone()['ok'])
+                self.assertTrue(c.execute("SELECT has_table_privilege('fit_all_readers','group_friend_invites','SELECT') AS ok").fetchone()['ok'])
+                policy=c.execute("SELECT pg_get_expr(polqual,polrelid) AS qual FROM pg_policy WHERE polrelid='group_friend_invites'::regclass AND polname='own_invitee_rows'").fetchone()['qual']
+                self.assertIn('invitee_id',policy)
+                self.assertIn('fit_me()',policy)
+                fields=c.execute("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname='notifications_group_fields'").fetchone()['definition']
+                self.assertIn('group_invite',fields)
+                self.assertIn('group_friend_invite_id',fields)
+            finally:
+                c.execute('ROLLBACK TO SAVEPOINT groups_115_upgrade')
+                c.execute('RELEASE SAVEPOINT groups_115_upgrade')
+
+    def test_notification_group_invite_capacity_uses_shared_limit(self):
+        check = f"count(*) FROM group_members fm WHERE fm.group_id=fi.group_id AND fm.status='active')<{groups.MAX_MEMBERS}"
+        self.assertIn(check, notify.NOTICE_VISIBLE)
+
+    def test_friend_invites_are_member_scoped_and_decline_is_silent_with_group_hold(self):
+        group,token=self.make()
+        self.assertEqual(self.accept(token,who=1).status_code,200)
+        self.assertEqual(self.accept(token,who=3).status_code,200)
+        self.friend(1,2);self.friend(3,2)
+        created=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':self.clients[2].get('/api/me').json()['login']})
+        self.assertEqual(created.status_code,200,created.text)
+        self.assertEqual(created.json(),{'state':'invited'})
+        with db.connect() as c:
+            row=c.execute('SELECT * FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[2])).fetchone()
+            notices=c.execute("SELECT id FROM notifications WHERE group_id=%s AND kind='group_invite'",(group['id'],)).fetchall()
+        self.assertEqual(row['status'],'pending')
+        self.assertEqual(len(notices),1)
+        preview=self.clients[2].get(f"/api/group-friend-invites/{row['id']}")
+        self.assertEqual(preview.status_code,200,preview.text)
+        self.assertEqual(set(preview.json()),{'title','inviter','expires_at'})
+        self.assertEqual(preview.json()['inviter'],self.clients[1].get('/api/me').json()['login'])
+        alert=self.clients[2].get('/api/notifications').json()['items']
+        self.assertEqual([(n['kind'],n['text'],n['link']) for n in alert],
+                         [('group_invite',f"@{preview.json()['inviter']} invited you to {group['title']}",f"/groups/invites/{row['id']}")])
+        declined=self.clients[2].post(f"/api/group-friend-invites/{row['id']}/decline",json={})
+        self.assertEqual(declined.status_code,200,declined.text)
+        for member in (1,3):
+            listing=self.clients[member].get(f"/api/groups/{group['id']}/friends").json()
+            self.assertIn({'username':self.clients[2].get('/api/me').json()['login'],'state':'invited'},listing['friends'])
+        retry=self.clients[3].post(f"/api/groups/{group['id']}/friend-invites",json={'username':self.clients[2].get('/api/me').json()['login']})
+        self.assertEqual(retry.status_code,200,retry.text)
+        self.assertEqual(retry.json(),{'state':'invited'})
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[2])).fetchone()['n'],1)
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM notifications WHERE group_id=%s AND kind='group_invite'",(group['id'],)).fetchone()['n'],0)
+            self.assertEqual(c.execute('SELECT status,responded_at IS NOT NULL AS responded FROM group_friend_invites WHERE id=%s',(row['id'],)).fetchone(),
+                             {'status':'declined','responded':True})
+        self.assertIn('group_invite',notify.KINDS)
+        self.assertEqual(notify._push_preference('group_invite'),'friends')
+
+    def test_removed_member_friend_invite_post_and_accept_are_unavailable(self):
+        group,token=self.make()
+        self.assertEqual(self.accept(token,who=1).status_code,200)
+        self.friend(1,2)
+        login=self.clients[2].get('/api/me').json()['login']
+        created=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+        self.assertEqual(created.status_code,200,created.text)
+        with db.connect() as c:
+            invite=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[2])).fetchone()
+            c.execute("INSERT INTO group_members(group_id,user_id,status,removed_invite_generation) VALUES(%s,%s,'removed',1)",
+                      (group['id'],self.ids[2]))
+        refused=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+        self.assertEqual(refused.status_code,404)
+        self.assertEqual(refused.json()['detail'],groups.INVITE_UNAVAILABLE)
+        accepted=self.clients[2].post(f"/api/group-friend-invites/{invite['id']}/accept",json={'share_total':True})
+        self.assertEqual(accepted.status_code,404)
+        self.assertEqual(accepted.json()['detail'],groups.INVITE_UNAVAILABLE)
+
+    def test_legacy_friend_invite_accept_without_share_choice_defaults_private(self):
+        group,token=self.make()
+        self.assertEqual(self.accept(token,who=1).status_code,200)
+        self.friend(1,2)
+        login=self.clients[2].get('/api/me').json()['login']
+        sent=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+        self.assertEqual(sent.status_code,200,sent.text)
+        with db.connect() as c:
+            invite=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[2])).fetchone()
+        accepted=self.clients[2].post(f"/api/group-friend-invites/{invite['id']}/accept",json={})
+        self.assertEqual(accepted.status_code,200,accepted.text)
+        self.assertEqual(accepted.json()['sharing_level'],'just_in')
+
+    def test_friend_invite_post_checks_membership_before_username_lookup(self):
+        group,_=self.make()
+        known=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':self.clients[2].get('/api/me').json()['login']})
+        unknown=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':'zz_test_no_such_group_user'})
+        self.assertEqual(known.status_code,404)
+        self.assertEqual(unknown.status_code,404)
+        self.assertEqual(known.json()['detail'],groups.GROUP_MISSING)
+        self.assertEqual(unknown.json()['detail'],groups.GROUP_MISSING,
+                         'a non-member cannot distinguish an existing username')
+
+    def test_inviter_reader_cannot_select_decline_state(self):
+        group,token=self.make()
+        self.assertEqual(self.accept(token,who=1).status_code,200)
+        self.friend(1,2)
+        login=self.clients[2].get('/api/me').json()['login']
+        created=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+        self.assertEqual(created.status_code,200,created.text)
+        with db.connect() as c:
+            invite=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[2])).fetchone()
+            c.execute('UPDATE group_friend_invites SET status=\'declined\',responded_at=now() WHERE id=%s',(invite['id'],))
+            c.execute("DELETE FROM notifications WHERE kind='group_invite' AND group_friend_invite_id=%s",(invite['id'],))
+            role='zz_test_group_invite_reader_'+uuid.uuid4().hex[:8]
+            password='fictional group reader password'
+            c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role),sql.Literal(password)))
+            c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)))
+            c.execute('UPDATE users SET sql_role=%s WHERE id=%s',(role,self.ids[1]))
+        try:
+            with psycopg.connect(db._conninfo(role,password),row_factory=dict_row) as reader:
+                self.assertEqual(reader.execute('SELECT status,responded_at FROM group_friend_invites WHERE id=%s',(invite['id'],)).fetchall(),[])
+                self.assertEqual(reader.execute('SELECT status,responded_at FROM group_friend_invites WHERE inviter_id=%s',(self.ids[1],)).fetchall(),[])
+        finally:
+            with db.connect() as c:
+                c.execute('UPDATE users SET sql_role=NULL WHERE id=%s',(self.ids[1],))
+                c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
+
+    def test_group_stop_close_leave_and_remove_revoke_pending_and_declined_identically(self):
+        for action in ('stop-joining','close','leave','remove'):
+            group,token=self.make()
+            self.assertEqual(self.accept(token,who=1).status_code,200)
+            inviter=1 if action=='remove' else 0
+            for person in (0,1):
+                self.friend(person,2);self.friend(person,3)
+            rows=[]
+            for invitee,decline in ((2,False),(3,True)):
+                login=self.clients[invitee].get('/api/me').json()['login']
+                sent=self.clients[inviter].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+                self.assertEqual(sent.status_code,200,sent.text)
+                with db.connect() as c:
+                    invite=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[invitee])).fetchone()
+                rows.append(invite['id'])
+                if decline:
+                    response=self.clients[invitee].post(f"/api/group-friend-invites/{invite['id']}/decline",json={})
+                    self.assertEqual(response.status_code,200,response.text)
+            if action=='remove':
+                result=self.clients[0].post(f"/api/groups/{group['id']}/remove",json={'username':self.clients[inviter].get('/api/me').json()['login']})
+            else:
+                if action=='leave':
+                    transfer=self.clients[0].post(f"/api/groups/{group['id']}/transfer",json={'username':self.clients[1].get('/api/me').json()['login']})
+                    self.assertEqual(transfer.status_code,200,transfer.text)
+                result=self.clients[0].post(f"/api/groups/{group['id']}/{action}",json={})
+            self.assertEqual(result.status_code,200,result.text)
+            if action=='stop-joining':
+                new=self.clients[0].post(f"/api/groups/{group['id']}/invites",json={})
+                self.assertEqual(new.status_code,200,new.text)
+            with db.connect() as c:
+                states=c.execute('SELECT status,responded_at FROM group_friend_invites WHERE id=ANY(%s) ORDER BY invitee_id',(rows,)).fetchall()
+                self.assertEqual(states,[{'status':'revoked','responded_at':None},{'status':'revoked','responded_at':None}],
+                                 f'{action} does not distinguish pending from declined')
+                self.assertEqual(c.execute('SELECT count(*) AS n FROM notifications WHERE group_friend_invite_id=ANY(%s)',(rows,)).fetchone()['n'],0)
+            viewer=1 if action=='leave' else 0
+            listing=self.clients[viewer].get(f"/api/groups/{group['id']}/friends")
+            self.assertEqual(listing.status_code,200,listing.text)
+            for invitee in (2,3):
+                self.assertIn({'username':self.clients[invitee].get('/api/me').json()['login'],'state':'none'},listing.json()['friends'],
+                              f'{action} gives pending and declined invitees the same visible state')
+
+    def test_block_and_unfriend_revoke_friend_invites_and_notices(self):
+        group,token=self.make()
+        self.assertEqual(self.accept(token,who=1).status_code,200)
+        self.friend(1,2)
+        login=self.clients[2].get('/api/me').json()['login']
+        created=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+        self.assertEqual(created.status_code,200,created.text)
+        with db.connect() as c:
+            first=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[2])).fetchone()['id']
+        blocked=self.clients[1].post(f'/api/people/{login}/block',json={})
+        self.assertEqual(blocked.status_code,200,blocked.text)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT status,responded_at FROM group_friend_invites WHERE id=%s',(first,)).fetchone(),{'status':'revoked','responded_at':None})
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM notifications WHERE group_friend_invite_id=%s',(first,)).fetchone()['n'],0)
+            c.execute('DELETE FROM blocks WHERE user_id=%s AND blocked=%s',(self.ids[1],self.ids[2]))
+        self.friend(1,2)
+        second=self.clients[1].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+        self.assertEqual(second.status_code,200,second.text)
+        with db.connect() as c:
+            invite_id=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s AND status=\'pending\'',(group['id'],self.ids[2])).fetchone()['id']
+        removed=self.clients[1].delete(f'/api/friends/{login}')
+        self.assertEqual(removed.status_code,200,removed.text)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT status,responded_at FROM group_friend_invites WHERE id=%s',(invite_id,)).fetchone(),{'status':'revoked','responded_at':None})
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM notifications WHERE group_friend_invite_id=%s',(invite_id,)).fetchone()['n'],0)
+
+    def test_link_join_consumes_pending_friend_invite_and_saves_share_choice(self):
+        group,token=self.make()
+        self.friend(0,2)
+        login=self.clients[2].get('/api/me').json()['login']
+        sent=self.clients[0].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+        self.assertEqual(sent.status_code,200,sent.text)
+        with db.connect() as c:
+            invite=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[2])).fetchone()
+            c.execute("INSERT INTO group_members(group_id,user_id,status,sharing_level) VALUES(%s,%s,'left','total_shared')",
+                      (group['id'],self.ids[2]))
+        joined=self.clients[2].post(f"/api/group-invites/{token}/accept",json={'share_total':True})
+        self.assertEqual(joined.status_code,200,joined.text)
+        with db.connect() as c:
+            member=c.execute('SELECT status,sharing_level FROM group_members WHERE group_id=%s AND user_id=%s',(group['id'],self.ids[2])).fetchone()
+            invite_state=c.execute('SELECT status,responded_at IS NOT NULL AS responded FROM group_friend_invites WHERE id=%s',(invite['id'],)).fetchone()
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM notifications WHERE group_friend_invite_id=%s',(invite['id'],)).fetchone()['n'],0)
+        self.assertEqual(member,{'status':'active','sharing_level':'total_shared'})
+        self.assertEqual(invite_state,{'status':'accepted','responded':True})
+
+    def test_friend_accept_conflict_path_saves_share_choice(self):
+        group,token=self.make()
+        self.friend(0,2)
+        login=self.clients[2].get('/api/me').json()['login']
+        self.assertEqual(self.accept(token,who=2).status_code,200)
+        self.assertEqual(self.clients[2].post(f"/api/groups/{group['id']}/leave",json={}).status_code,200)
+        sent=self.clients[0].post(f"/api/groups/{group['id']}/friend-invites",json={'username':login})
+        self.assertEqual(sent.status_code,200,sent.text)
+        with db.connect() as c:
+            invite=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s AND status=\'pending\'',(group['id'],self.ids[2])).fetchone()
+        accepted=self.clients[2].post(f"/api/group-friend-invites/{invite['id']}/accept",json={'share_total':True})
+        self.assertEqual(accepted.status_code,200,accepted.text)
+        with db.connect() as c:
+            member=c.execute('SELECT status,sharing_level FROM group_members WHERE group_id=%s AND user_id=%s',(group['id'],self.ids[2])).fetchone()
+        self.assertEqual(member,{'status':'active','sharing_level':'total_shared'})
 
     def test_goal_sports_start_date_training_line_and_weekly_target(self):
         zone = ZoneInfo('America/New_York')
@@ -207,10 +452,10 @@ class Groups(unittest.TestCase):
         self.assertNotIn('Half marathon', preview.text)
         self.assertNotIn(group['title'], preview.text)
         self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).status_code, 404)
-        accepted = self.accept(original)
+        accepted = self.clients[1].post('/api/group-invites/' + original + '/accept',json={})
         self.assertEqual(accepted.status_code, 200, accepted.text)
         self.assertEqual(accepted.json()['member_count'], 2)
-        self.assertEqual(accepted.json()['sharing_level'], 'just_in', 'a new member starts with the private choice')
+        self.assertEqual(accepted.json()['sharing_level'], 'just_in', 'an omitted legacy share choice fails closed')
         self.assertNotIn('activity_id', accepted.text)
         replacement = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={'rotate': True}).json()['invite_url'].rsplit('/', 1)[1]
         stale = self.accept(original, who=2)
