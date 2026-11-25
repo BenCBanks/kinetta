@@ -91,12 +91,16 @@ async function settleHomeFeedReactionBelowSafeArea(group) {
     const nav=document.querySelector('.home-view-switch'),feedTop=document.querySelector('#feed-top');
     const navRect=nav?.getBoundingClientRect(),feedRect=feedTop?.getBoundingClientRect(),top=cardHeader.getBoundingClientRect().top;
     const gap=navRect&&top>navRect.bottom?top-navRect.bottom:0;
-    const target=Math.max(safeTop+8,(feedRect?.bottom??safeTop)+8+(navRect?.height??0)+gap);
+    const desired=Math.max(safeTop+8,(feedRect?.bottom??safeTop)+8+(navRect?.height??0)+gap);
+    // A page at scrollY 0 cannot move its first card header farther down. Optional Home
+    // sections can make that document position shorter than the previous target; accept
+    // the reachable position and keep the safe-area and footer checks below authoritative.
+    const target=Math.min(desired,top+scrollY);
     const next=Math.max(0,scrollY+top-target);
     if(next!==scrollY)window.scrollTo({top:next,behavior:'instant'});
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     const rect=cardHeader.getBoundingClientRect();
-    return{valid:rect.top>=safeTop&&Math.abs(rect.top-target)<2,top:rect.top,target,scrollY};
+    return{valid:rect.top>=safeTop&&Math.abs(rect.top-target)<2,top:rect.top,target,desired,scrollY};
   },TOP);
   if(!header.valid)throw Error('Home feed card header is not below the status-bar safe area: '+JSON.stringify(header));
 }
