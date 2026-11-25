@@ -61,7 +61,7 @@ class AccountEmail(unittest.TestCase):
 
     def link(self, kind):
         text = self.messages()[-1]['text']
-        route = r'confirm-email#' if kind == 'confirm-email' else re.escape(kind) + r'/'
+        route = r'confirm-email#' if kind == 'confirm-email' else re.escape(kind) + r'#'
         return re.search(rf'https://example\.test/{route}([\w-]+)', text).group(1)
 
     def confirm(self, c, email):
@@ -110,9 +110,17 @@ class AccountEmail(unittest.TestCase):
         same = anon.post('/api/password/forgot', json={'login': 'zz_test_mail_a'}).json()
         self.assertEqual(same['message'], r.json()['message'], 'the answer never says whether an account matched')
         self.assertEqual(self.messages()[-1]['to'], ['zz_reset@example.com'])
+        page = anon.get('/reset-password')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('<title>', page.text)
+        self.assertIn('/reset-password#', self.messages()[-1]['text'])
+        self.assertNotIn('/reset-password/', self.messages()[-1]['text'])
         anon.post('/api/password/forgot', json={'login': 'zz_reset@example.com'})
         token = self.link('reset-password')
-        self.assertEqual(anon.get('/api/password/reset/' + token).json()['login'], 'zz_test_mail_a')
+        legacy = anon.get('/api/password/reset/' + token)
+        self.assertEqual(legacy.status_code, 200)
+        self.assertEqual(legacy.json()['login'], 'zz_test_mail_a')
+        self.assertEqual(anon.post('/api/password/reset/check', json={'token': token}).json()['login'], 'zz_test_mail_a')
         self.assertEqual(anon.post('/api/password/reset', json={'token': token, 'password': 'password123'}).status_code, 400)
         new = 'a brand new reset sentence'
         self.assertEqual(anon.post('/api/password/reset', json={'token': token, 'password': new}).status_code, 200)
@@ -136,7 +144,7 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(response.json()['message'], unknown['message'], 'unknown and pending accounts get the same response')
         self.assertEqual(self.messages()[-1]['to'], ['zz_pending@example.com'])
         token = self.link('reset-password')
-        self.assertEqual(anon.get('/api/password/reset/' + token).json()['login'], user['login'])
+        self.assertEqual(anon.post('/api/password/reset/check', json={'token': token}).json()['login'], user['login'])
         new = 'a brand new pending reset sentence'
         with patch('app.account_email._join_signup_friend') as join_friend, patch('app.account_email._consume_signup') as consume_signup:
             response = anon.post('/api/password/reset', json={'token': token, 'password': new})
@@ -363,7 +371,7 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(pending.json(), unknown.json(), 'forgot does not disclose a stored typo address')
         self.assertEqual(self.messages()[-1]['to'], ['zz_reset_stored@gmai.com'])
         token = self.link('reset-password')
-        self.assertEqual(anon.get('/api/password/reset/' + token).status_code, 200)
+        self.assertEqual(anon.post('/api/password/reset/check', json={'token': token}).status_code, 200)
         reset = anon.post('/api/password/reset', json={'token': token, 'password': 'new stored typo passphrase'})
         self.assertEqual(reset.status_code, 200, reset.text)
         self.assertTrue(reset.json()['email_confirmed'])

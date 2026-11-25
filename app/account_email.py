@@ -397,7 +397,7 @@ def send_reset(background, c, u, by_admin=False, pending=False):
     who = "We're sending you a link to reset" if by_admin else 'Someone (hopefully you) asked to reset'
     background.add_task(send, u['email'], 'Reset your Kinetta password',
         f"Hi {u['name']},\n\n{who} the password for your Kinetta account ({u['login']}). "
-        f"Tap this link to choose a new one:\n{_base()}/reset-password/{token}\n\n"
+        f"Tap this link to choose a new one:\n{_base()}/reset-password#{token}\n\n"
         f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays as it is." + SIGNATURE)
 
 
@@ -406,12 +406,29 @@ class ResetIn(BaseModel):
     password: str = Field(min_length=8, max_length=200)
 
 
+class ResetCheckIn(BaseModel):
+    token: str = Field(max_length=100)
+
+
 @router.get('/api/password/reset/{token}')
-def reset_info(token: str, request: Request):
-    """Whether a reset link still works, so the page can say so before someone types a new password."""
+def reset_info_legacy(token: str, request: Request):
+    """Legacy path-token lookup kept for one release for cached app links.
+
+    Remove after the next TestFlight build + 60 minutes; old shipped bundles may
+    still open a valid reset link with the token in the path.
+    """
     token_limit(request, 'reset-ip:', 30)
     with db.connect() as c:
         r = _open(c, token, 'reset_password')
+    return {'login': r['login']}
+
+
+@router.post('/api/password/reset/check')
+def reset_info(body: ResetCheckIn, request: Request):
+    """Check a reset token without putting it in a URL or access log."""
+    token_limit(request, 'reset-ip:', 30)
+    with db.connect() as c:
+        r = _open(c, body.token, 'reset_password')
     return {'login': r['login']}
 
 

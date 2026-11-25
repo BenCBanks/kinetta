@@ -405,9 +405,9 @@ class Signup(unittest.TestCase):
             used=account_email._token(c,uid,'reset_password',60)
             c.execute('UPDATE account_tokens SET used_at=now() WHERE token_hash=%s',(auth.token_hash(used),))
             expired=account_email._token(c,uid,'reset_password',-1)
-        for token in ('missing',expired,used):self.assertEqual(client().get('/api/password/reset/'+token).status_code,404)
+        for token in ('missing',expired,used):self.assertEqual(client().post('/api/password/reset/check',json={'token':token}).status_code,404)
         for i in range(27):
-            r=client().post('/api/password/reset',json={'token':'missing','password':PW})if i%2 else client().get('/api/password/reset/missing')
+            r=client().post('/api/password/reset',json={'token':'missing','password':PW})if i%2 else client().post('/api/password/reset/check',json={'token':'missing'})
             self.assertEqual(r.status_code,404,r.text)
         self.assertEqual(client().post('/api/password/reset',json={'token':'missing','password':PW}).status_code,429)
         for i in range(20):self.assertEqual(client().post('/api/account/email/confirm',json={'token':'missing'}).status_code,404)
@@ -419,7 +419,7 @@ class Signup(unittest.TestCase):
         with db.connect()as c:
             self.assertIsNone(c.execute('SELECT used_at FROM account_tokens WHERE token_hash=%s',(auth.token_hash(valid),)).fetchone()['used_at'])
             c.execute('DELETE FROM auth_attempts')
-        replies=self.race(*[lambda:client().get('/api/password/reset/missing')for _ in range(4)])
+        replies=self.race(*[lambda:client().post('/api/password/reset/check',json={'token':'missing'})for _ in range(4)])
         self.assertEqual([r.status_code for r in replies],[404]*4)
         with db.connect()as c:self.assertEqual(c.execute("SELECT count(*)AS n FROM auth_attempts WHERE key LIKE 'reset-ip:%%'").fetchone()['n'],4)
 
