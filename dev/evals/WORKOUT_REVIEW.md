@@ -1,5 +1,7 @@
 # Workout-review gate runbook
 
+For the shared chat/weekly baseline comparison, read [KIT_GATE.md](KIT_GATE.md) first.
+
 Run these commands from the candidate checkout. Only the owner runs the paid step.
 Use fictional records, an exported `GEMINI_API_KEY`, and private files outside the repository.
 The wrapper never accepts a key argument, writes a key file, or passes the key to the app service.

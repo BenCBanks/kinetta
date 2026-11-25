@@ -41,6 +41,7 @@ python3 dev/tests/test_website_content.py
 python3 dev/tests/ai_fingerprints.py
 python3 dev/evals/test_food_memory_score.py
 python3 dev/evals/test_workout_review_report.py
+python3 dev/evals/test_kit_gate.py
 
 echo "== syntax"
 python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py

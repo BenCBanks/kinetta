@@ -161,3 +161,9 @@ model knows newer niche brands (Garage Beer); estimates then fall back to a gene
 The [workout-review gate runbook](WORKOUT_REVIEW.md) covers a disposable 40-input capture,
 provider-free preflight, explicit human review and private report construction. The 20-case
 smoke set cannot satisfy the release gate; all captures and reports stay outside this repository.
+
+## Shared Kit gate wrapper
+
+The [shared Kit gate runbook](KIT_GATE.md) gives the disposable baseline/candidate wrapper,
+forty-case selection, dry-run and human review fields. Use it for the existing chat/weekly
+release comparison; the workout-only runner supplements that coverage.

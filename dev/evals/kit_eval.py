@@ -9,6 +9,7 @@ from pathlib import Path
 from app import db,coach,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
+from kit_gate_cases import GATE_CASE_IDS
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
                                  run_weekly_answer, is_expected_health_consent_refusal,
                                  seed_fixture, seed_other_account)
@@ -19,15 +20,54 @@ p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',re
 p.add_argument('--output',required=True);p.add_argument('--baseline-results')
 p.add_argument('--variant',choices=('both','baseline','candidate'),default='both')
 p.add_argument('--cases',action='append',metavar='ID',help='case ID; repeat or use comma-separated IDs')
+p.add_argument('--dry-run',action='store_true',help='Validate inputs and write private metadata only; no provider/database calls')
+p.add_argument('--gate',action='store_true',help='Use the forty-case chat/weekly release set and require both variants')
 args=p.parse_args()
-if not args.accept_paid_calls or not 0<args.budget_usd<=5:p.error('Explicit paid authorization and budget up to $5 required')
-# Conservative request reservations leave a margin below the owner's total limit.
-os.environ['KINETTA_AI_DAILY_USD']=str(min(args.budget_usd*.9,4.5));os.environ['KINETTA_AI_USER_DAILY_MICROUSD']=str(round(args.budget_usd*.9*1e6));os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS']='400';os.environ['KINETTA_AI_DAILY_ATTEMPTS']='400'
-spec=importlib.util.spec_from_file_location('app._kit_baseline',args.baseline);baseline=importlib.util.module_from_spec(spec);spec.loader.exec_module(baseline)
-today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
+if not 0<args.budget_usd<=1:p.error('Budget must be positive and at most $1 per run')
+if not args.dry_run and not args.accept_paid_calls:p.error('Explicit --accept-paid-calls required')
+if not args.dry_run and (os.environ.get('KINETTA_KIT_EVAL_ISOLATED')!='1' or not os.environ.get('GEMINI_API_KEY')):
+ p.error('Use the disposable wrapper with GEMINI_API_KEY exported in the environment')
+output=Path(args.output).resolve()
+root=Path(__file__).resolve().parents[2]
+if output==root or root in output.parents:p.error('Output must be outside the public repository')
+output.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+if output.parent.stat().st_mode & 0o077:p.error('Output directory must be 0700')
+if output.exists():p.error('Refusing to overwrite existing output')
 requested_cases=parse_case_ids(args.cases)
+if args.gate:
+ if args.variant!='both' or args.baseline_results or requested_cases:p.error('--gate requires both variants and the fixed gate set')
+ requested_cases=set(GATE_CASE_IDS)
 try:selected_cases=select_cases(CASES,requested_cases)
 except ValueError as error:p.error(str(error))
+if args.gate and (len(selected_cases)!=40 or len(set(GATE_CASE_IDS))!=40):p.error('Gate set must contain forty distinct cases')
+baseline_path=Path(args.baseline)
+if not baseline_path.is_file():p.error('Baseline file does not exist')
+# Compile without importing: dry-run cannot initialize provider/database logic.
+compile(baseline_path.read_text(),str(baseline_path),'exec')
+metadata={'reviewed':False,'complete':False,'dry_run':args.dry_run,
+ 'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,
+ 'baseline_sha256':hashlib.sha256(baseline_path.read_bytes()).hexdigest(),
+ 'case_count':len(selected_cases),'selected_case_ids':[case[0] for case in selected_cases],
+ 'budget_usd':args.budget_usd,'provider_calls':0 if args.dry_run else None}
+def save_report(value):
+ temporary=output.with_name(output.name+'.partial')
+ fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+ with os.fdopen(fd,'w') as stream:
+  json.dump(value,stream,default=str,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+ os.replace(temporary,output)
+if args.dry_run:
+ save_report(metadata)
+ print(json.dumps({'dry_run':True,'cases':len(selected_cases),'provider_calls':0,'output':str(output)}),flush=True)
+ raise SystemExit(0)
+# Conservative global reservation limits apply across every fictional account.
+os.environ['KINETTA_AI_DAILY_USD']=str(args.budget_usd*.9)
+os.environ['KINETTA_AI_USER_DAILY_MICROUSD']=str(round(args.budget_usd*.9*1e6))
+os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS']='400';os.environ['KINETTA_AI_DAILY_ATTEMPTS']='400'
+os.environ['GEMINI_MODEL']='gemini-3.8-flash'
+spec=importlib.util.spec_from_file_location('app._kit_baseline',args.baseline);baseline=importlib.util.module_from_spec(spec);spec.loader.exec_module(baseline)
+metadata.update(candidate_fingerprint=ai_release.kit_fingerprint(),ai_text=ai_release.ai_text('kit'),models=ai_release.models('kit'))
+save_report(metadata)
+today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
 diagnostics=RejectionDiagnostics(coach_chat)
 weekly_case_ids={case[0] for case in selected_cases
                  if len(case)>3 and isinstance(case[3],dict) and case[3].get('weekly_review')}
@@ -105,7 +145,7 @@ try:
   transport=None
   provider_requests=0
   try:
-   if weekly and variant=='candidate':
+   if weekly and (variant=='candidate' or args.gate):
     # Run the same answer function used by kit_thread.generate with the exact client POST body.
     from app import ai_access, kit_thread
     client_id,generation,visit_id=uuid.uuid4(),uuid.uuid4(),uuid.uuid4()
@@ -126,7 +166,8 @@ try:
     ai_access.require(case_uid,'coach')
     with ai_budget.scope(case_uid,client_id,feature='Kit conversation'):
      result=run_weekly_answer(
-      coach_chat.answer,case_uid,transport,history=history,guidance=guidance,
+      coach_chat.answer if variant=='candidate' else baseline.answer,
+      case_uid,transport,history=history,guidance=guidance,
       request_count=lambda: provider_requests_for(case_uid,client_id))
     answer=result['answer'];error=result['error'];provider_requests=result['provider_requests']
     if provider_requests==0 and error is None:
@@ -136,6 +177,7 @@ try:
      # The pre-weekly baseline receives the same visible starter text; only the candidate
      # path has the weekly route and app-derived evidence contract.
      answer=(baseline.answer(case_uid,'Review my week') if weekly else
+             baseline.answer(case_uid,question,kit=True,history=history or None) if variant=='baseline' and args.gate else
              baseline.answer(case_uid,question) if variant=='baseline' else
              coach_chat.answer(case_uid,question,kit=True,history=history or None))
    if answer is None and error is None:
@@ -171,14 +213,21 @@ try:
    results.append(result)
    with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
    failed_cases=[r['case'] for r in results if r['variant']=='candidate' and not r.get('passed')]
-   report={'reviewed':False,'complete':not failed_cases,'failed_cases':failed_cases,
+   expected={(variant,case[0]) for variant in variants for case in selected_cases}
+   completed={(row['variant'],row['case']) for row in results}
+   complete=expected.issubset(completed) and not failed_cases
+   report={**metadata,'complete':complete,'failed_cases':failed_cases,
            'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,
            'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(selected_cases),
            'selected_case_ids':[case[0] for case in selected_cases],
            'baseline_results_reused':bool(args.baseline_results),'results':results,
            'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],
-           'owner_qualitative_review':'pending','food_comparison':'separate food-estimation release rules are unchanged'}
-   Path(args.output).write_text(json.dumps(report,default=str,indent=2))
+           'owner_qualitative_review':'pending',
+           'kit':{'case_count':sum(row['variant']=='candidate' for row in results),
+                  'unsupported_numeric_claims':None,'isolation_failures':None,'health_disclosures':None,
+                  'baseline_compared':None,'conversation_review_passed':None,'qualitative_review_passed':None},
+           'food_comparison':'separate food-estimation release rules are unchanged'}
+   save_report(report)
  print(json.dumps({'complete':report['complete'],'cases':len(selected_cases),'responses':len(results),
                    'failed_cases':report['failed_cases'],'cost':report['reserved_or_estimated_usd'],
                    'requests':report['requests']}),flush=True)
