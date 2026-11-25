@@ -12,9 +12,9 @@ module.exports=async(p,state,width,theme,out)=>{
   const metrics=await p.locator(row).evaluate(n=>{
    const rect=n=>{const r=n.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
    const field=n.querySelector('textarea'),plus=document.querySelector('#thread-plus,#dk-plus'),send=n.querySelector('.thread-send'),page=document.querySelector('#page');
-   return{row:rect(n),field:rect(field),font:parseFloat(getComputedStyle(field).fontSize),send:rect(send),plus:plus?{...rect(plus),inside:n.contains(plus)}:null,page:rect(page),padding:parseFloat(getComputedStyle(page).paddingLeft),overflow:document.documentElement.scrollWidth>innerWidth+1,text:field.value};
+   return{row:rect(n),field:rect(field),font:parseFloat(getComputedStyle(field).fontSize),textInset:parseFloat(getComputedStyle(field).paddingLeft),send:rect(send),plus:plus?{...rect(plus),inside:n.contains(plus)}:null,page:rect(page),padding:parseFloat(getComputedStyle(page).paddingLeft),overflow:document.documentElement.scrollWidth>innerWidth+1,text:field.value};
   });
-  assert.equal(metrics.font,17,'composer text uses the approved 17px size');assert.equal(metrics.text,text,'draft text remains exact');
+  assert.equal(metrics.textInset,14,'text and placeholder have 14px left padding');assert.equal(metrics.font,17,'composer text uses the approved 17px size');assert.equal(metrics.text,text,'draft text remains exact');
   assert.equal(metrics.send.width,44);assert.equal(metrics.send.height,44);
   assert(metrics.send.left>=metrics.row.left&&metrics.send.right<=metrics.row.right&&metrics.send.bottom<=metrics.row.bottom,'Send stays inside the growing field');
   assert.equal(metrics.overflow,false);
