@@ -200,6 +200,16 @@ for theme in ('light', 'dark'):
         existing = person(chat_login, chat_body['password'])
         existing('POST', '/api/account/delete', {'password': chat_body['password']})
         alex('POST', '/api/admin/people', chat_body)
+    home_review_login = f'zz_test_home_food_{theme}'
+    home_review_body = {'login': home_review_login, 'name': f'Fictional Home food review {theme}', 'password': 'green teapot on the hill'}
+    try:
+        alex('POST', '/api/admin/people', home_review_body)
+    except urllib.error.HTTPError as error:
+        if error.code != 409: raise
+        existing = person(home_review_login, home_review_body['password'])
+        existing('POST', '/api/account/delete', {'password': home_review_body['password']})
+        alex('POST', '/api/admin/people', home_review_body)
+    person(home_review_login, home_review_body['password'])('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial', 'ai_ok': True, 'ai_adult': True})
     weight_login = f'zz_test_1049_food_{theme}'
     weight_body = {'login': weight_login, 'name': f'Fictional food and weight {theme}', 'password': 'green teapot on the hill'}
     try:
@@ -236,6 +246,12 @@ if copied_fixture:
     subprocess.run(['docker', 'cp', str(source), f'{apps[0]}:{fixture}'], check=True)
 try:
     subprocess.run(['docker', 'exec', apps[0], 'python', fixture, now.isoformat()], check=True)
+    home_fixture = f'/tmp/kinetta-home-food-review-fixture-{os.getpid()}.py'
+    subprocess.run(['docker', 'cp', str(Path(__file__).with_name('home_food_review_fixture.py')), f'{apps[0]}:{home_fixture}'], check=True)
+    try:
+        subprocess.run(['docker', 'exec', apps[0], 'python', home_fixture, now.isoformat()], check=True)
+    finally:
+        subprocess.run(['docker', 'exec', apps[0], 'rm', '-f', home_fixture], check=False)
     confirmed_fixture = f'/tmp/kinetta-meal-example-fixture-{os.getpid()}.py'
     subprocess.run(['docker', 'cp', str(Path(__file__).with_name('food_confirmed_chat_fixture.py')), f'{apps[0]}:{confirmed_fixture}'], check=True)
     try:

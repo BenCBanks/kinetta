@@ -401,6 +401,61 @@ async function closeCaptureContext(context) {
         await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
       }
+      if (opt.foodChat === 'home-review') {
+        const demo = await openFoodDemo(`zz_test_home_food_${scheme}`, scheme);
+        foodChatCtx = demo.context;
+        foodChatPage = demo.page;
+        await enableKitForDemo(foodChatPage);
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
+        await foodChatPage.locator('#thread-text').waitFor();
+        const fixtureDraftId = await foodChatPage.evaluate(async () => {
+          const payload = await fetch('/api/food/thread?limit=100').then(r => r.json());
+          const message = [...(payload.messages || [])].reverse().find(m => m.kind === 'user' &&
+            m.body === 'Toast with a little butter for a snack');
+          const reply = message && payload.messages.find(m => m.kind === 'reply' && m.reply_to === message.id);
+          const draftId = message?.result?.draft_id;
+          const key = Object.keys(localStorage).find(name => name.startsWith('fit.food.review.draft:'));
+          if (!draftId || reply?.result?.kind !== 'preview' || !key) throw Error('Could not find the staged Home Food review draft.');
+          const saved = JSON.parse(localStorage.getItem(key) || '{}');
+          localStorage.setItem(key, JSON.stringify({...saved, id: draftId, meal: 'breakfast', active: true}));
+          return draftId;
+        });
+        if (!fixtureDraftId) throw Error('Home Food screenshot fixture has no prepared review draft.');
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
+        const ready = foodChatPage.locator('.thread-card').filter({hasText: 'Toast'});
+        await ready.waitFor({timeout: 15000});
+        await foodChatPage.locator('#thread-review-add').waitFor({state: 'visible'});
+        const cardText = await ready.innerText();
+        if (!cardText.includes('Butter') || await ready.locator('.thread-food').count() !== 2) {
+          throw Error('Home Food capture must show Toast and Butter in one real review card.');
+        }
+        const summary = (await foodChatPage.locator('#thread-review-sum').innerText()).replace(/\s+/g, ' ').trim();
+        if (!summary.includes('2 foods') || !summary.includes('55 kcal')) throw Error(`Home Food summary is not the staged 2-food total: ${summary}`);
+        if ((await foodChatPage.locator('#thread-review-add').innerText()).trim() !== 'Add to log') throw Error('Home Food review must show Add to log.');
+        const columns = await ready.locator('.compact-food').evaluateAll(rows => rows.map(row => {
+          const rect = selector => {
+            const el = row.querySelector(selector), r = el?.getBoundingClientRect();
+            return r && {x: r.x, y: r.y, width: r.width, height: r.height};
+          };
+          const circle = selector => {
+            const el = row.querySelector(selector);
+            return parseFloat(getComputedStyle(el, '::before').width);
+          };
+          return {minus: rect('[data-step="-1"]'), plus: rect('[data-step="1"]'), value: rect('.thread-amount'),
+            minusCircle: circle('[data-step="-1"]'), plusCircle: circle('[data-step="1"]')};
+        }));
+        if (columns.length !== 2 || columns.some(row => !row.minus || !row.plus || !row.value || row.minus.width !== 44 || row.minus.height !== 44 || row.plus.width !== 44 || row.plus.height !== 44 || row.minusCircle !== 32 || row.plusCircle !== 32)) {
+          throw Error(`Home Food controls must use the app's 44px stepper hit areas: ${JSON.stringify(columns)}`);
+        }
+        for (const side of ['minus', 'plus', 'value']) {
+          if (Math.abs(columns[0][side].x - columns[1][side].x) > 0.5) throw Error(`Home Food ${side} controls do not line up in fixed columns.`);
+        }
+        await foodChatPage.evaluate(() => document.activeElement.blur());
+        await foodChatPage.evaluate(chrome, {dark: scheme === 'dark', width: W});
+        await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
       if (opt.foodChat === 'weight-ready') {
         const demo = await openFoodDemo(`zz_test_1049_food_${scheme}`, scheme);
         foodChatCtx = demo.context;
