@@ -17,7 +17,7 @@ def response(text,reason,thinking=6000):
 
 diag=RejectionDiagnostics(coach_chat)
 
-def replay(responses,*,level='LOW',corrections=True,revoked=False):
+def replay(responses,*,level='LOW',corrections=True,revoked=False,weekly=False):
     requests=[];bodies=iter(responses)
     def fake_http(request,**kwargs):
         requests.append(json.loads(request.data))
@@ -26,16 +26,21 @@ def replay(responses,*,level='LOW',corrections=True,revoked=False):
     original=coach_chat._gemini_turn
     def setting(messages,definitions,**kwargs):
         return original(messages,definitions,thinking_level=level,**kwargs)
+    def tool(self,name,args):
+        if name=='profile':return {'units':'metric','today':'2026-11-25'}
+        rows=json.load(open('/tmp/kit-smoke2-fixtures.json'))['cases']
+        ev=next(row['evidence'] for row in rows if row['case']=='weekly-no-plan' and row['evidence'])
+        return next(item['data'] for item in ev if item['tool']==name)
     capture=diag.begin()
     try:
         with patch.dict('os.environ',{'GEMINI_API_KEY':'fixture','GEMINI_MODEL':'gemini-3.8-flash'}), \
              patch('app.coach.allowed',side_effect=allowed),patch('app.coach.provider',return_value='gemini'), \
-             patch('app.kit_tools.KitTools.call',return_value={'units':'metric'}), \
+             patch('app.kit_tools.KitTools.call',tool),patch('app.coach_chat.db.coach_connect'),patch('app.coach.health_ok',return_value=True), \
              patch('app.coach_chat.ai_budget.reserve',return_value=1),patch('app.coach_chat.ai_budget.lease'), \
              patch('app.coach_chat.ai_budget.settle'),patch('app.coach_chat.ai_budget.finish'), \
              patch('app.coach_chat.urllib.request.urlopen',side_effect=fake_http), \
              patch('app.coach_chat._gemini_turn',side_effect=setting),kit_conversation.correction_policy(corrections):
-            try:answer=coach_chat.answer(1,'How can I build a routine?',kit=True)
+            try:answer=coach_chat.answer(1,'How can I build a routine?',kit=True,weekly_review=weekly)
             except ValueError as error:answer=error
     finally:diag.end()
     return answer,requests,capture
@@ -47,6 +52,7 @@ for level,ceiling in [('LOW',8192),('MEDIUM',16384)]:
     assert len(requests)==2 and 'tools' not in requests[1]
     assert [r['generationConfig']['maxOutputTokens'] for r in requests]==[ceiling,ceiling*2]
     assert requests[1]['generationConfig']['responseMimeType']=='application/json'
+    assert 'blocks' in requests[1]['generationConfig']['responseJsonSchema']['required']
     assert requests[1]['generationConfig']['thinkingConfig']=={'thinkingLevel':level}
     assert answer['usage']=={'promptTokenCount':2000,'candidatesTokenCount':240,
                               'thoughtsTokenCount':12000,'totalTokenCount':14240}
@@ -79,7 +85,7 @@ for options in ({'corrections':False},{'revoked':True}):
     assert isinstance(answer,ValueError) and len(requests)==1
 # Other modes retain reviewed budgets; the ceiling is scoped and never spills across requests.
 assert kit_conversation.output_tokens(coach_chat.SYSTEM,2500,thinking_level='MEDIUM')==2500
-assert kit_conversation.output_tokens(coach_chat.KIT_WEEKLY_SYSTEM,4096,thinking_level='MEDIUM')==4096
+assert kit_conversation.output_tokens(coach_chat.KIT_WEEKLY_SYSTEM,4096,thinking_level='MEDIUM')==16384
 print('Kit truncation: LOW/MEDIUM budgets, one larger no-tools retry, repeated truncation, exact validation, consent, smoke cap and per-turn finish/token diagnostics PASS')
 
 # Frozen adapters that discard finishReason still expose it at their existing settlement boundary.
@@ -100,3 +106,15 @@ assert capture['provider_turns'][0]['finish_reason']=='MAX_TOKENS'
 assert capture['provider_turns'][0]['usage']['thoughtsTokenCount']==6000
 assert capture['attempts'][0]['raw_model_json']==TRUNCATED
 print('Frozen-baseline finish metadata captured without altering baseline bytes PASS')
+
+# Exact weekly truncated capture gets the same single correction with a complete weekly schema.
+rows=json.load(open('/tmp/kit-smoke2-fixtures.json'))['cases']
+partial=next(row['raw_model_json'] for row in rows if row['expected']=='truncated')
+complete=next(row['raw_model_json'] for row in rows if row['case']=='weekly-no-plan' and row['expected']=='pass')
+answer,requests,capture=replay([response(partial,'MAX_TOKENS'),response(complete,'STOP')],level='MEDIUM',weekly=True)
+assert isinstance(answer,dict),answer
+assert 'weekly_review' in answer and len(requests)==2
+assert [r['generationConfig']['maxOutputTokens'] for r in requests]==[16384,32768]
+assert 'weekly_review' in requests[1]['generationConfig']['responseJsonSchema']['required']
+assert all('tools' not in r for r in requests)
+print('Exact weekly MAX_TOKENS replay + bounded schema correction PASS')

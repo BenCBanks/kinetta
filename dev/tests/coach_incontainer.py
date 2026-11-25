@@ -478,8 +478,8 @@ assert not coach_chat._kit_path_allowed('profile',['weight_kg'])
 # Birth year and sex are returned by body_profile but are not supported measurement slots.
 assert not coach_chat._kit_path_allowed('body_profile',['birth_year'])
 assert not coach_chat._kit_path_allowed('body_profile',['sex'])
-# Generic goal targets have no single unit/meaning; remove that path until a formatter exists.
-assert not coach_chat._kit_path_allowed('goals',['activity_goals',0,'target'])
+# Goal targets are now formatted only when the tool record supplies a recognized metric.
+assert coach_chat._kit_path_allowed('goals',['activity_goals',0,'target'])
 goal_raw={**number_raw,'facts':[{'evidence_id':'e2','path':['activity_goals',0,'target'],'value':80}]}
 try:coach_chat.checked_answer(goal_raw,[profile_evidence,{'evidence_id':'e2','tool':'goals','data':{'activity_goals':[{'target':80}]}}],kit=True)
 except ValueError:pass

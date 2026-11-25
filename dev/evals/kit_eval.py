@@ -196,6 +196,7 @@ try:
        'evaluation_account':'health-consent-off' if weekly and cid=='weekly-health-consent-off' else 'primary',
        'answer':answer,'error':error,'provider_requests':provider_requests,
        'provider_turns':rejection.get('provider_turns',[]),
+       'answer_evidence':rejection.get('answer_evidence'),
        'expected_refusal':expected_refusal,'passed':passed,
        'rejection':rejection if rejection and 'validation_error' in rejection else None,
        'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}

@@ -38,7 +38,8 @@ A `MAX_TOKENS` response is never displayed, even if its partial JSON happens to 
 Production can make one correction with no tools, the same evidence and doubled output ceiling (16384 LOW,
 32768 MEDIUM), requesting a short complete replacement. Consent, current visit, budgets and exact claim checks
 still apply. A second truncation fails closed; there is no third call. Other validation errors retain the
-existing single correction. Smoke experiments disable corrections and retain their two-provider-turn cap.
+existing single correction. The smoke experiment mirrors the same five-round/twelve-tool-call maximum and
+one correction; its dollar cap still bounds the whole experiment.
 
 Private evaluator rows include `provider_turns`: finish reason, thinking setting, requested output ceiling,
 and prompt/candidate/thinking/total token counts per call. Unknown values stay null. Rejected text and errors
@@ -52,3 +53,25 @@ cost $0.02625. Output-only maxima for one full-budget initial response are $0.06
 one full-budget retry adds at most $0.12288 / $0.24576 output, plus its input. Tool turns cost separately.
 Actual average change needs the next owner-run experiment; fewer failed correction calls may offset the
 larger allowance. Existing dollar caps remain enforced, so a larger reservation may stop an experiment earlier.
+
+## Final JSON shape and offline second-smoke replay
+
+No-tools final and correction turns request Gemini `responseJsonSchema` for the same local conversational
+(or dedicated weekly) model. Tool-enabled turns retain function calling; they cannot bypass local validation.
+`actions` is an array of destination strings. An exact `{"screen":"plan"}` object can normalize to `"plan"`;
+unknown destinations and extra fields fail. Facts, values, ownership and confirmation requirements are unchanged.
+Activity goal targets are now formatted only when the goal has a recognized distance/time/elevation/count/calorie
+metric. Training-plan run counts can cite the actual plan field as well as its summary.
+
+A general suggestion to try logging a meal "for one week" is distinct from a claimed recorded count. The narrow
+logging-advice allowance never authorizes numeric measurements, past quantities or medicine dosing. The weekly
+connector "showing" can follow an exact reference without changing its topic checks. Weekly answers use the same
+LOW/MEDIUM budgets and single `MAX_TOKENS` correction as conversation. A denied tool read stops with the existing
+sharing-consent message instead of hiding the denial and asking the model to try another tool.
+
+Second-smoke replay contains six exact captured raw strings: two now pass, three complete strings still contain
+unreferenced quantities and stay rejected, and one incomplete weekly JSON stays rejected. The nine already accepted
+rows have no saved raw model response; five capped rows never captured a final answer. Those missing outputs cannot
+be counted as replayed successes. Explicit corrected stand-ins pass, including the truncated weekly path; this is
+not a new measured provider acceptance rate. Opt-in reports now preserve successful final raw text and evidence too.
+`dev/evals/replay_kit_capture.py --input /private/report.json` replays the retained raw strings without a provider.

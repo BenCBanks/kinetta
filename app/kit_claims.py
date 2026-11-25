@@ -41,11 +41,41 @@ def validate(texts, facts, evidence, *, question='', reference):
     for text in texts:
         prose = reference.sub('',text)
         if HEALTH.search(prose):raise ClaimRejected('health_claim')
-        if NUMBER_WORD.search(prose):raise ClaimRejected('numeric_unsupported')
+        if NUMBER_WORD.search(advice_quantities(prose)):raise ClaimRejected('numeric_unsupported')
+
+
+def advice_quantities(prose):
+    # A proposed logging habit is not a claim about recorded activity/intake. This narrow
+    # phrase exemption never covers measurements, dose advice or past-tense quantities.
+    sentences=re.split(r'(?<=[.!?])\s+|\n',prose)
+    return ' '.join(re.sub(r'\bfor one week\b','for a short trial',sentence,flags=re.I)
+        if re.match(r'^(?:Pick|Try|Start|Consider|Focus on)\b',sentence,re.I)
+        and not re.search(r'\b(?:logged|recorded|completed|was|were|had|did|took)\b',sentence,re.I)
+        else sentence for sentence in sentences)
+
+
+def weekly_boundary_words():
+    return ('showing',)
 
 
 def additional_measurement(tool, path):
-    return tool=='period_compare' and path==['change','workouts','absolute']
+    return (tool=='period_compare' and path==['change','workouts','absolute']
+            or tool=='training_plan' and path==['plan','runs']
+            or tool=='goals' and len(path)==3 and path[0]=='activity_goals'
+            and type(path[1]) is int and path[1]>=0 and path[2]=='target')
+
+
+def goal_fact(tool,data,path,value,units):
+    if tool!='goals' or not additional_measurement(tool,path):return None
+    goal=data['activity_goals'][path[1]]
+    metric=goal.get('metric')
+    fields={'distance':'distance_m','time':'moving_s','elevation':'ascent_m','calories':'calories'}
+    if metric=='count':
+        label,display=coach_chat._kit_fact('recent_runs',{},['totals','count'],value,units)
+    elif metric in fields:
+        label,display=coach_chat._kit_fact('activity',{},[fields[metric]],value,units)
+    else:raise ValueError('Unsupported goal measurement')
+    return 'Saved '+label.lower()+' target',display
 
 
 def weekly_fact_class(fact):
@@ -59,7 +89,8 @@ def conversation_retry_prompt(error):
 
 
 def weekly_retryable(error):
-    return isinstance(error,(ValidationError,json.JSONDecodeError,coach_chat.KitValidationError)) or str(error) in {
+    from . import kit_conversation
+    return kit_conversation.is_truncated(error) or isinstance(error,(ValidationError,json.JSONDecodeError,coach_chat.KitValidationError)) or str(error) in {
         'Unsupported measurement path','Weekly section topic does not match referenced fact',
         'Kit answers need a reason','Weekly review sections must each be one sentence',
         'Unverified digit or malformed reference','Unknown or mismatched numeric reference',

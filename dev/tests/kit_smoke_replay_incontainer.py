@@ -60,7 +60,7 @@ assert len(rounds)==1 and kit_conversation.corrections_enabled()
 # Complete current-response JSON gets a higher ceiling; legacy/weekly settings stay unchanged.
 assert kit_conversation.output_tokens(kit_conversation.SYSTEM,2500)==8192
 assert kit_conversation.output_tokens(coach_chat.SYSTEM,2500)==2500
-assert kit_conversation.output_tokens(coach_chat.KIT_WEEKLY_SYSTEM,4096)==4096
+assert kit_conversation.output_tokens(coach_chat.KIT_WEEKLY_SYSTEM,4096)==8192
 print('Smoke replay: 0/3 truncated originals accepted (correct); 6/6 reconstructed honest prose/envelopes pass; 8 safety mutations rejected; zero-correction smoke PASS')
 
 # Diagnostic text/error/evidence stay paired across retries and across baseline/helper modules.

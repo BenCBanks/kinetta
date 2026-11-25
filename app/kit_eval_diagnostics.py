@@ -89,6 +89,7 @@ class RejectionDiagnostics:
                         'thinking_level':usage.get('thinkingLevel'),
                         'max_output_tokens':usage.get('maxOutputTokens'),
                         'tool_calls':len(calls),
+                        'raw_model_json':text if not calls else None,
                         'usage':{key:usage.get(key) for key in ('promptTokenCount','candidatesTokenCount',
                                                             'thoughtsTokenCount','totalTokenCount')}})
                     if not calls:
@@ -109,6 +110,8 @@ class RejectionDiagnostics:
                 raise
 
         def check(raw, evidence, **kwargs):
+            capture=getattr(self._state,'capture',None)
+            if capture is not None:capture['answer_evidence']=evidence
             try:
                 return original_checked(raw, evidence, **kwargs)
             except Exception as error:

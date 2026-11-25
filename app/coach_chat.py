@@ -254,6 +254,9 @@ def _kit_fact(tool, data, path, value, units, *, weekly=False):
     """Format verified measurements with short labels and the person's units."""
     field=(path[-2] if tool=='period_compare' and path[:1]==['change'] and len(path)>1
            else path[-1] if path and isinstance(path[-1],str) else '')
+    from . import kit_claims
+    goal=kit_claims.goal_fact(tool,data,path,value,units)
+    if goal is not None:return goal
     sport=None
     if tool=='recent_runs' and path and path[0]=='runs': sport='Run'
     elif tool=='activities' and path and path[0]=='totals_by_sport':
@@ -367,7 +370,8 @@ def _weekly_sentence(text, facts):
         fact_topic=_weekly_fact_class(facts[index])
         if topic and fact_topic and fact_topic not in topic:
             raise ValueError('Weekly section topic does not match referenced fact')
-    return _kit_prose(text,facts)
+    from . import kit_claims
+    return _kit_prose(text,facts,extra_words=kit_claims.weekly_boundary_words())
 
 
 def _weekly_claim_topic(text, placeholder):
@@ -648,6 +652,7 @@ def _gemini_turn(messages, definitions, *, system=SYSTEM, thinking_level=None):
     if not declarations:
         body.pop('tools')
         body['generationConfig']['responseMimeType'] = 'application/json'
+        kit_conversation.final_schema(body,system)
     req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
                                  json.dumps(body, default=str).encode(), {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
     attempt=ai_budget.reserve(model,'Kit question',payload=body)
@@ -693,6 +698,7 @@ def _claude_turn(messages, definitions, *, system=SYSTEM):
 def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False,
            workout_review=False, workout_evidence=None):
     """`turn` is a stand-in hook for deterministic tests; production uses the configured provider."""
+    from . import kit_conversation
     conversation_contract=kit and not weekly_review and turn is None
     if workout_review:
         from . import kit_workout_review
@@ -761,7 +767,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
             from . import kit_conversation
             try:
-                if kit and not weekly_review:kit_conversation.check_completion(tokens)
+                if kit:kit_conversation.check_completion(tokens)
                 raw=_json(text)
                 conversation_contract=conversation_contract or (kit and not weekly_review and kit_conversation.has_blocks(raw))
                 checked = (kit_conversation.check_for_question(raw, evidence, question, weekly_review=weekly_review, require_blocks=conversation_contract)
@@ -773,7 +779,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     from . import kit_claims
                     if not kit_claims.weekly_retryable(error):
                         raise ValueError('Kit could not verify that weekly review. Try again.') from None
-                    retry_prompt=(_weekly_truncation_retry_prompt() if isinstance(error,json.JSONDecodeError)
+                    retry_prompt=(_weekly_truncation_retry_prompt() if isinstance(error,json.JSONDecodeError) or kit_conversation.is_truncated(error)
                                   else kit_claims.weekly_retry_prompt(error))
                     messages.append({'role':'user','parts':[{'text':retry_prompt}]} if provider=='gemini'
                                     else {'role':'user','content':retry_prompt})
@@ -781,7 +787,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     with db.coach_connect(uid) as c:
                         if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
                     try:
-                        with ai_budget.scope(uid):
+                        with ai_budget.scope(uid),kit_conversation.retry_budget(error):
                             retry_calls,retry_text,retry_tokens=turn(messages,[])
                     except ValueError:
                         raise ValueError('Kit could not verify that weekly review. Try again.') from None
@@ -790,6 +796,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     for key in usage:usage[key]+=int(retry_tokens.get(key) or 0)
                     if retry_calls:raise ValueError('Kit could not verify that weekly review. Try again.')
                     try:
+                        kit_conversation.check_completion(retry_tokens)
                         checked=checked_answer(_json(retry_text),evidence,kit=True,weekly_review=True)
                     except ValueError:
                         raise ValueError('Kit could not verify that weekly review. Try again.') from None
@@ -842,7 +849,9 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             try:
                 cached=next((e for e in evidence if kit and e['tool']==name and e['arguments']==args and 'data' in e),None)
                 ev['data'] = cached['data'] if cached else json.loads(json.dumps(tools.call(name, args), default=str, allow_nan=False))
-            except ValueError: ev['error'] = 'Tool unavailable: check its arguments, record ownership and Apple Health sharing consent. Do not infer values from missing data.'
+            except ValueError as error:
+                kit_conversation.propagate_consent(error,kit)
+                ev['error'] = 'Tool unavailable: check its arguments, record ownership and Apple Health sharing consent. Do not infer values from missing data.'
             evidence.append(ev)
             if provider == 'gemini':
                 function = {'name': name, 'response': ev}

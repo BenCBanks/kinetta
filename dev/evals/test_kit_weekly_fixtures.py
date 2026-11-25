@@ -195,3 +195,11 @@ check_weekly_answer_uses_provider_and_returns_result()
 check_health_consent_refusal_is_a_pass_without_provider_use()
 check_weekly_seeds()
 print('Kit weekly evaluator: exact request, stubbed weekly answer/provider count, and ten fictional fixture seeds pass; no live provider called.')
+
+# A conversational tool-selected refusal may spend one selection call, never send denied records.
+assert is_expected_health_consent_refusal('recall-health-consent-off',variant='candidate',answer=None,
+    error='ValueError: consent',provider_requests=1,refusal_message='consent')
+for count in (2,True):
+    assert not is_expected_health_consent_refusal('recall-health-consent-off',variant='candidate',answer=None,
+        error='ValueError: consent',provider_requests=count,refusal_message='consent')
+assert not evaluation_case_passed('recall-health-consent-off',variant='candidate',answer={'interpretation':'Invented data'},error=None)
