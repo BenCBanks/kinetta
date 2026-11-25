@@ -17,7 +17,9 @@ names=['empty','typical','heavy','established']+['friend'+str(i) for i in range(
 clients={}
 statements=[]
 for who in names:
- name='zz_test_feed_'+who;c=person(name);ok(c.post('/api/account/delete',{'password':PW}));c=person(name,'River '+who.title());ok(c.put('/api/profile',{'tz':'America/New_York' if who=='typical' else 'UTC','ai_ok':False}));ok(c.put('/api/sharing',{'default':'friends','trim_m':400}));clients[who]=c
+ name='zz_test_feed_'+who
+ label=('River Friend '+chr(65+int(who[6:])) if who.startswith('friend') else 'River '+who.title())
+ c=person(name,label);ok(c.post('/api/account/delete',{'password':PW}));c=person(name,label);ok(c.put('/api/profile',{'tz':'America/New_York' if who=='typical' else 'UTC','ai_ok':False}));ok(c.put('/api/sharing',{'default':'friends','trim_m':400}));clients[who]=c
 avatar_photo=base64.b64encode((Path('dev/demo/photos')/'freedom-park-lake.jpg').read_bytes()).decode()
 for who in ('typical','friend1'):
  ok(clients[who].put('/api/me/photo',{'image':'data:image/jpeg;base64,'+avatar_photo}))

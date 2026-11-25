@@ -223,7 +223,8 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
             LEFT JOIN profile p ON p.user_id = u.id
             WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND NOT {blocked('u.id')}
               AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
-              AND (%(q)s = '' OR u.login ILIKE %(match)s OR u.first_name ILIKE %(match)s OR (f.status='accepted' AND u.last_name ILIKE %(match)s))
+              AND (%(q)s = '' OR u.login ILIKE %(match)s OR u.first_name ILIKE %(match)s OR
+                   (f.status='accepted' AND (u.last_name ILIKE %(match)s OR u.name ILIKE %(match)s)))
             ORDER BY (u.login = lower(%(q)s)) DESC, (lower(u.first_name) = lower(%(q)s)) DESC,
                      (f.status = 'accepted') DESC NULLS LAST, u.first_name, u.login LIMIT 20""",
                          {'viewer': user['id'], 'me': user['id'], 'q': q, 'match': '%' + like + '%'}).fetchall()

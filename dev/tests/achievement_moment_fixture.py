@@ -58,7 +58,7 @@ with db.connect() as c:
                Jsonb({**journey_level, 'big':True}),
                owner_id, climbing_level['label'], climbing_level['rank'], day, occurred,
                Jsonb({**climbing_level, 'big':True})))
-    c.execute("UPDATE users SET name='River Friend 1 With a Long Fictional Name' WHERE id=%s", (owner_id,))
+    c.execute("UPDATE users SET name='River Friend B With a Long Fictional Name' WHERE id=%s", (owner_id,))
     seeded = c.execute("""SELECT code,title,rank,details FROM milestones WHERE user_id=%s
                             AND code IN ('test-sharing:journey-state','test-sharing:journey-big','test-sharing:climbing-big')""",
                        (owner_id,)).fetchall()
