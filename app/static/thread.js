@@ -178,6 +178,7 @@ const FoodThread = (() => {
       ctx.jobs=await ThreadDB.list(owner);if(!active(ctx))return;
       const job=ctx.jobs.find(j=>j.id===id);
       if(event==='completed'){
+        ctx.anotherRequestKey=null;
         const root=ctx.messages.find(m=>m.kind==='user'&&m.client_id===id);
         if(root)ctx.messages=ctx.messages.filter(m=>m.id!==root.id&&m.reply_to!==root.id);
         ctx.visibleClients.delete(id);remember(ctx);
@@ -501,19 +502,25 @@ const FoodThread = (() => {
   }
   function hideAnother(ctx){
     if(!ctx.anotherBox)return;
+    ctx.anotherRequestKey=null;
     ctx.anotherReadVersion=(ctx.anotherReadVersion||0)+1;
     ctx.anotherBox.replaceChildren();ctx.anotherBox.hidden=true;
   }
-  async function refreshAnother(ctx){
+  async function refreshAnother(ctx,{force=false}={}){
     const box=ctx.anotherBox,field=$('#thread-text',ctx.el);
     if(!box||!active(ctx))return;
-    const version=(ctx.anotherReadVersion||0)+1;ctx.anotherReadVersion=version;
     if(field.value.trim()||ctx.sendingText||ctx.preparingReview||pendingReview()){
-      box.replaceChildren();box.hidden=true;return;
+      hideAnother(ctx);return;
     }
+    const query=new URLSearchParams({day:ctx.day||foodToday(),meal:ctx.meal||guessMeal()});
+    const key=JSON.stringify([String(query),ctx.epoch]);
+    // Outbox retries run every five seconds. Suggestions change with the food
+    // state or an explicit foreground refresh, not with an idle timer tick.
+    if(!force&&ctx.anotherRequestKey===key)return;
+    ctx.anotherRequestKey=key;
+    const version=(ctx.anotherReadVersion||0)+1;ctx.anotherReadVersion=version;
     box.replaceChildren();box.hidden=true;
     try{
-      const query=new URLSearchParams({day:ctx.day||foodToday(),meal:ctx.meal||guessMeal()});
       const data=await api('/api/food/thread/recent-reuse?'+query);
       if(!active(ctx)||ctx.anotherReadVersion!==version||field.value.trim())return;
       const item=data.item;if(!item)return;
@@ -523,7 +530,7 @@ const FoodThread = (() => {
       button.setAttribute('aria-label',`Log another ${item.label}`);
       button.onclick=()=>{if(!active(ctx)||ctx.sendingText||ctx.preparingReview)return;hideAnother(ctx);send(ctx,{body:`Another ${item.label}`,repeatEntryId:item.entry_id});};
       box.append(button);box.hidden=false;
-    }catch(_){box.replaceChildren();box.hidden=true;}
+    }catch(_){if(active(ctx)&&ctx.anotherReadVersion===version){box.replaceChildren();box.hidden=true;}}
   }
   function photoHtml(ctx,id){
     const job=ctx.jobs.find(j=>j.id===id),images=['cancel','remove'].includes(job?.phase)?[]:job?.previews||photos.get(ctx.owner,id);
@@ -734,7 +741,7 @@ const FoodThread = (() => {
     try{const data=await api('/api/food/thread/reviews/draft/'+ctx.draftId);if(!active(ctx)||ctx.epoch!==epoch||ctx.readVersion!==version)return;ctx.before=data.before;ctx.preferences=data.preferences;
       if(!before){const first=data.messages[0]?.id;ctx.messages=data.has_more?ctx.messages.filter(m=>m.id<first):[];}
       for(const m of data.messages||[])if(m.kind==='user'&&m.result?.draft_id===ctx.draftId)ctx.visibleClients.add(m.client_id);
-      await merge(ctx.owner,data,false);photos.prune(ctx.owner,new Set(ctx.messages.filter(m=>m.kind==='user').map(m=>m.client_id)));const restored=await restoreFoodPending({db:ThreadDB,owner:ctx.owner,draftId:ctx.draftId,messages:data.messages||[]});if(!active(ctx))return;ctx.jobs=await ThreadDB.list(ctx.owner);draw(ctx);refreshAnother(ctx);status(ctx,'');if(restored)flush(ctx);}
+      await merge(ctx.owner,data,false);photos.prune(ctx.owner,new Set(ctx.messages.filter(m=>m.kind==='user').map(m=>m.client_id)));const restored=await restoreFoodPending({db:ThreadDB,owner:ctx.owner,draftId:ctx.draftId,messages:data.messages||[]});if(!active(ctx))return;ctx.jobs=await ThreadDB.list(ctx.owner);draw(ctx);refreshAnother(ctx,{force:true});status(ctx,'');if(restored)flush(ctx);}
     catch(e){status(ctx,e.offline?'Offline. Your saved conversation and pending messages stay on this phone.':foodThreadError(e,'/api/food/thread/reviews/draft/'+ctx.draftId));}
   }
   function latestContext(ctx){
