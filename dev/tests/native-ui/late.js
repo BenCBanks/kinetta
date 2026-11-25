@@ -11,7 +11,7 @@
   }
   if(cfg.store&&cfg.stage==='header-food'){
     const style=document.createElement('style');
-    style.textContent='.nutrition-day-summary{position:relative!important}.nutrition-day-summary>.nutrition-summary-tools{position:absolute!important;top:20px!important;right:8px!important;z-index:2!important;height:44px!important;margin:0!important}.nutrition-day-summary>.nutrition-summary-tools .nutrition-goals{width:44px;height:44px}.nutrition-day-summary>.nutrition-summary{align-items:flex-start!important;padding-top:0!important}.nutrition-day-summary .nutrition-macros{padding-top:40px!important}';
+    style.textContent='.nutrition-day-summary{position:relative!important}.nutrition-day-summary>.nutrition-summary-tools{position:absolute!important;top:20px!important;right:8px!important;z-index:2!important;height:44px!important;margin:0!important}.nutrition-day-summary>.nutrition-summary-tools .nutrition-goals{width:44px;height:44px}.nutrition-day-summary>.nutrition-summary{align-items:flex-start!important;padding-top:0!important}.nutrition-day-summary .nutrition-macros{padding-top:52px!important}';
     (document.head||document.documentElement).append(style);
   }
   if(cfg.store&&cfg.stage==='header-progress'){
