@@ -465,6 +465,55 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'there is no third reminder')
         self.assertEqual(self.mail.call_count, 2)
 
+    def test_final_warning_is_once_and_only_unconfirmed_accounts_are_purged_after_14_days(self):
+        old = self.pending_account('zz_purge@example.com')
+        confirmed = self.pending_account('zz_confirmed@example.com', login='zz_test_mail_b')
+        with db.connect() as c:
+            applied = c.execute('SELECT applied FROM schema_version WHERE version=109').fetchone()['applied']
+            c.execute("UPDATE schema_version SET applied=now()-interval '30 days' WHERE version=109")
+            c.execute("""UPDATE users SET created=now()-interval '11 days',email_confirmation_reminder_count=2,
+                         email_confirmation_reminder_at=now()-interval '8 days' WHERE id=%s""", (old['id'],))
+            c.execute("""UPDATE users SET email_verified_at=now(),needs_email_confirm=false,
+                         email_confirmation_reminder_count=0,email_confirmation_reminder_at=NULL WHERE id=%s""",
+                      (confirmed['id'],))
+        self.addCleanup(self.restore_reminder_migration_date, applied)
+        self.mail.reset_mock()
+
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
+        final = self.messages()[-1]
+        with db.connect() as c:
+            created = c.execute('SELECT created FROM users WHERE id=%s', (old['id'],)).fetchone()['created']
+            reminder = c.execute('SELECT email_confirmation_reminder_at FROM users WHERE id=%s', (old['id'],)).fetchone()['email_confirmation_reminder_at']
+        deadline = account_email.unconfirmed_account_delete_at(created)
+        deletion_date = f'{deadline.day} {deadline.strftime("%B %Y")}'
+        self.assertEqual(final['subject'], f'Your Kinetta account will be deleted on {deletion_date}')
+        self.assertIn(f'Open this link before {deletion_date} to keep your account:', final['text'])
+        self.assertIn('If you didn\'t sign up, do nothing and it will be removed.', final['text'])
+        self.assertLess(abs((datetime.datetime.now(datetime.timezone.utc) - reminder).total_seconds()), 60)
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'the final warning is sent once')
+        self.assertEqual(self.mail.call_count, 1)
+
+        # A warning does not make an account eligible before the shared 14-day deadline.
+        with db.connect() as c:
+            c.execute("UPDATE users SET created=now()-interval '13 days',email_confirmation_reminder_at=now()-interval '3 days' WHERE id=%s",
+                      (old['id'],))
+        self.assertEqual(account_email.purge_due_unconfirmed_accounts(), 0)
+        with db.connect() as c:
+            self.assertTrue(c.execute('SELECT 1 FROM users WHERE id=%s', (old['id'],)).fetchone())
+
+        # Once the helper's deadline passes, only the still-unconfirmed fixture is erased.
+        with db.connect() as c:
+            c.execute("UPDATE users SET created=now()-interval '15 days',email_confirmation_reminder_at=now()-interval '5 days' WHERE id=%s",
+                      (old['id'],))
+            before = c.execute('SELECT count(*) AS n FROM users WHERE id=ANY(%s)', ([old['id'], confirmed['id']],)).fetchone()['n']
+        self.assertEqual(before, 2)
+        self.assertEqual(account_email.purge_due_unconfirmed_accounts(), 1)
+        with db.connect() as c:
+            after = c.execute('SELECT count(*) AS n FROM users WHERE id=ANY(%s)', ([old['id'], confirmed['id']],)).fetchone()['n']
+            self.assertEqual(after, 1, 'purging reduces the pending account count')
+            self.assertTrue(c.execute('SELECT 1 FROM users WHERE id=%s AND email_verified_at IS NOT NULL',
+                                      (confirmed['id'],)).fetchone(), 'confirmed accounts are never deleted')
+
     def restore_reminder_migration_date(self, applied):
         with db.connect() as c:
             c.execute('UPDATE schema_version SET applied=%s WHERE version=109', (applied,))

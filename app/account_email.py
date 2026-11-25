@@ -263,44 +263,103 @@ def confirmation(background, c, uid, name, email, welcome=False):
 
 
 def send_due_confirmation_reminders(limit=100):
-    """Claim the first or second due reminder and send a fresh confirmation link."""
+    """Send day-1, day-3 and final day-10 confirmation notices."""
     if not mail_ready(): return 0
     messages = []
+    now = dt.datetime.now(dt.timezone.utc)
+    final_warning_days = UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS - 4
     with db.connect() as c:
         reservation_lock(c)
         rows = c.execute("""SELECT id, name, email::text AS email, created,
-                                   email_confirmation_reminder_count AS sent
+                                   email_confirmation_reminder_count AS sent,
+                                   email_confirmation_reminder_at AS reminded_at
           FROM users WHERE needs_email_confirm AND email_verified_at IS NULL AND suspended_at IS NULL AND email IS NOT NULL
             AND created >= (SELECT applied FROM schema_version WHERE version=109)
             AND ((email_confirmation_reminder_count=0 AND created<=now()-interval '1 day')
-              OR (email_confirmation_reminder_count=1 AND email_confirmation_reminder_at<=now()-interval '2 days'))
-          ORDER BY created, id LIMIT %s FOR UPDATE SKIP LOCKED""", (limit,)).fetchall()
+              OR (email_confirmation_reminder_count=1 AND email_confirmation_reminder_at<=now()-interval '2 days')
+              OR (created<=now()-make_interval(days=>%s)
+                  AND (email_confirmation_reminder_count<2 OR email_confirmation_reminder_at IS NULL
+                       OR email_confirmation_reminder_at < created+make_interval(days=>%s))))
+          ORDER BY created, id LIMIT %s FOR UPDATE SKIP LOCKED""",
+                       (final_warning_days, final_warning_days, limit)).fetchall()
         for user in rows:
-            if email_suggestion(user['email']): continue
-            token = _token(c, user['id'], 'verify_email', VERIFY_HOURS * 60, user['email'])
-            token_hash = auth.token_hash(token)
-            link = f"{_base()}/confirm-email#{token}"
-            c.execute("""UPDATE users SET email_confirmation_reminder_count=email_confirmation_reminder_count+1,
-                         email_confirmation_reminder_at=now()
-                       WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (user['id'],))
-            deadline = unconfirmed_account_delete_at(user['created'])
-            deletion_date = f"{deadline.day} {deadline.strftime('%B %Y')}"
-            if user['sent'] == 0:
-                subject = 'Your Kinetta account needs one more step'
-                text = (f"Confirm your email to keep your account:\n{link}\n\n"
-                        f"This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
-                        "If you didn't sign up, ignore this email.")
+            deletion_at = unconfirmed_account_delete_at(user['created'])
+            final_at = deletion_at - dt.timedelta(days=4)
+            sent = user['sent']
+            reminded_at = user['reminded_at']
+            final_due = now >= final_at and (sent < 2 or reminded_at is None or reminded_at < final_at)
+            if final_due:
+                # If an earlier reminder was missed, send the final warning directly; its link stays current.
+                kind = 'final'
+            elif sent == 0 and now >= user['created'] + dt.timedelta(days=1):
+                kind = 'first'
+            elif sent == 1 and reminded_at and now >= reminded_at + dt.timedelta(days=2):
+                kind = 'second'
             else:
-                subject = f'Confirm your Kinetta email by {deletion_date}'
-                text = (f"Confirm your email to keep your account:\n{link}\n\n"
-                        f"This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
-                        f"Accounts that aren't confirmed within {UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS} days are deleted on {deletion_date}. "
-                        "If you didn't sign up, ignore this email.")
-            messages.append((user['email'], subject, text, token_hash))
-    for email, subject, text, token_hash in messages:
-        send_confirmation(email, subject, text, token_hash)
-    return len(messages)
+                continue
+            if email_suggestion(user['email']): continue
+            message = _confirmation_reminder_message(c, user, kind, deletion_at)
+            messages.append((user['id'], kind, message))
 
+    sent_count = 0
+    for uid, kind, message in messages:
+        email, subject, text, token_hash = message
+        if not send_confirmation(email, subject, text, token_hash): continue
+        new_count = 2 if kind in ('second', 'final') else 1
+        with db.connect() as c:
+            c.execute("""UPDATE users SET email_confirmation_reminder_count=%s,email_confirmation_reminder_at=now()
+                         WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (new_count, uid))
+        sent_count += 1
+    return sent_count
+
+
+def _confirmation_reminder_message(c, user, kind, deletion_at):
+    token = _token(c, user['id'], 'verify_email', VERIFY_HOURS * 60, user['email'])
+    token_hash = auth.token_hash(token)
+    link = f"{_base()}/confirm-email#{token}"
+    deletion_date = f"{deletion_at.day} {deletion_at.strftime('%B %Y')}"
+    if kind == 'first':
+        subject = 'Your Kinetta account needs one more step'
+        text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
+                "If you didn't sign up, ignore this email.")
+    elif kind == 'second':
+        subject = f'Confirm your Kinetta email by {deletion_date}'
+        text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
+                f"Accounts that aren't confirmed within {UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS} days are deleted on {deletion_date}. "
+                "If you didn't sign up, ignore this email.")
+    else:
+        subject = f'Your Kinetta account will be deleted on {deletion_date}'
+        text = (f"We haven't been able to confirm this email. Open this link before {deletion_date} to keep your account: {link}. "
+                "If you didn't sign up, do nothing and it will be removed.")
+    return user['email'], subject, text, token_hash
+
+
+def purge_due_unconfirmed_accounts(limit=100):
+    """Delete only unconfirmed accounts whose final warning was sent at least four days ago."""
+    now = dt.datetime.now(dt.timezone.utc)
+    deadline_cutoff = now - dt.timedelta(days=UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS)
+    final_at_cutoff = now - dt.timedelta(days=4)
+    removed = []
+    with db.connect() as c:
+        reservation_lock(c)
+        rows = c.execute("""SELECT id,sql_role,created,email_confirmation_reminder_at AS reminded_at
+          FROM users WHERE needs_email_confirm AND email_verified_at IS NULL AND suspended_at IS NULL
+            AND email_confirmation_reminder_count=2 AND email_confirmation_reminder_at IS NOT NULL
+            AND created<=%s AND email_confirmation_reminder_at<=%s
+          ORDER BY created,id LIMIT %s FOR UPDATE SKIP LOCKED""",
+                         (deadline_cutoff, final_at_cutoff, limit)).fetchall()
+        if rows:
+            from . import api_account
+            for row in rows:
+                deletion_at = unconfirmed_account_delete_at(row['created'])
+                warned_at = row['reminded_at']
+                if now < deletion_at or warned_at < deletion_at - dt.timedelta(days=4): continue
+                api_account.erase(c, row)
+                removed.append(row['id'])
+    if removed:
+        from . import api_account
+        for uid in removed: api_account.erase_files(uid)
+    return len(removed)
 
 def reminder_scheduler():
     """Check hourly; the first pass waits so app startup and tests never send mail immediately."""
@@ -310,6 +369,10 @@ def reminder_scheduler():
             send_due_confirmation_reminders()
         except Exception:
             logging.getLogger('uvicorn.error').warning('Email confirmation reminder sweep unavailable')
+        try:
+            purge_due_unconfirmed_accounts()
+        except Exception:
+            logging.getLogger('uvicorn.error').warning('Unconfirmed account purge unavailable')
 
 
 def pending(c, uid):
