@@ -10,7 +10,7 @@ from app import db,coach,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
 from kit_gate_cases import GATE_CASE_IDS
-from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_rows
+from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_rows, replay_row
 from kit_eval_support import DEFAULT_BUDGET_USD, valid_budget, load_baseline, configure_budget, capped, bounded_results, cap_reason
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
                                  run_weekly_answer, is_expected_health_consent_refusal,
@@ -63,18 +63,7 @@ if args.setting_smoke:
                  max_tool_calls_per_response=coach_chat.MAX_CALLS,policy="production",
                  human_rubric={key:None for key in RUBRIC})
  if args.baseline_results:
-  def replay(row):
-   if row.get('expected_refusal') and row.get('passed'):return {}
-   turns=row.get('provider_turns') or (row.get('rejection') or {}).get('provider_turns',[])
-   raw=next((t.get('raw_model_json') for t in reversed(turns) if t.get('raw_model_json')),None)
-   evidence=row.get('answer_evidence') or (row.get('rejection') or {}).get('answer_evidence')
-   if not raw or not evidence or capped(row.get('error')):return None
-   try:
-    answer=coach_chat.checked_answer(coach_chat._json(raw),evidence,kit=True,
-        weekly_review=row.get('weekly_review',False),conversation_question=row.get('question'))
-   except ValueError:
-    return {} # Retain a completed rejection; never repay silently for a failed answer.
-   return {'answer':answer,'error':None,'passed':True,'revalidated':True}
+  def replay(row):return replay_row(row,coach_chat._json,coach_chat.checked_answer)
   try:
    previous=json.loads(Path(args.baseline_results).read_text())
    reused=cached_rows(previous,metadata['input_digest'],settings,replay)
