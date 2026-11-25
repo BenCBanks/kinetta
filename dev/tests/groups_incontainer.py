@@ -171,7 +171,7 @@ class Groups(unittest.TestCase):
         self.activity(1, self.now-dt.timedelta(days=5), sport='run', distance=9000)
         self.activity(1, self.now-dt.timedelta(hours=1), sport='run', distance=1000)
         result = self.clients[1].get('/api/groups/' + group['id']).json()
-        self.assertEqual(result['your_total'], 1, 'back-dated goal starts never remove the later joined_at floor')
+        self.assertEqual(result['total'], 1, 'back-dated goal starts never remove the later joined_at floor')
 
     def test_goal_sports_migration_matches_parser_and_backfills_local_start_date(self):
         migration = next(stmt for stmt in db.MIGRATIONS if 'ADD COLUMN goal_sports' in stmt)
@@ -212,7 +212,7 @@ class Groups(unittest.TestCase):
         self.assertEqual(accepted.json()['member_count'], 2)
         self.assertEqual(accepted.json()['sharing_level'], 'just_in', 'a new member starts with the private choice')
         self.assertNotIn('activity_id', accepted.text)
-        replacement = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
+        replacement = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={'rotate': True}).json()['invite_url'].rsplit('/', 1)[1]
         stale = self.accept(original, who=2)
         unknown = self.accept('0' * 32, who=2)
         self.assertEqual(stale.status_code, 404)
@@ -224,6 +224,28 @@ class Groups(unittest.TestCase):
         expired = self.accept(replacement, who=3)
         self.assertEqual(expired.status_code, 404)
         self.assertEqual(expired.json(), unknown.json())
+
+    def test_opening_invite_keeps_earlier_links_valid_until_explicit_rotation(self):
+        group, original = self.make()
+        opened = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={})
+        self.assertEqual(opened.status_code, 200, opened.text)
+        replacement = opened.json()['invite_url'].rsplit('/', 1)[1]
+        self.assertNotEqual(original, replacement)
+        self.assertEqual(self.anon.get('/api/group-invites/' + original).status_code, 200,
+                         'opening Invite does not revoke a link already shared')
+        self.assertEqual(self.accept(original, who=1).status_code, 200)
+        self.assertEqual(self.accept(replacement, who=2).status_code, 200)
+
+        rotated = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={'rotate': True})
+        self.assertEqual(rotated.status_code, 200, rotated.text)
+        self.assertEqual(self.anon.get('/api/group-invites/' + original).status_code, 404)
+        self.assertEqual(self.anon.get('/api/group-invites/' + replacement).status_code, 404)
+
+        self.assertEqual(self.clients[0].post('/api/groups/' + group['id'] + '/stop-joining', json={}).status_code, 200)
+        reopened = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={})
+        self.assertEqual(reopened.status_code, 200, reopened.text)
+        self.assertEqual(self.anon.get('/api/group-invites/' + reopened.json()['invite_url'].rsplit('/', 1)[1]).status_code, 200,
+                         'the existing Make a new invite action reopens joining after stop')
 
     def test_activity_strip_is_member_scoped_and_mute_is_per_account(self):
         first, _ = self.make()
@@ -308,7 +330,7 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing",
                                               json={'level':'total_shared'}).status_code, 404,
                          'a left member cannot change sharing')
-        rotated = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
+        rotated = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={'rotate': True}).json()['invite_url'].rsplit('/', 1)[1]
         stale = self.accept(original, who=1)
         unknown = self.accept('0' * 32, who=1)
         self.assertEqual(stale.status_code, 404)
@@ -327,7 +349,7 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE group_members SET monday_recap_enabled=true WHERE group_id=%s AND user_id=%s',
                       (group['id'],self.ids[1]))
-        after_removal = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
+        after_removal = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={'rotate': True}).json()['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(after_removal, who=1).status_code, 200)
         self.assertEqual(self.clients[1].get(f"/api/groups/{group['id']}").json()['sharing_level'], 'just_in',
                          'reactivating a removed member resets the old sharing choice')
@@ -383,8 +405,8 @@ class Groups(unittest.TestCase):
         self.assertEqual(initial['sharing_member_count'], 2)
         self.assertNotIn(self.clients[3].get('/api/me').json()['login'],
                          [member['username'] for member in initial['members']])
-        self.assertTrue(next(m for m in initial['members'] if m['username']==self.clients[1].get('/api/me').json()['login'])
-                        ['sharing_total_only'], 'a group-default member has no visible contribution')
+        self.assertFalse(next(m for m in initial['members'] if m['username']==self.clients[1].get('/api/me').json()['login'])
+                         ['shares_total'], 'a group-default member has no visible contribution')
         blocked_view = group_view(who=3)
         self.assertEqual(blocked_view['member_count'], 3)
         self.assertEqual(blocked_view['total'], 930, 'a blocked member’s own view excludes the blocker’s contribution')
@@ -421,22 +443,23 @@ class Groups(unittest.TestCase):
         self.assertEqual(result['your_total'], 1)
         self.assertEqual(result['goal_unit'], 'km')
         self.assertNotIn('value', result['members'][1])
-        self.assertTrue(result['members'][1]['sharing_total_only'])
+        self.assertFalse(result['members'][1]['shares_total'])
         for private in ('PRIVATE A', 'PRIVATE B', 'OUTSIDER PRIVATE', 'BEFORE JOIN', 'PRIVATE NOTE', 'distance_m', 'activity_id'):
             self.assertNotIn(private, str(result))
         with db.connect() as c:
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s', (self.ids[1],))
         shared = self.clients[0].get('/api/groups/' + group['id']).json()
-        self.assertNotIn('value', shared['members'][1], 'a consented row amount stays hidden below the privacy floor')
-        self.assertTrue(shared['members'][1]['sharing_total_only'],
-                        'account-wide sharing alone does not override the private group choice')
+        self.assertNotIn('value', shared['members'][1], 'the group choice stays private until explicitly enabled')
+        self.assertFalse(shared['members'][1]['shares_total'],
+                         'account-wide sharing alone does not override the private group choice')
         self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing",
                                               json={'level':'total_shared'}).status_code, 200)
         shared = self.clients[0].get('/api/groups/' + group['id']).json()
-        self.assertNotIn('sharing_total_only', shared['members'][1],
-                         'both account-wide and group-specific choices are required to share')
+        self.assertTrue(shared['members'][1]['shares_total'],
+                        'both account-wide and group-specific choices are required to share')
         self.assertNotIn('value', shared['members'][0])
-        self.assertNotIn('total', shared)
+        self.assertEqual(shared['total'], 2)
+        self.assertEqual(shared['sharing_member_count'], 1)
         self.assertEqual(self.clients[2].get('/api/groups/' + group['id']).status_code, 404)
         self.assertEqual(self.clients[2].post('/api/groups/' + group['id'] + '/close', json={}).status_code, 404)
         self.assertEqual(self.clients[2].post(f"/api/groups/{group['id']}/sharing",
@@ -445,15 +468,15 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('DELETE FROM activities WHERE id=%s', (own_a,))
         remaining = self.clients[1].get('/api/groups/' + group['id']).json()
-        self.assertNotIn('total', remaining)
-        self.assertEqual(remaining['your_total'], 2)
+        self.assertEqual(remaining['total'], 2)
+        self.assertEqual(remaining['sharing_member_count'], 1)
         self.assertEqual(self.clients[1].post('/api/groups/' + group['id'] + '/leave', json={}).status_code, 200)
         solo = self.clients[0].get('/api/groups/' + group['id']).json()
         self.assertNotIn('total', solo)
         self.assertEqual(solo['your_total'], 0)
         self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).status_code, 404)
 
-    def test_combined_total_requires_three_viewer_visible_members(self):
+    def test_combined_total_and_member_values_work_with_two_viewer_visible_members(self):
         zone = ZoneInfo('America/New_York')
         local_today = self.now.astimezone(zone).date()
         week_start = local_today - dt.timedelta(days=local_today.weekday())
@@ -473,10 +496,11 @@ class Groups(unittest.TestCase):
 
         one = group_view()
         self.assertEqual(one['member_count'], 1)
-        self.assertNotIn('total', one)
-        self.assertEqual(one['your_total'], 12)
-        self.assertNotIn('this_week_total', one)
-        self.assertEqual(one['your_this_week_total'], 12)
+        self.assertEqual(one['total'], 12)
+        self.assertEqual(one['sharing_member_count'], 1)
+        self.assertEqual(one['this_week_total'], 12)
+        self.assertEqual(one['members'][0]['value'], 12)
+        self.assertTrue(one['members'][0]['shares_total'])
 
         self.assertEqual(self.accept(token, who=1).status_code, 200)
         with db.connect() as c:
@@ -487,12 +511,11 @@ class Groups(unittest.TestCase):
         self.activity(1, fixed_now - dt.timedelta(hours=2), distance=3000, name='PRIVATE B')
         two = group_view()
         self.assertEqual(two['member_count'], 2)
-        self.assertNotIn('total', two)
-        self.assertEqual(two['your_total'], 12)
-        self.assertTrue(all('value' not in member for member in two['members']),
-                        'no member row amounts are returned below the three-visible-member floor')
-        self.assertNotIn('this_week_total', two)
-        self.assertEqual(two['your_this_week_total'], 12)
+        self.assertEqual(two['total'], 15)
+        self.assertEqual(two['sharing_member_count'], 2)
+        self.assertEqual(two['this_week_total'], 15)
+        self.assertEqual({member['username']: member['value'] for member in two['members']},
+                         dict(zip([self.clients[i].get('/api/me').json()['login'] for i in (0, 1)], (12, 3))))
 
         token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(token, who=2).status_code, 200)
@@ -505,11 +528,9 @@ class Groups(unittest.TestCase):
         self.assertEqual(three['member_count'], 3)
         self.assertEqual(three['week_start'], week_start.isoformat())
         self.assertEqual(three['total'], 20)
-        self.assertNotIn('your_total', three)
         self.assertEqual(three['this_week_total'], 20)
         self.assertEqual(three['sharing_member_count'], 3)
         self.assertNotIn('this_week_contributors', three, 'weekly response never exposes who was active')
-        self.assertNotIn('your_this_week_total', three)
         member_logins = [self.clients[i].get('/api/me').json()['login'] for i in range(3)]
         self.assertEqual({member['username']: member['value'] for member in three['members']},
                          dict(zip(member_logins, (12, 3, 5))),
@@ -967,11 +988,13 @@ class Groups(unittest.TestCase):
         two = self.clients[0].get(f"/api/groups/{group['id']}").json()
         self.assertEqual(two['event_state'], 'complete')
         self.assertEqual(two['member_count'], 2)
-        self.assertNotIn('total', two)
+        self.assertEqual(two['total'], 3)
+        self.assertEqual(two['sharing_member_count'], 2)
         self.assertEqual(two['recap']['your_total'], 1)
         self.assertNotIn('total', two['recap'])
-        self.assertTrue(all('value' not in member for member in two['members']),
-                        'shared member rows still withhold amounts below three visible members')
+        self.assertEqual({member['username']: member['value'] for member in two['members']},
+                         {self.clients[0].get('/api/me').json()['login']: 1,
+                          self.clients[1].get('/api/me').json()['login']: 2})
         self.assertCountEqual(two['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)])
 
         self.assertEqual(self.accept(token, who=2).status_code, 200)
@@ -991,8 +1014,8 @@ class Groups(unittest.TestCase):
                          sorted(member_logins[1:], key=str.casefold), 'other Members are sorted by username')
         self.assertEqual({member['username']: member['value'] for member in three['members'] if 'value' in member},
                          dict(zip(member_logins[:2], (1, 2))))
-        self.assertTrue(next(member for member in three['members'] if member['username']==member_logins[2])
-                        ['sharing_total_only'], 'a recap-consenting just-in member remains out of group totals')
+        self.assertFalse(next(member for member in three['members'] if member['username']==member_logins[2])
+                         ['shares_total'], 'a recap-consenting just-in member remains out of group totals')
         self.assertCountEqual(three['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)],
                          'the recap names only members who opted in')
 
@@ -1000,10 +1023,10 @@ class Groups(unittest.TestCase):
             c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[1]))
         blocked_view = self.clients[0].get(f"/api/groups/{group['id']}").json()
         self.assertEqual(blocked_view['member_count'], 2)
-        self.assertNotIn('total', blocked_view)
+        self.assertEqual(blocked_view['total'], 1)
         self.assertNotIn('total', blocked_view['recap'])
         self.assertEqual(blocked_view['recap']['your_total'], 1)
-        self.assertTrue(all('value' not in member for member in blocked_view['members']))
+        self.assertEqual(blocked_view['members'][0]['value'], 1)
         self.assertEqual(blocked_view['recap']['participants'], [self.clients[0].get('/api/me').json()['login']])
 
     def test_monday_recap_is_opt_in_private_and_once_per_group_week(self):

@@ -88,6 +88,12 @@ class GroupStripPreference(BaseModel):
     muted: bool
 
 
+class GroupInviteAction(BaseModel):
+    """Invite sheet action: opening preserves links; an explicit renewal rotates them."""
+    model_config = ConfigDict(extra='forbid')
+    rotate: StrictBool = False
+
+
 class GroupUpdateCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     text: str = Field(min_length=1, max_length=200)
@@ -214,12 +220,15 @@ def _invite_link(token, request):
     return f'{base}/group-invite/{token}'
 
 
-def _new_invite(c, group, request):
+def _new_invite(c, group, request, *, rotate=True):
     token = secrets.token_bytes(16).hex()
     generation = group['invite_generation'] + 1
-    c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
-    c.execute('''UPDATE event_groups SET invite_generation=%s,joining_closed=false
-                 WHERE id=%s''', (generation, group['id']))
+    if rotate:
+        c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
+        c.execute('''UPDATE event_groups SET invite_generation=%s,joining_closed=false
+                     WHERE id=%s''', (generation, group['id']))
+    else:
+        c.execute('UPDATE event_groups SET invite_generation=%s WHERE id=%s', (generation, group['id']))
     c.execute('''INSERT INTO group_invites(group_id,generation,token_hash,expires_at)
                  VALUES(%s,%s,%s,%s)''', (group['id'], generation, _token_hash(token), dt.datetime.now(UTC) + INVITE_TTL))
     return _invite_link(token, request)
@@ -235,7 +244,7 @@ def _invite(c, token):
     matched = hmac.compare_digest(digest, stored)
     now = dt.datetime.now(UTC)
     if (not row or not matched or row['revoked_at'] is not None or row['expires_at'] <= now
-            or row['generation'] != row['invite_generation'] or row['joining_closed'] or row['closed_at']):
+            or row['joining_closed'] or row['closed_at']):
         raise HTTPException(404, INVITE_UNAVAILABLE)
     return row
 
@@ -361,12 +370,13 @@ def _answer(c, group, uid):
     previous_monday = monday - dt.timedelta(days=7) if recap_available else None
     recap_week = (_period_contributions(c, group, sharing, now, previous_monday)[1]
                   if previous_monday is not None and member_count >= 3 else {})
-    own_total = contributions.get(uid, 0) if member_count >= 3 and me['share_total'] else _contributions(c, group, [me], now).get(uid, 0)
-    own_week = weekly.get(uid, 0) if member_count >= 3 and me['share_total'] else _weekly_contributions(c, group, [me], now)[1].get(uid, 0)
-    visible_total = total if member_count >= 3 else own_total
+    own_total = contributions.get(uid, 0) if me['share_total'] else _contributions(c, group, [me], now).get(uid, 0)
+    own_week = weekly.get(uid, 0) if me['share_total'] else _weekly_contributions(c, group, [me], now)[1].get(uid, 0)
+    has_shared_totals = bool(sharing)
+    visible_total = total if has_shared_totals else own_total
     weeks_to_event = (days_to_event + 6) // 7 if days_to_event is not None else None
     weekly_target = (round(max(0, float(group['goal_target']) - visible_total) / weeks_to_event, 1)
-                     if member_count >= 3 and weeks_to_event and weeks_to_event > 0 else None)
+                     if has_shared_totals and weeks_to_event and weeks_to_event > 0 else None)
     return {
         'id': str(group['id']), 'title': group['title'],
         'event_date': event_date.isoformat() if event_date else None,
@@ -376,9 +386,9 @@ def _answer(c, group, uid):
         'training_for': group['training_for'], 'weekly_target': weekly_target,
         'weekly_target_scope': 'group' if weekly_target is not None else None,
         **({'total': total, 'sharing_member_count': sharing_member_count}
-           if member_count >= 3 else {'your_total': own_total}),
+           if has_shared_totals else {'your_total': own_total}),
         **({'this_week_total': week_total}
-           if member_count >= 3 else {'your_this_week_total': own_week}),
+           if has_shared_totals else {'your_this_week_total': own_week}),
         'week_start': (local_day - dt.timedelta(days=local_day.weekday())).isoformat(),
         'monday_recap': ({'week_start': previous_monday.isoformat(), 'total': round(sum(recap_week.values()), 3)}
                          if previous_monday is not None and member_count >= 3 else None),
@@ -389,8 +399,8 @@ def _answer(c, group, uid):
         'sharing_level': me['sharing_level'],
         'members': [{'username': m['username'], 'photo': m['photo'] or False,
                      'organizer': m['user_id'] == group['organizer_id'],
-                     **({'value': contributions.get(m['user_id'], 0)} if member_count >= 3 and m['share_total']
-                        else {'sharing_total_only': True} if not m['share_total'] else {})}
+                     **({'value': contributions.get(m['user_id'], 0)} if m['share_total'] else {}),
+                     'shares_total': bool(m['share_total'])}
                     for m in visible],
         'member_count': member_count, 'is_organizer': uid == group['organizer_id'],
         'recap_consent': bool(me['recap_consent']), 'notifications_muted': bool(me['notifications_muted']),
@@ -461,12 +471,17 @@ def _group_recap(c, group, uid, answer, now):
         LEFT JOIN profile p ON p.user_id=u.id
         WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL''',
                         (group['id'],)).fetchall()
-    visible = [member for member in members if member['share_total'] and not _blocked(c, uid, member['user_id'])]
+    visible_members = [member for member in members if not _blocked(c, uid, member['user_id'])]
+    visible = [member for member in visible_members if member['share_total']]
     contributions = _contributions(c, group, visible, now)
     participants = [member['username'] for member in visible
                     if member['recap_consent'] and contributions.get(member['user_id'], 0) > 0]
+    if len(visible_members) < 3 or 'total' not in answer:
+        me = next((member for member in members if member['user_id'] == uid), None)
+        own = _contributions(c, group, [me], now).get(uid, 0) if me else 0
+        return {'event_date': group['event_date'].isoformat(), 'participants': participants, 'your_total': own}
     return {'event_date': group['event_date'].isoformat(), 'participants': participants,
-            **({'total': answer['total']} if 'total' in answer else {'your_total': answer['your_total']})}
+            'total': answer['total']}
 
 
 def _group_notice(c, group_id, recipient, actor, kind, update_id=None, week_start=None):
@@ -924,12 +939,15 @@ def _organizer_group(c, group_id, uid, lock=False):
 
 
 @router.post('/api/groups/{group_id}/invites')
-def rotate_invite(group_id: str, request: Request, user=Depends(current_user)):
+def rotate_invite(group_id: str, body: GroupInviteAction, request: Request, user=Depends(current_user)):
     with db.connect() as c:
         group = _organizer_group(c, group_id, user['id'], lock=True)
         if group['closed_at']:
             raise HTTPException(409, 'This group is closed')
-        return {'invite_url': _new_invite(c, group, request)}
+        # The current client exposes "Make a new invite" only when joining is stopped;
+        # keep that explicit action working while ordinary Invite opens stay non-rotating.
+        rotate = body.rotate or bool(group['joining_closed'])
+        return {'invite_url': _new_invite(c, group, request, rotate=rotate)}
 
 
 @router.post('/api/groups/{group_id}/stop-joining')
