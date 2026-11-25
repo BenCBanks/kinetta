@@ -122,7 +122,8 @@ for device in preferred:
     process_launch_monotonic_ns=time.monotonic_ns() if measure_startup else None
     sim('launch',udid,'com.kinetta.app')
     metrics=None
-    for _ in range(250):
+    # Fine timing polls must retain the normal 50s readiness budget for native insets/bridge.
+    for _ in range(5000 if measure_startup else 250):
      try:
       candidate=json.loads((container/'tmp/kinetta-ui-metrics.json').read_text())
       if candidate.get('run')==token:metrics=candidate;break
