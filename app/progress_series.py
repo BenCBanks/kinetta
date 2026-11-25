@@ -32,7 +32,7 @@ MEASUREMENTS = {
     'distance': ('distance_m', 'm'), 'time': ('coalesce(moving_s, elapsed_s)', 's'),
     'ascent': ('ascent_m', 'm'), 'avg_hr': ('avg_hr', 'bpm'),
     'calories': ('calories', 'kcal'), 'workouts': ('1', 'workouts'),
-    'pace': ('CASE WHEN distance_m>0 AND elapsed_s>0 THEN elapsed_s::double precision*1000/distance_m END', 's/km'),
+    'pace': ('CASE WHEN distance_m>0 AND coalesce(moving_s,elapsed_s)>0 THEN coalesce(moving_s,elapsed_s)::double precision*1000/distance_m END', 's/km'),
 }
 GROUPS = {'day': 'local_day', 'week': "date_trunc('week', local_day)::date",
           'month': "date_trunc('month', local_day)::date", 'workout': 'start_time, id'}
@@ -73,7 +73,8 @@ def read_series(c, user_id, request, *, now=None):
         group = GROUPS[request.group_by]
         selected_group = 'start_time AS bucket,id' if request.group_by == 'workout' else group+' AS bucket'
         order = 'bucket DESC,id DESC' if request.group_by == 'workout' else 'bucket DESC'
-        value_sql = AGGREGATES[request.aggregate]
+        pace_max = request.metric == 'pace' and request.aggregate == 'max'
+        value_sql = 'min(value)' if pace_max else AGGREGATES[request.aggregate]
         rows = c.execute(f'''WITH scoped AS (
             SELECT id,start_time,(start_time AT TIME ZONE %(tz)s)::date AS local_day,
                 ({expression})::double precision AS measurement,({weight})::double precision AS weight
@@ -100,19 +101,22 @@ def read_series(c, user_id, request, *, now=None):
         plotted = [(row['bucket'], row) for row in rows]
     points = [{'start': day.isoformat(), 'value': float(row['value']) if row and row['value'] is not None else (empty_value if not row else None),
                'n': row['n'] if row else 0, 'missing': row['missing'] if row else 0,
-               'in_progress': request.group_by != 'workout' and _next(day, request.group_by) > today}
+               'in_progress': request.group_by != 'workout' and _next(day, request.group_by) > today,
+               'partial': request.group_by != 'workout' and (day < start or _next(day, request.group_by) > today)}
               for day, row in plotted]
-    values = [point['value'] for point in points if point['value'] is not None and point['n'] > point['missing']]
+    values = [point['value'] for point in points if point['value'] is not None and (request.aggregate == 'sum' or point['n'] > point['missing'])]
     if request.aggregate == 'average':
         numerator = sum(float(row['weighted_sum'] or 0) for row in rows)
         denominator = sum(float(row['weight_sum'] or 0) for row in rows)
         overall = numerator/denominator if denominator else None
-    elif request.aggregate == 'max': overall = max(values) if values else None
+    elif request.aggregate == 'max': overall = (min(values) if pace_max else max(values)) if values else None
     else: overall = sum(float(row['total'] or 0) for row in rows) if values else (0 if not rows else None)
     first, last = (values[0], values[-1]) if values else (None, None)
     change = last-first if len(values) > 1 else None
     mean = sum(abs(value) for value in values)/len(values) if values else 0
     direction = None if change is None else 'flat' if change == 0 or abs(change) < mean*.1 else 'up' if change > 0 else 'down'
+    if request.metric == 'pace' and direction in ('up', 'down'):
+        direction = 'slower' if direction == 'up' else 'faster'
     return {**request.model_dump(), 'timezone': str(tz), 'start': start.isoformat(), 'end': today.isoformat(), 'unit': unit,
             'points': points, 'truncated': truncated, 'summary': {'overall': overall, 'first': first, 'last': last,
             'highest': max(values) if values else None, 'lowest': min(values) if values else None,
