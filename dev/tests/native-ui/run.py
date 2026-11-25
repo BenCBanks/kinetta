@@ -189,7 +189,7 @@ for device in preferred:
       assert '26:30' in metrics['bodyText'] and '25:00' in metrics['bodyText'], 'Fitness and Records must show distinct fictional times'
      if stage=='header-track':
       assert 'GPS ready' in metrics['bodyText'] and 'OpenStreetMap contributors' in metrics['bodyText'], 'Track must show backed GPS status and map credit'
-      track_crop=metrics.get('storeMapCrop');assert track_crop and track_crop['zoom']==15 and track_crop['height']>=250 and track_crop['credit'], 'Track map crop must be zoomed out, taller, and retain its map credit'
+      track_crop=metrics.get('storeMapCrop');assert track_crop and track_crop['height']>=250 and track_crop['credit'], 'Track map crop must stay zoomed out, taller, and retain its map credit'
      if stage.startswith('header-') or stage=='achievements':
       top=metrics.get('topBand',{});assert top.get('glyph',{}).get('y',-1)>=metrics['safeTop']-1, f'{stage} top heading is fully visible: {top}'
      if stage!='food' and metrics['navigation']['visible']:

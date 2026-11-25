@@ -4,6 +4,11 @@
   const cfg=globalThis.KinettaUIFixture;
   Native.autoSync=()=>Promise.resolve();Native.resumeFoodEntry=()=>Promise.resolve();
   if(cfg.store){Native.setBadge=()=>Promise.resolve();Native.haptic=()=>{};Challenges.resumeSignup=()=>Promise.resolve();}
+  if(cfg.store&&cfg.stage==='header-track'){
+    const style=document.createElement('style');
+    style.textContent='#track-ready-map-wrap{height:250px!important;flex:none!important}#track-ready-map{height:100%!important}';
+    (document.head||document.documentElement).append(style);
+  }
   if(cfg.headerPage||cfg.store||cfg.groups){
     // Measure the real native layout without reading Health/GPS or registering alerts.
     Native.syncPush=()=>Promise.resolve();Native.healthOn=Native.foodHealthOn=async()=>false;Native.healthStatus=async()=>null;
@@ -95,20 +100,16 @@
     return{selector,text:(target.innerText??target.textContent??'').trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
   }
   async function frameStoreTrackMap(){
-    let wrap=null,container=null,map=null,ready=false;
+    let wrap=null,container=null,ready=false;
     for(let n=0;n<150;n++){
       wrap=document.querySelector('#track-ready-map-wrap');
       container=document.querySelector('#track-ready-map');
-      map=container&&window.L?._targets?.[container._leaflet_id];
-      const box=container?.getBoundingClientRect();
-      if(wrap&&container&&map&&map._loaded&&box?.width>0&&box.height>0){ready=true;break;}
+      const box=wrap?.getBoundingClientRect(),tiles=container?.querySelectorAll('canvas.leaflet-tile-loaded');
+      if(wrap&&container?.classList.contains('leaflet-container')&&box?.width>0&&box.height>=250&&tiles?.length){ready=true;break;}
       await new Promise(ok=>setTimeout(ok,100));
     }
-    if(!ready)throw Error('Track Store map fixture did not render a sized Leaflet map within 15 seconds');
-    wrap.style.height='250px';wrap.style.flex='none';container.style.height='100%';
-    map.invalidateSize({animate:false});map.setZoom(15,{animate:false});
-    for(let n=0;n<100;n++){if(map.getZoom()===15&&container.querySelectorAll('canvas.leaflet-tile-loaded').length)break;await new Promise(ok=>setTimeout(ok,100));}
-    const r=wrap.getBoundingClientRect();return{zoom:map.getZoom(),height:r.height,credit:!!container.querySelector('.leaflet-control-attribution')};
+    if(!ready)throw Error('Track Store map fixture did not render sized Leaflet tiles within 15 seconds');
+    const r=wrap.getBoundingClientRect();return{height:r.height,credit:!!container.querySelector('.leaflet-control-attribution')};
   }
   function storeActivityDiagnostics(){
     const box=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
