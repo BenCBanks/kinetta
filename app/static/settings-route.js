@@ -29,7 +29,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     ${InsetGroup('Help', row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'Help &amp; contact'))}
     ${InsetGroup('Your data', `${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/terms" target="_blank" rel="noopener"', 'shield', 'Terms of Use')}
-      ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'Privacy policy')}`)}
+      ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'Privacy policy')}`, 'Feature use and food-entry method are linked to your account for aggregate improvement counts. This is enabled for all accounts; food details are not included.')}
     <div class="settings-standalone">${row('button', 'type="button" id="m-del"', 'trash', 'Delete my account', '', {chevron:false, alert:true})}</div>
     <div class="settings-logout">${row('button', 'type="button" id="logout"', 'logout', 'Log out', '', {chevron:false, center:true})}</div>
     </section>`;

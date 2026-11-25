@@ -140,7 +140,7 @@ The person running the server can technically see its database. That access is u
 
 ## feature-counts
 
-**How we improve Kinetta.** Kinetta counts which features are used, on its own server, to decide what to improve. Administrators see totals per feature, not a history of what one person did. Counts never include food names, workout titles, locations or messages. New food entries may note how they were added (for example search or photo). Daily counting keys are deleted each day; totals are kept for 13 months. No third-party analytics or tracking is used.
+**How we improve Kinetta.** Kinetta records which features are used and how food entries are added, linked to your account for aggregate counts that help improve the service. Administrators see totals, not a per-person history. These metrics do not contain food details, workout titles, locations or messages. Daily counting keys are deleted each day; aggregate totals are kept for 13 months. The hosted service collects these metrics for all accounts, with no individual opt-out. No third-party analytics or tracking is used.
 
 ## retention-heading
 
