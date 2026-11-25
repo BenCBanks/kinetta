@@ -76,6 +76,8 @@ async function main(){
   const signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});
   assert.equal(signed.status(),200,'fictional demo account can sign in: '+await signed.text());
   const state=await login.storageState();
+  if(process.env.KIT_MEMORY_ONLY){await require('./kit_memory_ui.cjs')(browser,state,base,out);return;}
+  if(!process.env.KIT_BLOCKS_ONLY)await require('./kit_memory_ui.cjs')(browser,state,base,out);
   if(!process.env.KIT_BLOCKS_ONLY)await require('./kit_history_ui.cjs')(browser,state,base,out);
   if(process.env.KIT_HISTORY_ONLY)return;
   await conversationBlocksUi(browser,state);

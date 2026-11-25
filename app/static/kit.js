@@ -542,10 +542,30 @@ Object.assign(KitChat, (() => {
     const session=readOwner();
     sheet('What Kit remembers','<div id="kit-memory"><p class="muted">Loading memory…</p></div>',body=>{
       const box=$('#kit-memory',body),valid=()=>session===readOwner()&&body.isConnected;
+      const date=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});};
+      const labels={goal:'Goal',preference:'Preference',routine:'Routine'},sources={chat:'From your chat',user:'Added by you',edit:'Edited by you'};
       const draw=async()=>{
         try{
           const data=await api('/api/coach/conversation/memory');if(!valid())return;
-          box.innerHTML=`<p>Kit can keep short statements you share about your preferences, goals and routines, in your own words. It keeps up to twelve for six months. Current records and what you say now take priority.</p><label class="check"><input type="checkbox" id="kit-memory-on" ${data.enabled?'checked':''}>Remember useful details</label><p class="small muted">Turning this off also removes saved memories. Removing a memory stops its use in future chats; messages in your current chat stay until you leave.</p><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<article class="card"><p>${esc(m.text)}</p><button type="button" class="linkbtn danger" data-kit-forget="${m.id}">Forget this</button></article>`).join(''):'<p class="muted">No saved memories yet.</p>'}</div>${data.memories.length?'<button type="button" class="ghost wide danger" id="kit-forget-all">Forget all memories</button>':''}<p class="err" id="kit-memory-error" role="alert"></p>`;
+          const editable=Number.isSafeInteger(data.version);
+          box.innerHTML=`<label class="check"><input type="checkbox" id="kit-memory-on" ${data.enabled?'checked':''}>Remember useful details</label><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<article class="kit-memory-row"><p class="small muted">${esc(labels[m.kind]||'Detail')}</p><p>${esc(m.text)}</p><p class="small muted">${esc([sources[m.source],date(m.updated)].filter(Boolean).join(' · '))}</p><div class="kit-memory-actions">${editable&&data.enabled?`<button type="button" class="linkbtn" data-kit-edit="${m.id}">Edit</button>`:''}<button type="button" class="linkbtn danger" data-kit-forget="${m.id}">Forget</button></div></article>`).join(''):'<p class="muted kit-memory-empty">No saved details yet.</p>'}</div>${editable&&data.enabled&&data.memories.length<12?'<button type="button" class="linkbtn wide" id="kit-memory-add">Add a detail</button>':''}<p class="small muted">Up to 12 details, kept for six months. Turning memory off forgets them. Your chats and records stay saved.</p>${data.memories.length?'<button type="button" class="linkbtn wide danger" id="kit-forget-all">Forget all memories</button>':''}<p class="err" id="kit-memory-error" role="alert"></p>`;
+          const edit=memory=>{
+            if(!valid())return;
+            box.innerHTML=`<form id="kit-memory-form"><label>Type<select id="kit-memory-kind">${Object.entries(labels).map(([key,label])=>`<option value="${key}" ${(memory?.kind||'preference')===key?'selected':''}>${label}</option>`).join('')}</select></label><label>Detail<textarea id="kit-memory-text" rows="3" maxlength="400" required placeholder="I prefer morning runs.">${esc(memory?.text||'')}</textarea></label><p class="small muted">A detail for Kit. Your saved targets stay unchanged.</p><p class="err" id="kit-memory-error" role="alert"></p><div class="kit-memory-edit-actions"><button type="button" class="ghost" id="kit-memory-cancel">Cancel</button><button type="submit" class="primary" id="kit-memory-save">Save</button></div></form>`;
+            $('#kit-memory-cancel',box).onclick=()=>{if(valid())draw();};
+            $('#kit-memory-form',box).onsubmit=async event=>{
+              event.preventDefault();if(!valid())return;
+              const text=$('#kit-memory-text',box).value.trim();if(!text)return;
+              const save=$('#kit-memory-save',box);save.disabled=true;
+              try{
+                await api('/api/coach/conversation/memory'+(memory?'/'+memory.id:''),json(memory?'PATCH':'POST',{text,kind:$('#kit-memory-kind',box).value,version:data.version}));
+                if(valid())await draw();
+              }catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;save.disabled=false;}}
+            };
+            $('#kit-memory-text',box).focus();
+          };
+          const add=$('#kit-memory-add',box);if(add)add.onclick=()=>edit(null);
+          $$('[data-kit-edit]',box).forEach(button=>button.onclick=()=>edit(data.memories.find(m=>String(m.id)===button.dataset.kitEdit)));
           $('#kit-memory-on',box).onchange=async e=>{
             if(!valid())return;
             const enabled=e.target.checked;
@@ -555,6 +575,7 @@ Object.assign(KitChat, (() => {
           };
           $$('[data-kit-forget]',box).forEach(button=>button.onclick=async()=>{
             if(!valid())return;
+            if(!await confirmSheet('Forget this detail?',{body:'Kit will stop using it in future answers. Your chats stay saved.',action:'Forget'})||!valid())return;
             button.disabled=true;try{await api('/api/coach/conversation/memory/'+button.dataset.kitForget,{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;button.disabled=false;}}
           });
           const all=$('#kit-forget-all',box);if(all)all.onclick=async()=>{
