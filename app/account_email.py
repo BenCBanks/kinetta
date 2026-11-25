@@ -31,7 +31,7 @@ def unconfirmed_account_delete_at(created):
 
 
 SENT = 'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'
-RECOVERY_UNAVAILABLE = 'Email recovery isn’t available on this Kinetta. Contact the server administrator to regain access.'
+RECOVERY_UNAVAILABLE = 'Email recovery isn’t available right now. For help signing in, email feedback@kinetta.app.'
 RESEND_SENT = 'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.'
 DOMAIN_TYPOS = {
     'gmai.com': 'gmail.com', 'gmial.com': 'gmail.com', 'gamil.com': 'gmail.com',
@@ -213,7 +213,7 @@ class EmailIn(BaseModel):
 def set_email(body: EmailIn, request: Request, background: BackgroundTasks, user=Depends(current_user)):
     """Sends a confirmation link to the new address; the account uses it only after the link is opened."""
     email = check_new_email(body.email, body.confirm_typo)
-    if not mail_ready(): raise HTTPException(503, 'Email isn’t set up on this Kinetta yet. Ask the person who runs it.')
+    if not mail_ready(): raise HTTPException(503, 'Email isn’t available right now. For help, email feedback@kinetta.app.')
     with db.connect() as c:
         hit = limited(c, f"email:{user['id']}", 5, 60)
     if hit: raise HTTPException(429, 'Too many tries - wait an hour')

@@ -28,6 +28,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
      return r.continue();
     }
     if(u.pathname==='/api/signup'&&request.method()==='GET')return r.fulfill({json:{open:!closed,full:false}});
+    if(u.pathname==='/api/beta'&&request.method()==='GET')return r.fulfill({json:{open:false,full:false}});
     if(u.pathname==='/api/account/username-availability'){
      const value=u.searchParams.get('login');checks.push(value);
      if(value==='old_choice')return new Promise(resolve=>{oldRelease=()=>r.fulfill({json:{login:value,available:false,reason:'taken',suggestion:'old_choice2'}}).catch(()=>{}).then(resolve);});
@@ -40,11 +41,12 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
      const pending=body.email==='pending@example.com';return r.fulfill({status:409,json:{detail:{code:pending?'email_waiting_for_confirmation':'email_exists',message:pending?'This email is waiting for confirmation.':"There's already a Kinetta account with this email"}}});
     }
     if(u.pathname==='/api/account/email/resend'&&request.method()==='POST'){resends.push(request.postDataJSON());return r.fulfill({json:{ok:true,message:'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.'}});}
-    if(u.pathname==='/api/password/forgot'&&request.method()==='POST'){forgot.push(request.postDataJSON());return r.fulfill({json:{ok:true,message:'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'}});}
+    if(u.pathname==='/api/password/forgot'&&request.method()==='POST'){const body=request.postDataJSON();forgot.push(body);if(body.login==='mail-unavailable@example.com')return r.fulfill({json:{ok:true,email_available:false,message:'Email recovery isn’t available right now. For help signing in, email feedback@kinetta.app.'}});return r.fulfill({json:{ok:true,message:'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'}});}
     if(u.pathname==='/api/login'){
      const body=request.postDataJSON();
      if(body.login==='pending@example.com')return r.fulfill({status:409,json:{detail:{code:'email_waiting_for_confirmation',message:'This account is waiting for email confirmation.'}}});
      if(body.login==='mail-unavailable@example.com')return r.fulfill({status:409,json:{detail:{code:'email_confirmation_unavailable',message:'Email confirmation is pending, but email is not available on this Kinetta. Sign in with your @username or ask the person who runs it for help.'}}});
+     if(body.login==='suspended@example.com')return r.fulfill({status:403,json:{detail:'This account is suspended. Reply to any email from Kinetta, or ask the person who runs it.'}});
      assert.equal(body.login,login);assert.equal(body.password,password);
      const response=await c.request.post(base+'/api/login',{headers:{Origin:base},data:body});return r.fulfill({response});
     }
@@ -124,14 +126,17 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await p.locator('[data-email-reset]').click();await p.locator('input[name=login]').waitFor();assert.equal(await p.locator('input[name=login]').inputValue(),'pending@example.com');assert.equal(forgot.length,0);cases++;
    await p.evaluate(()=>{history.replaceState(null,'','/signup');showSignup();});await p.locator('details.username-choice').waitFor();
    await p.locator('input[name=name]').fill('New Member');await p.locator('input[name=email]').fill('fresh@example.com');await p.locator('.signup-next:visible').click();await p.locator('input[name=password]:visible').waitFor();await p.locator('input[name=password]').fill('fictional long passphrase');await p.locator('input[name=age_ok]').check();await p.locator('.signup-next:visible').click();
-   await p.locator('button[type=submit]').click();await p.locator('.email-address-review').waitFor();await p.locator('[data-email-use]').click();await p.locator('#signup-continue').waitFor();assert.match(await p.locator('.signup-login-note').innerText(),/You're signed in as @fictional_casey\. Until you confirm, log in with @fictional_casey\./);await shot('signup-confirmation');await fit();cases++;
+   await p.locator('button[type=submit]').click();await p.locator('.email-address-review').waitFor();await p.locator('[data-email-use]').click();await p.locator('#signup-continue').waitFor();assert.equal(await p.locator('h1').innerText(),'Check your inbox');assert.match(await p.locator('.signup-login-note').innerText(),/You're signed in as @fictional_casey\. Until you confirm, log in with @fictional_casey\./);await shot('signup-confirmation');await fit();cases++;
    await p.locator('#signup-resend').click();await p.locator('#signup-resend-status').filter({hasText:'we’ve sent a new link'}).waitFor();assert.deepEqual(resends.at(-1),{login:'fresh@example.com'});
    await p.goto(base+'/');await p.locator('input[name=login]').waitFor();await p.locator('input[name=login]').fill('pending@example.com');await p.locator('input[name=password]').fill('fictional long passphrase');
    await p.locator('button[type=submit]').click();await p.locator('#l-resend').waitFor();assert.equal(await p.locator('#l-reset').count(),1);assert(await p.locator('#l-recovery a').evaluate(n=>n.getBoundingClientRect().height>=44),'reset target is at least 44 px');await shot('login-pending');await fit();cases++;
    await p.locator('#l-resend').click();await p.locator('#l-recovery-status').filter({hasText:'we’ve sent a new link'}).waitFor();assert.deepEqual(resends.at(-1),{login:'pending@example.com'});
    await p.locator('#l-reset').click();await p.locator('input[name=login]').waitFor();assert.equal(await p.locator('input[name=login]').inputValue(),'pending@example.com');cases++;
    await p.goto(base+'/');await p.locator('input[name=login]').waitFor();await p.locator('input[name=login]').fill('mail-unavailable@example.com');await p.locator('input[name=password]').fill('fictional long passphrase');
-   await p.locator('button[type=submit]').click();await p.locator('.err').filter({hasText:'email is not available'}).waitFor();assert.equal(await p.locator('#l-recovery a, #l-recovery button').count(),0,'no unusable recovery links when mail is unavailable');assert.match(await p.locator('.err').innerText(),/Sign in with your @username or ask the person who runs it/);await shot('login-mail-unavailable');await fit();cases++;
+   await p.locator('button[type=submit]').click();await p.locator('.err').filter({hasText:'email is unavailable'}).waitFor();assert.equal(await p.locator('#l-recovery a, #l-recovery button').count(),0,'no unusable recovery links when mail is unavailable');assert.match(await p.locator('.err').innerText(),/email feedback@kinetta\.app/);await shot('login-mail-unavailable');await fit();cases++;
+   closed=true;await p.goto(base+'/');await p.locator('.login-new').filter({hasText:'feedback@kinetta.app'}).waitFor();await shot('login-invite-support');
+   await p.locator('input[name=login]').fill('suspended@example.com');await p.locator('input[name=password]').fill('fictional long passphrase');await p.locator('button[type=submit]').click();await p.locator('.err').filter({hasText:'account is suspended'}).waitFor();assert.match(await p.locator('.err').innerText(),/email feedback@kinetta\.app/);await p.locator('input[name=password]').fill('');await p.evaluate(()=>document.activeElement?.blur());await shot('login-suspended');cases++;
+   await p.locator('#l-forgot').click();await p.locator('input[name=login]').fill('mail-unavailable@example.com');await p.locator('button[type=submit]').click();await p.getByRole('heading',{name:'Email recovery unavailable'}).waitFor();assert.match(await p.locator('.form').innerText(),/feedback@kinetta\.app/);await shot('forgot-unavailable');cases++;
    // Password-recovery navigation keeps only the validated local invitation origin.
    await p.goto(base+'/join/'+token);await p.locator('#j-login').waitFor();assert.equal(accepts.length,0);
    await p.locator('input[name=name]').fill('Invite Example');await p.locator('input[name=email]').fill('invited@example.com');await p.locator('input[name=password]').fill(password);
@@ -155,6 +160,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await p.evaluate(()=>refreshMe({...App.me,units:'metric',bio:'Fictional refreshed profile'}));await saveRelease();await until(p,()=>App.me.login==='new_profile_name','Current profile updated');assert.equal(await p.evaluate(()=>App.me.bio),'Fictional refreshed profile');assert.equal(await p.evaluate(()=>kept('/api/me').login),'new_profile_name');cases++;
    // A removed form never starts a delayed lookup.
    await p.evaluate(()=>accountSheet('login'));await p.locator('#ac input').fill('detached_choice');const before=checks.length;await p.getByRole('dialog').locator('[data-close]').first().click();await p.waitForTimeout(500);assert.equal(checks.length,before);cases++;
+   await p.evaluate(()=>{App.me=null;store.del('kinetta.firstRunWelcomeSeen');showFirstRunWelcome();});await p.locator('#first-run-create').waitFor();await until(p,()=>document.querySelector('#first-run-create')?.textContent==='Ask for an invite','Invite-only first-run action');await p.locator('#first-run-create').click();await p.locator('#first-run-status').filter({hasText:'feedback@kinetta.app'}).waitFor();assert.doesNotMatch(await p.locator('#first-run-status').innerText(),/person who runs/i);await shot('first-run-invite-support');
    await fit();assert.deepEqual(errors,[]);console.log(`Signup uniqueness ${width}px ${theme}: debounce, stale replies, duplicate links, recovery/explicit invitation, edit conflict/refresh/detach PASS`);
   }finally{await c.close();}
  }
