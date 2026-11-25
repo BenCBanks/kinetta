@@ -4,7 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from kit_setting_smoke import CASE_IDS,CAP_USD,input_digest,cached_low,cached_rows,prepare_cache
+from kit_setting_smoke import CASE_IDS,CAP_USD,input_digest,cached_low,cached_rows,prepare_cache,replay_row
 from kit_cases import CASES
 
 
@@ -37,6 +37,16 @@ class Settings(unittest.TestCase):
         report['results'].append(report['results'][0])
         with self.assertRaises(ValueError):cached_rows(report,'exact',{'baseline':'LOW'},replay)
 
+
+    def test_replay_does_not_grandfather_a_now_unsafe_success(self):
+        row={'passed':True,'answer':{'interpretation':'Old answer'},'answer_evidence':[{'fictional':True}],
+             'provider_turns':[{'raw_model_json':'{}'}]}
+        def reject(*args,**kwargs):raise ValueError('numeric_unsupported')
+        replay=replay_row(row,json.loads,reject)
+        self.assertFalse(replay['passed']);self.assertIsNone(replay['answer'])
+        self.assertIn('numeric_unsupported',replay['error'])
+        row['error']='HTTPException: 429: AI is paused.'
+        self.assertIsNone(replay_row(row,json.loads,reject))
 
     def test_source_and_date_identity(self):
         root=Path(__file__).resolve().parents[2]

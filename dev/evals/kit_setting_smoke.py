@@ -66,6 +66,23 @@ def prepare_cache(root, report, cases, files):
     return {**report,'input_digest':current,'digest_version':2,'source_report_commit':revision}
 
 
+
+def replay_row(row,parse,check):
+    from kit_eval_support import capped
+    if row.get('expected_refusal') and row.get('passed'):return {}
+    turns=row.get('provider_turns') or (row.get('rejection') or {}).get('provider_turns',[])
+    raw=next((t.get('raw_model_json') for t in reversed(turns) if t.get('raw_model_json')),None)
+    evidence=row.get('answer_evidence') or (row.get('rejection') or {}).get('answer_evidence')
+    if not raw or not evidence or capped(row.get('error')):return None
+    try:
+        answer=check(parse(raw),evidence,kit=True,weekly_review=row.get('weekly_review',False),
+                     conversation_question=row.get('question'))
+    except ValueError as error:
+        return {'answer':None,'error':'Replay '+type(error).__name__+': '+str(error)[:350],
+                'passed':False,'revalidated':True}
+    return {'answer':answer,'error':None,'passed':True,'revalidated':True,'rejection':None}
+
+
 def cached_rows(report,digest,settings,recheck,*,low_only=False):
     if report.get('setting_smoke') is not True or report.get('input_digest')!=digest:
         raise ValueError('Resume inputs differ; use a fresh smoke')
