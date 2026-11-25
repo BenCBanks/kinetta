@@ -95,7 +95,10 @@ for device in preferred:
   (a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
   print('Booting native UI device: '+device['name'],flush=True)
   # A fresh hosted runner must initialize the iOS runtime; this can exceed three minutes.
-  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--cellularMode','active','--cellularBars','4','--batteryState','discharging' if a.homepage else 'charged','--batteryLevel','100')
+  sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480)
+  def store_status_bar():
+   # Simulator status overrides can reset between app launches/scenes; set them for every frame.
+   sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--cellularMode','active','--cellularBars','4','--batteryState','discharging','--batteryLevel','100')
   installed=None;recovered=False
   store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else []
   themes=(('light',store_stages),('dark',['activity'])) if a.store else tuple((theme,layout_stages(theme)) for theme in ('light','dark'))
@@ -144,6 +147,7 @@ for device in preferred:
      startup_rows.append({'device':device['name'],'phases':timing['phasesMs']})
      phases=timing['phasesMs']
      print('IOS_COLD_START '+device['name']+' '+ ' '.join(f'{key}={value:.1f}ms' for key,value in phases.items()),flush=True)
+    if a.store:store_status_bar()
     capture=a.output/(filename+('.jpg' if a.store else '.png'))
     sim('io',udid,'screenshot','--type='+('jpeg' if a.store else 'png'),str(capture))
     metrics.update(device=device['name'],runtime=runtime['name'],terminationRecovery=recovered);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
@@ -186,10 +190,11 @@ for device in preferred:
       assert 'Today' in metrics['bodyText'] and 'Kit’s estimate' in metrics['bodyText'] and 'estimated portion' in metrics['bodyText'], 'Kit chat must show Today and a fictional estimated portion'
      if stage=='header-progress':
       crop=metrics.get('storeCrop');assert crop and crop['selector']=='#p-explore [data-progress-feature="weight"]' and crop['bottom']<=crop['tabTop'], 'Progress crop must keep the complete Weight row above the tab bar without overlap'
+      assert 'Training plan' not in metrics['bodyText'], 'Progress Store crop must end with Weight and not show a clipped Training plan row'
       assert '26:30' in metrics['bodyText'] and '25:00' in metrics['bodyText'], 'Fitness and Records must show distinct fictional times'
      if stage=='header-track':
       assert 'GPS ready' in metrics['bodyText'] and 'OpenStreetMap contributors' in metrics['bodyText'], 'Track must show backed GPS status and map credit'
-      track_crop=metrics.get('storeMapCrop');assert track_crop and track_crop['height']>=250 and track_crop['credit'], 'Track map crop must stay zoomed out, taller, and retain its map credit'
+      track_crop=metrics.get('storeMapCrop');assert track_crop and track_crop['height']>=390 and track_crop['credit'], 'Track map crop must be about 1.6x taller and retain its map credit'
      if stage.startswith('header-') or stage=='achievements':
       top=metrics.get('topBand',{});assert top.get('glyph',{}).get('y',-1)>=metrics['safeTop']-1, f'{stage} top heading is fully visible: {top}'
      if stage!='food' and metrics['navigation']['visible']:

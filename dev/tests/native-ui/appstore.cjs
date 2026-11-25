@@ -10,7 +10,11 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
  activity.name='Morning park run';activity.start_time='2026-11-02T08:30:00Z';
  activity.visibility='friends';activity.social={...activity.social,visibility:'friends'};
  const paceSamples=Array.from({length:30},(_,i)=>({t:Math.round(i*1800/29),d:Math.round(i*5000/29)}));
- activity.chart={t:paceSamples.map(s=>s.t),d:paceSamples.map(s=>s.d),speed:paceSamples.map((_,i)=>2.62+Math.sin(i/4)*.22),hr:paceSamples.map((_,i)=>137+Math.round(Math.sin(i/5)*9)),alt:paceSamples.map((_,i)=>18+Math.round(Math.sin(i/6)*12)),cad:paceSamples.map((_,i)=>164+Math.round(Math.sin(i/3)*3))};
+ const paceNoise=[0,.04,-.03,.08,.01,-.06,.03,-.02,.11,.02,-.05,.04,-.09,.01,.06,-.02,.08,-.04,.02,-.1,.05,.01,-.03,.09,-.04,.03,-.07,.06,-.02,0];
+ const hrNoise=[0,1,-2,2,0,3,-1,2,-3,1,2,-2,4,-1,0,3,-2,1,-1,2,-3,2,0,-1,3,-2,1,-1,2,0];
+ const altNoise=[0,1,-1,2,0,2,-2,1,3,-1,0,-2,1,2,-1,0,2,-2,1,3,-1,0,2,-2,1,0,-1,2,0,-1];
+ const cadenceNoise=[0,1,-2,1,0,2,-1,0,1,-2,2,0,-1,1,0,-2,2,1,-1,0,2,-1,0,1,-2,1,0,-1,2,0];
+ activity.chart={t:paceSamples.map(s=>s.t),d:paceSamples.map(s=>s.d),speed:paceNoise.map(n=>2.62+n),hr:hrNoise.map(n=>137+n),alt:altNoise.map((n,i)=>18+Math.round(i*.12)+n),cad:cadenceNoise.map(n=>164+n)};
  if(homepage){activity.visibility='me';activity.social={...activity.social,visibility:'me',my_reaction:'thumbsup',reactions:{thumbsup:1,fire:2,clap:1},reaction_order:['fire','clap','thumbsup'],cheers:[
   {login:'alex',name:'Alex Example',kind:'thumbsup'},{login:'jordan',name:'Jordan Example',kind:'fire'},
   {login:'casey',name:'Casey Example',kind:'fire'},{login:'taylor',name:'Taylor Example',kind:'clap'}
@@ -21,7 +25,7 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
  assert.equal(activity.start_time.slice(0,10),today,'the App Store Home scene includes a workout today');
  const friendActivity={...activity,id:2,name:'Park loop with friends',start_time:'2026-11-01T08:00:00Z',owner:friends.friends[0],visibility:'friends',sport_label:null,speed_available:true,shares:{pace:true,map:true},cheers:0,comments:0,reactions:{cheer:0,strong:0,applause:0},my_reaction:null,cheered:false};
  const macros={kcal:1200,protein_g:90,carbs_g:180,fat_g:52,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
- const entries=[['Oatmeal with blueberries','breakfast',500,25,80,12],['Chicken salad bowl','lunch',700,65,100,40]].map(([name,meal,kcal,protein_g,carbs_g,fat_g],i)=>({...macros,id:i+1,day:today,name,meal,kcal,protein_g,carbs_g,fat_g,amount:i===1?180:1,unit:i===1?'g':'serving',source:'quick',ref:i===1?{origin:'ai',estimated_portion:true}:null}));
+ const entries=[['Oatmeal with blueberries','breakfast',500,25,80,12],['Chicken salad bowl','lunch',700,65,100,40]].map(([name,meal,kcal,protein_g,carbs_g,fat_g],i)=>({...macros,id:i+1,day:today,name,meal,kcal,protein_g,carbs_g,fat_g,amount:i===1?180:1,unit:i===1?'g':'serving',source:i===0?'ai':'quick',ref:i===0?{origin:'ai',estimated_portion:true}:null}));
  const weeklyWorkouts=[2,4,1,5,3,6,2];
  const weeks=[12,24,8,32,20,36,8].map((km,i)=>({d:date((6-i)*7+1),end:i===6?today:date((6-i)*7-5),distance_m:km*1000,activities:weeklyWorkouts[i],time_s:km*360,by_sport:{run:km*1000},today:i===6}));
  const days=Array.from({length:7},(_,i)=>({d:date(1-i),distance_m:i<2?4000:0,activities:i<2?1:0,time_s:i<2?1440:0,by_sport:i<2?{run:4000}:{},today:i===1,future:i>1}));
@@ -63,9 +67,10 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
  assert.equal(activity.visibility,homepage?'me':'friends','the Store own card uses Friends and the Homepage reaction fixture stays private');
  assert.equal(activity.social.visibility,homepage?'me':'friends','activity detail privacy matches the Store/Homepage fixture mode');
  assert.equal(activity.chart.speed.length,30,'the Activity detail pace chart has thirty fictional samples');
+ assert(new Set(activity.chart.speed).size>15,'the Activity detail pace chart uses varied, non-sinusoidal fictional samples');
  assert.equal(responses['/api/me'].friend_requests,0,'App Store screenshots do not show a Me badge');
  assert.equal(responses['/api/food/day'].burned.bmr_exact,true,'Nutrition fixture includes complete body details');
- assert.equal(responses['/api/food/day'].entries[1].ref.estimated_portion,true,'Kit chat fixture includes an estimated portion');
+ assert.equal(responses['/api/food/day'].entries[0].ref.estimated_portion,true,'Kit chat fixture includes an estimated breakfast portion');
  for(const key of ['kcal','protein_g','carbs_g','fat_g'])assert.equal(entries.reduce((sum,e)=>sum+e[key],0),macros[key],`Nutrition entries sum to their ${key} total`);
  const [lat,lon]=require('../../demo/routes.json')['park loop'][0];
  const currentWeek=weeks.find(row=>row.today),currentDays=days.filter(row=>!row.future);

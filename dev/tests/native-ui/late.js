@@ -6,7 +6,17 @@
   if(cfg.store){Native.setBadge=()=>Promise.resolve();Native.haptic=()=>{};Challenges.resumeSignup=()=>Promise.resolve();}
   if(cfg.store&&cfg.stage==='header-track'){
     const style=document.createElement('style');
-    style.textContent='#track-ready-map-wrap{height:250px!important;flex:none!important}#track-ready-map{height:100%!important}';
+    style.textContent='#track-ready-map-wrap{height:400px!important;min-height:400px!important;flex:none!important}#track-ready-map{height:100%!important;min-height:400px!important}#track-gps-chip:not([hidden]){display:block!important;padding:7px 12px!important;border:1px solid var(--line)!important;border-radius:999px!important;background:var(--card)!important;box-shadow:0 2px 10px #0002!important;color:var(--tx)!important}.track-sport-row{align-items:center!important}.track-sport-row #track-other{align-self:center!important;margin:0!important}';
+    (document.head||document.documentElement).append(style);
+  }
+  if(cfg.store&&cfg.stage==='header-food'){
+    const style=document.createElement('style');
+    style.textContent='.nutrition-day-summary{position:relative!important}.nutrition-day-summary>.nutrition-summary-tools{position:absolute!important;top:8px!important;right:8px!important;z-index:2!important;height:44px!important;margin:0!important}.nutrition-day-summary>.nutrition-summary-tools .nutrition-goals{width:44px;height:44px}';
+    (document.head||document.documentElement).append(style);
+  }
+  if(cfg.store&&cfg.stage==='header-progress'){
+    const style=document.createElement('style');
+    style.textContent='#p-explore>[data-progress-feature="weight"]~[data-progress-feature]{display:none!important}';
     (document.head||document.documentElement).append(style);
   }
   if(cfg.headerPage||cfg.store||cfg.groups){
@@ -169,6 +179,11 @@
     if(cfg.store&&cfg.stage==='activity'){const selector='#d-charts .chartbox[data-chart-index="1"]';await waitForStoreCrop(selector);storeCrop=await positionStoreCrop(selector);}
     if(cfg.store&&cfg.stage==='header-progress')storeCrop=await positionStoreCrop('#p-explore [data-progress-feature="weight"]');
     if(cfg.store&&cfg.stage==='header-track')storeMapCrop=await frameStoreTrackMap();
+    if(cfg.store&&cfg.stage==='food'){
+      // Keep the two logged food cards close to the composer in this full-height Store frame.
+      const messages=document.querySelector('.kit-food-inline #thread-messages');
+      if(messages)messages.style.setProperty('align-content','end','important');
+    }
     if(cfg.stage==='review')finishDish(cfg.dish);
     if(cfg.stage==='achievement-share-track'){
       let runTab=null;for(let n=0;n<100;n++){runTab=document.querySelector('#profile-achievement-page[aria-busy="false"] [data-achievement-sport="run"]');if(runTab)break;await new Promise(ok=>setTimeout(ok,100));}if(!runTab)throw Error('Run achievement tab is missing');runTab.click();
@@ -187,6 +202,17 @@
     }
     await document.fonts.ready;await new Promise(ok=>setTimeout(ok,2000));
     if(cfg.store)await waitForStorePaint();
+    if(cfg.store&&cfg.stage==='activity'){
+      // Production styles use one accent fill for every series; tint each fixture area from its own line color.
+      for(const chart of document.querySelectorAll('#d-charts .chartbox')){
+        const area=chart.querySelector('.sample-area'),color=area?.nextElementSibling?.getAttribute('stroke');
+        if(area&&color){area.style.setProperty('fill',`color-mix(in srgb, ${color} 22%, var(--card))`,'important');area.style.setProperty('opacity','.9','important');}
+      }
+    }
+    if(cfg.store&&cfg.stage==='food'){
+      const label=document.querySelector('.kit-food-inline #thread-context .thread-context-label');
+      if(label)label.textContent='Today';
+    }
     if(cfg.activityFeed){let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#ff-list .post[data-href="/activity/1"]')&&!!document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Fictional own and friend Activity cards did not finish rendering');}
     // Route startup restores scroll on its next frame; exercise scrolling only once it has settled.
     if(cfg.stage==='activity-sticky'){document.querySelector('.dtabs').scrollIntoView({block:'start'});for(let n=0;n<150;n++){if(!document.querySelector('.detail-sticky').hidden&&document.querySelector('.detail-map-hero').getBoundingClientRect().bottom<=0)break;await new Promise(ok=>setTimeout(ok,100));}}
