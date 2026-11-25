@@ -2,7 +2,7 @@
 import argparse,json,math,re,shutil,subprocess,uuid
 from datetime import datetime
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-photos-save','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements','achievement-share-track'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--homepage',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');p.add_argument('--startup-timing',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-photos-save','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements','achievement-share-track'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--homepage',action='store_true');p.add_argument('--tour');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');p.add_argument('--startup-timing',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
 assert a.destination.suffix=='.app' and a.destination.resolve()!=a.source.resolve()
 if a.update:
@@ -22,6 +22,11 @@ if a.stage=='header-activity' and not a.store:
   fixture_data['friends'][0]['owner']['name']='River Friend 1 With a Long Fictional Name'
  config['activityFeed']=fixture_data
 if a.store:config['store']=json.loads(subprocess.check_output(['node','-e',"process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2]==='true')))" ,str(fixture/'appstore.cjs'),str(a.homepage).lower()],text=True))
+if a.tour:
+ assert a.store,'Tour scenes require the fail-closed Store fixture'
+ config['store']=json.loads(subprocess.check_output(['node','-e',"process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2])))",str(fixture/'tour.cjs'),a.tour],text=True))
+ config['tour']=config['store'].pop('tour')
+ shutil.copyfile(fixture.parents[1]/'demo/photos/freedom-park-lake.jpg',public/'static/tour-park.jpg')
 fixture_now=config['store']['now'] if a.store else '2026-11-02T12:00:00Z'
 try:
  parsed_fixture_now=datetime.fromisoformat(str(fixture_now).replace('Z','+00:00'))
@@ -34,7 +39,7 @@ if a.store:
  assert a.map_config and a.map_config.is_file(),'Store scenes require the public basemap contract'
  config['store']['responses']['/api/map-config']=json.loads(a.map_config.read_text())
  config['store']['mapUrl']=config['store']['responses']['/api/map-config']['url']
-if a.stage.startswith('header-'):config['headerPage']=a.stage.removeprefix('header-')
+if a.stage.startswith('header-') and not a.tour:config['headerPage']=a.stage.removeprefix('header-')
 if a.stage=='achievements':config['headerPage']='achievements'
 if a.stage=='achievement-share-track':
  config['headerPage']='achievements'
@@ -50,7 +55,7 @@ if a.stage=='achievement-share-track':
 if a.stage.startswith('groups-'):config['groups']=True
 if a.stage.startswith('friends-'):
  config['friends']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2])))',str(fixture.parents[1]/'demo/friends.cjs'),a.stage.removeprefix('friends-')],text=True))
-if a.stage.startswith('activity'):
+if a.stage.startswith('activity') and not a.tour:
  config['activity']=json.loads(subprocess.check_output(['node','-e',"process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2]==='true')))",str(fixture.parents[1]/'demo/activity_detail.cjs'),str(a.stage=='activity-empty').lower()],text=True))
 if a.stage.startswith('track-'):
  config['recording']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',str(fixture.parents[1]/'demo/track_session.cjs')],text=True))

@@ -25,7 +25,7 @@
     FixtureDate.parse=NativeDate.parse;
     FixtureDate.UTC=NativeDate.UTC;
     globalThis.Date=FixtureDate;
-    if(cfg.store&&['activity','header-track','header-activity'].includes(cfg.stage)){
+    if(cfg.store&&(cfg.tour?.map||['activity','header-track','header-activity'].includes(cfg.stage))){
       cfg.advanceFixtureClock=milliseconds=>{
         if(fixtureClockAdvanced||milliseconds!==250)return false;
         const before=new NativeDate(epoch),after=new NativeDate(epoch+milliseconds);
@@ -36,7 +36,7 @@
   }
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
   cfg.mePreloadCount=Array.from(document.querySelectorAll?.('link[rel="preload"][as="fetch"]')||[]).filter(link=>new URL(link.href,location.href).pathname==='/api/me').length;
-  history.replaceState(null,'',cfg.stage==='achievements'?'/me/achievements':cfg.stage==='achievement-share-track'?'/me/achievements#run':cfg.headerPage?'/'+cfg.headerPage:cfg.groups?'/me/groups':cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
+  history.replaceState(null,'',cfg.tour?.route|| (cfg.stage==='achievements'?'/me/achievements':cfg.stage==='achievement-share-track'?'/me/achievements#run':cfg.headerPage?'/'+cfg.headerPage:cfg.groups?'/me/groups':cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1'));
   if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}
   const nutrients={kcal:450,protein_g:30,carbs_g:40,fat_g:19,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
   cfg.dish={id:1,name:'Fictional recipe',named:true,mine:true,items:[],known:nutrients,totals:nutrients,recipe_source:{},serving:'one',servings:1,serving_count:1,weight_g:null,items_g:null,weighed:false,shared_with:[],owner:{login:'zz_test_native',name:'Demo'}};
@@ -50,9 +50,10 @@
       if(cfg.store){
         const method=options.method||input?.method||'GET',key=p.startsWith('/api/food/thread/reviews/draft/')?'/api/food/thread':p;
         const responseKey=method==='GET'?key:`${method} ${p}`;
-        const allowed=method==='GET'||(method==='POST'&&p==='/api/milestones/celebrate');
+        const allowed=method==='GET'||(method==='POST'&&(p==='/api/milestones/celebrate'||(cfg.tour&&p==='/api/coach/conversation/visits')));
         if(!allowed||!Object.hasOwn(cfg.store.responses,responseKey)){cfg.blocked.push(method+' '+p);throw Error('Store fixture blocked unexpected request');}
         const data=structuredClone(cfg.store.responses[responseKey]);
+        if(cfg.tour&&p==='/api/coach/conversation/visits')data.visit_id=JSON.parse(options.body).visit_id;
         if(key==='/api/food/thread'){const draft=p.split('/').at(-1);for(const m of data.messages)if(m.kind==='user'){m.captured_at=m.created;m.result={...m.result,draft_id:draft,kind:'log'};}}
         return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
       }

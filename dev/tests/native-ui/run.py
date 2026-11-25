@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 import urllib.request
 from lifecycle import stop_for_fixture
+TOUR_STAGES=tuple(json.loads(subprocess.check_output(['node','-e',"process.stdout.write(JSON.stringify(Object.keys(require('./dev/tests/native-ui/tour.cjs').scenes)))"],text=True)))
 from header_geometry import check_headers
 # 6.9-inch App Store story order: Home feed, Activity, Track, Nutrition day,
 # Kit food chat, Progress, Me (including featured badges), then Friends.
@@ -25,10 +26,10 @@ def assert_minified_bundle(app):
   raw=sum((Path('app/static')/name).stat().st_size for name in names)
   assert len(target.read_bytes())<raw,'Native app received an unminified '+bundle
   for name in names:assert f'/*! {name} */' in target.read_text(),'Native bundle missing module marker: '+name
-p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--homepage',action='store_true',help='Capture the three fictional homepage screens in light and dark.');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--homepage',action='store_true',help='Capture the three fictional homepage screens in light and dark.');p.add_argument('--tour',action='store_true',help='Capture fictional website tours only; never publish site assets.');p.add_argument('--tour-scene',action='append',choices=TOUR_STAGES);p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 assert_minified_bundle(a.app)
-assert not (a.store and a.homepage),'Choose Store or homepage captures, not both'
-assert not ((a.store or a.homepage) and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'
+assert sum((a.store,a.homepage,a.tour))<=1,'Choose one capture mode'
+assert not ((a.store or a.homepage or a.tour) and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
  except subprocess.TimeoutExpired as error:
@@ -58,15 +59,15 @@ preferred=[]
 for names in [('iPhone SE (3rd generation)','iPhone 16e','iPhone 17'),('iPhone 17 Pro','iPhone 16 Pro','iPhone 16 Pro Max')]:
  choice=next((t for name in names for t in iphones if t['name']==name),None)
  if choice:preferred.append(choice)
-if a.homepage:
+if a.homepage or a.tour:
  preferred=[next((t for t in iphones if t['name']=='iPhone 16'),None)]
  assert preferred[0],'The 393×852 iPhone 16 Simulator type is required for homepage shots'
 elif a.store:
  preferred=[next((t for t in iphones if t['name']=='iPhone 16 Pro Max'),None)]
  assert preferred[0], 'Exact1320x2868 iPhone16ProMax Simulator type required; no fallback/upscaling'
-assert a.store or a.homepage or len(preferred)==2,'Two phone device types are required'
-if not (a.store or a.homepage) and a.device!='all':preferred=[preferred[0 if a.device=='compact' else 1]]
-store_fixture=a.store or a.homepage
+assert a.store or a.homepage or a.tour or len(preferred)==2,'Two phone device types are required'
+if not (a.store or a.homepage or a.tour) and a.device!='all':preferred=[preferred[0 if a.device=='compact' else 1]]
+store_fixture=a.store or a.homepage or a.tour
 if store_fixture:
  expected=a.output/'expected-static'
  run('python3','app/asset_build.py','app/static',str(expected))
@@ -88,7 +89,7 @@ for device in preferred:
  try:
   try:udid=sim('create','KinettaLayout-'+uuid.uuid4().hex[:8],device['identifier'],runtime['identifier'])
   except subprocess.CalledProcessError:
-   if a.store or a.homepage:raise
+   if store_fixture:raise
    candidate=next((d for d in existing if d.get('deviceTypeIdentifier') and (('Pro' in d['name'])==('Pro' in device['name']))),None)
    if not candidate:raise
    device={'name':candidate['name'],'identifier':candidate['deviceTypeIdentifier']};udid=sim('create','KinettaLayout-'+uuid.uuid4().hex[:8],device['identifier'],runtime['identifier'])
@@ -100,7 +101,9 @@ for device in preferred:
   installed=None;recovered=False
   for theme in (('light',) if a.store else ('light','dark')):
    sim('ui',udid,'appearance',theme)
-   if a.homepage:
+   if a.tour:
+    stages=[(name,16) for name in (a.tour_scene or TOUR_STAGES)]
+   elif a.homepage:
     stages=[(name,16) for name in ('activity','header-me','achievements')]
    elif a.store:
     store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])]));stages=[(name,16) for name in store_stages]
@@ -113,7 +116,7 @@ for device in preferred:
     if installed:recovered=stop_for_fixture(sim,udid,theme,recovered)
     diagnostics['terminationRecovery']=recovered;(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     destination=installed or copy
-    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if store_fixture else []),*(['--homepage'] if a.homepage else []),*(['--startup-timing'] if measure_startup else []))
+    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage','header-me' if a.tour else stage,*(['--tour',stage] if a.tour else []),'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if store_fixture else []),*(['--homepage'] if a.homepage else []),*(['--startup-timing'] if measure_startup else []))
     if not installed:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
     if stage=='activity-photos-save':sim('privacy',udid,'grant','photos-add','com.kinetta.app')
@@ -144,6 +147,7 @@ for device in preferred:
      startup_rows.append({'device':device['name'],'phases':timing['phasesMs']})
      phases=timing['phasesMs']
      print('IOS_COLD_START '+device['name']+' '+ ' '.join(f'{key}={value:.1f}ms' for key,value in phases.items()),flush=True)
+    if a.tour:sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--cellularMode','active','--cellularBars','4','--batteryState','discharging','--batteryLevel','100',timeout=20)
     capture=a.output/(filename+('.jpg' if a.store else '.png'))
     sim('io',udid,'screenshot','--type='+('jpeg' if a.store else 'png'),str(capture))
     metrics.update(device=device['name'],runtime=runtime['name'],terminationRecovery=recovered);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
@@ -154,7 +158,7 @@ for device in preferred:
     assert metrics['mePreloadCount']==0,metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
-    if a.homepage:
+    if a.homepage or a.tour:
      assert metrics.get('store') and metrics.get('sceneReady') and not metrics.get('blocked'), 'Homepage screenshot must use the fictional Store API fixture: '+json.dumps({'stage':stage,'theme':theme,'store':metrics.get('store'),'sceneReady':metrics.get('sceneReady'),'blocked':metrics.get('blocked')},sort_keys=True)
      assert metrics['viewport']=={'width':393,'height':852,'offset':0},'Homepage capture must match the 393×852 site frame: '+json.dumps(metrics['viewport'])
      if stage=='activity':
@@ -162,7 +166,7 @@ for device in preferred:
       assert not social.get('hidden') and social.get('triggerKind')=='thumbsup' and social.get('triggerGlyph')=='👍','Homepage Activity must show its fictional thumbs-up reaction trigger: '+json.dumps(social,sort_keys=True)
       assert social.get('reactions')==[{'kind':'fire','count':'2'},{'kind':'clap','count':'1'}],'Homepage Activity must show Apple emoji reaction counts: '+json.dumps(social,sort_keys=True)
       assert social.get('commentLabel')=='2 comments' and social.get('commentCount')=='2','Homepage Activity must show its fictional comment count: '+json.dumps(social,sort_keys=True)
-    assert nav['visible']==(stage in ('activity','activity-photos-save','activity-sticky','activity-empty','achievements','achievement-share-track') or stage.startswith(('friends-','header-')) or stage.startswith('groups-')),metrics
+    if not a.tour:assert nav['visible']==(stage in ('activity','activity-photos-save','activity-sticky','activity-empty','achievements','achievement-share-track') or stage.startswith(('friends-','header-')) or stage.startswith('groups-')),metrics
     if stage=='activity-photos-save':
      proof=metrics.get('photosSave',{});assert proof.get('saved') is True and 'photos' in proof.get('status','').lower(), 'Unsigned Simulator must save the fictional activity PNG to its Photos library: '+json.dumps(proof,sort_keys=True)
      assert proof.get('imageWidth')==1080 and proof.get('imageHeight')==1920, 'Activity Story preview must save the full-size 1080×1920 image: '+json.dumps(proof,sort_keys=True)
@@ -193,10 +197,13 @@ for device in preferred:
      metrics['sha256']=hashlib.sha256(raw).hexdigest();metrics['captureToolRevision']=run('git','rev-parse','HEAD');metrics['bundleAssetsVerifiedAgainst']=metrics['captureToolRevision']
      (a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
      results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2));continue
-    if a.homepage:
+    if a.homepage or a.tour:
      dimensions=run('sips','-g','pixelWidth','-g','pixelHeight',str(capture))
      assert capture.read_bytes().startswith(b'\x89PNG\r\n\x1a\n') and re.search(r'pixelWidth: 1179\b',dimensions) and re.search(r'pixelHeight: 2556\b',dimensions), 'iPhone 16 Simulator capture must be an unmodified 1179×2556 PNG'
-     homepage_captures.append({'stage':stage,'theme':theme,'png':capture.name,'device':device['name'],'runtime':runtime['name'],'sdk':sdk,'viewport':metrics['viewport'],'safeTop':metrics['safeTop'],'fixture':'dev/tests/native-ui/appstore.cjs','sha256':hashlib.sha256(capture.read_bytes()).hexdigest()})
+     homepage_captures.append({'stage':stage,'theme':theme,'png':capture.name,'device':device['name'],'runtime':runtime['name'],'sdk':sdk,'viewport':metrics['viewport'],'safeTop':metrics['safeTop'],'fixture':'dev/tests/native-ui/tour.cjs' if a.tour else 'dev/tests/native-ui/appstore.cjs','sha256':hashlib.sha256(capture.read_bytes()).hexdigest()})
+    if a.tour:
+     assert not re.search(r'could not load|couldn.t load|Map unavailable|NaN|undefined',metrics.get('bodyText',''),re.I),metrics
+     results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2));continue
     if nav['visible']:
      box=nav['box'];assert box['x']>=8 and box['x']+box['width']<=metrics['viewport']['width']-8,metrics
      assert box['bottom']<metrics['viewport']['height'],metrics
@@ -293,6 +300,10 @@ for device in preferred:
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
 expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else sum(len(layout_stages(theme)) for theme in ('light','dark'))*len(preferred)
+if a.tour:
+ expected_count=2*len(a.tour_scene or TOUR_STAGES)
+ assert len(homepage_captures)==expected_count,'Every tour scene needs both themes'
+ (a.output/'tour-captures.json').write_text(json.dumps({'source_revision':run('git','rev-parse','HEAD'),'captures':homepage_captures},indent=2))
 if a.homepage:
  expected_count=6
  assert len(homepage_captures)==6 and {(item['stage'],item['theme']) for item in homepage_captures}=={(stage,theme) for stage in ('activity','header-me','achievements') for theme in ('light','dark')},'Homepage needs all three scenes in both themes'

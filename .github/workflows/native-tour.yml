@@ -1,0 +1,44 @@
+name: Native tour previews
+on:
+  pull_request:
+    paths: ["dev/tests/native-ui/tour.cjs", ".github/workflows/native-tour.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: native-tour-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  capture:
+    # Capture-only Draft evidence: no signing, releases, provider calls or site writes.
+    runs-on: macos-26-intel
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Build an unsigned Simulator app
+        working-directory: mobile
+        run: |
+          npm ci
+          npm run sync
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Capture fictional website tour candidates
+        timeout-minutes: 25
+        run: python3 dev/tests/native-ui/run.py --app mobile/build/Build/Products/Debug-iphonesimulator/App.app --output "$RUNNER_TEMP/native-tour" --tour
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-tour-previews
+          path: |
+            ${{ runner.temp }}/native-tour/*.png
+            ${{ runner.temp }}/native-tour/*.json
+          retention-days: 7
+          if-no-files-found: error
