@@ -58,6 +58,7 @@ f=json.load(sys.stdin);row={'name':'Fictional Journey','login':f['login'],'photo
 'challenge_code':f['challenge'],'challenge_kind':f['challenge_kind'],'challenge_target':f['challenge_target'],
 'challenge_unit':f['challenge_unit'],'start_day':dt.date.fromisoformat(f['challenge_start']),
 'end_day':dt.date.fromisoformat(f['challenge_end']),'comment':'Fictional encouragement',
+'group_friend_invite_id':1,  # Placeholder for the group-invite notification link fixture.
 'created':dt.datetime.now(dt.timezone.utc).isoformat(),'read':True}
 print(json.dumps([notify._item({**row,'id':index+1,'kind':kind}) for index,kind in enumerate(notify.KINDS)]))
 '''
