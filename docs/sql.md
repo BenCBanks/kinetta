@@ -101,3 +101,8 @@ cannot read any Kit threads, messages, visits, conversation state or preference 
 even its own. This exception also applies to legacy Kit messages. Application/table
 owners and database superusers retain technical access needed to operate the service;
 they are not reporting logins. The model SQL role has no archive access.
+
+Source invalidation **wipes the answer JSON in kit_turns itself** and keeps an
+irreversible invalidated_at marker, even after consent is restored. Personal SQL
+readers can still read their own question and marker, but the original answer is
+NULL; the API supplies the removal message. This is not API-only hiding.

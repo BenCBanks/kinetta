@@ -4,7 +4,7 @@ import io,json,uuid,zipfile,threading
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from app import auth,db,coach_chat,kit_tools,ai_release
+from app import auth,db,coach_chat,kit_tools,ai_release,ai_budget
 from app.main import app
 from app.api_mydata import _write_export
 uids=[];clients=[];pw='green kettle on a quiet hill'
@@ -48,7 +48,10 @@ try:
   assert req(a,'POST',root+'/messages',starter)['id']==stored['id'],'lost acknowledgement retries the same starter'
   req(a,'POST',root+'/messages',{**starter,'context':{'screen':'progress','starter_index':1}},409)
   assert req(a,'GET',root)['messages'][-1]['question']=='Am I improving?','reload reads the exact visible question'
-  with patch('app.coach_chat.answer',side_effect=ValueError('Kit could not verify that answer. Try again.')):
+  def rejected_output(*args,**kwargs):
+   ai_budget._reserved_hook.get()(uuid.uuid4())
+   raise ValueError('Kit could not verify that answer. Try again.')
+  with patch('app.coach_chat.answer',side_effect=rejected_output):
    failed=req(a,'POST',root+'/messages/'+starter['client_id']+'/answer',{'generation':generation})
    assert failed['state']=='failed' and failed['answer'] is None and failed['question']=='Am I improving?'
    assert failed['error']=='Kit could not verify that answer. Try again.'
