@@ -18,6 +18,7 @@ for(const name of Object.keys(tour.scenes)){
  assert.equal(f.tour.name,name);assert(f.tour.route.startsWith('/'));
  assert(f.tour.ready);assert.equal(r['/api/me'].name,'Alex Example');
  assert.equal(r['/api/friends'].friends.length,3);
+ assert.equal(r['/api/me'].kit_chat,true);assert.equal(r['/api/food/insights'].summary.days,30);
  assert.equal(r['/api/activities/1'].social.visibility,'friends');
  assert(!Object.keys(r).some(key=>/messages\/.*\/answer/.test(key)),'no provider-capable answer endpoint');
 }

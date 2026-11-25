@@ -24,11 +24,12 @@ module.exports=function(name){
  if(!Object.hasOwn(scenes,name))throw Error('Unknown native tour scene: '+name);
  const fixture=require('./appstore.cjs')(true),r=fixture.responses,today='2026-11-02',day=n=>new Date(Date.parse(today+'T12:00Z')-n*86400000).toISOString().slice(0,10);
  const run=r['/api/activities/1'];run.visibility=run.social.visibility='friends';run.ai_note=null;
+ if(name==='friends-audience')run.line=null;
  // Smooth fictional run with a slower hill; distance/time agree with the summary.
  const weights=Array.from({length:31},(_,i)=>1+.06*Math.sin(i*.4)-.1*Math.exp(-(((i-17)/3)**2))),scale=(5000/1800)/(weights.reduce((s,v)=>s+v,0)/weights.length);
  run.chart={t:weights.map((_,i)=>i*60),d:weights.map((_,i)=>5000*i/30),speed:weights.map(v=>v*scale),hr:weights.map((_,i)=>Math.round(130+20*(1-Math.exp(-i/7)))),alt:weights.map((_,i)=>20+12*Math.exp(-(((i-17)/5)**2))),cad:weights.map((_,i)=>164+Math.round(2*Math.sin(i*.3)))};
  run.avg_hr=Math.round(run.chart.hr.reduce((s,v)=>s+v,0)/31);
- Object.assign(r['/api/me'],{friend_requests:0,ai_ok:true,ai_features:{food:true,coach:true},health_ai_ok:true,garmin_ai_ok:true});
+ Object.assign(r['/api/me'],{friend_requests:0,kit_chat:true,coach:true,ai_ok:true,ai_features:{food:true,coach:true},health_ai_ok:true,garmin_ai_ok:true});
  r['/api/notifications/count'].friend_requests=0;
  r['/api/people/alex/profile'].sports=[{sport:'run',activities:110,distance_m:600000,time_s:210000},{sport:'walk',activities:30,distance_m:90000,time_s:81000},{sport:'ride',activities:24,distance_m:184000,time_s:60000}];
  r['/api/people/alex/profile'].person=r['/api/me'];
@@ -52,7 +53,7 @@ module.exports=function(name){
  if(name==='friends-home-feed'){r['/api/activities']=[];r['/api/feed/friends']=[{...friend,photos:[]}];}
  r['/api/food/weekly-review']={entries:0};r['/api/food/meals']=[{id:1,name:'Yogurt and berries',items:[{name:'Greek yogurt'},{name:'Blueberries'}],totals:{kcal:260}},{id:2,name:'Chicken salad bowl',items:[{name:'Chicken'},{name:'Mixed greens'}],totals:{kcal:520}}];
  r['/api/dishes']=[];r['/api/food/foods']=[];r['/api/food/usual']=[];
- r['/api/food/insights']={top_foods:[],rows:Array.from({length:30},(_,i)=>({day:day(29-i),eaten:1700+(i%5)*30,burned:2200,goal:1800,protein_g:100+(i%4)*5,carbs_g:190,fat_g:60,entries:4,counted:i<29,today:i===29,weight:70-i*.01,trend:70-i*.01})),summary:{start:day(29),logged:29,avg_eaten:1760,avg_protein_g:107,avg_carbs_g:190,avg_fat_g:60},targets:{kcal_target:1800,protein_target:110}};
+ r['/api/food/insights']={top_foods:[],rows:Array.from({length:30},(_,i)=>({day:day(29-i),eaten:1700+(i%5)*30,burned:2200,goal:1800,protein_g:100+(i%4)*5,carbs_g:190,fat_g:60,entries:4,counted:i<29,today:i===29,weight:70-i*.01,trend:70-i*.01})),summary:{start:day(29),days:30,logged:29,avg_eaten:1760,avg_protein_g:107,avg_carbs_g:190,avg_fat_g:60},targets:{kcal_target:1800,protein_target:110}};
  r['/api/food/review']={enabled:false,latest:null};
  const generation='00000000-0000-4000-8000-000000000010',answer={verdict:'Your recent running is building steadily.',reason:'You have kept a regular rhythm while adding distance.',facts:[{label:'Distance this week',display_value:'18.4 mi',path:['distance_m'],evidence_id:'e2'},{label:'Active days',display_value:'4 days',path:['active_days'],evidence_id:'e2'}],follow_ups:['Review my consistency','Help me plan my next week']};
  r['POST /api/coach/conversation/visits']={generation,ready:true};
