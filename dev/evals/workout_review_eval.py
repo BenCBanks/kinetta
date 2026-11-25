@@ -24,14 +24,19 @@ from workout_review_fixtures import CASES
 MODEL = 'gemini-3.8-flash'
 RUN_CAP_MICROS = 1_000_000
 SELECTED_CASES = (
-    'run faster metric', 'run slower imperial', 'run same pace',
+    'pace slower and heart rate lower', 'run slower imperial', 'run same pace',
     'pace same and heart rate higher', 'pace faster and heart rate lower',
     'ride speed faster metric', 'ride speed slower imperial', 'ride speed same',
     'walk pace', 'swim speed', 'strength summary only',
     'first run without baseline', 'one similar workout', 'missing heart rate',
-    'current distance imperial', 'hot day notable', 'hillier route notable',
-    'longest in ninety days', 'personal record notable', 'felt unknown without note',
+    'current distance imperial field alias', 'hot day notable', 'hillier route notable',
+    'longest in ninety days', 'personal record notable', 'pace faster and heart rate higher',
 )
+REQUIRED_QUALITY_CASES = frozenset({
+    'personal record notable', 'longest in ninety days', 'first run without baseline',
+    'hot day notable', 'hillier route notable', 'pace same and heart rate higher',
+    'pace faster and heart rate higher', 'strength summary only',
+})
 
 
 class RunBudgetReached(RuntimeError):
@@ -47,10 +52,19 @@ def main():
     args = parser.parse_args()
 
     fixture_by_name = {case['name']: case for case in CASES}
-    if len(SELECTED_CASES) != 20 or any(name not in fixture_by_name for name in SELECTED_CASES):
+    if (len(SELECTED_CASES) != 20 or len(set(SELECTED_CASES)) != 20
+            or not REQUIRED_QUALITY_CASES.issubset(SELECTED_CASES)
+            or any(name not in fixture_by_name for name in SELECTED_CASES)):
         raise RuntimeError('The selected fictional evaluation set is incomplete')
     if any(fixture_by_name[name]['expected'] != 'pass' for name in SELECTED_CASES):
         raise RuntimeError('Paid evaluation inputs must be successful-shape fixtures')
+    input_signatures = {
+        json.dumps([fixture_by_name[name]['units'], fixture_by_name[name]['data']],
+                   sort_keys=True, separators=(',', ':'))
+        for name in SELECTED_CASES
+    }
+    if len(input_signatures) != 20:
+        raise RuntimeError('The selected fictional evaluation inputs must be distinct')
 
     output = Path(args.output).expanduser().resolve()
     repo = ROOT

@@ -155,6 +155,8 @@ CASES = [
     fixture('reject five total sentences',raw=answer(data=comparison(),verdict='Clear. Useful. Noted. Thanks.'),expected='voice_invalid'),
     fixture('reject unnamed baseline',raw=answer(data=comparison(),verdict='Pace: {e2:1}.'),expected='voice_invalid'),
     fixture('pace same and heart rate higher',data={**comparison(),'deltas':{'pace_s_per_km':2,'avg_hr':4},'relations':{'pace_s_per_km':'about_the_same','avg_hr':'higher'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':2,'avg_hr':4},'relations':{'pace_s_per_km':'about_the_same','avg_hr':'higher'}})),
+    fixture('pace faster and heart rate higher',data={**comparison(),'deltas':{'pace_s_per_km':-12,'avg_hr':4},'relations':{'pace_s_per_km':'faster','avg_hr':'higher'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':-12,'avg_hr':4},'relations':{'pace_s_per_km':'faster','avg_hr':'higher'}})),
+    fixture('pace slower and heart rate lower',data={**comparison(),'deltas':{'pace_s_per_km':14,'avg_hr':-3},'relations':{'pace_s_per_km':'slower','avg_hr':'lower'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':14,'avg_hr':-3},'relations':{'pace_s_per_km':'slower','avg_hr':'lower'}})),
     fixture('pace faster and heart rate lower',data=comparison(),raw=multi_metric_answer(comparison())),
     fixture('reject harder feeling in verdict',data=comparison(),raw=answer(data=comparison(),verdict='Your run felt harder than usual. Compared with {baseline}, your pace was {e2:1}.'),expected='voice_invalid'),
     fixture('reject first person in verdict',data=comparison(),raw=answer(data=comparison(),verdict="I can't tell how it felt. Compared with {baseline}, your pace was {e2:1}."),expected='voice_invalid'),
