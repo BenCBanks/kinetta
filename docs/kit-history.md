@@ -10,7 +10,10 @@ Migration 119 adds owner-RLS threads and owner-constrained references from visit
 turns. The model role cannot browse the archive. Saved turns can be detached before
 24-hour visit cleanup; interrupted work becomes Retry without a provider call.
 Legacy unlinked visits retain their existing expiry. On upgrade, sensitive or unknown-provenance
-legacy answers are redacted conservatively; their questions and visits remain.
+legacy answers are retained in storage and account export but quarantined from history and
+model replay with replay_blocked_at. They are not deleted merely because source lineage is unknown.
+Upgrade erasure is limited to an actually disabled applicable AI/source permission; unused
+source toggles do not erase data. Consented preference notes remain intact.
 
 This foundation exposes no new endpoints or runtime activation. A separate API Draft
 will wire preservation into cleanup and stage history behind a default-off rollout
@@ -20,8 +23,9 @@ publication and client deletion confirmations accompany the reviewed rollout.
 Source deletion or consent revocation permanently wipes sensitive/unknown-provenance
 answers and cancels pending work; restoring consent or reimporting data cannot restore
 them. Questions and an irreversible invalidation timestamp remain until chat deletion.
-Database triggers cover profile consent changes, imported workout changes/deletion,
-Garmin disconnect, weight/sample/exclusion deletion, resting/day-energy records and
-workout projections. Projection rebuilds conservatively invalidate old sensitive answers.
-Sensitive preference notes are removed too. Owner reporting SQL cannot read Kit text.
-Single/all deletion removes visits and legacy turns as well as saved turns.
+Database triggers cover consent revocation, imported workout deletion, Garmin disconnect,
+weight/sample/exclusion removal, and resting/day-energy/projection deletion. Routine sync
+updates, including corrected measurements, do not erase saved answers or notes or cancel
+pending work. Sensitive preference notes are deleted on consent revocation, not on routine
+updates or source deletion: they are the person's own saved words. Owner reporting SQL
+cannot read Kit text. Single/all deletion removes visits and legacy turns as well as saved turns.

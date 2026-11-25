@@ -101,3 +101,10 @@ cannot read any Kit threads, messages, visits, conversation state or preference 
 even its own. This exception also applies to legacy Kit messages. Application/table
 owners and database superusers retain technical access needed to operate the service;
 they are not reporting logins. The model SQL role has no archive access.
+
+Legacy sensitive/unknown-provenance answers are retained on upgrade with
+`replay_blocked_at`: personal SQL/export can still read their stored originals, while
+Kit history and model replay exclude them. This quarantine is distinct from actual
+source deletion or consent revocation: those permanently erase affected answers to
+SQL NULL with `invalidated_at`. Restoring permission cannot resurrect erased data.
+Consented preference notes and routine sync updates are preserved.

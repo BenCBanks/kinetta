@@ -5,7 +5,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field, field_validator
-from . import db, coach, coach_chat, ai_release, ai_access, ai_budget, kit_memory, health_copy
+from . import db, coach, coach_chat, ai_release, ai_access, ai_budget, kit_memory, health_copy, kit_history
 from .auth import current_user
 from .coach_tools import Empty
 from .food_photo import brake
@@ -108,7 +108,7 @@ def read(user=Depends(current_user),before:int | None=Query(default=None,gt=0),v
         generation=locked(c,uid,visit_id=visit_id)
         # Recover an interrupted process without silently repeating a paid attempt.
         c.execute("UPDATE kit_turns SET state='failed',error='This answer was interrupted. Tap Retry to try again.',lease=NULL WHERE user_id=%s AND generation=%s AND state='running' AND expires<=now()",(uid,generation))
-        rows=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND (%s::bigint IS NULL OR id<%s) ORDER BY id DESC LIMIT 51',(uid,generation,visit_id,before,before)).fetchall()
+        rows=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND replay_blocked_at IS NULL AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND (%s::bigint IS NULL OR id<%s) ORDER BY id DESC LIMIT 51',(uid,generation,visit_id,before,before)).fetchall()
         return {'generation':generation,'messages':[public(r) for r in reversed(rows[:50])],
                 'before':rows[49]['id'] if len(rows)>50 else None,'ready':ai_release.enabled('kit')}
 
@@ -120,6 +120,7 @@ def create(body:MessageIn,user=Depends(current_user)):
     with db.connect() as c:
         locked(c,uid,body.generation,body.visit_id)
         old=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND client_id=%s',(uid,body.client_id)).fetchone()
+        if old and not kit_history.visible(old):raise HTTPException(404,'Kit message not found')
         if old:
             previous=Context.model_validate(old['context']).model_dump(exclude_none=True)
             if old['question']!=body.question or previous!=context or old['visit_id']!=body.visit_id:raise HTTPException(409,'This message ID already belongs to a different question.')
@@ -150,7 +151,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
         locked(c,uid,body.generation,body.visit_id)
-        row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
+        row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND replay_blocked_at IS NULL AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
         if not row or row['visit_id']!=body.visit_id:raise HTTPException(404,'Kit message not found')
         if row['state']=='answered':return public(row)
         if row['state']=='running' and row['expires']>dt.datetime.now(dt.timezone.utc):return public(row)
@@ -158,7 +159,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         if c.execute("SELECT 1 FROM kit_turns WHERE user_id=%s AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND client_id<>%s AND state IN ('pending','running')",(uid,body.generation,body.visit_id,client_id)).fetchone():raise HTTPException(409,'Kit is answering another message. Wait before retrying this one.')
         lease=uuid4()
         c.execute("UPDATE kit_turns SET state='running',lease=%s,expires=now()+interval '5 minutes',error=NULL WHERE user_id=%s AND client_id=%s",(lease,uid,client_id))
-        prior=c.execute("SELECT question,answer FROM kit_turns WHERE user_id=%s AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND id<%s AND state='answered' ORDER BY id DESC LIMIT 6",(uid,body.generation,body.visit_id,row['id'])).fetchall()
+        prior=c.execute("SELECT question,answer FROM kit_turns WHERE user_id=%s AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND id<%s AND state='answered' AND invalidated_at IS NULL AND replay_blocked_at IS NULL ORDER BY id DESC LIMIT 6",(uid,body.generation,body.visit_id,row['id'])).fetchall()
         memories,memory_version,health_context=kit_memory.context(c,uid)
         history=[]
         health=coach.health_ok(c,uid)
@@ -183,7 +184,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
     except Exception:error='Kit could not finish this answer. Your question is saved; tap Retry.'
     with db.connect() as c:
         current=c.execute('SELECT generation FROM kit_conversations WHERE user_id=%s FOR UPDATE',(uid,)).fetchone()
-        row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
+        row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND replay_blocked_at IS NULL AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
         if not current or current['generation']!=body.generation or not row or row['lease']!=lease:
             return {'cancelled':True}
         if not coach.allowed(uid,connection=c) or not ai_release.enabled('kit'):

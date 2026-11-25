@@ -40,3 +40,8 @@ def remove(c, uid, conversation_id=None):
       (uid, conversation_id, conversation_id))
     c.execute('DELETE FROM kit_threads WHERE user_id=%s AND (%s::uuid IS NULL OR id=%s)',
               (uid, conversation_id, conversation_id))
+
+
+def visible(row):
+    """Legacy unknown provenance is retained privately, never shown or replayed."""
+    return row.get('replay_blocked_at') is None

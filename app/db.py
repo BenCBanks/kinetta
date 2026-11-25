@@ -2325,7 +2325,8 @@ MIGRATIONS = [
     CREATE INDEX kit_turns_thread_history ON kit_turns(user_id,conversation_id,id DESC);
     CREATE INDEX kit_visits_thread ON kit_visits(user_id,conversation_id);
     ALTER TABLE kit_visits ADD COLUMN draft_conversation_id uuid;
-    ALTER TABLE kit_turns ADD COLUMN invalidated_at timestamptz;
+    ALTER TABLE kit_turns ADD COLUMN invalidated_at timestamptz,
+      ADD COLUMN replay_blocked_at timestamptz;
     ALTER TABLE kit_conversations ADD COLUMN opens_at timestamptz,
       ADD COLUMN opens_count integer NOT NULL DEFAULT 0;
     -- Owner reporting logins inherit fit_readers: a restrictive policy denies even
@@ -2336,7 +2337,7 @@ MIGRATIONS = [
         EXECUTE format('CREATE POLICY no_owner_chat ON %I AS RESTRICTIVE FOR SELECT TO fit_readers USING(NOT pg_has_role(session_user,''fit_all_readers'',''member''))',t);
       END LOOP;
     END $$;
-    CREATE FUNCTION fit_invalidate_kit(uid bigint) RETURNS void LANGUAGE plpgsql AS $$
+    CREATE FUNCTION fit_invalidate_kit(uid bigint, revoke_memories boolean DEFAULT false) RETURNS void LANGUAGE plpgsql AS $$
     BEGIN
       -- Cancel leases as well as saved answers: revoke/regrant during a provider
       -- request must never save its late result. Unknown old provenance is sensitive.
@@ -2345,12 +2346,15 @@ MIGRATIONS = [
         state='answered',error=NULL WHERE user_id=uid AND invalidated_at IS NULL
         AND (state IN ('pending','running') OR answer IS NOT NULL
              AND answer->'health_included' IS DISTINCT FROM 'false'::jsonb);
-      DELETE FROM kit_memories WHERE user_id=uid AND health_included;
+      IF revoke_memories THEN
+        DELETE FROM kit_memories WHERE user_id=uid AND health_included;
+      END IF;
     END $$;
-    REVOKE ALL ON FUNCTION fit_invalidate_kit(bigint) FROM PUBLIC;
+    REVOKE ALL ON FUNCTION fit_invalidate_kit(bigint,boolean) FROM PUBLIC;
     CREATE FUNCTION fit_kit_invalidation_sticks() RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN
       IF OLD.invalidated_at IS NOT NULL THEN NEW.invalidated_at=OLD.invalidated_at; END IF;
+      IF OLD.replay_blocked_at IS NOT NULL THEN NEW.replay_blocked_at=OLD.replay_blocked_at; END IF;
       IF NEW.invalidated_at IS NOT NULL THEN
         NEW.answer=NULL; NEW.lease=NULL; NEW.expires=NULL; NEW.state='answered'; NEW.error=NULL;
       END IF;
@@ -2367,36 +2371,49 @@ MIGRATIONS = [
         FOREACH k IN ARRAY ARRAY['ai_ok','health_ai_ok','health_weight_ai_ok','garmin_ai_ok','health_weight_read'] LOOP
           invalidate=invalidate OR (oldrow->k='true'::jsonb AND newrow->k IS DISTINCT FROM 'true'::jsonb);
         END LOOP;
-        invalidate=invalidate OR (OLD.resting_source='apple_health' AND NEW.resting_source<>'apple_health')
-          OR (OLD.weight_kg IS NOT NULL AND NEW.weight_kg IS NULL);
+        invalidate=invalidate OR (OLD.weight_kg IS NOT NULL AND NEW.weight_kg IS NULL);
       ELSIF TG_TABLE_NAME='connections' THEN
         invalidate=oldrow->>'kind'='garmin_connect';
       ELSIF TG_TABLE_NAME='activities' THEN
         invalidate=(oldrow->>'source' IN ('healthkit','garmin_connect')
           OR oldrow->>'healthkit_id' IS NOT NULL) AND
-          (TG_OP='DELETE' OR (oldrow-'updated') IS DISTINCT FROM (newrow-'updated'));
+          TG_OP='DELETE';
       ELSIF TG_TABLE_NAME='health_weight_samples' AND TG_OP='UPDATE' THEN
         invalidate=(newrow->>'deleted'='true' AND oldrow->>'deleted'<>'true')
-          OR (newrow->>'excluded'='true' AND oldrow->>'excluded'<>'true')
-          OR (oldrow->'kg' IS DISTINCT FROM newrow->'kg');
+          OR (newrow->>'excluded'='true' AND oldrow->>'excluded'<>'true');
       ELSE
-        -- Includes derived projections: rebuilding a source is deliberately
-        -- conservative, rather than retaining an answer with unknown provenance.
-        invalidate=true;
+        -- Routine sync/upsert updates (including corrected values) are not erasure.
+        invalidate=TG_OP='DELETE' OR TG_TABLE_NAME='health_weight_exclusions';
       END IF;
       IF invalidate THEN
-        PERFORM fit_invalidate_kit(coalesce((oldrow->>'user_id')::bigint,(newrow->>'user_id')::bigint));
+        PERFORM fit_invalidate_kit(coalesce((oldrow->>'user_id')::bigint,(newrow->>'user_id')::bigint),
+          TG_TABLE_NAME='profile' AND (oldrow->'ai_ok' IS DISTINCT FROM newrow->'ai_ok'
+            OR oldrow->'health_ai_ok' IS DISTINCT FROM newrow->'health_ai_ok'
+            OR oldrow->'health_weight_ai_ok' IS DISTINCT FROM newrow->'health_weight_ai_ok'
+            OR oldrow->'garmin_ai_ok' IS DISTINCT FROM newrow->'garmin_ai_ok'
+            OR oldrow->'health_weight_read' IS DISTINCT FROM newrow->'health_weight_read'));
       END IF;
       RETURN NULL;
     END $$;
     REVOKE ALL ON FUNCTION fit_kit_source_removed(),fit_kit_invalidation_sticks() FROM PUBLIC;
-    UPDATE kit_turns SET invalidated_at=now(),answer=NULL,lease=NULL,expires=NULL,
-      state='answered',error=NULL WHERE answer IS NOT NULL
+    -- Old answers have no reliable source lineage: retain them for own-data SQL/export,
+    -- but never expose them in history or send them back to the model. Absence of a
+    -- source is not proof it was deleted, so do not erase on that inference.
+    UPDATE kit_turns SET replay_blocked_at=now() WHERE answer IS NOT NULL
       AND answer->'health_included' IS DISTINCT FROM 'false'::jsonb;
-    DELETE FROM kit_memories WHERE health_included;
+    -- Upgrade erasure is restricted to an actually disabled applicable permission,
+    -- matching Kit's source-aware Health gate. Unrelated unused-source toggles do
+    -- not destroy a person's preference notes or retained answers.
+    SELECT fit_invalidate_kit(p.user_id,true) FROM profile p WHERE NOT p.ai_ok
+      OR (NOT p.health_ai_ok AND (EXISTS(SELECT 1 FROM activities a WHERE a.user_id=p.user_id
+            AND (a.source='healthkit' OR a.healthkit_id IS NOT NULL))
+          OR EXISTS(SELECT 1 FROM health_resting h WHERE h.user_id=p.user_id AND p.resting_source='apple_health')))
+      OR ((NOT p.health_ai_ok OR NOT p.health_weight_ai_ok OR NOT p.health_weight_read)
+          AND (p.weight_health_derived OR EXISTS(SELECT 1 FROM weights w WHERE w.user_id=p.user_id AND w.source='healthkit')))
+      OR (NOT p.garmin_ai_ok AND EXISTS(SELECT 1 FROM activities a WHERE a.user_id=p.user_id AND a.source='garmin_connect'));
     CREATE TRIGGER kit_profile_revoked AFTER UPDATE ON profile
       FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
-    CREATE TRIGGER kit_workout_removed AFTER DELETE OR UPDATE ON activities
+    CREATE TRIGGER kit_workout_removed AFTER DELETE ON activities
       FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
     CREATE TRIGGER kit_garmin_disconnected AFTER DELETE ON connections
       FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
@@ -2406,7 +2423,7 @@ MIGRATIONS = [
       FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
     DO $$ DECLARE t text; BEGIN
       FOREACH t IN ARRAY ARRAY['weights','health_resting','day_energy','activity_streams','best_efforts'] LOOP
-        EXECUTE format('CREATE TRIGGER kit_source_removed AFTER DELETE OR UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed()',t);
+        EXECUTE format('CREATE TRIGGER kit_source_removed AFTER DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed()',t);
       END LOOP;
     END $$;
 

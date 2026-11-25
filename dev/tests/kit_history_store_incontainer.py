@@ -4,6 +4,7 @@ import tempfile
 import unittest
 import uuid
 import zipfile
+from unittest.mock import patch
 import psycopg
 from psycopg import errors, sql
 from psycopg.rows import dict_row
@@ -191,6 +192,66 @@ class HistoryStorage(unittest.TestCase):
             _,_,mid=self.fixture(c,self.a)
             c.execute("INSERT INTO health_weight_exclusions(user_id,day,before_time) VALUES(%s,current_date,now())",(self.a,))
             self.assertIsNotNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE id=%s',(mid,)).fetchone()['invalidated_at'])
+
+    def test_quarantined_legacy_answer_is_retained_but_hidden_and_never_replayed(self):
+        from app import kit_thread as chat
+        with db.connect() as c:
+            _,visit,mid=self.fixture(c,self.a,saved=False)
+            c.execute('UPDATE kit_turns SET replay_blocked_at=now() WHERE id=%s',(mid,))
+            old=c.execute('SELECT * FROM kit_turns WHERE id=%s',(mid,)).fetchone()
+            generation=old['generation']
+        user={'id':self.a}
+        with patch('app.ai_release.enabled',return_value=True),patch.object(chat,'permitted'),\
+             patch.object(chat,'brake'),patch('app.coach.allowed',return_value=True),\
+             patch('app.coach_chat.answer',return_value={'interpretation':'Fictional new answer','health_included':False}) as answer:
+            self.assertEqual(chat.read(user=user,before=None,visit_id=visit)['messages'],[])
+            with self.assertRaises(HTTPException) as x:
+                chat.generate(old['client_id'],chat.GenerationIn(generation=generation,visit_id=visit),user=user)
+            self.assertEqual(x.exception.status_code,404)
+            with self.assertRaises(HTTPException) as x:
+                chat.create(chat.MessageIn(client_id=old['client_id'],generation=generation,visit_id=visit,question=old['question']),user=user)
+            self.assertEqual(x.exception.status_code,404)
+            new=chat.create(chat.MessageIn(client_id=uuid.uuid4(),generation=generation,visit_id=visit,question='Fictional follow-up question'),user=user)
+            result=chat.generate(new['client_id'],chat.GenerationIn(generation=generation,visit_id=visit),user=user)
+            self.assertEqual(result['state'],'answered');self.assertEqual(answer.call_args.kwargs['history'],[])
+        with db.connect() as c:
+            retained=c.execute('SELECT * FROM kit_turns WHERE id=%s',(mid,)).fetchone()
+            self.assertEqual(retained['answer'],old['answer']);self.assertIsNone(retained['invalidated_at'])
+
+    def test_sync_same_or_corrected_values_preserve_answers_memories_and_pending_work(self):
+        with db.connect() as c:
+            c.execute("UPDATE profile SET ai_ok=true,health_ai_ok=true,health_weight_ai_ok=true,garmin_ai_ok=true,health_weight_read=true WHERE user_id=%s",(self.a,))
+            aid=c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'run','healthkit','Fictional sync',now()) RETURNING id",(self.a,)).fetchone()['id']
+            c.execute('INSERT INTO weights(user_id,day,kg) VALUES(%s,current_date,70)',(self.a,))
+            c.execute('INSERT INTO day_energy(user_id,day,burned_kcal) VALUES(%s,current_date,2000)',(self.a,))
+            c.execute("INSERT INTO health_resting(user_id,tz,day,resting_kcal,observed_at) VALUES(%s,'UTC',current_date,1400,now())",(self.a,))
+            c.execute('INSERT INTO health_weight_samples(user_id,sample_id,sampled_at,kg,observed_at) VALUES(%s,gen_random_uuid(),now(),70,now())',(self.a,))
+            c.execute('INSERT INTO activity_streams(user_id,activity_id,hr) VALUES(%s,%s,ARRAY[120.0])',(self.a,aid))
+            c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) VALUES(%s,%s,'run',1000,'1 km',300,now())",(self.a,aid))
+            _,_,mid=self.fixture(c,self.a)
+            c.execute('UPDATE kit_turns SET answer=%s WHERE id=%s',(json.dumps({'interpretation':'Keep this answer','health_included':True}),mid))
+            _,_,pending=self.fixture(c,self.a,'running')
+            original=c.execute('SELECT * FROM kit_turns WHERE id=%s',(pending,)).fetchone()
+            c.execute("INSERT INTO kit_memories(user_id,text,health_included) VALUES(%s,'I prefer morning runs.',true)",(self.a,))
+            version=c.execute('SELECT memory_version FROM kit_conversations WHERE user_id=%s',(self.a,)).fetchone()['memory_version']
+            for table,column,updated in [('weights','kg','71'),('day_energy','burned_kcal','2100'),
+                    ('health_resting','resting_kcal','1500'),('health_weight_samples','kg','72'),
+                    ('activity_streams','hr','ARRAY[125.0]'),('best_efforts','elapsed_s','290'),
+                    ('activities','name',"'Fictional corrected name'"),('profile','weight_kg','72')]:
+                for value in [column,updated]:
+                    with self.subTest(table=table,value=value):
+                        c.execute(sql.SQL('UPDATE {} SET {}={} WHERE user_id=%s').format(sql.Identifier(table),sql.Identifier(column),sql.SQL(value)),(self.a,))
+                        answer=c.execute('SELECT * FROM kit_turns WHERE id=%s',(mid,)).fetchone()
+                        self.assertEqual(answer['answer']['interpretation'],'Keep this answer')
+                        self.assertIsNone(answer['invalidated_at']);self.assertIsNone(answer['replay_blocked_at'])
+                        self.assertEqual(c.execute('SELECT * FROM kit_turns WHERE id=%s',(pending,)).fetchone(),original)
+                        self.assertEqual(c.execute('SELECT memory_version FROM kit_conversations WHERE user_id=%s',(self.a,)).fetchone()['memory_version'],version)
+                        self.assertEqual(c.execute('SELECT count(*) n FROM kit_memories WHERE user_id=%s',(self.a,)).fetchone()['n'],1)
+            # Actual source deletion still redacts/cancels, but never deletes a user-authored note.
+            c.execute('DELETE FROM weights WHERE user_id=%s',(self.a,))
+            self.assertIsNone(c.execute('SELECT answer FROM kit_turns WHERE id=%s',(mid,)).fetchone()['answer'])
+            self.assertIsNone(c.execute('SELECT lease FROM kit_turns WHERE id=%s',(pending,)).fetchone()['lease'])
+            self.assertEqual(c.execute('SELECT count(*) n FROM kit_memories WHERE user_id=%s',(self.a,)).fetchone()['n'],1)
 
 
 if __name__=='__main__':unittest.main()
