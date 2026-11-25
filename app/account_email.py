@@ -262,9 +262,9 @@ def confirmation(background, c, uid, name, email, welcome=False):
     background.add_task(send_confirmation, email, subject, text + SIGNATURE, token_hash)
 
 
-def _unconfirmed_delete_on(created, warned_at):
+def _unconfirmed_delete_on(created, sent_at):
     """Give every final warning at least four days before deletion, including old backlog accounts."""
-    return max(unconfirmed_account_delete_at(created), warned_at + dt.timedelta(days=4))
+    return max(unconfirmed_account_delete_at(created), sent_at + dt.timedelta(days=4))
 
 
 def _purge_unconfirmed_mode():
@@ -285,7 +285,8 @@ def send_due_confirmation_reminders(limit=100):
         rows = c.execute("""SELECT id, email::text AS email, created,
                                    email_confirmation_reminder_count AS sent,
                                    email_confirmation_reminder_at AS reminded_at,
-                                   unconfirmed_final_warning_at AS final_warning_at
+                                   unconfirmed_final_warning_at AS final_warning_at,
+                                   unconfirmed_final_warning_sent_at AS final_warning_sent_at
           FROM users WHERE needs_email_confirm AND email_verified_at IS NULL AND suspended_at IS NULL AND is_admin=false AND email IS NOT NULL
             AND created >= (SELECT applied FROM schema_version WHERE version=109)
             AND NOT EXISTS (SELECT 1 FROM account_tokens t WHERE t.user_id=users.id AND t.kind='verify_email'
@@ -296,7 +297,9 @@ def send_due_confirmation_reminders(limit=100):
             AND ((email_confirmation_reminder_count=0 AND created<=now()-interval '1 day')
               OR (email_confirmation_reminder_count=1 AND email_confirmation_reminder_at<=now()-interval '2 days')
               OR (created<=now()-make_interval(days=>%s)
-                  AND unconfirmed_final_warning_at IS NULL))
+                  AND (unconfirmed_final_warning_at IS NULL OR
+                       (unconfirmed_final_warning_sent_at IS NULL AND
+                        unconfirmed_final_warning_at<=now()-interval '1 hour'))))
           ORDER BY created, id LIMIT %s FOR UPDATE SKIP LOCKED""",
                        (typo_domains, typo_endings, final_warning_days, min(max(int(limit), 1), 100))).fetchall()
         for user in rows:
@@ -305,11 +308,16 @@ def send_due_confirmation_reminders(limit=100):
             final_at = deletion_at - dt.timedelta(days=4)
             sent = user['sent']
             reminded_at = user['reminded_at']
-            if now >= final_at and user['final_warning_at'] is None:
+            retry_claim = (user['final_warning_at'] is not None and user['final_warning_sent_at'] is None
+                           and user['final_warning_at'] <= now - dt.timedelta(hours=1))
+            if now >= final_at and (user['final_warning_at'] is None or retry_claim):
                 kind = 'final'
                 claim = c.execute("""UPDATE users SET unconfirmed_final_warning_at=%s
                                      WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL
-                                       AND unconfirmed_final_warning_at IS NULL""", (warned_at, user['id']))
+                                       AND (unconfirmed_final_warning_at IS NULL OR
+                                            (unconfirmed_final_warning_sent_at IS NULL AND
+                                             unconfirmed_final_warning_at<=now()-interval '1 hour'))""",
+                                  (warned_at, user['id']))
                 if claim.rowcount != 1: continue
                 deletion_at = _unconfirmed_delete_on(user['created'], warned_at)
             elif sent == 0 and now >= user['created'] + dt.timedelta(days=1):
@@ -331,7 +339,10 @@ def send_due_confirmation_reminders(limit=100):
     sent_count = 0
     for uid, kind, message, warning_claim, previous_count, previous_reminder_at in messages:
         email, subject, text, token_hash = message
-        accepted = send_confirmation(email, subject, text, token_hash)
+        try:
+            accepted = send_confirmation(email, subject, text, token_hash)
+        except Exception:
+            accepted = False
         with db.connect() as c:
             reservation_lock(c)
             current = c.execute("""SELECT id,email::text AS email FROM users WHERE id=%s AND needs_email_confirm
@@ -345,6 +356,11 @@ def send_due_confirmation_reminders(limit=100):
                 new_count = 2 if kind in ('second', 'final') else 1
                 c.execute("""UPDATE users SET email_confirmation_reminder_count=%s,email_confirmation_reminder_at=now()
                              WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (new_count, uid))
+                if kind == 'final':
+                    c.execute("""UPDATE users SET unconfirmed_final_warning_sent_at=now()
+                                 WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL
+                                   AND unconfirmed_final_warning_at=%s AND unconfirmed_final_warning_sent_at IS NULL""",
+                              (uid, warning_claim))
                 sent_count += 1
             else:
                 # The staged token never replaced the previous live link; remove only the failed attempt.
@@ -364,8 +380,12 @@ def _confirmation_reminder_message(c, user, kind, deletion_at):
     # Stage a new token alongside the current one. It replaces the prior link only after delivery succeeds.
     token = secrets.token_urlsafe(32)
     token_hash = auth.token_hash(token)
-    c.execute('INSERT INTO account_tokens (token_hash, user_id, kind, email, expires) VALUES (%s,%s,%s,%s,now()+%s)',
-              (token_hash, user['id'], 'verify_email', user['email'], dt.timedelta(minutes=VERIFY_HOURS * 60)))
+    if kind == 'final':
+        c.execute('INSERT INTO account_tokens (token_hash, user_id, kind, email, expires) VALUES (%s,%s,%s,%s,%s)',
+                  (token_hash, user['id'], 'verify_email', user['email'], deletion_at + dt.timedelta(days=1)))
+    else:
+        c.execute('INSERT INTO account_tokens (token_hash, user_id, kind, email, expires) VALUES (%s,%s,%s,%s,now()+%s)',
+                  (token_hash, user['id'], 'verify_email', user['email'], dt.timedelta(minutes=VERIFY_HOURS * 60)))
     link = f"{_base()}/confirm-email#{token}"
     deletion_date = f"{deletion_at.day} {deletion_at.strftime('%B %Y')} (UTC)"
     if kind == 'first':
@@ -401,21 +421,21 @@ def purge_due_unconfirmed_accounts(limit=100):
     removed = []
     with db.connect() as c:
         reservation_lock(c)
-        rows = c.execute("""SELECT id,sql_role,created,unconfirmed_final_warning_at AS warned_at
+        rows = c.execute("""SELECT id,sql_role,created,unconfirmed_final_warning_sent_at AS sent_at
           FROM users WHERE needs_email_confirm AND email_verified_at IS NULL AND suspended_at IS NULL AND is_admin=false
             AND email IS NOT NULL AND created >= (SELECT applied FROM schema_version WHERE version=109)
             AND NOT EXISTS (SELECT 1 FROM account_tokens t WHERE t.user_id=users.id AND t.kind='verify_email'
                               AND t.used_at IS NULL AND t.expires>now() AND lower(t.email)<>lower(users.email))
-            AND email_confirmation_reminder_count=2 AND unconfirmed_final_warning_at IS NOT NULL
+            AND email_confirmation_reminder_count=2 AND unconfirmed_final_warning_sent_at IS NOT NULL
             -- Never delete an account at an address email_suggestion() flags as likely mistyped.
             AND split_part(lower(email::text),'@',2) <> ALL(%s::text[])
             AND substring(lower(email::text) from '[^.]+$') <> ALL(%s::text[])
-            AND created<=%s AND unconfirmed_final_warning_at<=%s
-            AND unconfirmed_final_warning_at<=now()-interval '4 days'
+            AND created<=%s AND unconfirmed_final_warning_sent_at<=%s
+            AND unconfirmed_final_warning_sent_at<=now()-interval '4 days'
           ORDER BY created,id LIMIT %s FOR UPDATE SKIP LOCKED""",
                          (typo_domains, typo_endings, deadline_cutoff, final_at_cutoff, limit)).fetchall()
         for row in rows:
-            delete_on = _unconfirmed_delete_on(row['created'], row['warned_at'])
+            delete_on = _unconfirmed_delete_on(row['created'], row['sent_at'])
             if now < delete_on: continue
             candidates.append(row)
         if mode == 'on':

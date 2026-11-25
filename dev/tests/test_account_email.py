@@ -73,7 +73,8 @@ class AccountEmail(unittest.TestCase):
             c.execute('''UPDATE users SET pw_hash=%s, email=NULL, email_verified_at=NULL,
                          needs_email_confirm=false, signup_guard=false, signup_confirmed_at=NULL,
                          password_change_expires=NULL, email_confirmation_reminder_count=0,
-                         email_confirmation_reminder_at=NULL WHERE id=ANY(%s)''', (auth.hash_pw(PW), ids))
+                         email_confirmation_reminder_at=NULL,unconfirmed_final_warning_at=NULL,
+                         unconfirmed_final_warning_sent_at=NULL WHERE id=ANY(%s)''', (auth.hash_pw(PW), ids))
 
     def client(self, login='zz_test_mail_a', password=PW):
         c = TestClient(app); c.headers['Origin'] = BASE
@@ -496,33 +497,51 @@ class AccountEmail(unittest.TestCase):
         with db.connect() as c:
             created = c.execute('SELECT created FROM users WHERE id=%s', (old['id'],)).fetchone()['created']
             reminder = c.execute('SELECT email_confirmation_reminder_at FROM users WHERE id=%s', (old['id'],)).fetchone()['email_confirmation_reminder_at']
-            warned_at = c.execute('SELECT unconfirmed_final_warning_at FROM users WHERE id=%s', (old['id'],)).fetchone()['unconfirmed_final_warning_at']
+            warning = c.execute('''SELECT unconfirmed_final_warning_at AS claimed_at,
+                                          unconfirmed_final_warning_sent_at AS sent_at
+                                   FROM users WHERE id=%s''', (old['id'],)).fetchone()
+            warned_at, sent_at = warning['claimed_at'], warning['sent_at']
         deadline = account_email.unconfirmed_account_delete_at(created)
-        delete_on = account_email._unconfirmed_delete_on(created, warned_at)
+        delete_on = account_email._unconfirmed_delete_on(created, sent_at)
         deletion_date = f'{delete_on.day} {delete_on.strftime("%B %Y")} (UTC)'
         self.assertEqual(final['subject'], f'Your Kinetta account will be deleted on {deletion_date}')
         self.assertIn(f'Open this link before {deletion_date} to keep your account:', final['text'])
         self.assertIn('If you didn\'t sign up, do nothing and it will be removed.', final['text'])
         self.assertLess(abs((datetime.datetime.now(datetime.timezone.utc) - reminder).total_seconds()), 60)
         self.assertIn('(UTC)', final['subject'])
-        self.assertGreater(account_email._unconfirmed_delete_on(created, warned_at),
+        self.assertGreater(account_email._unconfirmed_delete_on(created, sent_at),
                            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=3),
                            'overdue accounts get a future deletion date at least four days away')
+        token = self.link('confirm-email')
+        with db.connect() as c:
+            expiry = c.execute('SELECT expires FROM account_tokens WHERE token_hash=%s',
+                               (auth.token_hash(token),)).fetchone()['expires']
+        self.assertGreaterEqual(expiry, delete_on, 'final confirmation link remains valid through the deletion date')
         self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'the final warning is sent once')
         self.assertEqual(self.mail.call_count, 1)
 
         # A warning does not make an account eligible before the shared 14-day deadline.
         with db.connect() as c:
-            c.execute("UPDATE users SET created=now()-interval '13 days',unconfirmed_final_warning_at=now()-interval '3 days' WHERE id=%s",
+            c.execute("UPDATE users SET created=now()-interval '13 days',unconfirmed_final_warning_at=now()-interval '3 days',unconfirmed_final_warning_sent_at=now()-interval '3 days' WHERE id=%s",
                       (old['id'],))
         with patch.dict(os.environ, {'KINETTA_PURGE_UNCONFIRMED':'on'}):
             self.assertEqual(account_email.purge_due_unconfirmed_accounts(), 0)
         with db.connect() as c:
             self.assertTrue(c.execute('SELECT 1 FROM users WHERE id=%s', (old['id'],)).fetchone())
 
-        # After both the account deadline and four-day warning window, default LOG preserves it.
+        # Four days start after a successful send, not when the initial claim was stored.
         with db.connect() as c:
-            c.execute("UPDATE users SET created=now()-interval '30 days',unconfirmed_final_warning_at=now()-interval '5 days' WHERE id=%s",
+            c.execute("""UPDATE users SET created=now()-interval '30 days',
+                         unconfirmed_final_warning_at=now()-interval '8 days',
+                         unconfirmed_final_warning_sent_at=now()-interval '3 days' WHERE id=%s""", (old['id'],))
+        with patch.dict(os.environ, {'KINETTA_PURGE_UNCONFIRMED':'on'}):
+            self.assertEqual(account_email.purge_due_unconfirmed_accounts(), 0)
+        with db.connect() as c:
+            self.assertTrue(c.execute('SELECT 1 FROM users WHERE id=%s', (old['id'],)).fetchone())
+
+        # After both the account deadline and four-day post-send window, default LOG preserves it.
+        with db.connect() as c:
+            c.execute("UPDATE users SET unconfirmed_final_warning_sent_at=now()-interval '5 days' WHERE id=%s",
                       (old['id'],))
             before = signup.accounts(c)
         with patch.dict(os.environ, {'KINETTA_PURGE_UNCONFIRMED':'off'}):
@@ -554,7 +573,8 @@ class AccountEmail(unittest.TestCase):
             c.execute("UPDATE schema_version SET applied=now()-interval '30 days' WHERE version=109")
             ids = [row['id'] for row in fixtures]
             c.execute("""UPDATE users SET created=now()-interval '20 days',email_confirmation_reminder_count=2,
-                         unconfirmed_final_warning_at=now()-interval '8 days' WHERE id=ANY(%s)""", (ids,))
+                         unconfirmed_final_warning_at=now()-interval '8 days',
+                         unconfirmed_final_warning_sent_at=now()-interval '8 days' WHERE id=ANY(%s)""", (ids,))
             c.execute("UPDATE users SET is_admin=true WHERE id=%s", (fixtures[0]['id'],))
             c.execute("UPDATE users SET suspended_at=now() WHERE id=%s", (fixtures[1]['id'],))
             c.execute("UPDATE users SET created=now()-interval '31 days',unconfirmed_final_warning_at=NULL WHERE id=%s", (fixtures[2]['id'],))
@@ -562,12 +582,13 @@ class AccountEmail(unittest.TestCase):
             c.execute("UPDATE users SET email='zz_test_purge_typo@gmai.com' WHERE id=%s", (fixtures[4]['id'],))
             account_email._token(c, fixtures[5]['id'], 'verify_email', account_email.VERIFY_HOURS * 60,
                                  'zz_test_purge_email_change_new@example.com')
-            c.execute('UPDATE users SET unconfirmed_final_warning_at=NULL WHERE id=%s', (fixtures[5]['id'],))
+            c.execute('''UPDATE users SET unconfirmed_final_warning_at=NULL,
+                         unconfirmed_final_warning_sent_at=NULL WHERE id=%s''', (fixtures[5]['id'],))
         self.addCleanup(self.restore_reminder_migration_date, applied)
         self.assertEqual(account_email.send_due_confirmation_reminders(), 0,
                          'a live pending email change is not warned at the old address')
         with db.connect() as c:
-            c.execute("UPDATE users SET unconfirmed_final_warning_at=now()-interval '8 days' WHERE id=%s",
+            c.execute("UPDATE users SET unconfirmed_final_warning_at=now()-interval '8 days',unconfirmed_final_warning_sent_at=now()-interval '8 days' WHERE id=%s",
                       (fixtures[4]['id'],))
         with patch.dict(os.environ, {'KINETTA_PURGE_UNCONFIRMED':'on'}):
             self.assertEqual(account_email.purge_due_unconfirmed_accounts(), 0)
@@ -586,16 +607,40 @@ class AccountEmail(unittest.TestCase):
                                              'zz_warning_failure@example.com')
         self.addCleanup(self.restore_reminder_migration_date, applied)
         old_hash = auth.token_hash(old_token)
-        with patch('app.account_email.send_confirmation', return_value=False):
+        with patch('app.account_email.send_confirmation', side_effect=RuntimeError('fictional mail failure')):
             self.assertEqual(account_email.send_due_confirmation_reminders(), 0)
         with db.connect() as c:
-            row = c.execute('SELECT unconfirmed_final_warning_at,email_confirmation_reminder_count FROM users WHERE id=%s',
+            row = c.execute('''SELECT unconfirmed_final_warning_at,unconfirmed_final_warning_sent_at,
+                                      email_confirmation_reminder_count FROM users WHERE id=%s''',
                             (user['id'],)).fetchone()
             tokens = c.execute("SELECT token_hash FROM account_tokens WHERE user_id=%s AND kind='verify_email' AND used_at IS NULL",
                                (user['id'],)).fetchall()
         self.assertIsNone(row['unconfirmed_final_warning_at'], 'failed send releases the warning claim')
+        self.assertIsNone(row['unconfirmed_final_warning_sent_at'], 'failed send never records a successful warning')
         self.assertEqual(row['email_confirmation_reminder_count'], 2)
         self.assertEqual([t['token_hash'] for t in tokens], [old_hash], 'failed mail keeps the old link active')
+
+
+    def test_abandoned_final_warning_claim_retries_after_one_hour(self):
+        user = self.temporary_pending_account('zz_test_warning_restart', 'zz_warning_restart@example.com')
+        self.addCleanup(self.delete_temporary_account, user['login'])
+        with db.connect() as c:
+            applied = c.execute('SELECT applied FROM schema_version WHERE version=109').fetchone()['applied']
+            c.execute("UPDATE schema_version SET applied=now()-interval '35 days' WHERE version=109")
+            c.execute("""UPDATE users SET created=now()-interval '30 days',email_confirmation_reminder_count=2,
+                         email_confirmation_reminder_at=now()-interval '27 days',
+                         unconfirmed_final_warning_at=now()-interval '2 hours',
+                         unconfirmed_final_warning_sent_at=NULL WHERE id=%s""", (user['id'],))
+        self.addCleanup(self.restore_reminder_migration_date, applied)
+        self.mail.reset_mock()
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
+        with db.connect() as c:
+            sent_at = c.execute('SELECT unconfirmed_final_warning_sent_at FROM users WHERE id=%s',
+                                (user['id'],)).fetchone()['unconfirmed_final_warning_sent_at']
+        self.assertIsNotNone(sent_at, 'retry records successful delivery time')
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 0,
+                         'a successfully sent warning is not resent')
+        self.assertEqual(self.mail.call_count, 1)
 
     def test_pending_email_change_during_send_keeps_its_confirmation_link(self):
         user = self.temporary_pending_account('zz_test_warning_email_race', 'zz_warning_email_race@example.com')
@@ -637,7 +682,7 @@ class AccountEmail(unittest.TestCase):
         response = anon.post('/api/account/email/confirm', json={'token': token})
         self.assertEqual(response.status_code, 200, response.text)
         with db.connect() as c:
-            c.execute("UPDATE users SET unconfirmed_final_warning_at=now()-interval '5 days' WHERE id=%s", (user['id'],))
+            c.execute("UPDATE users SET unconfirmed_final_warning_at=now()-interval '5 days',unconfirmed_final_warning_sent_at=now()-interval '5 days' WHERE id=%s", (user['id'],))
         with patch.dict(os.environ, {'KINETTA_PURGE_UNCONFIRMED':'on'}):
             self.assertEqual(account_email.purge_due_unconfirmed_accounts(), 0)
         with db.connect() as c:
@@ -650,9 +695,9 @@ class AccountEmail(unittest.TestCase):
             applied = c.execute('SELECT applied FROM schema_version WHERE version=109').fetchone()['applied']
             c.execute("UPDATE schema_version SET applied=now()-interval '30 days' WHERE version=109")
             c.execute("""INSERT INTO users(login,name,pw_hash,email,needs_email_confirm,created,
-                         email_confirmation_reminder_count,unconfirmed_final_warning_at)
+                         email_confirmation_reminder_count,unconfirmed_final_warning_at,unconfirmed_final_warning_sent_at)
                          SELECT 'zz_purge_cap_'||n,'Cap fixture','fixture','zz_purge_cap_'||n||'@example.com',true,
-                           now()-interval '15 days',2,now()-interval '5 days'
+                           now()-interval '15 days',2,now()-interval '5 days',now()-interval '5 days'
                          FROM generate_series(1,101) n""")
         self.addCleanup(self.restore_reminder_migration_date, applied)
         with patch.dict(os.environ, {'KINETTA_PURGE_UNCONFIRMED':'on'}):

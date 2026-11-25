@@ -2254,7 +2254,8 @@ MIGRATIONS = [
       ON notifications(user_id,group_friend_invite_id) WHERE kind='group_invite';""",
 
     # 116. Claim the final unconfirmed-account warning once before attempting delivery.
-    """ALTER TABLE users ADD COLUMN unconfirmed_final_warning_at timestamptz;""",
+    """ALTER TABLE users ADD COLUMN unconfirmed_final_warning_at timestamptz;
+    ALTER TABLE users ADD COLUMN unconfirmed_final_warning_sent_at timestamptz;""",
 
 ]
 
