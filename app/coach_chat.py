@@ -390,10 +390,13 @@ def _weekly_fact_class(fact):
     return None
 
 
-def checked_answer(raw, evidence, *, kit=False, weekly_review=False, workout_review=False):
+def checked_answer(raw, evidence, *, kit=False, weekly_review=False, workout_review=False, conversation_question=None):
     if workout_review:
         from . import kit_workout_review
         return kit_workout_review.checked_answer(raw, evidence)
+    from . import kit_conversation
+    if kit and not weekly_review and kit_conversation.has_blocks(raw):
+        return kit_conversation.checked_answer(raw, evidence, question=conversation_question)
     answer = (KitAnswer if kit else Answer).model_validate(raw)
     if weekly_review and not kit: raise ValueError('Weekly reviews require the Kit answer contract')
     if kit and not answer.reason.strip(): raise ValueError('Kit answers need a reason')
@@ -632,7 +635,8 @@ def _gemini_turn(messages, definitions, *, system=SYSTEM):
             'tools': [{'functionDeclarations': declarations}],
             'generationConfig': {'temperature': .2, 'maxOutputTokens': 4096 if weekly else 2500}}
     model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
-    if system in (KIT_SYSTEM, KIT_WEEKLY_SYSTEM) and model == 'gemini-3.8-flash':
+    from . import kit_conversation
+    if (system in (KIT_SYSTEM, KIT_WEEKLY_SYSTEM) or kit_conversation.is_system(system)) and model == 'gemini-3.8-flash':
         body['generationConfig']['thinkingConfig'] = {'thinkingLevel':'LOW'}
     if not declarations:
         body.pop('tools')
@@ -722,7 +726,8 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             else:messages[-1]['content']+='\n'+text
     if turn is None:
         adapter = _gemini_turn if provider == 'gemini' else _claude_turn
-        system=KIT_WEEKLY_SYSTEM if weekly_review else KIT_SYSTEM
+        from . import kit_conversation
+        system=KIT_WEEKLY_SYSTEM if weekly_review else kit_conversation.SYSTEM
         turn = (lambda m,d:adapter(m,d,system=system)) if kit else adapter
     usage, began, calls_used = {'promptTokenCount': 0, 'candidatesTokenCount': 0, 'thoughtsTokenCount': 0, 'totalTokenCount': 0}, time.monotonic(), 0
     for round_index in range(MAX_ROUNDS):
@@ -742,7 +747,10 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         if weekly_review and calls: raise ValueError('Weekly review cannot request additional tools')
         if not calls:
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
-            try: checked = checked_answer(_json(text), evidence, kit=kit,weekly_review=weekly_review)
+            from . import kit_conversation
+            try:
+                checked = (kit_conversation.check_for_question(_json(text), evidence, question, weekly_review=weekly_review)
+                           if kit else checked_answer(_json(text), evidence, kit=kit,weekly_review=weekly_review))
             except ValueError as error:
                 if not kit: raise
                 if weekly_review:
@@ -787,7 +795,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
                     for key in usage:usage[key]+=int(retry_tokens.get(key) or 0)
                     if retry_calls:raise ValueError('Kit could not verify that answer. Try again.')
-                    try:checked=checked_answer(_json(retry_text),evidence,kit=True)
+                    try:checked=kit_conversation.check_for_question(_json(retry_text),evidence,question)
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
             if kit and not weekly_review:
                 # The UI consumes only interpretation. Keep the validated source fields internal
