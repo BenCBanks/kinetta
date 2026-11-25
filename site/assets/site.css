@@ -734,6 +734,7 @@ header.top .signup { display:flex;align-items:center; }
 .kit-chat-result[aria-hidden="true"],.kit-chat-log-bar[aria-hidden="true"],.kit-chat-typing[aria-hidden="true"],.kit-week-typing[aria-hidden="true"],.kit-week-answer[aria-hidden="true"] { display:none; }
 .kit-chat-composer,.kit-week-composer { flex:none; display:flex; align-items:center; gap:12px; height:52px; margin:0 22px 28px; padding:0 13px; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--ink2); font-size:16px; }
 .kit-chat-composer b,.kit-week-composer b { color:var(--ink2); font-size:22px; font-weight:400; }
+.kit-chat-composer > span:nth-child(2) { flex:1; min-width:0; }
 .kit-phone-screen { position:relative; }
 .kit-phone-status { flex:none; margin-top:28px; }
 .kit-phone-status-icons { display:flex; align-items:center; gap:4px; height:14px; }
@@ -1116,6 +1117,7 @@ header.top .signup { display:flex;align-items:center; }
   .home-page .home-section-head { margin-bottom:16px; }
   .home-page .home-proof-phone .phone-frame,.home-page .home-feature-phone .phone-frame { width:min(200px,66vw); }
   .home-page #home-food .home-proof-phone .phone-frame { width:min(250px,100%); }
+  .home-page #home-activity .home-proof-phone .phone-frame { width:min(250px,78vw); }
   .home-page .phone-frame--hero { width:min(250px,68vw); }
   .home-page .kit-week-demo { padding-block:36px; }
 }
