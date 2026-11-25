@@ -15,14 +15,14 @@ const cases=[['signin',1],['signup',1],['invite',1],['temporary',2],['reset',1],
     const admin=kind.startsWith('admin-');if(!admin)assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
     await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
     const p=await c.newPage(),errors=[];let writes=0;p.on('pageerror',e=>errors.push(e.message));
-    await c.route('**/*',r=>{const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(request.method())){writes++;return r.fulfill({status:503,json:{detail:'Fictional test failure'}});}if(u.pathname.startsWith('/api/password/reset/'))return r.fulfill({json:{login:'zz_test_password_eye'}});return r.continue();});
+    await c.route('**/*',r=>{const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/password/reset/check')return r.fulfill({json:{login:'zz_test_password_eye'}});if(!['GET','HEAD'].includes(request.method())){writes++;return r.fulfill({status:503,json:{detail:'Fictional test failure'}});}return r.continue();});
     await p.goto(base+(admin?'/admin':'/me/settings'));
     if(admin){await until(p,()=>revision>0&&who===null,'Initial signed-out admin check settled');await p.locator('#login input[type=password]').waitFor();if(kind==='admin-member')await p.evaluate(()=>createMember());if(kind==='admin-fallback')await p.evaluate(()=>account({id:999999,login:'zz_test_password_eye',name:'Fictional Member'},'password'));}
     else{await until(p,()=>App.pageReady,'App ready');await p.evaluate(kind=>{
      if(kind==='signin')showLogin();
      if(kind==='signup'||kind==='invite')showNewAccount({title:kind==='signup'?'Create your account':'Join Kinetta',intro:'Fictional test enrollment',button:'Create my account',signup:kind==='signup',email:kind==='signup',send:async()=>{throw Error('Fictional enrollment failure');}});
      if(kind==='temporary')showTemporaryPassword('fictional-change-token');
-     if(kind==='reset')return showReset('fictional-reset-token');
+     if(kind==='reset'){location.hash='#fictional-reset-token';return showReset();}
      if(kind==='email'){App.me.mail_ready=true;emailSheet();}
      if(kind==='delete')deleteSheet();
      if(kind==='change')passwordSheet();

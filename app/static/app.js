@@ -2908,10 +2908,12 @@ function showForgot(prefill = '') {
     } catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }
-async function showReset(token) {
-  const active=enrollmentView();enrollmentStatus('Reset password','Checking your link…');
+async function showReset(token = location.hash.slice(1)) {
+  const active=enrollmentView();
+  if(!/^[\w-]{1,100}$/.test(token)){root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This link doesn't work</h1><p>Ask for a new password reset link.</p><a class="primary wide" href="/forgot-password" id="r-again">Send a new link</a></div></div>`;$('#r-again',root).onclick=e=>{e.preventDefault();history.replaceState(null,'','/');showForgot();};return;}
+  enrollmentStatus('Reset password','Checking your link…');
   let info;
-  try { info = await api('/api/password/reset/' + encodeURIComponent(token));if(typeof info?.login!=='string')throw Error('Password reply was incomplete.'); }
+  try { info = await api('/api/password/reset/check', json('POST', {token}));if(typeof info?.login!=='string')throw Error('Password reply was incomplete.'); }
   catch (x) {
     if(!active())return;
     if(![404,410].includes(x.status))return enrollmentStatus('Password reset couldn’t load','Your reset link is kept. Try again.',()=>showReset(token));
@@ -2920,6 +2922,7 @@ async function showReset(token) {
     return;
   }
   if(!active())return;
+  history.replaceState(null, '', '/reset-password'); // Keep the one-time token out of the visible URL after validation.
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>Choose a new password</h1><p>For your account <b>${esc(info.login)}</b>. You'll be signed out on your other phones and browsers.</p></div>
     <input name="login" autocomplete="username" value="${esc(info.login)}" hidden>
@@ -2978,12 +2981,12 @@ async function start() {
   const challengeCode=location.pathname.match(/^\/challenge\/([A-Za-z0-9_-]{1,60})$/)?.[1]||new URLSearchParams(location.search).get('challenge');
   if(challengeCode&&/^[A-Za-z0-9_-]{1,60}$/.test(challengeCode)){store.set('kinetta.challengeLink',challengeCode);store.del('kinetta.cardLink');store.del('kinetta.friendLink');}
   // emailed links work whether or not this browser is logged in
-  const link = location.pathname.match(/^\/(reset-password|confirm-email)\/([\w-]+)$/);
-  if (link?.[1] === 'reset-password') return showReset(link[2]);
-  // New confirmation links keep the bearer token in the fragment, which is never sent
-  // to the server or recorded in HTTP access logs. Keep the path form for older emails.
-  const confirmToken = link?.[1] === 'confirm-email' ? link[2]
-    : location.pathname === '/confirm-email' ? location.hash.slice(1) : '';
+  const link = location.pathname.match(/^\/confirm-email\/([\w-]+)$/);
+  const oldResetPath = location.pathname.match(/^\/reset-password\/([\w-]+)$/);
+  if (oldResetPath) { history.replaceState(null, '', '/reset-password#' + oldResetPath[1]); return showReset(); }
+  if (location.pathname === '/reset-password') return showReset();
+  // Emailed bearer tokens stay in the fragment, which is never sent to the server.
+  const confirmToken = link?.[1] || (location.pathname === '/confirm-email' ? location.hash.slice(1) : '');
   if (/^[\w-]{1,100}$/.test(confirmToken)) {
     if (location.hash) history.replaceState(null, '', '/confirm-email');
     return showConfirmEmail(confirmToken);
