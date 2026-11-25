@@ -99,6 +99,7 @@ for device in preferred:
   def store_status_bar():
    # Simulator status overrides can reset between app launches/scenes; set them for every frame.
    sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--cellularMode','active','--cellularBars','4','--batteryState','discharging','--batteryLevel','100')
+   time.sleep(1)  # Let SpringBoard repaint the override, especially on the first scene after launch.
   installed=None;recovered=False
   store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else []
   themes=(('light',store_stages),('dark',['activity'])) if a.store else tuple((theme,layout_stages(theme)) for theme in ('light','dark'))
@@ -186,8 +187,12 @@ for device in preferred:
       crop=metrics.get('storeCrop');assert crop and crop['selector']=='#d-charts .chartbox[data-chart-index="1"]' and 'Heart rate' in crop['text'] and crop['bottom']<=crop['tabTop']-8, 'Activity crop must show the complete heart-rate chart above the tab bar'
      if stage=='header-food':
       food_text=metrics['bodyText'];assert 'Improve calorie estimates' not in food_text and re.search(r'1,?200',food_text) and '90 / 110' in food_text and '180 / 220' in food_text and '52 / 70' in food_text, 'Nutrition Store fixture must show body details and filled macro bars'
+      card,gear,protein=[(metrics.get('storeNutrition') or {}).get(key) for key in ('card','gear','protein')]
+      assert card and gear and protein and card['x']<=gear['x']<card['right'] and gear['bottom']<protein['y'], 'Nutrition gear must sit in the card top-right above its macro rows'
      if stage=='food':
       assert 'Today' in metrics['bodyText'] and 'Kit’s estimate' in metrics['bodyText'] and 'estimated portion' in metrics['bodyText'], 'Kit chat must show Today and a fictional estimated portion'
+      assert metrics.get('storeKitTitle')=='Today' and metrics.get('storeKitDateDividers')==0, 'Kit chat title must be Today without a duplicate Today divider'
+      assert 0<=metrics.get('storeKitGap',999)<=32, 'Kit chat messages must sit close to the composer'
      if stage=='header-progress':
       crop=metrics.get('storeCrop');assert crop and crop['selector']=='#p-explore [data-progress-feature="weight"]' and crop['bottom']<=crop['tabTop'], 'Progress crop must keep the complete Weight row above the tab bar without overlap'
       assert 'Training plan' not in metrics['bodyText'], 'Progress Store crop must end with Weight and not show a clipped Training plan row'
