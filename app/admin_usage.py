@@ -72,6 +72,17 @@ def usage(days:int=Query(30,ge=1,le=90),user=Depends(admin_user)):
           (SELECT count(*) FROM users WHERE created>=%s::date AT TIME ZONE 'UTC') AS new_accounts,
           (SELECT count(DISTINCT user_id) FROM admin_account_days WHERE day>=%s) AS active_accounts,
           (SELECT count(*) FROM admin_login_events WHERE outcome='success' AND created>=%s::date AT TIME ZONE 'UTC') AS signins""",(start,start,start)).fetchone()
+        signup_funnel=c.execute("""WITH cohort AS (
+            SELECT u.id,u.created,u.email_verified_at,
+              LEAST((SELECT min(a.created) FROM activities a WHERE a.user_id=u.id),
+                    (SELECT min(f.created) FROM food_entries f WHERE f.user_id=u.id)) AS first_action
+            FROM users u WHERE u.created>=%s::date AT TIME ZONE 'UTC'
+          )
+          SELECT count(*) AS signed_up,
+            count(*) FILTER (WHERE email_verified_at IS NOT NULL) AS email_confirmed,
+            count(*) FILTER (WHERE created<=now()-interval '7 days'
+              AND first_action>=created AND first_action<=created+interval '7 days') AS first_workout_or_food_7d
+          FROM cohort""",(start,)).fetchone()
         active={r['day']:r['n'] for r in c.execute('SELECT day,count(*) AS n FROM admin_account_days WHERE day>=%s GROUP BY day',(start,))}
         workouts={r['day']:r['n'] for r in c.execute("SELECT (created AT TIME ZONE 'UTC')::date AS day,count(*) AS n FROM activities WHERE created>=%s::date AT TIME ZONE 'UTC' GROUP BY 1",(start,))}
         food={r['day']:r['n'] for r in c.execute("SELECT (created AT TIME ZONE 'UTC')::date AS day,count(*) AS n FROM food_entries WHERE created>=%s::date AT TIME ZONE 'UTC' GROUP BY 1",(start,))}
@@ -81,4 +92,5 @@ def usage(days:int=Query(30,ge=1,le=90),user=Depends(admin_user)):
     for ago in range(days):
         day=start+dt.timedelta(days=ago)
         rows.append({'day':day,'active':active.get(day,0) if day>=since.astimezone(dt.timezone.utc).date() else None,'workouts':workouts.get(day,0),'food_entries':food.get(day,0)})
-    return {'days':days,'since':since,'zone':'UTC','counts':{**counts,'workouts':sum(workouts.values()),'food_entries':sum(food.values())},'daily':rows,'imports':imports,'sources':sources}
+    return {'days':days,'since':since,'zone':'UTC','counts':{**counts,'workouts':sum(workouts.values()),'food_entries':sum(food.values())},
+            'signup_funnel':signup_funnel,'daily':rows,'imports':imports,'sources':sources}

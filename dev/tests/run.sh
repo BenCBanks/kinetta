@@ -60,6 +60,7 @@ node --check dev/tests/contacts_settings_ui.cjs
 node --check dev/tests/contacts_ui.cjs
 node dev/tests/test_enrollment_entry.js
 node dev/tests/test_admin_logins.js
+node dev/tests/test_admin_usage.js
 node dev/tests/test_admin_tools.js
 node dev/tests/test_friend_management.js
 node dev/tests/test_map_contract.js

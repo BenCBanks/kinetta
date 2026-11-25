@@ -90,6 +90,36 @@ class Usage(unittest.TestCase):
   finally:
    with db.connect() as con:
     con.execute('DELETE FROM activities WHERE id=%s',(aid,));con.execute('DELETE FROM food_entries WHERE id=%s',(fid,));con.execute('DELETE FROM imports WHERE id=%s',(job,))
+ def test_signup_funnel_counts_only_matured_cohort_and_returns_no_account_data(self):
+  before=self.client.get('/api/admin/usage?days=30');self.assertEqual(before.status_code,200,before.text)
+  ids=[]
+  with db.connect() as con:
+   for suffix,age,verified in [('activity',10,9),('boundary-food',12,None),('late-activity',11,None),('recent-food',2,1)]:
+    row=con.execute("""INSERT INTO users(login,name,pw_hash,created,email,email_verified_at)
+      VALUES (%s,%s,%s,now()-(%s*interval '1 day'),%s,
+        CASE WHEN %s::int IS NULL THEN NULL ELSE now()-(%s*interval '1 day') END) RETURNING id""",
+      ('zz_test_usage_funnel_'+suffix,'PRIVATE_SIGNUP_NAME_SENTINEL',auth.hash_pw(PW),age,
+       'private-'+suffix+'@example.invalid',verified,verified)).fetchone()
+    ids.append(row['id'])
+   con.execute("""INSERT INTO activities(user_id,source,source_id,sport,name,start_time,created)
+      SELECT id,'manual','funnel-activity','run','PRIVATE_ACTIVITY_SENTINEL',created+interval '3 days',created+interval '3 days'
+      FROM users WHERE id=%s""",(ids[0],))
+   con.execute("""INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,source,created)
+      SELECT id,(created+interval '7 days')::date,'lunch','PRIVATE_FOOD_SENTINEL',1,'serving',100,'quick',created+interval '7 days'
+      FROM users WHERE id=%s""",(ids[1],))
+   con.execute("""INSERT INTO activities(user_id,source,source_id,sport,name,start_time,created)
+      SELECT id,'manual','funnel-late','run','PRIVATE_LATE_SENTINEL',created+interval '8 days',created+interval '8 days'
+      FROM users WHERE id=%s""",(ids[2],))
+   con.execute("""INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,source,created)
+      SELECT id,(created+interval '1 day')::date,'lunch','PRIVATE_RECENT_SENTINEL',1,'serving',100,'quick',created+interval '1 day'
+      FROM users WHERE id=%s""",(ids[3],))
+  after=self.client.get('/api/admin/usage?days=30');self.assertEqual(after.status_code,200,after.text)
+  funnel=after.json()['signup_funnel'];baseline=before.json()['signup_funnel']
+  self.assertEqual(funnel['signed_up']-baseline['signed_up'],4)
+  self.assertEqual(funnel['email_confirmed']-baseline['email_confirmed'],2)
+  self.assertEqual(funnel['first_workout_or_food_7d']-baseline['first_workout_or_food_7d'],2)
+  for key in ('signed_up','email_confirmed','first_workout_or_food_7d'):self.assertIsInstance(funnel[key],int)
+  self.assertNotIn('PRIVATE_',str(after.json()))
  def test_sql_denial_and_account_deletion(self):
   role='zz_test_usage_reader';password=secrets.token_urlsafe(24)
   with db.connect() as c:
