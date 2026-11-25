@@ -12,11 +12,12 @@ const source=fs.readFileSync('app/static/email-account.js','utf8').split('\n(() 
   }
   c.App.me.needs_email_confirm=true;c.App.me.email_confirmed=false;
   assert(gate.markup().includes('Confirm your email to use Kit.'));
+  for(const upload of [false,true])assert(gate.markup(upload).includes('>Resend email</button>'));
   assert(gate.markup(true).includes('Confirm your email to upload photos.'));
   assert.equal(gate.lock(),true);assert.equal(sheets,1);
   function root(){const button={disabled:false},status={textContent:''};return {isConnected:true,button,status,querySelector:q=>q.includes('resend')?button:status};}
   let r=root();gate.wire(r);let task=r.button.onclick();await r.button.onclick();assert.equal(calls,1,'double tap sends once');
-  pending.resolve({message:'Check your inbox.'});await task;assert.equal(r.status.textContent,'Check your inbox.');assert.equal(r.button.disabled,false);
+  pending.resolve({message:'Check your inbox.'});await task;assert.equal(r.status.textContent,'Sent. Check your inbox.');assert.equal(r.button.disabled,false);
   task=r.button.onclick();pending.reject(Error('Try again later.'));await task;assert.equal(r.status.textContent,'Try again later.');assert.equal(r.button.disabled,false);
   task=r.button.onclick();owner='b';pending.resolve({message:'Wrong account'});await task;assert.equal(r.status.textContent,'');
   await r.button.onclick();assert.equal(calls,3,'stale owner cannot resend');
