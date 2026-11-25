@@ -59,6 +59,65 @@ def multi_metric_answer(data):
 
 CASES = [
     fixture('run faster metric',data=comparison(),expected_display='12 s/km faster'),
+    fixture('real Gemini signed deltas and note instruction',data=comparison(),raw={
+        'facts':[
+            {'evidence_id':'e2','path':['baseline_count'],'value':3},
+            {'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':-12},
+            {'evidence_id':'e2','path':['deltas','avg_hr'],'value':-3},
+        ],'workout_review':{
+            'verdict':'Compared with your baseline of {e2:0} runs, your pace was faster by {e2:1} and your average heart rate was lower by {e2:2}.',
+            'next_step':'Add a note to record how this run felt.'},
+        'follow_ups':['Compare this with my previous run.','Show my heart rate details for this run.']
+    }),
+    fixture('real Gemini ride speed delta and previous one',data={
+        **comparison('ride'),
+        'current':{**comparison('ride')['current'],'pace_s_per_km':None,'speed_mps':3.1},
+        'deltas':{'speed_mps':0.4},'relations':{'speed_mps':'faster'}
+    },raw={
+        'facts':[
+            {'evidence_id':'e2','path':['baseline_count'],'value':3},
+            {'evidence_id':'e2','path':['deltas','speed_mps'],'value':0.4},
+        ],'workout_review':{
+            'verdict':'Compared with your baseline of {e2:0} recent rides, your speed was faster by {e2:1}.',
+            'next_step':'Add a note to record how this ride felt.'},
+        'follow_ups':['Compare this ride with my previous one','Show my heart rate breakdown']
+    }),
+    fixture('real Gemini hillier sentence boundary',data=comparison(notable='hillier'),raw={
+        'facts':[
+            {'evidence_id':'e2','path':['baseline_count'],'value':3},
+            {'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':-12},
+            {'evidence_id':'e2','path':['deltas','ascent_m'],'value':40},
+        ],'workout_review':{
+            'verdict':'Compared with your last {e2:0} runs, your pace was faster by {e2:1}. This run was also notable for being hillier, with {e2:2} more climbing.',
+            'next_step':'Add a note to record how the session felt.'},
+        'follow_ups':['Compare this to my other hilly runs.','Show my heart rate details.']
+    }),
+    fixture('real Gemini strength cites unavailable fields',data={
+        **comparison('workout','summary_only'),
+        'current':{**comparison('workout','summary_only')['current'],'distance_m':None,'moving_s':2700,
+                   'pace_s_per_km':None,'avg_hr':None,'speed_mps':None,'ascent_m':None,'avg_temp_c':None},
+        'baseline_count':0,'deltas':{},'relations':{}
+    },raw={
+        'facts':[
+            {'evidence_id':'e2','path':['current','distance_m'],'value':8046.72},
+            {'evidence_id':'e2','path':['current','moving_s'],'value':2700},
+            {'evidence_id':'e2','path':['current','pace_s_per_km'],'value':300},
+            {'evidence_id':'e2','path':['current','avg_hr'],'value':150},
+        ],'workout_review':{
+            'verdict':'You completed a distance of {e2:0} in {e2:1}. Your average pace was {e2:2} with an average heart rate of {e2:3}.',
+            'next_step':'Add a note to log how this session felt.'},
+        'follow_ups':['How does my heart rate look?','Compare this with my previous workouts']
+    },expected='fact_unsupported'),
+    fixture('real Gemini longest period notable',data=comparison(notable='longest_90d'),raw={
+        'facts':[
+            {'evidence_id':'e2','path':['baseline_count'],'value':3},
+            {'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':-12},
+            {'evidence_id':'e2','path':['current','distance_m'],'value':8046.72},
+        ],'workout_review':{
+            'verdict':'This was your longest run in the last ninety days at {e2:2}. Compared with your median across your past {e2:0} runs, your pace was faster by {e2:1}.',
+            'next_step':'Add a note to record how the pacing felt.'},
+        'follow_ups':['Compare this with my previous longest run.','Show my heart rate breakdown.']
+    }),
     fixture('real Gemini dotted-path response',units='imperial',
         data={**comparison(),'deltas':{'pace_s_per_km':14},'relations':{'pace_s_per_km':'slower'}},
         raw={'facts':[
@@ -81,7 +140,7 @@ CASES = [
     fixture('ride speed same',data={**comparison('ride'),'current':{**comparison('ride')['current'],'pace_s_per_km':None,'speed_mps':3.1},'deltas':{'speed_mps':0.05},'relations':{'speed_mps':'about_the_same'}}),
     fixture('walk pace',data=comparison('walk')),
     fixture('swim speed',data={**comparison('swim'),'current':{**comparison('swim')['current'],'pace_s_per_km':None,'speed_mps':1.2},'deltas':{'speed_mps':0.2},'relations':{'speed_mps':'faster'}}),
-    fixture('strength summary only',data={**comparison('workout','summary_only'),'current':{**comparison('workout','summary_only')['current'],'moving_s':2700},'baseline_count':0,'deltas':{},'relations':{}},raw=answer(['current','moving_s'],2700,data={**comparison('workout','summary_only'),'current':{**comparison('workout','summary_only')['current'],'moving_s':2700},'baseline_count':0,'deltas':{},'relations':{}})),
+    fixture('strength summary only',data={**comparison('workout','summary_only'),'current':{**comparison('workout','summary_only')['current'],'distance_m':None,'moving_s':2700,'pace_s_per_km':None,'avg_hr':None,'speed_mps':None,'ascent_m':None,'avg_temp_c':None},'baseline_count':0,'deltas':{},'relations':{}},raw=answer(['current','moving_s'],2700,data={**comparison('workout','summary_only'),'current':{**comparison('workout','summary_only')['current'],'distance_m':None,'moving_s':2700,'pace_s_per_km':None,'avg_hr':None,'speed_mps':None,'ascent_m':None,'avg_temp_c':None},'baseline_count':0,'deltas':{},'relations':{}})),
     fixture('first run without baseline',data={**comparison(status='not_enough_similar'),'baseline_count':0,'deltas':{},'relations':{}},raw=answer(['current','distance_m'],8046.72,data={**comparison(status='not_enough_similar'),'baseline_count':0,'deltas':{},'relations':{}})),
     fixture('one similar workout',data={**comparison(status='not_enough_similar'),'baseline_count':1,'deltas':{},'relations':{}},raw=answer(['current','moving_s'],2340,data={**comparison(status='not_enough_similar'),'baseline_count':1,'deltas':{},'relations':{}})),
     fixture('missing heart rate',data={**comparison(),'current':{**comparison()['current'],'avg_hr':None},'deltas':{'pace_s_per_km':-12},'relations':{'pace_s_per_km':'faster'}}),
@@ -127,7 +186,7 @@ CASES = [
 
 
 def run():
-    assert len(CASES)==54
+    assert len(CASES)==59
     assert kit_workout_review.REJECTION_CODES==frozenset({'answer_shape','numeric_unsupported','fact_unsupported','relation_unsupported','health_claim_unsupported','follow_up_invalid','voice_invalid'})
     assert kit_workout_review.WorkoutReviewRejected('model supplied arbitrary text').reason_code=='answer_shape'
     for case in CASES:

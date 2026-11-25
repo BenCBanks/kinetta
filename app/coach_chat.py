@@ -173,9 +173,11 @@ def _normalise_kit_prose(text):
     return without_marks(unicodedata.normalize('NFKC',text))
 
 
-def _placeholder_boundary_ok(context, *, before, fact=None):
+def _placeholder_boundary_ok(context, *, before, fact=None, extra_words=(), sentence_boundary=False):
     # A colon introduces a slot after a prose label. Its own noun still comes from the fact.
     context=context.rstrip() if before else context.lstrip()
+    if not before and sentence_boundary and context and ord(context[0]) in (33, 46, 63):
+        return True
     if before and context.endswith(':'):
         return True
     # Inspect the nearest token through whitespace/punctuation, so ", km" and "(USD)"
@@ -186,7 +188,7 @@ def _placeholder_boundary_ok(context, *, before, fact=None):
     if not context:
         return True
     token=re.search(r'(\w+)$',context) if before else re.match(r'(\w+)',context)
-    allowed=_PLACEHOLDER_WORDS_BEFORE if before else _PLACEHOLDER_WORDS_AFTER
+    allowed=(_PLACEHOLDER_WORDS_BEFORE if before else _PLACEHOLDER_WORDS_AFTER) | set(extra_words)
     baseline_nouns={'runs','walks','hikes','rides','swims','workouts'}
     is_baseline_noun=(not before and fact and fact.get('path')==['baseline_count']
                       and token and token.group(1).casefold() in baseline_nouns)
@@ -212,7 +214,7 @@ def _placeholder_value(fact, before='', after=''):
     return f"{display} {label}"
 
 
-def _kit_prose(text, facts):
+def _kit_prose(text, facts, *, extra_words=(), sentence_boundary=False):
     """Only digits are guaranteed to come from validated, app-rendered placeholders; wording is not verified."""
     text=_normalise_kit_prose(text)
     remainder=PLACEHOLDER.sub('',text)
@@ -231,8 +233,10 @@ def _kit_prose(text, facts):
         before,after=text[:match.start()],text[match.end():]
         left_range=i>0 and text[matches[i-1].end():match.start()].strip() in _PLACEHOLDER_RANGES
         right_range=i+1<len(matches) and text[match.end():matches[i+1].start()].strip() in _PLACEHOLDER_RANGES
-        left_ok=left_range or _placeholder_boundary_ok(before,before=True,fact=fact)
-        right_ok=right_range or _placeholder_boundary_ok(after,before=False,fact=fact)
+        left_ok=left_range or _placeholder_boundary_ok(before,before=True,fact=fact,extra_words=extra_words,
+                                                        sentence_boundary=sentence_boundary)
+        right_ok=right_range or _placeholder_boundary_ok(after,before=False,fact=fact,extra_words=extra_words,
+                                                          sentence_boundary=sentence_boundary)
         if not left_ok or not right_ok:
             detail=_placeholder_boundary_detail(text,match,before=not left_ok)
             raise KitValidationError('Unsupported text attached to numeric reference',detail)
