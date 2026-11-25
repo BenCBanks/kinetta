@@ -66,6 +66,6 @@ Food-thread Kit has a smaller `FoodTools` allowlist: `profile`, `nutrition_summa
 - No dedicated stored splits or heart-rate-zone reader is registered. Do not promise split/zone analysis merely because workout rows can store those fields.
 - All-sport and strength pages have cursors; same-route and recent-run results instead expose truncation. Do not treat a listed page as a complete ranking or baseline.
 - Existing equal-period comparisons reject in-progress periods. Month-to-date semantics and charts remain separate product decisions; this inventory does not approve them.
-- A fresh visit's recent context is bounded to six completed answers. Closing/expiry deletes transient turns; inspectable preference memory is separately bounded to 12 statements/180 days. Durable history and its retention need a separate API/storage decision and migration, with the current expiry behavior remaining the default until approved.
+- A fresh visit's recent context is bounded to six completed answers. Closing/expiry deletes transient turns; inspectable preference memory is separately bounded to 12 statements/180 days. The owner decided durable conversations stay until deletion, with single/all controls and account export/delete. Storage/API are separate Drafts; a default-off rollout switch preserves the current transient behavior until reviewed activation.
 
 No new model tool, prompt, provider setting, endpoint, migration or data access is introduced by this inventory.
