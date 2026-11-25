@@ -3,6 +3,7 @@
 Run inside a throwaway app container with an explicitly configured key, using the
 same seeded database for baseline/candidate. Write output outside the public repo.
 """
+from contextlib import nullcontext
 from functools import partial
 import argparse,datetime as dt,hashlib,json,os,time,uuid
 from pathlib import Path
@@ -10,7 +11,7 @@ from app import db,coach,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
 from kit_gate_cases import GATE_CASE_IDS
-from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_low
+from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_low, smoke_policy, smoke_adapter
 from kit_eval_support import DEFAULT_BUDGET_USD, valid_budget, load_baseline, configure_budget, capped, bounded_results
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
                                  run_weekly_answer, is_expected_health_consent_refusal,
@@ -57,7 +58,7 @@ metadata={'reviewed':False,'complete':False,'dry_run':args.dry_run,
 reused=[]
 if args.setting_smoke:
  metadata.update(setting_smoke=True,input_digest=input_digest(root,selected_cases,ai_release.FILES['kit']),
-                 thinking_settings={'baseline':'LOW','candidate':'MEDIUM'},
+                 thinking_settings={'baseline':'LOW','candidate':'MEDIUM'},correction_retries_per_response=0,provider_turns_per_response=2,
                  human_rubric={key:None for key in RUBRIC})
  if args.baseline_results:
   try:reused=cached_low(json.loads(Path(args.baseline_results).read_text()),metadata['input_digest'])
@@ -77,8 +78,8 @@ configure_budget(args.budget_usd)
 os.environ['GEMINI_MODEL']='gemini-3.8-flash'
 baseline=load_baseline(args.baseline)
 if args.setting_smoke:
- baseline._gemini_turn=partial(baseline._gemini_turn,thinking_level='LOW')
- coach_chat._gemini_turn=partial(coach_chat._gemini_turn,thinking_level='MEDIUM')
+ baseline._gemini_turn=smoke_adapter(partial(baseline._gemini_turn,thinking_level='LOW'))
+ coach_chat._gemini_turn=smoke_adapter(partial(coach_chat._gemini_turn,thinking_level='MEDIUM'))
 baseline.KitAnswer.model_json_schema()  # Fail before any paid call if forward references regress.
 metadata.update(candidate_fingerprint=ai_release.kit_fingerprint(),ai_text=ai_release.ai_text('kit'),models=ai_release.models('kit'))
 save_report(metadata)
@@ -153,13 +154,16 @@ try:
   weekly_manifests[case_id]={**manifest,'period':{key:value.isoformat() for key,value in period.items()}}
  def run(item):
   index,variant,case=item;cid,question,expected,*rest=case;began=time.monotonic();answer=None;error=None
-  rejection=diagnostics.begin() if variant=='candidate' else None
+  rejection=diagnostics.begin()
   history=rest[0] if rest and isinstance(rest[0],list) else []
   options=(rest[1] if len(rest)>1 else {}) if rest and isinstance(rest[0],list) else (rest[0] if rest and isinstance(rest[0],dict) else {})
   weekly=bool(options.get('weekly_review'))
   case_uid=weekly_accounts[cid] if weekly else (uids[2] if options.get('account')=='health-off' else uid)
   transport=None
   provider_requests=0
+  request_id=uuid.uuid4()
+  policy=smoke_policy() if args.setting_smoke else nullcontext()
+  policy.__enter__()
   try:
    if weekly and (variant=='candidate' or args.gate):
     # Run the same answer function used by kit_thread.generate with the exact client POST body.
@@ -189,7 +193,7 @@ try:
     if provider_requests==0 and error is None:
      error='Weekly answer returned without an AI provider request.'
    else:
-    with ai_budget.scope(case_uid,feature='Kit evaluation '+variant):
+    with ai_budget.scope(case_uid,request_id,feature='Kit evaluation '+variant):
      # The pre-weekly baseline receives the same visible starter text; only the candidate
      # path has the weekly route and app-derived evidence contract.
      answer=(baseline.answer(case_uid,'Review my week') if weekly else
@@ -200,7 +204,9 @@ try:
     error='Evaluation returned neither an answer nor an error.'
   except Exception as x:error=type(x).__name__+': '+str(x)[:350]
   finally:
-   if variant=='candidate':diagnostics.end()
+   diagnostics.end()
+   policy.__exit__(None,None,None)
+   if not weekly:provider_requests=provider_requests_for(case_uid,request_id)
   expected_refusal=is_expected_health_consent_refusal(
    cid,variant=variant,answer=answer,error=error,provider_requests=provider_requests,
    refusal_message=coach.HEALTH_NO)
@@ -218,7 +224,8 @@ try:
        'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
   print(json.dumps({'case':cid,'variant':variant,'answered':answer is not None,
                     'expected_refusal':expected_refusal,'passed':passed,
-                    'tool_coverage':row['tool_coverage'],'error':error}),flush=True)
+                    'tool_coverage':row['tool_coverage'],'error':error,
+                    'validation_error':(rejection or {}).get('validation_error'),'provider_requests':provider_requests}),flush=True)
   return row
  previous=json.loads(Path(args.baseline_results).read_text()) if args.baseline_results else {}
  if not args.setting_smoke:

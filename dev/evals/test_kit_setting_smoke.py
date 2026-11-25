@@ -4,7 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from kit_setting_smoke import CASE_IDS,CAP_USD,input_digest,cached_low
+from kit_setting_smoke import CASE_IDS,CAP_USD,input_digest,cached_low,smoke_adapter,_attempts
 from kit_cases import CASES
 
 
@@ -14,6 +14,16 @@ class Settings(unittest.TestCase):
         self.assertEqual(len(cases),10);self.assertEqual(len(set(CASE_IDS)),10)
         self.assertLess(CAP_USD,.5)
         self.assertIn('conversation-detail',CASE_IDS)
+
+    def test_turn_cap(self):
+        calls=[]
+        wrapped=smoke_adapter(lambda messages,definitions,**kwargs:calls.append(definitions))
+        token=_attempts.set([0])
+        try:
+            wrapped([],['tools']);wrapped([],['tools'])
+            with self.assertRaises(ValueError):wrapped([],['tools'])
+        finally:_attempts.reset(token)
+        self.assertEqual(calls,[['tools'],[]])
 
     def test_cache(self):
         good={'setting_smoke':True,'input_digest':'exact','thinking_settings':{'baseline':'LOW','candidate':'MEDIUM'},

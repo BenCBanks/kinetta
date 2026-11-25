@@ -2,7 +2,9 @@
 
 This ten-case experiment compares the same source and fictional data with LOW versus MEDIUM thinking.
 It cannot approve a release (fewer than 40 cases) and never escalates to another model.
-Production defaults stay Flash LOW. Run it only after the owner authorizes the small paid stage.
+Production defaults stay Flash LOW. Each response has zero validation-correction retries and at most two provider
+turns: one tool-selection round, then a no-tools JSON answer. Both LOW and MEDIUM capture every rejected response
+with its matching error/evidence; a truncation is reported honestly and never repaired into invented JSON. Run it only after the owner authorizes the small paid stage.
 
 ```sh
 # No key needed; validates the actual selection/cache checks and copies private metadata out.
