@@ -18,51 +18,19 @@ from fastapi import HTTPException
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'dev' / 'tests'))
-from app import ai_budget, coach, db, kit_workout_review
-from workout_review_fixtures import CASES
+from app import ai_budget, ai_release, coach, db, kit_workout_review
+from workout_review_fixtures import selected_fixtures
 
 MODEL = 'gemini-3.8-flash'
 RUN_CAP_MICROS = 1_000_000
-SELECTED_CASES = (
-    'pace slower and heart rate lower', 'run slower imperial', 'run same pace',
-    'pace same and heart rate higher', 'pace faster and heart rate lower',
-    'ride speed faster metric', 'ride speed slower imperial', 'ride speed same',
-    'walk pace', 'swim speed', 'strength summary only',
-    'first run without baseline', 'one similar workout', 'missing heart rate',
-    'current distance imperial field alias', 'hot day notable', 'hillier route notable',
-    'longest in ninety days', 'personal record notable', 'pace faster and heart rate higher',
-)
-REQUIRED_QUALITY_CASES = frozenset({
-    'personal record notable', 'longest in ninety days', 'first run without baseline',
-    'hot day notable', 'hillier route notable', 'pace same and heart rate higher',
-    'pace faster and heart rate higher', 'strength summary only',
-})
-
-
 class RunBudgetReached(RuntimeError):
     pass
 
 
-def selected_fixtures(fixtures=CASES):
-    fixture_by_name = {case['name']: case for case in fixtures}
-    if (len(SELECTED_CASES) != 20 or len(set(SELECTED_CASES)) != 20
-            or not REQUIRED_QUALITY_CASES.issubset(SELECTED_CASES)
-            or any(name not in fixture_by_name for name in SELECTED_CASES)):
-        raise RuntimeError('The selected fictional evaluation set is incomplete')
-    selected = [fixture_by_name[name] for name in SELECTED_CASES]
-    if any(case['expected'] != 'pass' for case in selected):
-        raise RuntimeError('Paid evaluation inputs must be successful-shape fixtures')
-    input_signatures = {
-        json.dumps([case['units'], case['data']], sort_keys=True, separators=(',', ':'))
-        for case in selected
-    }
-    if len(input_signatures) != 20:
-        raise RuntimeError('The selected fictional evaluation inputs must be distinct')
-    return selected
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--cases', type=int, choices=(20,40), default=40, help='40 distinct gate inputs (default), or 20 smoke inputs')
+    parser.add_argument('--source-commit', required=True, help='Exact source revision supplied by the wrapper')
     parser.add_argument('--thinking', choices=('LOW', 'MEDIUM'), default='LOW')
     parser.add_argument('--output', required=True, help='Private JSONL output path outside the repository')
     parser.add_argument('--accept-paid-calls', action='store_true', help='Required; provider calls incur cost')
@@ -71,7 +39,7 @@ def main():
 
     # Both --dry-run and paid execution validate this exact selected set before
     # creating output files or touching provider/database code.
-    cases = selected_fixtures()
+    cases = selected_fixtures(count=args.cases)
 
     output = Path(args.output).expanduser().resolve()
     repo = ROOT
@@ -82,11 +50,13 @@ def main():
         parser.error('Use a private output directory with no group/other permissions')
     if output.exists():
         parser.error('Refusing to overwrite an existing evaluation capture')
+    metadata = {'type':'metadata','source_commit':args.source_commit,'model':MODEL,
+        'thinking':args.thinking,'case_count':len(cases),'run_cap_usd':1.0,
+        'fixture_source':'dev/tests/workout_review_fixtures.py'}
     if args.dry_run:
         descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
-            stream.write(json.dumps({'type':'metadata','dry_run':True,'provider_calls':0,
-                'fixture_source':'dev/tests/workout_review_fixtures.py'}) + '\n')
+            stream.write(json.dumps({**metadata,'dry_run':True,'provider_calls':0}) + '\n')
             stream.flush()
             os.fsync(stream.fileno())
         print(f'Dry run: wrote header only; no provider calls. Output: {output}', flush=True)
@@ -101,9 +71,11 @@ def main():
         parser.error('Enable Kit/provider access only inside the disposable evaluation environment')
 
     os.environ['GEMINI_MODEL'] = MODEL
+    metadata.update(ai_text=ai_release.ai_text('kit'), models=ai_release.models('kit'),
+                    candidate_fingerprint=ai_release.kit_fingerprint())
     os.environ['KINETTA_AI_DAILY_USD'] = '1'
     os.environ['KINETTA_AI_USER_DAILY_MICROUSD'] = str(RUN_CAP_MICROS)
-    os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS'] = str(len(SELECTED_CASES))
+    os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS'] = str(len(cases))
 
     user_login = 'zz_test_kit_workout_review_' + uuid.uuid4().hex[:12]
     attempts = []
@@ -148,9 +120,7 @@ def main():
                 weight_health_derived,kcal_target,protein_target)
                 VALUES (%s,'UTC','metric',true,now(),true,false,false,false,false,2200,120)""", (uid,))
 
-        record({'type':'metadata','model':MODEL,'thinking':args.thinking,'case_count':len(cases),
-                'run_cap_usd':1.0,'fixture_source':'dev/tests/workout_review_fixtures.py',
-                'provider_key_source':'GEMINI_API_KEY environment variable'})
+        record(metadata)
         for case in cases:
             if spent_micros >= RUN_CAP_MICROS:
                 break
@@ -192,10 +162,11 @@ def main():
             started = time.monotonic()
             rejection = None
             error_type = None
+            rendered_answer = None
             try:
                 with ai_budget.after_reserve(before_send), ai_budget.scope(
                         uid, uuid.uuid4(), feature='Kit workout review evaluation'):
-                    kit_workout_review.answer(
+                    rendered_answer = kit_workout_review.answer(
                         uid, 'Review this recorded workout.',
                         {'comparison':case['data'],'required_consents':{'health':False,'garmin':False},
                          'health_included':False}, turn=turn)
@@ -223,7 +194,8 @@ def main():
             record({'type':'case','case':case['name'],'rejection_code':rejection,
                     'error_type':error_type,'tokens_in':input_tokens,'tokens_out':output_tokens,
                     'thinking_tokens':thinking_tokens,'latency_ms':latency_ms,
-                    'answer_text':captured.get('answer_text'),'cost_usd':None if cost_micros is None else cost_micros / 1_000_000,
+                    'answer_text':captured.get('answer_text'),'rendered_answer':rendered_answer,
+                    'input':{'units':case['units'],'comparison':case['data']},'cost_usd':None if cost_micros is None else cost_micros / 1_000_000,
                     'run_spent_or_reserved_usd':spent_micros / 1_000_000})
             status = f"rejection_code={rejection or 'none'}"
             if error_type:
@@ -237,6 +209,8 @@ def main():
         print(f'Evaluation output: {output}', flush=True)
         print(f'Cases completed: {rows_written - 2}/{len(cases)}', flush=True)
         print(f'Total cost: ${spent_micros / 1_000_000:.6f} charged or reserved; $1.00 hard cap', flush=True)
+        if rows_written - 2 != len(cases):
+            raise RuntimeError('Incomplete evaluation; capture cannot approve a gate')
     finally:
         if uid is not None:
             with db.connect() as connection:

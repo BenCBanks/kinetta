@@ -155,3 +155,9 @@ Paid runs are needed only when what the model reads, or the model, changes.
 controls. First run (25 Oct, gemini-3.1-flash-lite, $0.03): the production prompt already put 27/27 branded items
 within 15%; an added "words may be a brand" instruction did not help (26/27), so it was not adopted. Neither food
 model knows newer niche brands (Garage Beer); estimates then fall back to a generic item and say so.
+
+## Workout-review rollout
+
+The [workout-review gate runbook](WORKOUT_REVIEW.md) covers a disposable 40-input capture,
+provider-free preflight, explicit human review and private report construction. The 20-case
+smoke set cannot satisfy the release gate; all captures and reports stay outside this repository.

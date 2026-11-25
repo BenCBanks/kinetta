@@ -1,5 +1,6 @@
 """Fictional, provider-free Kit workout-review cases. Run by coach_incontainer.py."""
 import re
+import json
 from app import kit_workout_review, workout_compare
 
 
@@ -178,6 +179,60 @@ CASES = [
     fixture('vs abbreviation is not a sentence end',data=comparison(),raw=answer(data=comparison(),verdict='Compared with {baseline}, your pace was {e2:1} vs. that last run.')),
 ]
 
+# Paid gate coverage: the same twenty scenarios in metric and imperial units.
+# Keep these selectors here: CI feeds this file to Python via stdin without dev/.
+SELECTED_CASES = (
+    'pace slower and heart rate lower', 'run slower imperial', 'run same pace',
+    'pace same and heart rate higher', 'pace faster and heart rate lower',
+    'ride speed faster metric', 'ride speed slower imperial', 'ride speed same',
+    'walk pace', 'swim speed', 'strength summary only',
+    'first run without baseline', 'one similar workout', 'missing heart rate',
+    'current distance imperial field alias', 'hot day notable', 'hillier route notable',
+    'longest in ninety days', 'personal record notable', 'pace faster and heart rate higher',
+)
+REQUIRED_QUALITY_CASES = frozenset({
+    'personal record notable', 'longest in ninety days', 'first run without baseline',
+    'hot day notable', 'hillier route notable', 'pace same and heart rate higher',
+    'pace faster and heart rate higher', 'strength summary only',
+})
+
+for case_name in SELECTED_CASES:
+    original = next(case for case in CASES if case['name'] == case_name)
+    other_units = 'imperial' if original['units'] == 'metric' else 'metric'
+    alternate_data = dict(original['data'])
+    # These two original inputs differ only by units. Exercise matched-route
+    # wording in their alternate settings rather than paying for duplicates.
+    if case_name in {'pace faster and heart rate lower','current distance imperial field alias'}:
+        alternate_data['same_route_count'] = 1
+    CASES.append({**original, 'name':case_name+' (alternate units)',
+                  'data':alternate_data,'units':other_units, 'display':None})
+
+
+def selected_fixtures(fixtures=CASES, count=40):
+    if count not in (20, 40):
+        raise RuntimeError('Select 20 smoke cases or 40 gate cases')
+    fixture_by_name = {case['name']: case for case in fixtures}
+    if (len(SELECTED_CASES) != 20 or len(set(SELECTED_CASES)) != 20
+            or not REQUIRED_QUALITY_CASES.issubset(SELECTED_CASES)
+            or any(name not in fixture_by_name for name in SELECTED_CASES)):
+        raise RuntimeError('The selected fictional evaluation set is incomplete')
+    names = list(SELECTED_CASES)
+    if count == 40:
+        names += [name+' (alternate units)' for name in SELECTED_CASES]
+    if any(name not in fixture_by_name for name in names):
+        raise RuntimeError('The selected fictional evaluation set is incomplete')
+    selected = [fixture_by_name[name] for name in names]
+    if any(case['expected'] != 'pass' for case in selected):
+        raise RuntimeError('Paid evaluation inputs must be successful-shape fixtures')
+    input_signatures = {
+        json.dumps([case['units'], case['data']], sort_keys=True, separators=(',', ':'))
+        for case in selected
+    }
+    if len(input_signatures) != count:
+        raise RuntimeError('The selected fictional evaluation inputs must be distinct')
+    return selected
+
+
 UNVERIFIED_COMPARATIVE_FAMILIES = {
     'better-worse': ('better','worse'),
     'improvement': ('improved','improving'),
@@ -253,14 +308,14 @@ def run():
             assert baseline['label']==noun and baseline['display_value']==str(case['data']['baseline_count']),case['name']
         if case['display']:
             assert case['display'] in [fact['display_value'] for fact in result['facts']],(case['name'],[fact['display_value'] for fact in result['facts']])
-    from dev.evals import workout_review_eval
-    selected = workout_review_eval.selected_fixtures(CASES)
-    assert len(selected)==20 and all(case['expected']=='pass' for case in selected)
+    selected = selected_fixtures(CASES)
+    assert len(selected)==40 and all(case['expected']=='pass' for case in selected)
+    assert len(selected_fixtures(CASES, count=20))==20
     invalid_selection=[dict(case) for case in CASES]
-    selected_name=workout_review_eval.SELECTED_CASES[0]
+    selected_name=SELECTED_CASES[0]
     next(case for case in invalid_selection if case['name']==selected_name)['expected']='voice_invalid'
     try:
-        workout_review_eval.selected_fixtures(invalid_selection)
+        selected_fixtures(invalid_selection)
     except RuntimeError as error:
         assert str(error)=='Paid evaluation inputs must be successful-shape fixtures'
     else:

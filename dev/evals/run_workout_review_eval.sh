@@ -7,10 +7,16 @@ umask 077
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 THINKING=LOW
 DRY_RUN=0
+CASES=40
 while (($#)); do
   case "$1" in
+    --cases)
+      (($# >= 2)) || { echo "--cases requires 20 or 40" >&2; exit 2; }
+      CASES="$2"
+      shift 2
+      ;;
     --thinking)
-      (($# >= 2)) || { echo "Usage: $0 [--thinking LOW|MEDIUM] [--dry-run]" >&2; exit 2; }
+      (($# >= 2)) || { echo "Usage: $0 [--thinking LOW|MEDIUM] [--cases 20|40] [--dry-run]" >&2; exit 2; }
       THINKING="$2"
       shift 2
       ;;
@@ -19,11 +25,11 @@ while (($#)); do
       shift
       ;;
     --help|-h)
-      echo "Usage: $0 [--thinking LOW|MEDIUM] [--dry-run]"
+      echo "Usage: $0 [--thinking LOW|MEDIUM] [--cases 20|40] [--dry-run]"
       exit 0
       ;;
     *)
-      echo "Usage: $0 [--thinking LOW|MEDIUM] [--dry-run]" >&2
+      echo "Usage: $0 [--thinking LOW|MEDIUM] [--cases 20|40] [--dry-run]" >&2
       exit 2
       ;;
   esac
@@ -32,6 +38,12 @@ done
   echo "Thinking must be LOW or MEDIUM." >&2
   exit 2
 }
+[[ "$CASES" == 20 || "$CASES" == 40 ]] || { echo "Cases must be 20 or 40." >&2; exit 2; }
+SOURCE_COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
+if ! git -C "$ROOT" diff --quiet HEAD -- app dev/evals dev/tests/workout_review_fixtures.py; then
+  echo "Commit the evaluated source before capturing gate evidence." >&2
+  exit 2
+fi
 if ((DRY_RUN == 0)); then
   [[ -n "${GEMINI_API_KEY:-}" ]] && printenv GEMINI_API_KEY >/dev/null 2>&1 || {
     echo "Export GEMINI_API_KEY in the environment; the key is never accepted as an argument." >&2
@@ -110,15 +122,15 @@ compose cp "$ROOT/dev/tests/workout_review_fixtures.py" app:/srv/dev/tests/worko
 compose exec -T app mkdir -m 700 -p "$CONTAINER_OUTPUT_DIR"
 
 if ((DRY_RUN == 1)); then
-  # The evaluator runs its full 20-case expected-pass/distinctness preflight
+  # The evaluator runs its full selected-case expected-pass/distinctness preflight
   # before creating this dry-run header; paid and dry runs share that check.
   compose exec -T app python /srv/dev/evals/workout_review_eval.py \
-    --thinking "$THINKING" --output "$CONTAINER_OUTPUT" --dry-run
+    --thinking "$THINKING" --cases "$CASES" --source-commit "$SOURCE_COMMIT" --output "$CONTAINER_OUTPUT" --dry-run
 else
   compose exec -T -e GEMINI_API_KEY \
     -e KINETTA_WORKOUT_REVIEW_EVAL_ISOLATED=1 \
     -e KINETTA_AI_ENABLED=1 \
     -e KINETTA_KIT_ENABLED=1 \
     app python /srv/dev/evals/workout_review_eval.py \
-    --thinking "$THINKING" --output "$CONTAINER_OUTPUT" --accept-paid-calls
+    --thinking "$THINKING" --cases "$CASES" --source-commit "$SOURCE_COMMIT" --output "$CONTAINER_OUTPUT" --accept-paid-calls
 fi
