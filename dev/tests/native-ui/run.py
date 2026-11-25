@@ -192,12 +192,12 @@ for device in preferred:
       hr_ticks=[int(match.group(1)) for label in heart['yLabels'] if (match:=re.search(r'(\d+)',label))]
       assert len(pace_ticks)==2 and min(pace_ticks)<=579<=max(pace_ticks) and len(hr_ticks)==2 and min(hr_ticks)<=145<=max(hr_ticks), 'Activity averages must sit inside their visible chart axes'
      if stage=='header-food':
-      food_text=metrics['bodyText'];assert 'Improve calorie estimates' not in food_text and re.search(r'1,?200',food_text) and '90 / 110' in food_text and '180 / 220' in food_text and '52 / 70' in food_text, 'Nutrition Store fixture must show body details and filled macro bars'
+      food_text=metrics['bodyText'];assert 'Improve calorie estimates' not in food_text and re.search(r'1,?200',food_text) and '75 / 120' in food_text and '135 / 200' in food_text and '40 / 60' in food_text, 'Nutrition Store fixture must show body details and filled macro bars'
       card,gear,ring,protein=[(metrics.get('storeNutrition') or {}).get(key) for key in ('card','gear','ring','protein')]
       assert card and gear and ring and protein and card['x']<=gear['x']<card['right'] and gear['width']>=44 and gear['height']>=44, 'Nutrition gear must remain a 44px target in the card top-right'
       assert abs(gear['y']-ring['y'])<=8 and gear['bottom']<protein['y'], 'Nutrition gear must share the ring row without reserving a row above it'
      if stage=='food':
-      assert 'Today' in metrics['bodyText'] and '1 serving · estimated portion' in metrics['bodyText'] and '≈180 g · estimated portion' in metrics['bodyText'] and '≈500 kcal' in metrics['bodyText'] and 'Your numbers' not in metrics['bodyText'], 'Kit chat must show the estimated portion and calories without a manual-entry label'
+      assert 'Today' in metrics['bodyText'] and '1 serving · estimated portion' in metrics['bodyText'] and '≈180 g · estimated portion' in metrics['bodyText'] and '≈ 500 kcal' in metrics['bodyText'] and 'Your numbers' not in metrics['bodyText'], 'Kit chat must show the estimated portion and calories without a manual-entry label'
       assert metrics.get('storeKitTitle')=='Today' and metrics.get('storeKitDateDividers')==0, 'Kit chat title must be Today without a duplicate Today divider'
       assert 0<=metrics.get('storeKitGap',999)<=32, 'Kit chat messages must sit close to the composer'
      if stage=='header-progress':

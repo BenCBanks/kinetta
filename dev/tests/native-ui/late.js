@@ -227,7 +227,7 @@
         if(!row)continue;
         const detail=row.querySelector('.compact-food-meta .thread-amount')||row.querySelector('.tf-main small');if(detail)detail.textContent=name==='Chicken salad bowl'?'≈180 g · estimated portion':`${amount} · estimated portion`;
         row.querySelector('.compact-food-meta .tf-source')?.remove();
-        const calories=row.querySelector('.tf-kcal');if(calories)calories.textContent=`≈${kcal} kcal`;
+        const calories=row.querySelector('.tf-kcal');if(calories)calories.textContent=`≈ ${kcal} kcal`;
       }
     }
     if(cfg.activityFeed){let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#ff-list .post[data-href="/activity/1"]')&&!!document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Fictional own and friend Activity cards did not finish rendering');}
