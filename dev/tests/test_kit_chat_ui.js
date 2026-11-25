@@ -19,7 +19,7 @@ for(const [input,expected] of [
  ['Would you like to review your recent workouts.','Would you like to review your recent workouts.'],
  ['Would you like to?','Would you like to?'],
 ])assert.equal(c.Kit.rewriteFollowup(input),expected,`screen-side follow-up rewrite: ${input}`);
-assert(source.includes('filter(isFirstPersonFollowup)')&&source.includes('class="kit-suggested-reply" data-kit-followup')&&source.includes('send(c,b.querySelector(\'span\')?.textContent.trim()||\'\')'),'only eligible rewritten first-person suggestions render as sendable user bubbles');
+assert(source.includes('filter(q=>workoutMode||isFirstPersonFollowup(q))')&&source.includes('class="kit-suggested-reply" data-kit-followup')&&source.includes('send(c,b.querySelector(\'span\')?.textContent.trim()||\'\')'),'normal Kit suggestions require first-person wording; app-chosen workout prompts use the reviewed whitelist');
 assert(source.includes('function pruneLongSuggestions(root)')&&source.includes('if(new Set(lines).size>2)button.remove()'),'suggestions over two rendered lines are dropped without truncation');
 assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
 assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition)),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
@@ -44,11 +44,12 @@ const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eras
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 assert(source.includes("send(c,label,index)")&&source.includes("button.querySelector('span')?.textContent"),'a starter sends its visible button label separately from its hidden guidance index');
 assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the stored question verbatim');
-assert(source.includes('filter(isFirstPersonFollowup)')&&source.includes('class="kit-suggested-reply" data-kit-followup'),'Kit presents only eligible rewritten first-person follow-ups as tappable chips');
+assert(source.includes('filter(q=>workoutMode||isFirstPersonFollowup(q))')&&source.includes('class="kit-suggested-reply" data-kit-followup'),'Kit keeps ordinary first-person checks and presents app-chosen workout follow-ups');
 assert(source.includes("send(c,b.querySelector('span')?.textContent.trim()||'')"),'a follow-up chip asks Kit exactly the visible question');
 assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
 assert(source.includes('if(f.display_value!=null)return String(f.display_value)'),'Kit preserves server-formatted unit-aware values');
 assert(source.includes('a.weekly_review.what_went_well')&&source.includes('a.weekly_review.what_to_change')&&source.includes('a.weekly_review.next_week_focus'),'weekly review renders its three named sections');
+assert(source.includes('a?.workout_review?.verdict')&&source.includes('a?.workout_review?.next_step'),'workout review renders its nested, separately validated answer contract');
 assert(source.includes('a.weekly_period?.label'),'weekly review shows the app-owned completed date range once');
 assert(source.includes('Review my week'),'weekly review is only a visible tap-to-start suggestion');
 assert(fs.readFileSync('app/static/style.css','utf8').includes('.kit-answer .kit-verdict')&&fs.readFileSync('app/static/style.css','utf8').includes('font-weight:700'),'weekly review verdict uses the same bold lead treatment as ordinary Kit answers');
@@ -186,6 +187,8 @@ assert(answerHtml.indexOf('Am I improving?')<answerHtml.indexOf('kit-verdict'));
 assert(answerHtml.indexOf('kit-verdict')<answerHtml.indexOf('kit-reason'),'verdict and reason keep the approved reading order');
 assert(!answerHtml.includes('Do not duplicate')&&!answerHtml.includes('href="/progress"'),'follow-up questions replace generic destination links');
 assert.equal((answerHtml.match(/data-kit-followup/g)||[]).length,2);
+const workoutPromptHtml=drawAnswer({workout_review:{verdict:'Compared with your last 3 runs, pace was 12 s/km faster.',next_step:'Keep your next run easy.'},follow_ups:['How is my training load this week?','How does this week compare with last week?']});
+assert(workoutPromptHtml.includes('How is my training load this week?')&&workoutPromptHtml.includes('How does this week compare with last week?'),'the fixed workout-review whitelist keeps both app-chosen prompts visible');
 assert(answerHtml.includes('</div><div class="kit-suggested-replies"')&&!answerHtml.includes('kit-answer-followups'),'send bubbles sit outside the answer card');
 const trainingHtml=drawAnswer({facts:[{path:['days',9,'fatigue'],value:61.4},{path:['days',9,'fitness'],value:48.4},{path:['days',9,'form'],value:8.7}]});
 assert(trainingHtml.includes('Recent training')&&trainingHtml.includes('Heavier than usual')&&trainingHtml.includes('≈ 61 vs ≈ 48 usual'),'recent training shows its verdict before concise whole-number estimates');

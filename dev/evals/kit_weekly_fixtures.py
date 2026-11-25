@@ -7,15 +7,16 @@ WEEKLY_CONTEXT = {'screen': 'progress', 'activity_id': None, 'starter_index': 3}
 
 
 def is_expected_health_consent_refusal(case_id, *, variant, answer, error, provider_requests, refusal_message):
-    """Only the consent-off candidate case may pass as an exact, pre-provider refusal."""
-    return (case_id == 'weekly-health-consent-off' and variant == 'candidate'
-            and answer is None and provider_requests == 0
+    """Only named consent-off cases may pass as the exact existing refusal."""
+    allowed_requests=(0,) if case_id=='weekly-health-consent-off' else (0,1) if case_id=='recall-health-consent-off' else ()
+    return (variant in ('candidate','baseline') and answer is None
+            and type(provider_requests) is int and provider_requests in allowed_requests
             and error == 'ValueError: ' + refusal_message)
 
 
 def evaluation_case_passed(case_id, *, variant, answer, error, expected_refusal=False):
     """Require the exact refusal for the no-consent case; otherwise require an answer."""
-    if case_id == 'weekly-health-consent-off' and variant == 'candidate':
+    if case_id in ('weekly-health-consent-off','recall-health-consent-off') and variant in ('candidate', 'baseline'):
         return expected_refusal
     return answer is not None and error is None
 

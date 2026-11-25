@@ -40,6 +40,9 @@ python3 dev/design/build_content.py
 python3 dev/tests/test_website_content.py
 python3 dev/tests/ai_fingerprints.py
 python3 dev/evals/test_food_memory_score.py
+python3 dev/evals/test_workout_review_report.py
+python3 dev/evals/test_kit_gate.py
+python3 dev/evals/test_kit_setting_smoke.py
 
 echo "== syntax"
 python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
@@ -257,7 +260,14 @@ docker compose -p "$P" exec -T app python - < dev/tests/route_sharing_incontaine
 docker compose -p "$P" exec -T app python - < dev/tests/test_activity_overlap_dst.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_following_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_incontainer.py
-docker compose -p "$P" exec -T app python - < dev/tests/coach_incontainer.py
+cat dev/tests/coach_incontainer.py dev/tests/workout_review_fixtures.py | docker compose -p "$P" exec -T app python -
+docker compose -p "$P" exec -T app python - < dev/tests/kit_conversation_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke_replay_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-smoke2-rejections.json app:/tmp/kit-smoke2-fixtures.json
+docker compose -p "$P" exec -T app python - < dev/tests/kit_truncation_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-smoke3-nutrition.json app:/tmp/kit-smoke3-fixtures.json
+docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke2_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/garmin_connect_incontainer.py

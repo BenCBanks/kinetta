@@ -83,11 +83,16 @@ def _metrics(activity):
     }
 
 
-def _comparison(c, uid, activity, consents):
+def _comparison(c, uid, activity, consents, *, with_health_context=False):
     current = _metrics(activity)
+    required_consents = {'health': _health_activity(activity), 'garmin': activity['source'] == 'garmin_connect'}
+
+    def result(value, requirements=None):
+        return (value, requirements or required_consents) if with_health_context else value
+
     if activity['sport'] == 'workout':
-        return {'status': 'summary_only', 'current': current, 'baseline_count': 0,
-                'baseline_medians': {}, 'deltas': {}, 'relations': {}, 'notable': 'none', 'same_route_count': 0}
+        return result({'status': 'summary_only', 'current': current, 'baseline_count': 0,
+                       'baseline_medians': {}, 'deltas': {}, 'relations': {}, 'notable': 'none', 'same_route_count': 0})
 
     distance = current['distance_m']
     if not distance or distance <= 0 or not current['moving_s'] or current['moving_s'] <= 0:
@@ -99,11 +104,13 @@ def _comparison(c, uid, activity, consents):
             consents['health_ok'], consents['garmin_ok'],
         )).fetchall()
 
+    required_consents['health'] = required_consents['health'] or any(_health_activity(row) for row in rows)
+    required_consents['garmin'] = required_consents['garmin'] or any(row['source'] == 'garmin_connect' for row in rows)
     count = len(rows)
     same_route_count = sum(1 for row in rows if activity.get('route_id') is not None and row.get('route_id') == activity['route_id'])
     if count < 2:
-        return {'status': 'not_enough_similar', 'current': current, 'baseline_count': count,
-                'baseline_medians': {}, 'deltas': {}, 'relations': {}, 'notable': 'none', 'same_route_count': same_route_count}
+        return result({'status': 'not_enough_similar', 'current': current, 'baseline_count': count,
+                       'baseline_medians': {}, 'deltas': {}, 'relations': {}, 'notable': 'none', 'same_route_count': same_route_count}, required_consents)
 
     metric_names = ('pace_s_per_km', 'speed_mps', 'avg_hr', 'ascent_m', 'avg_temp_c')
     baseline_metrics = [_metrics(row) for row in rows]
@@ -145,9 +152,37 @@ def _comparison(c, uid, activity, consents):
         if current['ascent_m'] is not None and climb_rates and current['ascent_m'] / distance > median(climb_rates):
             notable = 'hillier'
 
-    return {'status': 'compared', 'current': current, 'baseline_count': count,
-            'baseline_medians': medians, 'deltas': deltas, 'relations': relations, 'notable': notable,
-            'same_route_count': same_route_count}
+    return result({'status': 'compared', 'current': current, 'baseline_count': count,
+                   'baseline_medians': medians, 'deltas': deltas, 'relations': relations, 'notable': notable,
+                   'same_route_count': same_route_count}, required_consents)
+
+
+LATEST_ACTIVITY_SQL = """SELECT id,user_id,sport,source,healthkit_id,start_time,distance_m,moving_s,
+    ascent_m,avg_hr,avg_temp,route_id FROM activities
+    WHERE user_id=%s AND start_time >= now() - interval '14 days' AND start_time <= now()
+    ORDER BY start_time DESC,id DESC LIMIT 1"""
+
+
+def review_for_user(uid, activity_id=None):
+    """Return an own, consent-checked latest/current workout comparison for Kit's tapped starter."""
+    with db.coach_connect(uid) as c:
+        consents = c.execute(CONSENTS_SQL, (uid,)).fetchone() or {'health_ok': False, 'garmin_ok': False}
+        activity = (c.execute(ACTIVITY_SQL, (activity_id, uid)).fetchone() if activity_id is not None
+                    else c.execute(LATEST_ACTIVITY_SQL, (uid,)).fetchone())
+        if activity is None:
+            return None
+        if not _source_allowed(activity, consents):
+            raise HTTPException(403, health_copy.user_message(coach.HEALTH_NO))
+        comparison, required_consents = _comparison(c, uid, activity, consents, with_health_context=True)
+        comparison['sport'] = activity['sport']
+        return {'comparison': comparison, 'required_consents': required_consents,
+                'health_included': required_consents['health']}
+
+
+def review_consents_still_valid(uid, required):
+    with db.coach_connect(uid) as c:
+        current = c.execute(CONSENTS_SQL, (uid,)).fetchone() or {'health_ok': False, 'garmin_ok': False}
+        return (not required.get('health') or current['health_ok']) and (not required.get('garmin') or current['garmin_ok'])
 
 
 @router.post('/api/kit/workout-compare')

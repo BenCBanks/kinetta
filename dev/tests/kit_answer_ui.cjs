@@ -265,23 +265,27 @@ async function main(){
    assert.deepEqual(unexpectedWrites,[],`${theme}: fixtures make no unexpected writes or provider calls`);
    await c.close();contexts.pop();
   }
-  for(const width of [390,330])for(const theme of ['light','dark']){
-   const insufficient=width===330&&theme==='dark';
-   const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),compareCalls=[],kitMessagePosts=[],unexpectedWrites=[];contexts.push(c);
+   for(const width of [390,330])for(const theme of ['light','dark']){
+   const insufficient=width===330&&theme==='dark',fallbackOnly=insufficient;
+   const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),compareCalls=[],kitMessagePosts=[],unexpectedWrites=[];let row=null,question='';contexts.push(c);
    await p.clock.install({time:new Date('2026-11-24T12:00:00Z')});
    p.on('pageerror',e=>unexpectedWrites.push('pageerror:'+e.message));
    await c.route('**/*',async route=>{
     const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
     if(u.pathname==='/api/me'&&req.method()==='GET'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,units:theme==='light'?'imperial':'metric',ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});}
     if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST')return route.fulfill({json:{visit_id:'fixture-workout-review',generation:'fixture-workout-review',ready:true}});
-    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation:'fixture-workout-review',ready:true,before:null,messages:[]}});
-    if(u.pathname==='/api/activities'&&req.method()==='GET')return route.fulfill({json:[{id:insufficient?43:42,sport:'run',start_time:'2026-11-23T12:00:00Z'}]});
-    if(u.pathname==='/api/kit/workout-compare'&&req.method()==='POST'){
-     compareCalls.push({method:req.method(),body:req.postDataJSON()});
-     const response=insufficient?{status:'not_enough_similar',current:{distance_m:5000,moving_s:1800,pace_s_per_km:null,speed_mps:null,avg_hr:null,ascent_m:null},baseline_count:1,baseline_medians:{},deltas:{},relations:{},notable:'none',same_route_count:0}:{status:'compared',current:{distance_m:8046.72,moving_s:2340,pace_s_per_km:300,speed_mps:null,avg_hr:150,ascent_m:100,avg_temp_c:22},baseline_count:3,baseline_medians:{pace_s_per_km:312,avg_hr:153,ascent_m:60},deltas:{pace_s_per_km:-12,avg_hr:-3,ascent_m:40},relations:{pace_s_per_km:'faster',avg_hr:'lower'},notable:'hillier',same_route_count:1};
-     return route.fulfill({json:response});
+    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation:'fixture-workout-review',ready:true,before:null,messages:row?[row]:[]}});
+    if(u.pathname==='/api/coach/conversation/messages'&&req.method()==='POST'){
+     const body=req.postDataJSON();kitMessagePosts.push(body);question=body.question;
+     row={id:1,client_id:body.client_id,generation:'fixture-workout-review',visit_id:'fixture-workout-review',question,state:'pending',answer:null,error:null};
+     return route.fulfill({json:row});
     }
-    if(u.pathname==='/api/coach/conversation/messages'&&req.method()==='POST')kitMessagePosts.push(req.postDataJSON());
+    if(/^\/api\/coach\/conversation\/messages\/[^/]+\/answer$/.test(u.pathname)&&req.method()==='POST'){
+     const comparison=insufficient?{status:'not_enough_similar',sport:'run',current:{distance_m:5000,moving_s:1800,pace_s_per_km:null,speed_mps:null,avg_hr:null,ascent_m:null},baseline_count:1,baseline_medians:{},deltas:{},relations:{},notable:'none',same_route_count:0}:{status:'compared',sport:'run',current:{distance_m:8046.72,moving_s:2340,pace_s_per_km:300,speed_mps:null,avg_hr:150,ascent_m:100,avg_temp_c:22},baseline_count:3,baseline_medians:{pace_s_per_km:312,avg_hr:153,ascent_m:60},deltas:{pace_s_per_km:-12,avg_hr:-3,ascent_m:40},relations:{pace_s_per_km:'faster',avg_hr:'lower'},notable:'hillier',same_route_count:1};
+     const review={workout_review:{verdict:'Your workout felt steady.',next_step:'You could keep a comfortable effort next time.'},facts:[],follow_ups:[],workout_comparison:comparison};
+     row={...row,state:'answered',answer:fallbackOnly?{workout_comparison:comparison}:review};
+     return route.fulfill({json:row});
+    }
     if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
     if(['POST','PUT','PATCH','DELETE'].includes(req.method()))unexpectedWrites.push(u.pathname);
     return route.continue();
@@ -289,8 +293,15 @@ async function main(){
    await p.goto(base+'/me/kit?from=activity');
    const starter=p.locator('#kit-starters button').filter({hasText:'Review my latest workout'});await starter.waitFor({state:'visible'});await starter.click();
    const comparison=p.locator('.kit-workout-comparison');await comparison.waitFor({state:'visible'});
-   assert.deepEqual(compareCalls,[{method:'POST',body:{activity_id:insufficient?43:42}}],`${width}px ${theme}: tapping the starter requests the latest activity ID once`);
-   assert.deepEqual(kitMessagePosts,[],`${width}px ${theme}: app comparison is not sent to Kit`);
+   assert.equal(kitMessagePosts.length,1,`${width}px ${theme}: tapping the starter sends one normal conversation message`);
+   assert.equal(kitMessagePosts[0].question,'Review my latest workout',`${width}px ${theme}: exact starter text is the conversation question`);
+   assert.equal(kitMessagePosts[0].context.starter_index,0,`${width}px ${theme}: tapped starter enters the dedicated answer mode`);
+   assert(!JSON.stringify(kitMessagePosts).includes('workout_comparison'),`${width}px ${theme}: app comparison evidence is not sent in the user message`);
+   if(fallbackOnly)assert.equal(await p.locator('.kit-verdict').count(),0,`${width}px ${theme}: comparison-only fallback has no Kit wording`);
+   else assert.equal(await p.locator('.kit-verdict').innerText(),'Your workout felt steady.',`${width}px ${theme}: the direct answer renders above the comparison`);
+   assert.equal(await p.locator('.kit-facts').count(),0,`${width}px ${theme}: verified prose facts are not repeated below the app comparison`);
+   const order=await p.locator('.kit-answer').evaluate(el=>Array.from(el.children).filter(n=>n.matches('.kit-verdict,.kit-workout-comparison,.kit-reason')).map(n=>n.classList.contains('kit-verdict')?'verdict':n.classList.contains('kit-workout-comparison')?'comparison':'next-step'));
+   assert.deepEqual(order,fallbackOnly?['comparison']:['verdict','comparison','next-step'],`${width}px ${theme}: render order follows the approved workout-review design`);
    assert.deepEqual(unexpectedWrites,[],`${width}px ${theme}: comparison makes no writes or page errors`);
    const text=await comparison.innerText();
    if(insufficient){
@@ -301,10 +312,12 @@ async function main(){
    }else{
     assert(text.includes(theme==='light'?'5 mi · 39 min · 8:03 /mi':'8 km · 39 min · 5:00 /km'),`${width}px ${theme}: summary uses profile units`);
     assert(text.includes('vs your last 3 runs of similar distance')&&text.includes(theme==='light'?'19 s/mi faster':'12 s/km faster'),`${width}px ${theme}: comparison rows are rendered in profile units`);
-    assert(text.includes('Heart rate')&&text.includes(theme==='light'?'131 ft more':'40 m more'),`${width}px ${theme}: comparison rows express climb as a delta`);
+    assert(text.includes('Heart rate')&&text.includes(theme==='light'?'131 ft more':'40 m more'),`${width}px ${theme}: comparison rows express climb as a compact delta`);
+    if(theme==='light')assert.equal(await p.locator('.kit-workout-rows>div').last().locator('dd').innerText(),'131 ft more',`${width}px: climb value omits the duplicated usual wording`);
     assert.equal(await p.locator('.kit-workout-notable').innerText(),'Hillier than usual',`${width}px ${theme}: the app-selected notable appears under the rows`);
     assert.equal(await p.locator('.kit-workout-rows>div').evaluateAll(rows=>rows.every(row=>row.getBoundingClientRect().height>=44)),true,`${width}px ${theme}: comparison rows retain 44px targets`);
    }
+   if(out&&width===390){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-workout-review-390-${theme}.png`),animations:'disabled'});}
    await c.close();contexts.pop();
   }
   console.log('Ask Kit detail, wait/error and workout comparisons: 390/330 light/dark; notable and climb delta; no Kit message or writes/provider calls.');
