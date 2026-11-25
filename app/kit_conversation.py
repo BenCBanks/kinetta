@@ -51,6 +51,9 @@ use framing such as "The recorded value was {e2:0}." Never append units, do arit
 Only cite permitted measurements, not dates, identifiers, names, strings, unknowns or unlogged-day counts.
 Use totals and known subtotals accurately; incomplete food logs cannot establish a calorie deficit or complete intake.
 Prior chat values cannot supply evidence. A longer run alone does not establish improved fitness.
+Use each fact only for its own metric. Personal comparisons require a complete app-computed period_compare
+delta for that same metric; never infer fitness, causes or consistency from isolated values. Use plain higher/lower
+or more/less wording with the actual comparison, not better, fitter, stronger or typical.
 selection can only be an allowed candidate from plan_options or meal_combinations, with kind, evidence_id and
 candidate_id; it proposes a change for explicit confirmation, never performs it. actions can only open existing
 screens: food,nutrition,record,activities,plan,progress,strength,recipes,goals,connections.
@@ -109,6 +112,9 @@ def checked_answer(raw, evidence, *, question=None):
             rendered.append(display)
         blocks.append({'kind':'paragraph','text':rendered[0]} if isinstance(block, Paragraph)
                       else {'kind':'list','items':rendered})
+    from . import kit_claims
+    texts = [text for block in answer.blocks for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
+    kit_claims.validate(texts, facts, evidence, question=user_question(question), reference=REFERENCE)
     interpretation = '\n\n'.join(block['text'] if block['kind']=='paragraph'
                                  else '\n'.join('• '+item for item in block['items']) for block in blocks)
     if len(interpretation.split()) > word_limit(question):

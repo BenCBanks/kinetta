@@ -261,6 +261,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/route_following_incontai
 docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_incontainer.py
 cat dev/tests/coach_incontainer.py dev/tests/workout_review_fixtures.py | docker compose -p "$P" exec -T app python -
 docker compose -p "$P" exec -T app python - < dev/tests/kit_conversation_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/garmin_connect_incontainer.py

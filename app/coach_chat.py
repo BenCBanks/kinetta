@@ -110,6 +110,8 @@ _KIT_MEASUREMENT_PATHS = {
 
 
 def _kit_path_allowed(tool, path):
+    from . import kit_claims
+    if kit_claims.additional_measurement(tool,path):return True
     for pattern in _KIT_MEASUREMENT_PATHS.get(tool, ()):
         if len(pattern) != len(path):
             continue
@@ -383,6 +385,9 @@ def _weekly_claim_topic(text, placeholder):
 
 
 def _weekly_fact_class(fact):
+    from . import kit_claims
+    category=kit_claims.weekly_fact_class(fact)
+    if category:return category
     tool=fact['tool']
     if tool in {'nutrition_adequacy','nutrition_summary'}:return 'food'
     if tool in {'period_compare','consistency','recent_runs','activity','activities','training_load',
@@ -630,13 +635,14 @@ def _weekly_period(today):
 
 def _gemini_turn(messages, definitions, *, system=SYSTEM):
     declarations = [{'name': t['name'], 'description': t['description'], 'parametersJsonSchema': t['input_schema']} for t in definitions]
-    weekly = system == KIT_WEEKLY_SYSTEM
+    from . import kit_claims
+    weekly = system == KIT_WEEKLY_SYSTEM or kit_claims.is_weekly_system(system)
     body = {'systemInstruction': {'parts': [{'text': system}]}, 'contents': messages,
             'tools': [{'functionDeclarations': declarations}],
             'generationConfig': {'temperature': .2, 'maxOutputTokens': 4096 if weekly else 2500}}
     model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
     from . import kit_conversation
-    if (system in (KIT_SYSTEM, KIT_WEEKLY_SYSTEM) or kit_conversation.is_system(system)) and model == 'gemini-3.8-flash':
+    if (weekly or system == KIT_SYSTEM or kit_conversation.is_system(system)) and model == 'gemini-3.8-flash':
         body['generationConfig']['thinkingConfig'] = {'thinkingLevel':'LOW'}
     if not declarations:
         body.pop('tools')
@@ -727,7 +733,8 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
     if turn is None:
         adapter = _gemini_turn if provider == 'gemini' else _claude_turn
         from . import kit_conversation
-        system=KIT_WEEKLY_SYSTEM if weekly_review else kit_conversation.SYSTEM
+        from . import kit_claims
+        system=kit_claims.weekly_system() if weekly_review else kit_conversation.SYSTEM
         turn = (lambda m,d:adapter(m,d,system=system)) if kit else adapter
     usage, began, calls_used = {'promptTokenCount': 0, 'candidatesTokenCount': 0, 'thoughtsTokenCount': 0, 'totalTokenCount': 0}, time.monotonic(), 0
     for round_index in range(MAX_ROUNDS):
@@ -754,13 +761,14 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             except ValueError as error:
                 if not kit: raise
                 if weekly_review:
-                    # Gemini can spend the whole first response budget thinking and leave a
-                    # partial JSON object. A single shorter, no-tools correction keeps the
-                    # normal validator and digit guarantee in force without a tool round.
-                    if not isinstance(error, json.JSONDecodeError):
+                    # One bounded correction handles both truncation and invalid evidence references.
+                    from . import kit_claims
+                    if not kit_claims.weekly_retryable(error):
                         raise ValueError('Kit could not verify that weekly review. Try again.') from None
-                    messages.append({'role':'user','parts':[{'text':_weekly_truncation_retry_prompt()}]} if provider=='gemini'
-                                    else {'role':'user','content':_weekly_truncation_retry_prompt()})
+                    retry_prompt=(_weekly_truncation_retry_prompt() if isinstance(error,json.JSONDecodeError)
+                                  else kit_claims.weekly_retry_prompt(error))
+                    messages.append({'role':'user','parts':[{'text':retry_prompt}]} if provider=='gemini'
+                                    else {'role':'user','content':retry_prompt})
                     try:
                         with ai_budget.scope(uid):
                             retry_calls,retry_text,retry_tokens=turn(messages,[])
