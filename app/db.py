@@ -2307,6 +2307,26 @@ MIGRATIONS = [
     CREATE TRIGGER users_split_legacy_name BEFORE INSERT OR UPDATE OF name,first_name,last_name ON users
       FOR EACH ROW EXECUTE FUNCTION fit_split_legacy_user_name();""",
 
+    # 119. Durable private Kit threads; temporary visit cleanup must not erase saved conversations.
+    """CREATE TABLE kit_threads (
+      id uuid PRIMARY KEY, user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created timestamptz NOT NULL DEFAULT now(), updated timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(id,user_id));
+    CREATE INDEX kit_threads_owner_updated ON kit_threads(user_id,updated DESC,id DESC);
+    ALTER TABLE kit_threads ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON kit_threads FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON kit_threads FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON kit_threads TO fit_readers;
+    ALTER TABLE kit_visits ADD COLUMN conversation_id uuid,
+      ADD CONSTRAINT kit_visits_thread_owner FOREIGN KEY(conversation_id,user_id)
+        REFERENCES kit_threads(id,user_id) ON DELETE SET NULL(conversation_id);
+    ALTER TABLE kit_turns ADD COLUMN conversation_id uuid,
+      ADD CONSTRAINT kit_turns_thread_owner FOREIGN KEY(conversation_id,user_id)
+        REFERENCES kit_threads(id,user_id) ON DELETE CASCADE;
+    CREATE INDEX kit_turns_thread_history ON kit_turns(user_id,conversation_id,id DESC);
+    CREATE INDEX kit_visits_thread ON kit_visits(user_id,conversation_id);
+    """,
+
 ]
 
 
