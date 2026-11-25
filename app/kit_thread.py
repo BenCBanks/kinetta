@@ -5,7 +5,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field, field_validator
-from . import db, coach, coach_chat, ai_release, ai_access, ai_budget, kit_memory, health_copy
+from . import db, coach, coach_chat, ai_release, ai_access, ai_budget, kit_memory, health_copy, kit_history
 from .auth import current_user
 from .coach_tools import Empty
 from .food_photo import brake
@@ -60,7 +60,7 @@ def locked(c,uid,generation=None,visit_id=None):
 
 
 def public(row):
-    return {k:row[k] for k in ('id','client_id','generation','visit_id','question','context','state','answer','error','created')}
+    return {k:row[k] for k in ('id','client_id','generation','visit_id','conversation_id','question','context','state','answer','error','created')}
 
 
 STARTER_GUIDANCE={
@@ -106,6 +106,10 @@ def read(user=Depends(current_user),before:int | None=Query(default=None,gt=0),v
     uid=user['id']
     with db.connect() as c:
         generation=locked(c,uid,visit_id=visit_id)
+        conversation_id=kit_history.conversation(c,uid,visit_id)
+        if conversation_id:
+            from .kit_history_api import messages
+            return messages(c,uid,conversation_id,generation,before,visit_id)
         # Recover an interrupted process without silently repeating a paid attempt.
         c.execute("UPDATE kit_turns SET state='failed',error='This answer was interrupted. Tap Retry to try again.',lease=NULL WHERE user_id=%s AND generation=%s AND state='running' AND expires<=now()",(uid,generation))
         rows=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND (%s::bigint IS NULL OR id<%s) ORDER BY id DESC LIMIT 51',(uid,generation,visit_id,before,before)).fetchall()
@@ -119,16 +123,20 @@ def create(body:MessageIn,user=Depends(current_user)):
     context=body.context.model_dump(exclude_none=True)
     with db.connect() as c:
         locked(c,uid,body.generation,body.visit_id)
+        conversation_id=kit_history.conversation(c,uid,body.visit_id)
+        if conversation_id and not kit_history.enabled():raise HTTPException(409,'Saved Kit conversations are not enabled on this server.')
+        condition,args=kit_history.scope(conversation_id,body.generation,body.visit_id)
         old=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND client_id=%s',(uid,body.client_id)).fetchone()
         if old:
             previous=Context.model_validate(old['context']).model_dump(exclude_none=True)
             if old['question']!=body.question or previous!=context or old['visit_id']!=body.visit_id:raise HTTPException(409,'This message ID already belongs to a different question.')
             return public(old)
         permitted(uid,c)
-        active=c.execute("SELECT 1 FROM kit_turns WHERE user_id=%s AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND state IN ('pending','running')",(uid,body.generation,body.visit_id)).fetchone()
+        active=c.execute("SELECT 1 FROM kit_turns WHERE user_id=%s AND "+condition+" AND state IN ('pending','running')",(uid,*args)).fetchone()
         if active:raise HTTPException(409,'Kit is still answering another message. Wait for it or retry the interrupted answer.')
-        row=c.execute('''INSERT INTO kit_turns(user_id,client_id,generation,visit_id,question,context)
-          VALUES (%s,%s,%s,%s,%s,%s) RETURNING *''',(uid,body.client_id,body.generation,body.visit_id,body.question,json.dumps(context))).fetchone()
+        row=c.execute('''INSERT INTO kit_turns(user_id,client_id,generation,visit_id,conversation_id,question,context)
+          VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *''',(uid,body.client_id,body.generation,body.visit_id,conversation_id,body.question,json.dumps(context))).fetchone()
+        if conversation_id:c.execute('UPDATE kit_threads SET updated=now() WHERE user_id=%s AND id=%s',(uid,conversation_id))
         return public(row)
 
 
@@ -136,11 +144,12 @@ def still_active(uid,generation,client_id,lease,health_context=False):
     # Stop further paid turns after leave/clear. An already running provider request
     # can finish, but its result cannot be saved or start another provider round.
     with db.connect() as c:
-        row=c.execute("""SELECT 1 FROM kit_turns t
+        row=c.execute("""SELECT t.conversation_id FROM kit_turns t
           JOIN kit_conversations q ON q.user_id=t.user_id
           LEFT JOIN kit_visits v ON v.id=t.visit_id AND v.user_id=t.user_id
           WHERE t.user_id=%s AND t.client_id=%s AND t.lease=%s AND q.generation=%s
           AND t.expires>now() AND (t.visit_id IS NULL OR (v.ended IS NULL AND v.created>now()-interval '24 hours'))""",(uid,client_id,lease,generation)).fetchone()
+        if row and row['conversation_id'] and not kit_history.enabled():return False
         if row and health_context and not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
         return bool(row)
 
@@ -151,14 +160,17 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
     with db.connect() as c:
         locked(c,uid,body.generation,body.visit_id)
         row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
-        if not row or row['visit_id']!=body.visit_id:raise HTTPException(404,'Kit message not found')
+        conversation_id=kit_history.conversation(c,uid,body.visit_id)
+        if not row or (row['visit_id']!=body.visit_id and not (conversation_id and row['conversation_id']==conversation_id)):raise HTTPException(404,'Kit message not found')
+        if conversation_id and not kit_history.enabled():raise HTTPException(409,'Saved Kit conversations are not enabled on this server.')
+        condition,args=kit_history.scope(conversation_id,body.generation,body.visit_id)
         if row['state']=='answered':return public(row)
         if row['state']=='running' and row['expires']>dt.datetime.now(dt.timezone.utc):return public(row)
         permitted(uid,c)
-        if c.execute("SELECT 1 FROM kit_turns WHERE user_id=%s AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND client_id<>%s AND state IN ('pending','running')",(uid,body.generation,body.visit_id,client_id)).fetchone():raise HTTPException(409,'Kit is answering another message. Wait before retrying this one.')
+        if c.execute("SELECT 1 FROM kit_turns WHERE user_id=%s AND "+condition+" AND client_id<>%s AND state IN ('pending','running')",(uid,*args,client_id)).fetchone():raise HTTPException(409,'Kit is answering another message. Wait before retrying this one.')
         lease=uuid4()
-        c.execute("UPDATE kit_turns SET state='running',lease=%s,expires=now()+interval '5 minutes',error=NULL WHERE user_id=%s AND client_id=%s",(lease,uid,client_id))
-        prior=c.execute("SELECT question,answer FROM kit_turns WHERE user_id=%s AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND id<%s AND state='answered' ORDER BY id DESC LIMIT 6",(uid,body.generation,body.visit_id,row['id'])).fetchall()
+        c.execute("UPDATE kit_turns SET state='running',lease=%s,expires=now()+interval '5 minutes',error=NULL,generation=%s,visit_id=%s WHERE user_id=%s AND client_id=%s",(lease,body.generation,body.visit_id,uid,client_id))
+        prior=c.execute("SELECT question,answer FROM kit_turns WHERE user_id=%s AND "+condition+" AND id<%s AND state='answered' ORDER BY id DESC LIMIT 6",(uid,*args,row['id'])).fetchall()
         memories,memory_version,health_context=kit_memory.context(c,uid)
         history=[]
         health=coach.health_ok(c,uid)
@@ -186,7 +198,10 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
         if not current or current['generation']!=body.generation or not row or row['lease']!=lease:
             return {'cancelled':True}
-        if not coach.allowed(uid,connection=c) or not ai_release.enabled('kit'):
+        if row['conversation_id'] and not c.execute("SELECT 1 FROM kit_visits WHERE user_id=%s AND id=%s AND ended IS NULL AND created>now()-interval '24 hours'",(uid,row['visit_id'])).fetchone():
+            kit_history.preserve(c,uid,row['visit_id'])
+            return {'cancelled':True}
+        if (row['conversation_id'] and not kit_history.enabled()) or not coach.allowed(uid,connection=c) or not ai_release.enabled('kit'):
             answer=None;error='Kit access or consent changed. No answer was added.'
         if answer and health_context:answer['health_included']=True
         # Consent can change while the last provider call is in flight. Do not save Health output after revocation.
@@ -209,11 +224,14 @@ def clear(body:ClearIn,user=Depends(current_user)):
         locked(c,uid,body.generation,body.visit_id)
         if body.visit_id is not None:
             c.execute('UPDATE kit_visits SET ended=now() WHERE user_id=%s AND id=%s',(uid,body.visit_id))
+            kit_history.preserve(c,uid,body.visit_id)
             c.execute('DELETE FROM kit_turns WHERE user_id=%s AND visit_id=%s',(uid,body.visit_id))
             visit_id=uuid4()
             c.execute('INSERT INTO kit_visits(id,user_id) VALUES (%s,%s)',(visit_id,uid))
             return {'generation':body.generation,'visit_id':visit_id,'messages':[],'before':None,'ready':ai_release.enabled('kit')}
-        c.execute('DELETE FROM kit_turns WHERE user_id=%s',(uid,))
+        c.execute("UPDATE kit_visits SET ended=coalesce(ended,now()) WHERE user_id=%s AND conversation_id IS NOT NULL",(uid,))
+        kit_history.preserve(c,uid)
+        c.execute('DELETE FROM kit_turns WHERE user_id=%s AND conversation_id IS NULL',(uid,))
         generation=uuid4()
         c.execute('UPDATE kit_conversations SET generation=%s WHERE user_id=%s',(generation,uid))
         return {'generation':generation,'messages':[],'before':None,'ready':ai_release.enabled('kit')}
@@ -230,6 +248,7 @@ def start_visit(body:VisitIn,user=Depends(current_user)):
         generation=locked(c,uid)
         c.execute("DELETE FROM kit_memories WHERE user_id=%s AND updated<now()-interval '180 days'",(uid,))
         # A terminated app may never deliver its leave request; bound that leftover state.
+        kit_history.preserve(c,uid)
         c.execute("DELETE FROM kit_visits WHERE user_id=%s AND (created<now()-interval '24 hours' OR ended<now()-interval '24 hours')",(uid,))
         c.execute('INSERT INTO kit_visits(id,user_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(body.visit_id,uid))
         locked(c,uid,generation,body.visit_id)
@@ -243,6 +262,7 @@ def end_visit(visit_id:UUID,user=Depends(current_user)):
         locked(c,uid)
         c.execute('INSERT INTO kit_visits(id,user_id,ended) VALUES (%s,%s,now()) ON CONFLICT DO NOTHING',(visit_id,uid))
         c.execute('UPDATE kit_visits SET ended=coalesce(ended,now()) WHERE user_id=%s AND id=%s',(uid,visit_id))
+        kit_history.preserve(c,uid,visit_id)
         c.execute('DELETE FROM kit_turns WHERE user_id=%s AND visit_id=%s',(uid,visit_id))
     return {'ok':True}
 
