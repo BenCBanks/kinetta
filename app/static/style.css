@@ -2328,12 +2328,14 @@ body .social-sheet .comment .c-comment-options { margin-left:auto; }
 #kit-new-chat {min-height:56px;font-size:16px;}
 .kit-history-row {position:relative;overflow:hidden;touch-action:pan-y;}
 .kit-history-front {position:relative;display:flex;align-items:center;background:var(--surface-sheet);transition:transform .18s ease;}
-.kit-history-row.is-revealed .kit-history-front {transform:translateX(-80px);}
-.kit-history-open {display:flex;align-items:center;gap:8px;flex:1;min-width:0;min-height:56px;padding:6px 0;text-align:left;background:none;border:0;color:var(--tx);}
+.kit-history-row.is-revealed .kit-history-front {transform:translateX(-56px);}
+.kit-history-row.is-revealed .kit-history-open {transform:translateX(56px);margin-right:56px;}
+.kit-history-open {transition:transform .18s ease;display:flex;align-items:center;gap:8px;flex:1;min-width:0;min-height:56px;padding:6px 0;text-align:left;background:none;border:0;color:var(--tx);}
 .kit-history-open>span {min-width:0;flex:1;}
-.kit-history-open strong {display:block;font-size:16px;line-height:19px;font-weight:400;overflow-wrap:anywhere;}
+.kit-history-open strong {display:block;font-size:16px;line-height:19px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .kit-history-open small {display:block;margin-top:2px;font-size:12px;line-height:15px;color:var(--tx2);}
 .kit-history-open>svg {width:18px;height:18px;flex:none;}
 .sheet .kit-history-front>.kit-history-options {width:44px;height:44px;flex:none;background:none;box-shadow:none;color:var(--tx2);}
-.kit-history-delete {position:absolute;right:0;top:0;bottom:0;width:80px;border:0;background:var(--alert);color:var(--color-on-error);font-size:15px;font-weight:600;}
-@media(prefers-reduced-motion:reduce){.kit-history-front {transition:none;}}
+.kit-history-delete {position:absolute;right:0;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--alert);color:var(--color-on-error);box-shadow:none;}
+.kit-history-delete svg {width:18px;height:18px;}
+@media(prefers-reduced-motion:reduce){.kit-history-front,.kit-history-open {transition:none;}}

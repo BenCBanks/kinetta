@@ -6,7 +6,7 @@ module.exports=async(browser,state,base,out)=>{
  for(const width of [390,330])for(const theme of ['light','dark']){
   const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage();
   const errors=[],requests=[],deleted=[],unexpected=[];let gen=900,next=10,failDelete=false,failList=false,delayRead=false,releaseOld=null,otherOwner=false,staleResume=true,step='initial';
-  const records=new Map([[A,{title:'Planning my next week',text:'Keep the next run easy.'}],[B,{title:'Food logs and energy',text:'Your recorded meals are a starting point.'}],[C,{title:'An earlier training question',text:'Leave time for rest.'}]]);
+  const records=new Map([[A,{title:'Planning my next week',text:'Keep the next run easy.'}],[B,{title:'Food logs and energy for my upcoming training week',text:'Your recorded meals are a starting point.'}],[C,{title:'An earlier training question',text:'Leave time for rest.'}]]);
   for(let i=20;i<38;i++)records.set(uuid(i),{title:'Training question '+(i-19),text:'Keep a comfortable effort.'});
   const message=(id,text)=>({id,client_id:'fictional-history-'+id,question:'A saved question',state:'answered',answer:{answer_blocks:[{kind:'paragraph',text}],interpretation:text,facts:[]}});
   const envelope=(id,visit=null,before=false)=>({conversation_id:id,generation:uuid(gen),visit_id:visit,ready:true,before:before?null:id===B?10:null,messages:before?[message(1,'Earlier saved answer.')]:records.get(id)?.title?[message(11,records.get(id).text)]:[]});
@@ -51,7 +51,7 @@ module.exports=async(browser,state,base,out)=>{
    await history.click();await p.locator('[data-kit-chat]').first().waitFor();assert.equal(await p.locator('[data-kit-chat]').count(),20);
    const geometry=await p.locator('.kit-history-row').first().evaluate(el=>({height:el.getBoundingClientRect().height,font:getComputedStyle(el.querySelector('strong')).fontSize,options:el.querySelector('[data-kit-options]').getBoundingClientRect().width}));
    assert(Math.abs(geometry.height-56)<.5,'chat rows use a 56px target');assert.equal(geometry.font,'16px');assert(Math.abs(geometry.options-44)<.5,'row overflow stays 44px');
-   assert.equal(await p.getByRole('button',{name:/^Delete chat:/}).count(),0,'Delete is hidden until swipe or menu');
+   assert.equal(await p.getByRole('button',{name:'Delete',exact:true}).count(),0,'Delete is hidden until swipe or menu');
    assert.equal(await p.locator('.kit-history-open[aria-current] svg').count(),1,'a tick marks the current chat');
    assert.equal(await p.locator('#kit-earlier-reviews,#kit-delete-all,#kit-more-chats').count(),0,'secondary actions stay out of the list');
    assert(await p.locator('.kit-history-sheet').evaluate(el=>el.getBoundingClientRect().height>innerHeight-20),'many chats use full available height');
@@ -80,6 +80,10 @@ module.exports=async(browser,state,base,out)=>{
    const swipeRow=p.locator(`[data-kit-chat="${B}"]`).locator('..').locator('..');
    await swipeRow.evaluate(el=>{const touch=(type,touches)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:touches});el.dispatchEvent(e);};touch('touchstart',[{clientX:250,clientY:150}]);touch('touchmove',[{clientX:140,clientY:151}]);touch('touchend',[]);});
    await p.locator('.kit-history-row.is-revealed [data-kit-delete]').waitFor({state:'visible'});await shot('swipe');
+   const swipeGeometry=await swipeRow.evaluate(row=>{const button=row.querySelector('[data-kit-delete]'),front=row.querySelector('.kit-history-front'),title=row.querySelector('strong'),r=button.getBoundingClientRect(),t=title.getBoundingClientRect(),bounds=row.getBoundingClientRect();return {width:r.width,height:r.height,radius:getComputedStyle(button).borderRadius,slide:new DOMMatrix(getComputedStyle(front).transform).m41,titleLeft:t.left,rowLeft:bounds.left,ellipsis:getComputedStyle(title).textOverflow,shortened:title.scrollWidth>title.clientWidth,icon:!!button.querySelector('svg'),label:button.getAttribute('aria-label'),right:r.right,rowRight:bounds.right,center:r.y+r.height/2,rowCenter:bounds.y+bounds.height/2};});
+   assert.equal(swipeGeometry.width,44);assert.equal(swipeGeometry.height,44);assert.equal(swipeGeometry.radius,'50%');assert.equal(swipeGeometry.slide,-56);
+   assert(Math.abs(swipeGeometry.titleLeft-swipeGeometry.rowLeft)<.5,'swiping never clips the title on the left');assert.equal(swipeGeometry.ellipsis,'ellipsis');assert(swipeGeometry.shortened,'long titles use an ellipsis');
+   assert(swipeGeometry.icon);assert.equal(swipeGeometry.label,'Delete');assert(Math.abs(swipeGeometry.center-swipeGeometry.rowCenter)<.5&&swipeGeometry.right<=swipeGeometry.rowRight,'trash circle is vertically centered inside the right margin');
    await p.locator(`[data-kit-delete="${B}"]`).click();await p.locator('[data-confirm-cancel]').click();assert.deepEqual(deleted,[],'single deletion requires confirmation');
    step='failed delete B';failDelete=true;await p.locator(`[data-kit-options="${B}"]`).click();await p.locator('#kit-row-delete').click();await p.locator('[data-confirm-ok]').click();await p.waitForFunction(()=>document.querySelector('#kit-history-error')?.textContent.includes('Kinetta is having trouble'));
    assert.equal(await p.locator(`[data-kit-chat="${B}"]`).count(),1,'a failed deletion keeps the row');
