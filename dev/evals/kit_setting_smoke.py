@@ -1,7 +1,4 @@
 """Small setting experiment, never a release-gate report; no provider access here."""
-from contextlib import contextmanager
-from contextvars import ContextVar
-from functools import wraps
 import datetime as dt
 import hashlib
 import json
@@ -35,27 +32,3 @@ def cached_low(report, digest):
     if len({r['case'] for r in rows})!=len(rows):raise ValueError('Duplicate LOW cache case')
     return rows
 
-
-_attempts = ContextVar('kit_smoke_attempts',default=None)
-
-
-@contextmanager
-def smoke_policy():
-    from app import kit_conversation
-    token = _attempts.set([0])
-    try:
-        with kit_conversation.correction_policy(False):yield
-    finally:_attempts.reset(token)
-
-
-def smoke_adapter(original):
-    @wraps(original)
-    def turn(messages, definitions, **kwargs):
-        count = _attempts.get()
-        if count is not None:
-            if count[0]>=2:raise ValueError('Smoke provider-turn cap reached; no correction retry')
-            count[0]+=1
-            # One tool-selection round (possibly parallel calls), then a no-tools JSON answer.
-            if count[0]==2:definitions=[]
-        return original(messages,definitions,**kwargs)
-    return turn
