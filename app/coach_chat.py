@@ -123,7 +123,7 @@ def _kit_path_allowed(tool, path):
 # These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
 _PLACEHOLDER_CONNECTIVES = frozenset('about around roughly to and or from of vs versus'.split())
 _PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
-_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered covering spanning recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached reaching totaled totaling totalling nearly weighed shows show showing last within over ran rode running completed averaging'.split())
+_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered covering spanning recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached reaching totaled totaling totalling nearly weighed shows show showing'.split())
 _PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with recorded compared previously currently overall before after earlier today yesterday across over toward while each daily recently your against for on though higher lower more less above below under up down longer shorter faster slower than'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
 _DISPLAY_UNIT = re.compile(r'(?:\b\d+(?:\.\d+)?h(?:\s+\d+m)?\b|\s(?:mi|km|ft|in|lb|kg|g|mg|kcal|bpm|min|h|m)\b|/\s?(?:mi|km)\b|°[CF])')
@@ -173,7 +173,7 @@ def _normalise_kit_prose(text, *, placeholder_pattern=PLACEHOLDER):
     return without_marks(unicodedata.normalize('NFKC',text))
 
 
-def _placeholder_boundary_ok(context, *, before, fact=None, extra_words=(), sentence_boundary=False):
+def _placeholder_boundary_ok(context, *, before, extra_words=(), sentence_boundary=False):
     # A colon introduces a slot after a prose label. Its own noun still comes from the fact.
     context=context.rstrip() if before else context.lstrip()
     if not before and sentence_boundary and context and ord(context[0]) in (33, 46, 63):
@@ -189,29 +189,23 @@ def _placeholder_boundary_ok(context, *, before, fact=None, extra_words=(), sent
         return True
     token=re.search(r'(\w+)$',context) if before else re.match(r'(\w+)',context)
     allowed=(_PLACEHOLDER_WORDS_BEFORE if before else _PLACEHOLDER_WORDS_AFTER) | set(extra_words)
-    baseline_nouns={'runs','walks','hikes','rides','swims','workouts'}
-    is_baseline_noun=(not before and fact and fact.get('path')==['baseline_count']
-                      and token and token.group(1).casefold() in baseline_nouns)
-    if not token or (token.group(1).casefold() not in allowed and not is_baseline_noun):
+    if not token or token.group(1).casefold() not in allowed:
         return False
     rest=context[:token.start()] if before else context[token.end():]
     return not rest or rest[-1 if before else 0].isspace() or rest[-1 if before else 0] in _PLACEHOLDER_PUNCTUATION
 
 
-def _placeholder_value(fact, before='', after=''):
+def _placeholder_value(fact, before=''):
     label=fact['label'].casefold()
     if label.startswith('average daily '):
         noun=label.removeprefix('average daily ')
         label=f'{noun} per logged day'
     display=fact['display_value']
-    if fact.get('path')==['baseline_count']:
-        noun=label.removeprefix('similar ').split()[-1]
-        if re.match(r'\s*'+re.escape(noun)+r'\b',after,re.I):return display
     # A unit alone is sufficient for unique quantities, but grams/milligrams need their app label.
     if _DISPLAY_UNIT.search(display) and not has_ambiguous_mass_unit(fact):return display
     sentence_context=re.split(r'[.!?;\n]',before)[-1]
     if label and re.search(r'(?<!\w)'+re.escape(label)+r'(?!\w)',sentence_context,re.I):return display
-    return f"{display} {label}"
+    return f"{display} {label}".strip()
 
 
 def _kit_prose(text, facts, *, extra_words=(), sentence_boundary=False,
@@ -223,6 +217,16 @@ def _kit_prose(text, facts, *, extra_words=(), sentence_boundary=False,
         raise ValueError('Unverified digit or malformed reference')
     matches=list(placeholder_pattern.finditer(text))
     for i,match in enumerate(matches):
+        before,after=text[:match.start()],text[match.end():]
+        left_range=i>0 and text[matches[i-1].end():match.start()].strip() in _PLACEHOLDER_RANGES
+        right_range=i+1<len(matches) and text[match.end():matches[i+1].start()].strip() in _PLACEHOLDER_RANGES
+        left_ok=left_range or _placeholder_boundary_ok(before,before=True,extra_words=extra_words,
+                                                        sentence_boundary=sentence_boundary)
+        right_ok=right_range or _placeholder_boundary_ok(after,before=False,extra_words=extra_words,
+                                                          sentence_boundary=sentence_boundary)
+        if not left_ok or not right_ok:
+            detail=_placeholder_boundary_detail(text,match,before=not left_ok)
+            raise KitValidationError('Unsupported text attached to numeric reference',detail)
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
             expected_id=facts[index].get('evidence_id') if index<len(facts) else None
@@ -230,19 +234,8 @@ def _kit_prose(text, facts, *, extra_words=(), sentence_boundary=False,
                     'evidence_id':evidence_id,'fact_index':index,'fact_count':len(facts),
                     'expected_evidence_id':expected_id}
             raise KitValidationError('Unknown or mismatched numeric reference',detail)
-        fact=facts[index]
-        before,after=text[:match.start()],text[match.end():]
-        left_range=i>0 and text[matches[i-1].end():match.start()].strip() in _PLACEHOLDER_RANGES
-        right_range=i+1<len(matches) and text[match.end():matches[i+1].start()].strip() in _PLACEHOLDER_RANGES
-        left_ok=left_range or _placeholder_boundary_ok(before,before=True,fact=fact,extra_words=extra_words,
-                                                        sentence_boundary=sentence_boundary)
-        right_ok=right_range or _placeholder_boundary_ok(after,before=False,fact=fact,extra_words=extra_words,
-                                                          sentence_boundary=sentence_boundary)
-        if not left_ok or not right_ok:
-            detail=_placeholder_boundary_detail(text,match,before=not left_ok)
-            raise KitValidationError('Unsupported text attached to numeric reference',detail)
     def replace(match):
-        return _placeholder_value(facts[int(match.group(2))],text[:match.start()],text[match.end():])
+        return _placeholder_value(facts[int(match.group(2))],text[:match.start()])
     resolved=placeholder_pattern.sub(replace,text).strip()
     if not resolved or len(resolved)>1600: raise ValueError('Answer text is empty or too long')
     return resolved

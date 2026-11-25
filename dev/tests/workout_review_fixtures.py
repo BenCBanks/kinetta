@@ -82,7 +82,7 @@ CASES = [
             {'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':-12},
             {'evidence_id':'e2','path':['deltas','ascent_m'],'value':40},
         ],'workout_review':{
-            'verdict':'This route was hillier, with {e2:2} more climbing. Compared with {baseline}, your pace was {e2:1}.'},
+            'verdict':'This route was hillier. Compared with {baseline}, your pace was {e2:1}.'},
     }),
     fixture('real Gemini strength cites unavailable fields',data={
         **comparison('workout','summary_only'),
@@ -138,7 +138,7 @@ CASES = [
     fixture('real eval4 four references with current value suppressed by future prompt',data=comparison('walk'),raw={'facts':[{'evidence_id':'e2','path':'deltas.pace_s_per_km','value':-12},{'evidence_id':'e2','path':'deltas.avg_hr','value':-3},{'evidence_id':'e2','path':'current.moving_s','value':2340},{'evidence_id':'e2','path':'current.distance_m','value':8046.72}],'workout_review':{'verdict':'You were {e2:0} faster than your {baseline}. Your average heart rate was also {e2:1} lower than your {baseline}. You completed {e2:3} in {e2:2}.'}},expected='voice_invalid'),
     fixture('real eval4 repeated baseline gets app phrase',data={**comparison(),'deltas':{'pace_s_per_km':14,'avg_hr':-3},'relations':{'pace_s_per_km':'slower','avg_hr':'lower'}},raw={'facts':[{'evidence_id':'e2','path':'deltas.pace_s_per_km','value':14},{'evidence_id':'e2','path':'deltas.avg_hr','value':-3},{'evidence_id':'e2','path':'current.distance_m','value':8046.72}],'workout_review':{'verdict':'Your pace was {e2:0} slower than your {baseline}. Your average heart rate was {e2:1} lower than your {baseline}. You covered {e2:2} on this run.'}},expected='voice_invalid'),
     fixture('hot day notable',data={**comparison(notable='hotter'),'current':{**comparison()['current'],'avg_temp_c':30}}),
-    fixture('hillier route notable',data=comparison(notable='hillier'),raw={'facts':[{'evidence_id':'e2','path':['baseline_count'],'value':3},{'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':-12},{'evidence_id':'e2','path':['deltas','ascent_m'],'value':40}],'workout_review':{'verdict':'This route was hillier, with {e2:2} more climbing. Compared with {baseline}, your pace was {e2:1}.'}}),
+    fixture('hillier route notable',data=comparison(notable='hillier'),raw={'facts':[{'evidence_id':'e2','path':['baseline_count'],'value':3},{'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':-12},{'evidence_id':'e2','path':['deltas','ascent_m'],'value':40}],'workout_review':{'verdict':'This route was hillier. Compared with {baseline}, your pace was {e2:1}.'}}),
     fixture('longest in ninety days',data=comparison(notable='longest_90d'),raw=answer(data=comparison(notable='longest_90d'),verdict='This was your longest run in the last ninety days. Compared with {baseline}, your pace was {e2:1}.')),
     fixture('personal record notable',data=comparison(notable='personal_record'),raw=answer(data=comparison(notable='personal_record'),verdict='You set a personal record. Compared with {baseline}, your pace was {e2:1}.')),
     fixture('felt unknown without note',data=comparison(),raw=answer(data=comparison(),verdict="You can't tell how it felt; compared with {baseline}, your pace was {e2:1} faster.")),
@@ -169,6 +169,7 @@ CASES = [
     fixture('pace same and heart rate higher',data={**comparison(),'deltas':{'pace_s_per_km':2,'avg_hr':4},'relations':{'pace_s_per_km':'about_the_same','avg_hr':'higher'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':2,'avg_hr':4},'relations':{'pace_s_per_km':'about_the_same','avg_hr':'higher'}})),
     fixture('pace faster and heart rate higher',data={**comparison(),'deltas':{'pace_s_per_km':-12,'avg_hr':4},'relations':{'pace_s_per_km':'faster','avg_hr':'higher'}},raw={'facts':[{'evidence_id':'e2','path':'deltas.pace_s_per_km','value':-12},{'evidence_id':'e2','path':'current.pace_s_per_km','value':300},{'evidence_id':'e2','path':'deltas.avg_hr','value':4}],'workout_review':{'verdict':'You ran {e2:0} faster than your {baseline}, averaging {e2:1}. Your heart rate was {e2:2} higher than your {baseline}.'}}),
     fixture('pace slower and heart rate lower',data={**comparison(),'deltas':{'pace_s_per_km':14,'avg_hr':-3},'relations':{'pace_s_per_km':'slower','avg_hr':'lower'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':14,'avg_hr':-3},'relations':{'pace_s_per_km':'slower','avg_hr':'lower'}})),
+    fixture('reject unverified heart-rate improvement with pace relation',data={**comparison(),'deltas':{'pace_s_per_km':-12,'avg_hr':4},'relations':{'pace_s_per_km':'faster','avg_hr':'higher'}},raw={'facts':[{'evidence_id':'e2','path':['baseline_count'],'value':3},{'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':-12},{'evidence_id':'e2','path':['deltas','avg_hr'],'value':4}],'workout_review':{'verdict':'Your heart rate improved, and you ran {e2:1} than {baseline}.'}},expected='relation_unsupported'),
     fixture('pace faster and heart rate lower',data=comparison(),raw=multi_metric_answer(comparison())),
     fixture('reject harder feeling in verdict',data=comparison(),raw=answer(data=comparison(),verdict='Your run felt harder than usual. Compared with {baseline}, your pace was {e2:1}.'),expected='voice_invalid'),
     fixture('reject first person in verdict',data=comparison(),raw=answer(data=comparison(),verdict="I can't tell how it felt. Compared with {baseline}, your pace was {e2:1}."),expected='voice_invalid'),
@@ -177,11 +178,44 @@ CASES = [
     fixture('vs abbreviation is not a sentence end',data=comparison(),raw=answer(data=comparison(),verdict='Compared with {baseline}, your pace was {e2:1} vs. that last run.')),
 ]
 
+UNVERIFIED_COMPARATIVE_FAMILIES = {
+    'better-worse': ('better','worse'),
+    'improvement': ('improved','improving'),
+    'increase': ('increased','increasing'),
+    'decrease': ('decreased','decreasing'),
+    'drop': ('dropped','dropping'),
+    'rise': ('rose','rise','rising'),
+    'fall': ('fell','falling'),
+    'more-less': ('more','less'),
+    'longer-shorter': ('longer','shorter'),
+    'further-farther': ('further','farther'),
+    'stronger-weaker': ('stronger','weaker'),
+    'fitter': ('fitter',),
+    'most-least-worst': ('most','least','worst'),
+    'metric-up-down': ('up','down'),
+}
+for family, words in UNVERIFIED_COMPARATIVE_FAMILIES.items():
+    for word in words:
+        opening = (f'Your heart rate went {word}.' if family == 'metric-up-down'
+                   else f'Your pace was {word} on that run.')
+        CASES.append(fixture(
+            f'reject unverified comparative {family} {word}',
+            raw=answer(data=comparison(),verdict=f'{opening} Your pace was {{e2:1}} faster than {{baseline}}.'),
+            expected='relation_unsupported'))
+
 
 def run():
     assert len(CASES)>=40
     assert kit_workout_review.REJECTION_CODES==frozenset({'answer_shape','numeric_unsupported','fact_unsupported','relation_unsupported','health_claim_unsupported','follow_up_invalid','voice_invalid'})
     assert kit_workout_review.WorkoutReviewRejected('model supplied arbitrary text').reason_code=='answer_shape'
+    from app import coach_chat
+    try:
+        coach_chat._kit_prose('over {e1:0}',[{'evidence_id':'e1','path':['current','distance_m'],
+            'display_value':'5 mi','label':'distance'}])
+    except coach_chat.KitValidationError:
+        pass
+    else:
+        raise AssertionError('Workout-only placeholder neighbors must not loosen the shared coach validator')
     for case in CASES:
         if case['expected']=='denied':
             activity={'source':case['source'],'healthkit_id':None}

@@ -37,7 +37,7 @@ JARGON_DENY = re.compile(r'\b(?:cardiovascular load|physiological|metabolic|aero
 FELT_CLAIM = re.compile(r'\b(?:felt|feel|feels|feeling|harder|easier|tough|tired|struggl\w*)\b', re.I)
 HONEST_FEELING = re.compile(r"\bcan['’]t tell how it felt\b", re.I)
 NOTE_INSTRUCTION = re.compile(r'\badd a note\b[^.!?]*', re.I)
-WORKOUT_PLACEHOLDER_WORDS = frozenset({'also','by','in','past','previous','recent','lasting'})
+WORKOUT_PLACEHOLDER_WORDS = frozenset({'also','by','in','last','over','past','previous','recent','ran','rode','running','completed','averaging','lasting','within','runs','walks','hikes','rides','swims','workouts'})
 WORKOUT_PLACEHOLDER = re.compile(r'\{(e[1-9][0-9]*):([0-4])\}')
 SENTENCE_END = re.compile(r'(?<!vs)[.!?](?:\s|$)', re.I)
 BANNED_BASELINE_WORDS = re.compile(r'\b(?:baseline|median)\b', re.I)
@@ -48,6 +48,12 @@ FILLER_SENTENCES = re.compile(
     r'that matches your (?:typical|usual))\b', re.I)
 NO_HISTORY_COMPARISON = re.compile(r'\b(?:there\s+is\s+)?not enough\b[^.!?]{0,100}\b(?:history|workouts?|runs?)\b[^.!?]{0,80}\b(?:to compare|make a comparison|to make a comparison|for comparison)\b', re.I)
 COMPARISON_WORD = re.compile(r'\b(?:faster|slower|quicker|higher|lower|same|usual|than|versus|vs\.?|compared|comparison)\b', re.I)
+UNVERIFIED_COMPARATIVE = re.compile(
+    r'\b(?:better|worse|improv\w*|increas\w*|decreas\w*|drop\w*|rose|ris(?:e|es|ing)|'
+    r'fell|fall\w*|more|less|longer|shorter|further|farther|stronger|weaker|fitter|most|least|worst)\b'
+    r'|\b(?:up|down)\b(?:(?![.!?]).){0,32}\b(?:pace|speed|heart rate|HR|climb(?:ing)?|elevation|ascent|temp(?:erature)?)\b'
+    r'|\b(?:pace|speed|heart rate|HR|climb(?:ing)?|elevation|ascent|temp(?:erature)?)\b(?:(?![.!?]).){0,32}\b(?:up|down)\b',
+    re.I)
 RELATION_WORDS = {
     'faster': {'pace_s_per_km':'faster','speed_mps':'faster'},
     'quicker': {'pace_s_per_km':'faster','speed_mps':'faster'},
@@ -287,6 +293,8 @@ def _baseline_phrase(data):
 
 
 def _check_relations(text, data):
+    if UNVERIFIED_COMPARATIVE.search(text):
+        _reject('relation_unsupported')
     if not COMPARISON_WORD.search(text) and not any(pattern.search(text) for pattern in NOTABLE_WORDS.values()):
         return
     relations = data.get('relations') or {}
@@ -389,8 +397,12 @@ def checked_answer(raw, evidence):
     # exact value after the model prose has passed all evidence checks.
     baseline_marker = 'your last N runs'
     verdict_template = model_verdict.replace('{baseline}', baseline_marker)
+    prose_facts = [dict(fact) for fact in facts]
+    for fact in prose_facts:
+        if fact['path'] == ['baseline_count']:
+            fact['label'] = ''
     try:
-        verdict = coach_chat._kit_prose(verdict_template, facts, extra_words=WORKOUT_PLACEHOLDER_WORDS,
+        verdict = coach_chat._kit_prose(verdict_template, prose_facts, extra_words=WORKOUT_PLACEHOLDER_WORDS,
                                         sentence_boundary=True, placeholder_pattern=WORKOUT_PLACEHOLDER)
     except ValueError:
         _reject('numeric_unsupported')
