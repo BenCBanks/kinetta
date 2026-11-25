@@ -150,6 +150,8 @@ for device in preferred:
      phases=timing['phasesMs']
      print('IOS_COLD_START '+device['name']+' '+ ' '.join(f'{key}={value:.1f}ms' for key,value in phases.items()),flush=True)
     if a.tour:(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
+    # Fresh iOS runtimes can post a transient Apple Intelligence banner over the first sheet.
+    if a.tour and stage=='challenge-start':time.sleep(6)
     capture=a.output/(filename+('.jpg' if a.store else '.png'))
     sim('io',udid,'screenshot','--type='+('jpeg' if a.store else 'png'),str(capture))
     metrics.update(device=device['name'],runtime=runtime['name'],terminationRecovery=recovered);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))

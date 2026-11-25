@@ -5,7 +5,7 @@ const scenes={
  'challenge-start':{route:'/me/challenges',actions:['#challenge-start'],ready:'.challenge-templates [data-challenge-kind="protein_days"]'},
  'challenge-detail':{route:'/me/challenges/demo-distance',ready:'.challenge-person-row'},
  'training-activity-detail':{route:'/activity/1',actions:['[data-dt="charts"]'],ready:'#d-charts svg',map:'#d-map'},
- 'training-sport-profile':{route:'/people/alex',ready:'.me-card-sections[aria-busy="false"]',scroll:'.me-sport-chips'},
+ 'training-sport-profile':{route:'/people/alex',ready:'.me-card-sections[aria-busy="false"]'},
  // Completed lifting belongs to Activity; /track/lift/:id opens the editable recorder.
  'training-lift-session':{route:'/activity/3',ready:'#d-lifts .ls-row'},
  'training-plan':{route:'/plan',ready:'.pweek.current .compact-workout'},

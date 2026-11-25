@@ -63,7 +63,8 @@
     let previousTiles=[],stable=0;
     for(let n=0;n<200;n++){
       let ready=storeReady();
-      if(!ready&&mapStage&&!cfg.fixtureClockAdvanceAttempted&&(cfg.stage!=='activity'||document.querySelector('[data-dt="charts"][aria-selected="true"]'))&&storeMapTilesLoaded()){
+      // Tour routes can pass on one tile while other tile fades are held by the fictional clock.
+      if((!ready||cfg.tour?.map)&&mapStage&&!cfg.fixtureClockAdvanceAttempted&&(cfg.stage!=='activity'||document.querySelector('[data-dt="charts"][aria-selected="true"]'))&&storeMapTilesLoaded()){
         cfg.fixtureClockAdvanceAttempted=true;cfg.fixtureClockAdvanceApplied=cfg.advanceFixtureClock?.(250)===true;
         ready=storeReady();
       }
