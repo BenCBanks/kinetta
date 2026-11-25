@@ -5,7 +5,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
 (async()=>{
  const browser=await chromium.launch();let checks=0;
  try{
-  for(const width of [1280,390,330])for(const theme of ['light','dark']){
+  for(const width of [1440,1280,390,330])for(const theme of ['light','dark']){
    const height=width===390?844:width===330?700:900;
    const context=await browser.newContext({viewport:{width,height},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block'}),page=await context.newPage(),errors=[];
    try{
@@ -49,6 +49,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
     await page.locator('#feature-bucket').selectOption('day');await page.locator('.feature-table').waitFor();checks++;
     const fit=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1,controls:[...document.querySelectorAll('.feature-controls select')].map(e=>e.getBoundingClientRect().height)}));assert.equal(fit.overflow,false);assert(fit.controls.every(h=>h>=44));assert.deepEqual(errors,[]);checks++;
     if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`features-${width}-${theme}.png`),fullPage:true});await page.screenshot({path:path.join(out,`features-viewport-${width}-${theme}.png`)});await page.locator('.feature-funnel').screenshot({path:path.join(out,`features-funnel-${width}-${theme}.png`)});}
+    checks+=await require('./admin_queue_checks.cjs')(page,base);assert.deepEqual(errors,[]);
     console.log(`Features ${width}px ${theme}: real admin aggregates/funnel, small groups, sorts, all ranges, trend selector, controls and no overflow/errors PASS`);
    }finally{await context.close();}
   }
