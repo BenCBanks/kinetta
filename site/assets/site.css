@@ -734,6 +734,8 @@ header.top .signup { display:flex;align-items:center; }
 .kit-chat-result[aria-hidden="true"],.kit-chat-log-bar[aria-hidden="true"],.kit-chat-typing[aria-hidden="true"],.kit-week-typing[aria-hidden="true"],.kit-week-answer[aria-hidden="true"] { display:none; }
 .kit-chat-composer,.kit-week-composer { flex:none; display:flex; align-items:center; gap:12px; height:52px; margin:0 22px 28px; padding:0 13px; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--ink2); font-size:16px; }
 .kit-chat-composer b,.kit-week-composer b { color:var(--ink2); font-size:22px; font-weight:400; }
+.kit-chat-composer .kit-chat-add { flex:none; display:grid; width:44px; height:44px; margin-left:-13px; place-items:center; color:var(--ink2); }
+.kit-chat-composer .kit-chat-add svg { display:block; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
 .kit-chat-composer > span:nth-child(2) { flex:1; min-width:0; }
 .kit-phone-screen { position:relative; }
 .kit-phone-status { flex:none; margin-top:28px; }
