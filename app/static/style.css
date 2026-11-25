@@ -1828,8 +1828,7 @@ button.thread-food:active { opacity: .7; }
 }
 .kit-facts {font-size:max(15px,.9375rem);margin:12px 0;}
 .kit-facts>div {display:flex;justify-content:space-between;gap:14px;padding:6px 0;border-top:1px solid var(--line);}
-.kit-facts dt {display:flex;flex-direction:column;gap:2px;color:var(--tx2);}
-.kit-fact-source {color:var(--tx3);font-size:12px;font-weight:500;line-height:1.25;}
+.kit-facts dt {color:var(--tx2);}
 .kit-facts dd {font-variant-numeric:tabular-nums;margin:0;overflow-wrap:anywhere;}
 .kit-weekly-review {margin:14px 0 0;}
 .kit-weekly-period {font-size:13px;color:var(--tx2);margin:0 0 12px;}
