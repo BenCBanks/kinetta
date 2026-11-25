@@ -26,7 +26,6 @@
 .food-thread .thread-review-strip #thread-review-sum { min-height:44px; padding:0 8px 0 0; border:0; background:transparent; color:var(--tx); font-size:15px; font-weight:500; }
 .food-thread .thread-review-strip #thread-review-add { min-height:44px; min-width:100px; padding:0 14px; border:0; border-radius:999px; background:var(--accent-gradient); color:var(--onbtn); font-size:16px; font-weight:var(--weight-title); white-space:nowrap; }
 .food-thread .thread-review-kcal { color:var(--tx2); font-size:13px; }
-.food-thread .thread-compose-row { border-top:1px solid var(--line); }
 .kit-chat .thread-heading { grid-template-columns:44px minmax(0,1fr) 96px; min-height:44px; align-items:center; gap:8px; border:0; }
 .kit-chat .thread-heading > .back { display:grid; place-items:center; width:44px; height:44px; min-width:44px; padding:0; border-radius:50%; }
 .kit-chat .thread-heading > .back svg { width:20px; height:20px; }
@@ -902,13 +901,13 @@ html:has(.food-thread) nav.tabs { display: none; }
 .thread-plus.open svg { transform: rotate(45deg); }
 .thread-send svg, .thread-plus svg { width: 20px; height: 20px; }
 #thread-status { margin: 4px 0 0; min-height: 1.2em; font-size: .8rem; color: var(--tx2); text-align: center; }
-#thread-status:empty { min-height: 0; }
+#thread-status:empty { display: none; }
 .food-thread button { min-height: 44px; min-width: 44px; font-size: 1rem; white-space: normal; }
 /* With the keyboard up the home-indicator inset is under the keyboard: no extra gap above it (owner, 20 Oct 2026). */
 html.keyboard-open #thread-status:empty { display: none; }
 /* iPhone app: pages get room under the keyboard so a focused field can scroll above it (chat pages are fixed). */
 html.keyboard-open body { padding-bottom: var(--kb, 0px); }
-html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
+html.keyboard-open .food-thread { font-size: 1rem; }
 /* Calmer chat text (2026-10-18, owner: "too big and overwhelming"): smaller card text, chip-sized choices, quiet links. */
 .thread-card, .thread-user { font-size: .95rem; }
 .food-thread .thread-choices { gap: 6px; margin-block: 8px; }

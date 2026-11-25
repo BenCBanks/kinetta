@@ -122,7 +122,8 @@ for device in preferred:
     process_launch_monotonic_ns=time.monotonic_ns() if measure_startup else None
     sim('launch',udid,'com.kinetta.app')
     metrics=None
-    for _ in range(250):
+    # Fine timing polls must retain the normal 50s readiness budget for native insets/bridge.
+    for _ in range(5000 if measure_startup else 250):
      try:
       candidate=json.loads((container/'tmp/kinetta-ui-metrics.json').read_text())
       if candidate.get('run')==token:metrics=candidate;break
@@ -273,14 +274,15 @@ for device in preferred:
       assert not track['expanded'],metrics
       if stage=='track-live':assert track['average'] and track['lap'] and track['lap']!='—',metrics
       if stage=='track-map':assert track['map'] and track['map']['height']>0,metrics
+    # Chat docks use the approved inset-minus-8 spacing; other native controls retain the full safe inset.
     if stage=='recipe':
      assert metrics['name'] and metrics['content']['y']>=metrics['header']['bottom']-1,metrics
      assert metrics['name']['y']<=metrics['header']['bottom']+30,metrics
-     assert metrics['composer']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
+     assert abs(metrics['viewport']['height']-metrics['composer']['bottom']-max(8,metrics['safeBottom']-8))<=1,metrics
     if stage=='review':assert metrics['review'],metrics
     if stage=='food':
      assert metrics['field'] and metrics['field']['scrollHeight']<=metrics['field']['clientHeight']+1,metrics
-     assert metrics['composer']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
+     assert abs(metrics['viewport']['height']-metrics['composer']['bottom']-max(8,metrics['safeBottom']-8))<=1,metrics
     results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2))
  finally:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)

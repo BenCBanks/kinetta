@@ -20,6 +20,10 @@ assert.deepEqual(metrics(scene([target('sentence',0,0,28,18,{inlineLink:true})])
 assert(metrics(scene([target('input',0,0,120,43,{input:true,font:15})])).includes('input-font'));
 assert(metrics(scene([target('input',0,0,120,43,{input:true,font:16})])).includes('input-height'));
 assert(metrics(scene([target('input',0,0,120,44,{input:true,font:17})])).includes('font-max'),'Empty fields still obey the control type scale');
+for(const key of ['thread-text','kit-text','dk-t']){
+ assert.deepEqual(metrics(scene([target(key,0,0,120,44,{input:true,font:17})],[{key,selector:'#'+key,role:'body',font:17}])),[],'approved composer text passes at 17px');
+ assert(metrics(scene([target(key,0,0,120,44,{input:true,font:18})])).includes('font-max'),'composer exception remains capped at 17px');
+}
 assert(metrics(scene([], [{key:'meta',role:'secondary',font:12}])).includes('font-min'));
 assert(metrics(scene([], [{key:'body',role:'body',font:17}])).includes('font-max'));
 assert(metrics(scene([], [{key:'large',font:36}])).includes('unmarked-large'));

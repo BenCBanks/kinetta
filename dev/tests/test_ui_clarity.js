@@ -35,10 +35,11 @@ console.log('Food chat: Search tool label PASS');
 // Food chat (2026-10-18, simplified): one bar with +, text and send; every other way to add food sits in the + menu.
 {
  const thread=fs.readFileSync('app/static/thread.js','utf8'),markup=thread.slice(thread.indexOf('el.innerHTML=`<header class="thread-heading">'),thread.indexOf('// + opens the tools'));
- const menu=markup.slice(markup.indexOf('id="thread-menu"'),markup.indexOf('class="thread-compose-row"'));
+ const menu=markup.slice(markup.indexOf('id="thread-menu"'),markup.indexOf('class="chat-compose-line"'));
  for(const tool of ['data-tool="snap"','data-tool="library"','data-tool="scan"','id="thread-search"','id="thread-usuals"','id="thread-recipes"','id="thread-manual-add"'])
   assert(menu.includes(tool),tool+' lives in the + menu');
- const bar=markup.slice(markup.indexOf('class="thread-compose-row"'),markup.indexOf('id="thread-status"'));
+ const bar=markup.slice(markup.indexOf('class="chat-compose-line"'),markup.indexOf('id="thread-status"'));
+ assert(bar.indexOf('id="thread-plus"')<bar.indexOf('class="thread-compose-row"'),'plus stays outside the rounded text field');
  assert.match(bar,/id="thread-plus"[^>]*aria-expanded="false"/);assert.match(bar,/id="thread-text"/);assert.match(bar,/id="thread-send" aria-label="Send message"/);
  assert.match(thread,/send\.setAttribute\('aria-label','Send message'\)/,'sending describes only a message');
  assert.match(markup,/id="thread-settings" aria-label="Food chat settings"/);

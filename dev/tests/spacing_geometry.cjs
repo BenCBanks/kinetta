@@ -2,6 +2,8 @@
 'use strict';
 const typeScale={title:[28,32],section:[17,20],card:[16,17],body:[15,16],secondary:[13,14],chart:[12,16],stat:[20,24],hero:[20,40],glyph:[12,32],text:[12,32]};
 const overlap=(a,b,axis)=>Math.min(a[axis]+a[axis==='x'?'width':'height'],b[axis]+b[axis==='x'?'width':'height'])-Math.max(a[axis],b[axis]);
+// Owner-approved iMessage composer text is 17px; other controls keep the 16px limit.
+const composer=t=>/^#(?:thread-text|kit-text|dk-t)$/.test(t.selector);
 const related=(a,b)=>a.key===b.key||a.activationKey&&a.activationKey===b.activationKey;
 function validateExceptions(rules){
  const ids=new Set(),metrics=new Set(['target','blocked','input-height','input-font','gap','overlap','font-min','font-max','unmarked-large','hero-count','clipped','overflow']);
@@ -48,12 +50,12 @@ function audit(snapshot,rules=[]){
  for(const t of snapshot.targets||[]){
   if(t.unreachable&&!t.disabled&&!t.inlineLink)issue(t,'blocked',t.hitOwner,'An exposed hit area in at least one scroll position');
   if(!t.inlineLink&&(t.rect.width<43.98||t.rect.height<43.98))issue(t,'target',{width:t.rect.width,height:t.rect.height},'44 × 44px');
-  if(t.input){if(t.rect.height<43.98)issue(t,'input-height',t.rect.height,44);if(t.font<15.98)issue(t,'input-font',t.font,16);if(t.font>(t.hero?40:16)*scale+.02)issue(t,'font-max',t.font,(t.hero?40:16)*scale);}
+  if(t.input){if(t.rect.height<43.98)issue(t,'input-height',t.rect.height,44);if(t.font<15.98)issue(t,'input-font',t.font,16);if(t.font>(t.hero?40:composer(t)?17:16)*scale+.02)issue(t,'font-max',t.font,(t.hero?40:composer(t)?17:16)*scale);}
  }
  for(const p of neighbours((snapshot.targets||[]).filter(t=>!t.inlineLink)))if(p.metric==='overlap'||p.actual<7.98)issue(p.a,p.metric,p.actual,p.metric==='gap'?8:0,p.b);
  const heroes=new Map();
  for(const t of snapshot.texts||[]){
-  const role=t.hero?'hero':t.role||'text',[minimum,maximum]=typeScale[role]||typeScale.text;
+  const role=t.hero?'hero':t.role||'text',[minimum,maximum]=composer(t)?[16,17]:typeScale[role]||typeScale.text;
   if(t.font<minimum-.02)issue(t,'font-min',t.font,minimum);
   if(t.font>maximum*scale+.02)issue(t,'font-max',t.font,maximum*scale);
   if(!t.hero&&t.font>32*scale+.02)issue(t,'unmarked-large',t.font,'Mark one hero number or use the page type scale');
