@@ -2460,6 +2460,16 @@ MIGRATIONS = [
       OR (NOT p.garmin_ai_ok AND EXISTS(SELECT 1 FROM activities a WHERE a.user_id=p.user_id AND a.source='garmin_connect'));
 
     """,
+    # 121. Inspectable, user-correctable Kit memory; existing statements keep their original dates.
+    """ALTER TABLE kit_memories ADD COLUMN kind text NOT NULL DEFAULT 'preference'
+      CHECK(kind IN ('goal','preference','routine')),
+      ADD COLUMN source text NOT NULL DEFAULT 'chat'
+      CHECK(source IN ('chat','user','edit'));
+    UPDATE kit_memories SET kind=CASE
+      WHEN text ~* '^(my (goal|aim)|i (want|need))' THEN 'goal'
+      WHEN text ~* '^(my (schedule|routine|available days)|i (train|run|ride|walk|work))' THEN 'routine'
+      ELSE 'preference' END;""",
+
 
 ]
 
