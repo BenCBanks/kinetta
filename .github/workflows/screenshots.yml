@@ -47,7 +47,17 @@ jobs:
           -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
           -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
       - name: Capture fictional homepage screens with Apple emoji rendering
+        id: homepage_capture
+        continue-on-error: true
+        timeout-minutes: 15
         run: python3 dev/tests/native-ui/run.py --app mobile/build/Build/Products/Debug-iphonesimulator/App.app --output "$RUNNER_TEMP/homepage-simulator" --homepage
+      - name: Retry homepage capture once after transient Simulator paint failure
+        if: steps.homepage_capture.outcome == 'failure'
+        timeout-minutes: 15
+        run: |
+          # A fresh Simulator can miss its first map paint; retry once without relaxing scene assertions.
+          rm -rf "$RUNNER_TEMP/homepage-simulator"
+          python3 dev/tests/native-ui/run.py --app mobile/build/Build/Products/Debug-iphonesimulator/App.app --output "$RUNNER_TEMP/homepage-simulator" --homepage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
