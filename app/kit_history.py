@@ -28,15 +28,15 @@ def preserve(c, uid, visit_id=None):
 
 
 def remove(c, uid, conversation_id=None):
-    """Erase saved content and close visits before FK detaches their thread reference.
-
-    Closed visits remain tombstones under the existing visit lifecycle: delayed work
-    cannot reopen them or save an in-flight answer. Account deletion cascades all rows.
-    """
+    """Erase content, including legacy turns linked through a deleted visit."""
     if conversation_id is not None:
         thread(c, uid, conversation_id)
-    c.execute('''UPDATE kit_visits SET ended=coalesce(ended,now()) WHERE user_id=%s
-      AND conversation_id IS NOT NULL AND (%s::uuid IS NULL OR conversation_id=%s)''',
+    c.execute('''DELETE FROM kit_turns WHERE user_id=%s AND (%s::uuid IS NULL
+      OR conversation_id=%s OR visit_id IN (SELECT id FROM kit_visits WHERE user_id=%s
+        AND coalesce(conversation_id,draft_conversation_id)=%s))''',
+      (uid, conversation_id, conversation_id, uid, conversation_id))
+    c.execute('''DELETE FROM kit_visits WHERE user_id=%s AND
+      (%s::uuid IS NULL OR coalesce(conversation_id,draft_conversation_id)=%s)''',
       (uid, conversation_id, conversation_id))
     c.execute('DELETE FROM kit_threads WHERE user_id=%s AND (%s::uuid IS NULL OR id=%s)',
               (uid, conversation_id, conversation_id))

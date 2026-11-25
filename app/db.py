@@ -2315,7 +2315,6 @@ MIGRATIONS = [
     CREATE INDEX kit_threads_owner_updated ON kit_threads(user_id,updated DESC,id DESC);
     ALTER TABLE kit_threads ENABLE ROW LEVEL SECURITY;
     CREATE POLICY own_rows ON kit_threads FOR SELECT TO fit_readers USING(user_id=fit_me());
-    CREATE POLICY all_rows ON kit_threads FOR SELECT TO fit_all_readers USING(true);
     GRANT SELECT ON kit_threads TO fit_readers;
     ALTER TABLE kit_visits ADD COLUMN conversation_id uuid,
       ADD CONSTRAINT kit_visits_thread_owner FOREIGN KEY(conversation_id,user_id)
@@ -2325,6 +2324,92 @@ MIGRATIONS = [
         REFERENCES kit_threads(id,user_id) ON DELETE CASCADE;
     CREATE INDEX kit_turns_thread_history ON kit_turns(user_id,conversation_id,id DESC);
     CREATE INDEX kit_visits_thread ON kit_visits(user_id,conversation_id);
+    ALTER TABLE kit_visits ADD COLUMN draft_conversation_id uuid;
+    ALTER TABLE kit_turns ADD COLUMN invalidated_at timestamptz;
+    ALTER TABLE kit_conversations ADD COLUMN opens_at timestamptz,
+      ADD COLUMN opens_count integer NOT NULL DEFAULT 0;
+    -- Owner reporting logins inherit fit_readers: a restrictive policy denies even
+    -- their own chat text. Application/table-owner access remains necessary for APIs.
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['kit_threads','kit_turns','kit_visits','kit_conversations','kit_memories'] LOOP
+        EXECUTE format('DROP POLICY IF EXISTS all_rows ON %I',t);
+        EXECUTE format('CREATE POLICY no_owner_chat ON %I AS RESTRICTIVE FOR SELECT TO fit_readers USING(NOT pg_has_role(session_user,''fit_all_readers'',''member''))',t);
+      END LOOP;
+    END $$;
+    CREATE FUNCTION fit_invalidate_kit(uid bigint) RETURNS void LANGUAGE plpgsql AS $$
+    BEGIN
+      -- Cancel leases as well as saved answers: revoke/regrant during a provider
+      -- request must never save its late result. Unknown old provenance is sensitive.
+      UPDATE kit_conversations SET memory_version=memory_version+1 WHERE user_id=uid;
+      UPDATE kit_turns SET invalidated_at=now(),answer=NULL,lease=NULL,expires=NULL,
+        state='answered',error=NULL WHERE user_id=uid AND invalidated_at IS NULL
+        AND (state IN ('pending','running') OR answer IS NOT NULL
+             AND answer->'health_included' IS DISTINCT FROM 'false'::jsonb);
+      DELETE FROM kit_memories WHERE user_id=uid AND health_included;
+    END $$;
+    REVOKE ALL ON FUNCTION fit_invalidate_kit(bigint) FROM PUBLIC;
+    CREATE FUNCTION fit_kit_invalidation_sticks() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF OLD.invalidated_at IS NOT NULL THEN NEW.invalidated_at=OLD.invalidated_at; END IF;
+      IF NEW.invalidated_at IS NOT NULL THEN
+        NEW.answer=NULL; NEW.lease=NULL; NEW.expires=NULL; NEW.state='answered'; NEW.error=NULL;
+      END IF;
+      RETURN NEW;
+    END $$;
+    CREATE TRIGGER kit_invalidation_sticks BEFORE UPDATE ON kit_turns
+      FOR EACH ROW EXECUTE FUNCTION fit_kit_invalidation_sticks();
+    CREATE FUNCTION fit_kit_source_removed() RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE oldrow jsonb; newrow jsonb; k text; invalidate boolean=false;
+    BEGIN
+      IF TG_OP<>'INSERT' THEN oldrow=to_jsonb(OLD); END IF;
+      IF TG_OP<>'DELETE' THEN newrow=to_jsonb(NEW); END IF;
+      IF TG_TABLE_NAME='profile' THEN
+        FOREACH k IN ARRAY ARRAY['ai_ok','health_ai_ok','health_weight_ai_ok','garmin_ai_ok','health_weight_read'] LOOP
+          invalidate=invalidate OR (oldrow->k='true'::jsonb AND newrow->k IS DISTINCT FROM 'true'::jsonb);
+        END LOOP;
+        invalidate=invalidate OR (OLD.resting_source='apple_health' AND NEW.resting_source<>'apple_health')
+          OR (OLD.weight_kg IS NOT NULL AND NEW.weight_kg IS NULL);
+      ELSIF TG_TABLE_NAME='connections' THEN
+        invalidate=oldrow->>'kind'='garmin_connect';
+      ELSIF TG_TABLE_NAME='activities' THEN
+        invalidate=(oldrow->>'source' IN ('healthkit','garmin_connect')
+          OR oldrow->>'healthkit_id' IS NOT NULL) AND
+          (TG_OP='DELETE' OR (oldrow-'updated') IS DISTINCT FROM (newrow-'updated'));
+      ELSIF TG_TABLE_NAME='health_weight_samples' AND TG_OP='UPDATE' THEN
+        invalidate=(newrow->>'deleted'='true' AND oldrow->>'deleted'<>'true')
+          OR (newrow->>'excluded'='true' AND oldrow->>'excluded'<>'true')
+          OR (oldrow->'kg' IS DISTINCT FROM newrow->'kg');
+      ELSE
+        -- Includes derived projections: rebuilding a source is deliberately
+        -- conservative, rather than retaining an answer with unknown provenance.
+        invalidate=true;
+      END IF;
+      IF invalidate THEN
+        PERFORM fit_invalidate_kit(coalesce((oldrow->>'user_id')::bigint,(newrow->>'user_id')::bigint));
+      END IF;
+      RETURN NULL;
+    END $$;
+    REVOKE ALL ON FUNCTION fit_kit_source_removed(),fit_kit_invalidation_sticks() FROM PUBLIC;
+    UPDATE kit_turns SET invalidated_at=now(),answer=NULL,lease=NULL,expires=NULL,
+      state='answered',error=NULL WHERE answer IS NOT NULL
+      AND answer->'health_included' IS DISTINCT FROM 'false'::jsonb;
+    DELETE FROM kit_memories WHERE health_included;
+    CREATE TRIGGER kit_profile_revoked AFTER UPDATE ON profile
+      FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
+    CREATE TRIGGER kit_workout_removed AFTER DELETE OR UPDATE ON activities
+      FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
+    CREATE TRIGGER kit_garmin_disconnected AFTER DELETE ON connections
+      FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
+    CREATE TRIGGER kit_sample_removed AFTER DELETE OR UPDATE ON health_weight_samples
+      FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
+    CREATE TRIGGER kit_weight_excluded AFTER INSERT ON health_weight_exclusions
+      FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['weights','health_resting','day_energy','activity_streams','best_efforts'] LOOP
+        EXECUTE format('CREATE TRIGGER kit_source_removed AFTER DELETE OR UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed()',t);
+      END LOOP;
+    END $$;
+
     """,
 
 ]

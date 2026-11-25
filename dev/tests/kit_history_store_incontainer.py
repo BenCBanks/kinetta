@@ -75,18 +75,28 @@ class HistoryStorage(unittest.TestCase):
     def test_single_all_and_account_delete(self):
         with db.connect() as c:
             tid,vid,mid=self.fixture(c,self.a,'running')
+            c.execute('''INSERT INTO kit_turns(user_id,client_id,generation,visit_id,question)
+              SELECT user_id,%s,generation,%s,'Fictional legacy question' FROM kit_conversations WHERE user_id=%s''',
+              (uuid.uuid4(),vid,self.a))
             second=self.fixture(c,self.a);foreign=self.fixture(c,self.b)
             kit_history.remove(c,self.a,tid)
             self.assertIsNone(c.execute('SELECT 1 FROM kit_turns WHERE id=%s',(mid,)).fetchone())
             visit=c.execute('SELECT * FROM kit_visits WHERE id=%s',(vid,)).fetchone()
-            self.assertIsNotNone(visit['ended']);self.assertIsNone(visit['conversation_id'])
+            self.assertIsNone(visit)
+            self.assertIsNone(c.execute('SELECT 1 FROM kit_turns WHERE visit_id=%s',(vid,)).fetchone())
             self.assertIsNotNone(kit_history.thread(c,self.a,second[0]))
+            self.fixture(c,self.a,saved=False)
             kit_history.remove(c,self.a)
+            for table in ['kit_threads','kit_visits','kit_turns']:
+                self.assertEqual(c.execute(sql.SQL('SELECT count(*) n FROM {} WHERE user_id=%s').format(sql.Identifier(table)),(self.a,)).fetchone()['n'],0)
             self.assertIsNone(c.execute('SELECT 1 FROM kit_threads WHERE user_id=%s',(self.a,)).fetchone())
             self.assertIsNotNone(kit_history.thread(c,self.b,foreign[0]))
             self.fixture(c,self.a)
-            c.execute('DELETE FROM users WHERE id=%s',(self.a,))
-            for table in ['kit_threads','kit_visits','kit_turns']:
+            self.fixture(c,self.a,saved=False)
+            c.execute("INSERT INTO kit_memories(user_id,text) VALUES(%s,'Fictional preference')",(self.a,))
+            from app.api_account import erase
+            erase(c,c.execute('SELECT * FROM users WHERE id=%s',(self.a,)).fetchone())
+            for table in ['kit_threads','kit_visits','kit_turns','kit_memories','kit_conversations']:
                 self.assertEqual(c.execute(sql.SQL('SELECT count(*) AS n FROM {} WHERE user_id=%s').format(sql.Identifier(table)),(self.a,)).fetchone()['n'],0)
 
     def test_export_is_own_and_has_no_lease(self):
@@ -110,14 +120,77 @@ class HistoryStorage(unittest.TestCase):
             with psycopg.connect(db._conninfo(role,password),row_factory=dict_row) as c:
                 rows=c.execute('SELECT * FROM kit_threads').fetchall()
                 self.assertEqual([r['user_id'] for r in rows],[self.a])
+                turns=c.execute('SELECT question,answer,user_id FROM kit_turns').fetchall()
+                self.assertEqual([r['user_id'] for r in turns],[self.a])
+                self.assertEqual(turns[0]['question'],'Fictional saved question')
+                with self.assertRaises(errors.InsufficientPrivilege),c.transaction():
+                    c.execute('SELECT fit_invalidate_kit(%s)',(self.b,))
                 with self.assertRaises(errors.InsufficientPrivilege),c.transaction():
                     c.execute('DELETE FROM kit_threads')
+            with db.connect() as c:
+                c.execute(sql.SQL('GRANT fit_all_readers TO {}').format(sql.Identifier(role)))
+            with psycopg.connect(db._conninfo(role,password),row_factory=dict_row) as c:
+                for selected_role in [None,'fit_readers']:
+                    if selected_role:c.execute('SET ROLE fit_readers')
+                    for table in ['kit_threads','kit_turns','kit_memories','kit_visits','kit_conversations']:
+                        self.assertEqual(c.execute(sql.SQL('SELECT * FROM {}').format(sql.Identifier(table))).fetchall(),[],table)
             with self.assertRaises(errors.InsufficientPrivilege),db.coach_connect(self.a) as c:
                 c.execute('SELECT * FROM kit_threads')
         finally:
             with db.connect() as c:
                 c.execute('UPDATE users SET sql_role=NULL WHERE id=%s',(self.a,))
                 c.execute(sql.SQL('DROP ROLE {}').format(sql.Identifier(role)))
+
+
+    def test_source_loss_and_consent_restoration_never_restore_answers(self):
+        with db.connect() as c:
+            for consent in ['ai_ok','health_ai_ok','health_weight_ai_ok','garmin_ai_ok','health_weight_read']:
+                with self.subTest(consent=consent):
+                    c.execute(sql.SQL('UPDATE profile SET {}=true WHERE user_id=%s').format(sql.Identifier(consent)),(self.a,))
+                    _,_,mid=self.fixture(c,self.a)
+                    _,_,running=self.fixture(c,self.a,'running')
+                    self.fixture(c,self.b)
+                    c.execute("INSERT INTO kit_memories(user_id,text,health_included) VALUES(%s,%s,true)",(self.a,'Fictional sensitive preference'))
+                    c.execute(sql.SQL('UPDATE profile SET {}=false WHERE user_id=%s').format(sql.Identifier(consent)),(self.a,))
+                    c.execute(sql.SQL('UPDATE profile SET {}=true WHERE user_id=%s').format(sql.Identifier(consent)),(self.a,))
+                    c.execute("UPDATE kit_turns SET answer='{\"interpretation\":\"Must not resurrect\"}',invalidated_at=NULL WHERE id=%s",(mid,))
+                    for ident in [mid,running]:
+                        row=c.execute('SELECT * FROM kit_turns WHERE id=%s',(ident,)).fetchone()
+                        self.assertIsNotNone(row['invalidated_at']);self.assertIsNone(row['answer']);self.assertIsNone(row['lease'])
+                    self.assertEqual(c.execute('SELECT count(*) n FROM kit_memories WHERE user_id=%s',(self.a,)).fetchone()['n'],0)
+            self.assertIsNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE user_id=%s LIMIT 1',(self.b,)).fetchone()['invalidated_at'])
+
+    def test_source_removal_triggers_and_legacy_rows(self):
+        with db.connect() as c:
+            mutations=[
+                ("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'walk','healthkit','Fictional walk',now())", "DELETE FROM activities WHERE user_id=%s"),
+                ("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'run','garmin_connect','Fictional run',now())", "DELETE FROM activities WHERE user_id=%s"),
+                ("INSERT INTO weights(user_id,day,kg) VALUES(%s,current_date,70)", "DELETE FROM weights WHERE user_id=%s"),
+                ("INSERT INTO health_weight_samples(user_id,sample_id,sampled_at,kg,observed_at) VALUES(%s,gen_random_uuid(),now(),70,now())", "UPDATE health_weight_samples SET deleted=true WHERE user_id=%s"),
+                ("INSERT INTO health_weight_samples(user_id,sample_id,sampled_at,kg,observed_at) VALUES(%s,gen_random_uuid(),now(),70,now())", "UPDATE health_weight_samples SET excluded=true WHERE user_id=%s"),
+                ("INSERT INTO day_energy(user_id,day,burned_kcal) VALUES(%s,current_date,2000)", "DELETE FROM day_energy WHERE user_id=%s"),
+                ("INSERT INTO health_resting(user_id,tz,day,resting_kcal,observed_at) VALUES(%s,'UTC',current_date,1400,now())", "DELETE FROM health_resting WHERE user_id=%s"),
+                ("INSERT INTO connections(user_id,kind) VALUES(%s,'garmin_connect')", "DELETE FROM connections WHERE user_id=%s"),
+            ]
+            for seed,mutation in mutations:
+                with self.subTest(mutation=mutation):
+                    c.execute(seed,(self.a,))
+                    _,_,mid=self.fixture(c,self.a,saved=False)
+                    c.execute(mutation,(self.a,))
+                    self.assertIsNotNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE id=%s',(mid,)).fetchone()['invalidated_at'])
+            _,_,mid=self.fixture(c,self.a)
+            c.execute('DELETE FROM health_weight_samples WHERE user_id=%s',(self.a,))
+            self.assertIsNotNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE id=%s',(mid,)).fetchone()['invalidated_at'])
+            aid=c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'run','healthkit','Fictional stream',now()) RETURNING id",(self.a,)).fetchone()['id']
+            for table,seed in [
+                ('activity_streams','INSERT INTO activity_streams(user_id,activity_id) VALUES(%s,%s)'),
+                ('best_efforts',"INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) VALUES(%s,%s,'run',1000,'1 km',300,now())")]:
+                c.execute(seed,(self.a,aid));_,_,mid=self.fixture(c,self.a)
+                c.execute(sql.SQL('DELETE FROM {} WHERE user_id=%s').format(sql.Identifier(table)),(self.a,))
+                self.assertIsNotNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE id=%s',(mid,)).fetchone()['invalidated_at'])
+            _,_,mid=self.fixture(c,self.a)
+            c.execute("INSERT INTO health_weight_exclusions(user_id,day,before_time) VALUES(%s,current_date,now())",(self.a,))
+            self.assertIsNotNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE id=%s',(mid,)).fetchone()['invalidated_at'])
 
 
 if __name__=='__main__':unittest.main()
