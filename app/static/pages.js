@@ -1714,7 +1714,8 @@ async function pWeeklySeries(body,q) {
     if(!body.isConnected||owner!==readOwner())return;
     const box=$('#m-body',body),known=r.points.filter(p=>p.n>p.missing&&p.value!=null);
     const current=r.points.at(-1),thisValue=convert(current?.value),overall=convert(r.summary.overall);
-    const stats=ProgressUI.statRow([{label:'This week',value:value(thisValue),unit},{label:r.aggregate==='average'?'Average':'Weekly avg',value:value(r.aggregate==='sum'?known.length?r.points.reduce((n,p)=>n+(convert(p.value)||0),0)/r.points.length:null:overall),unit},{label:metric==='pace'?'Fastest week':'Best week',value:value(convert(metric==='pace'?r.summary.lowest:r.summary.highest)),unit}]).replace('class="stat-row"','class="stat-row progress-total-stats"');
+    const recorded=r.points.filter(p=>p.value!=null),weeklyAverage=known.length?recorded.reduce((n,p)=>n+convert(p.value),0)/recorded.length:null;
+    const stats=ProgressUI.statRow([{label:'This week',value:value(thisValue),unit},{label:r.aggregate==='average'?'Average':'Weekly avg',value:value(r.aggregate==='sum'?weeklyAverage:overall),unit},{label:metric==='pace'?'Fastest week':'Best week',value:value(convert(metric==='pace'?r.summary.lowest:r.summary.highest)),unit}]).replace('class="stat-row"','class="stat-row progress-total-stats"');
     const footer=`<div class="progress-total-footer"><span class="progress-total-caption">${esc(progressWeekLabel(new Date(current.start+'T12:00')))} · ${esc(fmt(thisValue))}</span>${ProgressUI.rangeText(PPERIODS,'week',{label:'Totals range',attribute:'progress-period'})}</div>`;
     box.innerHTML=`<div class="card progress-totals-card">${r.workouts?stats:''}<div id="m-chart"></div>${footer}</div>`;
     const chart=$('#m-chart',box);
