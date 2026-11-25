@@ -55,6 +55,13 @@ class AccountEmail(unittest.TestCase):
         self.assertIn('\n\nThe Kinetta team\n\n', admin_reply)
         self.assertEqual(admin_mail.format_plain_text_email(admin_reply, greeting='Hello,'), admin_reply)
 
+    def test_unrelated_subject_words_do_not_replace_message_body(self):
+        self.assertTrue(account_email.send('fictional@example.com', 'Back up your Kinetta account',
+                                           'Your backup is ready in Settings.'))
+        message = self.messages()[-1]
+        self.assertEqual(message['subject'], 'Back up your Kinetta account')
+        self.assertTrue(message['text'].startswith('Your backup is ready in Settings.'))
+
     def restore(self):      # each test starts from the same known passwords, even after a failure
         with db.connect() as c:
             ids = [r['id'] for r in c.execute("SELECT id FROM users WHERE login LIKE 'zz\\_test\\_mail%%'").fetchall()]
@@ -427,7 +434,7 @@ class AccountEmail(unittest.TestCase):
         first = self.messages()[-1]
         self.assertEqual(first['to'], ['zz_reminders@example.com'])
         self.assertEqual(first['subject'], 'Your Kinetta account needs one more step')
-        self.assertTrue(first['text'].startswith('Confirm your email to keep your account: https://example.test/confirm-email#'))
+        self.assertRegex(first['text'], r'Confirm your email to keep your account:\nhttps://example\.test/confirm-email#[\w-]+\n\n')
         self.assertIn('This link replaces earlier ones and works for 24 hours.', first['text'])
         self.assertNotIn('Hi ', first['text'])
         self.assertIn("You're getting this because this address was used for a Kinetta account.", first['text'])
@@ -444,9 +451,10 @@ class AccountEmail(unittest.TestCase):
             created = c.execute('SELECT created FROM users WHERE id=%s', (user['id'],)).fetchone()['created']
         deadline = account_email.unconfirmed_account_delete_at(created)
         self.assertEqual(deadline - created, datetime.timedelta(days=account_email.UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS))
-        deletion_date = deadline.date().isoformat()
+        deletion_date = f"{deadline.day} {deadline.strftime('%B %Y')}"
         self.assertEqual(second['subject'], f'Confirm your Kinetta email by {deletion_date}')
-        self.assertIn(f"Accounts that aren't confirmed within 14 days are deleted on {deletion_date}.", second['text'])
+        self.assertRegex(second['text'], r'Confirm your email to keep your account:\nhttps://example\.test/confirm-email#[\w-]+\n\n')
+        self.assertIn(f"Accounts that aren't confirmed within {account_email.UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS} days are deleted on {deletion_date}.", second['text'])
         self.assertIn('This link replaces earlier ones', second['text'])
         with db.connect() as c:
             c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '10 days' WHERE id=%s", (user['id'],))

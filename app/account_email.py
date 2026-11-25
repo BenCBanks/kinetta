@@ -146,13 +146,6 @@ def email_recovery_limited(c, uid):
 
 def send(to, subject, text):
     """One plain-text message through the configured provider. Returns False (never raises) when it couldn't be sent."""
-    lowered = subject.lower()
-    if 'suspend' in lowered or 'restor' in lowered or ('back' in lowered and 'account' in lowered):
-        suspended = 'suspend' in lowered
-        subject = 'Update to your Kinetta account'
-        text = ('Your Kinetta account is suspended. For information, email feedback@kinetta.app. Your data has not been deleted.'
-                if suspended else
-                'Your Kinetta account is active again. Open Kinetta and sign in as usual. Questions: feedback@kinetta.app.')
     text = admin_mail.format_plain_text_email(text)
     cfg = admin_mail.settings()
     if not cfg['ready']: return False
@@ -290,15 +283,19 @@ def send_due_confirmation_reminders(limit=100):
             c.execute("""UPDATE users SET email_confirmation_reminder_count=email_confirmation_reminder_count+1,
                          email_confirmation_reminder_at=now()
                        WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (user['id'],))
-            deletion_date = unconfirmed_account_delete_at(user['created']).date().isoformat()
+            deadline = unconfirmed_account_delete_at(user['created'])
+            deletion_date = f"{deadline.day} {deadline.strftime('%B %Y')}"
             if user['sent'] == 0:
                 subject = 'Your Kinetta account needs one more step'
-                text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
+                text = (f"Confirm your email to keep your account:\n{link}\n\n"
+                        f"This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
                         "If you didn't sign up, ignore this email.")
             else:
                 subject = f'Confirm your Kinetta email by {deletion_date}'
-                text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
-                        f"Accounts that aren't confirmed within 14 days are deleted on {deletion_date}. If you didn't sign up, ignore this email.")
+                text = (f"Confirm your email to keep your account:\n{link}\n\n"
+                        f"This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
+                        f"Accounts that aren't confirmed within {UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS} days are deleted on {deletion_date}. "
+                        "If you didn't sign up, ignore this email.")
             messages.append((user['email'], subject, text, token_hash))
     for email, subject, text, token_hash in messages:
         send_confirmation(email, subject, text, token_hash)

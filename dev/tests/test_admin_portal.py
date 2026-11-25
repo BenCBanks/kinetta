@@ -96,7 +96,7 @@ class Portal(unittest.TestCase):
             self.assertIn('It works once, for 7 days',preview)
             self.assertTrue(preview.startswith('Hello,\n\nWelcome to the test beta.'))
             self.assertIn('\n\nThe Kinetta team\n\n',preview)
-            self.assertTrue(preview.endswith("You're getting this because this address was used for a Kinetta account. Questions: feedback@kinetta.app · kinetta.app"))
+            self.assertTrue(preview.endswith(admin_mail.BETA_EMAIL_FOOTER))
             self.assertNotIn("reply and we'll set you up",preview)
             retry=self.client.post(f"/api/admin/beta/{b['id']}/responses",json=draft)
             self.assertEqual(retry.json()['id'],draft['request_key']);self.assertEqual(retry.json()['body'],preview)
@@ -109,7 +109,7 @@ class Portal(unittest.TestCase):
                 self.assertEqual(self.client.post(path,json={}).json()['state'],'accepted');self.assertEqual(transport.call_args.kwargs['headers']['Idempotency-Key'],key)
                 sent_text=transport.call_args.kwargs['json']['text']
                 self.assertTrue(sent_text.startswith('Hello,\n\nWelcome to the test beta.'))
-                self.assertTrue(sent_text.endswith("You're getting this because this address was used for a Kinetta account. Questions: feedback@kinetta.app · kinetta.app"))
+                self.assertTrue(sent_text.endswith(admin_mail.BETA_EMAIL_FOOTER))
                 self.assertIn('\n\nThe Kinetta team\n\n',sent_text)
                 self.assertIn('Open this link to create your Kinetta account.',sent_text)
                 self.assertNotIn("reply and we'll set you up",sent_text)

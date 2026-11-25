@@ -9,10 +9,11 @@ from .admin_auth import unseal
 from .api_beta import EMAIL_RE
 
 EMAIL_FOOTER = "You're getting this because this address was used for a Kinetta account. Questions: feedback@kinetta.app · kinetta.app"
+BETA_EMAIL_FOOTER = "You're getting this because you asked to join the Kinetta beta. Questions: feedback@kinetta.app · kinetta.app"
 TEAM_SIGNATURE = 'The Kinetta team'
 
 
-def format_plain_text_email(body, *, greeting=None):
+def format_plain_text_email(body, *, greeting=None, footer=EMAIL_FOOTER):
     """Format a plain-text email with the shared optional greeting, team sign-off and account footer.
 
     Account messages lead with the action. Admin beta replies can pass a greeting explicitly. Clover's
@@ -33,10 +34,11 @@ def format_plain_text_email(body, *, greeting=None):
     text = re.sub(r'(Kinetta account )\(([^()@\s]+)\)', r'\1(@\2)', text)
     text = text.replace("Here's your link to create your Kinetta account.",
                         'Open this link to create your Kinetta account.')
-    text = re.sub(r'\n\s*The Kinetta team\s*\n\s*' + re.escape(EMAIL_FOOTER) + r'\s*$', '', text)
+    known_footers = '|'.join(re.escape(value) for value in (EMAIL_FOOTER, BETA_EMAIL_FOOTER))
+    text = re.sub(r'\n\s*The Kinetta team\s*\n\s*(?:' + known_footers + r')\s*$', '', text)
     text = re.sub(r'\n\s*The Kinetta team\s*$', '', text)
-    text = re.sub(r'\n\s*' + re.escape(EMAIL_FOOTER) + r'\s*$', '', text)
-    return text.rstrip() + '\n\n' + TEAM_SIGNATURE + '\n\n' + EMAIL_FOOTER
+    text = re.sub(r'\n\s*(?:' + known_footers + r')\s*$', '', text)
+    return text.rstrip() + '\n\n' + TEAM_SIGNATURE + '\n\n' + footer
 
 
 def address(sender):
@@ -76,7 +78,7 @@ def deliver(mid):
             cfg=settings()
             r=httpx.post('https://api.resend.com/emails',headers={'Authorization':'Bearer '+db.secret('KINETTA_RESEND_KEY'),'Idempotency-Key':'kinetta-beta-'+str(mid)},
                          json={'from':cfg['sender'],'to':[row['recipient']],'reply_to':cfg['reply_to'],'subject':row['subject'],
-                               'text':format_plain_text_email(unseal(row['body']), greeting='Hello,')},timeout=10)
+                               'text':format_plain_text_email(unseal(row['body']), greeting='Hello,', footer=BETA_EMAIL_FOOTER)},timeout=10)
             r.raise_for_status();pid=r.json()['id']
             if not isinstance(pid,str) or len(pid)>100:raise ValueError('Invalid provider receipt')
             c.execute('SELECT pg_advisory_xact_lock(hashtext(%s))',('mail-event:'+pid,))
