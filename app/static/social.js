@@ -327,7 +327,7 @@ function activityGroupStripHtml(data){
   const progress=Math.min(target||1,Math.max(0,value)),ongoing=group.event_state==='ongoing'||group.event_date==null, weeks=group.weeks_to_event||0;
   const timing=ongoing?'All time':group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'wk'} to go`;
   const sharing=Number(group.sharing_member_count)||0;
-  const more=data.more_count?`<a class="feed-groups-more" href="/me/groups" aria-label="See ${data.more_count} more ${data.more_count===1?'group':'groups'}">+${data.more_count}</a>`:'';
+  const more=data.more_count?`<a class="feed-groups-more" href="/activity?view=groups" aria-label="See ${data.more_count} more ${data.more_count===1?'group':'groups'}">+${data.more_count}</a>`:'';
   return `<section class="feed-social-strip feed-groups-strip" aria-label="${ongoing?'Group goal':'Next group event'}"><div class="feed-groups-row">
     <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(timing)}</b><small>${combined?`${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))} · from ${sharing} of ${group.member_count}`:`You: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}`}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
     ${more}</div></section>`;
@@ -586,7 +586,7 @@ async function homeGroups(el) {
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('groups')}<section class="home-groups"><div class="home-groups-heading" hidden><button type="button" class="linkbtn" id="home-group-new">Create</button></div><div id="home-group-list"><div class="card empty">Loading your groups…</div></div></section>`;
   if(typeof homeKitEntry==='function')homeKitEntry(el);
   wireHomeChallengeLink(el);
-  const create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url,group.title);});
+  const create=()=>groupCreateSheet(group=>{invalidate('/api/groups');go('/groups/'+encodeURIComponent(group.id));groupInviteSheet(group.invite_url,group.title);});
   $('#home-group-new',el).onclick=create;
   try{
     const groups=await api('/api/groups');if(!live())return;
@@ -1381,7 +1381,7 @@ function groupEventDateSheet(group,reload){
 route(/^\/me\/groups$/, 'me', async el=>{
   const createRequested=new URLSearchParams(location.search).get('create')==='1';
   el.classList.add('groups-page');el.innerHTML=`<div class="top">${backBtn('Friends')}<h1>Groups</h1><button type="button" class="linkbtn" id="group-new">Create</button></div><div id="group-list"><div class="card group-list-card group-list-loading" role="status" aria-busy="true"><span class="vh">Loading your groups…</span>${[0,1].map(()=>'<div class="group-loading-row" aria-hidden="true"><span class="sk group-loading-glyph"></span><span class="group-loading-copy"><span class="sk group-loading-title"></span><span class="sk group-loading-summary"></span></span><span class="sk group-loading-value"></span></div>').join('')}</div></div>`;wireBack(el,'/me/friends');
-  const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url,group.title);});
+  const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{invalidate('/api/groups');go('/groups/'+encodeURIComponent(group.id));groupInviteSheet(group.invite_url,group.title);});
   $('#group-new',el).onclick=create;
   if(createRequested){const address=new URL(location.href);address.searchParams.delete('create');replacePageAddress(el,address.pathname+address.search+address.hash);create();}
   try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groupListMarkup(groups);
@@ -1395,6 +1395,11 @@ function groupRoster(group,expanded){
 function groupReactionCheers(groupId,updateId=null,removeMine=null){
   const path=updateId?`/api/groups/${encodeURIComponent(groupId)}/updates/${encodeURIComponent(updateId)}/reactions`:`/api/groups/${encodeURIComponent(groupId)}/weekly-reactions`;
   reactionPeopleSheet({load:()=>api(path),removeMine});
+}
+function groupRouteTab(){
+  const entry=history.state?.kinettaNavigation?.from;
+  const source=BackNavigation.path(entry?.path);
+  return source&&/^\/me(?:\/|\?|$)/.test(source)?'me':'activity';
 }
 function groupRecapPicture(group){
   return (async()=>{
@@ -1477,7 +1482,11 @@ function groupPage(el,group,selectedTab='members',keepExpanded=false){
     <div class="group-content-tabs"><div class="group-detail-tabs" role="tablist" aria-label="Group details"><button type="button" id="group-tab-members" role="tab" aria-controls="group-panel-members" aria-selected="${activeTab==='members'}" tabindex="${activeTab==='members'?'0':'-1'}" data-group-tab="members">Members</button><button type="button" id="group-tab-updates" role="tab" aria-controls="group-panel-updates" aria-selected="${activeTab==='updates'}" tabindex="${activeTab==='updates'?'0':'-1'}" data-group-tab="updates">Updates</button></div>
     <section class="group-updates card" id="group-panel-updates" role="tabpanel" aria-labelledby="group-tab-updates"${activeTab==='updates'?'':' hidden'}><div class="group-update-list">${group.updates.length?group.updates.map(update=>groupUpdateMarkup(group,update)).join(''):'<p class="group-update-empty">No updates yet.</p>'}</div>${group.closed?'':'<form class="group-update-form"><label class="vh" for="group-update-text">Post an update</label><textarea id="group-update-text" name="text" maxlength="200" rows="2" placeholder="Share an update…" required></textarea><button type="submit" class="primary">Post an update</button><p class="group-update-status small muted" role="status"></p></form>'}</section></div>
     `;
-    wireBack(el,'/me/groups');$('#group-options',el).onclick=()=>groupMenu(group,reload);const invite=()=>groupInvite(group);$('#group-header-invite',el).onclick=invite;$('[data-group-invite]',el)?.addEventListener('click',invite);$('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
+    wireBack(el,'/activity?view=groups');$('#group-options',el).onclick=()=>groupMenu(group,reload,async()=>{
+      const destination=BackNavigation.destination(history.state,location.pathname+location.search,'/activity?view=groups',readOwner(),{historyLength:history.length});
+      try{await api('/api/groups/'+encodeURIComponent(group.id)+'/leave',json('POST',{}));invalidate('/api/groups');toast(`You left ${group.title}`);go(destination.path,{replace:true});}
+      catch(error){toast(error.message);}
+    });const invite=()=>groupInvite(group);$('#group-header-invite',el).onclick=invite;$('[data-group-invite]',el)?.addEventListener('click',invite);$('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
     $$('[data-group-tab]',el).forEach(button=>button.onclick=()=>{activeTab=button.dataset.groupTab;$$('[data-group-tab]',el).forEach(tab=>{const selected=tab.dataset.groupTab===activeTab;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});$('#group-panel-updates',el).hidden=activeTab!=='updates';});
     $$('[data-group-reaction-group]',el).forEach(node=>wireReactionGroup(node,null));
     $$('[data-update-options]',el).forEach(button=>{const update=group.updates.find(item=>String(item.id)===button.dataset.updateOptions);if(update)button.onclick=()=>groupUpdateMenu(group,update,reload);});
@@ -1488,7 +1497,7 @@ function groupPage(el,group,selectedTab='members',keepExpanded=false){
 }
 function groupActionSheet(title,html,handler){sheet(title,html,handler);}
 function groupInvite(group){api('/api/groups/'+encodeURIComponent(group.id)+'/invites',json('POST',{})).then(r=>groupInviteSheet(r.invite_url,group.title)).catch(e=>toast(!group.is_organizer&&e.status===404?'Member invite links are not available yet':e.message));}
-function groupMenu(group,reload){
+function groupMenu(group,reload,onLeave){
   const opts=[];
   if(group.is_organizer&&!group.closed)opts.push('<button type="button" class="row-link" data-gact="event-date"><span>Edit event date</span>'+svg('chev')+'</button>');
   if(group.is_organizer&&!group.closed)opts.push(group.joining_closed?`<button type="button" class="row-link" data-gact="reopen"><span>Make a new invite</span>${svg('chev')}</button>`:`<button type="button" class="row-link" data-gact="stop"><span>Stop new members</span>${svg('chev')}</button>`);
@@ -1504,7 +1513,7 @@ function groupMenu(group,reload){
       if(action==='invite'||action==='reopen')groupInvite(group);
       else if(action==='event-date')groupEventDateSheet(group,reload);
       else if(action==='stop')run('/api/groups/'+encodeURIComponent(group.id)+'/stop-joining');
-      else if(action==='leave')groupConfirm('Leave group?','Your contribution will disappear from the group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/leave'));
+      else if(action==='leave')groupConfirm('Leave group?','Your contribution will disappear from the group.',onLeave||(()=>run('/api/groups/'+encodeURIComponent(group.id)+'/leave')));
       else if(action==='close')groupConfirm('Close group?','People can no longer join this group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/close'));
       else if(action==='transfer'||action==='remove')groupMemberAction(group,action==='transfer'?'Transfer organizer':'Remove a member',action==='transfer'?'transfer':'remove',reload);
       else if(action==='notifications')run('/api/groups/'+encodeURIComponent(group.id)+'/notifications','POST',{muted:!group.notifications_muted});
@@ -1528,25 +1537,25 @@ function groupReport(group){
     const form=$('#group-report-form',body);$('[data-close]',body).onclick=close;form.onsubmit=async event=>{event.preventDefault();const reason=form.elements.reason.value;if(!reason){toast('Choose a reason');return;}try{await api('/api/groups/'+encodeURIComponent(group.id)+'/report',json('POST',{reason,note:form.elements.note.value}));close();toast('Report sent');}catch(error){toast(error.message);}};
   });
 }
-route(/^\/groups\/([0-9a-f-]{36})$/i,'activity',async(el,id)=>{
-  el.classList.add('group-page');el._backFallback='/me/groups';el.innerHTML='<div class="card empty">Loading group…</div>';
+route(/^\/groups\/([0-9a-f-]{36})$/i,groupRouteTab,async(el,id)=>{
+  el.classList.add('group-page');el._backFallback='/activity?view=groups';el.innerHTML='<div class="card empty">Loading group…</div>';
   try{const group=await api('/api/groups/'+encodeURIComponent(id));if(el.isConnected)groupPage(el,group);}
   catch(error){if(el.isConnected)showError(el,error);}
 });
-route(/^\/group-invite\/([\w-]+)$/,'activity',async(el,token)=>{
-  el.classList.add('group-invite-page');el.innerHTML='<div class="card empty">Checking invite…</div>';wireBack(el,'/activity');
+route(/^\/group-invite\/([\w-]+)$/,groupRouteTab,async(el,token)=>{
+  el.classList.add('group-invite-page');el.innerHTML='<div class="card empty">Checking invite…</div>';wireBack(el,'/activity?view=groups');
   const groupGlyph = '<svg class="friend-invite-symbol-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.2 2.3-5 5.5-5s5.1 1.8 5.5 5M16 5.5a3 3 0 0 1 0 5.8M17 14c2.3.5 3.5 2.1 3.7 5"/></svg>';
-  try{await api('/api/group-invites/'+encodeURIComponent(token));if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen group-invite-card" aria-label="Group invitation"><span class="friend-invite-symbol" aria-hidden="true">${groupGlyph}</span><h1>You’re invited to a group</h1><p class="friend-invite-caption">Join to see the group with its members.</p><label class="group-join-share"><span>Share my total with group members</span><input type="checkbox" role="switch" data-group-join-share checked></label><button type="button" class="primary friend-invite-primary" id="group-accept">Join</button><a class="friend-invite-later" href="/activity">Not now</a></section>`;wireBack(el,'/activity');$('#group-accept',el).onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const group=await api('/api/group-invites/'+encodeURIComponent(token)+'/accept',json('POST',{share_total:$('[data-group-join-share]',el).checked}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){toast(error.message);button.disabled=false;}};}
-  catch(error){if(!el.isConnected)return;if([403,404].includes(error.status)){el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen friend-invite-unavailable"><span class="friend-invite-symbol" aria-hidden="true">${groupGlyph}</span><p class="friend-invite-caption">This invite isn’t available</p><a class="friend-invite-home" href="/activity">Go home</a></section>`;wireBack(el,'/activity');}else showError(el,error);}
+  try{await api('/api/group-invites/'+encodeURIComponent(token));if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen group-invite-card" aria-label="Group invitation"><span class="friend-invite-symbol" aria-hidden="true">${groupGlyph}</span><h1>You’re invited to a group</h1><p class="friend-invite-caption">Join to see the group with its members.</p><label class="group-join-share"><span>Share my total with group members</span><input type="checkbox" role="switch" data-group-join-share checked></label><button type="button" class="primary friend-invite-primary" id="group-accept">Join</button><a class="friend-invite-later" href="/activity">Not now</a></section>`;wireBack(el,'/activity?view=groups');$('#group-accept',el).onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const group=await api('/api/group-invites/'+encodeURIComponent(token)+'/accept',json('POST',{share_total:$('[data-group-join-share]',el).checked}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){toast(error.message);button.disabled=false;}};}
+  catch(error){if(!el.isConnected)return;if([403,404].includes(error.status)){el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen friend-invite-unavailable"><span class="friend-invite-symbol" aria-hidden="true">${groupGlyph}</span><p class="friend-invite-caption">This invite isn’t available</p><a class="friend-invite-home" href="/activity">Go home</a></section>`;wireBack(el,'/activity?view=groups');}else showError(el,error);}
 });
 
-route(/^\/groups\/invites\/(\d+)$/,'activity',async(el,id)=>{
-  el.classList.add('friend-invite-page');el.innerHTML=`<div class="top">${backBtn('Home')}</div>${skel(1)}`;wireBack(el,'/activity');
-  const unavailable=()=>{if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen friend-invite-unavailable"><span class="friend-invite-symbol" aria-hidden="true">${svg('me')}</span><p class="friend-invite-caption">This invite isn’t available</p><a class="friend-invite-home" href="/activity">Go home</a></section>`;wireBack(el,'/activity');};
+route(/^\/groups\/invites\/(\d+)$/,groupRouteTab,async(el,id)=>{
+  el.classList.add('friend-invite-page');el.innerHTML=`<div class="top">${backBtn('Home')}</div>${skel(1)}`;wireBack(el,'/activity?view=groups');
+  const unavailable=()=>{if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen friend-invite-unavailable"><span class="friend-invite-symbol" aria-hidden="true">${svg('me')}</span><p class="friend-invite-caption">This invite isn’t available</p><a class="friend-invite-home" href="/activity">Go home</a></section>`;wireBack(el,'/activity?view=groups');};
   let invite;try{invite=await api('/api/group-friend-invites/'+encodeURIComponent(id));}
   catch(error){if([403,404].includes(error.status))unavailable();else if(el.isConnected)showError(el,error);return;}
   if(!el.isConnected)return;
-  el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen group-invite-card" aria-label="Group invitation"><span class="friend-invite-symbol" aria-hidden="true">${svg('me')}</span><h1>You’re invited to ${esc(invite.title)}</h1><p class="friend-invite-handle">From @${esc(invite.inviter)}</p><label class="group-join-share"><span>Share my total with group members</span><input type="checkbox" role="switch" data-group-join-share checked></label><button type="button" class="primary friend-invite-primary" id="group-friend-accept">Join</button><button type="button" class="friend-invite-later group-friend-invite-decline" id="group-friend-decline">Decline</button></section>`;wireBack(el,'/activity');
+  el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen group-invite-card" aria-label="Group invitation"><span class="friend-invite-symbol" aria-hidden="true">${svg('me')}</span><h1>You’re invited to ${esc(invite.title)}</h1><p class="friend-invite-handle">From @${esc(invite.inviter)}</p><label class="group-join-share"><span>Share my total with group members</span><input type="checkbox" role="switch" data-group-join-share checked></label><button type="button" class="primary friend-invite-primary" id="group-friend-accept">Join</button><button type="button" class="friend-invite-later group-friend-invite-decline" id="group-friend-decline">Decline</button></section>`;wireBack(el,'/activity?view=groups');
   $('#group-friend-accept',el).onclick=async event=>{const button=event.currentTarget;if(button.disabled)return;button.disabled=true;try{const group=await api('/api/group-friend-invites/'+encodeURIComponent(id)+'/accept',json('POST',{share_total:$('[data-group-join-share]',el).checked}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){if(el.isConnected){toast(error.message);button.disabled=false;}}};
   $('#group-friend-decline',el).onclick=async event=>{const button=event.currentTarget;if(button.disabled)return;button.disabled=true;try{await api('/api/group-friend-invites/'+encodeURIComponent(id)+'/decline',json('POST',{}));if(el.isConnected){toast('Invite declined');go('/activity',{replace:true});}}catch(error){if(el.isConnected){toast(error.message);button.disabled=false;}}};
 });
