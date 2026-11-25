@@ -1,13 +1,12 @@
 """Bounded own-account chart measurements, reusable by future deterministic tools."""
 import datetime as dt
-from typing import Annotated, Literal
+from typing import Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from . import coach, db
-from .auth import current_user
 
 
 class SeriesRequest(BaseModel):
@@ -119,8 +118,3 @@ def read_series(c, user_id, request, *, now=None):
             'highest': max(values) if values else None, 'lowest': min(values) if values else None,
             'change': change, 'direction': direction}, 'workouts': sum(row['n'] for row in rows),
             'missing': sum(row['missing'] for row in rows)}
-
-
-def series(query: Annotated[SeriesRequest, Query()], user=Depends(current_user)):
-    with db.coach_connect(user['id']) as c:
-        return read_series(c, user['id'], query)

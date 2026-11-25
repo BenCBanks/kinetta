@@ -1,8 +1,18 @@
 """Fictional fixed-date SQL/RLS series checks; executed only in a disposable app."""
 import datetime as dt
 from fastapi import HTTPException
+from pydantic import ValidationError
 from app import db
 from app.progress_series import SeriesRequest, read_series
+
+# Inputs remain bounded before the internal reader can assemble its fixed SQL.
+for invalid in [dict(metric='sql'), dict(aggregate='median'), dict(group_by="week'"),
+                dict(sport="run'"), dict(period_unit='years'), dict(period_count=0),
+                dict(period_count=53), dict(user_id=1), dict(metric='pace',aggregate='sum'),
+                dict(metric='avg_hr',aggregate='sum'), dict(metric='workouts',aggregate='average')]:
+    try: SeriesRequest(**invalid)
+    except ValidationError: pass
+    else: raise AssertionError(('Unvalidated series request', invalid))
 
 now = dt.datetime(2024, 11, 13, 12, tzinfo=dt.timezone.utc)
 with db.connect() as c:

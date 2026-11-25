@@ -492,9 +492,3 @@
 }
 
 .progress-totals-card { border:1px solid var(--line); box-shadow:none; }
-
-/* Weekly metric choices reuse the plain ticked-row sheet. */
-.progress-series-metric { display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0;border:0;background:none;color:var(--tx);font:600 15px var(--font-ui); }
-.progress-series-metric svg { width:16px;height:16px;color:var(--tx2); }
-.progress-series-empty { margin:8px 0 16px; }
-.progress-home-totals #m-chart .progress-total-readout { white-space:normal;overflow:visible;text-overflow:clip; }
