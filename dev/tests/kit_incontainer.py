@@ -120,8 +120,8 @@ try:
   with patch('app.workout_compare.review_for_user',return_value=review_evidence),patch('app.coach_chat.answer',side_effect=RuntimeError('fictional provider failure')),patch('app.workout_compare.review_consents_still_valid',return_value=False):
    revoked=message('Review my latest workout');revoked['context']={'screen':'activity','starter_index':0}
    req(a,'POST',root+'/messages',revoked)
-   hidden=req(a,'POST',root+'/messages/'+revoked['client_id']+'/answer',{'generation':generation})
-  assert hidden['state']=='failed' and hidden['answer'] is None,'revoked source consent suppresses comparison fallback'
+   hidden=req(a,'POST',root+'/messages/'+revoked['client_id']+'/answer',{'generation':generation},503)
+  with db.connect() as c:assert not c.execute('SELECT 1 FROM kit_turns WHERE user_id=%s AND client_id=%s',(uid,revoked['client_id'])).fetchone(),'source-rejected pre-provider work is discarded, never saved or counted as a chat turn'
   req(a,'POST',root+'/clear',{'generation':generation,'confirmed':'true'},422)
   new=req(a,'POST',root+'/clear',{'generation':generation,'confirmed':True});assert not new['messages'] and new['generation']!=generation
   req(a,'POST',root+'/messages',body,409);generation=new['generation']

@@ -160,6 +160,20 @@ class HistoryStorage(unittest.TestCase):
                     self.assertEqual(c.execute('SELECT count(*) n FROM kit_memories WHERE user_id=%s',(self.a,)).fetchone()['n'],0)
             self.assertIsNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE user_id=%s LIMIT 1',(self.b,)).fetchone()['invalidated_at'])
 
+    def test_garmin_workout_review_remains_sensitive_with_health_false(self):
+        from app import kit_history
+        current={'health':False,'weight':False,'garmin':True}
+        answer={'health_included':False,'garmin_included':True,'history_consents':current}
+        self.assertTrue(kit_history.permitted_history(answer,current))
+        self.assertFalse(kit_history.permitted_history(answer,{**current,'garmin':False}))
+        with db.connect() as c:
+            c.execute('UPDATE profile SET garmin_ai_ok=true WHERE user_id=%s',(self.a,))
+            _,_,mid=self.fixture(c,self.a)
+            c.execute('UPDATE kit_turns SET answer=%s WHERE id=%s',(json.dumps(answer),mid))
+            c.execute('UPDATE profile SET garmin_ai_ok=false WHERE user_id=%s',(self.a,))
+            row=c.execute('SELECT * FROM kit_turns WHERE id=%s',(mid,)).fetchone()
+            self.assertIsNotNone(row['invalidated_at']);self.assertIsNone(row['answer'])
+
     def test_source_removal_triggers_and_legacy_rows(self):
         with db.connect() as c:
             mutations=[
