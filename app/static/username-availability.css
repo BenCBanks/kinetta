@@ -4,3 +4,5 @@
 .username-choice[open] summary { margin-bottom: 8px; }
 .enrollment-email-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .enrollment-email-links a { display: inline-flex; align-items: center; min-height: 44px; }
+
+.username-status .linkbtn { min-height: 44px; padding: 0; color: var(--accent); text-align: left; white-space: normal; }

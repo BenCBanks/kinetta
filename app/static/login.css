@@ -10,15 +10,26 @@
 .first-run .primary { width: 100%; min-height: 48px; }
 .first-run-login { justify-self: center; min-height: 44px; padding: 8px 16px; }
 .first-run-status:empty { display: none; }
-.signup-wizard { gap: 12px; }
-.signup-wizard > div:first-child { display: grid; grid-template-columns: 44px minmax(0,1fr); align-items: start; gap: 6px 10px; }
-.signup-wizard .brand { grid-column: 2; }
-.signup-wizard h1 { grid-column: 2; font-size: 24px; }
-.signup-wizard > div:first-child > p:not(.signup-progress) { grid-column: 2; }
-.signup-back { grid-column: 1; grid-row: 1 / span 2; display: grid; place-items: center; width: 44px; height: 44px; margin: -4px 0 0 -8px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--tx); font: 400 30px/1 var(--font); }
-.signup-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.signup-progress { grid-column: 2; margin: 4px 0 0 !important; color: var(--tx3) !important; font-size: 13px; line-height: 1.3; }
-.signup-step-title { grid-column: 2; margin: 0; color: var(--tx); font-size: 19px; font-weight: 650; line-height: 1.25; }
-.signup-step { display: grid; gap: 14px; min-width: 0; }
-.signup-step[hidden] { display: none; }
-.signup-next { min-height: 48px; margin-top: 4px; }
+/* One account form, with two name columns only when they fit. */
+.login:has(.account-enrollment) { align-items: start; padding: 24px 22px; }
+.account-enrollment label { font-size: 13px; font-weight: 500; color: var(--tx3); }
+.account-enrollment input:not([type=checkbox]) { font-size: 16px; color: var(--tx); min-height: 44px; }
+.account-names { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; min-width: 0; }
+.account-names label { min-width: 0; }
+.account-username-field { display: grid; }
+.account-enrollment .username-status { margin: 8px 0 0; }
+.account-name-privacy { margin: 8px 0 0; }
+.account-enrollment .username-status:not(:empty) + .account-name-privacy { margin-top: 0; }
+.account-enrollment .username-status .linkbtn { min-height: 44px; display: flex; align-items: flex-start; line-height: 20px; }
+.account-username { display: flex; align-items: center; gap: 4px; border: 1px solid var(--color-outline); border-radius: var(--r2); padding-inline: 14px; background: var(--card); color: var(--tx3); }
+.account-username input { min-width: 0; border: 0; flex: 1; padding-inline: 0; background: transparent; box-shadow: none; }
+.account-username:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.account-enrollment .check { min-height: 44px; color: var(--tx); display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 8px 10px; }
+.account-enrollment .check .field-err { grid-column: 1 / -1; }
+.account-enrollment input[aria-invalid=true] { outline: 2px solid var(--alert); outline-offset: 1px; }
+.account-enrollment .field-err { display: block; color: var(--alert); font-size: 13px; font-weight: 400; }
+@media(max-width:359px) { .account-names { grid-template-columns: minmax(0,1fr); } .login:has(.account-enrollment) { padding-inline: 16px; } }
+
+.account-enrollment .account-username input[aria-invalid=true] { outline: none; }
+.account-username:has(input[aria-invalid=true]) { outline: 2px solid var(--alert); outline-offset: 1px; }
+.account-enrollment > .err:empty { display: none; }

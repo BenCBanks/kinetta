@@ -184,7 +184,7 @@ globalThis.EmailConfirmation = (() => {
       event.preventDefault(); event.stopImmediatePropagation();
       showSuggestion(input); input.focus(); return;
     }
-    if (form.dataset.emailAddressConfirmed === value) return;
+    if (!form.checkValidity() || form.dataset.emailAddressConfirmed === value) return;
     event.preventDefault(); event.stopImmediatePropagation();
     reviewAddress(form,input);
   }, true);
