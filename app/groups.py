@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from . import account_email, auth, community_filter, db, notify, reactions
+from .group_limits import MAX_MEMBERS
 from .parsers import SPORTS as ACTIVITY_SPORTS
 from .auth import current_user
 
@@ -23,7 +24,6 @@ GROUP_MISSING = 'Group not found.'
 KINDS = {'distance', 'elevation', 'long_outings', 'sessions'}
 UNITS = {'km', 'mi', 'm', 'ft', 'outings', 'sessions'}
 GROUP_SPORTS = tuple(ACTIVITY_SPORTS)
-MAX_MEMBERS = 50
 MAX_LIVE_INVITES = 20
 LONG_OUTING_SECONDS = 3600
 _GROUP_TOTAL_SHARING_SQL = "(m.sharing_level='total_shared' AND coalesce(p.share_achievements,false))"

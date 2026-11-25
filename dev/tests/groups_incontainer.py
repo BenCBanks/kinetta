@@ -110,6 +110,10 @@ class Groups(unittest.TestCase):
                 c.execute('ROLLBACK TO SAVEPOINT groups_115_upgrade')
                 c.execute('RELEASE SAVEPOINT groups_115_upgrade')
 
+    def test_notification_group_invite_capacity_uses_shared_limit(self):
+        check = f"count(*) FROM group_members fm WHERE fm.group_id=fi.group_id AND fm.status='active')<{groups.MAX_MEMBERS}"
+        self.assertIn(check, notify.NOTICE_VISIBLE)
+
     def test_friend_invites_are_member_scoped_and_decline_is_silent_with_group_hold(self):
         group,token=self.make()
         self.assertEqual(self.accept(token,who=1).status_code,200)

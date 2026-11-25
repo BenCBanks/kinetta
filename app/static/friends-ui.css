@@ -401,7 +401,9 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .group-sharing-row .switch-track:after {position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:white;content:"";transition:transform 120ms ease;}
 .group-sharing-row[aria-checked=true] .switch-track:after {transform:translateX(18px);}
 .group-join-share {display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;max-width:360px;margin:18px 0 8px;padding:12px 14px;border-radius:14px;background:var(--card2);color:var(--tx);text-align:left;}
-.group-join-share input {flex:none;width:44px;height:26px;accent-color:var(--accent);}
+.group-join-share input {appearance:none;flex:none;width:44px;height:26px;margin:0;border:0;border-radius:99px;background:radial-gradient(circle at 13px 13px,#fff 9px,transparent 10px) var(--line);cursor:pointer;}
+.group-join-share input:checked {background:radial-gradient(circle at 31px 13px,#fff 9px,transparent 10px) var(--accent);}
+.group-join-share input:focus-visible {outline:2px solid var(--accent);outline-offset:3px;}
 .group-goal-fields {display:grid;min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:12px;}
 .group-goal-fields>label {min-width:0;max-width:100%;}
 .group-sports-field {min-width:0;margin:0 0 10px;padding:0;border:0;}
@@ -460,6 +462,7 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .friend-invite-primary:disabled { opacity:.7; }
 .friend-invite-screen .friend-invite-later,.friend-invite-screen .friend-invite-home { display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin-top:8px;padding:8px 12px;color:var(--tx);font-size:15px;font-weight:600;text-decoration:none; }
 .friend-invite-screen .friend-invite-later:active,.friend-invite-screen .friend-invite-home:active { opacity:.65; }
+.friend-invite-screen .group-friend-invite-decline { appearance:none;border:0;border-radius:0;background:transparent;color:var(--tx2);font:inherit;font-size:15px;font-weight:500;cursor:pointer; }
 .friend-invite-symbol { display:grid;place-items:center;width:72px;height:72px;margin-bottom:18px;border-radius:50%;background:color-mix(in srgb,var(--accent) 12%,var(--canvas));color:var(--accent); }
 .friend-invite-symbol-icon { display:block;width:34px;height:34px; }
 .friend-invite-unavailable .friend-invite-caption { margin:0 0 8px; }
