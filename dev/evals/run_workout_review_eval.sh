@@ -110,6 +110,8 @@ compose cp "$ROOT/dev/tests/workout_review_fixtures.py" app:/srv/dev/tests/worko
 compose exec -T app mkdir -m 700 -p "$CONTAINER_OUTPUT_DIR"
 
 if ((DRY_RUN == 1)); then
+  # The evaluator runs its full 20-case expected-pass/distinctness preflight
+  # before creating this dry-run header; paid and dry runs share that check.
   compose exec -T app python /srv/dev/evals/workout_review_eval.py \
     --thinking "$THINKING" --output "$CONTAINER_OUTPUT" --dry-run
 else

@@ -43,6 +43,24 @@ class RunBudgetReached(RuntimeError):
     pass
 
 
+def selected_fixtures(fixtures=CASES):
+    fixture_by_name = {case['name']: case for case in fixtures}
+    if (len(SELECTED_CASES) != 20 or len(set(SELECTED_CASES)) != 20
+            or not REQUIRED_QUALITY_CASES.issubset(SELECTED_CASES)
+            or any(name not in fixture_by_name for name in SELECTED_CASES)):
+        raise RuntimeError('The selected fictional evaluation set is incomplete')
+    selected = [fixture_by_name[name] for name in SELECTED_CASES]
+    if any(case['expected'] != 'pass' for case in selected):
+        raise RuntimeError('Paid evaluation inputs must be successful-shape fixtures')
+    input_signatures = {
+        json.dumps([case['units'], case['data']], sort_keys=True, separators=(',', ':'))
+        for case in selected
+    }
+    if len(input_signatures) != 20:
+        raise RuntimeError('The selected fictional evaluation inputs must be distinct')
+    return selected
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--thinking', choices=('LOW', 'MEDIUM'), default='LOW')
@@ -51,20 +69,9 @@ def main():
     parser.add_argument('--dry-run', action='store_true', help='Write only a private metadata header; never contact a provider')
     args = parser.parse_args()
 
-    fixture_by_name = {case['name']: case for case in CASES}
-    if (len(SELECTED_CASES) != 20 or len(set(SELECTED_CASES)) != 20
-            or not REQUIRED_QUALITY_CASES.issubset(SELECTED_CASES)
-            or any(name not in fixture_by_name for name in SELECTED_CASES)):
-        raise RuntimeError('The selected fictional evaluation set is incomplete')
-    if any(fixture_by_name[name]['expected'] != 'pass' for name in SELECTED_CASES):
-        raise RuntimeError('Paid evaluation inputs must be successful-shape fixtures')
-    input_signatures = {
-        json.dumps([fixture_by_name[name]['units'], fixture_by_name[name]['data']],
-                   sort_keys=True, separators=(',', ':'))
-        for name in SELECTED_CASES
-    }
-    if len(input_signatures) != 20:
-        raise RuntimeError('The selected fictional evaluation inputs must be distinct')
+    # Both --dry-run and paid execution validate this exact selected set before
+    # creating output files or touching provider/database code.
+    cases = selected_fixtures()
 
     output = Path(args.output).expanduser().resolve()
     repo = ROOT
@@ -98,7 +105,6 @@ def main():
     os.environ['KINETTA_AI_USER_DAILY_MICROUSD'] = str(RUN_CAP_MICROS)
     os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS'] = str(len(SELECTED_CASES))
 
-    cases = [fixture_by_name[name] for name in SELECTED_CASES]
     user_login = 'zz_test_kit_workout_review_' + uuid.uuid4().hex[:12]
     attempts = []
     rows_written = 0
