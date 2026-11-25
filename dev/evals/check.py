@@ -34,3 +34,5 @@ print('AI evaluation contracts: 300 reference cases; nutrition/product/serving/s
 import test_kit_weekly_fixtures
 from test_kit_measure import run as check_kit_measure
 check_kit_measure()
+from test_kit_coach_replay import run as check_kit_coach_replay
+check_kit_coach_replay()
