@@ -123,6 +123,8 @@ for device in preferred:
     container=Path(sim('get_app_container',udid,'com.kinetta.app','data'))
     process_launch_epoch_ms=time.time_ns()/1_000_000 if measure_startup else None
     process_launch_monotonic_ns=time.monotonic_ns() if measure_startup else None
+    # Apply the tour chrome while the app is stopped: a post-launch override can stall CoreSimulator.
+    if a.tour:sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--cellularMode','active','--cellularBars','4','--batteryState','discharging','--batteryLevel','100',timeout=20)
     sim('launch',udid,'com.kinetta.app')
     metrics=None
     # Fine timing polls must retain the normal 50s readiness budget for native insets/bridge.
@@ -147,7 +149,7 @@ for device in preferred:
      startup_rows.append({'device':device['name'],'phases':timing['phasesMs']})
      phases=timing['phasesMs']
      print('IOS_COLD_START '+device['name']+' '+ ' '.join(f'{key}={value:.1f}ms' for key,value in phases.items()),flush=True)
-    if a.tour:sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--cellularMode','active','--cellularBars','4','--batteryState','discharging','--batteryLevel','100',timeout=20)
+    if a.tour:(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
     capture=a.output/(filename+('.jpg' if a.store else '.png'))
     sim('io',udid,'screenshot','--type='+('jpeg' if a.store else 'png'),str(capture))
     metrics.update(device=device['name'],runtime=runtime['name'],terminationRecovery=recovered);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))

@@ -1,7 +1,7 @@
 name: Native tour previews
 on:
   pull_request:
-    paths: ["dev/tests/native-ui/tour.cjs", ".github/workflows/native-tour.yml"]
+    paths: ["dev/tests/native-ui/tour.cjs", "dev/tests/native-ui/run.py", ".github/workflows/native-tour.yml"]
 permissions:
   contents: read
 concurrency:
