@@ -46,12 +46,14 @@ const policy={setup:false,signup:true,full:false,beta:false};
    await p.locator('input[name=email]').fill('zoe@example.test');await p.locator('input[name=password]').fill('fictional secure phrase');await p.locator('input[name=age_ok]').check();await p.locator('input[name=terms_ok]').check();
    assert.equal(await p.locator('[aria-invalid=true]').count(),0,'typing clears every corrected field error');
    const enrollment=await p.locator('.account-enrollment').evaluate(form=>{
-    const field=form.querySelector('.account-username'),status=form.querySelector('.username-status');
+    const field=form.querySelector('.account-username'),status=form.querySelector('.username-status'),choice=status.querySelector('button');
     return {gap:status.getBoundingClientRect().top-field.getBoundingClientRect().bottom,
+     target:choice.getBoundingClientRect().height,privacyGap:form.querySelector('.account-name-privacy').getBoundingClientRect().top-choice.getBoundingClientRect().bottom,
      checks:[...form.querySelectorAll('.check')].map(n=>({height:n.getBoundingClientRect().height,color:getComputedStyle(n).color})),
      color:getComputedStyle(form).color,passwordHintHidden:form.password.closest('label').nextElementSibling.hidden};
    });
    assert.equal(enrollment.gap,8,'username suggestion sits 8px below its field');
+   assert(enrollment.target>=44,'taken-username suggestion has a 44px target');assert.equal(enrollment.privacyGap,0,'privacy line follows the suggestion target without extra gap');
    assert(enrollment.checks.every(n=>n.height>=44&&n.color===enrollment.color),'checkbox rows use normal text colour and 44px targets');
    assert(enrollment.passwordHintHidden,'a valid password removes the hint row');
    assert.equal(await p.locator('#enrollment-email-help').innerText(),"We'll send a link to confirm it.");

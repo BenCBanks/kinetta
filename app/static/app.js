@@ -2611,8 +2611,8 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
     ${accountNameFields()}
-    <div class="account-username-field"><label>Username<span class="account-username"><span aria-hidden="true">@</span><input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></span></label></div>
-    <p class="small muted">${namePrivacy}</p>
+    <div class="account-username-field"><label>Username<span class="account-username"><span aria-hidden="true">@</span><input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></span></label>
+    <p class="small muted account-name-privacy">${namePrivacy}</p></div>
     ${email ? `<label>Email<input name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted" id="enrollment-email-help">We'll send a link to confirm it.</p>` : ''}
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
     <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
