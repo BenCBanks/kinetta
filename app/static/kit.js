@@ -349,12 +349,24 @@ Object.assign(KitChat, (() => {
   const later=c=>{clearTimeout(c.timer);c.timer=setTimeout(()=>{if(active(c))refresh(c).catch(e=>status(c,e.message));},2500);};
   async function answer(c,id){
     if(!active(c)||c.sending||!c.ready||!kitChatOn())return;c.answerErrors||={};delete c.answerErrors[id];c.sending=true;const generation=c.generation,visit_id=c.visit_id,valid=()=>active(c)&&c.generation===generation&&c.visit_id===visit_id;controls(c);
+    const pendingQuestion=c.messages.find(m=>String(m.client_id)===String(id)&&m.state==='pending')?.question;
     try{
       const row=await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation,visit_id}));if(!valid())return;
       if(row.cancelled){await refresh(c);return;}
       c.messages=c.messages.map(m=>String(m.client_id)===String(id)?row:m);draw(c);
       if(row.state==='running')later(c);else await refresh(c).catch(()=>status(c,'Your answer is saved. Return when online to refresh the full history.'));
-    }catch{if(valid()){c.answerErrors[id]=true;await refresh(c).catch(()=>{});draw(c);}}
+    }catch(error){if(valid()){
+      // A pre-provider rejection can delete an accepted turn (and its empty thread).
+      // Carry its question through refresh/new-thread recovery, never over a newer draft.
+      const question=pendingQuestion,field=$('#kit-text',c.el);
+      const restored=c.historyEnabled&&question&&!field.value.trim();
+      if(restored){field.value=question;try{save(c,'draft',question);}catch{}field.dispatchEvent(new Event('input'));}
+      c.answerErrors[id]=true;let refreshed=false;try{await refresh(c);refreshed=true;}catch{}
+      if(valid()){
+        if(restored&&refreshed&&c.messages.some(m=>String(m.client_id)===String(id))&&field.value===question){field.value='';store.del(chatKey(c,'draft'));field.dispatchEvent(new Event('input'));}
+        status(c,error.message||'Your question is kept. Try again.');draw(c);
+      }
+    }}
     finally{if(valid())c.sending=false;if(valid()){controls(c);if(c.messages.some(m=>m.state==='running'))later(c);}}
   }
   async function deliver(c){
