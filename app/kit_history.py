@@ -6,6 +6,10 @@ def thread(c, uid, conversation_id):
     row = c.execute('SELECT * FROM kit_threads WHERE user_id=%s AND id=%s',
                     (uid, conversation_id)).fetchone()
     if not row:
+        row=c.execute('''SELECT draft_conversation_id AS id,user_id,created,created AS updated
+          FROM kit_visits WHERE user_id=%s AND draft_conversation_id=%s
+          AND ended IS NULL AND created>now()-interval '24 hours' LIMIT 1''',(uid,conversation_id)).fetchone()
+    if not row:
         raise HTTPException(404, 'Kit conversation unavailable')
     return row
 
@@ -50,7 +54,7 @@ def enabled():
 def conversation(c, uid, visit_id):
     if visit_id is None:
         return None
-    row = c.execute('SELECT conversation_id FROM kit_visits WHERE user_id=%s AND id=%s',
+    row = c.execute('SELECT coalesce(conversation_id,draft_conversation_id) AS conversation_id FROM kit_visits WHERE user_id=%s AND id=%s',
                     (uid, visit_id)).fetchone()
     return row['conversation_id'] if row else None
 
@@ -83,3 +87,39 @@ def permitted_history(answer, current):
         return all(current.values())
     return (isinstance(saved,dict) and saved.keys()==current.keys()
             and all(type(value) is bool and (not value or current[key]) for key,value in saved.items()))
+
+
+MAX_THREADS=500
+MAX_VISITS=100
+OPENS_PER_MINUTE=30
+REMOVED_ANSWER='This answer was removed because its health data was removed or sharing was turned off.'
+
+
+def capacity(c,uid):
+    if c.execute('SELECT count(*) n FROM kit_threads WHERE user_id=%s',(uid,)).fetchone()['n']>=MAX_THREADS:
+        raise HTTPException(429,'You have 500 saved chats. Delete a chat before starting another.')
+
+
+def opening(c,uid,visit_id):
+    # Caller holds the account lock. Idempotent retries consume neither cap nor rate.
+    if c.execute('SELECT 1 FROM kit_visits WHERE id=%s',(visit_id,)).fetchone():return
+    prune(c,uid)
+    if c.execute('SELECT count(*) n FROM kit_visits WHERE user_id=%s',(uid,)).fetchone()['n']>=MAX_VISITS:
+        raise HTTPException(429,'Too many open Kit visits. Please try again later.')
+    row=c.execute("""UPDATE kit_conversations SET
+      opens_count=CASE WHEN opens_at>now()-interval '1 minute' THEN opens_count+1 ELSE 1 END,
+      opens_at=CASE WHEN opens_at>now()-interval '1 minute' THEN opens_at ELSE now() END
+      WHERE user_id=%s RETURNING opens_count""",(uid,)).fetchone()
+    if row['opens_count']>OPENS_PER_MINUTE:
+        raise HTTPException(429,'Please wait a minute before opening another Kit chat.')
+
+
+def materialize(c,uid,conversation_id):
+    if c.execute('SELECT 1 FROM kit_threads WHERE user_id=%s AND id=%s',(uid,conversation_id)).fetchone():return
+    thread(c,uid,conversation_id)
+    capacity(c,uid)
+    c.execute('INSERT INTO kit_threads(id,user_id) VALUES(%s,%s) ON CONFLICT DO NOTHING',(conversation_id,uid))
+    if not c.execute('SELECT 1 FROM kit_threads WHERE user_id=%s AND id=%s',(uid,conversation_id)).fetchone():
+        raise HTTPException(404,'Kit conversation unavailable')
+    c.execute('UPDATE kit_visits SET conversation_id=%s,draft_conversation_id=NULL '
+      'WHERE user_id=%s AND draft_conversation_id=%s',(conversation_id,uid,conversation_id))

@@ -49,9 +49,11 @@ def listing(before:UUID | None=None,user=Depends(current_user)):
 def open_thread(c,uid,conversation_id,body):
     if not store.enabled():raise HTTPException(409,'Saved Kit conversations are not enabled on this server.')
     store.thread(c,uid,conversation_id)
-    store.prune(c,uid)
-    c.execute('INSERT INTO kit_visits(id,user_id,conversation_id) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING',
-              (body.visit_id,uid,conversation_id))
+    store.opening(c,uid,body.visit_id)
+    saved=c.execute('SELECT 1 FROM kit_threads WHERE user_id=%s AND id=%s',(uid,conversation_id)).fetchone()
+    c.execute('''INSERT INTO kit_visits(id,user_id,conversation_id,draft_conversation_id)
+      VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING''',
+      (body.visit_id,uid,conversation_id if saved else None,None if saved else conversation_id))
     chat.locked(c,uid,body.generation,body.visit_id)
     if store.conversation(c,uid,body.visit_id)!=conversation_id:
         raise HTTPException(404,'Kit conversation unavailable')
@@ -64,7 +66,13 @@ def create(body:ThreadIn,user=Depends(current_user)):
     with db.connect() as c:
         chat.locked(c,uid,body.generation)
         if not store.enabled():raise HTTPException(409,'Saved Kit conversations are not enabled on this server.')
-        c.execute('INSERT INTO kit_threads(id,user_id) VALUES(%s,%s) ON CONFLICT DO NOTHING',(body.conversation_id,uid))
+        existing=c.execute('SELECT user_id FROM kit_threads WHERE id=%s',(body.conversation_id,)).fetchone()
+        if existing and existing['user_id']!=uid:raise HTTPException(404,'Kit conversation unavailable')
+        if not existing:
+            store.capacity(c,uid)
+            store.opening(c,uid,body.visit_id)
+            c.execute('INSERT INTO kit_visits(id,user_id,draft_conversation_id) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING',
+                      (body.visit_id,uid,body.conversation_id))
         return open_thread(c,uid,body.conversation_id,body)
 
 
@@ -88,10 +96,7 @@ def erase(uid,conversation_id=None):
         # Fence queued creates/resumes too, not just the running answer's lease.
         generation=uuid4()
         c.execute('UPDATE kit_conversations SET generation=%s WHERE user_id=%s',(generation,uid))
-        if conversation_id is None:
-            c.execute('UPDATE kit_visits SET ended=coalesce(ended,now()) WHERE user_id=%s',(uid,))
-            c.execute('DELETE FROM kit_turns WHERE user_id=%s',(uid,))
-        else:
+        if conversation_id is not None:
             c.execute("""UPDATE kit_turns SET state='failed',lease=NULL,expires=NULL,
               error='Kit history changed. Tap Retry to try again.' WHERE user_id=%s AND state IN ('pending','running')""",(uid,))
         return {'ok':True,'generation':generation}

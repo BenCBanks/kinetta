@@ -22,8 +22,8 @@ foreign/missing conversation IDs return the same unavailable response.
 | POST `/threads` | `{conversation_id,visit_id,generation}`; UUIDs idempotent |
 | POST `/threads/{id}/resume` | `{visit_id,generation}`; fresh visit, stable conversation |
 | GET `/threads/{id}?before=<message ID>` | Latest 50 own messages; no visit required |
-| DELETE `/threads/{id}` | `{ok:true,generation}`; erases one thread, closes its visits |
-| DELETE `/threads` | `{ok:true,generation}`; erases all chats and closes visits |
+| DELETE `/threads/{id}` | `{ok:true,generation}`; erases one thread and its visits |
+| DELETE `/threads` | `{ok:true,generation}`; erases all chats and visits |
 
 Create/resume/read return `{conversation_id,generation,visit_id,messages,before,ready}`;
 read-only history has `visit_id:null`. Existing message/answer request bodies stay unchanged;
@@ -53,3 +53,11 @@ Garmin disconnect, weight/sample/exclusion deletion, resting/day-energy records 
 workout projections. Projection rebuilds conservatively invalidate old sensitive answers.
 Sensitive preference notes are removed too. Owner reporting SQL cannot read Kit text.
 Single/all deletion removes visits and legacy turns as well as saved turns.
+
+Opening an empty chat keeps only a temporary visit, not a saved thread. The first
+accepted question creates the thread atomically. Limits per account: 500 saved chats,
+100 retained visits, and 30 new visits/minute; idempotent retries do not count again.
+All creation paths share those limits, including legacy visits and Clear.
+Invalidated messages retain the question and return `invalidated:true` with the answer
+interpretation “This answer was removed because its health data was removed or sharing
+was turned off.” They cannot be retried or replayed to the model, even after regrant.

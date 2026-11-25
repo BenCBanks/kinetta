@@ -60,7 +60,10 @@ def locked(c,uid,generation=None,visit_id=None):
 
 
 def public(row):
-    return {k:row[k] for k in ('id','client_id','generation','visit_id','conversation_id','question','context','state','answer','error','created')}
+    result={k:row[k] for k in ('id','client_id','generation','visit_id','conversation_id','question','context','state','answer','error','created')}
+    if row.get('invalidated_at'):
+        result.update(state='answered',answer={'interpretation':kit_history.REMOVED_ANSWER},error=None,invalidated=True)
+    return result
 
 
 STARTER_GUIDANCE={
@@ -132,6 +135,7 @@ def create(body:MessageIn,user=Depends(current_user)):
             if old['question']!=body.question or previous!=context or old['visit_id']!=body.visit_id:raise HTTPException(409,'This message ID already belongs to a different question.')
             return public(old)
         permitted(uid,c)
+        if conversation_id:kit_history.materialize(c,uid,conversation_id)
         active=c.execute("SELECT 1 FROM kit_turns WHERE user_id=%s AND "+condition+" AND state IN ('pending','running')",(uid,*args)).fetchone()
         if active:raise HTTPException(409,'Kit is still answering another message. Wait for it or retry the interrupted answer.')
         row=c.execute('''INSERT INTO kit_turns(user_id,client_id,generation,visit_id,conversation_id,question,context)
@@ -170,7 +174,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         if c.execute("SELECT 1 FROM kit_turns WHERE user_id=%s AND "+condition+" AND client_id<>%s AND state IN ('pending','running')",(uid,*args,client_id)).fetchone():raise HTTPException(409,'Kit is answering another message. Wait before retrying this one.')
         lease=uuid4()
         c.execute("UPDATE kit_turns SET state='running',lease=%s,expires=now()+interval '5 minutes',error=NULL,generation=%s,visit_id=%s WHERE user_id=%s AND client_id=%s",(lease,body.generation,body.visit_id,uid,client_id))
-        prior=c.execute("SELECT question,answer FROM kit_turns WHERE user_id=%s AND "+condition+" AND id<%s AND state='answered' ORDER BY id DESC LIMIT 6",(uid,*args,row['id'])).fetchall()
+        prior=c.execute("SELECT question,answer FROM kit_turns WHERE user_id=%s AND "+condition+" AND id<%s AND state='answered' AND invalidated_at IS NULL ORDER BY id DESC LIMIT 6",(uid,*args,row['id'])).fetchall()
         source_consents=kit_history.consents(c,uid) if conversation_id else None
         memories,memory_version,health_context=kit_memory.context(c,uid)
         history=[]
@@ -234,6 +238,7 @@ def clear(body:ClearIn,user=Depends(current_user)):
             kit_history.preserve(c,uid,body.visit_id)
             c.execute('DELETE FROM kit_turns WHERE user_id=%s AND visit_id=%s',(uid,body.visit_id))
             visit_id=uuid4()
+            kit_history.opening(c,uid,visit_id)
             c.execute('INSERT INTO kit_visits(id,user_id) VALUES (%s,%s)',(visit_id,uid))
             return {'generation':body.generation,'visit_id':visit_id,'messages':[],'before':None,'ready':ai_release.enabled('kit')}
         c.execute("UPDATE kit_visits SET ended=coalesce(ended,now()) WHERE user_id=%s AND conversation_id IS NOT NULL",(uid,))
@@ -255,7 +260,7 @@ def start_visit(body:VisitIn,user=Depends(current_user)):
         generation=locked(c,uid)
         c.execute("DELETE FROM kit_memories WHERE user_id=%s AND updated<now()-interval '180 days'",(uid,))
         # A terminated app may never deliver its leave request; bound that leftover state.
-        kit_history.prune(c,uid)
+        kit_history.opening(c,uid,body.visit_id)
         c.execute('INSERT INTO kit_visits(id,user_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(body.visit_id,uid))
         locked(c,uid,generation,body.visit_id)
         return {'generation':generation,'visit_id':body.visit_id,'ready':ai_release.enabled('kit')}
@@ -266,6 +271,7 @@ def end_visit(visit_id:UUID,user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
         locked(c,uid)
+        kit_history.opening(c,uid,visit_id)
         c.execute('INSERT INTO kit_visits(id,user_id,ended) VALUES (%s,%s,now()) ON CONFLICT DO NOTHING',(visit_id,uid))
         c.execute('UPDATE kit_visits SET ended=coalesce(ended,now()) WHERE user_id=%s AND id=%s',(uid,visit_id))
         kit_history.preserve(c,uid,visit_id)
