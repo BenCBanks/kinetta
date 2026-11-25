@@ -156,6 +156,8 @@ def create(body:MessageIn,user=Depends(current_user)):
 
 
 def still_active(uid,generation,client_id,lease,health_context=False,source_consents=None):
+    from . import kit_stream
+    if kit_stream.cancelled():return False
     # Stop further paid turns after leave/clear. An already running provider request
     # can finish, but its result cannot be saved or start another provider round.
     with db.connect() as c:
@@ -392,3 +394,7 @@ def forget_one(memory_id:int,user=Depends(current_user)):
         c.execute('UPDATE kit_conversations SET memory_version=memory_version+1 WHERE user_id=%s',(uid,))
         c.execute('DELETE FROM kit_memories WHERE user_id=%s AND id=%s',(uid,memory_id))
     return {'ok':True}
+
+
+from . import kit_stream
+kit_stream.install(router)
