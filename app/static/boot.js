@@ -29,18 +29,8 @@ globalThis.KinettaBoot=(()=>{
     observer.observe(document.documentElement,{childList:true,subtree:true});
     if(showStartupSkeleton())observer.disconnect();
   }
-  // Start the signed-in web bootstrap while the eager bundle downloads. Capacitor's WebView
-  // uses native auth headers and omit-credentials fetches, so a shell preload would be a
-  // separate unauthenticated request on every native launch.
-  function preloadWebMe(){
-    let native=location.protocol==='capacitor:';
-    try{native=native||!!globalThis.Capacitor?.isNativePlatform?.();}catch(_){/* keep the protocol check */}
-    if(native||!document.head?.appendChild||!document.createElement)return;
-    const link=document.createElement('link');
-    link.rel='preload';link.as='fetch';link.href='/api/me';link.crossOrigin='anonymous';link.fetchPriority='high';
-    document.head.appendChild(link);
-  }
-  preloadWebMe();
+  // The app bootstrap makes the fresh no-store account read. A preload here
+  // cannot satisfy that request and would fetch the same account twice.
   // Proxies can inject optional scripts. Only our bundled app files block startup, including Capacitor URLs.
   function requiredAsset(asset){
     try{
