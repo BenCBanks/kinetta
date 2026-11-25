@@ -33,6 +33,11 @@ const image={name:'fictional-photo.svg',mimeType:'image/svg+xml',buffer:Buffer.f
   assert.equal((await sheet.locator('#e-photo-add .ph-add').boundingBox()).height,44,'photo add stays a 44px row action');
   for(const selector of ['#e-sport-open','.activity-edit-photo-heading','#e-visibility-open','#e-more-open']){const box=await sheet.locator(selector).boundingBox();assert(box&&box.height>=44,`${selector} remains an accessible row`);}
   const originalTitle=await title.inputValue(),originalDescription=await description.inputValue();
+  await description.fill('');
+  const descriptionBox=await description.boundingBox(),sportRowBox=await sheet.locator('#e-sport-open').boundingBox();
+  assert.equal(descriptionBox.height,48,'empty Description starts as one 48px row');
+  assert(Math.abs(sportRowBox.y-descriptionBox.y-descriptionBox.height-12)<=1,'Sport follows Description by the specified 12px gap');
+  await description.fill(originalDescription);
   await title.fill('A deliberately long fictional activity title that wraps instead of getting cut off');
   const titleSize=await title.evaluate(n=>({height:n.clientHeight,scroll:n.scrollHeight}));assert(titleSize.height>48&&titleSize.scroll<=titleSize.height+1,'the title wraps and grows to show its full value');
   await description.fill(Array(8).fill('A fictional description line').join('\n'));
@@ -62,7 +67,16 @@ const image={name:'fictional-photo.svg',mimeType:'image/svg+xml',buffer:Buffer.f
   const thumbBox=await firstThumb.locator('.ph-th').boundingBox(),removeBox=await firstThumb.locator('.activity-edit-photo-remove').boundingBox();
   assert.equal(thumbBox.width,64);assert.equal(thumbBox.height,64);assert.equal((await firstThumb.locator('.ph-th').evaluate(n=>getComputedStyle(n).borderRadius)),'8px');
   assert(removeBox.width>=43.5&&removeBox.height>=43.5,'each photo has a 44px remove target');
+  const removeStyle=await firstThumb.locator('.activity-edit-photo-remove').evaluate(n=>{const s=getComputedStyle(n,'::before');return {width:s.width,height:s.height,inset:s.top,background:s.backgroundColor,color:getComputedStyle(n).color,button:n.getBoundingClientRect().toJSON(),tile:n.parentElement.querySelector('.ph-th').getBoundingClientRect().toJSON()};});
+  assert.deepEqual([removeStyle.width,removeStyle.height,removeStyle.inset],['24px','24px','10px'],'photo remove mark is a 24px circle');
+  assert.match(removeStyle.background,/rgba?\(0, 0, 0, 0\.58\)/,'photo remove mark uses a dark translucent fill');
+  assert.equal(removeStyle.color,'rgb(255, 255, 255)','photo remove mark has a white X');
+  assert(removeStyle.button.x+10>=removeStyle.tile.x&&removeStyle.button.y+10>=removeStyle.tile.y&&removeStyle.button.x+34<=removeStyle.tile.right&&removeStyle.button.y+34<=removeStyle.tile.bottom,'24px photo remove circle sits inside the thumbnail corner');
+  const chevrons=await Promise.all(['#e-sport-open svg','#e-visibility-open svg','#e-more-open svg'].map(selector=>sheet.locator(selector).boundingBox()));
+  assert(Math.max(...chevrons.map(b=>b.x+b.width))-Math.min(...chevrons.map(b=>b.x+b.width))<=1,'all row chevrons share one right edge');
   await shot('edit-open-three-photos');
+  const addIcon=await sheet.locator('#e-photo-add .ph-add svg').boundingBox();
+  assert(Math.abs(addIcon.x+addIcon.width-chevrons[0].x-chevrons[0].width)<=1,'Photos plus aligns with the row chevron right edge '+JSON.stringify({addIcon,sport:chevrons[0]}));
   await firstThumb.locator('.activity-edit-photo-remove').click();await until(page,()=>document.querySelector('#e-photo-count')?.textContent==='2 of 10','photo removal');
   assert.equal(writes.filter(item=>item.path.includes('/photos')).length,0,'photo edits remain drafts until Save');
   await cancel.click();await page.getByRole('alertdialog',{name:'Discard your changes?'}).waitFor();await page.locator('[data-confirm-ok]').click();await sheet.waitFor({state:'detached'});

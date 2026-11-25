@@ -994,7 +994,7 @@ function editActivity(a) {
     <div id="e-primary" class="activity-edit-primary">
       <section class="activity-edit-group activity-edit-intro" aria-label="Activity details">
         <textarea class="activity-edit-title" name="name" rows="1" maxlength="200" aria-label="Title">${esc(a.name)}</textarea>
-        <textarea class="activity-edit-description" name="description" rows="2" maxlength="10000" placeholder="Add description" aria-label="Description">${esc(a.description || '')}</textarea>
+        <textarea class="activity-edit-description" name="description" rows="1" maxlength="10000" placeholder="Add description" aria-label="Description">${esc(a.description || '')}</textarea>
       </section>
       <section class="activity-edit-group activity-edit-choices" aria-label="Activity options">
         <button type="button" class="activity-edit-row" id="e-sport-open"><span>Sport</span><span class="activity-edit-row-value" id="e-sport-value">${esc(currentSportName)}</span>${svg('chev')}</button>

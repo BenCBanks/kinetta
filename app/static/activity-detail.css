@@ -563,7 +563,7 @@ body.ph-open { overflow: hidden; }
 .activity-edit-intro { padding:0 16px; }
 .activity-edit-title,.activity-edit-description { display:block;box-sizing:border-box;width:100%;min-width:0;margin:0;padding:12px 0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font:400 16px/24px var(--font);resize:none;overflow-wrap:anywhere; }
 .activity-edit-title { min-height:48px; }
-.activity-edit-description { min-height:48px;max-height:168px;overflow-y:auto; }
+.activity-edit-description { height:48px;min-height:48px;max-height:168px;overflow-y:auto; }
 .activity-edit-title::placeholder,.activity-edit-description::placeholder { color:var(--tx2);opacity:1; }
 .activity-edit-title:focus,.activity-edit-description:focus { border:0;outline:none;box-shadow:none;background:transparent; }
 .activity-edit-intro > :not(:last-child) { border-bottom:1px solid var(--line); }
@@ -573,20 +573,21 @@ body.ph-open { overflow: hidden; }
 .activity-edit-row:last-child::after { display:none; }
 .activity-edit-row-value { min-width:0;color:var(--tx2);font-size:16px;font-weight:400;text-align:right;overflow-wrap:anywhere; }
 .activity-edit-row > svg,.activity-edit-back > svg { width:18px;height:18px;color:var(--tx3); }
+.activity-edit-row#e-more-open { grid-template-columns:minmax(0,1fr) 18px; }
 .activity-edit-photos { min-width:0; }
 .activity-edit-photo-heading { position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto 44px;align-items:center;gap:12px;min-height:48px;color:var(--tx);font-size:16px;font-weight:400; }
 .activity-edit-photo-heading::after { position:absolute;right:0;bottom:0;left:0;height:1px;background:var(--line);content:""; }
 .activity-edit-photo-count { color:var(--tx2);font-size:15px;font-variant-numeric:tabular-nums; }
-.activity-edit-photo-heading .ph-add { display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:22px;background:transparent;color:var(--accent); }
-.activity-edit-photo-heading .ph-add svg { width:20px;height:20px; }
+.activity-edit-photo-heading .ph-add { display:grid;justify-items:end;align-items:center;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:22px;background:transparent;color:var(--accent); }
+.activity-edit-photo-heading .ph-add svg { width:20px;height:20px;transform:translateX(12px); }
 .activity-edit-photos #e-photos { min-width:0; }
 .activity-edit-photos .ph-strip { display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;margin:0;padding:8px 0 12px; }
 .activity-edit-photos .ph-strip.empty { display:none; }
 .activity-edit-thumb { position:relative;flex:none;width:64px;height:64px; }
 .activity-edit-photos .ph-th { display:block;box-sizing:border-box;width:64px;height:64px;margin:0;padding:0;overflow:hidden;border:0;border-radius:8px;background:var(--surface-raised); }
 .activity-edit-photos .ph-th img { display:block;width:100%;height:100%;object-fit:cover; }
-.activity-edit-photos .activity-edit-photo-remove { position:absolute;top:-4px;right:-4px;z-index:1;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--tx); }
-.activity-edit-photos .activity-edit-photo-remove::before { position:absolute;inset:14px;border-radius:50%;background:color-mix(in srgb,var(--surface-sheet) 92%,transparent);box-shadow:0 1px 5px #0003;content:""; }
+.activity-edit-photos .activity-edit-photo-remove { position:absolute;top:-4px;right:-4px;z-index:1;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:#fff; }
+.activity-edit-photos .activity-edit-photo-remove::before { position:absolute;inset:10px;border-radius:50%;background:rgba(0,0,0,.58);box-shadow:0 1px 5px #0003;content:"";pointer-events:none; }
 .activity-edit-photos .activity-edit-photo-remove svg { position:relative;width:12px;height:12px; }
 .activity-edit-more-view { display:grid;gap:12px;min-width:0; }
 .activity-edit-more-view[hidden] { display:none; }
