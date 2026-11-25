@@ -2,7 +2,8 @@
 
 Ordinary Kit chat can return checked paragraphs and short lists. This backend contract is a Draft;
 the compatible client renderer and reviewed evaluation are separate release requirements.
-Weekly and workout reviews keep their dedicated response fields. General coach and food modes keep their schemas.
+Weekly reviews use the same conversational blocks, with their app-owned `weekly_period` metadata.
+Workout reviews keep their dedicated response fields. General coach and food modes keep their schemas.
 
 The model supplies `blocks`, `facts`, optional `selection`, `actions` and up to two `follow_ups`.
 A block is exactly `{kind:"paragraph", text:string}` or `{kind:"list", items:string[]}`.
@@ -13,7 +14,8 @@ Remembered context or starter guidance cannot enable a longer answer.
 
 Up to eight facts cite exact numeric paths and values in successful current-turn tool evidence.
 `{e2:7}` refers to the eighth fact, which must belong to evidence `e2`. The application verifies its
-permitted measurement path, finite value and evidence identity, then formats units and labels.
+permitted measurement path, finite value and evidence identity, then inserts only the rounded value and unit.
+Fact labels remain separate metadata; prose supplies its own metric name without internal tool labels.
 The model cannot supply display units, unverified digits or a second value alongside a placeholder.
 Selections still require an allowed app-generated candidate and explicit confirmation; no new writes or tools.
 
@@ -57,7 +59,7 @@ larger allowance. Existing dollar caps remain enforced, so a larger reservation 
 ## Final JSON shape and offline second-smoke replay
 
 No-tools final and correction turns request Gemini `responseJsonSchema` for the same local conversational
-(or dedicated weekly) model. Tool-enabled turns retain function calling; they cannot bypass local validation.
+model, including weekly reviews. Tool-enabled turns retain function calling; they cannot bypass local validation.
 `actions` is an array of destination strings. An exact `{"screen":"plan"}` object can normalize to `"plan"`;
 unknown destinations and extra fields fail. Facts, values, ownership and confirmation requirements are unchanged.
 Activity goal targets are now formatted only when the goal has a recognized distance/time/elevation/count/calorie
@@ -68,6 +70,23 @@ logging-advice allowance never authorizes numeric measurements, past quantities 
 connector "showing" can follow an exact reference without changing its topic checks. Weekly answers use the same
 LOW/MEDIUM budgets and single `MAX_TOKENS` correction as conversation. A denied tool read stops with the existing
 sharing-consent message instead of hiding the denial and asking the model to try another tool.
+
+## Weekly conversation and exact captured-output replay
+
+Weekly production requests use paragraphs: the main change against the preceding period, its practical meaning,
+and one useful next step. The application supplies the same completed local-date periods and current-turn evidence;
+the model cannot call tools or propose actions. Saved legacy weekly responses remain readable. Offline stand-ins
+verify the new schema, correction, period and formatting, not provider-generated coaching quality.
+
+Spelled-out logged/unlogged-day counts and completed sets of an explicitly named exercise can bind only to one
+matching successful current-turn result and its exact count. Daily nutrition facts may cite supported finite
+intake/target/difference paths. Ambiguous, mismatching, failed or absent evidence still fails. A consent-denied
+tool read returns an application-authored paragraph with no facts or actions and `consent_refused:true`.
+
+The fourth-smoke regression replays twelve exact fictional raw outputs: ten pass and two remain rejected for
+explicit wrong units or unsupported rate framing. All ten distinct cases have a safe captured answer or the exact
+consent refusal. Value-only substitution removes the duplicated labels; targeted guards reject the known broken
+wording. Run `dev/tests/kit_smoke4_incontainer.py` with the fixture paths prepared by `dev/tests/run.sh`.
 
 Second-smoke replay contains six exact captured raw strings: two now pass, three complete strings still contain
 unreferenced quantities and stay rejected, and one incomplete weekly JSON stays rejected. The nine already accepted

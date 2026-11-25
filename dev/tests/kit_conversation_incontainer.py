@@ -57,7 +57,8 @@ assert kit_conversation.word_limit('Question: Give me a step-by-step explanation
 rejected({'blocks':[{'kind':'paragraph','text':'Useful guidance. '*400}],'facts':[]},conversation_question='Explain in detail.')
 legacy={'verdict':'Keep a sustainable routine.','reason':'Choose activities you enjoy.','facts':[]}
 assert 'answer_blocks' not in coach_chat.checked_answer(legacy,evidence,kit=True)
-rejected(raw,weekly_review=True)  # Dedicated weekly mode never silently becomes ordinary chat.
+assert coach_chat.checked_answer(raw,evidence,kit=True,weekly_review=True)['answer_blocks']
+weekly_change=copy.deepcopy(raw);weekly_change['actions']=['plan'];rejected(weekly_change,weekly_review=True)
 try:coach_chat.checked_answer(raw,evidence)
 except ValueError:pass
 else:raise AssertionError('General coach must retain its existing contract')

@@ -17,7 +17,7 @@ for action in ({'screen':'admin'},{'screen':'plan','url':'https://example.invali
     else:raise AssertionError('Action alias expanded authority')
 
 # The schema describes the same contract and can never bypass the local validator.
-for system,field in ((kit_conversation.SYSTEM,'blocks'),(kit_claims.weekly_system(),'weekly_review')):
+for system,field in ((kit_conversation.SYSTEM,'blocks'),(kit_claims.weekly_system(),'blocks')):
     body={'generationConfig':{}}
     kit_conversation.final_schema(body,system)
     schema=body['generationConfig']['responseJsonSchema']
@@ -49,9 +49,8 @@ def turn(messages,definitions):
     return [{'name':'weight_trend','args':{}}],'',{}
 with patch('app.coach.allowed',return_value=True),patch('app.coach.provider',return_value='gemini'), \
      patch('app.kit_tools.KitTools.call',tools):
-    try:coach_chat.answer(1,'What Apple Health weight did I share?',kit=True,turn=turn)
-    except ValueError as error:assert str(error)==coach_chat.coach.HEALTH_NO
-    else:raise AssertionError('Consent-off read accepted')
+    answer=coach_chat.answer(1,'What Apple Health weight did I share?',kit=True,turn=turn)
+    assert answer['consent_refused'] and answer['interpretation']==coach_chat.coach.HEALTH_NO and not answer['facts']
 assert len(calls)==1
 print('Final schemas, exact-only action normalization, advice/recorded-count distinction and clean consent refusal PASS')
 

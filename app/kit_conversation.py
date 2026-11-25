@@ -69,9 +69,9 @@ def empty_truncation(result,system,thinking_level):
 
 def final_schema(body,system):
     from . import kit_claims
-    if system==SYSTEM:
+    if system==SYSTEM or kit_claims.is_weekly_system(system):
         schema=ConversationAnswer.model_json_schema()
-    elif system==coach_chat.KIT_WEEKLY_SYSTEM or kit_claims.is_weekly_system(system):
+    elif system==coach_chat.KIT_WEEKLY_SYSTEM:
         schema=coach_chat.KitAnswer.model_json_schema()
         schema['properties']['weekly_review']={'$ref':'#/$defs/WeeklyReview'}
         schema['required']=sorted(set(schema['required'])|{'weekly_review'})
@@ -147,9 +147,9 @@ Use profile for units and local date, body_profile for body measurements, and ap
 Every quantitative value must come from an exact finite numeric field in a successful current-turn tool result.
 Put up to eight facts in facts: {"evidence_id":"e2","path":["totals","distance_m"],"value":5000}.
 In block text use {e2:0}: evidence ID and zero-based index into the entire facts array (zero through seven).
-The app supplies rounding, units and labels. Keep each placeholder separate from any unit or additional number;
+The app supplies only the rounded value and unit, never a metric label. Name the metric naturally in your prose. Keep each placeholder separate from any unit or additional number;
 use framing such as "The recorded value was {e2:0}." Never append units, do arithmetic, or invent quantities in words.
-Only cite permitted measurements, not dates, identifiers, names, strings, unknowns or unlogged-day counts.
+Only cite permitted measurements, not dates, identifiers, names, strings or unknowns.
 Do not write race-name digits or completed-set/logged-day counts in prose without a supported fact placeholder.
 For general suggestions prefer plain prose such as "Start by logging a regular meal" rather than numeric targets.
 Use totals and known subtotals accurately; incomplete food logs cannot establish a calorie deficit or complete intake.
@@ -185,13 +185,14 @@ def is_system(system):
 def check_for_question(raw, evidence, question, *, weekly_review=False, require_blocks=False):
     if require_blocks and not has_blocks(raw):
         raise ValueError('Conversational answers require blocks')
-    if not weekly_review and has_blocks(raw):
-        return coach_chat.checked_answer(raw, evidence, kit=True, conversation_question=question)
+    if has_blocks(raw):
+        return coach_chat.checked_answer(raw, evidence, kit=True, weekly_review=weekly_review, conversation_question=question)
     return coach_chat.checked_answer(raw, evidence, kit=True, weekly_review=weekly_review)
 
 
-def checked_answer(raw, evidence, *, question=None):
+def checked_answer(raw, evidence, *, question=None, weekly_review=False):
     answer = ConversationAnswer.model_validate(normalise_shape(raw))
+    if weekly_review and (answer.selection is not None or answer.actions):raise ValueError('Weekly reviews cannot propose changes or actions')
     # Reuse exact measurement/path/unit and candidate checks; the legacy shape remains capped at three.
     facts = []
     checked = None
@@ -213,9 +214,10 @@ def checked_answer(raw, evidence, *, question=None):
             if not text.strip() or len(text) > limit:
                 raise ValueError('Empty or oversized conversation block')
             display = coach_chat._kit_prose(text, facts, extra_words=kit_claims.boundary_words(text),
-                                             sentence_boundary=True, placeholder_pattern=REFERENCE)
+                                             sentence_boundary=True, placeholder_pattern=REFERENCE, render_value=lambda fact:fact['display_value'])
             if len(display) > limit:
                 raise ValueError('Oversized formatted conversation block')
+            check_rendered(display)
             rendered.append(display)
         blocks.append({'kind':'paragraph','text':rendered[0]} if isinstance(block, Paragraph)
                       else {'kind':'list','items':rendered})
@@ -227,3 +229,37 @@ def checked_answer(raw, evidence, *, question=None):
         raise ValueError('Conversation exceeds requested length')
     return dict(answer_blocks=blocks, interpretation=interpretation, facts=facts,
                 selection=checked['selection'], actions=checked['actions'], follow_ups=checked['follow_ups'])
+
+
+WEEKLY_SYSTEM = SYSTEM + """
+The person tapped Review my week. Write a plain, brief coaching reply using the same blocks/facts JSON contract.
+Use two or three short paragraphs: what happened compared with the preceding period, what that means practically,
+and one useful next step. Lead with the main change, not an inventory of numbers. Do not use headings or the old
+verdict/reason/weekly_review fields. Do not say 'Training volume was', 'Recorded distance reached', or 'compared previously'.
+For a change, say what changed and name the comparison: 'You logged {e2:0} more workouts than the week before.'
+Only use more/less when the app-computed signed change supports that direction; a longer distance does not prove
+improved fitness. Prefer an app-computed change over repeating current and previous totals. Missing history means
+unknown, not zero. If no comparison is supported, describe what is recorded without inventing a trend.
+The app supplied profile, period_compare, consistency and nutrition_adequacy for the last seven completed local
+calendar dates and the preceding seven. Use that exact evidence, no tools, prior-chat values or guessed dates.
+A partial nutrition subtotal is not full-week intake or a deficit; explain an important gap once without blame.
+Offer one practical next step suited to the available plan or stated goal; do not prescribe targets or modify a plan.
+Keep selection null, actions empty, and at most two first-person follow-ups the person can tap to send.
+"""
+
+
+def is_consent_error(error):
+    return str(error)==coach_chat.coach.HEALTH_NO
+
+
+def consent_answer():
+    text=coach_chat.coach.HEALTH_NO
+    return {'interpretation':text,'answer_blocks':[{'kind':'paragraph','text':text}],
+            'facts':[],'actions':[],'follow_ups':[],'selection':None,
+            'health_included':False,'consent_refused':True}
+
+
+def check_rendered(text):
+    # Catch actual substitution regressions, not an open-ended voice word list.
+    if re.search(r'\bmeal candidate\b|\bruns per week weekly runs\b|\b(protein|carbohydrates|fat|runs|workouts|kcal|kg|lb|grams|reps)\s+\1\b',text,re.I):
+        raise ValueError('Duplicated measurement wording')

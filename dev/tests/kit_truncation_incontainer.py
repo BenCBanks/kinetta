@@ -110,11 +110,11 @@ print('Frozen-baseline finish metadata captured without altering baseline bytes 
 # Exact weekly truncated capture gets the same single correction with a complete weekly schema.
 rows=json.load(open('/tmp/kit-smoke2-fixtures.json'))['cases']
 partial=next(row['raw_model_json'] for row in rows if row['expected']=='truncated')
-complete=next(row['raw_model_json'] for row in rows if row['case']=='weekly-no-plan' and row['expected']=='pass')
+complete=json.dumps({'blocks':[{'kind':'paragraph','text':'You returned to recording workouts. Keep a routine that fits your week.'}],'facts':[]})
 answer,requests,capture=replay([response(partial,'MAX_TOKENS'),response(complete,'STOP')],level='MEDIUM',weekly=True)
 assert isinstance(answer,dict),answer
-assert 'weekly_review' in answer and len(requests)==2
+assert 'answer_blocks' in answer and 'weekly_review' not in answer and len(requests)==2
 assert [r['generationConfig']['maxOutputTokens'] for r in requests]==[16384,32768]
-assert 'weekly_review' in requests[1]['generationConfig']['responseJsonSchema']['required']
+assert 'blocks' in requests[1]['generationConfig']['responseJsonSchema']['required']
 assert all('tools' not in r for r in requests)
 print('Exact weekly MAX_TOKENS replay + bounded schema correction PASS')

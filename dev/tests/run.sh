@@ -273,6 +273,10 @@ docker compose -p "$P" cp dev/evals/fixtures/kit-smoke2-rejections.json app:/tmp
 docker compose -p "$P" exec -T app python - < dev/tests/kit_truncation_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-smoke3-nutrition.json app:/tmp/kit-smoke3-fixtures.json
 docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke2_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-smoke4-replay.json app:/tmp/kit-smoke4-fixtures.json
+docker compose -p "$P" exec -T app mkdir -p /tmp/kit-smoke4-evals
+docker compose -p "$P" cp dev/evals/kit_weekly_fixtures.py app:/tmp/kit-smoke4-evals/kit_weekly_fixtures.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke4_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/garmin_connect_incontainer.py

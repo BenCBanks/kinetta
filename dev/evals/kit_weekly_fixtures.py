@@ -9,9 +9,12 @@ WEEKLY_CONTEXT = {'screen': 'progress', 'activity_id': None, 'starter_index': 3}
 def is_expected_health_consent_refusal(case_id, *, variant, answer, error, provider_requests, refusal_message):
     """Only named consent-off cases may pass as the exact existing refusal."""
     allowed_requests=(0,) if case_id=='weekly-health-consent-off' else (0,1) if case_id=='recall-health-consent-off' else ()
-    return (variant in ('candidate','baseline') and answer is None
-            and type(provider_requests) is int and provider_requests in allowed_requests
-            and error == 'ValueError: ' + refusal_message)
+    exact_error=answer is None and error=='ValueError: '+refusal_message
+    exact_answer=(isinstance(answer,dict) and answer.get('consent_refused') is True
+                  and answer.get('interpretation')==refusal_message and not answer.get('facts')
+                  and not answer.get('selection') and answer.get('health_included') is False and error is None)
+    return (variant in ('candidate','baseline') and type(provider_requests) is int
+            and provider_requests in allowed_requests and (exact_error or exact_answer))
 
 
 def evaluation_case_passed(case_id, *, variant, answer, error, expected_refusal=False):

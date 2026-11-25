@@ -46,17 +46,30 @@ def validate(texts, facts, evidence, *, question='', reference):
 
 
 def bound_logged_days(prose,evidence):
-    # Accept only this explicit recorded-intake count, bound to one successful tool
-    # result. Other numbers, ambiguous periods and a mismatching count still fail.
-    counts=[e['data'].get('logged_days') for e in evidence
-            if e.get('tool')=='nutrition_adequacy' and isinstance(e.get('data'),dict)
-            and 'error' not in e and 'error' not in e['data']]
-    if len(counts)!=1 or type(counts[0]) is not int:return prose
+    # Bind explicit count+subject phrases to exactly one successful current-turn
+    # source. Other measurements, compound number words and ambiguous ranges fail.
     words='zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
-    pattern=r'\b('+ '|'.join(words)+r') days? (?:had|has|have) (?:recorded|logged) intake\b'
-    return re.sub(pattern,lambda m:'recorded intake was available'
-                  if words.index(m[1].casefold())==counts[0]
-                  and not re.search(r'(?:\b(?:'+ '|'.join(words)+r')|-)\s*$',prose[:m.start()],re.I) else m[0],prose,flags=re.I)
+    number='|'.join(words)
+    def replace(pattern,count):
+        nonlocal prose
+        if type(count) is not int:return
+        prose=re.sub(r'\b('+number+') '+pattern,
+            lambda m:'recorded evidence was available' if words.index(m[1].casefold())==count
+            and not re.search(r'(?:\b(?:'+number+r')|-)\s*$',prose[:m.start()],re.I) else m[0],prose,flags=re.I)
+    sources=[e['data'] for e in evidence if e.get('tool')=='nutrition_adequacy'
+             and isinstance(e.get('data'),dict) and 'error' not in e and 'error' not in e['data']]
+    if len(sources)==1:
+        replace(r'days? (?:had|has|have) (?:recorded|logged) (?:intake|food entries)\b',sources[0].get('logged_days'))
+        replace(r'days? (?:were|are) unlogged\b',sources[0].get('unlogged_finished_days'))
+    sources=[e['data'] for e in evidence if e.get('tool')=='strength_history'
+             and isinstance(e.get('data'),dict) and 'error' not in e and 'error' not in e['data']]
+    if len(sources)==1:
+        summaries=sources[0].get('summary_by_exercise',[])
+        for summary in summaries:
+            exercise=summary.get('exercise')
+            if isinstance(exercise,str) and exercise and sum(s.get('exercise')==exercise for s in summaries)==1:
+                replace(r'completed sets of '+re.escape(exercise)+r'(?!\w)',summary.get('completed_sets'))
+    return prose
 
 
 def advice_quantities(prose):
@@ -74,13 +87,24 @@ def weekly_boundary_words():
 
 
 def additional_measurement(tool, path):
-    return (tool=='period_compare' and path==['change','workouts','absolute']
+    return (daily_nutrition_path(tool,path) or tool=='period_compare' and path==['change','workouts','absolute']
             or tool=='training_plan' and path==['plan','runs']
             or tool=='goals' and len(path)==3 and path[0]=='activity_goals'
             and type(path[1]) is int and path[1]>=0 and path[2]=='target')
 
 
+
+def daily_nutrition_path(tool,path):
+    return (tool=='nutrition_adequacy' and len(path)==4 and path[0]=='days'
+            and type(path[1]) is int and path[1]>=0 and path[2] in {'kcal','protein_g'}
+            and path[3] in {'logged_total','known_subtotal','target','difference'})
+
+
 def goal_fact(tool,data,path,value,units):
+    if daily_nutrition_path(tool,path):
+        field={'logged_total':'comparable_day_subtotal','known_subtotal':'comparable_day_subtotal',
+               'target':'comparable_target_subtotal','difference':'full_range_difference'}[path[3]]
+        return coach_chat._kit_fact(tool,data,['summary',path[2],field],value,units)
     if tool!='goals' or not additional_measurement(tool,path):return None
     goal=data['activity_goals'][path[1]]
     metric=goal.get('metric')
@@ -105,26 +129,23 @@ def conversation_retry_prompt(error):
 
 def weekly_retryable(error):
     from . import kit_conversation
-    return kit_conversation.is_truncated(error) or isinstance(error,(ValidationError,json.JSONDecodeError,coach_chat.KitValidationError)) or str(error) in {
+    return kit_conversation.is_truncated(error) or isinstance(error,(ValidationError,json.JSONDecodeError,coach_chat.KitValidationError,ClaimRejected)) or str(error) in {
         'Unsupported measurement path','Weekly section topic does not match referenced fact',
         'Kit answers need a reason','Weekly review sections must each be one sentence',
         'Unverified digit or malformed reference','Unknown or mismatched numeric reference',
+        'Conversational answers require blocks','Duplicated measurement wording',
+        'Weekly reviews cannot propose changes or actions',
         'Claim does not match tool evidence','Invalid evidence path','Unknown evidence reference'}
 
 
 def weekly_retry_prompt(error):
-    return ('Your weekly review failed validation. '+coach_chat._kit_retry_feedback(error)+
-            ' Return corrected JSON only with verdict, reason, facts, weekly_review (all three sections), '
-            'selection:null, actions:[], follow_ups. Use the same evidence, no tools, at most three facts. '
-            'Every placeholder must copy its fact evidence_id and global index exactly. Never guess a replacement. '
-            'Use only supported numeric paths or omit a numeric claim; keep all sentences evidence-based.')
+    from . import kit_conversation
+    return conversation_retry_prompt(error)+' This is a weekly coaching reply: use blocks, not weekly_review/verdict/reason; selection null and actions empty.'
 
 
 def weekly_system():
-    return coach_chat.KIT_WEEKLY_SYSTEM+'''\nCopy each fact's evidence_id into its placeholder, including when a nutrition fact follows activity facts.
-Period comparison change.workouts.absolute is a supported computed change. Protein fields remain food facts
-regardless of the tool name. Do not write counts in words: cite a supported numeric fact or omit the count.
-'''
+    from . import kit_conversation
+    return kit_conversation.WEEKLY_SYSTEM
 
 
 def is_weekly_system(system):
