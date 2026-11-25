@@ -41,7 +41,22 @@ def validate(texts, facts, evidence, *, question='', reference):
     for text in texts:
         prose = reference.sub('',text)
         if HEALTH.search(prose):raise ClaimRejected('health_claim')
-        if NUMBER_WORD.search(advice_quantities(prose)):raise ClaimRejected('numeric_unsupported')
+        if NUMBER_WORD.search(advice_quantities(bound_logged_days(prose,evidence))):raise ClaimRejected('numeric_unsupported')
+
+
+
+def bound_logged_days(prose,evidence):
+    # Accept only this explicit recorded-intake count, bound to one successful tool
+    # result. Other numbers, ambiguous periods and a mismatching count still fail.
+    counts=[e['data'].get('logged_days') for e in evidence
+            if e.get('tool')=='nutrition_adequacy' and isinstance(e.get('data'),dict)
+            and 'error' not in e and 'error' not in e['data']]
+    if len(counts)!=1 or type(counts[0]) is not int:return prose
+    words='zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
+    pattern=r'\b('+ '|'.join(words)+r') days? (?:had|has|have) (?:recorded|logged) intake\b'
+    return re.sub(pattern,lambda m:'recorded intake was available'
+                  if words.index(m[1].casefold())==counts[0]
+                  and not re.search(r'(?:\b(?:'+ '|'.join(words)+r')|-)\s*$',prose[:m.start()],re.I) else m[0],prose,flags=re.I)
 
 
 def advice_quantities(prose):

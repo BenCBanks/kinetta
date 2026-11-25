@@ -1,0 +1,509 @@
+[
+  {
+    "raw_model_json": "{\"blocks\":[{\"kind\":\"paragraph\",\"text\":\"Over the last completed week, only one day had recorded intake, leaving the remaining days unlogged. That single logged day was partial, so full-week totals cannot be evaluated against your targets.\"},{\"kind\":\"paragraph\",\"text\":\"On the day with entries, recorded intake reached {e2:0} against your daily target of {e2:1}. Recorded protein was {e2:2} compared with your target of {e2:3}. Unlogged days remain unknown rather than zero, and these recorded values do not indicate medical adequacy.\"}],\"facts\":[{\"evidence_id\":\"e2\",\"path\":[\"summary\",\"kcal\",\"comparable_day_subtotal\"],\"value\":350},{\"evidence_id\":\"e2\",\"path\":[\"summary\",\"kcal\",\"comparable_target_subtotal\"],\"value\":2200},{\"evidence_id\":\"e2\",\"path\":[\"summary\",\"protein_g\",\"comparable_day_subtotal\"],\"value\":20},{\"evidence_id\":\"e2\",\"path\":[\"summary\",\"protein_g\",\"comparable_target_subtotal\"],\"value\":120}],\"selection\":null,\"actions\":[\"nutrition\",\"food\"],\"follow_ups\":[\"Show my food log for that day.\",\"How can I adjust my daily nutrition goals?\"]}",
+    "validation_error_type": "ClaimRejected",
+    "validation_error": "numeric_unsupported",
+    "evidence": [
+      {
+        "evidence_id": "e1",
+        "tool": "profile",
+        "arguments": {},
+        "data": {
+          "tz": "UTC",
+          "units": "imperial",
+          "kcal_target": 2200.0,
+          "protein_target": 120.0,
+          "carbs_target": 250.0,
+          "fat_target": 70.0,
+          "fiber_target": 30.0,
+          "sodium_target_mg": null,
+          "sugar_target_g": null,
+          "saturated_fat_target_g": null,
+          "nutrition_goal": null,
+          "today": "2026-11-25"
+        }
+      },
+      {
+        "evidence_id": "e2",
+        "tool": "nutrition_adequacy",
+        "arguments": {
+          "start": "2026-11-16",
+          "end": "2026-11-22"
+        },
+        "data": {
+          "start": "2026-11-16",
+          "end": "2026-11-22",
+          "today": "2026-11-25",
+          "timezone": "UTC",
+          "calendar_days": 7,
+          "finished_days": 7,
+          "excluded_days": 0,
+          "logged_days": 1,
+          "unlogged_finished_days": 6,
+          "targets_basis": "Current saved profile protein target and current calorie goal rules/day overrides; prior target history is not stored.",
+          "days": [
+            {
+              "day": "2026-11-16",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-17",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-18",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-19",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-20",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-21",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-22",
+              "excluded": false,
+              "items": 1,
+              "kcal": {
+                "logged_total": 350.0,
+                "known_subtotal": 350.0,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": true,
+                "difference": -1850.0,
+                "target_ratio": 0.1590909090909091
+              },
+              "protein_g": {
+                "logged_total": 20.0,
+                "known_subtotal": 20.0,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": true,
+                "difference": -100.0,
+                "target_ratio": 0.16666666666666666
+              }
+            }
+          ],
+          "summary": {
+            "kcal": {
+              "comparable_days": 1,
+              "comparable_day_subtotal": 350.0,
+              "comparable_target_subtotal": 2200.0,
+              "full_range_comparable": false,
+              "full_range_difference": null,
+              "full_range_target_ratio": null
+            },
+            "protein_g": {
+              "comparable_days": 1,
+              "comparable_day_subtotal": 20.0,
+              "comparable_target_subtotal": 120.0,
+              "full_range_comparable": false,
+              "full_range_difference": null,
+              "full_range_target_ratio": null
+            }
+          },
+          "truncated": false,
+          "limitations": [
+            "This compares recorded intake with saved targets; it does not establish medical or nutritional adequacy, diagnose a condition, or recommend restriction.",
+            "Unlogged days and unknown nutrient items are not zero. A logged day may still be partial; no completeness is inferred from a positive total.",
+            "Period-wide comparison is available only when every requested date is finished, logged, fully known for that nutrient and has a saved target. Otherwise only comparable-day subtotals are shown.",
+            "Targets use current saved settings and day-specific calorie overrides; historical target changes are not reconstructed. A zero target has no ratio.",
+            "Today and future account-local dates are excluded from intake and target comparisons."
+          ]
+        }
+      }
+    ],
+    "usage": {
+      "promptTokenCount": 4862,
+      "candidatesTokenCount": 270,
+      "totalTokenCount": 5132,
+      "cachedContentTokenCount": 1886,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 4862
+        }
+      ],
+      "cacheTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 1886
+        }
+      ],
+      "serviceTier": "standard",
+      "finishReason": "STOP",
+      "maxOutputTokens": 8192,
+      "thinkingLevel": "LOW"
+    }
+  },
+  {
+    "raw_model_json": "{\"blocks\":[{\"kind\":\"paragraph\",\"text\":\"Over the last completed week, only one day had recorded intake, leaving the other days unlogged. That logged entry was partial, so full-week totals cannot be compared against your targets.\"},{\"kind\":\"paragraph\",\"text\":\"On that recorded day, calories and protein remained below your daily targets. Unlogged days represent unknown intake rather than zero, and these logs do not evaluate medical adequacy.\"}],\"facts\":[],\"selection\":null,\"actions\":[\"nutrition\",\"food\"],\"follow_ups\":[\"Show my food log for that day.\",\"How can I adjust my daily nutrition goals?\"]}",
+    "validation_error_type": "ClaimRejected",
+    "validation_error": "numeric_unsupported",
+    "evidence": [
+      {
+        "evidence_id": "e1",
+        "tool": "profile",
+        "arguments": {},
+        "data": {
+          "tz": "UTC",
+          "units": "imperial",
+          "kcal_target": 2200.0,
+          "protein_target": 120.0,
+          "carbs_target": 250.0,
+          "fat_target": 70.0,
+          "fiber_target": 30.0,
+          "sodium_target_mg": null,
+          "sugar_target_g": null,
+          "saturated_fat_target_g": null,
+          "nutrition_goal": null,
+          "today": "2026-11-25"
+        }
+      },
+      {
+        "evidence_id": "e2",
+        "tool": "nutrition_adequacy",
+        "arguments": {
+          "start": "2026-11-16",
+          "end": "2026-11-22"
+        },
+        "data": {
+          "start": "2026-11-16",
+          "end": "2026-11-22",
+          "today": "2026-11-25",
+          "timezone": "UTC",
+          "calendar_days": 7,
+          "finished_days": 7,
+          "excluded_days": 0,
+          "logged_days": 1,
+          "unlogged_finished_days": 6,
+          "targets_basis": "Current saved profile protein target and current calorie goal rules/day overrides; prior target history is not stored.",
+          "days": [
+            {
+              "day": "2026-11-16",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-17",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-18",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-19",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-20",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-21",
+              "excluded": false,
+              "items": 0,
+              "kcal": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              },
+              "protein_g": {
+                "logged_total": null,
+                "known_subtotal": null,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": false,
+                "difference": null,
+                "target_ratio": null
+              }
+            },
+            {
+              "day": "2026-11-22",
+              "excluded": false,
+              "items": 1,
+              "kcal": {
+                "logged_total": 350.0,
+                "known_subtotal": 350.0,
+                "unknown_items": 0,
+                "target": 2200,
+                "comparable": true,
+                "difference": -1850.0,
+                "target_ratio": 0.1590909090909091
+              },
+              "protein_g": {
+                "logged_total": 20.0,
+                "known_subtotal": 20.0,
+                "unknown_items": 0,
+                "target": 120.0,
+                "comparable": true,
+                "difference": -100.0,
+                "target_ratio": 0.16666666666666666
+              }
+            }
+          ],
+          "summary": {
+            "kcal": {
+              "comparable_days": 1,
+              "comparable_day_subtotal": 350.0,
+              "comparable_target_subtotal": 2200.0,
+              "full_range_comparable": false,
+              "full_range_difference": null,
+              "full_range_target_ratio": null
+            },
+            "protein_g": {
+              "comparable_days": 1,
+              "comparable_day_subtotal": 20.0,
+              "comparable_target_subtotal": 120.0,
+              "full_range_comparable": false,
+              "full_range_difference": null,
+              "full_range_target_ratio": null
+            }
+          },
+          "truncated": false,
+          "limitations": [
+            "This compares recorded intake with saved targets; it does not establish medical or nutritional adequacy, diagnose a condition, or recommend restriction.",
+            "Unlogged days and unknown nutrient items are not zero. A logged day may still be partial; no completeness is inferred from a positive total.",
+            "Period-wide comparison is available only when every requested date is finished, logged, fully known for that nutrient and has a saved target. Otherwise only comparable-day subtotals are shown.",
+            "Targets use current saved settings and day-specific calorie overrides; historical target changes are not reconstructed. A zero target has no ratio.",
+            "Today and future account-local dates are excluded from intake and target comparisons."
+          ]
+        }
+      }
+    ],
+    "usage": {
+      "promptTokenCount": 2516,
+      "candidatesTokenCount": 125,
+      "totalTokenCount": 2641,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 2516
+        }
+      ],
+      "serviceTier": "standard",
+      "finishReason": "STOP",
+      "maxOutputTokens": 8192,
+      "thinkingLevel": "LOW"
+    }
+  }
+]

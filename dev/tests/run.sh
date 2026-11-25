@@ -265,6 +265,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.p
 docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke_replay_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-smoke2-rejections.json app:/tmp/kit-smoke2-fixtures.json
 docker compose -p "$P" exec -T app python - < dev/tests/kit_truncation_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-smoke3-nutrition.json app:/tmp/kit-smoke3-fixtures.json
 docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke2_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py

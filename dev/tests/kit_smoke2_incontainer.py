@@ -99,3 +99,24 @@ with patch('app.coach.allowed',return_value=True),patch('app.coach.provider',ret
     answer=coach_chat.answer(1,'Help with my routine',kit=True,turn=many_rounds)
 assert len(rounds)==5 and rounds[-1]==[] and answer['interpretation']=='Choose a routine you enjoy.'
 print('Multiple production tool rounds plus one correction pass without a two-call experiment cap')
+
+# Exact LOW nutrition captures bind prose counts to the matching current-turn tool.
+rows=json.load(open('/tmp/kit-smoke3-fixtures.json'))
+for row in rows:
+    raw=coach_chat._json(row['raw_model_json'])
+    assert coach_chat.checked_answer(raw,row['evidence'],kit=True)
+    for change in ('wrong','absent','failed','ambiguous'):
+        ev=copy.deepcopy(row['evidence'])
+        if change=='wrong':ev[1]['data']['logged_days']=2
+        if change=='absent':ev=ev[:1]
+        if change=='failed':ev[1]['error']='unavailable'
+        if change=='ambiguous':ev.append(copy.deepcopy(ev[1]))
+        try:coach_chat.checked_answer(raw,ev,kit=True)
+        except ValueError:pass
+        else:raise AssertionError('Recorded-day count accepted without unique matching evidence')
+for text in ('You logged two days.', 'Twenty one day had recorded intake.',
+             'Thirty-one day had recorded intake.', 'One day had recorded intake and seventy calories.'):
+    try:coach_chat.checked_answer({'blocks':[{'kind':'paragraph','text':text}],'facts':[]},rows[0]['evidence'],kit=True)
+    except ValueError:pass
+    else:raise AssertionError('Invented count accepted')
+print('Both exact LOW nutrition attempts pass; absent, ambiguous, failed and mismatching counts reject')
