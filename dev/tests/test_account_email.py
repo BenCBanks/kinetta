@@ -339,7 +339,9 @@ class AccountEmail(unittest.TestCase):
         for _ in range(5): anon.post('/api/password/forgot', json={'login': 'zz_test_mail_a'})
         self.assertEqual(self.mail.call_count, 3, 'at most three reset links an hour per account')
         with patch.dict(os.environ, {'KINETTA_RESEND_KEY': ''}):
-            self.assertEqual(a.put('/api/account/email', json={'email': 'zz_x@example.com', 'password': PW}).status_code, 503)
+            unavailable = a.put('/api/account/email', json={'email': 'zz_x@example.com', 'password': PW})
+            self.assertEqual(unavailable.status_code, 503)
+            self.assertIn('feedback@kinetta.app', unavailable.json()['detail'])
             self.assertFalse(a.get('/api/me').json()['mail_ready'])
             unknown = anon.post('/api/password/forgot', json={'login': 'nobody@example.com'})
             known = anon.post('/api/password/forgot', json={'login': 'zz_limit@example.com'})
@@ -347,7 +349,7 @@ class AccountEmail(unittest.TestCase):
             self.assertEqual(known.json(), unknown.json(), 'unavailable-mail response does not reveal whether an account matched')
             self.assertFalse(known.json()['email_available'])
             self.assertIn('Email recovery isn’t available', known.json()['message'])
-            self.assertIn('Contact the server administrator', known.json()['message'])
+            self.assertIn('feedback@kinetta.app', known.json()['message'])
             self.assertNotIn('sent a link', known.json()['message'].lower())
             self.assertEqual(self.mail.call_count, 3, 'unavailable mail does not send a reset message')
 

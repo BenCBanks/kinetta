@@ -1917,7 +1917,7 @@ let pendingSent = null;
 const pendingEmail = () => App.me && !App.me.email ? (pendingSent && pendingSent.id === App.me.id ? pendingSent.email : App.me.pending_email) || null : null;
 function emailSheet() {
   const me = App.me;
-  if (!me.mail_ready) { sheet('Email', '<p>Email isn’t set up on this Kinetta yet. Ask the person who runs it.</p>'); return; }
+  if (!me.mail_ready) { sheet('Email', `<p>Email isn’t available right now. For help, email <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p>`); return; }
   sheet('Email', `<form class="form" id="em">
     <input name="username" value="${esc(me.login)}" autocomplete="username" hidden>
     <p class="small muted">${me.email ? `Now: <b>${esc(me.email)}</b>. ` : ''}We'll send a link to confirm it. You can then log in with it and reset your password if you forget it. It's never shown to other people.</p>

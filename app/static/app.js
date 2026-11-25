@@ -2466,7 +2466,7 @@ function showFirstRunWelcome({setupNeeded = false} = {}) {
     } else if (mode === 'beta') {
       history.replaceState(null, '', '/beta'); showBeta();
     } else {
-      status.textContent = 'Public signup is closed. Open your invitation link to create an account, or ask the person who runs this Kinetta for an invite link.';
+      status.textContent = 'Public signup is closed. Open your invitation link to create an account. For an invitation, email feedback@kinetta.app.';
       create.setAttribute('aria-expanded', 'true');
     }
   };
@@ -2481,6 +2481,13 @@ function showFirstRunWelcome({setupNeeded = false} = {}) {
       create.textContent = mode === 'signup' ? 'Create account' : mode === 'beta' ? 'Join the beta' : 'Ask for an invite';
     });
   }
+}
+function accountSupportError(error) {
+  if(error?.code==='email_confirmation_unavailable')return 'Email confirmation is pending, but email is unavailable. For help signing in, email feedback@kinetta.app.';
+  if(error?.status===403&&/account is suspended/i.test(error.message||''))return 'This account is suspended. For help, email feedback@kinetta.app.';
+  const message=String(error?.message||'');
+  if(/person who runs|person running|reply to (?:any|this) email|server administrator/i.test(message))return 'For help with your account, email feedback@kinetta.app.';
+  return message||'Sign-in is temporarily unavailable. Please try again.';
 }
 function showLogin(msg = '') {
   globalThis.CommunityTerms?.reset();
@@ -2507,8 +2514,8 @@ function showLogin(msg = '') {
     const p = $('.login .login-new', root);
     if (open.open && p) { p.innerHTML = 'New here? <a href="/signup">Create an account</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(); }; return; }
     if (r.open && p) { p.innerHTML = 'New here? <a href="/beta">Join the beta</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/beta'); showBeta(); }; return; }
-    if (p) p.textContent = 'New here? Ask the person who runs this Kinetta for an invite link.';
-  }).catch(() => { const p = $('.login .login-new', root); if (p) p.textContent = 'New here? Ask the person who runs this Kinetta for an invite link.'; });
+    if (p) p.textContent = 'New here? Email feedback@kinetta.app for an invitation.';
+  }).catch(() => { const p = $('.login .login-new', root); if (p) p.textContent = 'New here? Email feedback@kinetta.app for an invitation.'; });
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const b = $('button[type=submit]', f), err = $('.err', f);
@@ -2518,7 +2525,7 @@ function showLogin(msg = '') {
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = ''; recovery.hidden=true;recovery.replaceChildren();recoveryStatus.textContent='';
     try { const r=Native.on?await Native.login(f.server.value, login, password):await api('/api/login', json('POST', {login, password}));if(r.password_change_required){showTemporaryPassword(r.change_token);return;}store.del('kinetta.getApp');await start(); }
     catch (x) {
-      err.textContent = x.status>=500 ? 'Sign-in is temporarily unavailable. Please try again.' : x.message;
+      err.textContent = x.status>=500 ? 'Sign-in is temporarily unavailable. Please try again.' : accountSupportError(x);
       if(x.code==='email_waiting_for_confirmation'){
         recovery.hidden=false;
         recovery.innerHTML='<button type="button" class="text-link" id="l-resend">Resend confirmation email</button><a href="/forgot-password" id="l-reset">Reset password</a>';
@@ -2570,7 +2577,7 @@ function attachConfirmationResend(button,status,identifier) {
     if(!login?.trim()){status.textContent='Enter your email or username first.';return;}
     button.disabled=true;status.textContent='';
     try{const r=await api('/api/account/email/resend',json('POST',{login:login.trim()}));status.textContent=r.message;}
-    catch(x){status.textContent=x.message;}
+    catch(x){status.textContent=accountSupportError(x);}
     finally{button.disabled=false;}
   };
 }
@@ -2700,7 +2707,7 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
 function showSignupPending(result) {
   const email=String(result.pending||''),login=String(result.login||''),phone=getAppFirst();
   history.replaceState(null,'','/signup');
-  root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Check your email</h1>
+  root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Check your inbox</h1>
     <p>We sent a confirmation link to <b>${esc(email)}</b>. Open it to confirm your email.</p>
     <p class="small muted signup-login-note">You're signed in as <b>@${esc(login)}</b>. Until you confirm, log in with @${esc(login)}.</p>
     <button type="button" class="primary wide" id="signup-resend">Resend confirmation email</button>
@@ -2749,7 +2756,7 @@ async function showInvite(code) {
   } else {
     const phone = getAppFirst(), link = s.iphone_app;
     root.innerHTML = `<div class="login invite-landing"><div class="form">${BRAND}<h1>${esc(who.name)} invited you to Kinetta</h1>
-      <p>Follow each other’s runs, rides and walks, and keep your food log private. ${s.open?'Create an account and confirm your email to become friends.':waiting?'Join the beta to request an invitation, or log in with an existing account.':'New here? Ask the person running this Kinetta for an account invitation.'}</p>
+      <p>Follow each other’s runs, rides and walks, and keep your food log private. ${s.open?'Create an account and confirm your email to become friends.':waiting?'Join the beta to request an invitation, or log in with an existing account.':'New here? Email feedback@kinetta.app for an account invitation.'}</p>
       ${phone && link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the iPhone app</a><p class="small muted">Kinetta is in beta through Apple’s TestFlight. After installing, open this invite link again and it opens in the app.</p>` : ''}
       ${s.open||waiting ? `<a class="${phone && link ? 'ghost' : 'primary'} wide" href="/signup" id="iv-signup">${s.open?'Create an account'+(phone&&link?' on the web':''):'Join the beta'}</a>` : ''}${login}</div></div>`;
     const su = $('#iv-signup', root); if (su) su.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(code); };

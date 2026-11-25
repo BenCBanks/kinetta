@@ -401,7 +401,7 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
         inv = _open_invite(c, body.token, lock=True)
         if email:
             account_email.require_available(c, email)
-            if not account_email.mail_ready(): raise HTTPException(503, 'Email isn’t set up on this Kinetta yet. Ask the person who runs it.')
+            if not account_email.mail_ready(): raise HTTPException(503, 'Email isn’t available right now. For help, email feedback@kinetta.app.')
         uid = _create(c, body)
         if not body.card_code and inv.get('origin_card'):c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,false)",(uid,inv['origin_card']))
         c.execute('UPDATE invites SET used_by = %s, used_at = now() WHERE id = %s', (uid, inv['id']))

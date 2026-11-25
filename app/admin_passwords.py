@@ -39,7 +39,7 @@ def revoke(c, uid):
 
 def challenge(c, uid, expires):
     now = dt.datetime.now(dt.timezone.utc)
-    if expires <= now: raise auth.Failed(401, 'This temporary password expired. Ask the person who runs Kinetta for a new one.')
+    if expires <= now: raise auth.Failed(401, 'This temporary password expired. For help, email feedback@kinetta.app.')
     token = secrets.token_urlsafe(32)
     c.execute('DELETE FROM account_password_changes WHERE user_id=%s OR expires<=now()', (uid,))
     c.execute('INSERT INTO account_password_changes(token_hash,user_id,expires) VALUES (%s,%s,%s)',
