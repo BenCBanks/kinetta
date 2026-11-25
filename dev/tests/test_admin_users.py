@@ -12,7 +12,7 @@ MAIL = {'KINETTA_RESEND_KEY': 'stand-in-not-a-key', 'KINETTA_MAIL_FROM': 'Kinett
         'KINETTA_MAIL_REPLY_TO': 'support@example.test', 'KINETTA_PUBLIC_URL': 'https://example.test',
         'KINETTA_MAIL_WEBHOOK_SECRET': 'whsec_' + base64.b64encode(b'fictional-webhook-key').decode()}
 # Fields an account page may contain. Anything else (routes, food, weight, messages...) would be a privacy bug.
-PAGE = {'id', 'login', 'name', 'email', 'email_confirmed', 'is_admin', 'created', 'status', 'suspended_at', 'suspended_reason',
+PAGE = {'id', 'login', 'name', 'first_name', 'last_name', 'email', 'email_confirmed', 'is_admin', 'created', 'status', 'suspended_at', 'suspended_reason',
         'password_change_expires', 'mfa_enabled', 'last_active', 'active_days_30', 'devices', 'connections', 'imports', 'counts', 'reports', 'invited', 'audit', 'age', 'kit'}
 
 
@@ -99,7 +99,7 @@ class AdminUsers(unittest.TestCase):
         self.assertEqual(self.a.post(f'/api/admin/people/{self.member}/reset-email', json={'confirm': 'zz_test_au_member'}).status_code, 200)
         m = self.mail.call_args.kwargs['json']
         self.assertEqual(m['to'], ['zz_au_member@example.test']); self.assertIn('/reset-password#', m['text']); self.assertNotIn('/reset-password/', m['text'])
-        self.assertTrue(m['text'].startswith("Here's the password reset link you asked us for."))
+        self.assertRegex(m['text'], r"^Hi .+,\n\nHere's the password reset link you asked us for\.")
         self.assertIn('(@zz_test_au_member)', m['text'])
         self.assertIn('If you didn\'t ask for this, ignore this email and your password stays the same.', m['text'])
         self.assertNotIn("We're sending you a link", m['text'])

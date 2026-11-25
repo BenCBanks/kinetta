@@ -37,7 +37,7 @@ AUTHORIZED = f"""r.share_audience<>'me' AND NOT r.share_disabled AND NOT {unconf
  AND NOT {blocked('r.user_id')} AND (r.share_audience='everyone' OR {FRIEND} OR r.user_id=%(viewer)s)"""
 PUBLICATION = """SELECT r.id,r.user_id,r.share_audience,r.share_revision,r.share_disabled,
  p.data,p.hidden_start_m,p.hidden_end_m,p.revision,p.source_version,
- coalesce(pr.share_trim_m,400) AS trim_m,u.login::text AS login,u.name AS owner_name,u.photo_v
+ coalesce(pr.share_trim_m,400) AS trim_m,u.login::text AS login,u.first_name AS owner_name,u.photo_v
  FROM planned_routes r JOIN route_publications p ON p.route_id=r.id
  JOIN users u ON u.id=r.user_id LEFT JOIN profile pr ON pr.user_id=r.user_id"""
 

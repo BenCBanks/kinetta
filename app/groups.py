@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
-from . import account_email, auth, community_filter, db, notify, reactions
+from . import account_email, auth, community_filter, db, notify, reactions, names
 from .group_limits import MAX_MEMBERS
 from .parsers import SPORTS as ACTIVITY_SPORTS
 from .auth import current_user
@@ -541,12 +541,12 @@ def _reaction_summary(rows, uid):
 
 
 def _group_updates(c, group, uid):
-    updates = c.execute('''SELECT u.id,u.user_id,u.text,u.created,p.login::text AS username,p.name,p.photo_v AS photo
+    updates = c.execute(f'''SELECT u.id,u.user_id,u.text,u.created,p.login::text AS username,{names.display_name_sql('p')} AS name,p.photo_v AS photo
         FROM group_updates u JOIN users p ON p.id=u.user_id
-        WHERE u.group_id=%s AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
-          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=%s AND b.blocked=u.user_id)
-            OR (b.user_id=u.user_id AND b.blocked=%s))
-        ORDER BY u.created DESC,u.id DESC LIMIT 30''', (group['id'], uid, uid)).fetchall()
+        WHERE u.group_id=%(gid)s AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
+          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=%(viewer)s AND b.blocked=u.user_id)
+            OR (b.user_id=u.user_id AND b.blocked=%(viewer)s))
+        ORDER BY u.created DESC,u.id DESC LIMIT 30''', {'gid':group['id'],'viewer':uid}).fetchall()
     if not updates:
         return []
     ids = [row['id'] for row in updates]
@@ -628,21 +628,21 @@ def _group_notice_members(c, group_id, actor, kind, update_id=None, week_start=N
 
 def _group_reaction_people(c, group, uid, update_id=None, week_start=None):
     if update_id is not None:
-        rows = c.execute('''SELECT u.login::text AS login,u.name,u.photo_v AS photo,r.kind,r.user_id
+        rows = c.execute(f'''SELECT u.login::text AS login,{names.display_name_sql('u')} AS name,u.photo_v AS photo,r.kind,r.user_id
             FROM group_update_reactions r JOIN group_updates x ON x.id=r.update_id
             JOIN group_members m ON m.group_id=x.group_id AND m.user_id=r.user_id AND m.status='active'
             JOIN users u ON u.id=r.user_id AND NOT u.needs_email_confirm AND u.suspended_at IS NULL
-            WHERE r.update_id=%s AND NOT EXISTS(SELECT 1 FROM blocks b
-              WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))
-            ORDER BY r.created,r.user_id''', (update_id, uid, uid)).fetchall()
+            WHERE r.update_id=%(update_id)s AND NOT EXISTS(SELECT 1 FROM blocks b
+              WHERE (b.user_id=%(viewer)s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%(viewer)s))
+            ORDER BY r.created,r.user_id''', {'update_id':update_id,'viewer':uid}).fetchall()
     else:
-        rows = c.execute('''SELECT u.login::text AS login,u.name,u.photo_v AS photo,r.kind,r.user_id
+        rows = c.execute(f'''SELECT u.login::text AS login,{names.display_name_sql('u')} AS name,u.photo_v AS photo,r.kind,r.user_id
             FROM group_weekly_reactions r JOIN group_members m ON m.group_id=r.group_id
               AND m.user_id=r.user_id AND m.status='active'
             JOIN users u ON u.id=r.user_id AND NOT u.needs_email_confirm AND u.suspended_at IS NULL
-            WHERE r.group_id=%s AND r.week_start=%s AND NOT EXISTS(SELECT 1 FROM blocks b
-              WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))
-            ORDER BY r.created,r.user_id''', (group['id'], week_start, uid, uid)).fetchall()
+            WHERE r.group_id=%(group_id)s AND r.week_start=%(week_start)s AND NOT EXISTS(SELECT 1 FROM blocks b
+              WHERE (b.user_id=%(viewer)s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%(viewer)s))
+            ORDER BY r.created,r.user_id''', {'group_id':group['id'],'week_start':week_start,'viewer':uid}).fetchall()
     return [{'login': row['login'], 'name': row['name'], 'photo': row['photo'] or False, 'kind': row['kind']}
             for row in rows]
 

@@ -115,7 +115,8 @@ def signup(body: SignupIn, request: Request, response: Response, background: Bac
         c.execute('UPDATE users SET needs_email_confirm = true WHERE id = %s', (uid,))
         # Kept until the email is confirmed (account_email.confirm_email), when the two become friends.
         if body.friend_link: c.execute('UPDATE profile SET friend_link = %s WHERE user_id = %s', (body.friend_link, uid))
-        account_email.confirmation(background, c, uid, body.name.strip(), email, welcome=True)
+        first = c.execute('SELECT first_name FROM users WHERE id=%s', (uid,)).fetchone()['first_name']
+        account_email.confirmation(background, c, uid, first, email, welcome=True)
         session = auth.new_session(c, uid, request.headers.get('user-agent'), channel='app' if body.app else 'web', app_version=request.headers.get('x-kinetta-version') if body.app else None)
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
     capacity_notice()

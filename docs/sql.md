@@ -1,8 +1,8 @@
 # Read-only SQL access to your own data
 
 Kinetta keeps everything in PostgreSQL. If you enjoy SQL, each person can get a **read-only** login that sees only
-their own rows. The database itself enforces that (row-level security), so a mistake can't show or change anyone
-else's data.
+their own personal records. The database enforces that with row-level security. The account directory exposes
+usernames and first names; full names and surnames are unavailable to ordinary SQL logins.
 
 ## 1. Let your SQL tool reach the database
 
@@ -48,9 +48,13 @@ Imperial and metric units included, one row per thing, and a `person` column:
 | `v_food_days` | calories and macros per day |
 | `v_weights` | weigh-ins |
 | `v_lift_sets` | every lifting set: day, session, exercise, reps, kg and lb, seconds, warm-up, estimated one-rep max |
+| `public_people` | account directory: `user_id`, username (`login`), first name and creation date; no surname |
 
 The raw tables are there too: `activities`, `activity_streams` (per-second arrays), `best_efforts`, `routes`, `gear`,
 `goals`, `food_entries`, `custom_foods`, `saved_meals`, `weights`, `exercises`, `lift_sets`.
+Ordinary logins can read only `id`, `login`, `first_name` and `created` from `users`; `name` and `last_name`
+are restricted to all-people owner logins. Join `public_people` for first names, or `owner_people` for full names
+when using an all-people login.
 
 ```sql
 SELECT week, miles, hours FROM v_weekly WHERE sport = 'run' ORDER BY week DESC LIMIT 12;

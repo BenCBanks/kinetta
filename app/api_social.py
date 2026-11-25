@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
 from pydantic import BaseModel, Field, field_validator
 
-from . import api_achievements, db, notify, reactions
+from . import api_achievements, db, notify, reactions, names
 from .api_account import _admin
 from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline, SPEED_AVAILABLE_SQL
 from .auth import current_user
@@ -103,7 +103,7 @@ def _select(extra=''):
     return f"""SELECT a.id, a.sport, a.sport_label, a.name, a.start_time, a.distance_m, a.moving_s, a.elapsed_s,
       a.gap_s_per_km, a.max_speed, a.avg_hr, a.max_hr, a.effort, a.ascent_m, a.descent_m, a.max_alt, a.min_alt, a.vam,
       a.calories, a.description, a.device, {SPEED_AVAILABLE_SQL} AS speed_available, {extra}
-      a.share_details AS a_details, p.share_details AS p_details, s.trim_m, u.login::text AS owner_login, u.name AS owner_name, u.photo_v AS owner_photo, {PHOTOS_SQL},
+      a.share_details AS a_details, p.share_details AS p_details, s.trim_m, u.login::text AS owner_login, {names.display_name_sql('u')} AS owner_name, u.photo_v AS owner_photo, {PHOTOS_SQL},
       CASE WHEN a.geom IS NULL THEN NULL
            WHEN s.trim_m = 0 THEN ST_AsGeoJSON(ST_Simplify(a.geom, %(tol)s))
            WHEN s.len_m < 2 * s.trim_m + %(min_m)s THEN NULL
@@ -164,7 +164,7 @@ class FriendIn(BaseModel):
 
 
 def _person(c, login):
-    t = c.execute('SELECT id, login::text AS login, name FROM users WHERE login = %s', ((login or '').strip().lower(),)).fetchone()
+    t = c.execute('SELECT id, login::text AS login, first_name AS name FROM users WHERE login = %s', ((login or '').strip().lower(),)).fetchone()
     if not t: raise HTTPException(404, 'No one on this Kinetta has that username')
     return t
 
@@ -181,7 +181,7 @@ def _pair(c, me, them, lock=False):
 
 
 def _friend_rows(c, uid):
-    return c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status,
+    return c.execute(f"""SELECT u.login::text AS login, {names.display_name_sql('u')} AS name, u.photo_v AS photo, f.status,
                      f.requester = %(viewer)s AS sent, f.created, f.accepted,
                      EXISTS(SELECT 1 FROM card_connections k WHERE k.user_id=%(viewer)s AND k.member_id=u.id) AS via_card
         FROM friendships f JOIN users u ON u.id = CASE WHEN f.requester = %(viewer)s THEN f.addressee ELSE f.requester END
@@ -218,14 +218,15 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
     q = q.strip().removeprefix('@').strip()
     like = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
     with db.connect() as c:
-        rows = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent
+        rows = c.execute(f"""SELECT u.login::text AS login, {names.display_name_sql('u', '%(me)s')} AS name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent
             FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
             LEFT JOIN profile p ON p.user_id = u.id
-            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND NOT {blocked}
+            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND NOT {blocked('u.id')}
               AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
-              AND (%(q)s = '' OR u.login ILIKE %(match)s OR u.name ILIKE %(match)s)
-            ORDER BY (u.login = lower(%(q)s)) DESC, (lower(u.name) = lower(%(q)s)) DESC,
-                     (f.status = 'accepted') DESC NULLS LAST, u.name, u.login LIMIT 20""".replace('{blocked}', blocked('u.id')),
+              AND (%(q)s = '' OR u.login ILIKE %(match)s OR u.first_name ILIKE %(match)s OR
+                   (f.status='accepted' AND (u.last_name ILIKE %(match)s OR u.name ILIKE %(match)s)))
+            ORDER BY (u.login = lower(%(q)s)) DESC, (lower(u.first_name) = lower(%(q)s)) DESC,
+                     (f.status = 'accepted') DESC NULLS LAST, u.first_name, u.login LIMIT 20""",
                          {'viewer': user['id'], 'me': user['id'], 'q': q, 'match': '%' + like + '%'}).fetchall()
     rel = lambda r: 'friends' if r['status'] == 'accepted' else ('sent' if r['sent'] else 'incoming') if r['status'] else None
     return [{'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'status': rel(r)} for r in rows]
@@ -237,7 +238,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
     """An authenticated profile directory, never a bypass around activity visibility or blocking.
     as_friend (your own profile only): what a friend sees - your activities shared with friends or everyone."""
     with db.connect() as c:
-        person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created, (needs_email_confirm OR suspended_at IS NOT NULL) AS needs_email_confirm
+        person = c.execute("""SELECT id, login::text AS login, name, first_name, last_name, photo_v AS photo, created, (needs_email_confirm OR suspended_at IS NOT NULL) AS needs_email_confirm
                               FROM users WHERE login = %s AND pw_hash IS NOT NULL""", (login.lower(),)).fetchone()
         if not person or _blocked_pair(c, user['id'], person['id']):raise HTTPException(404,'Not found')
         hidden=person.pop('needs_email_confirm')
@@ -253,6 +254,8 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         relation = _pair(c, user['id'], person['id'])
         status = ('friends' if relation['status'] == 'accepted' else
                   'sent' if relation['requester'] == user['id'] else 'incoming') if relation else None
+        if not mine and not user.get('is_admin') and status != 'friends':
+            person['name'] = person['first_name']
         params = _params(user['id'], PREVIEW_TOL, person=person['id'], limit=limit + 1)
         visible = f'a.user_id = %(person)s AND {CAN_SEE}'
         if preview:
@@ -418,7 +421,7 @@ def people_suggested(user=Depends(current_user)):
                        WHERE mine_member.user_id = %(me)s AND mine_member.status = 'active' AND other.user_id <> %(me)s
                          AND q.ended_at IS NULL AND ((q.end_day + 1)::timestamp AT TIME ZONE q.zone) > now()
                        ORDER BY other.user_id, q.end_day, q.created DESC)
-            SELECT u.login::text AS login, u.name, u.photo_v AS photo, coalesce(t.n, 0) AS mutual,
+            SELECT u.login::text AS login, u.first_name AS name, u.photo_v AS photo, coalesce(t.n, 0) AS mutual,
                    shared.start_day, shared.end_day, shared.kind, shared.target, shared.unit
             FROM users u LEFT JOIN profile p ON p.user_id = u.id LEFT JOIN theirs t ON t.id = u.id LEFT JOIN shared ON shared.id = u.id
             WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND u.suspended_at IS NULL
@@ -603,7 +606,7 @@ def _achievement_badge(code, rank):
 
 def _friend_achievement_moments(c, viewer, owner_ids=None):
     q = f'''SELECT m.user_id,m.code,m.kind,m.title,m.rank,m.activity_id,m.day,m.occurred,m.details,
-                   p.units,u.login::text AS owner_login,u.name AS owner_name,u.photo_v AS owner_photo
+                   p.units,u.login::text AS owner_login,{names.display_name_sql('u')} AS owner_name,u.photo_v AS owner_photo
             FROM milestones m JOIN profile p ON p.user_id=m.user_id JOIN users u ON u.id=m.user_id
             WHERE m.user_id IN ({FRIEND_IDS}) AND p.share_achievements
               AND p.share_achievements_since IS NOT NULL AND m.occurred>=p.share_achievements_since
@@ -654,7 +657,7 @@ def _hydrate_moment_reactions(c, viewer, moments):
     owners = [m['_owner_id'] for m in moments]
     weeks = [m['_week_start'] for m in moments]
     rows = c.execute(f'''SELECT target.owner_id,target.week_start,r.user_id AS reactor_id,
-                                u.login::text AS login,u.name,u.photo_v AS photo,r.kind
+                                u.login::text AS login,{names.display_name_sql('u')} AS name,u.photo_v AS photo,r.kind
                          FROM unnest(%(owners)s::bigint[],%(weeks)s::date[]) AS target(owner_id,week_start)
                          JOIN achievement_moment_reactions r ON r.owner_id=target.owner_id AND r.week_start=target.week_start
                          JOIN users u ON u.id=r.user_id
@@ -705,9 +708,9 @@ def friends_feed(before: dt.datetime | None = None, before_id: int | None = None
 
 
 def _social(c, aid, viewer, owner):
-    cheers = c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo, ch.kind FROM cheers ch JOIN users u ON u.id = ch.user_id
+    cheers = c.execute(f"""SELECT u.login::text AS login, {names.display_name_sql('u')} AS name, u.photo_v AS photo, ch.kind FROM cheers ch JOIN users u ON u.id = ch.user_id
                            WHERE ch.activity_id = %(aid)s AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')} ORDER BY ch.created,ch.user_id""", {'aid': aid, 'viewer': viewer}).fetchall()
-    comments = c.execute(f"""SELECT cm.id, cm.text, cm.created, u.login::text AS login, u.name, u.photo_v AS photo,
+    comments = c.execute(f"""SELECT cm.id, cm.text, cm.created, u.login::text AS login, {names.display_name_sql('u')} AS name, u.photo_v AS photo,
                               (cm.user_id = %(viewer)s OR %(owner)s) AS can_delete
                             FROM comments cm JOIN users u ON u.id = cm.user_id WHERE cm.activity_id = %(aid)s AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')}
                             ORDER BY cm.created, cm.id""", {'viewer': viewer, 'owner': owner == viewer, 'aid': aid}).fetchall()
@@ -867,7 +870,7 @@ def comment_delete(cid: int, user=Depends(current_user)):
 @router.get('/blocks')
 def blocks(user=Depends(current_user)):
     with db.connect() as c:
-        return c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, b.created AS since FROM blocks b JOIN users u ON u.id = b.blocked
+        return c.execute("""SELECT u.login::text AS login, u.first_name AS name, u.photo_v AS photo, b.created AS since FROM blocks b JOIN users u ON u.id = b.blocked
                             WHERE b.user_id = %s ORDER BY u.name""", (user['id'],)).fetchall()
 
 

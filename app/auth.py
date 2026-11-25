@@ -119,7 +119,7 @@ def current_user(request: Request):
     token = session_token(request)
     if not token: raise HTTPException(401, 'Not logged in')
     with db.connect() as c:
-        row = c.execute(f"""SELECT u.id, u.login::text AS login, u.name, u.is_admin, u.photo_v, s.last_seen < now() - interval '1 hour' AS stale
+        row = c.execute(f"""SELECT u.id, u.login::text AS login, u.name, u.first_name, u.last_name, u.is_admin, u.photo_v, s.last_seen < now() - interval '1 hour' AS stale
             FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = %s AND s.last_seen > now() - interval '{SESSION_DAYS} days' AND u.suspended_at IS NULL AND u.password_change_expires IS NULL""", (_h(token),)).fetchone()
         if not row: raise HTTPException(401, 'Not logged in')
@@ -128,4 +128,4 @@ def current_user(request: Request):
             raise HTTPException(409, {'code': 'account_changed', 'message': 'The account changed. Return to the account that saved this item to send it.'})
         if row['stale']: c.execute('UPDATE sessions SET last_seen = now() WHERE token_hash = %s', (_h(token),))
         request.state.user_id = row['id']       # for the API request log (request_log.py)
-        return {'id': row['id'], 'login': row['login'], 'name': row['name'], 'is_admin': row['is_admin'], 'photo': row['photo_v']}
+        return {'id': row['id'], 'login': row['login'], 'name': row['name'], 'first_name': row['first_name'], 'last_name': row['last_name'], 'is_admin': row['is_admin'], 'photo': row['photo_v']}

@@ -94,6 +94,15 @@ class Sharing(unittest.TestCase):
         for verb,path,body in [('get',f'/api/planned-routes/{rid}',None),('get',f'/api/planned-routes/{rid}/gpx',None),('post',f'/api/planned-routes/{rid}/duplicate',{'client_id':str(uuid.uuid4())})]:
             self.assertEqual(getattr(self.c['friend'],verb)(path,**({'json':body} if body else {})).status_code,404)
         self.publish('everyone');self.shared('stranger')
+        for viewer in ('friend','stranger','admin'):
+            response=self.shared(viewer)
+            self.assertEqual(response['owner']['name'],'Fictional')
+            self.assertNotIn('last_name',json.dumps(response))
+            self.assertNotIn('Fictional owner',json.dumps(response))
+            listing=self.c[viewer].get('/api/shared-routes').json()
+            self.assertEqual(listing['rows'][0]['owner']['name'],'Fictional')
+            self.assertNotIn('last_name',json.dumps(listing))
+
         self.assertEqual(self.c['stranger'].get('/api/shared-routes').json()['rows'][0]['id'],rid)
         with db.connect() as c:c.execute('UPDATE users SET suspended_at=now() WHERE id=%s',(self.ids['owner'],))
         self.assertEqual(self.c['friend'].get(url).status_code,404)

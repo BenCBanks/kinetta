@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .dish_access import NOTICE_VISIBLE
-from . import apns, db, notification_words, notification_facts, reactions
+from . import apns, db, notification_words, notification_facts, reactions, names
 from .group_limits import MAX_MEMBERS
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
 from .activity_metrics import week_streak as activity_week_streak
@@ -310,10 +310,10 @@ def summary_tick(now=None):
 
 
 # ---------- reading: the words are made here ----------
-_LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,n.group_friend_invite_id,
+_LIST = f"""SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,n.group_friend_invite_id,
              q.kind AS challenge_kind, q.target AS challenge_target, q.unit AS challenge_unit, q.start_day, q.end_day,
              n.group_id,g.title AS group_title,
-             u.login::text AS login, u.name, u.photo_v AS photo, recipient.name AS recipient_name,
+             u.login::text AS login, {names.display_name_sql('u', 'n.user_id')} AS name, u.photo_v AS photo, recipient.name AS recipient_name,
              a.name AS activity, a.user_id AS activity_owner, a.updated, a.start_time, a.lift_open, a.distance_m::double precision AS distance_m, a.moving_s, a.elapsed_s, a.sport, a.sub_sport, a.sport_label,
              (a.sport='workout' AND EXISTS(SELECT 1 FROM lift_sets ls WHERE ls.activity_id=a.id AND ls.user_id=n.user_id)) AS has_lifts,
              p.units, p.tz, ms.generation, m.title AS milestone_title, d.name AS dish, cm.text AS comment
