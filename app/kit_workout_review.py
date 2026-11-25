@@ -37,10 +37,16 @@ JARGON_DENY = re.compile(r'\b(?:cardiovascular load|physiological|metabolic|aero
 FELT_CLAIM = re.compile(r'\b(?:felt|feel|feels|feeling|harder|easier|tough|tired|struggl\w*)\b', re.I)
 HONEST_FEELING = re.compile(r"\bcan['’]t tell how it felt\b", re.I)
 NOTE_INSTRUCTION = re.compile(r'\badd a note\b[^.!?]*', re.I)
-WORKOUT_PLACEHOLDER_WORDS = frozenset({'also','by','in','past','previous','recent'})
+WORKOUT_PLACEHOLDER_WORDS = frozenset({'also','by','in','past','previous','recent','lasting'})
 WORKOUT_PLACEHOLDER = re.compile(r'\{(e[1-9][0-9]*):([0-4])\}')
 SENTENCE_END = re.compile(r'(?<!vs)[.!?](?:\s|$)', re.I)
 BANNED_BASELINE_WORDS = re.compile(r'\b(?:baseline|median)\b', re.I)
+PRAISE_WORDS = re.compile(r'\b(?:great|good job|well done|nice|awesome)\b', re.I)
+UNSUPPORTED_QUALITATIVE = re.compile(r'\b(?:consistent(?:ly)?|consistency|typical(?:ly)?|steady)\b', re.I)
+FILLER_SENTENCES = re.compile(
+    r'\b(?:that covers the recorded difference|you completed your recorded (?:ride|run|walk|swim|workout)|'
+    r'that matches your (?:typical|usual))\b', re.I)
+NO_HISTORY_COMPARISON = re.compile(r'\b(?:there\s+is\s+)?not enough\b[^.!?]{0,100}\b(?:history|workouts?|runs?)\b[^.!?]{0,80}\b(?:to compare|make a comparison|to make a comparison|for comparison)\b', re.I)
 COMPARISON_WORD = re.compile(r'\b(?:faster|slower|quicker|higher|lower|same|usual|than|versus|vs\.?|compared|comparison)\b', re.I)
 RELATION_WORDS = {
     'faster': {'pace_s_per_km':'faster','speed_mps':'faster'},
@@ -105,9 +111,12 @@ In a comparison, do not cite current values, distance or duration; use the app-c
 when there is no baseline may you mention one current value, and only when needed to answer the question. Never
 write “baseline” or “median”. For an unchanged metric, write “within” followed by its matching delta fact. Never
 compare with an unnamed or invented baseline.
-Use ordinary words; avoid physiology or training jargon. Write 2–4 short sentences total. For a PR or
-longest_90d notable, mention it in the verdict. The app chooses the next step and follow-ups; do not include
-either in your answer.
+Use ordinary words; avoid physiology and training jargon. Write one or two short sentences. If there is a
+comparison, sentence one states the difference against {baseline}, naming any notable first; sentence two is
+only for a heart-rate difference. No praise, filler, or claims about consistency, typical performance, or steadiness.
+If there is no baseline, give one plain sentence from a current fact; the app displays the history state. For a PR
+or longest_90d notable, mention it first in sentence one. The app chooses the next step and follow-ups; do not
+include either in your answer.
 
 Return JSON only with exactly these keys:
 {"facts":[],"workout_review":{"verdict":"..."}}
@@ -282,7 +291,11 @@ def _check_relations(text, data):
         return
     relations = data.get('relations') or {}
     if data.get('status') != 'compared' or data.get('baseline_count', 0) < 2:
-        _reject('relation_unsupported')
+        without_history_clause = NO_HISTORY_COMPARISON.sub('', text)
+        if (COMPARISON_WORD.search(without_history_clause)
+                or any(pattern.search(without_history_clause) for pattern in NOTABLE_WORDS.values())):
+            _reject('relation_unsupported')
+        return
     text = re.sub(r'\bvs\.\s*', 'vs ', text, flags=re.I)
     sport_metric = 'pace_s_per_km' if data.get('sport') in {'run','walk','hike'} else 'speed_mps'
     for clause in re.split(r'[.!?;,]|\b(?:and|but|while|whereas)\b', text, flags=re.I):
@@ -363,6 +376,12 @@ def checked_answer(raw, evidence):
     # phrase already contains it. Normalize that one redundant possessive
     # before validation and final substitution.
     model_verdict = re.sub(r'\byour\s+(?=\{baseline\})', '', review.verdict, flags=re.I)
+    if not comparison_exists:
+        # Older answers redundantly describe the no-history state in model prose;
+        # the app already presents it, so retain only the useful summary sentence.
+        model_verdict = re.sub(
+            r'\s*(?:This recorded activity has a summary only )?without comparable baseline workouts\.?',
+            '', model_verdict, flags=re.I)
     baseline_tokens = model_verdict.count('{baseline}')
     if not comparison_exists and baseline_tokens:
         _reject('relation_unsupported')
@@ -394,9 +413,36 @@ def checked_answer(raw, evidence):
     _check_relations(relation_verdict, compare['data'])
     if comparison_exists and baseline_tokens not in (1, 2):
         _reject('voice_invalid')
-    verdict_sentences = len(SENTENCE_END.findall(model_verdict.strip()))
-    if not (1 <= verdict_sentences <= 3):
+    verdict_sentences = [part.strip() for part in SENTENCE_END.split(model_verdict.strip()) if part.strip()]
+    if not (1 <= len(verdict_sentences) <= 3):
         _reject('voice_invalid')
+    if (PRAISE_WORDS.search(verdict) or UNSUPPORTED_QUALITATIVE.search(verdict)
+            or FILLER_SENTENCES.search(verdict)):
+        _reject('voice_invalid')
+    if comparison_exists and len(verdict_sentences) > 1:
+        hr_delta_index = next((i for i, fact in enumerate(facts)
+                               if fact['path'] == ['deltas','avg_hr']), None)
+        hr_pattern = re.compile(r'\b(?:heart rate|HR)\b', re.I)
+        def is_hr_sentence(sentence):
+            return (hr_delta_index is not None and f'{{e2:{hr_delta_index}}}' in sentence
+                    and hr_pattern.search(sentence))
+        notable_first = (len(verdict_sentences) >= 2 and any(
+            pattern.search(verdict_sentences[0]) and compare['data'].get('notable') == notable
+            for notable, pattern in NOTABLE_WORDS.items()))
+        if notable_first and WORKOUT_PLACEHOLDER.search(verdict_sentences[0]) and COMPARISON_WORD.search(verdict_sentences[0]):
+            notable_first = False
+        comparison_parts = verdict_sentences[1:] if notable_first else verdict_sentences
+        if (notable_first and not any(WORKOUT_PLACEHOLDER.search(part) for part in comparison_parts[:1])):
+            _reject('voice_invalid')
+        if len(comparison_parts) > 2 or not WORKOUT_PLACEHOLDER.search(comparison_parts[0]):
+            _reject('voice_invalid')
+        if len(comparison_parts) == 2 and not is_hr_sentence(comparison_parts[1]):
+            _reject('voice_invalid')
+    elif not comparison_exists and len(verdict_sentences) == 2:
+        # A no-history sentence is useful when paired with one current fact;
+        # all other second sentences are filler or unsupported claims.
+        if not NO_HISTORY_COMPARISON.search(verdict_sentences[1]):
+            _reject('voice_invalid')
     if comparison_exists:
         delta_index = next((i for i, fact in enumerate(facts) if fact['path'][0] == 'deltas'), None)
         refs = {int(i) for i in re.findall(r'\{e2:([0-4])\}', model_verdict)}
