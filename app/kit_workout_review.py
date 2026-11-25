@@ -277,8 +277,8 @@ def checked_answer(raw, evidence):
     # a pace fact ending in “faster” and an HR fact ending in “lower”). Keep
     # those app-computed labels out of the prose relation check so each claim
     # is checked against the metric the person actually named.
-    relation_verdict = coach_chat.PLACEHOLDER.sub('', review.verdict)
-    relation_next_step = coach_chat.PLACEHOLDER.sub('', review.next_step)
+    relation_verdict = coach_chat.PLACEHOLDER.sub(lambda match: match.group(0)[:0], review.verdict)
+    relation_next_step = coach_chat.PLACEHOLDER.sub(lambda match: match.group(0)[:0], review.next_step)
     _check_relations(relation_verdict, compare['data'])
     _check_relations(relation_next_step, compare['data'])
     verdict_sentences = len(SENTENCE_END.findall(review.verdict.strip()))
