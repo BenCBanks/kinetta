@@ -9,6 +9,7 @@ DRY_RUN=0
 OFFLINE_SMOKE=0
 SETTING_SMOKE=0
 REUSE_LOW=""
+GATE_RESUME=""
 SMOKE_THINKING="LOW"
 CACHE_TEMP=""
 BASELINE=""; BASELINE_COMMIT=""; CANDIDATE_COMMIT=""; BUDGET="2.50"
@@ -25,7 +26,8 @@ while (($#)); do
       esac
       shift 2 ;;
     --setting-smoke) SETTING_SMOKE=1; shift ;;
-    --reuse-low|--resume) REUSE_LOW="$2"; shift 2 ;;
+    --reuse-low) REUSE_LOW="$2"; shift 2 ;;
+    --resume) GATE_RESUME="$2"; shift 2 ;;
     --smoke-thinking) SMOKE_THINKING="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --offline-smoke) OFFLINE_SMOKE=1; shift ;;
@@ -34,6 +36,8 @@ while (($#)); do
   esac
 done
 [[ -f "$BASELINE" && -n "$BASELINE_COMMIT" && -n "$CANDIDATE_COMMIT" && -n "$BUDGET" ]] || { usage >&2; exit 2; }
+if [[ -n "$GATE_RESUME" && "$SETTING_SMOKE" == 1 ]]; then REUSE_LOW="$GATE_RESUME"; GATE_RESUME=""; fi
+[[ -z "$GATE_RESUME" || -f "$GATE_RESUME" ]] || { echo "Resume capture does not exist" >&2; exit 2; }
 [[ -z "$REUSE_LOW" || ( "$SETTING_SMOKE" == 1 && -f "$REUSE_LOW" ) ]] || { echo "LOW cache requires setting smoke and a real file" >&2; exit 2; }
 ((DRY_RUN + OFFLINE_SMOKE <= 1)) || { usage >&2; exit 2; }
 BASELINE_COMMIT="$(git -C "$ROOT" rev-parse --verify "$BASELINE_COMMIT^{commit}")"
@@ -124,7 +128,7 @@ fi
 
 # The production image excludes dev/. Copy only the isolated evaluation sources.
 compose exec -T -u 0 app mkdir -p /srv/dev/evals
-for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_setting_smoke.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py; do
+for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_gate_resume.py kit_setting_smoke.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py; do
   compose cp "$ROOT/dev/evals/$source" "app:/srv/dev/evals/$source"
 done
 compose cp "$BASELINE" app:/tmp/kit-eval-baseline-coach.py
@@ -133,6 +137,10 @@ OPTIONS=(--gate --variant both --baseline /tmp/kit-eval-baseline-coach.py
   --baseline-commit "$BASELINE_COMMIT" --candidate-commit "$CANDIDATE_COMMIT"
   --budget-usd "$BUDGET" --output "$CONTAINER_OUTPUT")
 if ((SETTING_SMOKE == 1)); then OPTIONS+=(--setting-smoke --smoke-thinking "$SMOKE_THINKING"); fi
+if [[ -n "$GATE_RESUME" ]]; then
+  compose cp "$GATE_RESUME" app:/tmp/kit-gate-resume.json
+  OPTIONS+=(--resume /tmp/kit-gate-resume.json)
+fi
 if [[ -n "$REUSE_LOW" ]]; then
   CACHE_TEMP="$(mktemp)"
   rm -f "$CACHE_TEMP"

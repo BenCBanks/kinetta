@@ -71,10 +71,10 @@ def main():
             # Model 80 responses with two provider attempts each, exercising real
             # dollar/attempt limits (no network). Larger actual runs still stop safely.
             with ai_budget.scope(uids[0], feature='Offline gate budget proof'):
-                for _ in range(160):
+                for index in range(160):
                     rid = ai_budget.reserve('gemini-3.8-flash', 'offline',
                         {'contents': [{'text': 'fictional '*2000}],
-                         'generationConfig': {'maxOutputTokens': 4096}})
+                         'generationConfig': {'maxOutputTokens': 8192 if index%2==0 else 16384}})
                     ai_budget.settle(rid, {'usageMetadata': {
                         'promptTokenCount': 3000, 'candidatesTokenCount': 700}})
                     ai_budget.finish(rid)

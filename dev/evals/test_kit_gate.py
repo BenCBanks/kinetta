@@ -37,7 +37,7 @@ class KitGatePreflight(unittest.TestCase):
         args = [sys.executable,'-c',BOOTSTRAP,str(ROOT),
                 '--baseline',str(self.baseline),'--baseline-commit','fictional-baseline',
                 '--candidate-commit','fictional-candidate','--output',str(self.output),
-                '--budget-usd','1',*options]
+                '--budget-usd','2.50',*options]
         return subprocess.run(args,capture_output=True,text=True,env={'PATH':'/usr/bin:/bin'})
 
     def test_forty_case_dry_run_never_touches_provider_or_database(self):
@@ -70,6 +70,22 @@ class KitGatePreflight(unittest.TestCase):
             result = self.run_eval('--gate',*options)
             self.assertNotEqual(result.returncode,0)
             self.assertFalse(self.output.exists())
+
+    def test_resume_dry_run_keeps_prior_spend_and_skips_completed_pair(self):
+        initial=self.run_eval('--gate','--dry-run')
+        self.assertEqual(initial.returncode,0,initial.stderr)
+        report=json.loads(self.output.read_text());self.output.unlink()
+        report.update(reserved_or_estimated_usd=.05,requests=4,results=[
+            {'case':'meal','variant':variant,'passed':True,'provider_requests':2,'answer':{'interpretation':'Fictional'}}
+            for variant in ('baseline','candidate')])
+        previous=self.directory/'prior.json';previous.write_text(json.dumps(report))
+        result=self.run_eval('--gate','--dry-run','--resume',str(previous))
+        self.assertEqual(result.returncode,0,result.stderr)
+        resumed=json.loads(self.output.read_text())
+        self.assertEqual(resumed['reused_responses'],2)
+        self.assertEqual(resumed['budget_preflight']['responses_remaining'],78)
+        self.assertEqual(resumed['remaining_budget_usd'],2.45)
+        self.assertEqual(resumed['provider_calls'],0)
 
 
 class KitGateRuntime(unittest.TestCase):

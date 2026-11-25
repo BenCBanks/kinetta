@@ -8,7 +8,20 @@ capture provides evidence for the new workout-review mode; it does not replace t
 
 ## Prepare exact revisions
 
-Work in the candidate checkout. Choose the approved pre-change baseline revision and export
+For the integrated coach batch, work on `kit-coach-batch`. The owner-confirmed live baseline
+is `f6e7bbf8`. This entry point pins its unchanged module bytes and the clean candidate HEAD:
+
+```sh
+dev/evals/run_kit_batch_gate.sh --dry-run
+# Owner only, with GEMINI_API_KEY already exported:
+dev/evals/run_kit_batch_gate.sh
+# Same revisions, inputs and UTC/account-local dates:
+dev/evals/run_kit_batch_gate.sh --resume /private/partial-gate.json --dry-run
+dev/evals/run_kit_batch_gate.sh --resume /private/partial-gate.json
+```
+
+The underlying wrapper also accepts `--resume`. To choose an explicitly approved different
+baseline with that lower-level wrapper, export
 its module to a private file outside the repository. The wrapper verifies that file against
 `BASELINE_COMMIT:app/coach_chat.py`, and requires `CANDIDATE_COMMIT` to match the clean checkout.
 
@@ -54,13 +67,29 @@ dev/evals/run_kit_eval.sh \
 
 No key argument or key file is accepted. Only the evaluator process receives the key; the
 app service has AI off and no provider credentials. The evaluator runs Gemini 3.8 Flash with
-the answer path's existing LOW setting. Application reservation limits are set to 90% of
-the supplied cap, across every fictional account. The default/maximum run allowance is
+the answer path's existing LOW setting. Application reservation limits equal
+the supplied allowance, across every fictional account. The default/maximum run allowance is
 $2.50 (the same hard cap in padded application reservations); account and service attempt caps are 1000,
-only inside the evaluator process. Production settings are unchanged. At most two
-responses are in flight; a cap stops new scheduling immediately after that pair,
+only inside the evaluator process. Production settings are unchanged. One
+full-gate response is in flight; a cap stops new scheduling immediately,
 prints a clear abort reason, saves partial evidence and exits unsuccessfully. This command is one paid run within the
 owner's cumulative allowance; never retry/reset the database to evade that allowance.
+
+The same preflight runs before paid execution and in dry-run: eighty responses at a planning
+estimate of $0.025 each, plus $0.30 padded-reservation headroom, fit the $2.50 cap. Up to six
+provider attempts per response means 480 attempts, below both disposable 1000-attempt caps.
+This is an estimate, not a guarantee that unusually expensive answers fit; the real SQL ledger
+always reserves before each request and stops at the remaining dollar cap.
+
+Full-gate resume binds both revisions, baseline bytes, selected cases, fictional seed and
+UTC/account-local dates. It carries all prior spend into the same $2.50 cumulative allowance,
+retains completed answers and terminal failures, and calls only missing/unpaid cases. A source
+or date change refuses reuse before any provider call. Human review is reset on every output.
+Reports checkpoint after every result and immediately after each paid reservation. An
+interruption during a paid response is retained as an unsuccessful interrupted row with a
+conservative reserved cost, never automatically repaid. Such a row blocks release approval;
+resume cannot recover a response lost during process interruption. A cap before the first
+paid attempt is safe to resume. Captured answers and paid requests are never silently bought twice.
 
 The wrapper prints the host path `.../kit-gate-<UTC timestamp>-<process ID>.json` on exit.
 It lives in the wrapper's private backup output directory, next to workout captures.

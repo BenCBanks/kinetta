@@ -146,12 +146,15 @@ medical diagnoses, personal numbers, or capabilities. Ask a concise clarificatio
 Use profile for units and local date, body_profile for body measurements, and app_features for supported actions.
 Every quantitative value must come from an exact finite numeric field in a successful current-turn tool result.
 Put up to eight facts in facts: {"evidence_id":"e2","path":["totals","distance_m"],"value":5000}.
+Each path starts inside that evidence's data object. Never prefix the path with "data" or move a fact to another evidence ID.
 In block text use {e2:0}: evidence ID and zero-based index into the entire facts array (zero through seven).
 The app supplies only the rounded value and unit, never a metric label. Name the metric naturally in your prose. Keep each placeholder separate from any unit or additional number;
 use framing such as "The recorded value was {e2:0}." Never append units, do arithmetic, or invent quantities in words.
 Only cite permitted measurements, not dates, identifiers, names, strings or unknowns.
 Do not write race-name digits or completed-set/logged-day counts in prose without a supported fact placeholder.
 For general suggestions prefer plain prose such as "Start by logging a regular meal" rather than numeric targets.
+Describe strength sets naturally: "{e2:0} reps at {e2:1}." The first fact is reps, the second is weight; do not add "one set" or verbose count wording.
+For a proposed meal, include one short sentence with its known calories and protein, citing the selected candidate's totals. Do not omit these to avoid references; omit extra nutrient details unless asked.
 Use totals and known subtotals accurately; incomplete food logs cannot establish a calorie deficit or complete intake.
 Prior chat values cannot supply evidence. A longer run alone does not establish improved fitness.
 Use each fact only for its own metric. Use app-computed comparisons when available; distinguish general advice from personal results. Never infer
@@ -207,7 +210,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
     from . import kit_claims
     blocks = []
     for block in answer.blocks:
-        texts = [block.text] if isinstance(block, Paragraph) else block.items
+        texts = [natural_measurements(text,facts) for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
         limit = 1600 if isinstance(block, Paragraph) else 600
         rendered = []
         for text in texts:
@@ -225,10 +228,43 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
     kit_claims.validate(texts, facts, evidence, question=user_question(question), reference=REFERENCE)
     interpretation = '\n\n'.join(block['text'] if block['kind']=='paragraph'
                                  else '\n'.join('• '+item for item in block['items']) for block in blocks)
+    summary=meal_summary(checked['selection'],facts,texts)
+    if summary:
+        if len(blocks)>=10:raise ValueError('No room for meal summary')
+        blocks.append({'kind':'paragraph','text':summary})
+        interpretation+='\n\n'+summary
     if len(interpretation.split()) > 600:
         raise ValueError('Conversation exceeds requested length')
     return dict(answer_blocks=blocks, interpretation=interpretation, facts=facts,
                 selection=checked['selection'], actions=checked['actions'], follow_ups=checked['follow_ups'])
+
+
+def meal_summary(selection,facts,texts):
+    # Selection already belongs to an allowed current-turn candidate. An omitted
+    # model fact must not hide its two most useful known measurements.
+    import math
+    if not selection or selection.get('kind')!='food':return None
+    totals=selection.get('candidate',{}).get('totals',{})
+    if any(type(totals.get(k)) not in (int,float) or not math.isfinite(totals[k]) for k in ('kcal','protein_g')):return None
+    used={int(m[2]) for text in texts for m in REFERENCE.finditer(text)}
+    cited={f['path'][-1] for i,f in enumerate(facts) if i in used and f['tool']=='meal_combinations'
+           and f['path'][:1]==['candidates'] and len(f['path'])==4
+           and str(f['path'][1])==selection['candidate_id']}
+    if {'kcal','protein_g'}<=cited:return None
+    return f"This meal provides {coach_chat._compact_number(totals['kcal'])} kcal and {coach_chat._compact_number(totals['protein_g'])} g protein."
+
+
+def natural_measurements(text,facts):
+    # Two exact captured constructions; references still pass the ordinary exact
+    # path/value/unit checks. Never treat an appended unit as generic prose.
+    def field(slot):
+        match=REFERENCE.fullmatch(slot);i=int(match[2])
+        return facts[i]['path'][-1] if i<len(facts) and facts[i]['evidence_id']==match[1] else None
+    slot=r'(\{e[1-9][0-9]*:[0-7]\})'
+    text=re.sub(slot+r' in moving time\b',lambda m:m[1]+' of moving time'
+                if field(m[1]) in {'duration_s','moving_s'} else m[0],text)
+    return re.sub(r'A set with repetitions counted at '+slot+r' and weight of '+slot,
+                  lambda m:m[1]+' reps at '+m[2] if field(m[1])=='reps' and field(m[2])=='kg' else m[0],text)
 
 
 WEEKLY_SYSTEM = SYSTEM + """

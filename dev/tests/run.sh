@@ -42,6 +42,7 @@ python3 dev/tests/ai_fingerprints.py
 python3 dev/evals/test_food_memory_score.py
 python3 dev/evals/test_workout_review_report.py
 python3 dev/evals/test_kit_gate.py
+python3 dev/evals/test_kit_gate_resume.py
 python3 dev/evals/test_kit_setting_smoke.py
 
 echo "== syntax"
@@ -277,6 +278,8 @@ docker compose -p "$P" cp dev/evals/fixtures/kit-smoke4-replay.json app:/tmp/kit
 docker compose -p "$P" exec -T app mkdir -p /tmp/kit-smoke4-evals
 docker compose -p "$P" cp dev/evals/kit_weekly_fixtures.py app:/tmp/kit-smoke4-evals/kit_weekly_fixtures.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke4_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-smoke5-replay.json app:/tmp/kit-smoke5-fixtures.json
+docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke5_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/garmin_connect_incontainer.py

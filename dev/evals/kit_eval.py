@@ -12,6 +12,7 @@ from kit_cases import CASES
 from kit_gate_cases import GATE_CASE_IDS
 from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_rows, replay_row
 from kit_eval_support import DEFAULT_BUDGET_USD, valid_budget, load_baseline, configure_budget, capped, bounded_results, cap_reason
+from kit_gate_resume import identity as gate_identity, resume_rows, preflight, serial_results
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
                                  run_weekly_answer, is_expected_health_consent_refusal,
                                  seed_fixture, seed_other_account)
@@ -20,6 +21,7 @@ p=argparse.ArgumentParser()
 p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,default=DEFAULT_BUDGET_USD)
 p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',required=True);p.add_argument('--candidate-commit',required=True)
 p.add_argument('--output',required=True);p.add_argument('--baseline-results')
+p.add_argument('--resume',help='Resume an exact-input full gate without repaying completed or interrupted paid rows')
 p.add_argument('--variant',choices=('both','baseline','candidate'),default='both')
 p.add_argument('--cases',action='append',metavar='ID',help='case ID; repeat or use comma-separated IDs')
 p.add_argument('--dry-run',action='store_true',help='Validate inputs and write private metadata only; no provider/database calls')
@@ -46,6 +48,7 @@ except ValueError as error:p.error(str(error))
 if args.gate and len(selected_cases)!=(10 if args.setting_smoke else 40):p.error('Invalid fixed comparison case set')
 if args.setting_smoke and (not args.gate or args.budget_usd>CAP_USD or args.baseline_commit!=args.candidate_commit):
  p.error('Setting smoke requires identical code, both variants and a budget at most $0.45')
+if args.resume and (not args.gate or args.setting_smoke or args.baseline_results):p.error('--resume requires a full gate')
 baseline_path=Path(args.baseline)
 if not baseline_path.is_file():p.error('Baseline file does not exist')
 # Compile without importing: dry-run cannot initialize provider/database logic.
@@ -56,6 +59,18 @@ metadata={'reviewed':False,'complete':False,'dry_run':args.dry_run,
  'case_count':len(selected_cases),'selected_case_ids':[case[0] for case in selected_cases],
  'budget_usd':args.budget_usd,'provider_calls':0 if args.dry_run else None}
 reused=[]
+if args.gate and not args.setting_smoke:
+ metadata.update(gate_resume_version=1,input_digest=gate_identity(root,selected_cases,args.baseline_commit,
+                 args.candidate_commit,metadata['baseline_sha256']))
+ if args.resume:
+  try:
+   previous=json.loads(Path(args.resume).read_text())
+   reused,metadata['prior_spend_usd']=resume_rows(previous,metadata['input_digest'],metadata['selected_case_ids'])
+   metadata['prior_requests']=previous.get('requests',0)
+  except (ValueError,OSError) as error:p.error(str(error))
+ try:metadata['budget_preflight']=preflight(args.budget_usd,metadata.get('prior_spend_usd',0),80-len(reused))
+ except ValueError as error:p.error(str(error))
+ print(json.dumps({'budget_preflight':metadata['budget_preflight']}),flush=True)
 settings={'baseline':'LOW'} if args.smoke_thinking=='LOW' else {'baseline':'LOW','candidate':'MEDIUM'}
 if args.setting_smoke:
  metadata.update(setting_smoke=True,input_digest=input_digest(root,selected_cases,ai_release.FILES['kit']),
@@ -71,7 +86,7 @@ if args.setting_smoke:
   except ValueError as error:p.error(str(error))
 metadata['reused_responses']=len(reused)
 remaining_budget=args.budget_usd-metadata.get('prior_spend_usd',0)
-if remaining_budget<=0:p.error('Resume capture already spent this run allowance')
+if remaining_budget<=0 and len(reused)<80:p.error('Resume capture already spent this run allowance')
 metadata['remaining_budget_usd']=remaining_budget
 
 def save_report(value):
@@ -85,7 +100,7 @@ if args.dry_run:
  print(json.dumps({'dry_run':True,'cases':len(selected_cases),'provider_calls':0,'output':str(output)}),flush=True)
  raise SystemExit(0)
 # Conservative global reservation limits apply across every fictional account.
-configure_budget(remaining_budget)
+configure_budget(max(remaining_budget,.000001))
 os.environ['GEMINI_MODEL']='gemini-3.8-flash'
 baseline=load_baseline(args.baseline)
 if args.setting_smoke:
@@ -93,7 +108,8 @@ if args.setting_smoke:
  coach_chat._gemini_turn=partial(coach_chat._gemini_turn,thinking_level=settings.get('candidate','LOW'))
 baseline.KitAnswer.model_json_schema()  # Fail before any paid call if forward references regress.
 metadata.update(candidate_fingerprint=ai_release.kit_fingerprint(),ai_text=ai_release.ai_text('kit'),models=ai_release.models('kit'))
-save_report(metadata)
+save_report({**metadata,'results':reused,'reserved_or_estimated_usd':metadata.get('prior_spend_usd',0),
+             'requests':metadata.get('prior_requests',0)})
 today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
 diagnostics=RejectionDiagnostics(coach_chat)
 diagnostics.attach(baseline)
@@ -105,6 +121,22 @@ def provider_requests_for(user_id,request_id):
  with db.connect() as c:
   return c.execute('SELECT count(*) AS requests FROM ai_food_attempts WHERE user_id=%s AND request_id=%s',
                     (user_id,request_id)).fetchone()['requests']
+
+def ledger_totals():
+ with db.connect() as c:
+  return c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
+
+def paid_checkpoint(item):
+ # after_reserve runs after the ledger commits, before any HTTP call. If the
+ # process dies, preserve that paid/possibly charged attempt instead of repaying.
+ if args.gate and not args.setting_smoke:
+  i,v,case=item;cost=ledger_totals()
+  pending={'case':case[0],'variant':v,'passed':False,'answer':None,
+           'error':'Interrupted paid response; retained without automatic repayment.',
+           'provider_requests':1,'provider_requests_lower_bound':True,'interrupted':True}
+  save_report({**metadata,'results':results+[pending],
+               'reserved_or_estimated_usd':metadata.get('prior_spend_usd',0)+float(cost['n'])/1e6,
+               'requests':metadata.get('prior_requests',0)+cost['requests']})
 try:
  with db.connect() as c:
   for suffix in ('a','b','health_off'):
@@ -239,15 +271,19 @@ try:
                     'validation_error':(rejection or {}).get('validation_error'),'provider_requests':provider_requests}),flush=True)
   return row
  previous=json.loads(Path(args.baseline_results).read_text()) if args.baseline_results else {}
- if not args.setting_smoke:
+ if not args.setting_smoke and not args.gate:
   reused=[r for r in previous.get('results',[]) if r['variant']=='baseline' and (not requested_cases or r['case'] in requested_cases)]
  results.extend(reused)
  done={(r['variant'],r['case']) for r in reused}
  variants=tuple(settings) if args.setting_smoke else (('baseline','candidate') if args.variant=='both' else (args.variant,))
  jobs=[(i,v,case) for i,case in enumerate(selected_cases) for v in variants if (v,case[0]) not in done]
- for result in bounded_results(run,jobs,workers=1 if args.setting_smoke else 2) if jobs else [None]:
+ def run_checkpointed(item):
+  with ai_budget.after_reserve(lambda _:paid_checkpoint(item)):return run(item)
+ stream=(serial_results(run_checkpointed,jobs) if args.gate and not args.setting_smoke else
+         bounded_results(run,jobs,workers=1 if args.setting_smoke else 2))
+ for result in stream if jobs else [None]:
   if result is not None:results.append(result)
-  with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
+  cost=ledger_totals()
   failed_cases=[r['case'] for r in results if not r.get('passed')]
   expected={(variant,case[0]) for variant in variants for case in selected_cases}
   completed={(row['variant'],row['case']) for row in results}
@@ -258,9 +294,9 @@ try:
           'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,
           'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(selected_cases),
           'selected_case_ids':[case[0] for case in selected_cases],
-          'baseline_results_reused':bool(args.baseline_results),'results':results,
+          'baseline_results_reused':bool(args.baseline_results or args.resume),'results':results,
           'reserved_or_estimated_usd':metadata.get('prior_spend_usd',0)+float(cost['n'])/1e6,
-          'new_spend_usd':float(cost['n'])/1e6,'requests':cost['requests'],
+          'new_spend_usd':float(cost['n'])/1e6,'requests':metadata.get('prior_requests',0)+cost['requests'],
           'reused_responses':len(reused),'new_responses':len(results)-len(reused),
           'owner_qualitative_review':'pending',
           'kit':{'case_count':sum(row['variant']=='candidate' for row in results),

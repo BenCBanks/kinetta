@@ -87,7 +87,9 @@ def weekly_boundary_words():
 
 
 def additional_measurement(tool, path):
-    return (daily_nutrition_path(tool,path) or tool=='period_compare' and path==['change','workouts','absolute']
+    return (daily_nutrition_path(tool,path) or tool=='nutrition_adequacy' and path==['logged_days']
+            or tool=='meal_combinations' and len(path)==2 and path[0]=='remaining' and path[1] in coach_chat._NUTRIENTS
+            or tool=='period_compare' and path==['change','workouts','absolute']
             or tool=='training_plan' and path==['plan','runs']
             or tool=='goals' and len(path)==3 and path[0]=='activity_goals'
             and type(path[1]) is int and path[1]>=0 and path[2]=='target')
