@@ -8,7 +8,7 @@ assert os.environ.get('KINETTA_KIT_EVAL_ISOLATED')=='1'
 uid=None
 try:
     with db.connect() as c:
-        uid=c.execute('INSERT INTO users(login) VALUES (%s) RETURNING id',('zz_test_smoke_caps_'+uuid.uuid4().hex,)).fetchone()['id']
+        uid=c.execute("INSERT INTO users(login,name) VALUES (%s,'Fictional cap test') RETURNING id",('zz_test_smoke_caps_'+uuid.uuid4().hex,)).fetchone()['id']
     configure_budget(.45)
     with patch.dict(os.environ,{'KINETTA_AI_ENABLED':'1'}),patch('urllib.request.urlopen',side_effect=AssertionError('No provider calls')):
         with ai_budget.scope(uid,feature='Offline smoke budget proof'):
@@ -50,7 +50,7 @@ def response(request,**kwargs):
 uid=None
 try:
     with db.connect() as c:
-        uid=c.execute('INSERT INTO users(login) VALUES (%s) RETURNING id',('zz_test_reservation_'+uuid.uuid4().hex,)).fetchone()['id']
+        uid=c.execute("INSERT INTO users(login,name) VALUES (%s,'Fictional cap test') RETURNING id",('zz_test_reservation_'+uuid.uuid4().hex,)).fetchone()['id']
         c.execute("UPDATE ai_service_budget SET charged_micros=217723 WHERE day=(now() AT TIME ZONE 'UTC')::date")
     configure_budget(.405) # exact prior smoke's effective cap
     with patch.dict(os.environ,{'KINETTA_AI_ENABLED':'1','GEMINI_API_KEY':'offline-stand-in'}), \
