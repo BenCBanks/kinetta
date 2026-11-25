@@ -2916,6 +2916,8 @@ async function showReset(token = location.hash.slice(1)) {
   try { info = await api('/api/password/reset/check', json('POST', {token}));if(typeof info?.login!=='string')throw Error('Password reply was incomplete.'); }
   catch (x) {
     if(!active())return;
+    // Do not leave a bearer token visible after a failed lookup; the retry keeps it in this closure.
+    if(location.hash) history.replaceState(null, '', '/reset-password');
     if(![404,410].includes(x.status))return enrollmentStatus('Password reset couldn’t load','Your reset link is kept. Try again.',()=>showReset(token));
     root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This link doesn't work</h1><p>${esc(x.message)}</p><a class="primary wide" href="/forgot-password" id="r-again">Send a new link</a></div></div>`;
     $('#r-again', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showForgot(); };

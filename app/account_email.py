@@ -410,6 +410,19 @@ class ResetCheckIn(BaseModel):
     token: str = Field(max_length=100)
 
 
+@router.get('/api/password/reset/{token}')
+def reset_info_legacy(token: str, request: Request):
+    """Legacy path-token lookup kept for one release for cached app links.
+
+    Remove after the next TestFlight build + 60 minutes; old shipped bundles may
+    still open a valid reset link with the token in the path.
+    """
+    token_limit(request, 'reset-ip:', 30)
+    with db.connect() as c:
+        r = _open(c, token, 'reset_password')
+    return {'login': r['login']}
+
+
 @router.post('/api/password/reset/check')
 def reset_info(body: ResetCheckIn, request: Request):
     """Check a reset token without putting it in a URL or access log."""
