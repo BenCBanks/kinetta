@@ -59,6 +59,19 @@ def multi_metric_answer(data):
 
 CASES = [
     fixture('run faster metric',data=comparison(),expected_display='12 s/km faster'),
+    fixture('real Gemini dotted-path response',units='imperial',
+        data={**comparison(),'deltas':{'pace_s_per_km':14},'relations':{'pace_s_per_km':'slower'}},
+        raw={'facts':[
+            {'evidence_id':'e2','path':'baseline_count','value':3},
+            {'evidence_id':'e2','path':'deltas.pace_s_per_km','value':14},
+        ],'workout_review':{
+            'verdict':'Compared with your last {e2:0} runs, your pace was slower by {e2:1}.',
+            'next_step':'Add a note.'},
+            'follow_ups':['Compare it with my last run on this route','Show my heart rate details']},
+        expected='pass'),
+    fixture('reject unknown dotted fact path',raw={**answer(data=comparison()),'facts':[
+        {'evidence_id':'e2','path':'deltas.unlisted_metric','value':-12},
+    ]},expected='answer_shape'),
     fixture('run slower imperial',units='imperial',data={**comparison(),'deltas':{'pace_s_per_km':14},'relations':{'pace_s_per_km':'slower'}},expected_display='23 s/mi slower'),
     fixture('run same pace',data={**comparison(),'deltas':{'pace_s_per_km':2},'relations':{'pace_s_per_km':'about_the_same'}},expected_display='about the same'),
     fixture('heart rate higher',data={**comparison(),'deltas':{'avg_hr':4},'relations':{'avg_hr':'higher'}},raw=answer(data={**comparison(),'deltas':{'avg_hr':4},'relations':{'avg_hr':'higher'}})),
@@ -114,7 +127,7 @@ CASES = [
 
 
 def run():
-    assert len(CASES)==52
+    assert len(CASES)==54
     assert kit_workout_review.REJECTION_CODES==frozenset({'answer_shape','numeric_unsupported','fact_unsupported','relation_unsupported','health_claim_unsupported','follow_up_invalid','voice_invalid'})
     assert kit_workout_review.WorkoutReviewRejected('model supplied arbitrary text').reason_code=='answer_shape'
     for case in CASES:
@@ -134,6 +147,8 @@ def run():
         assert set(result['workout_review'])=={'verdict','next_step'},case['name']
         assert len(result['facts'])<=5 and len(result['follow_ups'])<=2,case['name']
         assert all(f['tool']=='workout_compare' and f['evidence_id']=='e2' for f in result['facts']),case['name']
+        if case['name']=='real Gemini dotted-path response':
+            assert result['workout_review']['verdict'].startswith('Compared with your last 3 runs,'),result['workout_review']
         if case['data'].get('status')=='compared':
             baseline=next(f for f in result['facts'] if f['path']==['baseline_count'])
             noun='similar '+{'run':'runs','walk':'walks','hike':'hikes','ride':'rides','swim':'swims'}.get(case['data'].get('sport'),'workouts')
