@@ -2316,3 +2316,11 @@ body .social-sheet .c-quick .c-chip { flex:none;color:var(--tx2);font-weight:500
 body .social-sheet-round3 .c-quick .c-chip { color:var(--accent); }
 /* The tap target stays 44px while its visible dots use only the small trailing slot. */
 body .social-sheet .comment .c-comment-options { margin-left:auto; }
+
+#kit-chats>.linkbtn {display:block;width:100%;min-height:44px;text-align:left;}
+.kit-history-row {display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);}
+.kit-history-open {flex:1;min-width:0;min-height:56px;padding:10px 0;text-align:left;background:none;border:0;color:var(--tx);}
+.kit-history-open strong {display:block;font-size:.9375rem;font-weight:500;overflow-wrap:anywhere;}
+.kit-history-open small {display:block;margin-top:3px;font-size:.8125rem;color:var(--tx2);}
+.kit-history-open[aria-current] strong {color:var(--accent);}
+.kit-history-row>.linkbtn {flex:none;min-width:44px;min-height:44px;}

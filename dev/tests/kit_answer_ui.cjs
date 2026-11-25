@@ -33,6 +33,7 @@ async function conversationBlocksUi(browser,state){
    await c.route('**/*',async route=>{
     const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
     if(u.pathname==='/api/me'&&req.method()==='GET'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});}
+    if(u.pathname==='/api/coach/conversation/threads'&&req.method()==='GET')return route.fulfill({json:{enabled:false}});
     if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST')return route.fulfill({json:{visit_id:visit,generation:gen,ready:true}});
     if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation:gen,ready:true,before:null,messages:[{id:1,client_id:'fictional-blocks-message',question:'How should I approach my next week?',state:'answered',answer}]}});
     if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
@@ -75,6 +76,8 @@ async function main(){
   const signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});
   assert.equal(signed.status(),200,'fictional demo account can sign in: '+await signed.text());
   const state=await login.storageState();
+  if(!process.env.KIT_BLOCKS_ONLY)await require('./kit_history_ui.cjs')(browser,state,base,out);
+  if(process.env.KIT_HISTORY_ONLY)return;
   await conversationBlocksUi(browser,state);
   if(process.env.KIT_BLOCKS_ONLY)return;
   for(const width of [390,330])for(const theme of ['light','dark']){
@@ -90,6 +93,7 @@ async function main(){
      const response=await route.fetch(),me=await response.json();
      return route.fulfill({response,json:{...me,...(fixtureAccountId==null?{}:{id:fixtureAccountId}),ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});
     }
+    if(u.pathname==='/api/coach/conversation/threads'&&req.method()==='GET')return route.fulfill({json:{enabled:false}});
     if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST'){const id=req.postDataJSON().visit_id;visitRequests.push(id);return route.fulfill({json:{visit_id:id,generation,ready:true}});}
     if(/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(u.pathname)&&req.method()==='POST'){endRequests.push(decodeURIComponent(u.pathname.split('/').at(-2)));return route.fulfill({json:{ok:true}});}
     if(u.pathname==='/api/coach/conversation'&&req.method()==='GET'){const id=u.searchParams.get('visit_id');conversationReads.push(id);if(id===serverEndedVisit&&!serverEndReported){serverEndReported=true;return route.fulfill({status:409,json:{detail:'This Kit visit has ended. Open a fresh chat; your draft is kept.'}});}const responseMessage=overflowMode?{...message,answer:{...message.answer,follow_ups:['Would you like to review your latest completed workouts from this training block and compare how they fit my plan?','Compare every recorded workout this month with my plan and explain the differences in effort, distance, pace and consistency.']}}:message;return route.fulfill({json:{generation,ready:true,before:null,messages:!forceEmpty&&id===visitRequests[0]?[responseMessage]:[]}});}
@@ -260,6 +264,7 @@ async function main(){
    await c.route('**/*',async route=>{
     const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
     if(u.pathname==='/api/me'&&req.method()==='GET'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});}
+    if(u.pathname==='/api/coach/conversation/threads'&&req.method()==='GET')return route.fulfill({json:{enabled:false}});
     if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST')return route.fulfill({json:{visit_id:visit,generation:gen,ready:true}});
     if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation:gen,ready:true,before:null,messages:row?[{...row,state:failOnRead?'failed':'running',error:failOnRead?'raw model/provider detail must stay hidden':null}]:[]}});
     if(u.pathname==='/api/coach/conversation/messages'&&req.method()==='POST'){const body=req.postDataJSON();question=body.question;row={id:1,client_id:body.client_id,generation:gen,visit_id:visit,question,state:'pending',answer:null,error:null};return route.fulfill({json:row});}
@@ -329,6 +334,7 @@ async function main(){
    await c.route('**/*',async route=>{
     const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
     if(u.pathname==='/api/me'&&req.method()==='GET'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,units:theme==='light'?'imperial':'metric',ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});}
+    if(u.pathname==='/api/coach/conversation/threads'&&req.method()==='GET')return route.fulfill({json:{enabled:false}});
     if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST')return route.fulfill({json:{visit_id:'fixture-workout-review',generation:'fixture-workout-review',ready:true}});
     if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation:'fixture-workout-review',ready:true,before:null,messages:row?[row]:[]}});
     if(u.pathname==='/api/coach/conversation/messages'&&req.method()==='POST'){
