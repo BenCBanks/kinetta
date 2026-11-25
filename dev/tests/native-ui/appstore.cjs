@@ -10,11 +10,13 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
  activity.name='Morning park run';activity.start_time='2026-11-02T08:30:00Z';
  activity.visibility='friends';activity.social={...activity.social,visibility:'friends'};
  const paceSamples=Array.from({length:30},(_,i)=>({t:Math.round(i*1800/29),d:Math.round(i*5000/29)}));
- const paceNoise=[0,.04,-.03,.08,.01,-.06,.03,-.02,.11,.02,-.05,.04,-.09,.01,.06,-.02,.08,-.04,.02,-.1,.05,.01,-.03,.09,-.04,.03,-.07,.06,-.02,0];
- const hrNoise=[0,1,-2,2,0,3,-1,2,-3,1,2,-2,4,-1,0,3,-2,1,-1,2,-3,2,0,-1,3,-2,1,-1,2,0];
+ const paceSecPerKm=[372,370,368,366,364,362,360,358,356,354,352,350,349,350,352,356,364,380,390,382,372,366,362,360,358,356,355,356,358,360];
+ const paceShift=359.7-paceSecPerKm.reduce((sum,value)=>sum+value,0)/paceSecPerKm.length;
+ const paceSpeeds=paceSecPerKm.map(value=>1000/(value+paceShift));
+ const heartRate=[130,132,134,136,138,140,142,144,146,148,149,150,150,151,150,150,151,150,150,151,150,150,151,150,149,149,148,147,146,145];
  const altNoise=[0,1,-1,2,0,2,-2,1,3,-1,0,-2,1,2,-1,0,2,-2,1,3,-1,0,2,-2,1,0,-1,2,0,-1];
  const cadenceNoise=[0,1,-2,1,0,2,-1,0,1,-2,2,0,-1,1,0,-2,2,1,-1,0,2,-1,0,1,-2,1,0,-1,2,0];
- activity.chart={t:paceSamples.map(s=>s.t),d:paceSamples.map(s=>s.d),speed:paceNoise.map(n=>2.62+n),hr:hrNoise.map(n=>137+n),alt:altNoise.map((n,i)=>18+Math.round(i*.12)+n),cad:cadenceNoise.map(n=>164+n)};
+ activity.chart={t:paceSamples.map(s=>s.t),d:paceSamples.map(s=>s.d),speed:paceSpeeds,hr:heartRate,alt:altNoise.map((n,i)=>18+Math.round(i*.12)+n),cad:cadenceNoise.map(n=>164+n)};
  if(homepage){activity.visibility='me';activity.social={...activity.social,visibility:'me',my_reaction:'thumbsup',reactions:{thumbsup:1,fire:2,clap:1},reaction_order:['fire','clap','thumbsup'],cheers:[
   {login:'alex',name:'Alex Example',kind:'thumbsup'},{login:'jordan',name:'Jordan Example',kind:'fire'},
   {login:'casey',name:'Casey Example',kind:'fire'},{login:'taylor',name:'Taylor Example',kind:'clap'}
@@ -25,7 +27,7 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
  assert.equal(activity.start_time.slice(0,10),today,'the App Store Home scene includes a workout today');
  const friendActivity={...activity,id:2,name:'Park loop with friends',start_time:'2026-11-01T08:00:00Z',owner:friends.friends[0],visibility:'friends',sport_label:null,speed_available:true,shares:{pace:true,map:true},cheers:0,comments:0,reactions:{cheer:0,strong:0,applause:0},my_reaction:null,cheered:false};
  const macros={kcal:1200,protein_g:90,carbs_g:180,fat_g:52,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
- const entries=[['Oatmeal with blueberries','breakfast',500,25,80,12],['Chicken salad bowl','lunch',700,65,100,40]].map(([name,meal,kcal,protein_g,carbs_g,fat_g],i)=>({...macros,id:i+1,day:today,name,meal,kcal,protein_g,carbs_g,fat_g,amount:i===1?180:1,unit:i===1?'g':'serving',source:i===0?'ai':'quick',ref:i===0?{origin:'ai',estimated_portion:true}:null}));
+ const entries=[['Oatmeal with blueberries','breakfast',500,25,80,12],['Chicken salad bowl','lunch',700,65,100,40]].map(([name,meal,kcal,protein_g,carbs_g,fat_g],i)=>({...macros,id:i+1,day:today,name,meal,kcal,protein_g,carbs_g,fat_g,amount:i===1?180:1,unit:i===1?'g':'serving',source:'ai',ref:{origin:'ai',estimated_portion:true}}));
  const weeklyWorkouts=[2,4,1,5,3,6,2];
  const weeks=[12,24,8,32,20,36,8].map((km,i)=>({d:date((6-i)*7+1),end:i===6?today:date((6-i)*7-5),distance_m:km*1000,activities:weeklyWorkouts[i],time_s:km*360,by_sport:{run:km*1000},today:i===6}));
  const days=Array.from({length:7},(_,i)=>({d:date(1-i),distance_m:i<2?4000:0,activities:i<2?1:0,time_s:i<2?1440:0,by_sport:i<2?{run:4000}:{},today:i===1,future:i>1}));
@@ -67,7 +69,10 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
  assert.equal(activity.visibility,homepage?'me':'friends','the Store own card uses Friends and the Homepage reaction fixture stays private');
  assert.equal(activity.social.visibility,homepage?'me':'friends','activity detail privacy matches the Store/Homepage fixture mode');
  assert.equal(activity.chart.speed.length,30,'the Activity detail pace chart has thirty fictional samples');
- assert(new Set(activity.chart.speed).size>15,'the Activity detail pace chart uses varied, non-sinusoidal fictional samples');
+ const chartPacePerKm=activity.chart.speed.map(speed=>1000/speed),chartPaceAverage=chartPacePerKm.reduce((sum,value)=>sum+value,0)/chartPacePerKm.length;
+ assert(Math.abs(chartPaceAverage-359.7)<.01,'the pace chart average matches the 5K/30-minute 9:39/mi header');
+ assert(Math.min(...chartPacePerKm)>=345&&Math.max(...chartPacePerKm)<=390,'the pace chart drifts smoothly with one slower hill');
+ assert(activity.chart.hr[0]===130&&Math.max(...activity.chart.hr)>=150&&activity.chart.hr.slice(10,25).every(value=>value>=149),'heart rate climbs from 130 bpm and holds a 150 bpm plateau');
  assert.equal(responses['/api/me'].friend_requests,0,'App Store screenshots do not show a Me badge');
  assert.equal(responses['/api/food/day'].burned.bmr_exact,true,'Nutrition fixture includes complete body details');
  assert.equal(responses['/api/food/day'].entries[0].ref.estimated_portion,true,'Kit chat fixture includes an estimated breakfast portion');

@@ -11,7 +11,7 @@
   }
   if(cfg.store&&cfg.stage==='header-food'){
     const style=document.createElement('style');
-    style.textContent='.nutrition-day-summary{position:relative!important}.nutrition-day-summary>.nutrition-summary-tools{position:absolute!important;top:8px!important;right:8px!important;z-index:2!important;height:44px!important;margin:0!important}.nutrition-day-summary>.nutrition-summary-tools .nutrition-goals{width:44px;height:44px}.nutrition-day-summary>.nutrition-summary{padding-top:40px!important}';
+    style.textContent='.nutrition-day-summary{position:relative!important}.nutrition-day-summary>.nutrition-summary-tools{position:absolute!important;top:20px!important;right:8px!important;z-index:2!important;height:44px!important;margin:0!important}.nutrition-day-summary>.nutrition-summary-tools .nutrition-goals{width:44px;height:44px}.nutrition-day-summary>.nutrition-summary{align-items:flex-start!important;padding-top:0!important}.nutrition-day-summary .nutrition-macros{padding-top:40px!important}';
     (document.head||document.documentElement).append(style);
   }
   if(cfg.store&&cfg.stage==='header-progress'){
@@ -214,12 +214,21 @@
       // Production styles use one accent fill for every series; tint each fixture area from its own line color.
       for(const chart of document.querySelectorAll('#d-charts .chartbox')){
         const area=chart.querySelector('.sample-area'),color=area?.nextElementSibling?.getAttribute('stroke');
-        if(area&&color){area.style.setProperty('fill',`color-mix(in srgb, ${color} 22%, var(--card))`,'important');area.style.setProperty('opacity','.9','important');}
+        if(area&&color){area.style.setProperty('fill',`color-mix(in srgb, ${color} 22%, var(--card))`,'important');area.style.setProperty('opacity','.22','important');}
+        for(const label of chart.querySelectorAll('svg .yl')){label.style.setProperty('paint-order','stroke','important');label.style.setProperty('stroke','var(--card)','important');label.style.setProperty('stroke-width','4px','important');label.style.setProperty('stroke-linejoin','round','important');}
       }
     }
     if(cfg.store&&cfg.stage==='food'){
       const label=document.querySelector('.food-thread #thread-context .thread-context-label');
       if(label)label.textContent='Today';
+      const foods=[...document.querySelectorAll('.food-thread .thread-food')];
+      for(const [name,amount,kcal] of [['Oatmeal with blueberries','1 serving',500],['Chicken salad bowl','180 g',700]]){
+        const row=foods.find(item=>item.querySelector('strong')?.textContent.trim()===name);
+        if(!row)continue;
+        const detail=row.querySelector('.compact-food-meta .thread-amount')||row.querySelector('.tf-main small');if(detail)detail.textContent=name==='Chicken salad bowl'?'≈180 g · estimated portion':`${amount} · estimated portion`;
+        row.querySelector('.compact-food-meta .tf-source')?.remove();
+        const calories=row.querySelector('.tf-kcal');if(calories)calories.textContent=`≈${kcal} kcal`;
+      }
     }
     if(cfg.activityFeed){let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#ff-list .post[data-href="/activity/1"]')&&!!document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Fictional own and friend Activity cards did not finish rendering');}
     // Route startup restores scroll on its next frame; exercise scrolling only once it has settled.
@@ -248,7 +257,8 @@
     const headerSelector=cfg.stage==='track-review'?'.track-review-top':cfg.stage==='food'?'.thread-heading':'.top';
     if(cfg.startupTiming)cfg.startupTiming.metricsSnapshotPerfMs=performance.now();
     const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,storeMapCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(headerSelector),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(cfg.stage==='food'?{storeKitTitle:document.querySelector('.food-thread #thread-context .thread-context-label')?.textContent||'',storeKitDateDividers:[...document.querySelectorAll('.food-thread .thread-day')].filter(e=>getComputedStyle(e).display!=='none').length,storeKitGap:foodLastMessage&&foodComposer?foodComposer.y-foodLastMessage.bottom:999}:{}),...(photosSave?{photosSave}:{}),...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
-    if(cfg.store&&cfg.stage==='header-food')result.storeNutrition={card:rect('.nutrition-day-summary'),gear:rect('#fd-goal'),protein:rect('[data-macro="protein_g"]')};
+    if(cfg.store&&cfg.stage==='header-food')result.storeNutrition={card:rect('.nutrition-day-summary'),gear:rect('#fd-goal'),ring:rect('.calorie-ring-wrap'),protein:rect('[data-macro="protein_g"]')};
+    if(cfg.store&&cfg.stage==='activity')result.storeCharts=[...document.querySelectorAll('#d-charts .chartbox')].map(chart=>({name:chart.querySelector('.lbl>span:first-child')?.textContent.trim()||'',average:chart.querySelector('[data-chart-value]')?.textContent.trim()||'',yLabels:[...chart.querySelectorAll('.activity-chart-y-label')].map(label=>label.textContent.trim())}));
     if(cfg.stage==='achievement-share-track'){const tabs=[...document.querySelectorAll('[data-achievement-scope]')],preview=document.querySelector('[data-achievement-preview-image]'),send=document.querySelector('[data-achievement-share-send]');result.achievementShare={title:document.querySelector('.sheet header h2')?.textContent,tabs:tabs.map(tab=>({label:tab.textContent.trim(),selected:tab.getAttribute('aria-selected')})),preview:{loaded:!!preview?.complete&&preview.naturalWidth>0,alt:preview?.alt||'',width:preview?.naturalWidth||0,height:preview?.naturalHeight||0},sendText:send?.textContent.trim(),sendDisabled:send?.disabled};}
     if(cfg.groups){const fields=document.querySelector('.group-create-fields');result.groups={fields:{...rect('.group-create-fields'),clientWidth:fields.clientWidth,scrollWidth:fields.scrollWidth},date:rect('[name=event_date]'),name:rect('[name=title]'),grid:rect('.group-goal-fields'),labels:[...document.querySelectorAll('.group-create-fields>label')].map(label=>rect(label))};}
     if(cfg.headerPage){

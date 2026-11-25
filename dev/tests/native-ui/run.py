@@ -186,12 +186,18 @@ for device in preferred:
      if stage=='header-activity':assert 'Only me' not in metrics['bodyText'], 'Home own card must not show a private-only audience'
      if stage=='activity':
       crop=metrics.get('storeCrop');assert crop and crop['selector']=='#d-charts .chartbox[data-chart-index="1"]' and 'Heart rate' in crop['text'] and crop['bottom']<=crop['tabTop']-8, 'Activity crop must show the complete heart-rate chart above the tab bar'
+      charts={chart['name']:chart for chart in metrics.get('storeCharts',[])};pace=charts.get('Pace');heart=charts.get('Heart rate')
+      assert pace and '9:39 /mi' in pace['average'] and heart and '145 bpm' in heart['average'], 'Activity chart averages must match its 9:39/mi and 145 bpm header'
+      pace_ticks=[int(match.group(1))*60+int(match.group(2)) for label in pace['yLabels'] if (match:=re.search(r'(\d+):(\d+) /mi',label))]
+      hr_ticks=[int(match.group(1)) for label in heart['yLabels'] if (match:=re.search(r'(\d+)',label))]
+      assert len(pace_ticks)==2 and min(pace_ticks)<=579<=max(pace_ticks) and len(hr_ticks)==2 and min(hr_ticks)<=145<=max(hr_ticks), 'Activity averages must sit inside their visible chart axes'
      if stage=='header-food':
       food_text=metrics['bodyText'];assert 'Improve calorie estimates' not in food_text and re.search(r'1,?200',food_text) and '90 / 110' in food_text and '180 / 220' in food_text and '52 / 70' in food_text, 'Nutrition Store fixture must show body details and filled macro bars'
-      card,gear,protein=[(metrics.get('storeNutrition') or {}).get(key) for key in ('card','gear','protein')]
-      assert card and gear and protein and card['x']<=gear['x']<card['right'] and gear['bottom']<protein['y'], 'Nutrition gear must sit in the card top-right above its macro rows'
+      card,gear,ring,protein=[(metrics.get('storeNutrition') or {}).get(key) for key in ('card','gear','ring','protein')]
+      assert card and gear and ring and protein and card['x']<=gear['x']<card['right'] and gear['width']>=44 and gear['height']>=44, 'Nutrition gear must remain a 44px target in the card top-right'
+      assert abs(gear['y']-ring['y'])<=8 and gear['bottom']<protein['y'], 'Nutrition gear must share the ring row without reserving a row above it'
      if stage=='food':
-      assert 'Today' in metrics['bodyText'] and 'Kit’s estimate' in metrics['bodyText'] and 'estimated portion' in metrics['bodyText'], 'Kit chat must show Today and a fictional estimated portion'
+      assert 'Today' in metrics['bodyText'] and '1 serving · estimated portion' in metrics['bodyText'] and '≈180 g · estimated portion' in metrics['bodyText'] and '≈500 kcal' in metrics['bodyText'] and 'Your numbers' not in metrics['bodyText'], 'Kit chat must show the estimated portion and calories without a manual-entry label'
       assert metrics.get('storeKitTitle')=='Today' and metrics.get('storeKitDateDividers')==0, 'Kit chat title must be Today without a duplicate Today divider'
       assert 0<=metrics.get('storeKitGap',999)<=32, 'Kit chat messages must sit close to the composer'
      if stage=='header-progress':
