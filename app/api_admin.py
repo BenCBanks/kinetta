@@ -9,6 +9,15 @@ from .admin_auth import admin_user, audit, seal, mfa_required
 router=APIRouter(prefix='/api/admin')
 
 
+@router.get('/today')
+def today(user=Depends(admin_user)):
+    from . import admin_today
+    with db.connect() as c:
+        result = admin_today.snapshot(c)
+        audit(c, user['id'], 'today.view')
+    return result
+
+
 @router.get('/overview')
 def overview(user=Depends(admin_user)):
     with db.connect() as c:

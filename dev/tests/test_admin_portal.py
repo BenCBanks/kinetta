@@ -33,6 +33,68 @@ class Portal(unittest.TestCase):
         self.client.headers['X-Admin-CSRF']=admin_auth.csrf(self.token)
     def beta(self):
         with db.connect() as c:return c.execute("INSERT INTO beta_requests(name,email,phone) VALUES ('Fictional Applicant',%s,'iphone') RETURNING id,email",('zz_test_portal_'+uuid.uuid4().hex+'@example.test',)).fetchone()
+    def test_today_portal_only_audited_and_content_free(self):
+        c=TestClient(app);c.headers['Origin']=BASE
+        self.assertEqual(c.get('/api/admin/today').status_code,401)
+        for login in ('zz_test_portal_member','zz_test_portal_admin'):
+            self.assertEqual(c.post('/api/login',json={'login':login,'password':PW}).status_code,200)
+            self.assertEqual(c.get('/api/admin/today').status_code,403)
+            c.cookies.clear()
+        response=self.client.get('/api/admin/today');self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.headers['Cache-Control'],'no-store')
+        data=response.json();self.assertEqual(data['zone'],'UTC')
+        self.assertEqual(set(data['counts']),{'new_signups','unconfirmed','open_reports','kit_requests'})
+        self.assertLessEqual(len(data['needs_attention']),15)
+        for row in data['needs_attention']:
+            self.assertEqual(set(row),{'key','label','count','severity','destination'})
+            self.assertIn(row['severity'],('red','amber'))
+        for row in data['services']:self.assertEqual(set(row),{'key','label','status','source'})
+        for private in ('Portal Test','Member Test','zz_test_portal','sender','reply_to','provider_id','pw_hash'):
+            self.assertNotIn(private,response.text)
+        with db.connect() as conn:
+            self.assertTrue(conn.execute("SELECT 1 FROM admin_audit WHERE actor_id=%s AND action='today.view'",(self.uid,)).fetchone())
+        self.client.headers['Origin']='https://evil.example'
+        self.assertEqual(self.client.get('/api/admin/today').status_code,403)
+        with db.connect() as conn:conn.execute("UPDATE admin_sessions SET expires=now()-interval '1 second' WHERE token_hash=%s",(auth.token_hash(self.token),))
+        self.client.headers['Origin']=BASE
+        self.assertEqual(self.client.get('/api/admin/today').status_code,401)
+
+    def test_today_counts_use_utc_and_only_measured_kit_requests(self):
+        from app import admin_today
+        with db.connect() as c:
+            with c.transaction(force_rollback=True):
+                c.execute("SET LOCAL TIME ZONE 'Pacific/Honolulu'")
+                before=admin_today.snapshot(c);day=before['day']
+                uid=c.execute("""INSERT INTO users(login,name,pw_hash,created,needs_email_confirm)
+                    VALUES ('zz_test_portal_today','PRIVATE_NAME_SENTINEL','unused',%s::date AT TIME ZONE 'UTC',true) RETURNING id""",(day,)).fetchone()['id']
+                # A future account is excluded; midnight UTC is included despite the SQL session zone.
+                c.execute("""INSERT INTO users(login,name,pw_hash,created) VALUES
+                    ('zz_test_portal_future','PRIVATE_FUTURE_SENTINEL','unused',(%s::date+1) AT TIME ZONE 'UTC')""",(day,))
+                c.execute("""INSERT INTO reports(reporter,person,kind,what,reason,note)
+                    VALUES (%s,%s,'person','PRIVATE_REPORT_SENTINEL','other','PRIVATE_NOTE_SENTINEL')""",(self.uid,uid))
+                c.execute('INSERT INTO ai_service_budget(day) VALUES (%s),(%s::date-1) ON CONFLICT DO NOTHING',(day,day))
+                for kind,state,offset in [('Kit conversation','measured',0),('food chat','measured',0),('Kit conversation','reserved',0),('Kit conversation','measured',-1)]:
+                    c.execute("""INSERT INTO ai_food_attempts(id,user_id,day,model,kind,state,reserved_micros,charged_micros)
+                        VALUES (%s,%s,%s::date+%s,'fictional-provider',%s,%s,0,0)""",(uuid.uuid4(),uid,day,offset,kind,state))
+                after=admin_today.snapshot(c)
+                self.assertEqual(after['counts'],{k:v+1 for k,v in before['counts'].items()})
+                self.assertNotIn('PRIVATE_',str(after));self.assertNotIn('fictional-provider',str(after))
+                self.assertEqual(next(r for r in after['needs_attention'] if r['key']=='reports')['severity'],'red')
+
+    def test_today_services_are_configuration_or_explicit_evidence(self):
+        from app import admin_today
+        with db.connect() as c:
+            with c.transaction(force_rollback=True):
+                c.execute("DELETE FROM admin_readiness WHERE check_key='backup'")
+                with patch('app.admin_today.admin_mail.settings',return_value={'ready':False,'sender':'PRIVATE_ADDRESS'}),patch('app.admin_today.mfa_required',return_value=False):
+                    data=admin_today.snapshot(c)
+                rows={r['key']:r for r in data['services']}
+                self.assertEqual(rows['backup']['status'],'needs_check');self.assertEqual(rows['email']['status'],'not_configured')
+                self.assertEqual(rows['authenticator']['status'],'disabled');self.assertNotIn('PRIVATE_ADDRESS',str(data))
+                c.execute("INSERT INTO admin_readiness(check_key,passed,observed_at,actor_id) VALUES ('backup',true,now(),%s)",(self.uid,))
+                self.assertEqual(next(r for r in admin_today.snapshot(c)['services'] if r['key']=='backup')['status'],'verified')
+                c.execute("UPDATE admin_readiness SET observed_at=now()-interval '2 days' WHERE check_key='backup'")
+                self.assertEqual(next(r for r in admin_today.snapshot(c)['services'] if r['key']=='backup')['status'],'needs_check')
     def draft(self,b,kind='invite'):
         return {'kind':kind,'subject':'Kinetta beta','message':'Welcome to the test beta.','confirm_email':b['email'],'request_key':str(uuid.uuid4())}
     def mail_env(self):

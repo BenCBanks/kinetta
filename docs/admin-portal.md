@@ -48,6 +48,15 @@ Delete request removes the applicant's queue entry and response history and revo
 
 ## Launch checks and daily work
 
+`GET /api/admin/today` supplies the redesigned Today screen with four counts: accounts created during the
+current UTC date, currently unconfirmed non-suspended accounts, open reports, and measured Kit provider requests
+for that UTC date (excluding food classification and unfinished reservations). Its needs-attention list contains
+at most 15 aggregate categories, ordered red before amber, with fixed destinations and no account identities or
+report/conversation content. Service rows distinguish current configuration, this request's database access and
+dated administrator backup evidence; they do not probe providers or certify delivery or recovery. Reading the
+summary requires the separate portal session, is audited as `today.view`, and is never cached. Authenticator
+enrollment, session expiry and all existing action confirmations are unchanged.
+
 Overview links to open reports, failed imports in the past 24 hours, connection failures and unanswered beta requests. Counts describe stored records, not service health. Launch checks keeps automatic configuration separate from administrator evidence:
 
 | Check | What the screen establishes |
