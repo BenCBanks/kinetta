@@ -339,7 +339,10 @@ class Signup(unittest.TestCase):
         self.assertEqual(client().get('/api/signup').json()['iphone_app'], 'https://testflight.apple.com/join/zzFICTION')
         self.assertEqual(client().post('/api/signup', json=form('zz_test_su_beta')).status_code, 200)
         mail = self.mail.call_args.kwargs['json']
-        self.assertIn('Welcome', mail['subject']); self.assertIn('beta', mail['text']); self.assertIn('https://testflight.apple.com/join/zzFICTION', mail['text'])
+        self.assertEqual(mail['subject'], 'Confirm your email for Kinetta')
+        self.assertTrue(mail['text'].startswith('Open this link to confirm your email and finish setting up Kinetta:'))
+        self.assertIn('beta', mail['text']); self.assertIn('https://testflight.apple.com/join/zzFICTION', mail['text'])
+        self.assertIn("You're getting this because this address was used for a Kinetta account.", mail['text'])
         self.env(KINETTA_SIGNUP='open', KINETTA_TESTFLIGHT_URL='https://example.test/not-testflight')
         self.assertIsNone(client().get('/api/signup').json()['iphone_app'], 'only an Apple TestFlight address is published')
 

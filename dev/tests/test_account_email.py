@@ -39,6 +39,29 @@ class AccountEmail(unittest.TestCase):
         self.env = patch.dict(os.environ, ENV); self.env.start(); self.addCleanup(self.env.stop)
         self.sent = patch('app.account_email.httpx.post', side_effect=receipt); self.mail = self.sent.start(); self.addCleanup(self.sent.stop)
 
+    def test_shared_plain_text_email_formatter(self):
+        created = datetime.datetime(2030, 1, 2, 18, 30, tzinfo=datetime.timezone.utc)
+        self.assertEqual(account_email.UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS, 14)
+        self.assertEqual(account_email.unconfirmed_account_delete_at(created), created + datetime.timedelta(days=14))
+        text = admin_mail.format_plain_text_email(
+            "Hi Fictional Member,\n\nSomeone signed in to your Kinetta account (zz_fixture) from a new device. "
+            "Reply to this email and we'll help.")
+        self.assertTrue(text.startswith('Someone signed in to your Kinetta account (@zz_fixture)'))
+        self.assertNotIn('Hi Fictional Member', text)
+        self.assertIn('For help, email feedback@kinetta.app.', text)
+        self.assertEqual(text.count("You're getting this because this address was used for a Kinetta account."), 1)
+        admin_reply = admin_mail.format_plain_text_email('A fictional response.', greeting='Hello,')
+        self.assertTrue(admin_reply.startswith('Hello,\n\nA fictional response.'))
+        self.assertIn('\n\nThe Kinetta team\n\n', admin_reply)
+        self.assertEqual(admin_mail.format_plain_text_email(admin_reply, greeting='Hello,'), admin_reply)
+
+    def test_unrelated_subject_words_do_not_replace_message_body(self):
+        self.assertTrue(account_email.send('fictional@example.com', 'Back up your Kinetta account',
+                                           'Your backup is ready in Settings.'))
+        message = self.messages()[-1]
+        self.assertEqual(message['subject'], 'Back up your Kinetta account')
+        self.assertTrue(message['text'].startswith('Your backup is ready in Settings.'))
+
     def restore(self):      # each test starts from the same known passwords, even after a failure
         with db.connect() as c:
             ids = [r['id'] for r in c.execute("SELECT id FROM users WHERE login LIKE 'zz\\_test\\_mail%%'").fetchall()]
@@ -84,6 +107,8 @@ class AccountEmail(unittest.TestCase):
         m = self.messages()[-1]
         self.assertEqual(m['to'], ['zz_a@example.com']); self.assertEqual(m['from'], 'Kinetta <hello@example.com>')
         self.assertNotIn(PW, m['text'])
+        self.assertTrue(m['text'].startswith('Open this link to confirm zz_a@example.com as your email for Kinetta:'))
+        self.assertIn("You're getting this because this address was used for a Kinetta account.", m['text'])
         self.assertIsNone(a.get('/api/me').json()['email'], 'not used before the link is opened')
         anon = TestClient(app); anon.headers['Origin'] = BASE
         self.assertEqual(anon.post('/api/login', json={'login': 'zz_a@example.com', 'password': PW}).status_code, 401)
@@ -153,6 +178,10 @@ class AccountEmail(unittest.TestCase):
             consume_signup.assert_not_called()
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.json()['email_confirmed'])
+        changed = self.messages()[-1]['text']
+        self.assertTrue(changed.startswith('The password for your Kinetta account (@zz_test_mail_a) was just changed'))
+        self.assertIn("If you didn't do this, reset your password now at https://example.test/forgot-password and email feedback@kinetta.app.", changed)
+        self.assertIn("You're getting this because this address was used for a Kinetta account.", changed)
         with db.connect() as c:
             row = c.execute('SELECT email::text AS email, email_verified_at, needs_email_confirm FROM users WHERE id=%s', (user['id'],)).fetchone()
             self.assertEqual(row['email'], 'zz_pending@example.com')
@@ -175,6 +204,7 @@ class AccountEmail(unittest.TestCase):
             c.execute('UPDATE users SET email=%s WHERE id=%s', ('zz_replacement@example.com', user['id']))
         response = anon.post('/api/password/reset', json={'token': token, 'password': 'a brand new reset sentence'})
         self.assertEqual(response.status_code, 404, response.text)
+        self.assertEqual(response.json()['detail'], 'This link has expired. Request a new one from the sign-in page.')
         with db.connect() as c:
             row = c.execute('SELECT email::text AS email,email_verified_at,needs_email_confirm,pw_hash FROM users WHERE id=%s', (user['id'],)).fetchone()
             self.assertEqual(row['email'], 'zz_replacement@example.com')
@@ -403,8 +433,11 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
         first = self.messages()[-1]
         self.assertEqual(first['to'], ['zz_reminders@example.com'])
-        self.assertEqual(first['subject'], 'Please confirm your Kinetta email')
-        self.assertIn('/confirm-email#', first['text'])
+        self.assertEqual(first['subject'], 'Your Kinetta account needs one more step')
+        self.assertRegex(first['text'], r'Confirm your email to keep your account:\nhttps://example\.test/confirm-email#[\w-]+\n\n')
+        self.assertIn('This link replaces earlier ones and works for 24 hours.', first['text'])
+        self.assertNotIn('Hi ', first['text'])
+        self.assertIn("You're getting this because this address was used for a Kinetta account.", first['text'])
         with db.connect() as c:
             typo = c.execute('SELECT email_confirmation_reminder_count,email_confirmation_reminder_at FROM users WHERE id=%s', (typo_user['id'],)).fetchone()
             self.assertEqual(typo['email_confirmation_reminder_count'], 0, 'addresses with a recognized typo get no reminder')
@@ -413,6 +446,16 @@ class AccountEmail(unittest.TestCase):
         with db.connect() as c:
             c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '2 days' WHERE id=%s", (user['id'],))
         self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
+        second = self.messages()[-1]
+        with db.connect() as c:
+            created = c.execute('SELECT created FROM users WHERE id=%s', (user['id'],)).fetchone()['created']
+        deadline = account_email.unconfirmed_account_delete_at(created)
+        self.assertEqual(deadline - created, datetime.timedelta(days=account_email.UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS))
+        deletion_date = f"{deadline.day} {deadline.strftime('%B %Y')}"
+        self.assertEqual(second['subject'], f'Confirm your Kinetta email by {deletion_date}')
+        self.assertRegex(second['text'], r'Confirm your email to keep your account:\nhttps://example\.test/confirm-email#[\w-]+\n\n')
+        self.assertIn(f"Accounts that aren't confirmed within {account_email.UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS} days are deleted on {deletion_date}.", second['text'])
+        self.assertIn('This link replaces earlier ones', second['text'])
         with db.connect() as c:
             c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '10 days' WHERE id=%s", (user['id'],))
             count = c.execute('SELECT email_confirmation_reminder_count FROM users WHERE id=%s', (user['id'],)).fetchone()['email_confirmation_reminder_count']
