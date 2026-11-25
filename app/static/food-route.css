@@ -26,7 +26,6 @@
 .food-thread .thread-review-strip #thread-review-sum { min-height:44px; padding:0 8px 0 0; border:0; background:transparent; color:var(--tx); font-size:15px; font-weight:500; }
 .food-thread .thread-review-strip #thread-review-add { min-height:44px; min-width:100px; padding:0 14px; border:0; border-radius:999px; background:var(--accent-gradient); color:var(--onbtn); font-size:16px; font-weight:var(--weight-title); white-space:nowrap; }
 .food-thread .thread-review-kcal { color:var(--tx2); font-size:13px; }
-.food-thread .thread-compose-row { border-top:1px solid var(--line); }
 .kit-chat .thread-heading { grid-template-columns:44px minmax(0,1fr) 96px; min-height:44px; align-items:center; gap:8px; border:0; }
 .kit-chat .thread-heading > .back { display:grid; place-items:center; width:44px; height:44px; min-width:44px; padding:0; border-radius:50%; }
 .kit-chat .thread-heading > .back svg { width:20px; height:20px; }

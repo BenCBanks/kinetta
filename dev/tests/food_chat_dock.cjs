@@ -22,6 +22,7 @@ module.exports=async function(browser,base){
     if(u.pathname.endsWith('.css')){const response=await route.fetch();const body=(await response.text()).replace(/env\(safe-area-inset-top[^)]*\)/g,'59px').replace(/env\(safe-area-inset-bottom[^)]*\)/g,`${safeBottom}px`);return route.fulfill({response,body});}
     if(!u.pathname.startsWith('/api/'))return route.continue();
     const key=u.pathname.startsWith('/api/food/thread/reviews/draft/')?'/api/food/thread':u.pathname;
+    if(state==='recipe'&&key==='/api/dishes/1/say'&&q.method()==='POST')return route.fulfill({json:{dish:r['/api/dishes/1'],reply:'Fictional ingredient checked.',added:[]}});
     if(kit&&key==='/api/coach/conversation/visits'&&q.method()==='POST')return route.fulfill({json:{visit_id:q.postDataJSON().visit_id,generation:'dock-fixture',ready:true}});
     if(kit&&key==='/api/coach/conversation'&&q.method()==='GET')return route.fulfill({json:{generation:'dock-fixture',ready:true,before:null,messages:state==='kit-answered'?[{id:1,client_id:draft,question:'How was my training?',state:'answered',answer:{verdict:'Your records show a steady week.',reason:'Your fictional workouts were spread through the week.',facts:[],follow_ups:[]}}]:[]}});
     if(state==='review'&&key==='/api/food/thread/reviews'&&q.method()==='POST')return route.fulfill({json:{id:9,review:{foods:entries}}});
@@ -47,6 +48,7 @@ module.exports=async function(browser,base){
    if(state==='kit-answered')await p.locator('.kit-answer').waitFor();
    if(!kit&&!['recipe','comments'].includes(state))assert.equal(await p.locator('#thread-status').innerText(),'','fixture conversation loads without an error status');
    await p.evaluate(async()=>{await document.fonts.ready;await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})));});
+   if(['empty','recipe','kit-answered'].includes(state))await require('./chat_composer_shape.cjs')(p,state,width,theme,out);
    for(const keyboard of [false,true]){
     await p.evaluate(open=>{
      const input=document.querySelector('#thread-text,#dk-t,#kit-text,.c-field textarea');if(open)input?.focus({preventScroll:true});else input?.blur();

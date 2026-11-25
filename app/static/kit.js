@@ -467,7 +467,7 @@ Object.assign(KitChat, (() => {
     const field=$('#kit-text',el),oldJob=store.get(key(c.owner,'pending'));
     field.value=store.get(key(c.owner,'draft'))||(entryDraft?.owner===c.owner?entryDraft.question:null)||oldJob?.question||new URLSearchParams(location.search).get('question')?.slice(0,1500)||'';el.classList.toggle('has-draft',!!field.value.trim());$('#kit-starters',el).inert=!!field.value.trim();
     entryDraft=null;store.del(key(c.owner,'pending'));
-    const resize=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,140)+'px';};
+    const resize=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,160)+'px';};
     field.oninput=()=>{const drafted=!!field.value.trim();el.classList.toggle('has-draft',drafted);$('#kit-starters',el).inert=drafted;try{save(c,'draft',field.value);}catch(e){status(c,'Your draft could not be saved on this phone.');}resize();controls(c);};
     field.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send(c);}};
     $('#kit-composer',el).onsubmit=e=>{e.preventDefault();send(c);};
@@ -484,7 +484,7 @@ Object.assign(KitChat, (() => {
         try{const data=await api('/api/coach/conversation/clear',json('POST',{generation:c.generation,visit_id:previousVisit,confirmed:true}));if(!active(c)||c.visit_id!==previousVisit)return;clearTimeout(c.timer);cancelVisitExpiry(c.owner);c.visit_id=data.visit_id;c.visit_created_at=Date.now();writeVisit(c.owner,{visit_id:c.visit_id,created_at:c.visit_created_at,left_at:null});c.generation=data.generation;c.sending=false;c.answerErrors={};c.messages=[];c.before=null;c.job=null;c.jobError='';store.del(key(c.owner,'pending'));store.del(key(c.owner,'draft'));field.value='';close();status(c,'');draw(c);}catch(x){if(active(c)){status(c,x.message);e.target.disabled=false;}}
       };
     });
-    c.view=foodChatViewport({list:$('#kit-messages',el),composer:$('#kit-composer',el),field,send:$('#kit-send',el),suggestions:$('#kit-starters',el),header:$('.thread-heading',el),active:()=>active(c)});
+    c.view=foodChatViewport({list:$('#kit-messages',el),composer:$('#kit-composer',el),field,send:$('#kit-send',el),suggestions:$('#kit-starters',el),header:$('.thread-heading',el),active:()=>active(c),resizeField:resize});
     const events=new AbortController();
     $('.thread-heading .back',el)?.addEventListener('click',()=>leaveRoute(c),{capture:true,signal:events.signal});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend(c);else resume(c);},{signal:events.signal});

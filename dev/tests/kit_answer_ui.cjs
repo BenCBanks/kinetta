@@ -52,10 +52,10 @@ async function main(){
     const field=row.querySelector('#kit-text'),send=row.querySelector('#kit-send'),r=row.getBoundingClientRect(),b=send.getBoundingClientRect();
     return{height:r.height,send:{width:b.width,height:b.height,visible:getComputedStyle(send,'::before').width},fieldHeight:field.getBoundingClientRect().height};
    });
-   assert.equal(composer.height,40,`${width}px ${theme}: composer is 40px tall: ${JSON.stringify(composer)}`);
+   assert.equal(composer.height,44,`${width}px ${theme}: composer is 44px tall: ${JSON.stringify(composer)}`);
    assert.equal(composer.send.width,44,`${width}px ${theme}: Send retains a 44px touch target`);
    assert.equal(composer.send.visible,'32px',`${width}px ${theme}: visible Send circle is 32px`);
-   assert(composer.fieldHeight<=36,`${width}px ${theme}: one-line field fits the 40px composer`);
+   assert(composer.fieldHeight===44,`${width}px ${theme}: one-line field fits the 44px composer`);
    const closedDock=await p.locator('.kit-chat').evaluate(shell=>({padding:getComputedStyle(shell).paddingBottom,fieldBottom:shell.querySelector('.kit-compose-row').getBoundingClientRect().bottom,viewport:innerHeight}));
    assert.equal(closedDock.padding,'8px',`${width}px ${theme}: Ask Kit reserves only 8px below its dock: ${JSON.stringify(closedDock)}`);
    assert(closedDock.viewport-closedDock.fieldBottom<=8.5,`${width}px ${theme}: answered composer sits just above the home indicator: ${JSON.stringify(closedDock)}`);

@@ -47,7 +47,7 @@ function drawDish(el, d) {
     const scroll=$('.recipe-content',el)?.scrollTop||0, draft=$('#dk-t',el)?.value||'';
     const act = document.activeElement, keep = act && act.id && el.contains(act) ? [act.id, act.value] : null;
     d=fresh;App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh);
-    $('.recipe-content',el).scrollTop=scroll;if($('#dk-t',el))$('#dk-t',el).value=draft;
+    $('.recipe-content',el).scrollTop=scroll;if($('#dk-t',el)){$('#dk-t',el).value=draft;$('#dk-t',el).dispatchEvent(new Event('input'));}
     if (keep) { const n = $('#' + keep[0], el); if (n) { n.value = keep[1]; n.focus(); } }
   };
   const ing = (it) => `<span class="ig-n">${esc(it.name)}</span><span class="ig-g num">${gfmt(it.grams)}</span>`;
@@ -78,9 +78,9 @@ function drawDish(el, d) {
     ${mine&&(has||shared.length)?`<button type="button" class="card tap share-row" id="dk-share">${shared.length?`<span class="avs">${shared.map(p=>avatar(p)).join('')}</span>`:''}<span class="grow"><b>${shared.length?'Shared with '+esc(shared.map(p=>p.name.split(' ')[0]).join(', ')):'Share with…'}</b><small class="muted">${shared.length?'Change who can see this recipe':'Optional · private until you choose a friend'}</small></span>${svg('chev')}</button>`:''}
     ${mine ? `${chatLog(d)}<div id="dk-match">${CHATS.get(d.id)?.some(m=>m.clarification)?'<p class="small muted">Finish the ingredient above, or cancel it.</p><button type="button" class="linkbtn" id="dk-cancel-clarification">Cancel ingredient</button>':''}</div></div>
       <div class="recipe-save"><button type="button" class="primary wide" id="dk-done"${has?'':' disabled'}>Save recipe</button></div>
-      <form class="composer" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
-        <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'e.g. 100 g oats' : 'Search ingredients…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="${aiCan('food')?'send':'search'}" maxlength="600" required>
-        <button class="icon-btn send" aria-label="${aiCan('food')?'Add ingredient':'Search ingredients'}">${svg('send')}</button></form>
+      <form class="composer chat-compose-line" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
+        <div class="thread-compose-row recipe-compose-row"><textarea rows="1" name="t" id="dk-t" placeholder="${aiCan('food') ? 'e.g. 100 g oats' : 'Search ingredients…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="${aiCan('food')?'send':'search'}" maxlength="600" required></textarea>
+        <button class="icon-btn send thread-send" aria-label="${aiCan('food')?'Add ingredient':'Search ingredients'}">${svg('send')}</button></div></form>
         <input type="file" accept="image/*" multiple id="dk-label-file" hidden>`
       : has&&t.kcal!=null ? `</div><div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `</div><p class="small muted">${has?'Calories are unavailable. The owner needs to add nutrition before you can log a portion.':esc(d.owner.name.split(' ')[0])+" hasn't added anything yet."}</p>`}`;
   wireBack(el, mine?'/food/meals':'/food');
@@ -521,7 +521,10 @@ function chatBox(el, d, set) {
   const f = $('#dk-add', el), log = CHATS.get(d.id) || [];
   const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner()&&$('#dk-add',el)===f;
   CHATS.set(d.id, log);
-  const redraw = (fresh) => { if(!live())return;const v=f.t.value;set(fresh);const n=$('#dk-add input',el);if(n){n.value=v;n.focus();} };
+  const field=$('#dk-t',el),fit=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,160)+'px';};
+  field.addEventListener('input',fit);fit();
+  field.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();f.requestSubmit();}};
+  const redraw = (fresh) => { if(!live())return;const v=f.t.value;set(fresh);const n=$('#dk-t',el);if(n){n.value=v;n.focus();} };
   const send = async (text) => {
     if(!live())return;
     if(log.some(m=>m.wait)){toast('Wait for the current ingredient to finish.');return;}
@@ -570,7 +573,7 @@ function chatBox(el, d, set) {
 let searchSeq = 0;
 async function searchFlow(el, d, set, text) {
   const box = $('#dk-match', el);
-  if (!text) { toast('Type the food first, like 2 apples'); $('#dk-add input', el).focus(); return; }
+  if (!text) { toast('Type the food first, like 2 apples'); $('#dk-t', el).focus(); return; }
   const my=++searchSeq,owner=readOwner();let busy=false;
   const live=()=>my===searchSeq&&owner===readOwner()&&el.isConnected&&$('#dk-match',el)===box;
   const show=html=>{box.innerHTML=html+'<button type="button" class="linkbtn" id="dk-cancel-match">Cancel ingredient</button>';$('#dk-cancel-match',box).onclick=()=>{if(busy)return;searchSeq++;box.replaceChildren();$('#dk-t',el)?.focus();};};
@@ -588,7 +591,7 @@ async function searchFlow(el, d, set, text) {
   const grams = () => { const g = +gIn.value.replace(',', '.'); if (!(g > 0)) { toast('How many grams? Type the weight first'); gIn.focus(); return null; } return g; };
   const add = async (body) => {
     if (busy||!live()) return false; busy = true;$('#dk-cancel-match',box).disabled=true;
-    try { const fresh = await api(`/api/dishes/${d.id}/items`, json('POST', body)); if(!live())return false;for(const m of CHATS.get(d.id)||[])delete m.clarification;toast(`Added ${body.name}`); set(fresh); const n = $('#dk-add input',el); if (n) n.focus(); return true; }
+    try { const fresh = await api(`/api/dishes/${d.id}/items`, json('POST', body)); if(!live())return false;for(const m of CHATS.get(d.id)||[])delete m.clarification;toast(`Added ${body.name}`); set(fresh); const n = $('#dk-t',el); if (n) n.focus(); return true; }
     catch (x) { toast(x.message); return false; }
     finally { busy = false;if(live())$('#dk-cancel-match',box).disabled=false; }
   };
