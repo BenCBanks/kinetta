@@ -2329,6 +2329,7 @@ body .social-sheet .comment .c-comment-options { margin-left:auto; }
 .kit-history-row {position:relative;overflow:hidden;touch-action:pan-y;}
 .kit-history-front {position:relative;display:flex;align-items:center;background:var(--surface-sheet);transition:transform .18s ease;}
 .kit-history-row.is-revealed .kit-history-front {transform:translateX(-56px);}
+.kit-history-row.is-revealed .kit-history-options {visibility:hidden;}
 .kit-history-row.is-revealed .kit-history-open {transform:translateX(56px);margin-right:56px;}
 .kit-history-open {transition:transform .18s ease;display:flex;align-items:center;gap:8px;flex:1;min-width:0;min-height:56px;padding:6px 0;text-align:left;background:none;border:0;color:var(--tx);}
 .kit-history-open>span {min-width:0;flex:1;}
