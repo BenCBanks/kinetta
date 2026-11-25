@@ -185,7 +185,7 @@ for device in preferred:
      if stage=='food':
       assert 'Today' in metrics['bodyText'] and 'Kit’s estimate' in metrics['bodyText'] and 'estimated portion' in metrics['bodyText'], 'Kit chat must show Today and a fictional estimated portion'
      if stage=='header-progress':
-      crop=metrics.get('storeCrop');assert crop and crop['selector']=='#p-explore [data-progress-feature="weight"]' and crop['bottom']<=crop['tabTop']-8, 'Progress crop must end on the full Weight row above the tab bar'
+      crop=metrics.get('storeCrop');assert crop and crop['selector']=='#p-explore [data-progress-feature="weight"]' and crop['bottom']<=crop['tabTop'], 'Progress crop must keep the complete Weight row above the tab bar without overlap'
       assert '26:30' in metrics['bodyText'] and '25:00' in metrics['bodyText'], 'Fitness and Records must show distinct fictional times'
      if stage=='header-track':
       assert 'GPS ready' in metrics['bodyText'] and 'OpenStreetMap contributors' in metrics['bodyText'], 'Track must show backed GPS status and map credit'
