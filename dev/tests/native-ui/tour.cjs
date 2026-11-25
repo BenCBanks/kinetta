@@ -15,7 +15,7 @@ const scenes={
  'food-chat-review':{route:'/food/describe?meal=lunch',ready:'#thread-review:not([hidden]) #thread-review-add'},
  'food-insights':{route:'/food?view=overview&r=30',ready:'#nt-overview-chart svg'},
  'food-saved-meals':{route:'/food/meals',actions:['[data-library-tab="usuals"]'],ready:'#library-usuals [data-meal]'},
- 'friends-home-feed':{route:'/activity',ready:'#ff-list .post[data-href="/activity/friends/2"]',scroll:'#ff-list .post[data-href="/activity/friends/2"]',map:'#ff-list .post[data-href="/activity/friends/2"] .map'},
+ 'friends-home-feed':{route:'/activity',ready:'#ff-list .post[data-href="/activity/friends/2"]',scroll:'#ff-list .post[data-href="/activity/friends/2"]',map:'#ff-list .post[data-href="/activity/friends/2"] .leaflet-container'},
  'friends-list':{route:'/me/friends',ready:'.fr-friend',count:3},
  'friends-shared-activity':{route:'/activity/friends/2',ready:'#s-soc [data-ttalk]'},
  'friends-audience':{route:'/activity/1?edit=1',actions:['#e-visibility-open'],ready:'.activity-edit-audience [data-vis="friends"]'},
@@ -49,6 +49,7 @@ module.exports=function(name){
  r['/api/routes/1']={id:1,name:'Park loop',sport:'run',line:run.line,fastest_id:1,pace_trend:null,efficiency_trend:null,activities:[3,2,1,0].map((n,i)=>({...run,id:i+1,start_time:day(n*7)+'T08:30Z',elapsed_s:1800+n*30}))};
  const friend={...r['/api/feed/friends'][0],photos:[{id:1,url:'/static/tour-park.jpg',thumb:'/static/tour-park.jpg'}],social:{...run.social,mine:false},reactions:run.social.reactions,cheers:4,comments:2};
  r['/api/feed/friends']=[friend];r['/api/shared/2']=friend;
+ if(name==='friends-home-feed'){r['/api/activities']=[];r['/api/feed/friends']=[{...friend,photos:[]}];}
  r['/api/food/weekly-review']={entries:0};r['/api/food/meals']=[{id:1,name:'Yogurt and berries',items:[{name:'Greek yogurt'},{name:'Blueberries'}],totals:{kcal:260}},{id:2,name:'Chicken salad bowl',items:[{name:'Chicken'},{name:'Mixed greens'}],totals:{kcal:520}}];
  r['/api/dishes']=[];r['/api/food/foods']=[];r['/api/food/usual']=[];
  r['/api/food/insights']={top_foods:[],rows:Array.from({length:30},(_,i)=>({day:day(29-i),eaten:1700+(i%5)*30,burned:2200,goal:1800,protein_g:100+(i%4)*5,carbs_g:190,fat_g:60,entries:4,counted:i<29,today:i===29,weight:70-i*.01,trend:70-i*.01})),summary:{start:day(29),logged:29,avg_eaten:1760,avg_protein_g:107,avg_carbs_g:190,avg_fat_g:60},targets:{kcal_target:1800,protein_target:110}};
