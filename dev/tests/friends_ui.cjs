@@ -50,7 +50,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('#fr-requests-open').click();await p.getByRole('dialog',{name:'Requests'}).waitFor();assert.equal(await p.locator('[role=dialog] [data-request-accept]').count(),1);assert.equal(await p.locator('[role=dialog] [data-request-decline]').count(),1);if(out)await capture(p,`friends-requests-${width}-${theme}`);await closeSheet(p);
    }
    {
-    const searchRead=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/people/search');await p.locator('#fr-list-find input').fill('Friend 07');await searchRead;
+    // Non-friends are discoverable by username/first name, never their surname.
+    const searchRead=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/people/search');await p.locator('#fr-list-find input').fill('zz_test_fc_peer06');await searchRead;
     if(state==='heavy')await until(p,()=>document.querySelectorAll('#fr-own-list .fr-friend').length===1,'filtered existing friend');
     else await until(p,()=>document.querySelector('#fr-people-section')?.hidden===false&&document.querySelector('#fr-people-to-add .friend-add-result'),'People to add results appear');
     if(state==='empty'||state==='typical'){assert.equal(await p.locator('#fr-people-section .friend-add-result').count(),1);assert.equal(await p.locator('#fr-own-list .fr-friend').count(),0);}
