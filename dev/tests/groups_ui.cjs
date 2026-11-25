@@ -3,6 +3,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KINETTA_SHOTS;
 const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATE_TODAY=(()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:GROUP_UPDATE_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(GROUP_UPDATE_NOW),part=type=>parts.find(value=>value.type===type)?.value;return`${part('year')}-${part('month')}-${part('day')}`;})(),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1',GROUP_LIST_ONLY=process.env.KINETTA_GROUPS_LIST_ONLY==='1',GROUP_LOADING_ONLY=process.env.KINETTA_GROUP_LOADING_ONLY==='1',GROUP_DETAIL_ONLY=process.env.KINETTA_GROUPS_DETAIL_ONLY==='1',GROUP_INVITE_ONLY=process.env.KINETTA_GROUPS_INVITE_ONLY==='1',GROUP_HOME_EMPTY_ONLY=process.env.KINETTA_GROUPS_HOME_EMPTY_ONLY==='1';
+const GROUP_PICKER_ONLY=process.env.KINETTA_GROUPS_PICKER_ONLY==='1';
 const newUpdateText='Alex has the trail notes.';
 const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idTwo='00000000-0000-4000-8000-000000000002',idThree='00000000-0000-4000-8000-000000000004',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003',idLongOwnGoal='00000000-0000-4000-8000-000000000005',idSix='00000000-0000-4000-8000-000000000006',idTen='00000000-0000-4000-8000-000000000010';
 const friendInviteId='4301',idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013',idOngoing='00000000-0000-4000-8000-000000000014',idDetail='00000000-0000-4000-8000-000000000017',idEscaped='00000000-0000-4000-8000-000000000018';
@@ -119,7 +120,47 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await status.locator('.group-loading-glyph').first().evaluate(el=>getComputedStyle(el).animationName),'none','skeleton shimmer stops for Reduce Motion');
   releaseGroupList();await groupListLoaded;assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
  }
+ async function checkFriendPicker(theme,width){
+  const {context,page,errors}=await open(theme,width);let mode='loading',reads=0,linkReads=0,posts=[];
+  let releaseLoad,releaseInvite,markInvite;const loadGate=new Promise(resolve=>releaseLoad=resolve),inviteGate=new Promise(resolve=>releaseInvite=resolve),inviteStarted=new Promise(resolve=>markInvite=resolve);
+  const rows=[{username:'zora_trails',state:'none'},{username:'alpine_friend',state:'none'},{username:'river_runner',state:'invited'},{username:'joined_friend',state:'member'}];
+  await context.route('**/api/groups/*/friends',async route=>{reads++;if(mode==='loading')await loadGate;if(mode==='error')return route.fulfill({status:503,json:{detail:'Fictional offline response'}});return route.fulfill({json:{friends:mode==='empty'?[]:rows,can_invite:!['stopped','full'].includes(mode)}});});
+  await context.route('**/api/groups/*/friend-invites',async route=>{posts.push(route.request().postDataJSON());markInvite();await inviteGate;if(mode==='invite-fail')return route.fulfill({status:503,json:{detail:'Fictional invite failed'}});return route.fulfill({json:{state:'invited'}});});
+  await context.route('**/api/groups/*/invites',route=>{linkReads++;return route.fulfill({json:{invite_url:'https://example.test/group-invite/fictional-only'}});});
+  await page.addInitScript(()=>{window.fixtureShares=[];Object.defineProperty(navigator,'share',{configurable:true,value:async payload=>window.fixtureShares.push(payload)});});
+  await page.goto(base+groupUrl(idDetail));await page.locator('#group-header-invite').click();await page.locator('.group-friend-placeholder').first().waitFor();
+  assert.equal(await page.locator('.group-friend-placeholder').count(),3);await capture(page,`group-picker-loading-${width}-${theme}`,null,{fullPage:false});
+  mode='list';releaseLoad();await page.locator('[data-invite-friend="alpine_friend"]').waitFor();await settle(page);
+  const picker=page.locator('.group-friend-sheet');assert.equal(await picker.locator('header h2').innerText(),'Invite to Fictional Trail Group');
+  assert.deepEqual(await page.locator('.group-friend-row>b').allTextContents(),['@alpine_friend','@zora_trails','@river_runner','@joined_friend']);
+  assert.equal(linkReads,0,'opening Invite never generates or rotates a link');assert.equal(reads,1,'one friends read on open');
+  const boxes=await picker.locator('button,input').evaluateAll(elements=>elements.filter(el=>!el.hidden).map(el=>{const r=el.getBoundingClientRect();return{label:el.getAttribute('aria-label')||el.textContent,height:r.height,width:r.width};}));
+  assert(boxes.every(box=>box.width>=44&&box.height>=44),`all Invite controls are 44px: ${JSON.stringify(boxes)}`);
+  assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'friend picker fits without horizontal scrolling');
+  const colors=await picker.evaluate(el=>{const avatar=getComputedStyle(el.querySelector('.group-friend-avatar')),footer=el.querySelector('[data-group-share]'),brand=document.createElement('span');brand.style.color='var(--accent)';el.append(brand);const result={avatar:avatar.backgroundColor,sheet:getComputedStyle(el).backgroundColor,share:getComputedStyle(footer).color,brand:getComputedStyle(brand).color,icon:getComputedStyle(footer.querySelector('svg')).color};brand.remove();return result;});
+  assert.notEqual(colors.avatar,colors.sheet,'avatar circles remain visible in both themes');assert.equal(colors.share,colors.brand,'Share invite link uses the brand color');assert.equal(colors.icon,colors.brand,'Share icon uses the same brand color');
+  const footer=await page.locator('.group-friend-footer').boundingBox();assert(footer.y+footer.height<=844&&footer.y>500,'Share stays docked in the sheet');
+  assert(!/https:|Copy invite|Done|display name/.test(await picker.innerText()),'no raw URL, duplicate actions or display names');
+  await capture(page,`group-picker-friends-${width}-${theme}`,null,{fullPage:false});
+  await page.locator('[data-invite-friend="alpine_friend"]').click();await inviteStarted;
+  assert.equal(await page.locator('[data-invite-friend="alpine_friend"]').innerText(),'✓ Invited','optimistic feedback appears before response');assert(await page.locator('[data-invite-friend="alpine_friend"]').isDisabled());
+  releaseInvite();await page.waitForFunction(()=>document.querySelector('[data-invite-friend="alpine_friend"]').disabled);assert.deepEqual(posts,[{username:'alpine_friend'}],'only the selected username is sent once');
+  await capture(page,`group-picker-invited-${width}-${theme}`,null,{fullPage:false});
+  mode='invite-fail';await page.locator('[data-invite-friend="zora_trails"]').click();await page.waitForFunction(()=>document.querySelector('[data-invite-friend="zora_trails"]').disabled===false);assert.equal(await page.locator('[data-invite-friend="zora_trails"]').innerText(),'Invite','failed invitation restores its action');mode='list';
+  await page.locator('#group-friend-search').fill('nobody');assert.match(await picker.innerText(),/No friends match ‘nobody’/);await capture(page,`group-picker-no-match-${width}-${theme}`,null,{fullPage:false});
+  await page.locator('#group-friend-search').fill('');await page.locator('[data-group-share]').click();await page.waitForFunction(()=>fixtureShares.length===1);assert.equal(linkReads,1);assert.equal(await page.evaluate(()=>fixtureShares.length),1,'Share uses the platform share sheet');assert.match(await page.evaluate(()=>fixtureShares[0].text),/fictional-only/);
+  await picker.locator('[data-close]').click();await picker.waitFor({state:'detached'});
+  mode='empty';await page.locator('#group-header-invite').click();await page.getByText('None of your friends are on Kinetta yet.').waitFor();assert(await page.locator('[data-find-group-friends]').isVisible());await capture(page,`group-picker-empty-${width}-${theme}`,null,{fullPage:false});
+  await picker.locator('[data-close]').click();await picker.waitFor({state:'detached'});
+  mode='error';await page.locator('#group-header-invite').click();await page.locator('[data-group-friend-retry]').waitFor();assert(await page.locator('[data-group-share]').isVisible());await capture(page,`group-picker-error-${width}-${theme}`,null,{fullPage:false});
+  mode='list';await page.locator('[data-group-friend-retry]').click();await page.locator('.group-friend-row').first().waitFor();assert.equal(await page.locator('.group-friend-row').count(),4,'Retry reloads friends');
+  await picker.locator('[data-close]').click();await picker.waitFor({state:'detached'});
+  mode='full';await context.route('**/api/groups/'+idDetail,route=>route.fulfill({json:{...detailGroup,member_count:50}}));await page.reload();await page.locator('#group-header-invite').click();await page.getByText('Group full',{exact:true}).waitFor();assert(await page.locator('[data-invite-friend="alpine_friend"]').isDisabled());await capture(page,`group-picker-full-${width}-${theme}`,null,{fullPage:false});await picker.locator('[data-close]').click();await picker.waitFor({state:'detached'});
+  await context.route('**/api/groups/'+idDetail,route=>route.fulfill({json:{...detailGroup,joining_closed:true}}));mode='stopped';await page.reload();await page.locator('#group-header-invite').click();await page.locator('.group-friend-row').waitFor();assert.equal(await page.locator('.group-friend-row').count(),1,'joining stopped shows Joined friends only');assert(await page.locator('[data-group-share]').isHidden());await capture(page,`group-picker-stopped-${width}-${theme}`,null,{fullPage:false});
+  assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+ }
  try{
+  if(GROUP_PICKER_ONLY||GROUP_UPDATES_ONLY){for(const theme of ['light','dark'])for(const width of [390,330])await checkFriendPicker(theme,width);console.log('Groups friend picker 390/330 light/dark PASS');if(GROUP_PICKER_ONLY)return;}
   if(GROUP_LOADING_ONLY){
    for(const theme of ['light','dark'])await checkGroupLoading(theme);
    console.log('Groups list loading 390 light/dark PASS');return;
@@ -237,10 +278,10 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    await capture(page,`groups-create-goals-390-${theme}`,null,{fullPage:false});await page.locator('[data-group-goal-done]').click();assert.match(await page.locator('[data-group-create-goal] small').innerText(),/Sessions · 25/);
    await page.locator('[data-group-create-date]').click();const createDate=page.locator('[data-group-date-input]');await createDate.fill('2026-11-21');await page.locator('[data-sheet-back]').click();assert.notEqual(await page.locator('[data-group-create-date] small').innerText(),'None','the date row reflects its selected event date');
    await page.locator('[name=title]').fill('Fictional Alpine Weekend');
-   await page.locator('#group-create-form button[type=submit]').click();await page.locator('[data-group-copy]').waitFor();
+   await page.locator('#group-create-form button[type=submit]').click();await page.locator('[data-group-share]').waitFor();
    assert.equal(postedGroups.at(-1).title,'Fictional Alpine Weekend');assert.equal(postedGroups.at(-1).time_zone,'America/New_York');assert.equal(postedGroups.at(-1).event_date,'2026-11-21');
    assert.equal(postedGroups.at(-1).goal_start_date,GROUP_UPDATE_TODAY);assert.equal(postedGroups.at(-1).training_for,'');assert.deepEqual(postedGroups.at(-1).goal_sports,['ride','walk','hike','swim','row','ski','workout','other']);assert.equal(postedGroups.at(-1).goal_type,'sessions');assert.equal(postedGroups.at(-1).goal_target,25);assert.equal(postedGroups.at(-1).goal_unit,'sessions');
-   assert.equal(await page.locator('.group-invite-actions button').count(),2,'The organizer can copy or share the private link');
+   assert.equal(await page.locator('[data-group-share]').count(),1,'One docked Share invite link action replaces raw URLs and copy actions');
    await page.keyboard.press('Escape');await context.close();contexts.splice(contexts.indexOf(context),1);
 
     ({context,page,errors,groupDateChanges,ongoingState}=await open(theme));await page.goto(base+groupUrl(idOngoing));await page.locator('.group-roster').waitFor();
