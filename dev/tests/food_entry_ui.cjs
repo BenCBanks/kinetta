@@ -19,7 +19,7 @@ async function assertLoggedLineFits(locator){
  assert(box.destinationWidth>=80,'the diary destination reserves room for Breakfast and its chevron');assert(box.destinationScroll<=box.destinationWidth+1,'the full diary destination text fits');assert(box.destinationRight<=box.lineRight+1,'the diary destination stays inside the logged row');assert(box.summaryRight<=box.destinationLeft,'the summary and diary destination do not overlap');assert(box.lineScroll<=box.lineWidth+1,'the logged row has no horizontal clipping');
 }
 (async()=>{
- if(process.env.KINETTA_SKIP_FOOD_ENTRY_FIXTURE!=='1')cp.execFileSync('python3',[path.join(__dirname,'food_entry_fixture.py')],{env:process.env,stdio:'inherit'});
+ if(process.env.KINETTA_SKIP_FOOD_ENTRY_FIXTURE!=='1'&&process.env.KINETTA_FOOD_CASE!=='dock')cp.execFileSync('python3',[path.join(__dirname,'food_entry_fixture.py')],{env:process.env,stdio:'inherit'});
  const b=await chromium.launch(),contexts=[];
  async function open(who,theme,size,native=false,options={}){
   const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:options.timezoneId||foodTimeZone});contexts.push(c);
@@ -76,6 +76,7 @@ async function assertLoggedLineFits(locator){
   return {c,p,foodWrites,errors};
  }
  try{
+  if(!process.env.KINETTA_FOOD_CASE||process.env.KINETTA_FOOD_CASE==='dock')await require('./food_chat_dock.cjs')(b,base);
   if(process.env.KINETTA_FOOD_CASE==='settings')for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}]){
    const view=await open('settings',theme,size),p=view.p;
    await p.locator('#thread-settings').click();await p.locator('#thread-tone-open').waitFor();

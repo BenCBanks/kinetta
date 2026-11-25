@@ -1333,8 +1333,8 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 
 #dl-n {width:4.5rem;text-align:center;font:700 1.6rem/1.2 var(--numf);padding:.4rem .25rem;}
 
-html.keyboard-open .food-thread:has(.shared-recipe-row) {padding-bottom:4px;}
-html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-shrink:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
+/* Reveal the rounded field's 4px padding and border when focus scrolls its textarea. */
+html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-shrink:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scroll-padding-bottom:5px;}
 
 /* Optional Health categories and source-labelled weigh-ins. */
 .health-food-card p {font-size:1rem;overflow-wrap:anywhere}
@@ -1547,9 +1547,10 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 html:has(.food-thread, .recipe-page), html:has(.food-thread, .recipe-page) body { overflow: hidden; }
 .shell.food-thread, .shell.recipe-page { position: fixed; top: var(--chat-top, 0px); left: 0; right: 0;
   width: 100%; height: var(--chat-height, 100dvh); min-height: 0; overflow: hidden; }
-.shell.food-thread { padding-bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 16px); }
+.shell.food-thread { padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
 .shell.food-thread.kit-chat { padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
-html.keyboard-open .shell.food-thread.kit-chat { padding-bottom: 8px; }
+/* Focused chats have no tab bar; the keyboard already covers the home inset. */
+html.keyboard-open .shell.food-thread, html.keyboard-open .shell.recipe-page { padding-bottom: 8px; }
 .food-thread > *, .recipe-page > * { min-width: 0; }
 .thread-heading { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
 .thread-heading .back { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
@@ -1558,7 +1559,7 @@ html.keyboard-open .shell.food-thread.kit-chat { padding-bottom: 8px; }
 html:has(.recipe-page) { --tab-h: 0px; }
 html:has(.recipe-page) nav.tabs { display: none; }
 .shell.recipe-page { min-height: 0; display: flex; flex-direction: column; overflow: hidden;
-  padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
+  padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
 .recipe-page > .top { flex: none; margin-bottom: 8px; gap: 4px; }
 .recipe-page .top .acts { gap: 8px; }
 .recipe-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; overflow-wrap: anywhere; padding: 2px 2px 12px; }
