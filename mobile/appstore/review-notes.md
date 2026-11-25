@@ -8,7 +8,7 @@ Fill these fields privately in App Store Connect for the exact submission. Do no
 - Review contact: `[OWNER’S REVIEW CONTACT]`
 - Submitted version/build: `[EXACT VERSION AND BUILD]`
 - Kit features/provider enabled on this server: `[CONFIRM FOR THIS REVIEW BUILD]`
-- Aggregate feature metrics are enabled for all hosted accounts. The app records feature use and food-entry method linked to the account for aggregate service-improvement counts; the metrics do not contain food details. App Store privacy answers classify Product Interaction as Analytics and linked to the user; Health and Fitness also include Analytics.
+- Aggregate feature metrics are enabled for all hosted accounts. The app records feature use and food-entry method linked to the account for aggregate service-improvement counts; the metrics do not contain food details. Totals from fewer than three people are hidden from administrators. For submission, confirm that App Store privacy answers classify Product Interaction as Analytics and linked to the user; Health and Fitness also include Analytics.
 
 The review account should contain fictional activity and food examples on a server chosen for App Review. Do not use a shared server unless its owner accepts that the reviewer can see activities shared with “Everyone.” A separate review server is recommended. Creating a reviewer account on a shared server does not hide other “Everyone” activities.
 
