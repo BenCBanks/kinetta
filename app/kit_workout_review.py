@@ -38,6 +38,7 @@ FELT_CLAIM = re.compile(r'\b(?:felt|feel|feels|feeling|harder|easier|tough|tired
 HONEST_FEELING = re.compile(r"\bcan['’]t tell how it felt\b", re.I)
 NOTE_INSTRUCTION = re.compile(r'\badd a note\b[^.!?]*', re.I)
 WORKOUT_PLACEHOLDER_WORDS = frozenset({'also','by','in','past','previous','recent'})
+WORKOUT_PLACEHOLDER = re.compile(r'\{(e[1-9][0-9]*):([0-4])\}')
 SENTENCE_END = re.compile(r'(?<!vs)[.!?](?:\s|$)', re.I)
 BANNED_BASELINE_WORDS = re.compile(r'\b(?:baseline|median)\b', re.I)
 COMPARISON_WORD = re.compile(r'\b(?:faster|slower|quicker|higher|lower|same|usual|than|versus|vs\.?|compared|comparison)\b', re.I)
@@ -97,17 +98,21 @@ duration; do not cite distance, pace, heart rate, or other unavailable measures.
 longest_90d notable only, “longest in the last ninety days” is an approved description of its built-in period.
 
 Use the supplied facts packet, including its app-selected relation and notable codes. When a comparison exists,
-use the literal {baseline} phrase supplied by the app and state at least one matching app-computed difference.
-Lead with that difference. If a notable code is present, name that notable first, then the difference. Mention
-the current value no more than once. Never write “baseline” or “median”. For an unchanged metric, write “within”
-followed by its matching delta fact. Never compare with an unnamed or invented baseline.
+include the exact {baseline} token once, without adding “your” or “the” before it; the app replaces it with a
+phrase such as “your last 3 runs” or “your last run on this route”. State at least one matching app-computed
+difference. Lead with that difference. If a notable code is present, name that notable first, then the difference.
+In a comparison, do not cite current values, distance or duration; use the app-computed difference instead. Only
+when there is no baseline may you mention one current value, and only when needed to answer the question. Never
+write “baseline” or “median”. For an unchanged metric, write “within” followed by its matching delta fact. Never
+compare with an unnamed or invented baseline.
 Use ordinary words; avoid physiology or training jargon. Write 2–4 short sentences total. For a PR or
 longest_90d notable, mention it in the verdict. The app chooses the next step and follow-ups; do not include
 either in your answer.
 
 Return JSON only with exactly these keys:
 {"facts":[],"workout_review":{"verdict":"..."}}
-You may cite up to five measurements or the app-generated baseline count. Each fact must copy one exact numeric
+You may cite up to five measurements or the app-generated baseline count, using only references {e2:0} through
+{e2:4}. Each fact must copy one exact numeric
 scalar from a successful workout_compare evidence path. Allowed paths are baseline_count, current.distance_m, current.moving_s, current.pace_s_per_km,
     current.speed_mps, current.avg_hr, current.ascent_m, current.avg_temp_c, and the corresponding deltas fields
 pace_s_per_km, speed_mps, avg_hr, ascent_m. Use the evidence ID and exact path; the numeric value
@@ -354,19 +359,23 @@ def checked_answer(raw, evidence):
         facts.append({'label':label,'value':value,'tool':'workout_compare','path':list(path),
                       'evidence_id':'e2','display_value':display})
     comparison_exists = compare['data'].get('status') == 'compared'
-    baseline_tokens = review.verdict.count('{baseline}')
+    # Gemini often prepends “your” to the app-owned phrase even though that
+    # phrase already contains it. Normalize that one redundant possessive
+    # before validation and final substitution.
+    model_verdict = re.sub(r'\byour\s+(?=\{baseline\})', '', review.verdict, flags=re.I)
+    baseline_tokens = model_verdict.count('{baseline}')
     if not comparison_exists and baseline_tokens:
         _reject('relation_unsupported')
     # Keep the app-owned phrase out of numeric validation, then install its
     # exact value after the model prose has passed all evidence checks.
     baseline_marker = 'your last N runs'
-    verdict_template = review.verdict.replace('{baseline}', baseline_marker)
+    verdict_template = model_verdict.replace('{baseline}', baseline_marker)
     try:
         verdict = coach_chat._kit_prose(verdict_template, facts, extra_words=WORKOUT_PLACEHOLDER_WORDS,
-                                        sentence_boundary=True)
+                                        sentence_boundary=True, placeholder_pattern=WORKOUT_PLACEHOLDER)
     except ValueError:
         _reject('numeric_unsupported')
-    number_text = coach_chat.PLACEHOLDER.sub('', review.verdict.replace('{baseline}', ''))
+    number_text = WORKOUT_PLACEHOLDER.sub('', model_verdict.replace('{baseline}', ''))
     if compare['data'].get('notable') == 'longest_90d':
         number_text = re.sub(r'\blast ninety days\b', '', number_text, flags=re.I)
     if NUMBER_WORD.search(number_text):
@@ -381,22 +390,22 @@ def checked_answer(raw, evidence):
     # a pace fact ending in “faster” and an HR fact ending in “lower”). Keep
     # those app-computed labels out of the prose relation check so each claim
     # is checked against the metric the person actually named.
-    relation_verdict = coach_chat.PLACEHOLDER.sub(lambda match: match.group(0)[:0], review.verdict)
+    relation_verdict = WORKOUT_PLACEHOLDER.sub(lambda match: match.group(0)[:0], model_verdict)
     _check_relations(relation_verdict, compare['data'])
-    if comparison_exists and baseline_tokens != 1:
+    if comparison_exists and baseline_tokens not in (1, 2):
         _reject('voice_invalid')
-    verdict_sentences = len(SENTENCE_END.findall(review.verdict.strip()))
+    verdict_sentences = len(SENTENCE_END.findall(model_verdict.strip()))
     if not (1 <= verdict_sentences <= 3):
         _reject('voice_invalid')
     if comparison_exists:
         delta_index = next((i for i, fact in enumerate(facts) if fact['path'][0] == 'deltas'), None)
-        refs = {int(i) for i in re.findall(r'\{e2:(\d+)\}', review.verdict)}
+        refs = {int(i) for i in re.findall(r'\{e2:([0-4])\}', model_verdict)}
         if delta_index is None or delta_index not in refs:
             _reject('voice_invalid')
         notable = compare['data'].get('notable')
         if notable in {'personal_record', 'longest_90d'} and not NOTABLE_WORDS[notable].search(review.verdict):
             _reject('relation_unsupported')
-        verdict = verdict.replace(baseline_marker, _baseline_phrase(compare['data']), 1)
+        verdict = verdict.replace(baseline_marker, _baseline_phrase(compare['data']))
     follow_ups = app_follow_ups(compare['data'])
     next_step = app_next_step(compare['data'])
     return {'facts':facts,'selection':None,'actions':[],

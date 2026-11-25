@@ -123,7 +123,7 @@ def _kit_path_allowed(tool, path):
 # These positive lists constrain adjacent tokens only; they do not judge sentence meaning.
 _PLACEHOLDER_CONNECTIVES = frozenset('about around roughly to and or from of vs versus'.split())
 _PLACEHOLDER_RANGES = frozenset(('-', '–', '—'))
-_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered covering spanning recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached reaching totaled totaling totalling nearly weighed shows show showing last'.split())
+_PLACEHOLDER_WORDS_BEFORE = _PLACEHOLDER_CONNECTIVES | frozenset('a an the another is was are were be been from with covered covering spanning recorded measured logged at of compared across by for include includes included provides providing provided delivers covers reached reaching totaled totaling totalling nearly weighed shows show showing last within over ran rode running completed averaging'.split())
 _PLACEHOLDER_WORDS_AFTER = _PLACEHOLDER_CONNECTIVES | frozenset('a an the was is are were be been from with recorded compared previously currently overall before after earlier today yesterday across over toward while each daily recently your against for on though higher lower more less above below under up down longer shorter faster slower than'.split())
 _PLACEHOLDER_PUNCTUATION = frozenset(',.;:()')
 _DISPLAY_UNIT = re.compile(r'(?:\b\d+(?:\.\d+)?h(?:\s+\d+m)?\b|\s(?:mi|km|ft|in|lb|kg|g|mg|kcal|bpm|min|h|m)\b|/\s?(?:mi|km)\b|°[CF])')
@@ -163,12 +163,12 @@ def _kit_numeric_symbol(char):
             or code==0x1F51F or 0x2460<=code<=0x24FF or 0x2776<=code<=0x2793 or 0x1F100<=code<=0x1F10F)
 
 
-def _normalise_kit_prose(text):
+def _normalise_kit_prose(text, *, placeholder_pattern=PLACEHOLDER):
     def without_marks(value):
         return ''.join(char for char in value if unicodedata.category(char)!='Cf' and not unicodedata.category(char).startswith('M'))
     text=without_marks(text)
     # Check original symbols too: NFKC can turn Roman/enclosed numerals into plain letters.
-    if any(_kit_numeric_symbol(char) for char in PLACEHOLDER.sub('',text)):
+    if any(_kit_numeric_symbol(char) for char in placeholder_pattern.sub('',text)):
         raise ValueError('Unverified numeric symbol')
     return without_marks(unicodedata.normalize('NFKC',text))
 
@@ -214,13 +214,14 @@ def _placeholder_value(fact, before='', after=''):
     return f"{display} {label}"
 
 
-def _kit_prose(text, facts, *, extra_words=(), sentence_boundary=False):
+def _kit_prose(text, facts, *, extra_words=(), sentence_boundary=False,
+               placeholder_pattern=PLACEHOLDER):
     """Only digits are guaranteed to come from validated, app-rendered placeholders; wording is not verified."""
-    text=_normalise_kit_prose(text)
-    remainder=PLACEHOLDER.sub('',text)
+    text=_normalise_kit_prose(text,placeholder_pattern=placeholder_pattern)
+    remainder=placeholder_pattern.sub('',text)
     if any(_kit_numeric_symbol(char) for char in remainder) or any(char in remainder for char in '{}'):
         raise ValueError('Unverified digit or malformed reference')
-    matches=list(PLACEHOLDER.finditer(text))
+    matches=list(placeholder_pattern.finditer(text))
     for i,match in enumerate(matches):
         evidence_id,index=match.group(1),int(match.group(2))
         if index>=len(facts) or facts[index]['evidence_id']!=evidence_id:
@@ -242,7 +243,7 @@ def _kit_prose(text, facts, *, extra_words=(), sentence_boundary=False):
             raise KitValidationError('Unsupported text attached to numeric reference',detail)
     def replace(match):
         return _placeholder_value(facts[int(match.group(2))],text[:match.start()],text[match.end():])
-    resolved=PLACEHOLDER.sub(replace,text).strip()
+    resolved=placeholder_pattern.sub(replace,text).strip()
     if not resolved or len(resolved)>1600: raise ValueError('Answer text is empty or too long')
     return resolved
 

@@ -1,4 +1,5 @@
 """Fictional, provider-free Kit workout-review cases. Run by coach_incontainer.py."""
+import re
 from app import kit_workout_review, workout_compare
 
 
@@ -131,6 +132,9 @@ CASES = [
     fixture('one similar workout',data={**comparison(status='not_enough_similar'),'baseline_count':1,'deltas':{},'relations':{}},raw=answer(['current','moving_s'],2340,data={**comparison(status='not_enough_similar'),'baseline_count':1,'deltas':{},'relations':{}})),
     fixture('missing heart rate',data={**comparison(),'current':{**comparison()['current'],'avg_hr':None},'deltas':{'pace_s_per_km':-12},'relations':{'pace_s_per_km':'faster'}}),
     fixture('current distance imperial field alias',units='imperial',data=comparison(),raw={'facts':[{'evidence_id':'e2','field':'current.distance_m','value':8046.72},{'evidence_id':'e2','field':'deltas.pace_s_per_km','value':-12}],'workout_review':{'verdict':'Compared with {baseline}, your pace was {e2:1}.'}},expected_display='5 mi'),
+    fixture('real eval4 same pace within with app baseline',data={**comparison(),'deltas':{'pace_s_per_km':2},'relations':{'pace_s_per_km':'about_the_same'}},raw={'facts':[{'evidence_id':'e2','path':'deltas.pace_s_per_km','value':2},{'evidence_id':'e2','path':'current.distance_m','value':8046.72},{'evidence_id':'e2','path':'current.moving_s','value':2340}],'workout_review':{'verdict':'Your pace was about the same as your {baseline}, within {e2:0}. You completed {e2:1} in {e2:2}.'}}),
+    fixture('real eval4 four references with current value suppressed by future prompt',data=comparison('walk'),raw={'facts':[{'evidence_id':'e2','path':'deltas.pace_s_per_km','value':-12},{'evidence_id':'e2','path':'deltas.avg_hr','value':-3},{'evidence_id':'e2','path':'current.moving_s','value':2340},{'evidence_id':'e2','path':'current.distance_m','value':8046.72}],'workout_review':{'verdict':'You were {e2:0} faster than your {baseline}. Your average heart rate was also {e2:1} lower than your {baseline}. You completed {e2:3} in {e2:2}.'}}),
+    fixture('real eval4 repeated baseline gets app phrase',data={**comparison(),'deltas':{'pace_s_per_km':14,'avg_hr':-3},'relations':{'pace_s_per_km':'slower','avg_hr':'lower'}},raw={'facts':[{'evidence_id':'e2','path':'deltas.pace_s_per_km','value':14},{'evidence_id':'e2','path':'deltas.avg_hr','value':-3},{'evidence_id':'e2','path':'current.distance_m','value':8046.72}],'workout_review':{'verdict':'Your pace was {e2:0} slower than your {baseline}. Your average heart rate was {e2:1} lower than your {baseline}. You covered {e2:2} on this run.'}}),
     fixture('hot day notable',data={**comparison(notable='hotter'),'current':{**comparison()['current'],'avg_temp_c':30}}),
     fixture('hillier route notable',data=comparison(notable='hillier'),raw={'facts':[{'evidence_id':'e2','path':['baseline_count'],'value':3},{'evidence_id':'e2','path':['deltas','pace_s_per_km'],'value':-12},{'evidence_id':'e2','path':['deltas','ascent_m'],'value':40}],'workout_review':{'verdict':'This route was hillier, with {e2:2} more climbing. Compared with {baseline}, your pace was {e2:1}.'}}),
     fixture('longest in ninety days',data=comparison(notable='longest_90d'),raw=answer(data=comparison(notable='longest_90d'),verdict='This was your longest run in the last ninety days. Compared with {baseline}, your pace was {e2:1}.')),
@@ -155,7 +159,7 @@ CASES = [
     fixture('reject five total sentences',raw=answer(data=comparison(),verdict='Clear. Useful. Noted. Thanks.'),expected='voice_invalid'),
     fixture('reject unnamed baseline',raw=answer(data=comparison(),verdict='Pace: {e2:1}.'),expected='voice_invalid'),
     fixture('pace same and heart rate higher',data={**comparison(),'deltas':{'pace_s_per_km':2,'avg_hr':4},'relations':{'pace_s_per_km':'about_the_same','avg_hr':'higher'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':2,'avg_hr':4},'relations':{'pace_s_per_km':'about_the_same','avg_hr':'higher'}})),
-    fixture('pace faster and heart rate higher',data={**comparison(),'deltas':{'pace_s_per_km':-12,'avg_hr':4},'relations':{'pace_s_per_km':'faster','avg_hr':'higher'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':-12,'avg_hr':4},'relations':{'pace_s_per_km':'faster','avg_hr':'higher'}})),
+    fixture('pace faster and heart rate higher',data={**comparison(),'deltas':{'pace_s_per_km':-12,'avg_hr':4},'relations':{'pace_s_per_km':'faster','avg_hr':'higher'}},raw={'facts':[{'evidence_id':'e2','path':'deltas.pace_s_per_km','value':-12},{'evidence_id':'e2','path':'current.pace_s_per_km','value':300},{'evidence_id':'e2','path':'deltas.avg_hr','value':4}],'workout_review':{'verdict':'You ran {e2:0} faster than your {baseline}, averaging {e2:1}. Your heart rate was {e2:2} higher than your {baseline}.'}}),
     fixture('pace slower and heart rate lower',data={**comparison(),'deltas':{'pace_s_per_km':14,'avg_hr':-3},'relations':{'pace_s_per_km':'slower','avg_hr':'lower'}},raw=multi_metric_answer({**comparison(),'deltas':{'pace_s_per_km':14,'avg_hr':-3},'relations':{'pace_s_per_km':'slower','avg_hr':'lower'}})),
     fixture('pace faster and heart rate lower',data=comparison(),raw=multi_metric_answer(comparison())),
     fixture('reject harder feeling in verdict',data=comparison(),raw=answer(data=comparison(),verdict='Your run felt harder than usual. Compared with {baseline}, your pace was {e2:1}.'),expected='voice_invalid'),
@@ -189,6 +193,18 @@ def run():
         assert all(f['tool']=='workout_compare' and f['evidence_id']=='e2' for f in result['facts']),case['name']
         if case['name']=='real Gemini field-alias response':
             assert result['workout_review']['verdict'].startswith('Compared with your last 3 runs,'),result['workout_review']
+        if case['name']=='real eval4 same pace within with app baseline':
+            verdict=result['workout_review']['verdict']
+            assert 'your your' not in verdict and '{baseline}' not in verdict and 'your last 3 runs' in verdict,verdict
+        if case['name']=='real eval4 four references with current value suppressed by future prompt':
+            assert len(re.findall(r'\{e2:([0-4])\}',case['raw']['workout_review']['verdict']))==4,case['name']
+            assert result['workout_review']['verdict'].count('your last 3 walks')==2,case['name']
+        if case['name']=='real eval4 repeated baseline gets app phrase':
+            verdict=result['workout_review']['verdict']
+            assert verdict.count('your last 3 runs')==2 and '{baseline}' not in verdict,verdict
+        if case['name']=='pace faster and heart rate higher':
+            verdict=result['workout_review']['verdict']
+            assert verdict.count('your last 3 runs')==2 and 'your your' not in verdict,verdict
         if case['data'].get('status')=='compared' and any(f['path']==['baseline_count'] for f in result['facts']):
             baseline=next(f for f in result['facts'] if f['path']==['baseline_count'])
             noun='similar '+{'run':'runs','walk':'walks','hike':'hikes','ride':'rides','swim':'swims'}.get(case['data'].get('sport'),'workouts')
