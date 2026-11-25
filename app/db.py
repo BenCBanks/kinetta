@@ -2285,6 +2285,28 @@ MIGRATIONS = [
     REVOKE ALL ON public_people FROM PUBLIC;
     GRANT SELECT ON public_people TO fit_readers;""",
 
+    # 118. Limit the public directory to available accounts and synchronize both name write formats.
+    """CREATE OR REPLACE VIEW public_people WITH (security_invoker=false,security_barrier=true) AS
+      SELECT id AS user_id,login::text AS login,first_name,created FROM users
+      WHERE NOT needs_email_confirm AND suspended_at IS NULL;
+    CREATE OR REPLACE FUNCTION fit_split_legacy_user_name() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP='UPDATE' AND (NEW.first_name IS DISTINCT FROM OLD.first_name
+                            OR NEW.last_name IS DISTINCT FROM OLD.last_name) THEN
+        NEW.name=concat_ws(' ',NEW.first_name,nullif(NEW.last_name,''));
+      ELSIF NEW.first_name IS NULL OR NEW.first_name=''
+            OR (TG_OP='UPDATE' AND NEW.name IS DISTINCT FROM OLD.name) THEN
+        NEW.first_name=split_part(btrim(NEW.name),' ',1);
+        NEW.last_name=nullif(regexp_replace(btrim(NEW.name),'^\\S+\\s*',''),'');
+      ELSE
+        NEW.name=concat_ws(' ',NEW.first_name,nullif(NEW.last_name,''));
+      END IF;
+      RETURN NEW;
+    END $$;
+    DROP TRIGGER users_split_legacy_name ON users;
+    CREATE TRIGGER users_split_legacy_name BEFORE INSERT OR UPDATE OF name,first_name,last_name ON users
+      FOR EACH ROW EXECUTE FUNCTION fit_split_legacy_user_name();""",
+
 ]
 
 

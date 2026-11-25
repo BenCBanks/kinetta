@@ -871,7 +871,7 @@ def comment_delete(cid: int, user=Depends(current_user)):
 def blocks(user=Depends(current_user)):
     with db.connect() as c:
         return c.execute("""SELECT u.login::text AS login, u.first_name AS name, u.photo_v AS photo, b.created AS since FROM blocks b JOIN users u ON u.id = b.blocked
-                            WHERE b.user_id = %s ORDER BY u.name""", (user['id'],)).fetchall()
+                            WHERE b.user_id = %s ORDER BY u.first_name,u.login""", (user['id'],)).fetchall()
 
 
 @router.post('/people/{login}/block')
