@@ -460,6 +460,11 @@ Object.assign(KitChat, (() => {
     });
   }
   async function mount(el){
+    if(globalThis.EmailConfirmation?.required()){
+      current=null;const back=screens[context().screen];
+      el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}" aria-label="Back">${svg('back')}</a><h1>Ask Kit</h1></header>${EmailConfirmation.markup()}`;
+      EmailConfirmation.wire(el);return;
+    }
     if(typeof FoodThread==='undefined')await loadClassicScript(THREAD_ROUTE_ASSET);
     const ctx=context(),back=screens[ctx.screen],c={el,context:ctx,owner:owner(),session:readOwner(),messages:[],localMessages:[],loaded:false,sending:false,awaitingFood:false,foodStarted:false};current=c;
     el.classList.add('food-thread','kit-chat');

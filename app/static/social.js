@@ -940,7 +940,7 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null, def
   $$('[data-ph]', box).forEach((b) => b.onclick = () => photoViewer(view, +b.dataset.ph, mine, redraw, {draft}));
   const add = $('[data-phadd]', box), file = $('[data-phfile]', box);
   if (!add) return;
-  add.onclick = () => file.click();
+  add.onclick = () => {if(!globalThis.EmailConfirmation?.lock(true))file.click();};
   file.onchange = async () => {
     const files = [...file.files].slice(0, PHOTO_MAX - ph.length); if (!files.length) return;
     add.disabled = true;

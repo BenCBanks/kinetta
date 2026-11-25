@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 
-from . import db
+from . import db, email_confirmation
 from .api_social import blocked, can_see
 from .auth import current_user
 
@@ -62,6 +62,7 @@ def _jpeg_response(data):
 # ---------- profile photo ----------
 @router.put('/me/photo')
 def set_profile_photo(body: PhotoIn, user=Depends(current_user)):
+    email_confirmation.require_upload(user['id'])
     img = _jpeg(ImageOps.fit(_open(body), (PROFILE_PX, PROFILE_PX), Image.LANCZOS))
     v = secrets.token_urlsafe(6)
     with db.connect() as c:
@@ -98,6 +99,7 @@ def prepare_activity_photo(body: PhotoIn):
 
 def insert_activity_photo(c, aid, user_id, prepared):
     """The caller holds the per-person photo lock and owns the encompassing transaction."""
+    email_confirmation.require_upload(user_id, c)
     if not c.execute('SELECT 1 FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, user_id)).fetchone():
         raise HTTPException(404, 'Not found')
     if c.execute('SELECT count(*) AS n FROM activity_photos WHERE activity_id = %s', (aid,)).fetchone()['n'] >= PER_ACTIVITY:
@@ -109,6 +111,7 @@ def insert_activity_photo(c, aid, user_id, prepared):
 
 
 def lock_activity_photos(c, user_id):
+    email_confirmation.require_upload(user_id, c)
     # Erasure locks the account before its activities; match that order before any photo/activity lock.
     if not c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE', (user_id,)).fetchone():
         raise HTTPException(404, 'Account unavailable')
@@ -118,6 +121,7 @@ def lock_activity_photos(c, user_id):
 
 @router.post('/activities/{aid}/photos')
 def add_activity_photo(aid: int, body: PhotoIn, user=Depends(current_user)):
+    email_confirmation.require_upload(user['id'])
     prepared = prepare_activity_photo(body)
     with db.connect() as c:
         lock_activity_photos(c, user['id'])

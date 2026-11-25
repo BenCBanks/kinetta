@@ -1,3 +1,27 @@
+// Only the surface being opened is locked; ordinary app tools stay available.
+globalThis.EmailConfirmation = (() => {
+  const required = () => !!(App.me?.needs_email_confirm && !App.me.email_confirmed);
+  const markup = (upload=false) => `<div class="email-access-lock"><p>${upload?'Confirm your email to upload photos.':'Confirm your email to use Kit.'}</p><button type="button" class="primary wide" data-confirm-resend>Resend</button><p class="small muted" role="status" aria-live="polite"></p></div>`;
+  function wire(root) {
+    const me=App.me,owner=readOwner(),button=root.querySelector('[data-confirm-resend]'),status=root.querySelector('[role="status"]');
+    const active=()=>root.isConnected&&App.me===me&&owner===readOwner()&&required();
+    button.onclick=async()=>{
+      if(!active()||button.disabled)return;
+      button.disabled=true;status.textContent='';
+      try {
+        const reply=await api('/api/account/email/resend',json('POST',{login:me.pending_email||me.login}));
+        if(active())status.textContent=reply.message||'Check your inbox for a confirmation link.';
+      } catch(e) { if(active())status.textContent=e.message||'Could not resend. Try again.'; }
+      finally { if(active())button.disabled=false; }
+    };
+  }
+  function lock(upload=false) {
+    if(!required())return false;
+    sheet(upload?'Add photos':'Kit',markup(upload),wire);return true;
+  }
+  return {required,markup,wire,lock};
+})();
+
 (() => {
   const DOMAIN_FIX = {
     'gmai.com':'gmail.com','gmial.com':'gmail.com','gamil.com':'gmail.com','gnail.com':'gmail.com','gmal.com':'gmail.com',

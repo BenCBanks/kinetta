@@ -451,7 +451,7 @@ function aiOffer(feature) {
   return !App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
 }
 // Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
-function kitChatOn() { return !!App.me?.kit_chat && !App.me?.ai_paused && aiCan('coach'); }
+function kitChatOn() { return !!App.me?.kit_chat && !App.me?.ai_paused && (globalThis.EmailConfirmation?.required() || aiCan('coach')); }
 // One eager, reusable entry keeps every screen's Kit affordance identical before kit.js loads.
 function syncKitEntry(root, slot, href, label) {
   if (!root || !slot) return null;

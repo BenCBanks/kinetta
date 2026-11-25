@@ -1857,7 +1857,7 @@ function profilePhotoSheet(done) {
     <button type="button" class="primary wide" id="pp-pick">${svg('camera')}${me.photo ? 'Choose a new photo' : 'Choose a photo'}</button>
     ${me.photo ? '<button type="button" class="ghost wide" id="pp-rm">Remove photo</button>' : ''}</div>`, (b, close) => {
     const file = $('#pp-file', b), pick = $('#pp-pick', b), rm = $('#pp-rm', b);
-    pick.onclick = () => file.click();
+    pick.onclick = () => {if(!globalThis.EmailConfirmation?.lock(true))file.click();};
     file.onchange = async () => {
       const f = file.files && file.files[0]; if (!f) return;
       pick.disabled = true; pick.textContent = 'Saving…';

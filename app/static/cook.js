@@ -403,7 +403,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false,quickPortion=null,onQuickFin
 function labelButton(el, d, set) {
   const file = $('#dk-label-file', el);
   if (!file) return;
-  el._label = () => { if (App.me.coach && !App.me.ai_ok) aiSheet(() => file.click()); else file.click(); };    // from the + menu
+  el._label = () => { if(globalThis.EmailConfirmation?.lock())return; if (App.me.coach && !App.me.ai_ok) aiSheet(() => file.click()); else file.click(); };    // from the + menu
   file.onchange = async () => {
     const owner=readOwner(),active=()=>el.isConnected&&readOwner()===owner;
     const files=[...(file.files||[])];file.value='';

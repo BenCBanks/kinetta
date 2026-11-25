@@ -229,3 +229,5 @@ assert(qualityHtml.includes('Last run on this route')&&qualityHtml.includes('Thi
 assert(qualityHtml.includes('158 bpm')&&qualityHtml.includes('172 bpm'),'distinct source facts remain visible');
 assert.equal((qualityHtml.match(/data-kit-followup/g)||[]).length,1,'non-first-person follow-ups are dropped');
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
+
+require('./test_email_confirmation.js');
