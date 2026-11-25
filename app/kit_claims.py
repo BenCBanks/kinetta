@@ -32,7 +32,22 @@ PERSONAL = re.compile(r"\b(?:you(?:r| are| were| have|'re|'ve)?|this (?:run|ride
 FEELING = re.compile(r'\b(?:you|your (?:run|ride|walk|swim|workout))\s+(?:felt|feel|feels|are|were)\s+(?:very\s+)?(tired|harder|easier|strong|weak|good|bad|tough|steady)\b',re.I)
 HONEST = re.compile(r"\b(?:can(?:not|['’]t) tell how (?:it|you) felt|add a note[^.!?]*)",re.I)
 HEALTH = re.compile(r'\b(?:you (?:have|are suffering from)|your (?:data|heart rate|workouts?) (?:proves?|confirms?|diagnoses?))\b[^.!?]*\b(?:diabetes|disease|illness|dehydration|overtraining|injury|deficiency)\b|\b(?:stop|skip|double|reduce) (?:your )?(?:medication|insulin|prescription)\b',re.I)
-NUMBER_WORD = re.compile(r'\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|hundred|thousand)\s+(?:\w+\s+)?(?:runs?|rides?|walks?|workouts?|sessions?|days?|weeks?|minutes?|hours?|grams?|calories?|miles?|kilomet(?:er|re)s?|reps?|sets?)\b|\b(?:twice|thrice)\b',re.I)
+NUMBER_WORD = re.compile(r'\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|half|quarter|dozen)\s+(?:\w+\s+)?(?:runs?|rides?|walks?|workouts?|sessions?|days?|weeks?|minutes?|hours?|grams?|calories?|miles?|kilomet(?:er|re)s?|reps?|sets?)\b|\b(?:twice|thrice)\b',re.I)
+
+
+# Natural grammar can surround a slot; units, arithmetic and extra quantities cannot.
+BOUNDARY_UNITS = frozenset(('g kg lb lbs oz mi km m cm ft in s sec secs min mins h hr hrs kcal bpm '
+    'gram grams kilogram kilograms pound pounds ounce ounces mile miles kilometer kilometers kilometre kilometres '
+    'meter meters metre metres foot feet inch inches second seconds minute minutes hour hours calorie calories '
+    'protein carbs carbohydrate carbohydrates fat sodium sugar fibre fiber pace speed percent percentage per '
+    'over under times divided multiply plus minus watts watt w joules j kj kilojoules ml liters litres cups servings '
+    'celsius fahrenheit degrees').split())
+NUMBER_TOKEN = re.compile(r'^(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|half|quarter|dozen)(?:-|$)')
+
+
+def boundary_words(text):
+    return {word for word in re.findall(r"[a-z]+(?:-[a-z]+)*",text.casefold())
+            if word not in BOUNDARY_UNITS and not NUMBER_TOKEN.match(word)}
 
 
 def field(fact):

@@ -98,6 +98,7 @@ def checked_answer(raw, evidence, *, question=None):
         batch = coach_chat.checked_answer(legacy, evidence, kit=True)
         facts.extend(batch['facts'])
         checked = checked or batch
+    from . import kit_claims
     blocks = []
     for block in answer.blocks:
         texts = [block.text] if isinstance(block, Paragraph) else block.items
@@ -106,13 +107,13 @@ def checked_answer(raw, evidence, *, question=None):
         for text in texts:
             if not text.strip() or len(text) > limit:
                 raise ValueError('Empty or oversized conversation block')
-            display = coach_chat._kit_prose(text, facts, sentence_boundary=True, placeholder_pattern=REFERENCE)
+            display = coach_chat._kit_prose(text, facts, extra_words=kit_claims.boundary_words(text),
+                                             sentence_boundary=True, placeholder_pattern=REFERENCE)
             if len(display) > limit:
                 raise ValueError('Oversized formatted conversation block')
             rendered.append(display)
         blocks.append({'kind':'paragraph','text':rendered[0]} if isinstance(block, Paragraph)
                       else {'kind':'list','items':rendered})
-    from . import kit_claims
     texts = [text for block in answer.blocks for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
     kit_claims.validate(texts, facts, evidence, question=user_question(question), reference=REFERENCE)
     interpretation = '\n\n'.join(block['text'] if block['kind']=='paragraph'

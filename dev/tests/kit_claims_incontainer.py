@@ -24,6 +24,8 @@ def check(text, *, expected=None, facts=None, records=evidence, question=''):
         return result
 
 
+check('The recorded value was {e2:0} during the week.')
+check('The recorded value was within {e2:0}.')
 check('Your distance was higher than the previous period, recorded at {e2:0}.')
 check('Your distance was lower than the previous period, recorded at {e2:0}.',expected='relation_unsupported')
 check('Your protein was recorded at {e2:0}.',expected='topic_unsupported')
@@ -42,6 +44,7 @@ check('You can try a shorter workout.',facts=[])
 check('You have diabetes.',expected='health_claim',facts=[])
 check('Stop your medication.',expected='health_claim',facts=[])
 check('Ask a clinician about persistent pain.',facts=[])
+check('You recorded seventy workouts.',expected='numeric_unsupported',facts=[])
 check('You recorded three workouts.',expected='numeric_unsupported',facts=[])
 check('Here is one useful next step: choose a routine you enjoy.',facts=[])
 try:kit_claims.ClaimRejected('provider text')
@@ -93,3 +96,9 @@ for fixed in (True,False):
         else:assert fixed and answer['weekly_review']
     assert len(rounds)==2
 print('Kit claims + weekly reference/delta/nutrient/correction regressions PASS; no provider calls')
+
+for unit in ('miles','grams','kcal','watts','seventy'):
+    bad={'blocks':[{'kind':'paragraph','text':'The recorded value was {e2:0} '+unit+'.'}],'facts':[fact]}
+    try:coach_chat.checked_answer(bad,evidence,kit=True)
+    except ValueError:pass
+    else:raise AssertionError('Extra numeric/unit suffix accepted: '+unit)
