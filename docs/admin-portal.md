@@ -79,6 +79,15 @@ Assign a daily report/support owner. Review failed connections and imports befor
 
 ## Accounts and safe recovery
 
+People starts with a sticky search field and plain All, New, Unconfirmed and Suspended tabs. New means
+joined during the last seven UTC dates, using the existing joined-date filter. Compact 60px rows show name,
+username, account status and the last active date; no exact activity time is introduced. More filters retains
+role, support issue, sorting, date and test-account controls. A person opens with one contextual primary action:
+restore a suspended account, resend an unconfirmed account's confirmation, request a reset for a confirmed
+member, or sign out everywhere otherwise. Other support actions remain in disclosures. Confirmation sheets
+require the exact visible `@username`; the client removes the `@` before calling the unchanged server contract.
+The existing separate portal session, typed confirmation, request receipts and audit rules remain in force.
+
 Search name, username or email; combine role/status, test-account visibility, joined/active UTC dates and open-report/import/connection filters. Sort newest joined, last active or name. Loading, failed searches and Retry are explicit. An older response cannot replace a newer query.
 
 Account support leads with status, confirmed email, connections, recent imports and signed-in devices. A new iPhone sign-in can supply app version/build; existing sessions and older clients may say “not supplied”. This is client-reported metadata, not remote device inspection. Connection timestamps are the last recorded sync, not a guarantee of complete imports. Stored-photo bytes include images and thumbnails, not total account storage; monthly AI requests are a count, not a price or allowance. Ordinary support never opens workouts, GPS routes, food, health measurements or conversations.

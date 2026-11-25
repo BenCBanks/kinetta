@@ -66,3 +66,23 @@ body:has(#portal:not([hidden])) main{max-width:none;padding:22px 22px 22px 264px
  .admin-nav .admin-nav-secondary{display:none}.admin-session summary{font-size:12px}
  #admin-subnav{gap:12px;font-size:14px}.admin-workspace .notice:first-child{margin-top:0}
 }
+
+/* People: sticky query, text filters and a compact support directory. */
+body[data-admin-view=people] .people-find{display:block;position:sticky;top:calc(64px + env(safe-area-inset-top));z-index:4;background:var(--color-canvas)}
+.people-search-sticky{padding:8px 0 0}
+.people-find .people-search{display:block;margin:0;font-size:13px;font-weight:500}
+.people-tabs{display:flex;justify-content:space-between;margin:4px 0 0;gap:0;border-bottom:1px solid var(--color-divider)}
+.people-tabs button{flex:0 0 auto;padding:8px;min-width:44px;border:0;border-radius:0;background:transparent;color:var(--color-text-secondary);font-size:14px;white-space:nowrap}
+.people-tabs button[aria-selected=true]{color:var(--color-brand);box-shadow:inset 0 -2px var(--color-brand);font-weight:600}
+.people-find .more-filters{border-top:0}
+.people-add{display:flex;gap:16px;margin:4px 0}
+.people-add button,.person-secondary button{border:0;background:transparent;text-align:left;padding:8px 0}
+.person-rows{border-top:1px solid var(--color-divider)}
+.people-list-meta{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--color-text-secondary);padding-right:20px}
+.person-row{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;border:0;border-bottom:1px solid var(--color-divider);border-radius:0;background:transparent;color:var(--color-text);text-align:left;padding:8px 0;line-height:1.4}
+.person-row-main{display:flex;flex-direction:column;flex:1;min-width:0;overflow-wrap:anywhere}
+.person-row-main strong{font-size:15px;font-weight:600}.person-row-main>span,.person-row-status{font-size:13px;color:var(--color-text-secondary)}
+.person-row-status{display:flex;flex-direction:column;align-items:flex-end;max-width:40%;overflow-wrap:anywhere}.person-row time{font-size:12px;color:var(--color-text-muted)}
+.person-summary p{margin:4px 0 12px}.person-primary{margin:16px 0}.person-primary button{width:100%}.person-secondary{border-block:1px solid var(--color-divider)}
+.person-secondary .actions{margin:4px 0}.person-secondary .actions button{flex:1 1 100%;color:var(--color-brand)}
+@media(max-width:380px){.people-tabs button{font-size:13px}.person-row{gap:8px}.people-add{gap:12px}.people-add button{font-size:14px}.person-row-status{max-width:43%}}
