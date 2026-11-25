@@ -166,7 +166,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
         locked(c,uid,body.generation,body.visit_id)
-        row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
+        row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND replay_blocked_at IS NULL AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
         conversation_id=kit_history.conversation(c,uid,body.visit_id)
         if not row or (row['visit_id']!=body.visit_id and not (conversation_id and row['conversation_id']==conversation_id)):raise HTTPException(404,'Kit message not found')
         if conversation_id and not kit_history.enabled():
@@ -183,7 +183,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         new_turn=row['state']=='pending'
         lease=uuid4()
         c.execute("UPDATE kit_turns SET state='running',lease=%s,expires=now()+interval '5 minutes',error=NULL,generation=%s,visit_id=%s WHERE user_id=%s AND client_id=%s",(lease,body.generation,body.visit_id,uid,client_id))
-        prior=c.execute("SELECT question,answer FROM kit_turns WHERE user_id=%s AND "+condition+" AND id<%s AND state='answered' AND invalidated_at IS NULL ORDER BY id DESC LIMIT 6",(uid,*args,row['id'])).fetchall()
+        prior=c.execute("SELECT question,answer FROM kit_turns WHERE user_id=%s AND replay_blocked_at IS NULL AND "+condition+" AND id<%s AND state='answered' AND invalidated_at IS NULL ORDER BY id DESC LIMIT 6",(uid,*args,row['id'])).fetchall()
         source_consents=kit_history.consents(c,uid) if conversation_id else None
         memories,memory_version,health_context=kit_memory.context(c,uid)
         history=[]

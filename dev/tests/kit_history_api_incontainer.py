@@ -265,5 +265,23 @@ class HistoryAPI(unittest.TestCase):
                 self.assertEqual(c.execute('SELECT count(*) n FROM '+table+' WHERE user_id=%s',(self.uid,)).fetchone()['n'],0)
         self.req('GET','/threads/'+foreign['conversation_id'],client=self.b)
 
+    def test_quarantine_hides_history_titles_counts_and_replay_without_erasing(self):
+        v=self.new();old=self.send(v,'Fictional legacy source question')
+        with db.connect() as c:
+            original=c.execute('SELECT answer FROM kit_turns WHERE user_id=%s AND id=%s',(self.uid,old['id'])).fetchone()['answer']
+            c.execute('UPDATE kit_turns SET replay_blocked_at=now() WHERE user_id=%s AND id=%s',(self.uid,old['id']))
+        self.assertEqual(self.req('GET','/threads/'+v['conversation_id'])['messages'],[])
+        listed=self.req('GET','/threads')['conversations'][0]
+        self.assertEqual(listed['message_count'],0);self.assertEqual(listed['title'],'New conversation')
+        self.req('POST','/messages/'+old['client_id']+'/answer',{k:v[k] for k in ['generation','visit_id']},status=404)
+        self.req('POST','/messages',{'client_id':old['client_id'],'generation':v['generation'],'visit_id':v['visit_id'],'question':'Fictional legacy source question'},status=404)
+        self.send(v,'Fictional visible new question')
+        self.assertEqual(self.seen[-1]['history'],[])
+        visible=self.req('GET','/threads/'+v['conversation_id'])['messages']
+        self.assertEqual([r['question'] for r in visible],['Fictional visible new question'])
+        with db.connect() as c:
+            row=c.execute('SELECT answer,invalidated_at FROM kit_turns WHERE user_id=%s AND id=%s',(self.uid,old['id'])).fetchone()
+            self.assertEqual(row['answer'],original);self.assertIsNone(row['invalidated_at'])
+
 
 if __name__=='__main__':unittest.main()
