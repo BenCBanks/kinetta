@@ -1,24 +1,29 @@
 #!/usr/bin/env bash
 # Starts a fresh test app/database, injects the key only into the evaluator process,
-# writes private output under pigserver/backup, and always tears down the Compose project.
+# copies private output back before teardown, and always removes the Compose project.
 set -euo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 THINKING=LOW
+DRY_RUN=0
 while (($#)); do
   case "$1" in
     --thinking)
-      (($# >= 2)) || { echo "Usage: $0 [--thinking LOW|MEDIUM]" >&2; exit 2; }
+      (($# >= 2)) || { echo "Usage: $0 [--thinking LOW|MEDIUM] [--dry-run]" >&2; exit 2; }
       THINKING="$2"
       shift 2
       ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
     --help|-h)
-      echo "Usage: $0 [--thinking LOW|MEDIUM]"
+      echo "Usage: $0 [--thinking LOW|MEDIUM] [--dry-run]"
       exit 0
       ;;
     *)
-      echo "Usage: $0 [--thinking LOW|MEDIUM]" >&2
+      echo "Usage: $0 [--thinking LOW|MEDIUM] [--dry-run]" >&2
       exit 2
       ;;
   esac
@@ -27,19 +32,39 @@ done
   echo "Thinking must be LOW or MEDIUM." >&2
   exit 2
 }
-[[ -n "${GEMINI_API_KEY:-}" ]] && printenv GEMINI_API_KEY >/dev/null 2>&1 || {
-  echo "Export GEMINI_API_KEY in the environment; the key is never accepted as an argument." >&2
-  exit 2
-}
+if ((DRY_RUN == 0)); then
+  [[ -n "${GEMINI_API_KEY:-}" ]] && printenv GEMINI_API_KEY >/dev/null 2>&1 || {
+    echo "Export GEMINI_API_KEY in the environment; the key is never accepted as an argument." >&2
+    exit 2
+  }
+fi
 
 OUTPUT_DIR="$HOME/pigserver/backup/2026-11-kit-eval-v2"
 mkdir -p "$OUTPUT_DIR"
 chmod 700 "$OUTPUT_DIR"
 OUTPUT="$OUTPUT_DIR/workout-review-$(date -u +%Y%m%dT%H%M%SZ)-$$.jsonl"
+[[ ! -e "$OUTPUT" ]] || { echo "Refusing to overwrite an existing evaluation capture." >&2; exit 2; }
 PROJECT="kt-wreval-$$"
+CONTAINER_OUTPUT_DIR="/tmp/kinetta-wreval-$$"
+CONTAINER_OUTPUT="$CONTAINER_OUTPUT_DIR/$(basename "$OUTPUT")"
 COMPOSE=(docker compose --env-file /dev/null -f docker-compose.yml -f dev/tests/journeys-compose.yml -p "$PROJECT")
 compose() { "${COMPOSE[@]}" "$@"; }
-cleanup() { compose down --volumes --remove-orphans >/dev/null 2>&1 || true; }
+APP_STARTED=0
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if ((APP_STARTED == 1)) && compose exec -T app test -f "$CONTAINER_OUTPUT" >/dev/null 2>&1; then
+    if compose cp "app:$CONTAINER_OUTPUT" "$OUTPUT" >/dev/null 2>&1; then
+      chmod 600 "$OUTPUT"
+      echo "Evaluation output copied to $OUTPUT" >&2
+    elif ((status == 0)); then
+      echo "Could not copy the private evaluation output back to the host." >&2
+      status=1
+    fi
+  fi
+  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  exit "$status"
+}
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -51,18 +76,23 @@ if ((running >= 4)); then
   exit 3
 fi
 
-# The app server starts without provider access or credentials. The key and opt-in
-# flags are supplied only to the one-shot Python evaluator below.
+# Never give the disposable app service provider credentials. Normal evaluation
+# passes the exported key only to the one-shot evaluator process below.
 if ! env -u GEMINI_API_KEY -u ANTHROPIC_API_KEY \
     KINETTA_AI_ENABLED=0 KINETTA_PORT=0 \
     "${COMPOSE[@]}" up -d --build app; then
   echo "Could not start the disposable evaluator app/database." >&2
   exit 1
 fi
+APP_STARTED=1
 
 ready=0
 for _ in $(seq 1 60); do
-  if compose exec -T app python -c 'from app import db; c=db.connect(); c.execute("SELECT 1 FROM profile LIMIT 0"); c.close()' >/dev/null 2>&1; then
+  if compose exec -T app python -c '
+from app import db
+with db.connect() as c:
+    c.execute("SELECT 1")
+' >/dev/null 2>&1; then
     ready=1
     break
   fi
@@ -73,10 +103,20 @@ if ((ready == 0)); then
   exit 1
 fi
 
-compose exec -T \
-  -e GEMINI_API_KEY \
-  -e KINETTA_WORKOUT_REVIEW_EVAL_ISOLATED=1 \
-  -e KINETTA_AI_ENABLED=1 \
-  -e KINETTA_KIT_ENABLED=1 \
-  app python dev/evals/workout_review_eval.py \
-  --thinking "$THINKING" --output "$OUTPUT" --accept-paid-calls
+# The production image excludes dev/. Copy only this runner and its fictional fixtures.
+compose exec -T -u 0 app mkdir -p /srv/dev/evals /srv/dev/tests
+compose cp "$ROOT/dev/evals/workout_review_eval.py" app:/srv/dev/evals/workout_review_eval.py
+compose cp "$ROOT/dev/tests/workout_review_fixtures.py" app:/srv/dev/tests/workout_review_fixtures.py
+compose exec -T app mkdir -m 700 -p "$CONTAINER_OUTPUT_DIR"
+
+if ((DRY_RUN == 1)); then
+  compose exec -T app python /srv/dev/evals/workout_review_eval.py \
+    --thinking "$THINKING" --output "$CONTAINER_OUTPUT" --dry-run
+else
+  compose exec -T -e GEMINI_API_KEY \
+    -e KINETTA_WORKOUT_REVIEW_EVAL_ISOLATED=1 \
+    -e KINETTA_AI_ENABLED=1 \
+    -e KINETTA_KIT_ENABLED=1 \
+    app python /srv/dev/evals/workout_review_eval.py \
+    --thinking "$THINKING" --output "$CONTAINER_OUTPUT" --accept-paid-calls
+fi

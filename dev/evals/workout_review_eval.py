@@ -43,15 +43,8 @@ def main():
     parser.add_argument('--thinking', choices=('LOW', 'MEDIUM'), default='LOW')
     parser.add_argument('--output', required=True, help='Private JSONL output path outside the repository')
     parser.add_argument('--accept-paid-calls', action='store_true', help='Required; provider calls incur cost')
+    parser.add_argument('--dry-run', action='store_true', help='Write only a private metadata header; never contact a provider')
     args = parser.parse_args()
-    if not args.accept_paid_calls:
-        parser.error('No calls made: explicit --accept-paid-calls is required')
-    if os.environ.get('KINETTA_WORKOUT_REVIEW_EVAL_ISOLATED') != '1':
-        parser.error('Set KINETTA_WORKOUT_REVIEW_EVAL_ISOLATED=1 only inside the disposable fictional-data environment')
-    if not os.environ.get('GEMINI_API_KEY'):
-        parser.error('GEMINI_API_KEY must be supplied through the environment; never use a command-line key')
-    if not coach.enabled() or not ai_budget.enabled():
-        parser.error('Enable Kit/provider access only inside the disposable evaluation environment')
 
     fixture_by_name = {case['name']: case for case in CASES}
     if len(SELECTED_CASES) != 20 or any(name not in fixture_by_name for name in SELECTED_CASES):
@@ -68,6 +61,23 @@ def main():
         parser.error('Use a private output directory with no group/other permissions')
     if output.exists():
         parser.error('Refusing to overwrite an existing evaluation capture')
+    if args.dry_run:
+        descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            stream.write(json.dumps({'type':'metadata','dry_run':True,'provider_calls':0,
+                'fixture_source':'dev/tests/workout_review_fixtures.py'}) + '\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        print(f'Dry run: wrote header only; no provider calls. Output: {output}', flush=True)
+        return
+    if not args.accept_paid_calls:
+        parser.error('No calls made: explicit --accept-paid-calls is required')
+    if os.environ.get('KINETTA_WORKOUT_REVIEW_EVAL_ISOLATED') != '1':
+        parser.error('Set KINETTA_WORKOUT_REVIEW_EVAL_ISOLATED=1 only inside the disposable fictional-data environment')
+    if not os.environ.get('GEMINI_API_KEY'):
+        parser.error('GEMINI_API_KEY must be supplied through the environment; never use a command-line key')
+    if not coach.enabled() or not ai_budget.enabled():
+        parser.error('Enable Kit/provider access only inside the disposable evaluation environment')
 
     os.environ['GEMINI_MODEL'] = MODEL
     os.environ['KINETTA_AI_DAILY_USD'] = '1'

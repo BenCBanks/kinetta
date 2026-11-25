@@ -89,7 +89,7 @@ CASES = [
     fixture('reject medical advice in next step',raw=answer(data=comparison(),next_step='Treat the pain before training again.'),expected='health_claim_unsupported'),
     fixture('reject reversed pace relation',raw=answer(data={**comparison(),'deltas':{'pace_s_per_km':-12},'relations':{'pace_s_per_km':'faster'}},verdict='Your last baseline was {e2:0}, and pace difference: {e2:1} slower.'),data={**comparison(),'deltas':{'pace_s_per_km':-12},'relations':{'pace_s_per_km':'faster'}},expected='relation_unsupported'),
     fixture('reject relation from different metric',raw=answer(data={**comparison(),'relations':{'speed_mps':'faster'}}),data={**comparison(),'relations':{'speed_mps':'faster'}},expected='relation_unsupported'),
-    fixture('reject usual without matching relation',raw=answer(data={**comparison(),'relations':{'avg_hr':'lower'}},verdict='Your pace felt usual against your last {e2:0}.'),data={**comparison(),'relations':{'avg_hr':'lower'}},expected='relation_unsupported'),
+    fixture('reject usual without matching relation',raw=answer(data={**comparison(),'relations':{'avg_hr':'lower'}},verdict='Your pace was usual against your last {e2:0}.'),data={**comparison(),'relations':{'avg_hr':'lower'}},expected='relation_unsupported'),
     fixture('reject invented personal record',raw=answer(data=comparison(),verdict='Your workout set a personal record.'),expected='relation_unsupported'),
     fixture('reject comparison without history',raw=answer(data={**comparison(status='not_enough_similar'),'baseline_count':1,'deltas':{},'relations':{}},verdict='Your run was faster.'),data={**comparison(status='not_enough_similar'),'baseline_count':1,'deltas':{},'relations':{}},expected='relation_unsupported'),
     fixture('reject health claim in follow-up',raw=answer(data=comparison(),follow_ups=['Compare my effort when it felt safe.']),expected='follow_up_invalid'),
@@ -105,6 +105,7 @@ CASES = [
     fixture('reject first person in verdict',data=comparison(),raw=answer(data=comparison(),verdict="I can't tell how it felt. Compared with your last {e2:0}, your pace was {e2:1}."),expected='voice_invalid'),
     fixture('reject first person in next step',data=comparison(),raw=answer(data=comparison(),next_step='I would add a note. It may help next time.'),expected='voice_invalid'),
     fixture('fixed honesty clause is allowed',data=comparison(),raw=answer(data=comparison(),verdict="You can't tell how it felt. Compared with your last {e2:0}, your pace was {e2:1}.")),
+    fixture('fixed honesty clause with curly apostrophe is allowed',data=comparison(),raw=answer(data=comparison(),verdict='You can’t tell how it felt. Compared with your last {e2:0}, your pace was {e2:1}.')),
     fixture('reject harder feeling in next step',data=comparison(),raw=answer(data=comparison(),next_step='Your run felt harder than usual.'),expected='voice_invalid'),
     fixture('vs abbreviation is not a sentence end',data=comparison(),raw=answer(data=comparison(),verdict='Compared with your last {e2:0}, your pace was {e2:1} vs. that last run.')),
     fixture('add a note suggestion',data=comparison(),raw=answer(data=comparison(),next_step='Add a note.')),
@@ -113,7 +114,7 @@ CASES = [
 
 
 def run():
-    assert len(CASES)==51
+    assert len(CASES)==52
     assert kit_workout_review.REJECTION_CODES==frozenset({'answer_shape','numeric_unsupported','fact_unsupported','relation_unsupported','health_claim_unsupported','follow_up_invalid','voice_invalid'})
     assert kit_workout_review.WorkoutReviewRejected('model supplied arbitrary text').reason_code=='answer_shape'
     for case in CASES:
