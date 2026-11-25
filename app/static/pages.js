@@ -1730,7 +1730,7 @@ async function pWeeklySeries(body,q) {
       $$('[data-period-index].period-column',chart).forEach((column,i)=>{column.setAttribute('aria-label',description(r.points[i]));if(r.points[i].value==null)column.querySelector('.distance-empty')?.remove();});
       if(r.missing)chart.insertAdjacentHTML('beforeend',`<p class="small muted">${r.missing} ${r.missing===1?'workout':'workouts'} without ${esc(title.toLowerCase())} ${r.missing===1?'is':'are'} not counted.</p>`);
     });
-  });}catch(error){if(error.status!==403)throw error;if(body.isConnected&&owner===readOwner())body.innerHTML='<div class="card"><p class="small muted">Review Health data sharing in Connections to see this chart.</p><a class="row-link" href="/connections">Connections'+svg('chev')+'</a></div>';}
+  });}catch(error){if(error.status!==403)throw error;if(body.isConnected&&owner===readOwner())body.innerHTML='<div class="card"><p class="small muted">Review Health data sharing in Connections to see this chart.</p><a class="row-link" href="/me/settings/connections">Connections'+svg('chev')+'</a></div>';}
 }
 async function pMileage(body, q, {home=false}={}) {
   if(home&&(q.get('period')||'week')==='week')return pWeeklySeries(body,q);
