@@ -67,7 +67,7 @@ def main():
                     variant=variant, answer=refused['answer'], error=refused['error'],
                     provider_requests=0, refusal_message=coach.HEALTH_NO), refused
             configure_budget(2.50)
-            assert ai_budget.budget_micros() == 2_250_000
+            assert ai_budget.budget_micros() == 2_500_000
             # Model 80 responses with two provider attempts each, exercising real
             # dollar/attempt limits (no network). Larger actual runs still stop safely.
             with ai_budget.scope(uids[0], feature='Offline gate budget proof'):

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Same source/fictional inputs, LOW vs MEDIUM. No model escalation or release approval.
+# Same source/fictional inputs, LOW only by default; explicit --smoke-thinking COMPARE adds MEDIUM. No model escalation or release approval.
 set -euo pipefail
 umask 077
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

@@ -4,7 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from kit_setting_smoke import CASE_IDS,CAP_USD,input_digest,cached_low
+from kit_setting_smoke import CASE_IDS,CAP_USD,input_digest,cached_low,cached_rows,prepare_cache
 from kit_cases import CASES
 
 
@@ -19,10 +19,24 @@ class Settings(unittest.TestCase):
         good={'setting_smoke':True,'input_digest':'exact','thinking_settings':{'baseline':'LOW','candidate':'MEDIUM'},
               'results':[{'case':CASE_IDS[0],'variant':'baseline','passed':True,'answer':{'interpretation':'Fictional'},'error':None}]}
         self.assertEqual(len(cached_low(good,'exact')),1)
-        for mutate in (lambda d:d.update(input_digest='old'),lambda d:d.update(thinking_settings={'baseline':'MEDIUM'})):
+        for mutate in (lambda d:d.update(input_digest='old'),):
             bad=copy.deepcopy(good);mutate(bad)
             with self.assertRaises(ValueError):cached_low(bad,'exact')
+        wrong=copy.deepcopy(good);wrong['thinking_settings']={'baseline':'MEDIUM'}
+        self.assertEqual(cached_low(wrong,'exact'),[])
         good['results'][0]['passed']=False;self.assertEqual(cached_low(good,'exact'),[])
+
+    def test_resume_replay_and_deduplication(self):
+        report={'setting_smoke':True,'input_digest':'exact','thinking_settings':{'baseline':'LOW','candidate':'MEDIUM'},
+                'results':[{'case':CASE_IDS[0],'variant':'baseline','passed':False,'error':'validation'},
+                           {'case':CASE_IDS[1],'variant':'baseline','passed':False,'error':'cap'},
+                           {'case':CASE_IDS[0],'variant':'candidate','passed':True}]}
+        def replay(row):return {'passed':True,'error':None,'revalidated':True} if row['error']=='validation' else None
+        rows=cached_rows(report,'exact',{'baseline':'LOW'},replay)
+        self.assertEqual(len(rows),1);self.assertTrue(rows[0]['revalidated']);self.assertTrue(rows[0]['passed'])
+        report['results'].append(report['results'][0])
+        with self.assertRaises(ValueError):cached_rows(report,'exact',{'baseline':'LOW'},replay)
+
 
     def test_source_and_date_identity(self):
         root=Path(__file__).resolve().parents[2]

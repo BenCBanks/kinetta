@@ -10,8 +10,8 @@ from app import db,coach,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
 from kit_gate_cases import GATE_CASE_IDS
-from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_low
-from kit_eval_support import DEFAULT_BUDGET_USD, valid_budget, load_baseline, configure_budget, capped, bounded_results
+from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_rows
+from kit_eval_support import DEFAULT_BUDGET_USD, valid_budget, load_baseline, configure_budget, capped, bounded_results, cap_reason
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
                                  run_weekly_answer, is_expected_health_consent_refusal,
                                  seed_fixture, seed_other_account)
@@ -23,7 +23,8 @@ p.add_argument('--output',required=True);p.add_argument('--baseline-results')
 p.add_argument('--variant',choices=('both','baseline','candidate'),default='both')
 p.add_argument('--cases',action='append',metavar='ID',help='case ID; repeat or use comma-separated IDs')
 p.add_argument('--dry-run',action='store_true',help='Validate inputs and write private metadata only; no provider/database calls')
-p.add_argument('--setting-smoke',action='store_true',help='Ten same-code Flash LOW/MEDIUM cases, not a release gate')
+p.add_argument('--setting-smoke',action='store_true',help='Ten same-code Flash cases, not a release gate')
+p.add_argument('--smoke-thinking',choices=('LOW','COMPARE'),default='LOW',help='LOW only by default; explicit COMPARE adds MEDIUM')
 p.add_argument('--gate',action='store_true',help='Use the forty-case chat/weekly release set and require both variants')
 args=p.parse_args()
 if not valid_budget(args.budget_usd):p.error('Budget must be positive and at most $2.50 per run')
@@ -55,14 +56,35 @@ metadata={'reviewed':False,'complete':False,'dry_run':args.dry_run,
  'case_count':len(selected_cases),'selected_case_ids':[case[0] for case in selected_cases],
  'budget_usd':args.budget_usd,'provider_calls':0 if args.dry_run else None}
 reused=[]
+settings={'baseline':'LOW'} if args.smoke_thinking=='LOW' else {'baseline':'LOW','candidate':'MEDIUM'}
 if args.setting_smoke:
  metadata.update(setting_smoke=True,input_digest=input_digest(root,selected_cases,ai_release.FILES['kit']),
-                 thinking_settings={'baseline':'LOW','candidate':'MEDIUM'},correction_retries_per_response=1,provider_turns_per_response=coach_chat.MAX_ROUNDS+1,
+                 digest_version=2,thinking_settings=settings,correction_retries_per_response=1,provider_turns_per_response=coach_chat.MAX_ROUNDS+1,
                  max_tool_calls_per_response=coach_chat.MAX_CALLS,policy="production",
                  human_rubric={key:None for key in RUBRIC})
  if args.baseline_results:
-  try:reused=cached_low(json.loads(Path(args.baseline_results).read_text()),metadata['input_digest'])
+  def replay(row):
+   if row.get('expected_refusal') and row.get('passed'):return {}
+   turns=row.get('provider_turns') or (row.get('rejection') or {}).get('provider_turns',[])
+   raw=next((t.get('raw_model_json') for t in reversed(turns) if t.get('raw_model_json')),None)
+   evidence=row.get('answer_evidence') or (row.get('rejection') or {}).get('answer_evidence')
+   if not raw or not evidence or capped(row.get('error')):return None
+   try:
+    answer=coach_chat.checked_answer(coach_chat._json(raw),evidence,kit=True,
+        weekly_review=row.get('weekly_review',False),conversation_question=row.get('question'))
+   except ValueError:
+    return {} # Retain a completed rejection; never repay silently for a failed answer.
+   return {'answer':answer,'error':None,'passed':True,'revalidated':True}
+  try:
+   previous=json.loads(Path(args.baseline_results).read_text())
+   reused=cached_rows(previous,metadata['input_digest'],settings,replay)
+   metadata['prior_spend_usd']=previous.get('reserved_or_estimated_usd',0)
   except ValueError as error:p.error(str(error))
+metadata['reused_responses']=len(reused)
+remaining_budget=args.budget_usd-metadata.get('prior_spend_usd',0)
+if remaining_budget<=0:p.error('Resume capture already spent this run allowance')
+metadata['remaining_budget_usd']=remaining_budget
+
 def save_report(value):
  temporary=output.with_name(output.name+'.partial')
  fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
@@ -74,12 +96,12 @@ if args.dry_run:
  print(json.dumps({'dry_run':True,'cases':len(selected_cases),'provider_calls':0,'output':str(output)}),flush=True)
  raise SystemExit(0)
 # Conservative global reservation limits apply across every fictional account.
-configure_budget(args.budget_usd)
+configure_budget(remaining_budget)
 os.environ['GEMINI_MODEL']='gemini-3.8-flash'
 baseline=load_baseline(args.baseline)
 if args.setting_smoke:
  baseline._gemini_turn=partial(baseline._gemini_turn,thinking_level='LOW')
- coach_chat._gemini_turn=partial(coach_chat._gemini_turn,thinking_level='MEDIUM')
+ coach_chat._gemini_turn=partial(coach_chat._gemini_turn,thinking_level=settings.get('candidate','LOW'))
 baseline.KitAnswer.model_json_schema()  # Fail before any paid call if forward references regress.
 metadata.update(candidate_fingerprint=ai_release.kit_fingerprint(),ai_text=ai_release.ai_text('kit'),models=ai_release.models('kit'))
 save_report(metadata)
@@ -160,6 +182,7 @@ try:
   weekly=bool(options.get('weekly_review'))
   case_uid=weekly_accounts[cid] if weekly else (uids[2] if options.get('account')=='health-off' else uid)
   transport=None
+  boundary=None
   provider_requests=0
   request_id=uuid.uuid4()
   try:
@@ -200,7 +223,9 @@ try:
              coach_chat.answer(case_uid,question,kit=True,history=history or None))
    if answer is None and error is None:
     error='Evaluation returned neither an answer nor an error.'
-  except Exception as x:error=type(x).__name__+': '+str(x)[:350]
+  except Exception as x:
+   error=type(x).__name__+': '+str(x)[:350]
+   if capped(error):boundary=cap_reason(ai_budget,case_uid)
   finally:
    diagnostics.end()
    if not weekly:provider_requests=provider_requests_for(case_uid,request_id)
@@ -213,7 +238,7 @@ try:
   row={'case':cid,'variant':variant,'question':'Review my week' if weekly else question,'history':history,
        'fixture':weekly_manifests.get(cid),'weekly_request':transport,'weekly_review':weekly,
        'evaluation_account':'health-consent-off' if weekly and cid=='weekly-health-consent-off' else 'primary',
-       'answer':answer,'error':error,'provider_requests':provider_requests,
+       'answer':answer,'error':error,'cap_reason':boundary,'provider_requests':provider_requests,
        'provider_turns':rejection.get('provider_turns',[]),
        'answer_evidence':rejection.get('answer_evidence'),
        'expected_refusal':expected_refusal,'passed':passed,
@@ -228,24 +253,26 @@ try:
  if not args.setting_smoke:
   reused=[r for r in previous.get('results',[]) if r['variant']=='baseline' and (not requested_cases or r['case'] in requested_cases)]
  results.extend(reused)
- done={r['case'] for r in reused}
- variants=('baseline','candidate') if args.variant=='both' else (args.variant,)
- jobs=[(i,v,case) for i,case in enumerate(selected_cases) for v in variants if v!='baseline' or case[0] not in done]
- for result in bounded_results(run,jobs,workers=1 if args.setting_smoke else 2):
-  results.append(result)
+ done={(r['variant'],r['case']) for r in reused}
+ variants=tuple(settings) if args.setting_smoke else (('baseline','candidate') if args.variant=='both' else (args.variant,))
+ jobs=[(i,v,case) for i,case in enumerate(selected_cases) for v in variants if (v,case[0]) not in done]
+ for result in bounded_results(run,jobs,workers=1 if args.setting_smoke else 2) if jobs else [None]:
+  if result is not None:results.append(result)
   with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
   failed_cases=[r['case'] for r in results if not r.get('passed')]
   expected={(variant,case[0]) for variant in variants for case in selected_cases}
   completed={(row['variant'],row['case']) for row in results}
   complete=expected.issubset(completed) and not failed_cases
   report={**metadata,'complete':complete,'failed_cases':failed_cases,
-          'abort_reason':'Application AI budget/attempt cap reached; stopped before scheduling more cases.'
+          'abort_reason':'Disposable AI reservation cap reached ('+str(next((r.get('cap_reason') for r in results if capped(r.get('error'))),'unknown'))+'); partial report saved; resume matching completed rows.'
                          if any(capped(r.get('error')) for r in results) else None,
           'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,
           'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(selected_cases),
           'selected_case_ids':[case[0] for case in selected_cases],
           'baseline_results_reused':bool(args.baseline_results),'results':results,
-          'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],
+          'reserved_or_estimated_usd':metadata.get('prior_spend_usd',0)+float(cost['n'])/1e6,
+          'new_spend_usd':float(cost['n'])/1e6,'requests':cost['requests'],
+          'reused_responses':len(reused),'new_responses':len(results)-len(reused),
           'owner_qualitative_review':'pending',
           'kit':{'case_count':sum(row['variant']=='candidate' for row in results),
                  'unsupported_numeric_claims':None,'isolation_failures':None,'health_disclosures':None,

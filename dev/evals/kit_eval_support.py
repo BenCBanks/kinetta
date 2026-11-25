@@ -34,9 +34,10 @@ def load_baseline(path):
 def configure_budget(amount):
     if not valid_budget(amount):
         raise ValueError('Budget must be positive and at most $2.50 per run')
-    # Evaluator process only; reserve 10% of the approved allowance as headroom.
-    os.environ.update(KINETTA_AI_DAILY_USD=str(amount * .9),
-                      KINETTA_AI_USER_DAILY_MICROUSD=str(round(amount * .9 * 1e6)),
+    # Evaluator process only. The ledger reserves the padded worst case before every
+    # request; a second 10% haircut needlessly prevents fitting the next hold.
+    os.environ.update(KINETTA_AI_DAILY_USD=str(amount),
+                      KINETTA_AI_USER_DAILY_MICROUSD=str(round(amount * 1e6)),
                       KINETTA_AI_USER_DAILY_ATTEMPTS='1000',
                       KINETTA_AI_DAILY_ATTEMPTS='1000',
                       KINETTA_AI_CONCURRENT='8', KINETTA_AI_USER_CONCURRENT='2')
@@ -56,3 +57,16 @@ def bounded_results(run, jobs, *, workers=2):
             yield from batch
             if any(capped(row.get('error')) for row in batch):
                 return
+
+
+def cap_reason(budget,uid):
+    # Private disposable diagnostics only; never change production cap messages.
+    if os.environ.get('KINETTA_KIT_EVAL_ISOLATED')!='1':return 'unclassified'
+    with budget.db.connect() as c:
+        row=c.execute("""SELECT count(*) AS daily,
+          count(*) FILTER (WHERE user_id=%s) AS own FROM ai_food_attempts
+          WHERE day=(now() AT TIME ZONE 'UTC')::date""",(uid,)).fetchone()
+    if row['daily']>=budget.setting('KINETTA_AI_DAILY_ATTEMPTS',2000):return 'global_attempts'
+    if row['own']>=budget.setting('KINETTA_AI_USER_DAILY_ATTEMPTS',120):return 'user_attempts'
+    if not budget.enabled():return 'disabled'
+    return 'padded_dollar_reservation'

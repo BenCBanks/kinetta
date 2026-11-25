@@ -98,8 +98,8 @@ class KitGateRuntime(unittest.TestCase):
         with patch.dict('os.environ', clear=True):
             import os
             configure_budget(2.50)
-            self.assertEqual(os.environ['KINETTA_AI_DAILY_USD'], '2.25')
-            self.assertEqual(os.environ['KINETTA_AI_USER_DAILY_MICROUSD'], '2250000')
+            self.assertEqual(os.environ['KINETTA_AI_DAILY_USD'], '2.5')
+            self.assertEqual(os.environ['KINETTA_AI_USER_DAILY_MICROUSD'], '2500000')
             self.assertEqual(os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS'], '1000')
         for amount in (0, -1, 2.51, float('nan'), float('inf')):
             self.assertFalse(valid_budget(amount))

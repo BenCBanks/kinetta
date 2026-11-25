@@ -9,8 +9,10 @@ DRY_RUN=0
 OFFLINE_SMOKE=0
 SETTING_SMOKE=0
 REUSE_LOW=""
+SMOKE_THINKING="LOW"
+CACHE_TEMP=""
 BASELINE=""; BASELINE_COMMIT=""; CANDIDATE_COMMIT=""; BUDGET="2.50"
-usage() { echo "Usage: $0 --baseline FILE --baseline-commit SHA --candidate-commit SHA [--budget-usd USD (default 2.50)] [--dry-run|--offline-smoke] [--setting-smoke] [--reuse-low FILE]"; }
+usage() { echo "Usage: $0 --baseline FILE --baseline-commit SHA --candidate-commit SHA [--budget-usd USD (default 2.50)] [--dry-run|--offline-smoke] [--setting-smoke] [--resume FILE|--reuse-low FILE] [--smoke-thinking LOW|COMPARE]"; }
 while (($#)); do
   case "$1" in
     --baseline|--baseline-commit|--candidate-commit|--budget-usd)
@@ -23,7 +25,8 @@ while (($#)); do
       esac
       shift 2 ;;
     --setting-smoke) SETTING_SMOKE=1; shift ;;
-    --reuse-low) REUSE_LOW="$2"; shift 2 ;;
+    --reuse-low|--resume) REUSE_LOW="$2"; shift 2 ;;
+    --smoke-thinking) SMOKE_THINKING="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --offline-smoke) OFFLINE_SMOKE=1; shift ;;
     --help|-h) usage; exit 0 ;;
@@ -68,6 +71,7 @@ APP_STARTED=0
 cleanup() {
   local status=$?
   trap - EXIT
+  [[ -z "$CACHE_TEMP" ]] || rm -f "$CACHE_TEMP"
   if ((APP_STARTED == 1)) && compose exec -T app test -f "$CONTAINER_OUTPUT" >/dev/null 2>&1; then
     if compose cp "app:$CONTAINER_OUTPUT" "$OUTPUT" >/dev/null 2>&1; then
       chmod 600 "$OUTPUT"
@@ -120,7 +124,7 @@ fi
 
 # The production image excludes dev/. Copy only the isolated evaluation sources.
 compose exec -T -u 0 app mkdir -p /srv/dev/evals
-for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_setting_smoke.py test_kit_baseline_incontainer.py; do
+for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_setting_smoke.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py; do
   compose cp "$ROOT/dev/evals/$source" "app:/srv/dev/evals/$source"
 done
 compose cp "$BASELINE" app:/tmp/kit-eval-baseline-coach.py
@@ -128,12 +132,18 @@ compose exec -T app mkdir -m 700 -p "$CONTAINER_OUTPUT_DIR"
 OPTIONS=(--gate --variant both --baseline /tmp/kit-eval-baseline-coach.py
   --baseline-commit "$BASELINE_COMMIT" --candidate-commit "$CANDIDATE_COMMIT"
   --budget-usd "$BUDGET" --output "$CONTAINER_OUTPUT")
-if ((SETTING_SMOKE == 1)); then OPTIONS+=(--setting-smoke); fi
+if ((SETTING_SMOKE == 1)); then OPTIONS+=(--setting-smoke --smoke-thinking "$SMOKE_THINKING"); fi
 if [[ -n "$REUSE_LOW" ]]; then
-  compose cp "$REUSE_LOW" app:/tmp/kit-low-cache.json
+  CACHE_TEMP="$(mktemp)"
+  rm -f "$CACHE_TEMP"
+  python3 "$ROOT/dev/evals/kit_setting_smoke.py" --prepare-cache "$REUSE_LOW" --output "$CACHE_TEMP"
+  compose cp "$CACHE_TEMP" app:/tmp/kit-low-cache.json
   OPTIONS+=(--baseline-results /tmp/kit-low-cache.json)
 fi
-if ((OFFLINE_SMOKE == 1)); then
+if ((OFFLINE_SMOKE == 1 && SETTING_SMOKE == 1)); then
+  compose cp "$ROOT/dev/evals/fixtures/kit-smoke3-nutrition.json" app:/tmp/kit-smoke3-fixtures.json
+  compose exec -T -e PYTHONPATH=/srv -e KINETTA_KIT_EVAL_ISOLATED=1 app python /srv/dev/evals/test_kit_smoke_budget_incontainer.py
+elif ((OFFLINE_SMOKE == 1)); then
   compose exec -T -e PYTHONPATH=/srv app python /srv/dev/evals/test_kit_baseline_incontainer.py \
     --baseline /tmp/kit-eval-baseline-coach.py --output "$CONTAINER_OUTPUT"
 elif ((DRY_RUN == 1)); then
