@@ -42,6 +42,7 @@ TABLES = {
     'known_devices': "SELECT to_jsonb(t)" + DROP + " FROM known_devices t WHERE user_id=%s ORDER BY first_seen",
     'kit_visits': "SELECT to_jsonb(t)" + DROP + " FROM kit_visits t WHERE user_id=%s ORDER BY created",
     'kit_memories': "SELECT to_jsonb(t)" + DROP + " FROM kit_memories t WHERE user_id=%s ORDER BY updated",
+    'kit_threads': "SELECT to_jsonb(t)" + DROP + " FROM kit_threads t WHERE user_id=%s ORDER BY created,id",
     'kit_conversations': "SELECT to_jsonb(t)" + DROP + " FROM kit_conversations t WHERE user_id=%s",
     'kit_turns': "SELECT to_jsonb(t)" + DROP + " - 'lease' FROM kit_turns t WHERE user_id=%s ORDER BY id",
     'personal_notification_attempts': "SELECT to_jsonb(t)" + DROP + " FROM personal_notification_attempts t WHERE user_id=%s ORDER BY period,kind",
