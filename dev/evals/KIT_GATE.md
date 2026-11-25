@@ -56,7 +56,7 @@ No key argument or key file is accepted. Only the evaluator process receives the
 app service has AI off and no provider credentials. The evaluator runs Gemini 3.8 Flash with
 the answer path's existing LOW setting. Application reservation limits are set to 90% of
 the supplied cap, across every fictional account. The default/maximum run allowance is
-$2.50 ($2.25 in application reservations); account and service attempt caps are 1000,
+$2.50 (the same hard cap in padded application reservations); account and service attempt caps are 1000,
 only inside the evaluator process. Production settings are unchanged. At most two
 responses are in flight; a cap stops new scheduling immediately after that pair,
 prints a clear abort reason, saves partial evidence and exits unsuccessfully. This command is one paid run within the
