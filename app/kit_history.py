@@ -46,6 +46,10 @@ def remove(c, uid, conversation_id=None):
               (uid, conversation_id, conversation_id))
 
 
+def visible(row):
+    """Legacy unknown provenance is retained privately, never shown or replayed."""
+    return row.get('replay_blocked_at') is None
+
 def enabled():
     import os
     return os.environ.get('KINETTA_KIT_HISTORY_ENABLED') == '1'

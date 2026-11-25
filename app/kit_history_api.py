@@ -20,7 +20,7 @@ def messages(c,uid,conversation_id,generation,before=None,visit_id=None):
     c.execute("""UPDATE kit_turns SET state='failed',lease=NULL,expires=NULL,
       error='This answer was interrupted. Tap Retry to try again.' WHERE user_id=%s
       AND conversation_id=%s AND state='running' AND expires<=now()""",(uid,conversation_id))
-    rows=c.execute('''SELECT * FROM kit_turns WHERE user_id=%s AND conversation_id=%s
+    rows=c.execute('''SELECT * FROM kit_turns WHERE user_id=%s AND conversation_id=%s AND replay_blocked_at IS NULL
       AND (%s::bigint IS NULL OR id<%s) ORDER BY id DESC LIMIT 51''',
       (uid,conversation_id,before,before)).fetchall()
     return {'conversation_id':conversation_id,'generation':generation,'visit_id':visit_id,
@@ -36,8 +36,8 @@ def listing(before:UUID | None=None,user=Depends(current_user)):
         cursor=store.thread(c,uid,before) if before else None
         rows=c.execute('''SELECT q.id AS conversation_id,q.created,q.updated,
           coalesce((SELECT left(t.question,80) FROM kit_turns t WHERE t.user_id=q.user_id
-            AND t.conversation_id=q.id ORDER BY t.id LIMIT 1),'New conversation') AS title,
-          (SELECT count(*) FROM kit_turns t WHERE t.user_id=q.user_id AND t.conversation_id=q.id) AS message_count
+            AND t.conversation_id=q.id AND t.replay_blocked_at IS NULL ORDER BY t.id LIMIT 1),'New conversation') AS title,
+          (SELECT count(*) FROM kit_turns t WHERE t.user_id=q.user_id AND t.conversation_id=q.id AND t.replay_blocked_at IS NULL) AS message_count
           FROM kit_threads q WHERE q.user_id=%s AND (%s::timestamptz IS NULL OR (q.updated,q.id)<(%s,%s))
           ORDER BY q.updated DESC,q.id DESC LIMIT 21''',
           (uid,cursor['updated'] if cursor else None,cursor['updated'] if cursor else None,before)).fetchall()
