@@ -1802,6 +1802,15 @@ button.thread-food:active { opacity: .7; }
 .kit-answer .kit-verdict {font-size:max(16px,1rem);font-weight:700;line-height:1.45;margin:0;}
 .kit-answer .kit-reason {font-size:max(15px,.9375rem);line-height:1.5;color:var(--tx2);margin:8px 0 0;}
 .kit-answer .kit-facts {margin:12px 0;}
+.kit-workout-comparison {margin:0;}
+.kit-workout-summary {margin:0;color:var(--tx);font-size:15px;font-variant-numeric:tabular-nums;line-height:1.4;}
+.kit-workout-baseline {margin:8px 0 0;color:var(--tx3);font-size:13px;line-height:1.35;}
+.kit-workout-rows {margin:6px 0 0;font-size:15px;}
+.kit-workout-rows>div {display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:4px 0;border-top:1px solid var(--line);}
+.kit-workout-rows dt {color:var(--tx2);}
+.kit-workout-rows dd {margin:0;color:var(--tx);font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere;}
+.kit-workout-empty,.kit-workout-notable {margin:10px 0 0;color:var(--tx2);font-size:14px;line-height:1.4;overflow-wrap:anywhere;}
+.kit-workout-retry {min-height:44px;margin-top:4px;padding:0;}
 .kit-answer-followups .kit-action {width:auto;max-width:100%;min-height:44px;padding:6px 14px;border:1px solid var(--line);border-radius:18px;color:var(--tx);font-size:.9375rem;line-height:1.35;text-decoration:none;overflow-wrap:anywhere;}
 .kit-training-details {margin:12px 0 0;font-size:15px;}
 .kit-training-row {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);align-items:start;gap:12px;min-height:44px;padding:4px 0;border-top:1px solid var(--line);}
