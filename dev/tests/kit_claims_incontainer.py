@@ -119,3 +119,17 @@ for initial,correction,should_pass in (
         except ValueError:assert not should_pass
         else:assert should_pass and result['answer_blocks']
     assert len(calls)==2
+
+# Revoking consent after a bad weekly response prevents even the correction provider call.
+calls=[]
+def rejected_weekly(messages,definitions):
+    calls.append(1)
+    return [],json.dumps({'verdict':'The recorded value was {e9:0}.','reason':'These are recorded values.',
+        'facts':[],'weekly_review':weekly['weekly_review']}),{}
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',side_effect=[True,False]), \
+     patch('app.coach.provider',return_value='gemini'),patch('app.coach_chat.db.coach_connect'), \
+     patch('app.kit_tools.KitTools.call',tool):
+    try:coach_chat.answer(1,'Review my week',kit=True,weekly_review=True,turn=rejected_weekly)
+    except ValueError as error:assert str(error)==coach_chat.coach.HEALTH_NO
+    else:raise AssertionError('Revoked consent accepted')
+assert len(calls)==1

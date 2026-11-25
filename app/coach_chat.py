@@ -772,6 +772,9 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                                   else kit_claims.weekly_retry_prompt(error))
                     messages.append({'role':'user','parts':[{'text':retry_prompt}]} if provider=='gemini'
                                     else {'role':'user','content':retry_prompt})
+                    if not coach.allowed(uid):raise ValueError(coach.off())
+                    with db.coach_connect(uid) as c:
+                        if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
                     try:
                         with ai_budget.scope(uid):
                             retry_calls,retry_text,retry_tokens=turn(messages,[])
