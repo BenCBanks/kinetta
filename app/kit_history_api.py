@@ -49,6 +49,7 @@ def listing(before:UUID | None=None,user=Depends(current_user)):
 def open_thread(c,uid,conversation_id,body):
     if not store.enabled():raise HTTPException(409,'Saved Kit conversations are not enabled on this server.')
     store.thread(c,uid,conversation_id)
+    store.prune(c,uid)
     c.execute('INSERT INTO kit_visits(id,user_id,conversation_id) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING',
               (body.visit_id,uid,conversation_id))
     chat.locked(c,uid,body.generation,body.visit_id)

@@ -249,8 +249,7 @@ def start_visit(body:VisitIn,user=Depends(current_user)):
         generation=locked(c,uid)
         c.execute("DELETE FROM kit_memories WHERE user_id=%s AND updated<now()-interval '180 days'",(uid,))
         # A terminated app may never deliver its leave request; bound that leftover state.
-        kit_history.preserve(c,uid)
-        c.execute("DELETE FROM kit_visits WHERE user_id=%s AND (created<now()-interval '24 hours' OR ended<now()-interval '24 hours')",(uid,))
+        kit_history.prune(c,uid)
         c.execute('INSERT INTO kit_visits(id,user_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(body.visit_id,uid))
         locked(c,uid,generation,body.visit_id)
         return {'generation':generation,'visit_id':body.visit_id,'ready':ai_release.enabled('kit')}
