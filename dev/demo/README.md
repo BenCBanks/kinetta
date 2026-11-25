@@ -1,6 +1,6 @@
 # Demo data
 
-A made-up runner, **Alex** (username `alex`, password `blue kettle morning run`), with about 120 days of runs, rides and
+A made-up runner, **Alex Example** (username `alex`, password `blue kettle morning run`), with about 120 days of runs, rides and
 walks around Freedom Park in Charlotte, NC, four weeks of food log, weigh-ins and a 10K plan. Use it for screenshots and
 testing. **Only ever load it into a throwaway install**, never one with real people on it: it creates the first
 (admin) account.

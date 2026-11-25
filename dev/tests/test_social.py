@@ -187,6 +187,41 @@ fr.q('DELETE', f'/api/comments/{cid}')                           # own comment
 alex.q('DELETE', f'/api/comments/{cid2}')                        # owner deletes any comment on their activity
 check(alex.q('GET', f'/api/activities/{a1}/social')['comments'] == [], 'comments deleted')
 fr.q('DELETE', f'/api/activities/{a1}/cheer')
+
+# Names are first-name-only for a non-friend, while accepted friends may see the full name.
+prepare_names = '''import sys
+from app import db
+with db.connect() as c:
+    c.execute("UPDATE users SET name='Friend Example',first_name='Friend',last_name='Example' WHERE login='zz_test_friend'")
+    c.execute("UPDATE users SET name='Stranger Example',first_name='Stranger',last_name='Example' WHERE login='zz_test_stranger'")
+    aid=c.execute("""INSERT INTO activities(user_id,sport,name,start_time,source,visibility,distance_m,moving_s,elapsed_s)
+        VALUES((SELECT id FROM users WHERE login='zz_test_friend'),'run','Fictional public name check',now(),'manual','everyone',1000,600,600) RETURNING id""").fetchone()['id']
+print(aid)'''
+project = os.environ.get('KINETTA_PROJECT', 'kinettatest')
+public_name_activity = int(subprocess.check_output(
+    ['docker', 'compose', '-p', project, 'exec', '-T', 'app', 'python', '-c', prepare_names], text=True).strip())
+public_comment=fr.q('POST',f'/api/activities/{public_name_activity}/comments',{'text':'Fictional privacy check'})['comments'][-1]
+outsider_social=st.q('GET',f'/api/activities/{public_name_activity}/social')
+outsider_comment=next(item for item in outsider_social['comments'] if item['id']==public_comment['id'])
+check(outsider_comment['name']=='Friend' and 'last_name' not in outsider_comment,'non-friend comment JSON exposes only the first name')
+outsider_activity=st.q('GET',f'/api/shared/{public_name_activity}')
+check(outsider_activity['owner']['name']=='Friend' and 'last_name' not in outsider_activity['owner'],'shared activity JSON exposes only the first name')
+owner_social=alex.q('GET',f'/api/activities/{public_name_activity}/social')
+check(owner_social['comments'][-1]['name']=='Friend Example','accepted friend sees the full name')
+st.q('POST',f'/api/activities/{public_name_activity}/comments',{'text':'Fictional notification privacy check'})
+friend_notice=next(item for item in fr.q('GET','/api/notifications')['items']
+                   if item['kind']=='comment' and item['who']['login']=='zz_test_stranger')
+check(friend_notice['who']['name']=='Stranger' and 'last_name' not in friend_notice['who'],'non-friend notification JSON exposes only the first name')
+outsider_profile=st.q('GET','/api/people/zz_test_friend/profile')
+check(outsider_profile['person']['name']=='Friend' and 'last_name' not in outsider_profile['person'],'non-friend profile JSON has no surname')
+friend_profile=alex.q('GET','/api/people/zz_test_friend/profile')
+check(friend_profile['person']['name']=='Friend Example' and 'last_name' not in friend_profile['person'],'friend profile gets full display name without a separate surname field')
+search_first=st.q('GET','/api/people/search?q=Friend')
+check(next(item for item in search_first if item['login']=='zz_test_friend')['name']=='Friend','non-friend search returns first name')
+check(not any(item['login']=='zz_test_friend' for item in st.q('GET','/api/people/search?q=Example')),'non-friend search does not match a surname')
+check(any(item['login']=='zz_test_friend' and item['name']=='Friend Example' for item in alex.q('GET','/api/people/search?q=Example')),
+      'friend search may match and display the full name')
+fr.q('DELETE',f'/api/activities/{public_name_activity}')
 # unfriend: friends-only activity disappears
 fr.q('DELETE', '/api/friends/alex'); fr.q('GET', f'/api/shared/{a1}', want=404)
 check(fr.q('GET', '/api/feed/friends') == [], 'after unfriending: feed empty')

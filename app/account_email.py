@@ -189,7 +189,7 @@ def _open(c, token, kind, *, lock_user=False):
     if lock_user:
         seed = c.execute("SELECT user_id FROM account_tokens WHERE token_hash=%s AND kind=%s", (auth.token_hash(token or ''),kind)).fetchone()
         if seed: c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (seed['user_id'],))
-    r = c.execute("""SELECT t.token_hash, t.user_id, t.email, u.login::text AS login, u.name, u.email AS current,
+    r = c.execute("""SELECT t.token_hash, t.user_id, t.email, u.login::text AS login, u.name, u.first_name, u.email AS current,
                             u.email_verified_at IS NOT NULL AS email_confirmed, u.needs_email_confirm, u.signup_guard
                      FROM account_tokens t JOIN users u ON u.id = t.user_id
                      WHERE t.token_hash = %s AND t.kind = %s AND t.used_at IS NULL AND t.expires > now() FOR UPDATE OF t""",
@@ -223,7 +223,7 @@ def set_email(body: EmailIn, request: Request, background: BackgroundTasks, user
         if not account: raise HTTPException(404, 'Account not found.')
         stored = account['pw_hash']
         if not auth.check_pw(stored, body.password): raise HTTPException(400, 'Your password is wrong')
-        confirmation(background, c, user['id'], user['name'], email)
+        confirmation(background, c, user['id'], user['first_name'], email)
     return {'ok': True, 'pending': email}
 
 
@@ -253,11 +253,11 @@ def confirmation(background, c, uid, name, email, welcome=False):
             f"1. Install TestFlight (Apple's free app for betas) from the App Store.\n2. Open this link on your iPhone: {app}\n"
             f"3. Open Kinetta and log in with {email}.") if app else ''
     if welcome:
-        subject, text = 'Confirm your email for Kinetta', (f"Open this link to confirm your email and finish setting up Kinetta:\n{link}\n\n"
+        subject, text = 'Confirm your email for Kinetta', (f"Hi {name},\n\nOpen this link to confirm your email and finish setting up Kinetta:\n{link}\n\n"
             f"It works for {VERIFY_HOURS} hours. If you didn't sign up, ignore this email."
             f"{beta}\n\nAfter confirming, open Kinetta and sign in with {email}.")
     else:
-        subject, text = 'Confirm your new email for Kinetta', (f"Open this link to confirm {email} as your email for Kinetta:\n{link}\n\n"
+        subject, text = 'Confirm your new email for Kinetta', (f"Hi {name},\n\nOpen this link to confirm {email} as your email for Kinetta:\n{link}\n\n"
             f"It works for {VERIFY_HOURS} hours. If you didn't ask for this, you can ignore this email.")
     background.add_task(send_confirmation, email, subject, text + SIGNATURE, token_hash)
 
@@ -282,7 +282,7 @@ def send_due_confirmation_reminders(limit=100):
     typo_endings = list(BAD_EMAIL_ENDINGS)
     with db.connect() as c:
         reservation_lock(c)
-        rows = c.execute("""SELECT id, email::text AS email, created,
+        rows = c.execute("""SELECT id, first_name, email::text AS email, created,
                                    email_confirmation_reminder_count AS sent,
                                    email_confirmation_reminder_at AS reminded_at,
                                    unconfirmed_final_warning_at AS final_warning_at,
@@ -390,16 +390,16 @@ def _confirmation_reminder_message(c, user, kind, deletion_at):
     deletion_date = f"{deletion_at.day} {deletion_at.strftime('%B %Y')} (UTC)"
     if kind == 'first':
         subject = 'Your Kinetta account needs one more step'
-        text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
+        text = (f"Hi {user['first_name']},\n\nConfirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
                 "If you didn't sign up, ignore this email.")
     elif kind == 'second':
         subject = f'Confirm your Kinetta email by {deletion_date}'
-        text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
+        text = (f"Hi {user['first_name']},\n\nConfirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
                 f"Accounts that aren't confirmed within {UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS} days are deleted on {deletion_date}. "
                 "If you didn't sign up, ignore this email.")
     else:
         subject = f'Your Kinetta account will be deleted on {deletion_date}'
-        text = (f"We haven't been able to confirm this email. Open this link before {deletion_date} to keep your account: {link}. "
+        text = (f"Hi {user['first_name']},\n\nWe haven't been able to confirm this email. Open this link before {deletion_date} to keep your account: {link}. "
                 "If you didn't sign up, do nothing and it will be removed.")
     return user['email'], subject, text, token_hash
 
@@ -526,7 +526,7 @@ def resend_confirmation(body: ResendConfirmationIn, request: Request, background
         col = 'email' if '@' in who else 'login'
         lookup = ('lower(COALESCE(u.email::text, pending.email::text)) = lower(%s)'
                   if col == 'email' else 'u.login = %s')
-        u = c.execute(f'''SELECT u.id, u.name, COALESCE(u.email::text, pending.email::text) AS email
+        u = c.execute(f'''SELECT u.id, u.first_name, COALESCE(u.email::text, pending.email::text) AS email
                           FROM users u
                           LEFT JOIN LATERAL (
                             SELECT t.email FROM account_tokens t
@@ -539,7 +539,7 @@ def resend_confirmation(body: ResendConfirmationIn, request: Request, background
                           ORDER BY u.id
                           FOR UPDATE OF u''', (who,)).fetchone()
         if u and not email_recovery_limited(c, u['id']) and mail_ready():
-            confirmation(background, c, u['id'], u['name'], u['email'], welcome=True)
+            confirmation(background, c, u['id'], u['first_name'], u['email'], welcome=True)
     return {'ok': True, 'message': RESEND_SENT}
 
 
@@ -555,7 +555,7 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
     with db.connect() as c:
         if limited(c, 'forgot-ip:' + auth.client_ip(request), 10, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         col = 'email' if '@' in who else 'login'
-        u = c.execute(f'''SELECT id, name, login::text AS login, email,
+        u = c.execute(f'''SELECT id, first_name, login::text AS login, email,
                                  email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm
                           FROM users WHERE {col} = %s AND suspended_at IS NULL''',
                       (who,)).fetchone()
@@ -572,11 +572,11 @@ def send_reset(background, c, u, by_admin=False, pending=False):
     # Bind pending resets to the address that received the proof-of-ownership link.
     token = _token(c, u['id'], 'reset_password', RESET_MINUTES, u['email'] if pending else None)
     if by_admin:
-        text = ("Here's the password reset link you asked us for.\n"
+        text = (f"Hi {u.get('first_name', '')},\n\nHere's the password reset link you asked us for.\n"
                 f"Open this link to choose a new password for your Kinetta account (@{u['login']}):\n{_base()}/reset-password#{token}\n\n"
                 f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays the same.")
     else:
-        text = (f"Open this link to reset the password for your Kinetta account (@{u['login']}):\n{_base()}/reset-password#{token}\n\n"
+        text = (f"Hi {u.get('first_name', '')},\n\nOpen this link to reset the password for your Kinetta account (@{u['login']}):\n{_base()}/reset-password#{token}\n\n"
                 f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays the same.")
     background.add_task(send, u['email'], 'Reset your Kinetta password', text)
 
@@ -650,7 +650,7 @@ def reset(body: ResetIn, request: Request, background: BackgroundTasks):
             # Remove them so the background signup worker cannot apply them later.
             c.execute('UPDATE profile SET friend_link=NULL WHERE user_id=%s', (r['user_id'],))
             c.execute("DELETE FROM signup_join_intents WHERE user_id=%s AND kind IN ('card','challenge')", (r['user_id'],))
-    password_changed(background, r['current'], r['name'], r['login'])
+    password_changed(background, r['current'], r['first_name'], r['login'])
     if email_confirmed: return {'ok': True, 'email_confirmed': True}
     return {'ok': True}
 
@@ -675,5 +675,5 @@ def _consume_signup(uid):
 def password_changed(background, email, name, login):
     if email:
         background.add_task(send, email, 'Your Kinetta password was changed',
-            f"The password for your Kinetta account (@{login}) was just changed, and your other phones and browsers were signed out. "
+            f"Hi {name},\n\nThe password for your Kinetta account (@{login}) was just changed, and your other phones and browsers were signed out. "
             f"If you didn't do this, reset your password now at {_base()}/forgot-password and email feedback@kinetta.app.")

@@ -46,8 +46,8 @@ class AccountEmail(unittest.TestCase):
         text = admin_mail.format_plain_text_email(
             "Hi Fictional Member,\n\nSomeone signed in to your Kinetta account (zz_fixture) from a new device. "
             "Reply to this email and we'll help.")
-        self.assertTrue(text.startswith('Someone signed in to your Kinetta account (@zz_fixture)'))
-        self.assertNotIn('Hi Fictional Member', text)
+        self.assertTrue(text.startswith('Hi Fictional Member,\n\nSomeone signed in to your Kinetta account (@zz_fixture)'))
+        self.assertIn('Hi Fictional Member', text)
         self.assertIn('For help, email feedback@kinetta.app.', text)
         self.assertEqual(text.count("You're getting this because this address was used for a Kinetta account."), 1)
         admin_reply = admin_mail.format_plain_text_email('A fictional response.', greeting='Hello,')
@@ -119,7 +119,7 @@ class AccountEmail(unittest.TestCase):
         m = self.messages()[-1]
         self.assertEqual(m['to'], ['zz_a@example.com']); self.assertEqual(m['from'], 'Kinetta <hello@example.com>')
         self.assertNotIn(PW, m['text'])
-        self.assertTrue(m['text'].startswith('Open this link to confirm zz_a@example.com as your email for Kinetta:'))
+        self.assertTrue(m['text'].startswith('Hi Mail,\n\nOpen this link to confirm zz_a@example.com as your email for Kinetta:'))
         self.assertIn("You're getting this because this address was used for a Kinetta account.", m['text'])
         self.assertIsNone(a.get('/api/me').json()['email'], 'not used before the link is opened')
         anon = TestClient(app); anon.headers['Origin'] = BASE
@@ -191,7 +191,7 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.json()['email_confirmed'])
         changed = self.messages()[-1]['text']
-        self.assertTrue(changed.startswith('The password for your Kinetta account (@zz_test_mail_a) was just changed'))
+        self.assertTrue(changed.startswith('Hi Mail,\n\nThe password for your Kinetta account (@zz_test_mail_a) was just changed'))
         self.assertIn("If you didn't do this, reset your password now at https://example.test/forgot-password and email feedback@kinetta.app.", changed)
         self.assertIn("You're getting this because this address was used for a Kinetta account.", changed)
         with db.connect() as c:
@@ -448,9 +448,9 @@ class AccountEmail(unittest.TestCase):
         first = self.messages()[-1]
         self.assertEqual(first['to'], ['zz_reminders@example.com'])
         self.assertEqual(first['subject'], 'Your Kinetta account needs one more step')
-        self.assertRegex(first['text'], r'Confirm your email to keep your account: https://example\.test/confirm-email#[\w-]+\. This link')
+        self.assertRegex(first['text'], r'Hi Mail,\n\nConfirm your email to keep your account: https://example\.test/confirm-email#[\w-]+\. This link')
         self.assertIn('This link replaces earlier ones and works for 24 hours.', first['text'])
-        self.assertNotIn('Hi ', first['text'])
+        self.assertTrue(first['text'].startswith('Hi Mail,\n\n'))
         self.assertIn("You're getting this because this address was used for a Kinetta account.", first['text'])
         with db.connect() as c:
             typo = c.execute('SELECT email_confirmation_reminder_count,email_confirmation_reminder_at FROM users WHERE id=%s', (typo_user['id'],)).fetchone()

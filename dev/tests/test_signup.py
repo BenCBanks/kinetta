@@ -1,5 +1,6 @@
 """Open signup with an email, the account cap and new-account restrictions (#232 D); the mail provider is a stand-in."""
 import base64, json, os, re, threading, unittest
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 import httpx
@@ -30,7 +31,9 @@ class Signup(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         with db.connect() as c:
-            c.execute("DELETE FROM users WHERE login LIKE 'zz\\_test\\_su%%' OR login LIKE 'zzsutest%%'"); c.execute('DELETE FROM auth_attempts')
+            c.execute("DELETE FROM users WHERE login LIKE 'zz\\_test\\_su%%' OR login LIKE 'zzsutest%%' OR email LIKE 'zz_test_su%%@example.com'")
+            c.execute("DELETE FROM account_tokens WHERE email LIKE 'zz_test_su%%@example.com'")
+            c.execute('DELETE FROM auth_attempts')
             c.execute("DELETE FROM beta_requests WHERE email LIKE 'zz_test_su%%@example.com'")
 
     def setUp(self):
@@ -40,6 +43,69 @@ class Signup(unittest.TestCase):
         original = api_account.reserved_login
         self.fixture_names = patch.object(api_account, 'reserved_login', side_effect=lambda v, **kw: original(v, allow_test=True))
         self.fixture_names.start()
+
+    def test_real_names_are_required_normalized_and_legacy_payloads_split(self):
+        self.env(KINETTA_SIGNUP='open')
+        for login, payload, message in (
+            ('zz_test_su_name_missing', {'first_name': 'Riley'}, 'Please add your last name.'),
+            ('zz_test_su_first_blank', {'first_name': '  ', 'last_name': 'Example'}, 'Please add your first name.'),
+            ('zz_test_su_last_blank', {'first_name': 'Riley', 'last_name': ' \t '}, 'Please add your last name.'),
+            ('zz_test_su_legacy_one', {'name': 'Riley'}, 'Please add your last name.'),
+        ):
+            response = client().post('/api/signup', json={**form(login), **payload})
+            self.assertEqual(response.status_code, 400, response.text)
+            self.assertEqual(response.json()['detail'], message)
+        legacy = form('zz_test_su_name_legacy')
+        legacy['name'] = '  Zoë   van  Example  '
+        response = client().post('/api/signup', json=legacy)
+        self.assertEqual(response.status_code, 200, response.text)
+        owner = client()
+        self.assertEqual(owner.post('/api/login', json={'login':'zz_test_su_name_legacy','password':PW}).status_code,200)
+        me = owner.get('/api/me').json()
+        self.assertEqual((me['first_name'],me['last_name'],me['name']),('Zoë','van Example','Zoë van Example'))
+        self.assertEqual(self.mail.call_args.kwargs['json']['text'].splitlines()[0], 'Hi Zoë,')
+        self.assertEqual(owner.put('/api/account',json={'first_name':'Élodie','last_name':'O’Neil'}).status_code,200)
+        self.assertEqual(owner.get('/api/me').json()['name'], 'Élodie O’Neil')
+        with db.connect() as c:
+            stored=c.execute("SELECT name,first_name,last_name FROM users WHERE login='zz_test_su_name_legacy'").fetchone()
+        self.assertEqual((stored['name'],stored['first_name'],stored['last_name']),('Élodie O’Neil','Élodie','O’Neil'))
+
+    def test_first_run_setup_rejects_missing_last_name(self):
+        class EmptySetupDb:
+            def execute(self, query, *args):
+                self.asserted_query = query
+                return self
+            def fetchone(self): return None
+        @contextmanager
+        def empty_db(): yield EmptySetupDb()
+        with patch('app.api_account.db.connect', empty_db):
+            response = client().post('/api/setup', json={'first_name':'Riley','last_name':'  ','password':PW})
+        self.assertEqual(response.status_code,400,response.text)
+        self.assertEqual(response.json()['detail'],'Please add your last name.')
+
+    def test_name_validation_rejects_symbols_controls_and_reserved_words(self):
+        for first,last in (('Zoë','Smith'),('李','小龍'),('Jean-Luc','O’Neil'),('Mary.Jane','de La Cruz')):
+            self.assertEqual(api_account._clean_person_names(first,last)[2],f'{first} {last}')
+        for first,last in (('Riley2','Smith'),('Riley','🏃'),('Riley\u202e','Smith'),('Kinetta','Support')):
+            with self.assertRaises(Exception, msg=(first,last)):
+                api_account._clean_person_names(first,last)
+
+    def test_migration_117_upgrades_legacy_names_in_place(self):
+        with db.connect() as c:
+            c.execute('SAVEPOINT migration_117_upgrade')
+            try:
+                c.execute('CREATE TEMP TABLE users(name text)')
+                c.execute("INSERT INTO users(name) VALUES('Fictional'),('Fictional Three Word Name')")
+                c.execute(db.MIGRATIONS[116])
+                rows=c.execute('SELECT name,first_name,last_name FROM users ORDER BY name').fetchall()
+                self.assertEqual([(r['first_name'],r['last_name']) for r in rows],
+                                 [('Fictional',None),('Fictional','Three Word Name')])
+                c.execute("INSERT INTO users(name) VALUES('Legacy SQL Person')")
+                self.assertEqual(c.execute("SELECT first_name,last_name FROM users WHERE name='Legacy SQL Person'").fetchone(),
+                                 {'first_name':'Legacy','last_name':'SQL Person'})
+            finally:
+                c.execute('ROLLBACK TO SAVEPOINT migration_117_upgrade')
+                c.execute('RELEASE SAVEPOINT migration_117_upgrade')
 
     def env(self, **kw):
         # start from known settings, whatever the server running the tests was started with
@@ -260,7 +326,11 @@ class Signup(unittest.TestCase):
             import secrets
             token = secrets.token_urlsafe(24)
             c.execute("INSERT INTO invites (token_hash, note, expires) VALUES (%s, 'zz', now() + interval '1 day')", (auth.token_hash(token),))
-        self.assertEqual(client().post('/api/join', json={'age_ok':True,'name': 'Invited', 'login': 'zz_test_su_invited', 'password': PW, 'token': token}).status_code, 200)
+        old_build=client().post('/api/join',json={'age_ok':True,'name':'Invited','login':'zz_test_su_invited','password':PW,'token':token})
+        self.assertEqual(old_build.status_code,400,old_build.text)
+        self.assertEqual(old_build.json()['detail'],'Please add your last name.')
+        with db.connect() as c:self.assertIsNone(c.execute('SELECT used_at FROM invites WHERE token_hash=%s',(auth.token_hash(token),)).fetchone()['used_at'])
+        self.assertEqual(client().post('/api/join', json={'age_ok':True,'name': 'Invited Person', 'login': 'zz_test_su_invited', 'password': PW, 'token': token}).status_code, 200)
         with db.connect() as c: c.execute("DELETE FROM users WHERE login = 'zz_test_su_last'")
         self.assertTrue(client().get('/api/signup').json()['open'] is False, 'the invited account took the freed place')
         with db.connect() as c: c.execute("DELETE FROM users WHERE login = 'zz_test_su_invited'")
@@ -299,8 +369,11 @@ class Signup(unittest.TestCase):
         with db.connect() as c: c.execute("DELETE FROM users WHERE login LIKE 'zzsutest%%'")
         a, b = client(), client()
         r1 = a.post('/api/signup', json={**body, 'name': 'Zzsutest Person', 'email': 'zz_test_su_n1@example.com'}).json()
-        r2 = b.post('/api/signup', json={**body, 'name': 'Zzsütest Other', 'email': 'zz_test_su_n2@example.com'}).json()
-        self.assertEqual((r1['login'], r2['login']), ('zzsutest', 'zzsutest2'), 'from the first name, accents dropped, then numbered')
+        r2 = b.post('/api/signup', json={**body, 'name': 'Zzsütest Person', 'email': 'zz_test_su_n2@example.com'}).json()
+        self.assertEqual((r1['login'], r2['login']), ('zzsutestp', 'zzsutest_p'), 'first name plus last initial, then underscore fallback')
+        with db.connect() as c:
+            suggestion = api_account.suggest_login(c, 'Zzsutest', 'Person', taken={r1['login'], r2['login']})
+        self.assertEqual(suggestion, 'zzsutestp2', 'after the underscore choice is taken, append a number to the base')
         # confirm, then the email is the login and the username can change freely
         token = re.search(r'/confirm-email#([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
         client().post('/api/account/email/confirm', json={'token': token})
@@ -317,7 +390,7 @@ class Signup(unittest.TestCase):
         with db.connect() as c: c.execute("INSERT INTO invites (token_hash, note, expires) VALUES (%s, 'zz', now() + interval '1 day')", (auth.token_hash(token),))
         self.assertTrue(client().get('/api/join/' + token).json()['email'], 'the join page can ask for an email')
         j = client()
-        r = j.post('/api/join', json={'age_ok':True,'name': 'Zz_test_su_joiner Invited', 'email': 'zz_test_su_joiner@example.com', 'password': PW, 'token': token})
+        r = j.post('/api/join', json={'age_ok':True,'name': 'Zz test su joiner Invited', 'login': 'zz_test_su_joiner', 'email': 'zz_test_su_joiner@example.com', 'password': PW, 'token': token})
         self.assertEqual(r.status_code, 200, r.text); self.assertTrue(r.json()['login'].startswith('zz_test_su_joiner'))
         self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_joiner@example.com'])
         me = j.get('/api/me').json()
@@ -340,7 +413,7 @@ class Signup(unittest.TestCase):
         self.assertEqual(client().post('/api/signup', json=form('zz_test_su_beta')).status_code, 200)
         mail = self.mail.call_args.kwargs['json']
         self.assertEqual(mail['subject'], 'Confirm your email for Kinetta')
-        self.assertTrue(mail['text'].startswith('Open this link to confirm your email and finish setting up Kinetta:'))
+        self.assertTrue(mail['text'].startswith('Hi Signup,\n\nOpen this link to confirm your email and finish setting up Kinetta:'))
         self.assertIn('beta', mail['text']); self.assertIn('https://testflight.apple.com/join/zzFICTION', mail['text'])
         self.assertIn("You're getting this because this address was used for a Kinetta account.", mail['text'])
         self.env(KINETTA_SIGNUP='open', KINETTA_TESTFLIGHT_URL='https://example.test/not-testflight')
@@ -394,10 +467,13 @@ class Signup(unittest.TestCase):
         self.assertEqual(person.put('/api/account',json={'name':'Kinetta'}).status_code,400)
         with db.connect()as c:c.execute("UPDATE users SET name='Kinetta',login='kinetta' WHERE id=%s",(uid,))
         self.assertEqual(person.put('/api/account',json={'name':'Kinetta','login':'kinetta'}).status_code,200,'unchanged legacy identity remains')
-        self.assertEqual(admin.put('/api/account',json={'name':'Kinetta Official','login':'zz_test_su_admin_renamed'}).status_code,200)
+        self.assertEqual(admin.put('/api/account',json={'name':'Admin Fixture Person','login':'zz_test_su_admin_renamed'}).status_code,200)
         with db.connect()as c:
             c.execute("UPDATE users SET login='zz_test_su_legacy' WHERE id=%s",(uid,));token=admin_auth.issue_session(c,aid)
         admin.cookies.set(admin_auth.COOKIE,token,path='/api');admin.headers['X-Admin-CSRF']=admin_auth.csrf(token)
+        missing_surname=admin.post('/api/admin/people',json={'name':'Fixture','login':'zz_test_su_bad_admin_create','password':PW})
+        self.assertEqual(missing_surname.status_code,400,missing_surname.text)
+        self.assertEqual(missing_surname.json()['detail'],'Please add your last name.')
         r=admin.post('/api/admin/people',json={'name':'Fixture Member','login':'zz_test_su_created','password':PW})
         self.assertEqual(r.status_code,200,r.text)
         with db.connect() as c:

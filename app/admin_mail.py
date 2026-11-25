@@ -23,9 +23,6 @@ def format_plain_text_email(body, *, greeting=None, footer=EMAIL_FOOTER):
     if greeting:
         text = re.sub(r'^(?:Hi|Hello)[^\n]*\n\s*\n', '', text, count=1, flags=re.I)
         text = greeting.strip() + ('\n\n' + text if text else '')
-    else:
-        # Older account copy put a personalized greeting before the action sentence.
-        text = re.sub(r'^(?:Hi|Hello)[^\n]*\n\s*\n', '', text, count=1, flags=re.I)
     text = re.sub(r'(?i)reply to this email(?:\s+(?:right away|if you have questions))?(?:\s+and we(?:\x27|’)ll help(?: sort it out)?)?\.?',
                   'For help, email feedback@kinetta.app.', text)
     text = re.sub(r'(?i)If you\x27d like the iPhone beta,\s*reply and we(?:\x27|’)ll set you up\.',

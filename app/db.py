@@ -2257,6 +2257,27 @@ MIGRATIONS = [
     """ALTER TABLE users ADD COLUMN unconfirmed_final_warning_at timestamptz;
     ALTER TABLE users ADD COLUMN unconfirmed_final_warning_sent_at timestamptz;""",
 
+    # 117. Store first and last name separately; legacy one-word names keep a null surname.
+    """ALTER TABLE users ADD COLUMN first_name text;
+    ALTER TABLE users ADD COLUMN last_name text;
+    UPDATE users SET first_name=split_part(btrim(name),' ',1),
+      last_name=nullif(regexp_replace(btrim(name),'^\\S+\\s*',''),'');
+    UPDATE users SET first_name='Member' WHERE first_name IS NULL OR first_name='';
+    CREATE OR REPLACE FUNCTION fit_split_legacy_user_name() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF (TG_OP='UPDATE' AND NEW.name IS DISTINCT FROM OLD.name
+          AND NEW.first_name IS NOT DISTINCT FROM OLD.first_name
+          AND NEW.last_name IS NOT DISTINCT FROM OLD.last_name)
+         OR NEW.first_name IS NULL OR NEW.first_name='' THEN
+        NEW.first_name=split_part(btrim(NEW.name),' ',1);
+        NEW.last_name=nullif(regexp_replace(btrim(NEW.name),'^\\S+\\s*',''),'');
+      END IF;
+      RETURN NEW;
+    END $$;
+    CREATE TRIGGER users_split_legacy_name BEFORE INSERT OR UPDATE OF name ON users
+      FOR EACH ROW EXECUTE FUNCTION fit_split_legacy_user_name();
+    ALTER TABLE users ALTER COLUMN first_name SET NOT NULL;""",
+
 ]
 
 
