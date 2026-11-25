@@ -6,7 +6,7 @@ in every mode. Product entitlements and the person's own consent remain separate
 import datetime as dt
 import os
 from fastapi import HTTPException
-from . import db
+from . import db, email_confirmation
 
 FEATURES = ('food', 'coach')
 OPERATOR_BLOCK = 'Kit access is blocked by the administrator. Search, barcodes and manual logging still work.'
@@ -34,6 +34,7 @@ def _decision(user_id, feature, connection=None):
     if type(user_id) is not int or user_id <= 0 or feature not in FEATURES:
         raise ValueError('Authenticated account and known AI feature required')
     def read(c):
+        if email_confirmation.required(user_id, c): return False, email_confirmation.KIT_BLOCK
         profile=c.execute('SELECT ai_access_allowed,birth_year FROM profile WHERE user_id=%s',(user_id,)).fetchone()
         reason=restriction(profile)
         if reason: return False, reason

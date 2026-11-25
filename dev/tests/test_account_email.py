@@ -727,4 +727,181 @@ class AccountEmail(unittest.TestCase):
             c.execute('UPDATE schema_version SET applied=%s WHERE version=109', (applied,))
 
 
+class ConfirmedEmailGate(unittest.TestCase):
+    """Authenticated fixture requests, with provider calls forbidden."""
+    def setUp(self):
+        from app import ai_access, ai_release, food_photo, coach, food_coach, coach_chat
+        from contextlib import ExitStack
+        self.stack=ExitStack();self.addCleanup(self.stack.close);self.providers=[]
+        for module,name in ((food_photo,'ask'),(coach,'_gemini'),(coach,'_claude'),(food_coach,'_ask'),(coach_chat,'_gemini_turn'),(coach_chat,'_claude_turn')):
+            self.providers.append(self.stack.enter_context(patch.object(module,name,side_effect=AssertionError('Provider called'))))
+        self.stack.enter_context(patch.object(ai_release,'enabled',return_value=True))
+        self.stack.enter_context(patch.dict(os.environ,{'KINETTA_AI_ACCESS_MODE':'open'}))
+        self.ids=[];self.addCleanup(self.clean);self.addCleanup(self.check_providers)
+        with db.connect() as c:
+            for suffix in ('pending','other'):
+                login='zz_test_gate_'+suffix
+                uid=c.execute('INSERT INTO users(login,name,pw_hash,needs_email_confirm) VALUES(%s,%s,%s,true) RETURNING id',
+                              (login,'Fictional Member',auth.hash_pw(PW))).fetchone()['id']
+                self.ids.append(uid)
+                c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())',(uid,))
+        self.client=TestClient(app);self.client.headers['Origin']=BASE
+        self.assertEqual(self.client.post('/api/login',json={'login':'zz_test_gate_pending','password':PW}).status_code,200)
+
+    def clean(self):
+        with db.connect() as c:c.execute('DELETE FROM users WHERE id=ANY(%s)',(self.ids,))
+
+    def check_providers(self):
+        for provider in self.providers:provider.assert_not_called()
+
+    def test_server_gate_and_account_matrix(self):
+        from app import ai_access, api_photos, email_confirmation, food_thread_understand
+        from uuid import uuid4
+        uid,other=self.ids
+        me=self.client.get('/api/me').json()
+        self.assertTrue(me['needs_email_confirm']);self.assertFalse(me['email_confirmed'])
+        for feature in ai_access.FEATURES:
+            self.assertFalse(me['ai_access'][feature]['entitled'])
+            self.assertEqual(me['ai_access'][feature]['reason'],email_confirmation.KIT_BLOCK)
+        generation=self.client.get('/api/coach/conversation').json()['generation']
+        for path,body in (
+            ('/api/food/photo',{'note':'Fictional lunch'}),
+            ('/api/food/label',{'image':'not-an-image'}),
+            ('/api/recipe-links/photo',{'client_id':str(uuid4()),'image':'not-an-image'}),
+            (f'/api/recipe-links/{uuid4()}/estimate',{'candidate':0,'index':0,'client_id':str(uuid4()),'confirmed':True}),
+            ('/api/coach/ask',{'question':'Review my week'}),
+            ('/api/coach/week',{}),('/api/activities/999999/coach',{}),('/api/food/review',{}),
+            ('/api/coach/conversation/messages',{'client_id':str(uuid4()),'generation':generation,'question':'Review my week'}),
+        ):
+            r=self.client.post(path,json=body)
+            self.assertEqual((r.status_code,r.json().get('detail')),(403,email_confirmation.KIT_BLOCK),path)
+        # Fresh database state, never a supplied user object or another account's status.
+        with db.connect() as c:
+            c.execute('UPDATE users SET email_verified_at=now() WHERE id=%s',(other,))
+            self.assertTrue(email_confirmation.required(uid,c));self.assertFalse(email_confirmation.required(other,c))
+            with patch.object(food_thread_understand,'enabled',return_value=True),patch.dict(os.environ,{'GEMINI_API_KEY':'fictional'}):
+                self.assertFalse(food_thread_understand.allowed(c,uid))
+        spoof={'id':uid,'needs_email_confirm':False,'email_verified_at':'verified'}
+        for endpoint,args in ((api_photos.set_profile_photo,()),(api_photos.add_activity_photo,(999999,))):
+            with self.assertRaises(HTTPException) as err:endpoint(*args,api_photos.PhotoIn(image='not-a-valid-image'),user=spoof)
+            self.assertEqual(err.exception.status_code,403)
+        # Shared insertion covers recorded activities, before any SQL insert or partial save.
+        with db.connect() as c:
+            with self.assertRaises(HTTPException):api_photos.insert_activity_photo(c,999999,uid,None)
+        for method,path in (('PUT','/api/me/photo'),('POST','/api/activities/999999/photos')):
+            r=self.client.request(method,path,json={'image':'not-a-valid-image'})
+            self.assertEqual((r.status_code,r.json().get('detail')),(403,email_confirmation.PHOTO_BLOCK))
+        from PIL import Image
+        from io import BytesIO
+        image=BytesIO();Image.new('RGB',(32,32),'gray').save(image,format='JPEG')
+        jpeg='data:image/jpeg;base64,'+base64.b64encode(image.getvalue()).decode()
+        recording=str(uuid4())
+        track={'client_id':recording,'sport':'run','name':'Fictional run','start':'2026-11-20T08:00:00Z',
+               'elapsed_s':120,'moving_s':120,'review_version':1,'photos':[jpeg]}
+        with patch.object(api_photos,'prepare_activity_photo',side_effect=AssertionError('Unconfirmed image decoded')) as decode:
+            r=self.client.post('/api/activities/track',json=track)
+            decode.assert_not_called()
+        self.assertEqual(r.status_code,200,r.text)
+        self.assertEqual(r.json()['warning'],'Activity saved without photos. Confirm your email to upload photos.')
+        aid=r.json()['id']
+        saved=self.client.get(f'/api/activities/{aid}').json()
+        self.assertEqual((saved['name'],saved['moving_s'],saved['elapsed_s']),('Fictional run',120,120))
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT activity_id FROM track_recording_receipts WHERE user_id=%s AND client_id=%s',(uid,recording)).fetchone()['activity_id'],aid)
+            self.assertFalse(c.execute('SELECT 1 FROM activity_photos WHERE user_id=%s AND activity_id=%s',(uid,aid)).fetchone())
+        retry=self.client.post('/api/activities/track',json=track).json()
+        self.assertEqual(retry['id'],aid);self.assertTrue(retry['duplicate']);self.assertEqual(retry['warning'],r.json()['warning'])
+        track['photos']=[]
+        self.assertEqual(self.client.post('/api/activities/track',json=track).json()['id'],aid,'retry without photos retains recording')
+        for path in ('/api/food/day','/api/dishes','/api/plans/options','/api/plans/current'):
+            self.assertEqual(self.client.get(path).status_code,200,path)
+        self.assertEqual(self.client.request('DELETE','/api/me/photo',json={}).status_code,200,'removal stays available')
+        run=self.client.post('/api/activities/manual',json={'sport':'run','start':'2026-11-20T07:00','duration_s':1800,'distance_m':5000})
+        self.assertEqual(run.status_code,200,run.text)
+        self.assertEqual(self.client.post('/api/dishes',json={'name':'Manual meal'}).status_code,200)
+        # Both confirmed-signup and legacy/invited accounts keep their former permissions.
+        for needs,verified in ((True,True),(False,False)):
+            with db.connect() as c:
+                c.execute('UPDATE users SET needs_email_confirm=%s,email_verified_at=CASE WHEN %s THEN now() ELSE NULL END WHERE id=%s',(needs,verified,uid))
+            for feature in ai_access.FEATURES:self.assertTrue(ai_access.has(uid,feature))
+            self.assertEqual(self.client.put('/api/me/photo',json={'image':'not-a-valid-image'}).status_code,400,'passes gate to image validation')
+            self.assertEqual(self.client.post('/api/activities/999999/photos',json={'image':'not-a-valid-image'}).status_code,400)
+            self.assertEqual(self.client.put('/api/me/photo',json={'image':jpeg}).status_code,200)
+            added=self.client.post(f"/api/activities/{run.json()['id']}/photos",json={'image':jpeg})
+            self.assertEqual(added.status_code,200,added.text)
+        with db.connect() as c:c.execute('UPDATE users SET needs_email_confirm=true,email_verified_at=NULL WHERE id=%s',(uid,))
+        self.assertEqual(self.client.get(f"/api/activity-photos/{added.json()['id']}").status_code,200)
+        self.assertEqual(self.client.request('DELETE',f"/api/activity-photos/{added.json()['id']}",json={}).status_code,200)
+        self.assertEqual(self.client.request('DELETE','/api/me/photo',json={}).status_code,200)
+
+
+    def test_background_and_non_photo_food_paths(self):
+        from app import coach, ai_budget, cook_chat, food_thread_understand as U, food_memory_understand as M
+        from app import recipe_fetch, recipe_import
+        from uuid import uuid4
+        uid=self.ids[0]
+        with patch.object(coach.threading,'Thread',side_effect=AssertionError('Unconfirmed import spawned AI')):
+            coach.after_import(uid,[999999])
+        for run in (lambda:coach.note(uid,999999),lambda:coach.week_review(uid)):
+            with self.assertRaises(HTTPException) as denied:run()
+            self.assertEqual(denied.exception.status_code,403)
+        # Drive exactly one scheduler iteration; only fixture accounts use the real review.
+        review=coach.week_review;visited=[]
+        def scheduled(account):
+            if account in self.ids:
+                visited.append(account)
+                with self.assertRaises(HTTPException):review(account)
+        with patch.object(coach,'enabled',return_value=True),patch.object(coach,'week_review',side_effect=scheduled),patch('time.sleep',side_effect=[None,StopIteration]):
+            with self.assertRaises(StopIteration):coach.weekly_scheduler()
+        self.assertCountEqual(visited,self.ids)
+        with patch.dict(os.environ,{'GEMINI_API_KEY':'fictional'}),patch.object(cook_chat,'ai_actions',side_effect=AssertionError('Cook AI called')):
+            dish=self.client.post('/api/dishes',json={'name':'Fictional pot'}).json()
+            cooked=self.client.post(f"/api/dishes/{dish['id']}/say",json={'text':'100 g fictional aubergine'})
+            self.assertEqual(cooked.status_code,200,cooked.text);self.assertTrue(cooked.json()['fallback'])
+        with patch.dict(os.environ,{'GEMINI_API_KEY':'fictional'}),patch.object(U,'enabled',return_value=True),patch.object(M,'enabled',return_value=True),patch.object(U,'ask_model',side_effect=AssertionError('Understanding called')) as understanding,patch.object(M,'ask_model',side_effect=AssertionError('Memory AI called')) as memory:
+            msg=self.client.post('/api/food/thread/messages',json={'client_id':str(uuid4()),'body':'How much protein today?','review_only':True})
+            self.assertEqual(msg.status_code,201,msg.text)
+            mid=msg.json()['message']['id']
+            result=self.client.post(f'/api/food/thread/messages/{mid}/process',json={})
+            self.assertEqual(result.status_code,200,result.text)
+            understanding.assert_not_called();memory.assert_not_called()
+        # Recipe links parse structured data, with no AI; unmatched ingredient estimates are gated separately.
+        page={'url':'https://recipes.example.test/soup','html':'<script type="application/ld+json">'+json.dumps({'@context':'https://schema.org','@type':'Recipe','name':'Fictional Soup','recipeIngredient':['100 g carrots'],'recipeYield':'2 servings'})+'</script>'}
+        with patch.object(recipe_fetch,'fetch',return_value=page),patch.object(recipe_import,'_match',side_effect=lambda c,u,rows:rows):
+            result=self.client.post('/api/recipe-links/read',json={'client_id':str(uuid4()),'url':page['url']})
+            self.assertEqual(result.status_code,200,result.text);self.assertEqual(result.json()['state'],'ready')
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM ai_food_attempts WHERE user_id=%s',(uid,)).fetchone()['n'],0)
+
+    def test_creation_defaults_and_deleted_background_account(self):
+        from app import email_confirmation, coach, ai_access, api_photos
+        uid=self.ids[0]
+        # Setup and invite share _create; the reviewer harness uses admin add_person.
+        with db.connect() as c:
+            first=c.execute('SELECT id,needs_email_confirm FROM users WHERE is_admin ORDER BY id LIMIT 1').fetchone()
+            self.assertFalse(first['needs_email_confirm'],'seeded first-run admin is unaffected')
+            created=api_account._create(c,api_account.NewAccountIn(name='Fictional Admin',login='gate_first_admin',password=PW),is_admin=True)
+            self.ids.append(created)
+        admin={'id':created,'is_admin':True}
+        for login in ('zz_test_gate_added','zz_test_gate_reviewer'):
+            api_account.add_person(api_account.PersonIn(login=login,name='Fictional Member',password=PW),user=admin)
+            with db.connect() as c:self.ids.append(c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'])
+        invite=api_account.create_invite(api_account.InviteIn(),user=admin)
+        self.addCleanup(self.delete_invite,invite['id'])
+        response=TestClient(app).post('/api/join',headers={'Origin':BASE},json={'token':invite['path'].split('/')[-1],'login':'gate_invited','name':'Fictional Friend','password':PW,'age_ok':True})
+        self.assertEqual(response.status_code,200,response.text)
+        with db.connect() as c:
+            invited=c.execute("SELECT id FROM users WHERE login='gate_invited'").fetchone()['id'];self.ids.append(invited)
+            rows=c.execute('SELECT needs_email_confirm FROM users WHERE id=ANY(%s)',(self.ids[2:],)).fetchall()
+            self.assertTrue(all(not row['needs_email_confirm'] for row in rows))
+            api_photos.lock_activity_photos(c,uid)  # lock alone must not prevent removal-only edits
+            c.execute('DELETE FROM users WHERE id=%s',(uid,))
+        self.assertIs(email_confirmation.required(uid),False)
+        self.assertFalse(coach.allowed(uid));coach.after_import(uid,[999999])
+        self.assertFalse(ai_access.has(uid,'coach'),'missing account has no AI access')
+
+    def delete_invite(self,identity):
+        with db.connect() as c:c.execute('DELETE FROM invites WHERE id=%s',(identity,))
+
+
 if __name__ == '__main__': unittest.main()

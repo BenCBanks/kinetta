@@ -43,8 +43,8 @@ def check_name_upgrade(test):
         tree = ast.parse(Path(source).read_text())
         baseline = next(ast.literal_eval(node.value) for node in tree.body
                         if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'MIGRATIONS' for t in node.targets))
-        test.assertEqual(len(baseline), 116, 'Recheck migration numbering against main')
-        test.assertEqual(baseline, db.MIGRATIONS[:116], 'Historical main migrations stay identical')
+        test.assertEqual(baseline, db.MIGRATIONS[:len(baseline)], 'Historical main migrations stay identical')
+        test.assertLess(len(baseline), len(db.MIGRATIONS), 'Upgrade starts before the branch migration')
     super_dsn = db._conninfo('postgres', db.secret('POSTGRES_PASSWORD'))
     with psycopg.connect(super_dsn, autocommit=True) as root:
         try:
@@ -66,32 +66,44 @@ def check_name_upgrade(test):
                     c.execute('INSERT INTO schema_version VALUES(%s)', (version,))
                 for login, name in [('zz_test_one', 'Fictional'), ('zz_test_full', 'Fictional Three Word Name')]:
                     c.execute('INSERT INTO users(login,name) VALUES(%s,%s)', (login, name))
-                test.assertTrue(c.execute("SELECT has_column_privilege('fit_readers','users','name','SELECT') AS allowed").fetchone()['allowed'])
+                test.assertEqual(c.execute("SELECT has_column_privilege('fit_readers','users','name','SELECT') AS allowed").fetchone()['allowed'], len(baseline)<117)
             # A committed main database exists before branch migration is applied.
             with psycopg.connect(app_dsn, row_factory=dict_row) as c:
-                test.assertEqual(c.execute('SELECT max(version) AS v FROM schema_version').fetchone()['v'], 116)
-                c.execute(db.MIGRATIONS[116])
-                c.execute('INSERT INTO schema_version VALUES(117)')
+                test.assertEqual(c.execute('SELECT max(version) AS v FROM schema_version').fetchone()['v'], len(baseline))
+                for version,migration in enumerate(db.MIGRATIONS[len(baseline):],len(baseline)+1):
+                    c.execute(migration)
+                    c.execute('INSERT INTO schema_version VALUES(%s)',(version,))
                 rows = c.execute('SELECT name,first_name,last_name FROM users ORDER BY login').fetchall()
                 test.assertEqual([(r['first_name'], r['last_name']) for r in rows],
                                  [('Fictional', 'Three Word Name'), ('Fictional', None)])
                 c.execute("INSERT INTO users(login,name) VALUES('zz_test_legacy','Legacy SQL Person')")
                 test.assertEqual(c.execute("SELECT first_name,last_name FROM users WHERE login='zz_test_legacy'").fetchone(),
                                  {'first_name': 'Legacy', 'last_name': 'SQL Person'})
+                c.execute("UPDATE users SET first_name='Updated',last_name='Surname' WHERE login='zz_test_legacy'")
+                test.assertEqual(c.execute("SELECT name FROM users WHERE login='zz_test_legacy'").fetchone()['name'],'Updated Surname')
+                c.execute("UPDATE users SET last_name='Changed' WHERE login='zz_test_legacy'")
+                test.assertEqual(c.execute("SELECT name FROM users WHERE login='zz_test_legacy'").fetchone()['name'],'Updated Changed')
+                c.execute("UPDATE users SET name='Legacy SQL Person' WHERE login='zz_test_legacy'")
+                test.assertEqual(c.execute("SELECT first_name,last_name FROM users WHERE login='zz_test_legacy'").fetchone(),{'first_name':'Legacy','last_name':'SQL Person'})
+                c.execute("INSERT INTO users(login,name,first_name,last_name,needs_email_confirm) VALUES('zz_test_hidden_unconfirmed','Stale Name','Hidden','Unconfirmed',true)")
+                test.assertEqual(c.execute("SELECT name FROM users WHERE login='zz_test_hidden_unconfirmed'").fetchone()['name'],'Hidden Unconfirmed')
+                c.execute("INSERT INTO users(login,name,suspended_at) VALUES('zz_test_hidden_suspended','Hidden Suspended',now())")
             for role, owner in zip(roles, (False, True)):
                 dsn = make_conninfo(db._conninfo(role, password), dbname=database)
                 with psycopg.connect(dsn, row_factory=dict_row) as reader:
                     directory = reader.execute('SELECT * FROM public_people ORDER BY login').fetchall()
                     test.assertEqual(len(directory), 3)
+                    test.assertFalse(any(row['login'].startswith('zz_test_hidden') for row in directory),'directory excludes unavailable accounts for members and owners')
                     test.assertEqual(set(directory[0]), {'user_id', 'login', 'first_name', 'created'})
                     test.assertEqual(reader.execute("SELECT first_name FROM users WHERE login='zz_test_full'").fetchone()['first_name'], 'Fictional')
                     if owner:
                         test.assertEqual(reader.execute("SELECT name,last_name FROM users WHERE login='zz_test_full'").fetchone(),
                                          {'name': 'Fictional Three Word Name', 'last_name': 'Three Word Name'})
+                        test.assertEqual(reader.execute('SELECT count(*) AS n FROM owner_people').fetchone()['n'],5,'owners retain unavailable accounts in their private view')
                         test.assertEqual(reader.execute("SELECT name FROM owner_people WHERE login='zz_test_full'").fetchone()['name'], 'Fictional Three Word Name')
                     else:
                         for statement in ('SELECT name FROM users', 'SELECT last_name FROM users',
-                                          'SELECT * FROM users', 'SELECT name FROM owner_people'):
+                                          'SELECT * FROM users', 'SELECT suspended_at,needs_email_confirm FROM users', 'SELECT name FROM owner_people'):
                             with test.assertRaises(psycopg.errors.InsufficientPrivilege):
                                 with reader.transaction():
                                     reader.execute(statement)
@@ -172,7 +184,7 @@ class Signup(unittest.TestCase):
             with self.assertRaises(Exception, msg=(first,last)):
                 api_account._clean_person_names(first,last)
 
-    def test_migration_117_upgrades_legacy_names_in_place(self):
+    def test_name_migrations_upgrade_legacy_names_in_place(self):
         check_name_upgrade(self)
 
     def env(self, **kw):

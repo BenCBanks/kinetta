@@ -48,13 +48,15 @@ Imperial and metric units included, one row per thing, and a `person` column:
 | `v_food_days` | calories and macros per day |
 | `v_weights` | weigh-ins |
 | `v_lift_sets` | every lifting set: day, session, exercise, reps, kg and lb, seconds, warm-up, estimated one-rep max |
-| `public_people` | account directory: `user_id`, username (`login`), first name and creation date; no surname |
+| `public_people` | available account directory: `user_id`, username (`login`), first name and creation date; no surname |
 
 The raw tables are there too: `activities`, `activity_streams` (per-second arrays), `best_efforts`, `routes`, `gear`,
 `goals`, `food_entries`, `custom_foods`, `saved_meals`, `weights`, `exercises`, `lift_sets`.
 Ordinary logins can read only `id`, `login`, `first_name` and `created` from `users`; `name` and `last_name`
 are restricted to all-people owner logins. Join `public_people` for first names, or `owner_people` for full names
-when using an all-people login.
+when using an all-people login. The directory view excludes unconfirmed and suspended accounts. It uses the
+view owner’s limited projection to filter those private status columns without granting ordinary logins access to them.
+Structured first/last-name SQL writes also synchronize the legacy full-name value; legacy `name` writes remain supported.
 
 ```sql
 SELECT week, miles, hours FROM v_weekly WHERE sport = 'run' ORDER BY week DESC LIMIT 12;

@@ -415,8 +415,25 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .group-sport-options input {flex:none;width:18px;height:18px;min-height:18px;margin:0;accent-color:var(--accent);}
 .group-sport-options span {min-width:0;overflow-wrap:anywhere;}
 .group-create-form .small {margin:3px 0 8px;line-height:1.45;}
-.group-invite-actions {display:grid;gap:8px;margin:18px 0 8px;}
-.group-invite-link {margin:10px 0!important;padding:8px 0;color:var(--tx3);font-size:13px;overflow-wrap:anywhere;user-select:text;}
+.sheet.group-friend-sheet {display:flex;flex-direction:column;height:min(600px,calc(100dvh - 12px));overflow:hidden;}
+.sheet.group-friend-sheet>header {flex:none;}
+.sheet.group-friend-sheet>header h2 {min-width:0;overflow-wrap:anywhere;}
+.sheet.group-friend-sheet>.sbody {display:flex;flex:1;min-height:0;padding-bottom:0;}
+.group-friend-picker {--group-avatar-fill:color-mix(in srgb,var(--card2) 85%,var(--tx3));display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;}
+.group-friend-picker>input {flex:none;box-sizing:border-box;width:100%;min-height:44px;font-size:16px;margin:0 0 12px;}
+.group-friend-results {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;}
+.group-friend-row {display:flex;align-items:center;gap:12px;min-height:56px;}
+.group-friend-row .group-friend-avatar {background:var(--group-avatar-fill);flex:none;width:36px;height:36px;font-size:14px;}
+.group-friend-row>b {flex:1;min-width:0;font-size:16px;font-weight:600;overflow-wrap:anywhere;}
+.group-friend-row>button {flex:none;min-width:64px;min-height:44px;padding:0 4px;font-size:15px;font-weight:600;}
+.group-friend-row>button:disabled {color:var(--tx3);opacity:1;}
+.group-friend-state {margin:12px 0;color:var(--tx2);font-size:15px;line-height:1.45;}
+.group-friend-state>button {min-width:44px;min-height:44px;}
+.group-friend-footer {flex:none;margin-top:8px;padding-bottom:env(safe-area-inset-bottom);}
+.group-friend-footer>button {color:var(--accent);justify-content:center;gap:10px;width:100%;min-height:50px;font-size:16px;}
+.group-friend-placeholder {display:flex;align-items:center;gap:12px;min-height:56px;}
+.group-friend-placeholder>span {width:36px;height:36px;border-radius:50%;background:var(--group-avatar-fill);}
+.group-friend-placeholder>i {width:55%;height:16px;border-radius:4px;background:var(--card2);}
 .group-options-list {display:grid;}
 .group-options-list .row-link {min-height:48px;text-align:left;}
 .group-options-list .row-link.danger {color:var(--alert);}

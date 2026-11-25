@@ -586,7 +586,7 @@ async function homeGroups(el) {
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('groups')}<section class="home-groups"><div class="home-groups-heading" hidden><button type="button" class="linkbtn" id="home-group-new">Create</button></div><div id="home-group-list"><div class="card empty">Loading your groups…</div></div></section>`;
   if(typeof homeKitEntry==='function')homeKitEntry(el);
   wireHomeChallengeLink(el);
-  const create=()=>groupCreateSheet(group=>{invalidate('/api/groups');go('/groups/'+encodeURIComponent(group.id));groupInviteSheet(group.invite_url,group.title);});
+  const create=()=>groupCreateSheet(group=>{invalidate('/api/groups');go('/groups/'+encodeURIComponent(group.id));groupInviteSheet(group,group.invite_url);});
   $('#home-group-new',el).onclick=create;
   try{
     const groups=await api('/api/groups');if(!live())return;
@@ -940,7 +940,7 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null, def
   $$('[data-ph]', box).forEach((b) => b.onclick = () => photoViewer(view, +b.dataset.ph, mine, redraw, {draft}));
   const add = $('[data-phadd]', box), file = $('[data-phfile]', box);
   if (!add) return;
-  add.onclick = () => file.click();
+  add.onclick = () => {if(!globalThis.EmailConfirmation?.lock(true))file.click();};
   file.onchange = async () => {
     const files = [...file.files].slice(0, PHOTO_MAX - ph.length); if (!files.length) return;
     add.disabled = true;
@@ -1307,18 +1307,55 @@ function groupTimeZoneOptions(current){
   if(!zones.includes(current))zones.push(current);
   return [...new Set(zones)].sort((a,b)=>groupTimeZonePickerLabel(a).localeCompare(groupTimeZonePickerLabel(b))).map(zone=>`<option value="${esc(zone)}"${zone===current?' selected':''}>${esc(groupTimeZonePickerLabel(zone))}</option>`).join('');
 }
-function groupInviteSheet(url,title='group'){
-  const owner=readOwner(),groupName=String(title||'group').replace(/\s+/g,' ').trim(),shareText=`You’re invited to ‘${groupName}’ on Kinetta, the workout and food app: ${url}`;sheet('Invite to this group',`<p>People who open this link see only that they’re invited to a private group. They must sign in and accept.</p><p class="group-invite-link" tabindex="0">${esc(url)}</p>
-    <div class="group-invite-actions"><button type="button" class="primary wide" data-group-copy>Copy invite text</button><button type="button" class="ghost wide" data-group-share>Share invite</button></div>
-    <button type="button" class="linkbtn wide" data-close>Done</button>`,(body,close)=>{
-      const live=()=>owner===readOwner()&&body.isConnected;
-      $('[data-group-copy]',body).onclick=async()=>{
-        try{await navigator.clipboard.writeText(shareText);if(live())toast('Invite text copied');}
-        catch{const field=document.createElement('textarea');field.value=shareText;field.setAttribute('readonly','');body.append(field);field.select();try{document.execCommand('copy');toast('Invite text copied');}catch{toast('Couldn’t copy the invite text');}field.remove();}
-      };
-      $('[data-group-share]',body).onclick=async()=>{try{if(navigator.share)await navigator.share({title:`Join ${groupName} on Kinetta`,text:shareText});else{await navigator.clipboard.writeText(shareText);if(live())toast('Invite text copied');}}catch(e){if(e.name!=='AbortError'&&live())toast('Couldn’t share the invite text');}};
-      $('[data-close]',body).onclick=close;
-    });
+function groupInviteSheet(group,initialUrl=null){
+  const owner=readOwner(),base='/api/groups/'+encodeURIComponent(group.id),title=String(group.title||'group').replace(/\s+/g,' ').trim();
+  let friends=[],loaded=false,failed=false,canInvite=false,inviteUrl=initialUrl;
+  const sending=new Set();
+  sheet('Invite to '+title,`<div class="group-friend-picker"><label class="vh" for="group-friend-search">Search friends</label><input id="group-friend-search" type="search" placeholder="Search friends" autocomplete="off" enterkeyhint="search"><div class="group-friend-results" aria-live="polite"></div><footer class="group-friend-footer"><button type="button" class="row-link" data-group-share>${svg('share')}<span>Share invite link</span></button></footer></div>`,body=>{
+    body.closest('.sheet').classList.add('group-friend-sheet');
+    const search=$('#group-friend-search',body),results=$('.group-friend-results',body),share=$('[data-group-share]',body);
+    const live=()=>body.isConnected&&owner===readOwner();
+    const draw=()=>{
+      if(!live())return;
+      results.setAttribute('aria-busy',String(!loaded&&!failed));
+      share.hidden=Boolean(group.closed||group.joining_closed);
+      if(failed){results.innerHTML=`<p class="group-friend-state">Couldn't load friends · <button type="button" class="linkbtn" data-group-friend-retry>Retry</button></p>`;$('[data-group-friend-retry]',results).onclick=load;return;}
+      if(!loaded){results.innerHTML='<span class="vh">Loading friends…</span>'+Array.from({length:3},()=>'<div class="group-friend-placeholder" aria-hidden="true"><span></span><i></i></div>').join('');return;}
+      const stopped=group.closed||group.joining_closed,query=search.value.trim().toLowerCase().replace(/^@/,'');
+      const rows=friends.filter(friend=>(!stopped||friend.state==='member')&&friend.username.toLowerCase().includes(query)).sort((a,b)=>({none:0,invited:1,member:2}[a.state]-{none:0,invited:1,member:2}[b.state])||a.username.localeCompare(b.username));
+      const full=Number(group.member_count)>=50;
+      results.innerHTML=(full?'<p class="group-friend-state">Group full</p>':'')+(rows.length?'<div role="list">'+rows.map(friend=>{
+        const invited=friend.state==='invited',joined=friend.state==='member',disabled=invited||joined||!canInvite||sending.has(friend.username);
+        return `<div class="group-friend-row" role="listitem">${avatar({login:friend.username,name:friend.username},'group-friend-avatar')}<b>@${esc(friend.username)}</b><button type="button" class="linkbtn" data-invite-friend="${esc(friend.username)}" aria-label="${joined?'Joined':invited?'Invited':'Invite'} @${esc(friend.username)}"${disabled?' disabled':''}>${joined?'Joined':invited?'✓ Invited':'Invite'}</button></div>`;
+      }).join('')+'</div>':query?`<p class="group-friend-state">No friends match ‘${esc(search.value.trim())}’.</p>`:stopped?'':`<p class="group-friend-state">None of your friends are on Kinetta yet.</p><a class="row-link" href="/me/friends/contacts" data-find-group-friends><span>Find friends from contacts</span>${svg('chev')}</a>`);
+      $('[data-find-group-friends]',results)?.addEventListener('click',()=>body.closest('.sheet').requestClose());
+      $$('[data-invite-friend]',results).forEach(button=>button.onclick=async()=>{
+        const username=button.dataset.inviteFriend,friend=friends.find(row=>row.username===username);if(!live()||button.disabled||sending.has(username))return;
+        sending.add(username);friend.state='invited';draw();Native.haptic('light');
+        try{const answer=await api(base+'/friend-invites',json('POST',{username}));if(live())friend.state=answer.state;}
+        catch(error){if(live()){friend.state='none';toast(error.message);}}
+        finally{sending.delete(username);if(live())draw();}
+      });
+    };
+    const load=async()=>{
+      loaded=false;failed=false;draw();
+      try{const response=await api(base+'/friends');if(!live())return;friends=response.friends;canInvite=response.can_invite;loaded=true;}
+      catch{if(live())failed=true;}
+      if(live())draw();
+    };
+    search.oninput=draw;
+    share.onclick=async()=>{
+      if(!live()||share.disabled)return;share.disabled=true;
+      try{
+        if(!inviteUrl){const response=await api(base+'/invites',json('POST',{}));if(!live())return;inviteUrl=response.invite_url;}
+        const text=`You’re invited to ‘${title}’ on Kinetta, the workout and food app: ${inviteUrl}`;
+        if(navigator.share)await navigator.share({title:`Join ${title} on Kinetta`,text});
+        else{await navigator.clipboard.writeText(text);if(live())toast('Invite text copied');}
+      }catch(error){if(live()&&error.name!=='AbortError')toast('Couldn’t share the invite link');}
+      finally{if(live())share.disabled=false;}
+    };
+    load();
+  },{keyboardAttached:true,focusContainer:true});
 }
 function groupCreateSheet(done){
   const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',imperial=App.me?.units==='imperial';
@@ -1381,7 +1418,7 @@ function groupEventDateSheet(group,reload){
 route(/^\/me\/groups$/, 'me', async el=>{
   const createRequested=new URLSearchParams(location.search).get('create')==='1';
   el.classList.add('groups-page');el.innerHTML=`<div class="top">${backBtn('Friends')}<h1>Groups</h1><button type="button" class="linkbtn" id="group-new">Create</button></div><div id="group-list"><div class="card group-list-card group-list-loading" role="status" aria-busy="true"><span class="vh">Loading your groups…</span>${[0,1].map(()=>'<div class="group-loading-row" aria-hidden="true"><span class="sk group-loading-glyph"></span><span class="group-loading-copy"><span class="sk group-loading-title"></span><span class="sk group-loading-summary"></span></span><span class="sk group-loading-value"></span></div>').join('')}</div></div>`;wireBack(el,'/me/friends');
-  const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{invalidate('/api/groups');go('/groups/'+encodeURIComponent(group.id));groupInviteSheet(group.invite_url,group.title);});
+  const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{invalidate('/api/groups');go('/groups/'+encodeURIComponent(group.id));groupInviteSheet(group,group.invite_url);});
   $('#group-new',el).onclick=create;
   if(createRequested){const address=new URL(location.href);address.searchParams.delete('create');replacePageAddress(el,address.pathname+address.search+address.hash);create();}
   try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groupListMarkup(groups);
@@ -1496,7 +1533,7 @@ function groupPage(el,group,selectedTab='members',keepExpanded=false){
   draw();
 }
 function groupActionSheet(title,html,handler){sheet(title,html,handler);}
-function groupInvite(group){api('/api/groups/'+encodeURIComponent(group.id)+'/invites',json('POST',{})).then(r=>groupInviteSheet(r.invite_url,group.title)).catch(e=>toast(!group.is_organizer&&e.status===404?'Member invite links are not available yet':e.message));}
+function groupInvite(group){groupInviteSheet(group);}
 function groupMenu(group,reload,onLeave){
   const opts=[];
   if(group.is_organizer&&!group.closed)opts.push('<button type="button" class="row-link" data-gact="event-date"><span>Edit event date</span>'+svg('chev')+'</button>');

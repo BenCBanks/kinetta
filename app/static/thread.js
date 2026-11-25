@@ -664,8 +664,8 @@ const FoodThread = (() => {
     const r={...(reply?.result||{}),...(reply?.entries?.[0]?{day:reply.entries[0].day,meal:reply.entries[0].meal}:{})};
     const remove=$('[data-unlogged-remove]',node);if(remove)remove.onclick=()=>removeUnlogged(ctx,node,m,job);
     const removeRetry=$('[data-removal-retry]',node);if(removeRetry)removeRetry.onclick=()=>retryRemoval(ctx,node,job?.id||m.client_id);
-    const itemize=$('[data-photo-itemize]',node);if(itemize)itemize.onclick=()=>{ctx.photoRetry={id:+itemize.dataset.photoItemize,itemize:true};const file=$('#ql-file',ctx.el);file.removeAttribute('capture');file.click();};
-    const reattach=$('[data-reattach]',node);if(reattach)reattach.onclick=()=>{ctx.photoRetry=m.id;const file=$('#ql-file',ctx.el);file.removeAttribute('capture');file.click();};
+    const itemize=$('[data-photo-itemize]',node);if(itemize)itemize.onclick=()=>{if(globalThis.EmailConfirmation?.lock())return;ctx.photoRetry={id:+itemize.dataset.photoItemize,itemize:true};const file=$('#ql-file',ctx.el);file.removeAttribute('capture');file.click();};
+    const reattach=$('[data-reattach]',node);if(reattach)reattach.onclick=()=>{if(globalThis.EmailConfirmation?.lock())return;ctx.photoRetry=m.id;const file=$('#ql-file',ctx.el);file.removeAttribute('capture');file.click();};
     $$('[data-action]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,b.dataset.action,b.dataset.action==='log'?{confirm:true}:b.dataset.action==='resolve'?{retry:true}:{});}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
     const kit=$('[data-kit]',node);if(kit)kit.onclick=async()=>{if(!active(ctx))return;kit.disabled=true;status(ctx,'Checking your food records…');try{const data=await action(ctx,m.id,'kit',{});status(ctx,data.processing?'Kit is still checking. Tap Check Kit answer shortly.':'Answer saved.');}catch(e){toast(e.message);}finally{if(kit.isConnected)kit.disabled=false;}};
     const review=$('[data-kit-review]',node);if(review)review.onclick=()=>{if(!active(ctx))return;kitReview(r.kit.selection,{scopeKey:m.client_id,onStale:async()=>{await action(ctx,m.id,'kit',{refresh:true});},onSaved:async data=>{if(active(ctx)){await merge(ctx.owner,data);await refresh(ctx);}}});};
@@ -904,7 +904,7 @@ const FoodThread = (() => {
       },{description:original==='Photo of food'?'':original,itemize,active:()=>active(ctx)&&ctx.draftId===draftId});
     };
     $$('[data-tool]',el).forEach(b=>b.onclick=()=>{const tool=b.dataset.tool;
-      if(tool==='snap'||tool==='library'){if(!aiCan('food')){status(ctx,'Food photos need Kit access and your consent. You can type, search or enter numbers instead.');return;}if(tool==='snap')file.setAttribute('capture','environment');else file.removeAttribute('capture');file.click();}
+      if(tool==='snap'||tool==='library'){if(globalThis.EmailConfirmation?.lock())return;if(!aiCan('food')){status(ctx,'Food photos need Kit access and your consent. You can type, search or enter numbers instead.');return;}if(tool==='snap')file.setAttribute('capture','environment');else file.removeAttribute('capture');file.click();}
       if(tool==='scan')scanSheet(ctx.day||foodToday(),ctx.meal||guessMeal(),null,code=>send(ctx,barcodeChatInput(code)));
     });
     draw(ctx);const tool=new URLSearchParams(location.search).get('tool');
