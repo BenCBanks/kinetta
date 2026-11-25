@@ -138,6 +138,14 @@ def email_recovery_limited(c, uid):
 
 def send(to, subject, text):
     """One plain-text message through the configured provider. Returns False (never raises) when it couldn't be sent."""
+    lowered = subject.lower()
+    if 'suspend' in lowered or 'restor' in lowered or ('back' in lowered and 'account' in lowered):
+        suspended = 'suspend' in lowered
+        subject = 'Update to your Kinetta account'
+        text = ('Your Kinetta account is suspended. For information, email feedback@kinetta.app. Your data has not been deleted.'
+                if suspended else
+                'Your Kinetta account is active again. Open Kinetta and sign in as usual. Questions: feedback@kinetta.app.')
+    text = admin_mail.format_plain_text_email(text)
     cfg = admin_mail.settings()
     if not cfg['ready']: return False
     try:
@@ -150,6 +158,7 @@ def send(to, subject, text):
 
 def send_confirmation(to, subject, text, token_hash):
     """Send a confirmation message and remember its provider ID for a signed bounce event."""
+    text = admin_mail.format_plain_text_email(text)
     cfg = admin_mail.settings()
     if not cfg['ready']: return False
     try:
@@ -184,7 +193,7 @@ def _open(c, token, kind, *, lock_user=False):
                      FROM account_tokens t JOIN users u ON u.id = t.user_id
                      WHERE t.token_hash = %s AND t.kind = %s AND t.used_at IS NULL AND t.expires > now() FOR UPDATE OF t""",
                   (auth.token_hash(token or ''), kind)).fetchone()
-    if not r: raise HTTPException(404, 'This link has expired or was already used. Ask for a new one.')
+    if not r: raise HTTPException(404, 'This link has expired. Request a new one from the sign-in page.')
     return r
 
 
@@ -243,11 +252,11 @@ def confirmation(background, c, uid, name, email, welcome=False):
             f"1. Install TestFlight (Apple's free app for betas) from the App Store.\n2. Open this link on your iPhone: {app}\n"
             f"3. Open Kinetta and log in with {email}.") if app else ''
     if welcome:
-        subject, text = 'Welcome to Kinetta', (f"Hi {name},\n\nWelcome to Kinetta! Tap this link to confirm your email:\n{link}\n\n"
-            f"It works for {VERIFY_HOURS} hours. Once it's confirmed, you can log in with this email and reset your password if you ever need to."
-            f"{beta}\n\nIf you didn't sign up, you can ignore this email.")
+        subject, text = 'Confirm your email for Kinetta', (f"Open this link to confirm your email and finish setting up Kinetta:\n{link}\n\n"
+            f"It works for {VERIFY_HOURS} hours. If you didn't sign up, ignore this email."
+            f"{beta}\n\nAfter confirming, open Kinetta and sign in with {email}.")
     else:
-        subject, text = 'Confirm your new email for Kinetta', (f"Hi {name},\n\nTap this link to confirm {email} as your email for Kinetta:\n{link}\n\n"
+        subject, text = 'Confirm your new email for Kinetta', (f"Open this link to confirm {email} as your email for Kinetta:\n{link}\n\n"
             f"It works for {VERIFY_HOURS} hours. If you didn't ask for this, you can ignore this email.")
     background.add_task(send_confirmation, email, subject, text + SIGNATURE, token_hash)
 
@@ -258,7 +267,8 @@ def send_due_confirmation_reminders(limit=100):
     messages = []
     with db.connect() as c:
         reservation_lock(c)
-        rows = c.execute("""SELECT id, name, email::text AS email, email_confirmation_reminder_count AS sent
+        rows = c.execute("""SELECT id, name, email::text AS email, email_confirmation_reminder_count AS sent,
+                                   (created::date + 14) AS deletion_date
           FROM users WHERE needs_email_confirm AND email_verified_at IS NULL AND suspended_at IS NULL AND email IS NOT NULL
             AND created >= (SELECT applied FROM schema_version WHERE version=109)
             AND ((email_confirmation_reminder_count=0 AND created<=now()-interval '1 day')
@@ -272,9 +282,16 @@ def send_due_confirmation_reminders(limit=100):
             c.execute("""UPDATE users SET email_confirmation_reminder_count=email_confirmation_reminder_count+1,
                          email_confirmation_reminder_at=now()
                        WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (user['id'],))
-            messages.append((user['email'], 'Please confirm your Kinetta email',
-                f"Hi {user['name']},\n\nYour Kinetta account is waiting for you to confirm this email address. Open this link:\n{link}\n\n"
-                f"It works for {VERIFY_HOURS} hours. If you didn't sign up, you can ignore this email." + SIGNATURE, token_hash))
+            deletion_date = user['deletion_date'].isoformat()
+            if user['sent'] == 0:
+                subject = 'Your Kinetta account needs one more step'
+                text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
+                        "If you didn't sign up, ignore this email.")
+            else:
+                subject = f'Confirm your Kinetta email by {deletion_date}'
+                text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "
+                        f"Accounts that aren't confirmed within 14 days are deleted on {deletion_date}. If you didn't sign up, ignore this email.")
+            messages.append((user['email'], subject, text, token_hash))
     for email, subject, text, token_hash in messages:
         send_confirmation(email, subject, text, token_hash)
     return len(messages)
@@ -321,8 +338,7 @@ def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
     joined = _consume_signup(r['user_id'])
     if r['current'] and r['current'].lower() != r['email'].lower():
         background.add_task(send, r['current'], 'Your Kinetta email was changed',
-            f"Hi {r['name']},\n\nThe email on your Kinetta account ({r['login']}) is now {r['email']}. "
-            "If that wasn't you, reply to this email and we'll help sort it out." + SIGNATURE)
+            f"The email on your Kinetta account (@{r['login']}) is now {r['email']}. If that wasn't you, email feedback@kinetta.app.")
     return {'ok': True, 'email': r['email'],'challenge_joined':joined}
 
 
@@ -397,11 +413,14 @@ def send_reset(background, c, u, by_admin=False, pending=False):
     """A single-use reset link to the account's email (u: id, name, login, email)."""
     # Bind pending resets to the address that received the proof-of-ownership link.
     token = _token(c, u['id'], 'reset_password', RESET_MINUTES, u['email'] if pending else None)
-    who = "We're sending you a link to reset" if by_admin else 'Someone (hopefully you) asked to reset'
-    background.add_task(send, u['email'], 'Reset your Kinetta password',
-        f"Hi {u['name']},\n\n{who} the password for your Kinetta account ({u['login']}). "
-        f"Tap this link to choose a new one:\n{_base()}/reset-password#{token}\n\n"
-        f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays as it is." + SIGNATURE)
+    if by_admin:
+        text = ("Here's the password reset link you asked us for.\n"
+                f"Open this link to choose a new password for your Kinetta account (@{u['login']}):\n{_base()}/reset-password#{token}\n\n"
+                f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays the same.")
+    else:
+        text = (f"Open this link to reset the password for your Kinetta account (@{u['login']}):\n{_base()}/reset-password#{token}\n\n"
+                f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays the same.")
+    background.add_task(send, u['email'], 'Reset your Kinetta password', text)
 
 
 class ResetIn(BaseModel):
@@ -446,7 +465,7 @@ def reset(body: ResetIn, request: Request, background: BackgroundTasks):
         # A pending reset link proves ownership of the address it was sent to. It cannot reset an account
         # after that account's email has changed to someone else's address.
         if r['email'] and (not r['current'] or _clean_email(r['email']) != _clean_email(r['current'])):
-            raise HTTPException(404, 'This link has expired or was already used. Ask for a new one.')
+            raise HTTPException(404, 'This link has expired. Request a new one from the sign-in page.')
         auth.check_new_password(body.password, r['login'])
         if (r['email'] and r['current'] and not r['email_confirmed'] and r['needs_email_confirm']
                 and _clean_email(r['email']) == _clean_email(r['current'])):
@@ -498,5 +517,5 @@ def _consume_signup(uid):
 def password_changed(background, email, name, login):
     if email:
         background.add_task(send, email, 'Your Kinetta password was changed',
-            f"Hi {name},\n\nThe password for your Kinetta account ({login}) was just changed, and your other phones and "
-            "browsers were signed out. If that wasn't you, reply to this email right away." + SIGNATURE)
+            f"The password for your Kinetta account (@{login}) was just changed, and your other phones and browsers were signed out. "
+            f"If you didn't do this, reset your password now at {_base()}/forgot-password and email feedback@kinetta.app.")

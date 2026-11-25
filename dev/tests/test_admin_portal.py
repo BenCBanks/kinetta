@@ -101,6 +101,12 @@ class Portal(unittest.TestCase):
             receipt=httpx.Response(200,json={'id':'fictional-'+uuid.uuid4().hex},request=httpx.Request('POST','https://api.resend.com/emails'))
             with patch('app.admin_mail.httpx.post',return_value=receipt) as transport:
                 self.assertEqual(self.client.post(path,json={}).json()['state'],'accepted');self.assertEqual(transport.call_args.kwargs['headers']['Idempotency-Key'],key)
+                sent_text=transport.call_args.kwargs['json']['text']
+                self.assertTrue(sent_text.startswith('Hello,\n\nWelcome to the test beta.'))
+                self.assertTrue(sent_text.endswith("You're getting this because this address was used for a Kinetta account. Questions: feedback@kinetta.app · kinetta.app"))
+                self.assertIn('\n\nThe Kinetta team\n\n',sent_text)
+                self.assertIn('Open this link to create your Kinetta account.',sent_text)
+                self.assertNotIn("reply and we'll set you up",sent_text)
                 self.assertEqual(self.client.post(path,json={}).json()['state'],'accepted');self.assertEqual(transport.call_count,1)
             with db.connect() as c:
                 row=c.execute('SELECT body,invite_id FROM beta_responses WHERE id=%s',(draft['request_key'],)).fetchone();self.assertNotIn('/join/',row['body'])
