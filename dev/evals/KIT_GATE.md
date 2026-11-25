@@ -29,7 +29,7 @@ for both variants and the same starter request contract for both weekly paths.
 ```sh
 dev/evals/run_kit_eval.sh \
   --baseline "$BASELINE" --baseline-commit "$BASELINE_COMMIT" \
-  --candidate-commit "$CANDIDATE_COMMIT" --budget-usd 1.00 --dry-run
+  --candidate-commit "$CANDIDATE_COMMIT" --budget-usd 2.50 --dry-run
 ```
 
 The wrapper starts a fresh disposable app/database, copies only evaluation files into the
@@ -37,18 +37,29 @@ image and validates all forty selected IDs. It writes an unreviewed metadata-onl
 `provider_calls: 0`; it never imports the baseline or connects the evaluator to the database
 or provider during dry-run. The wrapper copies the file back as 0600 before teardown.
 
+For an offline runtime proof (not evaluation evidence), run the same wrapper with
+`--offline-smoke` instead of `--dry-run`. No key is needed: it loads the byte-identical
+baseline, runs its real chat and weekly answer paths with a stubbed provider and real
+fictional SQL records, checks the exact pre-provider consent refusal for both variants,
+and exercises 160 simulated ledger attempts for eighty two-attempt responses. The
+private 0600 output is explicitly marked offline/unreviewed and records zero provider calls.
+
 With the key already exported as `GEMINI_API_KEY`, the owner removes `--dry-run`:
 
 ```sh
 dev/evals/run_kit_eval.sh \
   --baseline "$BASELINE" --baseline-commit "$BASELINE_COMMIT" \
-  --candidate-commit "$CANDIDATE_COMMIT" --budget-usd 1.00
+  --candidate-commit "$CANDIDATE_COMMIT" --budget-usd 2.50
 ```
 
 No key argument or key file is accepted. Only the evaluator process receives the key; the
 app service has AI off and no provider credentials. The evaluator runs Gemini 3.8 Flash with
 the answer path's existing LOW setting. Application reservation limits are set to 90% of
-the supplied cap, across every fictional account. This command is one paid run within the
+the supplied cap, across every fictional account. The default/maximum run allowance is
+$2.50 ($2.25 in application reservations); account and service attempt caps are 1000,
+only inside the evaluator process. Production settings are unchanged. At most two
+responses are in flight; a cap stops new scheduling immediately after that pair,
+prints a clear abort reason, saves partial evidence and exits unsuccessfully. This command is one paid run within the
 owner's cumulative allowance; never retry/reset the database to evade that allowance.
 
 The wrapper prints the host path `.../kit-gate-<UTC timestamp>-<process ID>.json` on exit.

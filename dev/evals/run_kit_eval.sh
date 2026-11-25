@@ -6,8 +6,9 @@ umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRY_RUN=0
-BASELINE=""; BASELINE_COMMIT=""; CANDIDATE_COMMIT=""; BUDGET=""
-usage() { echo "Usage: $0 --baseline FILE --baseline-commit SHA --candidate-commit SHA --budget-usd USD [--dry-run]"; }
+OFFLINE_SMOKE=0
+BASELINE=""; BASELINE_COMMIT=""; CANDIDATE_COMMIT=""; BUDGET="2.50"
+usage() { echo "Usage: $0 --baseline FILE --baseline-commit SHA --candidate-commit SHA [--budget-usd USD (default 2.50)] [--dry-run|--offline-smoke]"; }
 while (($#)); do
   case "$1" in
     --baseline|--baseline-commit|--candidate-commit|--budget-usd)
@@ -20,11 +21,13 @@ while (($#)); do
       esac
       shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --offline-smoke) OFFLINE_SMOKE=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
 done
 [[ -f "$BASELINE" && -n "$BASELINE_COMMIT" && -n "$CANDIDATE_COMMIT" && -n "$BUDGET" ]] || { usage >&2; exit 2; }
+((DRY_RUN + OFFLINE_SMOKE <= 1)) || { usage >&2; exit 2; }
 BASELINE_COMMIT="$(git -C "$ROOT" rev-parse --verify "$BASELINE_COMMIT^{commit}")"
 CANDIDATE_COMMIT="$(git -C "$ROOT" rev-parse --verify "$CANDIDATE_COMMIT^{commit}")"
 [[ "$CANDIDATE_COMMIT" == "$(git -C "$ROOT" rev-parse HEAD)" ]] || { echo "Candidate must match this checkout's HEAD." >&2; exit 2; }
@@ -34,13 +37,13 @@ fi
 python3 - "$BUDGET" <<'CHECK'
 import math,sys
 try: amount=float(sys.argv[1])
-except ValueError: raise SystemExit('Budget must be positive and at most $1')
-if not math.isfinite(amount) or not 0<amount<=1: raise SystemExit('Budget must be positive and at most $1')
+except ValueError: raise SystemExit('Budget must be positive and at most $2.50')
+if not math.isfinite(amount) or not 0<amount<=2.50: raise SystemExit('Budget must be positive and at most $2.50')
 CHECK
 expected="$(git -C "$ROOT" show "$BASELINE_COMMIT:app/coach_chat.py" | sha256sum | cut -d' ' -f1)"
 actual="$(sha256sum "$BASELINE" | cut -d' ' -f1)"
 [[ "$expected" == "$actual" ]] || { echo "Baseline file does not match baseline commit's app/coach_chat.py." >&2; exit 2; }
-if ((DRY_RUN == 0)); then
+if ((DRY_RUN == 0 && OFFLINE_SMOKE == 0)); then
   [[ -n "${GEMINI_API_KEY:-}" ]] && printenv GEMINI_API_KEY >/dev/null 2>&1 || {
     echo "Export GEMINI_API_KEY in the environment; never pass a key argument." >&2; exit 2
   }
@@ -112,7 +115,7 @@ fi
 
 # The production image excludes dev/. Copy only the isolated evaluation sources.
 compose exec -T -u 0 app mkdir -p /srv/dev/evals
-for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py; do
+for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py test_kit_baseline_incontainer.py; do
   compose cp "$ROOT/dev/evals/$source" "app:/srv/dev/evals/$source"
 done
 compose cp "$BASELINE" app:/tmp/kit-eval-baseline-coach.py
@@ -120,7 +123,10 @@ compose exec -T app mkdir -m 700 -p "$CONTAINER_OUTPUT_DIR"
 OPTIONS=(--gate --variant both --baseline /tmp/kit-eval-baseline-coach.py
   --baseline-commit "$BASELINE_COMMIT" --candidate-commit "$CANDIDATE_COMMIT"
   --budget-usd "$BUDGET" --output "$CONTAINER_OUTPUT")
-if ((DRY_RUN == 1)); then
+if ((OFFLINE_SMOKE == 1)); then
+  compose exec -T -e PYTHONPATH=/srv app python /srv/dev/evals/test_kit_baseline_incontainer.py \
+    --baseline /tmp/kit-eval-baseline-coach.py --output "$CONTAINER_OUTPUT"
+elif ((DRY_RUN == 1)); then
   compose exec -T -e PYTHONPATH=/srv app python /srv/dev/evals/kit_eval.py "${OPTIONS[@]}" --dry-run
 else
   compose exec -T -e GEMINI_API_KEY -e PYTHONPATH=/srv \

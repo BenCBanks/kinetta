@@ -3,19 +3,19 @@
 Run inside a throwaway app container with an explicitly configured key, using the
 same seeded database for baseline/candidate. Write output outside the public repo.
 """
-import argparse,datetime as dt,hashlib,importlib.util,json,os,time,uuid
-from concurrent.futures import ThreadPoolExecutor
+import argparse,datetime as dt,hashlib,json,os,time,uuid
 from pathlib import Path
 from app import db,coach,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
 from kit_gate_cases import GATE_CASE_IDS
+from kit_eval_support import DEFAULT_BUDGET_USD, valid_budget, load_baseline, configure_budget, capped, bounded_results
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
                                  run_weekly_answer, is_expected_health_consent_refusal,
                                  seed_fixture, seed_other_account)
 
 p=argparse.ArgumentParser()
-p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,required=True)
+p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,default=DEFAULT_BUDGET_USD)
 p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',required=True);p.add_argument('--candidate-commit',required=True)
 p.add_argument('--output',required=True);p.add_argument('--baseline-results')
 p.add_argument('--variant',choices=('both','baseline','candidate'),default='both')
@@ -23,7 +23,7 @@ p.add_argument('--cases',action='append',metavar='ID',help='case ID; repeat or u
 p.add_argument('--dry-run',action='store_true',help='Validate inputs and write private metadata only; no provider/database calls')
 p.add_argument('--gate',action='store_true',help='Use the forty-case chat/weekly release set and require both variants')
 args=p.parse_args()
-if not 0<args.budget_usd<=1:p.error('Budget must be positive and at most $1 per run')
+if not valid_budget(args.budget_usd):p.error('Budget must be positive and at most $2.50 per run')
 if not args.dry_run and not args.accept_paid_calls:p.error('Explicit --accept-paid-calls required')
 if not args.dry_run and (os.environ.get('KINETTA_KIT_EVAL_ISOLATED')!='1' or not os.environ.get('GEMINI_API_KEY')):
  p.error('Use the disposable wrapper with GEMINI_API_KEY exported in the environment')
@@ -60,11 +60,10 @@ if args.dry_run:
  print(json.dumps({'dry_run':True,'cases':len(selected_cases),'provider_calls':0,'output':str(output)}),flush=True)
  raise SystemExit(0)
 # Conservative global reservation limits apply across every fictional account.
-os.environ['KINETTA_AI_DAILY_USD']=str(args.budget_usd*.9)
-os.environ['KINETTA_AI_USER_DAILY_MICROUSD']=str(round(args.budget_usd*.9*1e6))
-os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS']='400';os.environ['KINETTA_AI_DAILY_ATTEMPTS']='400'
+configure_budget(args.budget_usd)
 os.environ['GEMINI_MODEL']='gemini-3.8-flash'
-spec=importlib.util.spec_from_file_location('app._kit_baseline',args.baseline);baseline=importlib.util.module_from_spec(spec);spec.loader.exec_module(baseline)
+baseline=load_baseline(args.baseline)
+baseline.KitAnswer.model_json_schema()  # Fail before any paid call if forward references regress.
 metadata.update(candidate_fingerprint=ai_release.kit_fingerprint(),ai_text=ai_release.ai_text('kit'),models=ai_release.models('kit'))
 save_report(metadata)
 today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
@@ -208,29 +207,31 @@ try:
  done={r['case'] for r in reused}
  variants=('baseline','candidate') if args.variant=='both' else (args.variant,)
  jobs=[(i,v,case) for i,case in enumerate(selected_cases) for v in variants if v!='baseline' or case[0] not in done]
- with ThreadPoolExecutor(max_workers=2) as pool:
-  for result in pool.map(run,jobs):
-   results.append(result)
-   with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
-   failed_cases=[r['case'] for r in results if r['variant']=='candidate' and not r.get('passed')]
-   expected={(variant,case[0]) for variant in variants for case in selected_cases}
-   completed={(row['variant'],row['case']) for row in results}
-   complete=expected.issubset(completed) and not failed_cases
-   report={**metadata,'complete':complete,'failed_cases':failed_cases,
-           'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,
-           'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(selected_cases),
-           'selected_case_ids':[case[0] for case in selected_cases],
-           'baseline_results_reused':bool(args.baseline_results),'results':results,
-           'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],
-           'owner_qualitative_review':'pending',
-           'kit':{'case_count':sum(row['variant']=='candidate' for row in results),
-                  'unsupported_numeric_claims':None,'isolation_failures':None,'health_disclosures':None,
-                  'baseline_compared':None,'conversation_review_passed':None,'qualitative_review_passed':None},
-           'food_comparison':'separate food-estimation release rules are unchanged'}
-   save_report(report)
+ for result in bounded_results(run,jobs):
+  results.append(result)
+  with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
+  failed_cases=[r['case'] for r in results if not r.get('passed')]
+  expected={(variant,case[0]) for variant in variants for case in selected_cases}
+  completed={(row['variant'],row['case']) for row in results}
+  complete=expected.issubset(completed) and not failed_cases
+  report={**metadata,'complete':complete,'failed_cases':failed_cases,
+          'abort_reason':'Application AI budget/attempt cap reached; stopped before scheduling more cases.'
+                         if any(capped(r.get('error')) for r in results) else None,
+          'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,
+          'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(selected_cases),
+          'selected_case_ids':[case[0] for case in selected_cases],
+          'baseline_results_reused':bool(args.baseline_results),'results':results,
+          'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],
+          'owner_qualitative_review':'pending',
+          'kit':{'case_count':sum(row['variant']=='candidate' for row in results),
+                 'unsupported_numeric_claims':None,'isolation_failures':None,'health_disclosures':None,
+                 'baseline_compared':None,'conversation_review_passed':None,'qualitative_review_passed':None},
+          'food_comparison':'separate food-estimation release rules are unchanged'}
+  save_report(report)
  print(json.dumps({'complete':report['complete'],'cases':len(selected_cases),'responses':len(results),
                    'failed_cases':report['failed_cases'],'cost':report['reserved_or_estimated_usd'],
                    'requests':report['requests']}),flush=True)
+ if report.get('abort_reason'):print(report['abort_reason'],flush=True)
  if not report['complete']:raise SystemExit(1)
 finally:
  with db.connect() as c:
