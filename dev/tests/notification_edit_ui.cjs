@@ -56,12 +56,12 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
     await p.goto(base+(entry==='list'?'/notifications':entry==='native'?'/activity':`/activity/${id}?edit=1&tab=overview`));
     if(entry==='list'){const link=p.locator(`#nt-list a[href="/activity/${id}?edit=1"]`);await link.waitFor();assert.match(await link.innerText(),/run|Run/);await link.click();}
     const sheet=p.locator('.sheet[aria-label="Edit activity"]');await sheet.waitFor();await until(p,()=>App.pageReady,'Consumed address retains page readiness');
-    assert.equal(await p.locator('#e-form input[name=name]').inputValue(),'Fictional run session');
+    assert.equal(await p.locator('#e-form textarea[name=name]').inputValue(),'Fictional run session');
     assert.equal(await p.evaluate(()=>new URLSearchParams(location.search).has('edit')),false);assert.equal(new URL(p.url()).pathname,`/activity/${id}`);
     assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
     for(const control of await sheet.locator('header button').all()){const box=await control.boundingBox();assert(box.width>=44&&box.height>=44&&box.x>=0&&box.x+box.width<=size.width+1,'Visible44px editor actions');}
     assert(await sheet.locator('header').evaluate(header=>{const [cancel,save]=header.querySelectorAll('button'),title=header.querySelector('h2'),a=cancel.getBoundingClientRect(),b=save.getBoundingClientRect(),t=title.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(title);const ink=range.getBoundingClientRect();return a.right+7<=t.left&&t.right+7<=b.left&&ink.left>=t.left-1&&ink.right<=t.right+1;}),'Title and actions do not overlap');
-    assert(await p.locator('#e-form input[name=name]').evaluate(n=>parseFloat(getComputedStyle(n).fontSize)>=16));
+    assert(await p.locator('#e-form textarea[name=name]').evaluate(n=>parseFloat(getComputedStyle(n).fontSize)>=16));
     if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`${entry}-${size.width}-${theme}.png`)});}
     await sheet.locator('header button[data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'Close editor');assert(await p.locator('.compact-detail-title').isVisible());
     await p.reload();await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'Detail reload');assert.equal(await p.locator('#e-form').count(),0,'Reload does not reopen consumed edit');
@@ -89,13 +89,13 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
    const f=await open(theme,{width:390,height:844,root:16},{native:true,pending:`/activity/${id}?edit=1`}),p=f.page;
    try{
     await p.goto(base+'/activity');await p.locator('#e-form').waitFor();await until(p,()=>App.pageReady,'First editor ready');
-    await p.locator('#e-form input[name=name]').fill('Keep my current draft');
+    await p.locator('#e-form textarea[name=name]').fill('Keep my current draft');
     await p.evaluate(async url=>{fixtureOpenNotification(url);await Native.pushNavigationReady;},`/activity/${ids.treadmill}?edit=1`);
     await p.locator('[data-confirm-cancel]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});
-    assert.equal(await p.locator('#e-form').count(),1);assert.equal(await p.locator('#e-form input[name=name]').inputValue(),'Keep my current draft');assert.equal(new URL(p.url()).pathname,`/activity/${id}`);
+    assert.equal(await p.locator('#e-form').count(),1);assert.equal(await p.locator('#e-form textarea[name=name]').inputValue(),'Keep my current draft');assert.equal(new URL(p.url()).pathname,`/activity/${id}`);
     await p.evaluate(async url=>{fixtureOpenNotification(url);await Native.pushNavigationReady;},`/activity/${ids.treadmill}?edit=1`);
     await p.locator('[data-confirm-ok]').click();
-    await until(p,()=>document.querySelector('#e-form input[name=name]')?.value==='Fictional treadmill session','Confirmed replacement editor');
+    await until(p,()=>document.querySelector('#e-form textarea[name=name]')?.value==='Fictional treadmill session','Confirmed replacement editor');
     assert.equal(await p.locator('#e-form').count(),1);assert(await p.locator('.sheet button[form="e-form"]').evaluate(button=>button.form===button.closest('.sheet').querySelector('#e-form')),'Save targets its own single form');
     assert.deepEqual(f.errors,[]);count++;
    }finally{await f.context.close();}

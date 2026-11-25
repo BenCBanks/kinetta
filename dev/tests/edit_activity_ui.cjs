@@ -1,69 +1,101 @@
-// Edit activity (Ben, 30 Oct 2026): Cancel · Save stay pinned at the top while the form scrolls, the order puts the
-// common choices first, Delete sits alone at the bottom, and closing with changes asks first. Fictional demo account;
-// every write is intercepted, so nothing is saved or deleted.
+// Edit activity tightening (Hazel, 25 Nov): fictional account; every write is intercepted.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
-function assertActivityStylesOwned(){const shared=fs.readFileSync(path.resolve(__dirname,'../../app/static/style.css'),'utf8'),owned=fs.readFileSync(path.resolve(__dirname,'../../app/static/activity-detail.css'),'utf8');assert.doesNotMatch(shared,/\.activity-edit-/,'Edit Activity selectors stay out of shared style.css');assert.doesNotMatch(shared,/\.sheet\.pinned header/,'Pinned activity editor header stays out of shared style.css');assert.match(owned,/\.activity-edit-form\s*\{/,'Edit Activity form styles belong to activity-detail.css');assert.match(owned,/\.sheet\.pinned header\s*\{/,'Pinned activity header styles belong to activity-detail.css');}
+function assertActivityStylesOwned(){const shared=fs.readFileSync(path.resolve(__dirname,'../../app/static/style.css'),'utf8'),owned=fs.readFileSync(path.resolve(__dirname,'../../app/static/activity-detail.css'),'utf8');assert.doesNotMatch(shared,/\.activity-edit-/,'Edit Activity selectors stay out of shared style.css');assert.match(owned,/\.activity-edit-group\s*\{/,'Edit Activity group styles stay with the activity detail screen');assert.match(owned,/\.sheet\.activity-editor\.pinned\s*>\s*header/,'Pinned editor header styles stay with the activity detail screen');}
 assertActivityStylesOwned();
-// Poll with page.evaluate: the app's Content Security Policy forbids the string evaluation waitForFunction uses.
 async function until(page,fn,label,arg){for(let i=0;i<150;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);}
-(async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
-const activities=await(await l.request.get(base+'/api/activities?limit=50')).json(),act=activities.find(a=>a.sport==='run'&&!(a.photos||[]).length)||activities.find(a=>!(a.photos||[]).length);assert(act,'demo activity without photos');
-for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark']){
- const c=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
- p.on('pageerror',e=>errors.push(e.message));
- await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
- await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(q.method()==='GET'&&u.pathname==='/api/activity-photos/900001')return r.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48"><rect width="64" height="48" fill="#2e80bd"/></svg>'});if(!['GET','HEAD'].includes(q.method())){writes.push(q.method()+' '+u.pathname);if(q.method()==='POST'&&/\/api\/activities\/\d+\/photos$/.test(u.pathname))return r.fulfill({json:{id:900001,w:64,h:48}});return r.fulfill({json:{}});}return r.continue();});
- const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${theme}.png`});}};
- const open=async()=>{await p.locator('#d-edit').click();await p.waitForSelector('.sheet.pinned #e-form');await p.waitForSelector('#e-visibility-value:not(:text-is("Loading…"))');await p.waitForTimeout(400);}; // let the sheet finish sliding in
- await p.goto(base+'/activity/'+act.id);await until(p,()=>App.pageReady,'page');await open();
- const sheet=p.locator('.sheet.pinned'),head=sheet.locator('header'),save=head.locator('button[form="e-form"]'),cancel=head.locator('[data-close]');
- assert.equal((await save.innerText()).trim(),'Save');assert.equal((await cancel.innerText()).trim(),'Cancel');
- for(const button of [save,cancel]){const bb=await button.boundingBox();assert(bb.height>=43.5&&bb.width>=43.5,'44px header buttons (sub-pixel while the sheet slides in) '+JSON.stringify(bb));}
- // Order: title, sport, photos, description, visibility, then More details.
- const order=await p.$$eval('#e-primary > *',e=>e.map(x=>x.id||x.querySelector('input,select,textarea')?.name||x.className||x.tagName));
- const at=k=>order.findIndex(x=>x.includes(k));
- assert(at('name')>=0&&at('kind')>at('name')&&at('activity-edit-photos')>at('kind')&&at('e-description')>at('activity-edit-photos')&&at('e-visibility-open')>at('e-description')&&at('e-more')>at('e-visibility-open'),'order: '+order.join(','));
- assert.equal(await p.locator('#e-photo-count').innerText(),'0 of 10','photo count uses the existing activity limit');assert.equal((await p.locator('#e-photos .ph-add').innerText()).trim(),'Add photos','empty state is one plain Add photos action');
- assert.equal(await p.locator('#e-form .actions').count(),0,'no bottom button row');
- assert.equal(await p.locator('#e-visibility-view').isHidden(),true,'Visibility starts as a row');
- assert.match(await p.locator('#e-visibility-value').innerText(),/Only me|Friends|Everyone/,'row shows the current audience');
- assert.match(await p.locator('#e-description [data-opt="description"]').innerText(),/Add description/,'description starts as one action row');
- await p.locator('#e-visibility-open').click();await p.locator('#e-visibility-view').waitFor({state:'visible'});await p.locator('#e-share-fields .seg').waitFor();
- assert(await p.locator('#e-primary').isHidden(),'opening Visibility replaces the main form with a sub-view');assert.match(await p.locator('#e-share-fields').innerText(),/Choose what’s shared/);assert.match(await p.locator('#e-share-fields .vis-note').innerText(),/Only you|Friends you have approved|Anyone with an account/);
- for(const option of await p.locator('#e-share-fields [data-vis]').all()){const box=await option.boundingBox();assert(box&&box.height>=48,'Visibility choice has a 48px target: '+JSON.stringify(box));}
- const selected=p.locator('#e-share-fields [data-vis][aria-pressed="true"]');assert.equal(await selected.count(),1,'one audience is selected');assert(await selected.locator('.activity-vis-check').isVisible(),'selection uses a checkmark');
- await shot('edit-visibility');await p.locator('#e-visibility-back').click();assert(await p.locator('#e-primary').isVisible(),'Back returns to the editor');
- await p.locator('#e-more > summary').click();assert(await p.locator('#e-summary').isVisible());assert(await p.locator('#e-form select[name="gear"]').isVisible());assert(await p.locator('#e-private-note [data-opt="private_note"]').isVisible());
- const rowSelectors=['#e-description .opt-add','#e-visibility-open','#e-more > summary','#e-summary > summary','.activity-edit-gear-row','#e-private-note .opt-add','.activity-edit-commute'];
- for(const selector of rowSelectors){const row=p.locator(selector),box=await row.boundingBox();assert(box&&box.height>=48,`${selector} has a 48px row: ${JSON.stringify(box)}`);const style=await row.evaluate(n=>({fontSize:getComputedStyle(n).fontSize,fontWeight:getComputedStyle(n).fontWeight}));assert.equal(style.fontSize,'16px',`${selector} uses 16px text`);assert.equal(style.fontWeight,'400',`${selector} uses regular weight`);}
- const visBox=await p.locator('#e-visibility-open').boundingBox(),moreBox=await p.locator('#e-more > summary').boundingBox();assert(visBox.y+visBox.height<=moreBox.y+0.5,'Visibility and More details rows do not overlap');
- const titleStyle=await p.locator('#e-share-fields .ghead').evaluate(n=>({text:n.textContent.trim(),fontSize:getComputedStyle(n).fontSize,fontWeight:getComputedStyle(n).fontWeight,letterSpacing:getComputedStyle(n).letterSpacing}));assert.deepEqual(titleStyle,{text:'Who can see it',fontSize:'17px',fontWeight:'600',letterSpacing:'normal'},'Visibility sub-view has a normal title');
- await shot('edit-more-details');
- await p.locator('#e-more > summary').click();await shot('edit-open');
- const top0=(await head.boundingBox()).y;await shot('edit-open');
- // Scroll to the bottom: the header (and Save) stays where it was; Delete is reachable.
- await sheet.evaluate(n=>n.scrollTo(0,n.scrollHeight));await p.waitForTimeout(200);
- // Only the small grab bar scrolls away; the header then sits flush with the sheet's top edge.
- const [hy,sy]=[(await head.boundingBox()).y,(await sheet.boundingBox()).y];assert(hy>=sy-1&&hy<=top0,'header stays pinned at the top: '+hy+' sheet '+sy);assert(await save.isVisible());
- await p.locator('#e-more > summary').click();await p.locator('#e-del').scrollIntoViewIfNeeded();await shot('edit-bottom');
- const ask=async()=>{await p.locator('.confirm-sheet').waitFor();assert.equal(await p.getByRole('alertdialog',{name:'Discard your changes?'}).count(),1);const [keep,discard]=await p.locator('.confirm-sheet .btnrow button').all();assert.equal(await keep.innerText(),'Keep editing');assert.equal(await discard.innerText(),'Discard');for(const b of [keep,discard])assert((await b.boundingBox()).height>=44,'44px confirm buttons');assert((await keep.boundingBox()).x<(await discard.boundingBox()).x,'Cancel sits left of the action');};
- // A pending photo appears in the section; Cancel asks and discards it without an upload.
- await p.locator('#e-photos [data-phfile]').setInputFiles({name:'fictional-photo.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48"><rect width="64" height="48" fill="#2e80bd"/></svg>')});await until(p,()=>document.querySelector('#e-photo-count')?.textContent==='1 of 10','photo count update');assert.equal(await p.locator('#e-photos .ph-th').count(),1,'uploaded photo appears as a thumbnail');assert.equal((await p.locator('#e-photos .ph-add').innerText()).trim(),'Add','filled section offers Add more');await shot('edit-photos');
- await cancel.click();await ask();await p.locator('[data-confirm-ok]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});await p.waitForSelector('.sheet.pinned',{state:'detached'});assert(!writes.some(w=>w==='POST /api/activities/'+act.id+'/photos'),'Cancel discards pending photos');
- // Changed: Cancel asks; dismissing the question keeps the form draft; Escape on the question keeps editing.
- await open();assert.equal(await p.locator('#e-photo-count').innerText(),'0 of 10','Cancel removed the discarded photo draft on the next edit');await p.locator('#e-form input[name="name"]').fill('Draft title kept');
- // The question is the shared confirm sheet: Keep editing on the left, red Discard on the right.
- await cancel.click();await ask();await shot('discard-confirm');await p.locator('[data-confirm-cancel]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal(await p.locator('#e-form input[name="name"]').inputValue(),'Draft title kept','draft kept');
- await p.keyboard.press('Escape');await ask();await p.keyboard.press('Escape');await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal(await p.locator('.sheet.pinned').count(),1,'Escape asks too, and Escape on the question keeps editing');
- // Save from the pinned header sends the edit (intercepted) and closes without asking.
- await p.locator('#e-photos [data-phfile]').setInputFiles({name:'fictional-photo.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48"><rect width="64" height="48" fill="#2e80bd"/></svg>')});await until(p,()=>document.querySelector('#e-photo-count')?.textContent==='1 of 10','saved photo count');await shot('edit-photos');
- await save.click();await p.waitForSelector('.scrim',{state:'detached'});
- assert(writes.some(w=>w==='PATCH /api/activities/'+act.id),'saved from the header: '+writes.join(','));
- assert(writes.some(w=>w==='POST /api/activities/'+act.id+'/photos'),'Save commits the pending activity photo');
- await open();await p.locator('#e-form select[name="kind"]').selectOption({index:1});await cancel.click();await ask();await p.locator('[data-confirm-ok]').click();await p.waitForSelector('.scrim',{state:'detached'});assert.equal(writes.filter(w=>w.startsWith('PATCH')).length,1,'a changed choice asks, and Discard closes without saving');
- assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no overflow');
- assert.deepEqual(errors,[]);assert.equal(writes.filter(w=>w.startsWith('DELETE')).length,0,'nothing deleted');
- console.log(`Edit activity ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
-await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+const image={name:'fictional-photo.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#2e80bd"/></svg>')};
+(async()=>{
+ const browser=await chromium.launch(),login=await browser.newContext();
+ await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});
+ const storage=await login.storageState(),activities=await(await login.request.get(base+'/api/activities?limit=50')).json(),activity=activities.find(a=>a.sport==='run'&&!(a.photos||[]).length)||activities.find(a=>!(a.photos||[]).length);
+ assert(activity,'demo activity without photos');
+ for(const size of [{width:390,height:844},{width:330,height:667}])for(const theme of ['light','dark']){
+  const context=await browser.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),page=await context.newPage(),errors=[],writes=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await context.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
+  await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(request.method()==='GET'&&url.pathname==='/api/activity-photos/900001')return route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#2e80bd"/></svg>'});if(!['GET','HEAD'].includes(request.method())){writes.push({method:request.method(),path:url.pathname,body:request.postDataJSON()});if(request.method()==='POST'&&/\/api\/activities\/\d+\/photos$/.test(url.pathname))return route.fulfill({json:{id:900001,w:64,h:64}});return route.fulfill({json:{}});}return route.continue();});
+  const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:`${out}/${name}-${size.width}-${theme}.png`});}};
+  const open=async()=>{await page.locator('#d-edit').click();await page.waitForSelector('.sheet.pinned.activity-editor #e-form');await page.waitForSelector('#e-visibility-value:not(:text-is("Loading…"))');await page.waitForTimeout(300);};
+  await page.goto(base+'/activity/'+activity.id);await until(page,()=>App.pageReady,'activity detail');await open();
+  const sheet=page.locator('.sheet.pinned.activity-editor'),header=sheet.locator('header'),save=header.locator('button[form="e-form"]'),cancel=header.locator('[data-close]');
+  assert.equal((await save.innerText()).trim(),'Save');assert.equal((await cancel.innerText()).trim(),'Cancel');
+  for(const button of [save,cancel]){const box=await button.boundingBox();assert(box&&box.height>=43.5&&box.width>=43.5,'header action has a 44px tap target '+JSON.stringify(box));}
+  assert.equal(await sheet.locator('#e-form .actions').count(),0,'Save stays in the header without a footer row');
+  assert.equal(await sheet.locator('#e-primary').isVisible(),true);assert.equal(await sheet.locator('#e-more-view').isHidden(),true);
+  assert.equal(await sheet.locator('#e-primary .activity-edit-group').count(),2,'primary fields are organized in two quiet groups');
+  const title=sheet.locator('textarea[name="name"]'),description=sheet.locator('textarea[name="description"]');
+  assert.equal(await title.getAttribute('aria-label'),'Title');assert.equal(await description.getAttribute('placeholder'),'Add description');
+  const introStyle=await sheet.locator('.activity-edit-intro').evaluate(n=>({radius:getComputedStyle(n).borderRadius,border:getComputedStyle(n).borderWidth,titleSize:getComputedStyle(n.querySelector('.activity-edit-title')).fontSize,titleWeight:getComputedStyle(n.querySelector('.activity-edit-title')).fontWeight}));
+  assert.deepEqual(introStyle,{radius:'12px',border:'0px',titleSize:'16px',titleWeight:'400'});
+  assert.equal(await sheet.locator('#e-photo-count').innerText(),'0 of 10');
+  assert.equal((await sheet.locator('#e-photo-add .ph-add').boundingBox()).height,44,'photo add stays a 44px row action');
+  for(const selector of ['#e-sport-open','.activity-edit-photo-heading','#e-visibility-open','#e-more-open']){const box=await sheet.locator(selector).boundingBox();assert(box&&box.height>=44,`${selector} remains an accessible row`);}
+  const originalTitle=await title.inputValue(),originalDescription=await description.inputValue();
+  await description.fill('');
+  const descriptionBox=await description.boundingBox(),sportRowBox=await sheet.locator('#e-sport-open').boundingBox();
+  assert.equal(descriptionBox.height,48,'empty Description starts as one 48px row');
+  assert(Math.abs(sportRowBox.y-descriptionBox.y-descriptionBox.height-12)<=1,'Sport follows Description by the specified 12px gap');
+  await description.fill(originalDescription);
+  await title.fill('A deliberately long fictional activity title that wraps instead of getting cut off');
+  const titleSize=await title.evaluate(n=>({height:n.clientHeight,scroll:n.scrollHeight}));assert(titleSize.height>48&&titleSize.scroll<=titleSize.height+1,'the title wraps and grows to show its full value');
+  await description.fill(Array(8).fill('A fictional description line').join('\n'));
+  const descriptionSize=await description.evaluate(n=>({height:n.clientHeight,scroll:n.scrollHeight,max:getComputedStyle(n).maxHeight}));assert(descriptionSize.height<=168&&descriptionSize.scroll>descriptionSize.height,'the description grows to six lines, then scrolls');
+  await title.fill(originalTitle);await description.fill(originalDescription);
+  await shot('edit-open-no-photos');
+  await sheet.locator('#e-sport-open').click();await page.locator('.activity-sport-picker').waitFor({state:'visible'});await page.waitForTimeout(320);
+  assert(await page.locator('.activity-sport-option[aria-checked="true"]').count()===1,'sport picker identifies the current sport');
+  await shot('edit-sport-picker');await page.keyboard.press('Escape');await page.locator('.activity-sport-picker').waitFor({state:'detached'});
+  await sheet.locator('#e-more-open').click();assert(await sheet.locator('#e-more-view').isVisible(),'More details opens a view inside the editor sheet');
+  assert(await sheet.locator('#e-more-view').getByText('Gear',{exact:true}).isVisible());assert(await sheet.locator('#e-summary').isVisible());
+  assert(await sheet.locator('#e-private-note').isVisible());assert(await sheet.locator('.activity-edit-commute').isVisible());assert(await sheet.locator('#e-del').isVisible());
+  await shot('edit-more-details');await sheet.locator('#e-summary > summary').click();
+  await sheet.locator('#e-form .e-fields').waitFor({state:'visible'});await sheet.evaluate(n=>n.scrollTo(0,n.scrollHeight));await page.waitForTimeout(120);
+  const sheetTop=(await sheet.boundingBox()).y,headerTop=(await header.boundingBox()).y;assert(headerTop>=sheetTop-1&&headerTop<=sheetTop+1,'Cancel/title/Save stay pinned while More details scrolls');
+  await sheet.evaluate(n=>n.scrollTo(0,0));await sheet.locator('#e-more-back').click();assert(await sheet.locator('#e-primary').isVisible());
+  for(const [field,label] of [[title,'title'],[description,'description']]){
+   await page.evaluate(()=>{window.KinettaKeyboard={height:300};window.dispatchEvent(new Event('kinetta:keyboard'));const keyboard=document.createElement('div');keyboard.id='fixture-keyboard';keyboard.setAttribute('aria-hidden','true');keyboard.innerHTML='<div>English (US)</div><div class="keys">q w e r t y u i o p</div><div class="keys">a s d f g h j k l</div><div class="keys">⇧ z x c v b n m ⌫</div><div class="keys">123　　space　　 return</div>';Object.assign(keyboard.style,{position:'fixed',zIndex:'4000',left:'0',right:'0',bottom:'0',height:'300px',boxSizing:'border-box',padding:'16px 10px',background:'#d8dbe0',color:'#292c31',font:'14px system-ui',textAlign:'center'});document.body.append(keyboard);});
+   await field.focus();await page.waitForTimeout(250);const box=await field.boundingBox();assert(box&&box.y>=0&&box.y+box.height<=size.height-300+1,`${label} stays above the keyboard with a visible field: ${JSON.stringify(box)}`);assert.equal(await sheet.locator('.keyboard-done').count(),0,'the app adds no Done bar above the keyboard');await shot(`edit-keyboard-${label}`);
+   if(label==='title')await field.fill('Keyboard draft remains after dismissal');
+   await page.evaluate(()=>{window.KinettaKeyboard.height=0;window.dispatchEvent(new Event('kinetta:keyboard'));document.querySelector('#fixture-keyboard')?.remove();});await field.evaluate(n=>n.blur());
+   if(label==='title'){assert.equal(await field.inputValue(),'Keyboard draft remains after dismissal','dismissing the keyboard keeps the draft');await field.fill(originalTitle);}
+  }
+  await sheet.locator('#e-photos [data-phfile]').setInputFiles([image,{...image,name:'fictional-photo-2.svg'},{...image,name:'fictional-photo-3.svg'}]);
+  await until(page,()=>document.querySelector('#e-photo-count')?.textContent==='3 of 10','three photo count');
+  const thumbs=sheet.locator('.activity-edit-thumb'),firstThumb=thumbs.first();assert.equal(await thumbs.count(),3);
+  const thumbBox=await firstThumb.locator('.ph-th').boundingBox(),removeBox=await firstThumb.locator('.activity-edit-photo-remove').boundingBox();
+  assert.equal(thumbBox.width,64);assert.equal(thumbBox.height,64);assert.equal((await firstThumb.locator('.ph-th').evaluate(n=>getComputedStyle(n).borderRadius)),'8px');
+  assert(removeBox.width>=43.5&&removeBox.height>=43.5,'each photo has a 44px remove target');
+  const removeStyle=await firstThumb.locator('.activity-edit-photo-remove').evaluate(n=>{const s=getComputedStyle(n,'::before');return {width:s.width,height:s.height,inset:s.top,background:s.backgroundColor,color:getComputedStyle(n).color,button:n.getBoundingClientRect().toJSON(),tile:n.parentElement.querySelector('.ph-th').getBoundingClientRect().toJSON()};});
+  assert.deepEqual([removeStyle.width,removeStyle.height,removeStyle.inset],['24px','24px','10px'],'photo remove mark is a 24px circle');
+  assert.match(removeStyle.background,/rgba?\(0, 0, 0, 0\.58\)/,'photo remove mark uses a dark translucent fill');
+  assert.equal(removeStyle.color,'rgb(255, 255, 255)','photo remove mark has a white X');
+  assert(removeStyle.button.x+10>=removeStyle.tile.x&&removeStyle.button.y+10>=removeStyle.tile.y&&removeStyle.button.x+34<=removeStyle.tile.right&&removeStyle.button.y+34<=removeStyle.tile.bottom,'24px photo remove circle sits inside the thumbnail corner');
+  const chevrons=await Promise.all(['#e-sport-open svg','#e-visibility-open svg','#e-more-open svg'].map(selector=>sheet.locator(selector).boundingBox()));
+  assert(Math.max(...chevrons.map(b=>b.x+b.width))-Math.min(...chevrons.map(b=>b.x+b.width))<=1,'all row chevrons share one right edge');
+  await shot('edit-open-three-photos');
+  const addIcon=await sheet.locator('#e-photo-add .ph-add svg').boundingBox();
+  assert(Math.abs(addIcon.x+addIcon.width-chevrons[0].x-chevrons[0].width)<=1,'Photos plus aligns with the row chevron right edge '+JSON.stringify({addIcon,sport:chevrons[0]}));
+  await firstThumb.locator('.activity-edit-photo-remove').click();await until(page,()=>document.querySelector('#e-photo-count')?.textContent==='2 of 10','photo removal');
+  assert.equal(writes.filter(item=>item.path.includes('/photos')).length,0,'photo edits remain drafts until Save');
+  await cancel.click();await page.getByRole('alertdialog',{name:'Discard your changes?'}).waitFor();await page.locator('[data-confirm-ok]').click();await sheet.waitFor({state:'detached'});
+  assert.equal(writes.filter(item=>item.method==='DELETE').length,0,'discarding the photo draft never deletes a saved photo');
+  // Save preserves the existing PATCH contract; no date/time or other new API field is introduced.
+  await open();await title.fill('Fictional edited activity title');await description.fill('A short fictional description.');
+  await sheet.locator('#e-sport-open').click();await page.waitForSelector('.activity-sport-picker');
+  await page.locator('.activity-sport-option[aria-checked="false"]').first().click();
+  await save.click();await page.waitForSelector('.scrim',{state:'detached'});
+  const edit= writes.find(item=>item.method==='PATCH'&&item.path==='/api/activities/'+activity.id);
+  assert(edit,'Save uses the existing activity PATCH endpoint');assert.equal(edit.body.name,'Fictional edited activity title');assert.equal(edit.body.description,'A short fictional description.');
+  assert(edit.body.sport&&Object.hasOwn(edit.body,'sport_label'));assert(!Object.hasOwn(edit.body,'start_time'),'the redesign adds no date/time field');
+  // Dirty cancellation still keeps the draft until the person chooses Discard.
+  await open();await title.fill('Draft title kept');await cancel.click();await page.getByRole('alertdialog',{name:'Discard your changes?'}).waitFor();
+  await shot('edit-discard-confirm');await page.locator('[data-confirm-cancel]').click();await page.locator('.confirm-sheet').waitFor({state:'detached'});
+  assert.equal(await sheet.locator('textarea[name="name"]').inputValue(),'Draft title kept');
+  await cancel.click();await page.locator('[data-confirm-ok]').click();await sheet.waitFor({state:'detached'});
+  assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow');assert.deepEqual(errors,[]);
+  console.log(`Edit activity ${size.width}/${theme} PASS`);await context.close();
+ }
+ await login.close();await browser.close();
+})().catch(error=>{console.error(error);process.exit(1);});

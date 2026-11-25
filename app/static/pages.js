@@ -967,8 +967,12 @@ function editActivity(a) {
   // isn't in the list (Strava's "Trail Run") stays as the first choice
   const kinds = HAND_KINDS.flatMap(([, list], gi) => list.map(([sp, , lb], i) => ({v: `${gi}.${i}`, sp, lb: lb || null})));
   const cur = kinds.find((k) => k.sp === a.sport && k.lb === (a.sport_label || null)) || (!a.sport_label && kinds.find((k) => k.sp === a.sport && !k.lb));
-  const keep = cur ? '' : `<option value="keep" selected>${esc(a.sport_label || SPORT_NAMES[a.sport] || 'Activity')}</option>`;
-  const kindOpts = keep + HAND_KINDS.map(([g, list], gi) => `<optgroup label="${esc(g)}">${list.map(([, n], i) => `<option value="${gi}.${i}"${cur && cur.v === `${gi}.${i}` ? ' selected' : ''}>${esc(n)}</option>`).join('')}</optgroup>`).join('');
+  const currentKind = cur?.v || 'keep';
+  const sportNames = new Map(kinds.map((kind) => {
+    const [, list] = HAND_KINDS[Number(kind.v.split('.')[0])];
+    return [kind.v, kind.lb || list[Number(kind.v.split('.')[1])][1]];
+  }));
+  const currentSportName = currentKind === 'keep' ? (a.sport_label || SPORT_NAMES[a.sport] || 'Activity') : sportNames.get(currentKind);
   // "1:34:50", "34:50" or plain minutes ("95") -> seconds; anything else -> NaN
   const clockSecs=(v)=>{const p=v.split(':');if(p.length>3||p.some((x)=>!/^\d+([.,]\d+)?$/.test(x.trim())))return NaN;const n=p.map((x)=>Number(x.trim().replace(',','.')));return p.length===1?n[0]*60:p.length===2?n[0]*60+n[1]:n[0]*3600+n[1]*60+n[2]};
   const summaryFields=[['distance_m','Distance',imp()?'mi':'km',imp()?1609.344:1000],['moving_s','Moving time','h:mm:ss',1],['elapsed_s','Total duration','h:mm:ss',1],['ascent_m','Elevation gain',imp()?'ft':'m',imp()?0.3048:1],['calories','Energy','kcal',1],['avg_hr','Average heart rate','bpm',1],['max_hr','Maximum heart rate','bpm',1]];
@@ -976,7 +980,7 @@ function editActivity(a) {
   // times as 1:34:50 like everywhere else in the app; heart rate, energy and climb as whole numbers (2026-10-16)
   const isTime=(key)=>key.endsWith('_s');
   const correctionFields=summaryFields.map(([key,label,unit,scale])=>{const value=a[key]==null?'':isTime(key)?dur(a[key]):key==='distance_m'?String(Math.round(a[key]/scale*100)/100):String(Math.round(a[key]/scale));initial[key]=value;return `<label>${label} (${unit})<input name="summary_${key}" inputmode="${isTime(key)?'text':'decimal'}" value="${value}" placeholder="Not recorded" aria-label="${label} in ${isTime(key)?'hours, minutes and seconds':unit}"></label>${Object.hasOwn(a.summary_overrides||{},key)?`<label class="check"><input type="checkbox" name="restore_${key}"> Use recorded ${label.toLowerCase()}</label>`:''}`}).join('');
-  // Edit activity, #1111 PR1: compact rows keep the common edits first. Photos are added in PR2.
+  // Keep the existing activity fields and save path; this pass changes the sheet's presentation only.
   let dirty = false, closeEdit = null, asking = false;
   // Closing with unsaved edits asks first in the shared confirm sheet; the editor stays open until Discard.
   const canClose = () => {
@@ -988,37 +992,91 @@ function editActivity(a) {
   };
   sheet('Edit activity', `<form class="form activity-edit-form" id="e-form">
     <div id="e-primary" class="activity-edit-primary">
-      <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
-      <label>Sport<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
-      <section class="activity-edit-photos" aria-label="Activity photos"><div class="activity-edit-photo-heading"><span>Photos</span><span id="e-photo-count" class="activity-edit-photo-count"></span></div><div id="e-photos"></div></section>
-      <div id="e-description" class="activity-edit-section">${optionalText('description', 'Description', 'Add description', a.description)}</div>
-      <button type="button" class="activity-edit-row" id="e-visibility-open"><span>Visibility</span><span class="activity-edit-row-value" id="e-visibility-value">Loading…</span>${svg('chev')}</button>
-      <details id="e-more" class="activity-edit-more"><summary><span>More details</span><span class="chev">${svg('chev')}</span></summary>
-        <div class="activity-edit-more-body">
-          <details id="e-summary" class="activity-edit-summary"><summary>Edit distance, time and heart rate<span class="chev">${svg('chev')}</span></summary><div class="form e-fields">${correctionFields}</div></details>
-          <label class="activity-edit-gear-row"><span>Gear</span><span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
-          <div id="e-private-note" class="activity-edit-section">${optionalText('private_note', 'Private note (only you)', 'Add private note', a.private_note)}</div>
-          <label class="check activity-edit-commute"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
-          <button type="button" class="e-delete" id="e-del">Delete activity</button>
-        </div>
-      </details>
+      <section class="activity-edit-group activity-edit-intro" aria-label="Activity details">
+        <textarea class="activity-edit-title" name="name" rows="1" maxlength="200" aria-label="Title">${esc(a.name)}</textarea>
+        <textarea class="activity-edit-description" name="description" rows="1" maxlength="10000" placeholder="Add description" aria-label="Description">${esc(a.description || '')}</textarea>
+      </section>
+      <section class="activity-edit-group activity-edit-choices" aria-label="Activity options">
+        <button type="button" class="activity-edit-row" id="e-sport-open"><span>Sport</span><span class="activity-edit-row-value" id="e-sport-value">${esc(currentSportName)}</span>${svg('chev')}</button>
+        <input type="hidden" name="kind" value="${esc(currentKind)}">
+        <section class="activity-edit-photos" aria-label="Activity photos">
+          <div class="activity-edit-photo-heading"><span>Photos</span><span id="e-photo-count" class="activity-edit-photo-count"></span><span id="e-photo-add"></span></div>
+          <div id="e-photos"></div>
+        </section>
+        <button type="button" class="activity-edit-row" id="e-visibility-open"><span>Visibility</span><span class="activity-edit-row-value" id="e-visibility-value">Loading…</span>${svg('chev')}</button>
+        <button type="button" class="activity-edit-row" id="e-more-open"><span>More details</span>${svg('chev')}</button>
+      </section>
     </div>
+    <section id="e-more-view" class="activity-edit-more-view" hidden aria-label="More details">
+      <button type="button" id="e-more-back" class="activity-edit-back">${svg('back')}<span>Back</span></button>
+      <h3>More details</h3>
+      <section class="activity-edit-group activity-edit-more-body">
+        <details id="e-summary" class="activity-edit-summary"><summary>Edit distance, time and heart rate<span class="chev">${svg('chev')}</span></summary><div class="form e-fields">${correctionFields}</div></details>
+        <label class="activity-edit-gear-row"><span>Gear</span><span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
+        <div id="e-private-note" class="activity-edit-section">${optionalText('private_note', 'Private note (only you)', 'Add private note', a.private_note)}</div>
+        <label class="check activity-edit-commute"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
+      </section>
+      <button type="button" class="e-delete" id="e-del">Delete activity</button>
+    </section>
     <section id="e-visibility-view" class="activity-edit-visibility" hidden aria-label="Visibility">
       <button type="button" id="e-visibility-back" class="activity-edit-back">${svg('back')}<span>Back</span></button>
       <div id="e-share-fields" class="e-share"></div>
     </section>
   </form>`, async (body, close) => {
     closeEdit = close;
-    body.closest('.sheet').classList.add('activity-editor');
-    const f = $('#e-form', body), btn = body.closest('.sheet').querySelector('button[form="e-form"]');
+    const editor = body.closest('.sheet'); editor.classList.add('activity-editor');
+    const f = $('#e-form', body), btn = editor.querySelector('button[form="e-form"]');
     // Any edit (typing, a choice, a sharing button) means closing asks first; opening the fold-outs doesn't count.
     const touched = () => { dirty = true; };
     f.addEventListener('input', touched); f.addEventListener('change', touched);
     f.addEventListener('activity-photo-draft-change',touched);
     f.addEventListener('click', (e) => { if (e.target.closest('.seg button, #sh-usual')) touched(); });
     wireOptionalText(f);
-    const photoBox=$('#e-photos',body),photoCount=$('#e-photo-count',body);
-    const drawPhotos=()=>{photoCount.textContent=`${a._photoDraft?.photos.length??a.photos?.length??0} of ${PHOTO_MAX}`;photoStrip(photoBox,a,true,{afterChange:drawPhotos,defer:true});};drawPhotos();
+    const resizeText = field => { field.style.height='auto'; field.style.height=Math.max(field.scrollHeight,48)+'px'; };
+    const titleField=f.elements.namedItem('name'),descriptionField=f.elements.namedItem('description');
+    [titleField,descriptionField].forEach(field=>{resizeText(field);field.addEventListener('input',()=>resizeText(field));});
+    const keepFocusedFieldVisible = field => requestAnimationFrame(() => {
+      if(!field.isConnected)return;
+      const keyboard = Object.prototype.hasOwnProperty.call(window,'KinettaKeyboard') ? Math.max(0,Number(window.KinettaKeyboard?.height)||0) : Math.max(0,innerHeight-(window.visualViewport?.height||innerHeight)-(window.visualViewport?.offsetTop||0));
+      const top=editor.getBoundingClientRect().top+editor.querySelector('header').getBoundingClientRect().height+16;
+      const bottom=Math.min(innerHeight-keyboard,window.visualViewport?.offsetTop+window.visualViewport?.height||innerHeight)-16;
+      const box=field.getBoundingClientRect();
+      if(box.bottom>bottom)editor.scrollBy({top:box.bottom-bottom+16,behavior:'smooth'});
+      else if(box.top<top)editor.scrollBy({top:box.top-top-16,behavior:'smooth'});
+    });
+    f.addEventListener('focusin',e=>{if(e.target.matches('input,textarea'))keepFocusedFieldVisible(e.target);});
+    editor.addEventListener('scroll',()=>editor.classList.toggle('activity-edit-scrolled',editor.scrollTop>1),{passive:true});
+    const photoBox=$('#e-photos',body),photoCount=$('#e-photo-count',body),photoAdd=$('#e-photo-add',body);
+    const drawPhotos=()=>{
+      photoStrip(photoBox,a,true,{defer:true,afterChange:drawPhotos});
+      const draft=a._photoDraft,photos=draft.photos;
+      photoCount.textContent=`${photos.length} of ${PHOTO_MAX}`;
+      photoAdd.replaceChildren();
+      const add=$('.ph-add',photoBox),file=$('[data-phfile]',photoBox);
+      if(add){add.innerHTML=`${svg('plus')}`;add.setAttribute('aria-label',photos.length?'Add another photo':'Add photos');photoAdd.append(add);}
+      for(const thumb of $$('.ph-th',photoBox)){
+        const index=Number(thumb.dataset.ph),wrap=document.createElement('div');wrap.className='activity-edit-thumb';thumb.replaceWith(wrap);wrap.append(thumb);
+        const remove=document.createElement('button');remove.type='button';remove.className='activity-edit-photo-remove';remove.dataset.photoRemove=String(index);remove.setAttribute('aria-label',`Remove photo ${index+1}`);remove.innerHTML=svg('close');
+        remove.onclick=()=>{draft.photos.splice(index,1);touched();drawPhotos();};wrap.append(remove);
+      }
+      if(file)file.onchange=async()=>{
+        const files=[...file.files].slice(0,PHOTO_MAX-photos.length);if(!files.length)return;
+        if(add)add.disabled=true;
+        let done=0;
+        for(const selected of files){try{const image=await shrinkPhoto(selected,1600);draft.photos.push({pending:true,preview:image});done++;}catch(error){toast(error.message||"That photo couldn't be added");break;}}
+        if(done){touched();drawPhotos();}
+      };
+    };drawPhotos();
+    const sportButton=$('#e-sport-open',body),sportValue=$('#e-sport-value',body),sportField=f.elements.namedItem('kind');
+    sportButton.onclick=()=>{
+      const options=HAND_KINDS.map(([group,list],gi)=>`<section class="activity-sport-group"><h3>${esc(group)}</h3>${list.map(([,label],i)=>{const value=`${gi}.${i}`;return `<button type="button" class="activity-sport-option" data-sport-option="${value}" role="radio" aria-checked="${sportField.value===value}"><span>${esc(label)}</span>${sportField.value===value?svg('check'):''}</button>`;}).join('')}</section>`).join('');
+      const keepOption=sportField.value==='keep'?`<button type="button" class="activity-sport-option" data-sport-option="keep" role="radio" aria-checked="true"><span>${esc(currentSportName)}</span>${svg('check')}</button>`:'';
+      sheet('Sport',`<div class="activity-sport-picker" role="radiogroup" aria-label="Choose a sport">${keepOption}${options}</div>`,(picker,done)=>{
+        $$('[data-sport-option]',picker).forEach(option=>option.onclick=()=>{
+          const value=option.dataset.sportOption;sportField.value=value;sportValue.textContent=value==='keep'?currentSportName:sportNames.get(value)||SPORT_NAMES[kinds.find(kind=>kind.v===value)?.sp]||'Activity';touched();done();
+        });
+      },{focusContainer:true});
+    };
     let saveShare = null;   // sharing (2026-10-12): moved here from the activity page
     (a._social ? Promise.resolve(a._social) : api(`/api/activities/${a.id}/social`))
       .then((s) => { if (f.isConnected) {
@@ -1029,18 +1087,20 @@ function editActivity(a) {
         checks();shareBox.addEventListener('click',e=>{if(e.target.closest('[data-vis]'))queueMicrotask(checks);});
       } })
       .catch(() => { $('#e-visibility-value', body).textContent = 'Unavailable'; $('#e-share-fields', body).innerHTML = '<p class="small muted" role="alert">Sharing could not load. Try again later.</p>'; });
-    const primary = $('#e-primary', body), visibility = $('#e-visibility-view', body), openVisibility = $('#e-visibility-open', body), backVisibility = $('#e-visibility-back', body);
+    const primary = $('#e-primary', body), visibility = $('#e-visibility-view', body), openVisibility = $('#e-visibility-open', body), backVisibility = $('#e-visibility-back', body), more=$('#e-more-view',body),openMore=$('#e-more-open',body),backMore=$('#e-more-back',body);
     openVisibility.onclick = () => { primary.hidden = true; visibility.hidden = false; backVisibility.focus(); };
     backVisibility.onclick = () => { visibility.hidden = true; primary.hidden = false; openVisibility.focus(); };
+    openMore.onclick=()=>{primary.hidden=true;more.hidden=false;backMore.focus();};
+    backMore.onclick=()=>{more.hidden=true;primary.hidden=false;openMore.focus();};
     api('/api/gear').then((gear) => { f.gear.insertAdjacentHTML('beforeend', gear.filter((g) => !g.retired || g.id === a.gear_id).map((g) => `<option value="${g.id}"${g.id === a.gear_id ? ' selected' : ''}>${esc(g.name)}</option>`).join('')); }).catch(() => {});
     f.onsubmit = async (e) => {
       e.preventDefault();
-      const k = kinds.find((x) => x.v === f.kind.value);
+      const k = kinds.find((x) => x.v === sportField.value);
       // by tag: the sharing choices below include a checkbox also named "description" (it made Save wipe the text)
       const text = (name) => f.querySelector(`textarea[name="${name}"]`).value;
       const body2 = {description: text('description'), private_note: text('private_note'), commute: f.commute.checked};
       if (k) { body2.sport = k.sp; body2.sport_label = k.lb || ''; }
-      if (f.name.value !== a.name) body2.name = f.name.value;   // left alone, a name nobody typed follows the kind ("Lunch Yoga")
+      if (titleField.value !== a.name) body2.name = titleField.value;   // left alone, a name nobody typed follows the kind ("Lunch Yoga")
       if (f.gear.value) body2.gear_id = +f.gear.value; else body2.clear_gear = true;
       body2.restore_summary=[];
       for(const [key,label,,scale] of summaryFields){if(f.elements['restore_'+key]?.checked){body2.restore_summary.push(key);continue}const value=f.elements['summary_'+key].value.trim();if(value===initial[key])continue;const number=value===''?null:isTime(key)?clockSecs(value):Number(value.replace(',','.'))*scale;if(number!==null&&!Number.isFinite(number)){toast(isTime(key)?`Enter ${label.toLowerCase()} like 1:34:50`:'Enter a valid '+label.toLowerCase());return}body2[key]=number}
@@ -1057,7 +1117,7 @@ function editActivity(a) {
       try { await api(`/api/activities/${a.id}`, {method: 'DELETE'}); invalidate('/api/'); close(); toast('Activity deleted'); go('/activity', {replace: true}); }
       catch (x) { toast(x.message); }
     };
-  }, {save: 'e-form', canClose});
+  }, {save: 'e-form', canClose, keyboardAttached:true});
 }
 
 // ---------- Share (2026-10-12): send a link to people on Kinetta, or a picture of the route and the key numbers ----------
