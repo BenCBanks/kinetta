@@ -95,8 +95,16 @@
     return{selector,text:(target.innerText??target.textContent??'').trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
   }
   async function frameStoreTrackMap(){
-    const wrap=document.querySelector('#track-ready-map-wrap'),container=document.querySelector('#track-ready-map'),map=container&&window.L?._targets?.[container._leaflet_id];
-    if(!wrap||!container||!map)throw Error('Track Store map fixture could not access its rendered Leaflet map');
+    let wrap=null,container=null,map=null,ready=false;
+    for(let n=0;n<150;n++){
+      wrap=document.querySelector('#track-ready-map-wrap');
+      container=document.querySelector('#track-ready-map');
+      map=container&&window.L?._targets?.[container._leaflet_id];
+      const box=container?.getBoundingClientRect();
+      if(wrap&&container&&map&&map._loaded&&box?.width>0&&box.height>0){ready=true;break;}
+      await new Promise(ok=>setTimeout(ok,100));
+    }
+    if(!ready)throw Error('Track Store map fixture did not render a sized Leaflet map within 15 seconds');
     wrap.style.height='250px';wrap.style.flex='none';container.style.height='100%';
     map.invalidateSize({animate:false});map.setZoom(15,{animate:false});
     for(let n=0;n<100;n++){if(map.getZoom()===15&&container.querySelectorAll('canvas.leaflet-tile-loaded').length)break;await new Promise(ok=>setTimeout(ok,100));}
