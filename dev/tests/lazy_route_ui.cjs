@@ -736,7 +736,7 @@ async function settingsRouteCase(browser){
   await ready(unavailableMail.page,'.me-settings','Settings with email unavailable');
   const emailNotice=unavailableMail.page.locator('.scrim [role="dialog"][aria-label="Email"]');
   await emailNotice.waitFor();
-  assert.match(await emailNotice.textContent(),/Email isn’t set up on this Kinetta yet/,'unavailable email keeps its existing message');
+  assert.match(await emailNotice.textContent(),/feedback@kinetta\.app/,'unavailable email points to Kinetta support');
   assert.equal(await unavailableMail.page.locator('#em').count(),0,'unavailable email does not show the confirmation form');
   assert.equal(new URL(unavailableMail.page.url()).search+new URL(unavailableMail.page.url()).hash,'','unavailable email deep link is consumed');
   assert.equal(await unavailableMail.page.evaluate(()=>App.pageReady),true,'unavailable email route is ready');
