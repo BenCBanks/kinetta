@@ -137,6 +137,8 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   const boxes=await picker.locator('button,input').evaluateAll(elements=>elements.filter(el=>!el.hidden).map(el=>{const r=el.getBoundingClientRect();return{label:el.getAttribute('aria-label')||el.textContent,height:r.height,width:r.width};}));
   assert(boxes.every(box=>box.width>=44&&box.height>=44),`all Invite controls are 44px: ${JSON.stringify(boxes)}`);
   assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'friend picker fits without horizontal scrolling');
+  const colors=await picker.evaluate(el=>{const avatar=getComputedStyle(el.querySelector('.group-friend-avatar')),footer=el.querySelector('[data-group-share]'),brand=document.createElement('span');brand.style.color='var(--accent)';el.append(brand);const result={avatar:avatar.backgroundColor,sheet:getComputedStyle(el).backgroundColor,share:getComputedStyle(footer).color,brand:getComputedStyle(brand).color,icon:getComputedStyle(footer.querySelector('svg')).color};brand.remove();return result;});
+  assert.notEqual(colors.avatar,colors.sheet,'avatar circles remain visible in both themes');assert.equal(colors.share,colors.brand,'Share invite link uses the brand color');assert.equal(colors.icon,colors.brand,'Share icon uses the same brand color');
   const footer=await page.locator('.group-friend-footer').boundingBox();assert(footer.y+footer.height<=844&&footer.y>500,'Share stays docked in the sheet');
   assert(!/https:|Copy invite|Done|display name/.test(await picker.innerText()),'no raw URL, duplicate actions or display names');
   await capture(page,`group-picker-friends-${width}-${theme}`,null,{fullPage:false});
