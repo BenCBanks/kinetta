@@ -17,19 +17,35 @@ def split_legacy_name(value):
     return first, rest if sep else ''
 
 
+def _letter_joiner(value, index):
+    if value[index] not in '\u200c\u200d':
+        return False
+    # Indic consonants may carry a virama before the joiner.
+    left, right = index - 1, index + 1
+    while left >= 0 and unicodedata.category(value[left]).startswith('M'):
+        left -= 1
+    return (left >= 0 and right < len(value) and
+            unicodedata.category(value[left]).startswith('L') and
+            unicodedata.category(value[right]).startswith('L'))
+
+
 def has_control(value):
-    return any(unicodedata.category(char).startswith('C') for char in unicodedata.normalize('NFC', str(value or '')))
+    value = unicodedata.normalize('NFC', str(value or ''))
+    return any(unicodedata.category(char).startswith('C') and not _letter_joiner(value, index)
+               for index, char in enumerate(value))
 
 
 def valid_part(value):
     if not 1 <= len(value) <= 40:
         return False
     has_letter = False
-    for char in value:
+    for index, char in enumerate(value):
         category = unicodedata.category(char)
         if category.startswith('L'):
             has_letter = True
         elif category.startswith('M') or char in " -'.’":
+            continue
+        elif _letter_joiner(value, index):
             continue
         else:
             return False

@@ -40,7 +40,7 @@ def _clean_login(v, *, current=None, allow_test=False):
     return v
 
 
-def _clean_person_names(first, last, *, current=None, is_admin=False):
+def _clean_person_names(first, last, *, current=None):
     first, last = names.normalize_part(first), names.normalize_part(last)
     if not first: raise HTTPException(400, 'Please add your first name.')
     if not last: raise HTTPException(400, 'Please add your last name.')
@@ -55,7 +55,7 @@ def _clean_person_names(first, last, *, current=None, is_admin=False):
     return first, last, full
 
 
-def _person_names(body, *, current=None, is_admin=False):
+def _person_names(body, *, current=None):
     first, last = getattr(body, 'first_name', None), getattr(body, 'last_name', None)
     legacy = getattr(body, 'name', None)
     if first is not None or last is not None:
@@ -71,7 +71,7 @@ def _person_names(body, *, current=None, is_admin=False):
         raise HTTPException(400, 'Please add your first and last name.')
     if any(names.has_control(value) for value in (first, last, legacy) if value is not None):
         raise HTTPException(400, 'Names can’t contain control or formatting characters.')
-    return _clean_person_names(first, last, current=current, is_admin=is_admin)
+    return _clean_person_names(first, last, current=current)
 
 
 class AccountIn(BaseModel):
@@ -90,7 +90,7 @@ def set_account(body: AccountIn, user=Depends(current_user)):
         if body.name == user['name'] and body.first_name is None and body.last_name is None:
             pass  # A cached legacy client may resend its unchanged one-word name.
         else:
-            first, last, full = _person_names(body, current=user['name'], is_admin=user['is_admin'])
+            first, last, full = _person_names(body, current=user['name'])
             vals.update(first_name=first, last_name=last, name=full)
     if body.login is not None: vals['login'] = _clean_login(body.login, current=user['login'], allow_test=user['is_admin'])
     layout=body.profile_layout.model_dump() if body.profile_layout is not None else None
@@ -163,7 +163,7 @@ class PersonIn(BaseModel):
 def add_person(body: PersonIn, user=Depends(admin_user)):
     _admin(user)
     login = _clean_login(body.login, allow_test=True)
-    first, last, full = _person_names(body, is_admin=True)
+    first, last, full = _person_names(body)
     auth.check_new_password(body.password, login)
     try:
         with db.connect() as c:
@@ -320,7 +320,7 @@ def username_availability(request: Request, login: str = Query('', max_length=60
 def _create(c, body, is_admin=False):
     """Insert a person + their settings; returns the new id."""
     community_terms.check_agreement(body.terms_version)
-    first, last, full = _person_names(body, is_admin=is_admin)
+    first, last, full = _person_names(body)
     chosen = body.login and body.login.strip()
     login = _clean_login(chosen) if chosen else suggest_login(c, first, last)
     community_filter.check(login, 'username')

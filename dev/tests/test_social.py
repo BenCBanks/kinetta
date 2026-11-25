@@ -221,6 +221,15 @@ check(next(item for item in search_first if item['login']=='zz_test_friend')['na
 check(not any(item['login']=='zz_test_friend' for item in st.q('GET','/api/people/search?q=Example')),'non-friend search does not match a surname')
 check(any(item['login']=='zz_test_friend' and item['name']=='Friend Example' for item in alex.q('GET','/api/people/search?q=Example')),
       'friend search may match and display the full name')
+admin_profile=alex.q('GET','/api/people/zz_test_stranger/profile')
+check(admin_profile['person']['name']=='Stranger Example' and 'last_name' not in admin_profile['person'],
+      'admin viewer may see a full display name on another profile without a surname field')
+pe.q('POST','/api/friends',{'login':'zz_test_friend'});fr.q('POST','/api/friends/zz_test_pending/accept')
+st.q('POST','/api/friends',{'login':'zz_test_pending'});pe.q('POST','/api/friends/zz_test_stranger/accept')
+suggestion=next(item for item in st.q('GET','/api/people/suggested') if item['login']=='zz_test_friend')
+check(suggestion['name']=='Friend' and 'last_name' not in suggestion and 'Example' not in json.dumps(suggestion),
+      'suggested people JSON never sends a non-friend surname')
+fr.q('DELETE','/api/friends/zz_test_pending');st.q('DELETE','/api/friends/zz_test_pending')
 fr.q('DELETE',f'/api/activities/{public_name_activity}')
 # unfriend: friends-only activity disappears
 fr.q('DELETE', '/api/friends/alex'); fr.q('GET', f'/api/shared/{a1}', want=404)

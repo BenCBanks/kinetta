@@ -39,6 +39,20 @@ class AccountEmail(unittest.TestCase):
         self.env = patch.dict(os.environ, ENV); self.env.start(); self.addCleanup(self.env.stop)
         self.sent = patch('app.account_email.httpx.post', side_effect=receipt); self.mail = self.sent.start(); self.addCleanup(self.sent.stop)
 
+    def test_reset_greeting_without_selected_first_name(self):
+        from fastapi import BackgroundTasks
+        for by_admin in (False, True):
+            for first in (None, '', '  ', 'Riley'):
+                background = BackgroundTasks()
+                person = {'id': 1, 'login': 'zz_test_mail_a', 'email': 'fictional@example.com'}
+                if first is not None:
+                    person['first_name'] = first
+                with patch.object(account_email, '_token', return_value='fictional-reset-token'):
+                    account_email.send_reset(background, None, person, by_admin=by_admin)
+                text = background.tasks[0].args[2]
+                self.assertTrue(text.startswith('Hi Riley,\n\n' if first == 'Riley' else 'Hello,\n\n'))
+                self.assertNotIn('Hi ,', text)
+
     def test_shared_plain_text_email_formatter(self):
         created = datetime.datetime(2030, 1, 2, 18, 30, tzinfo=datetime.timezone.utc)
         self.assertEqual(account_email.UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS, 14)

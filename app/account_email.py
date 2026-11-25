@@ -568,15 +568,17 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
 
 
 def send_reset(background, c, u, by_admin=False, pending=False):
-    """A single-use reset link to the account's email (u: id, name, login, email)."""
+    """A single-use reset link to the account's email; first_name is optional."""
     # Bind pending resets to the address that received the proof-of-ownership link.
     token = _token(c, u['id'], 'reset_password', RESET_MINUTES, u['email'] if pending else None)
+    first = (u.get('first_name') or '').strip()
+    greeting = f'Hi {first},' if first else 'Hello,'
     if by_admin:
-        text = (f"Hi {u.get('first_name', '')},\n\nHere's the password reset link you asked us for.\n"
+        text = (f"{greeting}\n\nHere's the password reset link you asked us for.\n"
                 f"Open this link to choose a new password for your Kinetta account (@{u['login']}):\n{_base()}/reset-password#{token}\n\n"
                 f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays the same.")
     else:
-        text = (f"Hi {u.get('first_name', '')},\n\nOpen this link to reset the password for your Kinetta account (@{u['login']}):\n{_base()}/reset-password#{token}\n\n"
+        text = (f"{greeting}\n\nOpen this link to reset the password for your Kinetta account (@{u['login']}):\n{_base()}/reset-password#{token}\n\n"
                 f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays the same.")
     background.add_task(send, u['email'], 'Reset your Kinetta password', text)
 
