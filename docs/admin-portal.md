@@ -4,6 +4,12 @@ Open `/admin` in a browser at your Kinetta server's HTTPS address. Administratio
 
 For the implementation scope and remaining release evidence, see [Admin launch preparation](admin-launch.md). The guide describes the code; the portal’s dated checks describe an operator’s evidence. Neither alone certifies a launch.
 
+## Finding a page
+
+On a phone, the 56px bottom bar has Today, People, Reports, Requests and More. On a desktop, the same destinations and secondary pages sit in a 220px left list. Today keeps the existing Overview data in this client-shell update. Requests contains Beta requests, Invitations and Data requests; Reports also contains Segments & times. More opens Usage, Features, Launch checks, Sign-in history and Audit history. Session details and Sign out stay available in the header.
+
+Each page has a hash address, such as `/admin#people`, `/admin#requests/invitations` or `/admin#more/audit`. Reload, Back and Forward retain the selected page. A direct address still requires the separate administrator sign-in and authenticator. Hashes select an allowlisted page; they never carry an account identity or change access to data.
+
 ## Access and roles
 
 The first account remains the administrator. Invitations create Members. No existing account is promoted by this update. The Accounts & roles page lists every role explicitly. Administrators can change roles after typing the target username; the last administrator cannot be demoted. Demotion revokes portal sessions immediately. Administrators cannot reset/remove other administrators through member-management controls; first make an explicit role change where appropriate.
