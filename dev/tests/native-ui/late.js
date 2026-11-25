@@ -212,7 +212,7 @@
     if(cfg.store)await waitForStorePaint();
     if(cfg.store&&cfg.stage==='activity'){
       // The Store frame ends after the two reviewed series; keep later charts from peeking under the fixed tabs.
-      for(const chart of document.querySelectorAll('#d-charts .chartbox:nth-child(n+3)'))chart.style.setProperty('display','none','important');
+      for(const chart of [...document.querySelectorAll('#d-charts .chartbox')].slice(2))chart.style.setProperty('display','none','important');
       // Production styles use one accent fill for every series; tint each fixture area from its own line color.
       for(const chart of document.querySelectorAll('#d-charts .chartbox')){
         const area=chart.querySelector('.sample-area'),color=area?.nextElementSibling?.getAttribute('stroke');
