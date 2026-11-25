@@ -6,9 +6,6 @@
     'outlok.com':'outlook.com','outllok.com':'outlook.com','outlook.con':'outlook.com','iclould.com':'icloud.com','icloud.con':'icloud.com',
   };
   const BAD_ENDING = new Set(['con','cmo','vom']);
-  const COUNTRY_TLDS = new Set('ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bl bm bn bo bq br bs bt bv bw by bz ca cc cd cf cg ch ci ck cl cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg eh er es et fi fj fk fm fo fr ga gb gd ge gf gg gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm hn hr ht hu id ie il im in io iq ir is it je jm jo jp ke kg kh ki km kn kp kr kw ky kz la lb lc li lk lr ls lt lu lv ly ma mc md me mf mg mh mk ml mm mn mo mp mq mr ms mt mu mv mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm pn pr ps pt pw py qa re ro rs ru rw sa sb sc sd se sg sh si sj sk sl sm sn so sr ss st sv sx sy sz tc td tf tg th tj tk tl tm tn to tr tt tv tw tz ua ug um us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw uk eu'.split(' '));
-  const COMMON_TLDS = new Set('aero academy agency app art asia biz blog cafe camera careers cat charity church city cloud club com company computer coop design dev digital doctor email edu finance fitness flowers food fun games global gov group guru health homes house info int jobs law legal life link live mil mobi museum name net news online org page photography photo pizza place pro pub recipes run science services shop site social software solutions space store studio tech technology tel today travel tv university website wiki world xyz zone eu uk'.split(' '));
-  const KNOWN_TLDS = new Set([...COUNTRY_TLDS, ...COMMON_TLDS]);
   const dismissed = new Set(), confirmedTypos = new Set();
   const appRoot = document.getElementById('app');
   const emailFields = form => [...form.querySelectorAll('input[type="email"]')];
@@ -31,7 +28,7 @@
     const ending = endingOf(value), suggestion = correctedAddress(value);
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized(value))) return null;
     if (suggestion) return {suggestion, hard:BAD_ENDING.has(ending)};
-    return KNOWN_TLDS.has(ending) ? null : {invalid:true, hard:true};
+    return null;
   };
   function clearTypoConsent(form) {
     const old = form.dataset.emailTypoConfirmed;

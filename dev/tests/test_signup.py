@@ -122,11 +122,16 @@ class Signup(unittest.TestCase):
     def test_beta_waitlist_requires_explicit_choice_for_domain_typos(self):
         self.env(KINETTA_SIGNUP='waitlist', KINETTA_BETA_SIGNUP='1')
         email = 'zz_test_su_waitlist@gmial.com'
+        unfamiliar = 'zz_test_su_waitlist@example.ninja'
+        malformed = 'zz_test_su_waitlist@-example.ninja'
         self.addCleanup(self.delete_beta_typo_request, email)
+        self.addCleanup(self.delete_beta_typo_request, unfamiliar)
         payload = {'name': 'Fictional Waitlist Member', 'email': email, 'phone': 'iphone'}
         self.assertEqual(client().post('/api/beta', json=payload).status_code, 400)
-        impossible = client().post('/api/beta', json={**payload, 'email': 'zz_test_su_waitlist@example.cpm', 'confirm_typo': True})
-        self.assertEqual(impossible.status_code, 400, 'explicit confirmation never overrides an unknown TLD')
+        accepted = client().post('/api/beta', json={**payload, 'email': unfamiliar})
+        self.assertEqual(accepted.status_code, 200, 'valid unlisted TLDs are accepted')
+        self.assertEqual(client().post('/api/beta', json={**payload, 'email': malformed}).status_code, 400,
+                         'malformed domain labels remain invalid')
         response = client().post('/api/beta', json={**payload, 'confirm_typo': True})
         self.assertEqual(response.status_code, 200, response.text)
 
