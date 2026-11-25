@@ -23,7 +23,8 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     ${InsetGroup('Preferences', `<div class="inset-row inset-units"><span class="inset-icon" aria-hidden="true">${svg('ruler')}</span><span class="inset-label">Units</span><div class="me-period mileage-toggle units-toggle" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
       <label class="inset-row switch-row"><span class="inset-icon" data-icon="info" aria-hidden="true">${svg('info')}</span><span class="inset-label">Show setup tips</span><input type="checkbox" role="switch" id="m-setup-tips"${me.setup_hidden?'':' checked'}></label>${(me.setup_skipped||[]).length?row('button', 'type="button" id="m-setup-unskip"', 'check', 'Bring back skipped setup steps'):''}
-      ${row('button', 'type="button" id="m-kit"', 'sparkle', 'Kit', me.ai_paused?'Paused':me.ai_ok?'On':'Off')}`)}
+      ${row('button', 'type="button" id="m-kit"', 'sparkle', 'Kit', me.ai_paused?'Paused':me.ai_ok?'On':'Off')}
+      ${row('button', 'type="button" id="m-group-strip"', 'people', 'Home group strip', 'Loading')}`)}
     ${InsetGroup('Body', row('button', 'id="m-body"', 'heart', 'Body &amp; heart rate', '', {detail: esc([bodyProfileSummary(me), me.max_hr ? `Max HR ${me.max_hr}` : ''].filter(Boolean).join(' · '))}))}
     ${InsetGroup('Help', row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'Help &amp; contact'))}
     ${InsetGroup('Your data', `${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'Download my data', 'Zip file')}
@@ -33,6 +34,10 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     <div class="settings-logout">${row('button', 'type="button" id="logout"', 'logout', 'Log out', '', {chevron:false, center:true})}</div>
     </section>`;
   wireBack(el, '/me');
+  const stripButton=$('#m-group-strip',el),stripOwner=readOwner();let stripMuted=null;
+  const paintStrip=()=>{if(!stripButton)return;const value=$('.inset-value',stripButton);if(value)value.textContent=stripMuted?'Hidden':'Shown';};
+  api('/api/groups/activity-strip').then(state=>{if(!el.isConnected||stripOwner!==readOwner())return;stripMuted=!!state.muted;paintStrip();}).catch(()=>{if(el.isConnected&&stripOwner===readOwner())$('.inset-value',stripButton).textContent='Unavailable';});
+  stripButton.onclick=async()=>{if(stripMuted===null||stripOwner!==readOwner())return;stripButton.disabled=true;try{const result=await api('/api/groups/activity-strip',json('POST',{muted:!stripMuted}));if(stripOwner!==readOwner())return;stripMuted=!!result.muted;paintStrip();}catch(error){toast(error.message);}finally{if(stripButton.isConnected)stripButton.disabled=false;}};
   const unskip=$('#m-setup-unskip',el);if(unskip)unskip.onclick=async()=>{
     if(unskip.disabled)return;const owner=readOwner();unskip.disabled=true;
     try{await api('/api/profile',json('PUT',{setup_skipped:[]}));if(owner!==readOwner())return;App.me.setup_skipped=[];invalidate('/api/me');keep('/api/me',App.me);unskip.remove();toast('Skipped setup steps are back on Me');}
