@@ -34,7 +34,9 @@ class FriendLinks(unittest.TestCase):
     def person(self, login, confirmed=True, **form):
         c = client()
         with db.connect() as d: d.execute('DELETE FROM auth_attempts')     # isolate each enrollment fixture
-        r = c.post('/api/signup', json={'name': login.replace('zz_test_fl_', '').title(), 'login': login, 'email': login + '@example.com',
+        # Preserve distinct first names for ranking, with a valid fictional surname and no digits.
+        name = re.sub(r'\d', '', login.removeprefix('zz_test_fl_')).replace('_', ' ').title() + ' Fixture'
+        r = c.post('/api/signup', json={'name': name, 'login': login, 'email': login + '@example.com',
                                         'password': PW, 'age_ok': True, 'tz': 'UTC', **form})
         self.assertEqual(r.status_code, 200, r.text)
         if confirmed:
