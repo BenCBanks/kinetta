@@ -124,6 +124,8 @@ try:
             with db.connect() as c:
                 removed=c.execute('SELECT invalidated_at,answer FROM kit_turns WHERE user_id=%s AND client_id=%s',(uid,pending['client_id'])).fetchone()
                 assert removed['invalidated_at'] is not None and removed['answer'] is None
+            removed=request(a,'GET','?visit_id='+sixth['visit_id'])['messages'][-1]
+            assert removed['invalidated'] and removed['answer']['interpretation']=='This answer was removed because its health data was removed or sharing was turned off.'
         # Memory is personal exported data; visits/messages/memories cascade on account deletion.
         with tempfile.NamedTemporaryFile(suffix='.zip') as f:
             _write_export(uid,f.name)

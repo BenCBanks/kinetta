@@ -6,7 +6,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from app import auth, db, kit_memory
+from app import auth, db, kit_memory, kit_history
 from app.main import app
 
 ROOT='/api/coach/conversation'
@@ -169,11 +169,12 @@ class HistoryAPI(unittest.TestCase):
                 with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(self.uid,))
                 return sensitive(*args,**kw)
             with patch('app.coach_chat.answer',side_effect=revoke):
-                row=self.send(self.resume(v));self.assertEqual(row['state'],'failed');self.assertIsNone(row['answer'])
+                row=self.send(self.resume(v));self.assertTrue(row['cancelled'])
 
     def test_pagination_and_saved_message_limit(self):
         v=self.new()
         with db.connect() as c:
+            kit_history.materialize(c,self.uid,v['conversation_id'])
             for n in range(55):
                 c.execute('''INSERT INTO kit_turns(user_id,client_id,generation,conversation_id,question)
                   VALUES(%s,%s,%s,%s,%s)''',(self.uid,uuid.uuid4(),v['generation'],v['conversation_id'],'Fictional question '+str(n)))
@@ -183,6 +184,86 @@ class HistoryAPI(unittest.TestCase):
         page=self.req('GET','/threads');self.assertEqual(len(page['conversations']),20)
         self.assertEqual(len(self.req('GET','/threads?before='+page['before'])['conversations']),3)
         self.assertEqual(self.seen,[])
+
+
+    def test_permanent_redaction_revoke_restore_delete_reimport_and_retry(self):
+        v=self.new()
+        with db.connect() as c:
+            c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(self.uid,))
+            c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'walk','healthkit','Fictional walk',now())",(self.uid,))
+        def sensitive(*args,**kw):
+            result=self.answer(*args,**kw);result['health_included']=True;return result
+        with patch('app.coach_chat.answer',side_effect=sensitive):first=self.send(v,'Fictional source-only first')
+        for loss in ['revoke','delete']:
+            with db.connect() as c:
+                if loss=='revoke':
+                    c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(self.uid,))
+                    c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(self.uid,))
+                else:
+                    c.execute('DELETE FROM activities WHERE user_id=%s',(self.uid,))
+                    c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'walk','healthkit','Fictional replacement',now())",(self.uid,))
+            resumed=self.resume(v);row=next(r for r in resumed['messages'] if r['client_id']==first['client_id'])
+            self.assertEqual(row['question'],first['question']);self.assertTrue(row['invalidated'])
+            self.assertEqual(row['answer'],{'interpretation':kit_history.REMOVED_ANSWER})
+            before=len(self.seen)
+            retry=self.req('POST','/messages/'+first['client_id']+'/answer',{k:resumed[k] for k in ['visit_id','generation']})
+            self.assertTrue(retry['invalidated']);self.assertEqual(len(self.seen),before)
+            self.send(resumed)
+            self.assertNotIn(first['question'],str(self.seen[-1]['history']))
+            self.assertNotIn(kit_history.REMOVED_ANSWER,str(self.seen[-1]['history']))
+            with patch('app.coach_chat.answer',side_effect=sensitive):first=self.send(resumed,'Fictional sensitive next')
+
+    def test_revoke_restore_during_provider_call_cancels_late_answer(self):
+        v=self.new()
+        with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(self.uid,))
+        def revoke_restore(*args,**kw):
+            with db.connect() as c:
+                c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(self.uid,))
+                c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(self.uid,))
+            self.assertFalse(kw['active']())
+            return self.answer(*args,**kw)
+        with patch('app.coach_chat.answer',side_effect=revoke_restore):self.assertTrue(self.send(v)['cancelled'])
+        row=self.req('GET','/threads/'+v['conversation_id'])['messages'][0]
+        self.assertEqual(row['answer']['interpretation'],kit_history.REMOVED_ANSWER)
+
+    def test_empty_chats_not_saved_thread_cap_and_visit_rate_are_account_local(self):
+        v=self.new();self.assertEqual(self.req('GET','/threads')['conversations'],[])
+        self.req('POST','/threads',{k:v[k] for k in ['generation','conversation_id','visit_id']})
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) n FROM kit_threads WHERE user_id=%s',(self.uid,)).fetchone()['n'],0)
+            self.assertEqual(c.execute('SELECT opens_count FROM kit_conversations WHERE user_id=%s',(self.uid,)).fetchone()['opens_count'],1)
+            c.execute('UPDATE kit_conversations SET opens_count=30,opens_at=now() WHERE user_id=%s',(self.uid,))
+        body={'generation':v['generation'],'conversation_id':str(uuid.uuid4()),'visit_id':str(uuid.uuid4())}
+        self.req('POST','/threads',body,429)
+        self.req('POST','/visits',{'visit_id':str(uuid.uuid4())},429)
+        self.new(self.b)
+        with db.connect() as c:
+            c.execute("UPDATE kit_conversations SET opens_at=now()-interval '2 minutes' WHERE user_id=%s",(self.uid,))
+            for _ in range(500):c.execute('INSERT INTO kit_threads(id,user_id) VALUES(%s,%s)',(uuid.uuid4(),self.uid))
+        self.req('POST','/threads',body,429)
+        pending={'generation':v['generation'],'visit_id':v['visit_id'],'client_id':str(uuid.uuid4()),'question':'Fictional limit question'}
+        self.req('POST','/messages',pending,429)
+        with db.connect() as c:c.execute('DELETE FROM kit_threads WHERE user_id=%s',(self.uid,))
+        self.send(v);self.assertEqual(len(self.req('GET','/threads')['conversations']),1)
+
+    def test_visit_cap_and_expiry_cleanup(self):
+        v=self.new();self.send(v)
+        with db.connect() as c:
+            for _ in range(99):c.execute('INSERT INTO kit_visits(id,user_id) VALUES(%s,%s)',(uuid.uuid4(),self.uid))
+        body={'generation':v['generation'],'visit_id':str(uuid.uuid4())}
+        self.req('POST','/threads/'+v['conversation_id']+'/resume',body,429)
+        with db.connect() as c:c.execute("UPDATE kit_visits SET created=now()-interval '2 days' WHERE user_id=%s",(self.uid,))
+        self.assertEqual(len(self.resume(v)['messages']),1)
+
+    def test_delete_all_erases_legacy_and_saved_visits_not_foreign(self):
+        v=self.new();self.send(v)
+        legacy=self.req('POST','/visits',{'visit_id':str(uuid.uuid4())});self.send(legacy)
+        foreign=self.new(self.b)
+        self.req('DELETE','/threads')
+        with db.connect() as c:
+            for table in ['kit_turns','kit_visits','kit_threads']:
+                self.assertEqual(c.execute('SELECT count(*) n FROM '+table+' WHERE user_id=%s',(self.uid,)).fetchone()['n'],0)
+        self.req('GET','/threads/'+foreign['conversation_id'],client=self.b)
 
 
 if __name__=='__main__':unittest.main()
