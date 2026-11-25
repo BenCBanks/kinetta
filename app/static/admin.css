@@ -86,3 +86,17 @@ body[data-admin-view=people] .people-find{display:block;position:sticky;top:calc
 .person-summary p{margin:4px 0 12px}.person-primary{margin:16px 0}.person-primary button{width:100%}.person-secondary{border-block:1px solid var(--color-divider)}
 .person-secondary .actions{margin:4px 0}.person-secondary .actions button{flex:1 1 100%;color:var(--color-brand)}
 @media(max-width:380px){.people-tabs button{font-size:13px}.person-row{gap:8px}.people-add{gap:12px}.people-add button{font-size:14px}.person-row-status{max-width:43%}}
+
+/* Desktop People keeps the directory available while supporting one account. */
+.people-directory{min-width:0}.person-pane,.people-column-status{display:none}
+@media(min-width:1100px){
+ .people-workspace{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,1fr);gap:28px;align-items:start}
+ .person-pane{display:block;position:sticky;top:calc(86px + env(safe-area-inset-top));max-height:calc(100dvh - 108px - env(safe-area-inset-top));overflow-y:auto;overscroll-behavior:contain;padding:0 4px 16px 24px;border-left:1px solid var(--color-divider);overflow-wrap:anywhere}
+ .person-pane>h2{margin:8px 0 20px}.person-pane h3{margin:20px 0 4px}.person-pane ul{padding-left:20px}
+ .person-row,.people-list-meta{display:grid;grid-template-columns:minmax(0,1fr) 104px 92px 12px;gap:10px;align-items:center}
+ .people-list-meta{padding-inline:8px}.people-column-status{display:block}.person-row-status{display:contents}
+ .person-row-status>span{font-size:12px}.person-row time{font-size:12px}.person-row{padding-inline:8px}.person-row-main strong{font-size:14px}
+ .person-row[aria-current=true]{background:var(--color-brand-soft);box-shadow:inset 3px 0 var(--color-brand)}
+ .people-add{gap:12px}.people-add button{font-size:14px}.people-tabs{justify-content:flex-start;gap:12px}
+ .person-primary button{min-height:44px}
+}

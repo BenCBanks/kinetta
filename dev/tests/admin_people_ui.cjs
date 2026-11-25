@@ -4,7 +4,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT_DIR;
 const rows=[['Avery Morgan','avery','active'],['Riley Park','riley','unconfirmed'],['Jordan Reed','jordan','suspended'],...Array.from({length:18},(_,i)=>['Fictional Member','member_'+i,'active'])].map(([name,login,status],i)=>({id:i+2,name,login,status,created:'2026-11-25T12:00:00Z',last_active:i===1?null:'2026-11-24',email:login+'@example.test',email_confirmed:status!=='unconfirmed',is_admin:false,open_reports:0}));
 const person=row=>({...row,connections:[],devices:[],imports:[],reports:[],audit:[],counts:{activities:12,food_entries:8,photos:0,photo_bytes:0,ai_requests_this_month:0},active_days_30:4,age:{birth_year:null},kit:{allowed:false,consent:false,status:'off'}});
-(async()=>{const browser=await chromium.launch();let checks=0;try{for(const width of [390,330])for(const theme of ['light','dark']){
+(async()=>{const browser=await chromium.launch();let checks=0;try{for(const width of [390,330,1280,1440])for(const theme of ['light','dark']){
  const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce'}),page=await context.newPage(),requests=[],writes=[],errors=[];let fail=false;
  try{
  page.on('pageerror',e=>errors.push(e.message));
@@ -34,13 +34,15 @@ const person=row=>({...row,connections:[],devices:[],imports:[],reports:[],audit
  for(const [tab,status] of [['New',''],['Unconfirmed','unconfirmed'],['Suspended','suspended'],['All','']]){
   const response=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/admin/people');await page.getByRole('tab',{name:tab,exact:true}).click();const url=new URL((await response).url());assert.equal(url.searchParams.get('status')||'',status);if(tab==='New')assert.match(url.searchParams.get('joined_after'),/^\d{4}-\d{2}-\d{2}$/);await page.waitForFunction(()=>!document.querySelector('#people-list').hasAttribute('aria-busy'));checks++;
  }
- await page.locator('[data-open="2"]').click();await page.getByRole('dialog',{name:'Avery Morgan',exact:true}).waitFor();
- assert.equal(await page.locator('#dialog-body button.primary').count(),1);assert.equal(await page.locator('.person-primary button').innerText(),'Send password reset email');
+ const detail=width>=1100?page.locator('#person-pane'):page.locator('#dialog-body');
+ await page.locator('[data-open="2"]').click();await detail.locator('.person-summary').waitFor();
+ if(width>=1100){assert.equal(await page.locator('dialog[open]').count(),0);const panes=await page.locator('.people-directory, #person-pane').evaluateAll(ns=>ns.map(n=>{const r=n.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,width:r.width};}));assert(panes[0].right<panes[1].left&&panes.every(p=>p.width>=340),'desktop list and detail sit side by side');assert.equal(await page.locator('[data-open="2"]').getAttribute('aria-current'),'true');checks+=3;}
+ assert.equal(await detail.locator('button.primary').count(),1);assert.equal(await page.locator('.person-primary button').innerText(),'Send password reset email');
  assert.match(await page.locator('.person-summary').innerText(),/Last active: Nov 24, 2026/);assert.doesNotMatch(await page.locator('.person-summary').innerText(),/\d+:\d+/);await shot('person');checks+=3;
  await page.locator('.person-primary button').click();await page.locator('#tool-form').waitFor();const input=page.locator('[name=confirm]');await input.fill('avery');await page.locator('#tool-form button[type=submit]').click();assert.equal(writes.length,0);assert.match(await input.evaluate(n=>n.validationMessage),/Type @avery exactly/);
  await input.fill('@avery');await shot('confirm');await page.locator('#tool-form button[type=submit]').click();await page.waitForFunction(()=>!!document.querySelector('.person-summary'));assert.equal(writes.length,1);assert.equal(writes[0].body.confirm,'avery');assert.equal(writes[0].path,'/api/admin/manage/2/reset-email');checks+=3;
- await page.locator('#close').click();
- for(const [id,label] of [[3,'Send confirmation email again'],[4,'Restore account']]){await page.locator(`[data-open="${id}"]`).click();await page.locator('.person-summary').waitFor();assert.equal(await page.locator('.person-primary button').innerText(),label);assert.equal(await page.locator('#dialog-body button.primary').count(),1);await page.locator('#close').click();checks++;}
+ if(width<1100)await page.locator('#close').click();
+ for(const [id,label] of [[3,'Send confirmation email again'],[4,'Restore account']]){await page.locator(`[data-open="${id}"]`).click();await page.waitForFunction(({id,label})=>document.querySelector('[data-open="'+id+'"]')?.getAttribute('aria-current')==='true'&&document.querySelector('.person-primary button')?.textContent===label,{id,label});assert.equal(await page.locator('.person-primary button').innerText(),label);assert.equal(await detail.locator('button.primary').count(),1);if(width<1100)await page.locator('#close').click();checks++;}
  const search=page.locator('[name=q]');await search.fill('no such fictional person');await page.waitForFunction(()=>document.querySelector('#people-list').textContent.includes('No matching accounts'));await shot('empty');checks++;
  fail=true;await search.fill('Riley');await page.locator('#people-retry').waitFor();assert.equal(await search.inputValue(),'Riley');await shot('error');await page.locator('#people-retry').click();await page.locator('[data-open="3"]').waitFor();await fits();checks+=2;
  assert(requests.every(p=>/^\/api\/admin\/(me|people(?:\?|\/|$)|manage\/)/.test(p)),'no private-content endpoints');assert.deepEqual(errors,[]);checks++;
