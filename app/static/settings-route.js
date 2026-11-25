@@ -11,7 +11,8 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   const row = (tag, attrs, ico, label, val = '', options = {}) => `<${tag} class="inset-row${options.detail ? ' has-detail' : ''}${options.alert ? ' is-alert' : ''}${options.center ? ' is-centered' : ''}" ${attrs}><span class="inset-icon" data-icon="${ico}" aria-hidden="true">${rowIcon(ico)}</span><span class="inset-label${options.detail ? ' has-detail' : ''}">${label}${options.detail ? `<small>${options.detail}</small>` : ''}</span>${val ? `<span class="inset-value">${val}</span>` : ''}${options.chevron === false ? '' : ch}</${tag}>`;
   const InsetGroup = (caption, contents, footer = '') => `<section class="inset-section"><h2 class="inset-caption">${caption}</h2><div class="inset-group">${contents}</div>${footer ? `<p class="inset-footer">${footer}</p>` : ''}</section>`;
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Settings</h1><section class="me-settings">
-    ${InsetGroup('Account', `${row('button', 'id="m-name"', 'user', 'Name', esc(me.name))}
+    ${InsetGroup('Account', `${row('button', 'id="m-name"', 'user', 'First name', esc(me.first_name||me.name?.split(' ')[0]||''))}
+      ${row('button','id="m-last-name"','user','Last name',esc(me.last_name||''))}
       ${row('button', 'id="m-login"', 'at', 'Username', esc(me.login))}
       ${row('button', 'id="m-email"', 'mail', 'Email', esc(me.email ? (me.email_confirmed ? me.email : me.email + ' · not confirmed') : pendingEmail() ? 'Check your inbox' : 'Add'))}
       ${row('button', 'id="m-pw"', 'key', 'Password', 'Change')}
@@ -69,6 +70,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   $('#m-kit',el).onclick=openKitSettings;
   if(location.hash==='#ai'){replacePageAddress(el,location.pathname+location.search);openKitSettings();}
   $('#m-name', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('name');};
+  $('#m-last-name',el).onclick=()=>{if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('last_name');};
   $('#m-login', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('login');};
   $('#m-pw', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');passwordSheet();};
   $('#m-email', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');emailSheet();};

@@ -12,14 +12,18 @@ globalThis.UsernameAvailability = (() => {
     function changed() {
       const revision = ++generation, value = input.value.trim();
       clearTimeout(timer); request?.abort(); status.textContent = ''; status.classList.remove('ok');
-      if (!value) return;
+      if (value.length < 2) return;
       timer = setTimeout(async () => {
         if (!live(revision)) return;
         request = new AbortController();
         try {
           const answer = await api('/api/account/username-availability?login=' + encodeURIComponent(value), {signal:request.signal});
           if (!live(revision)) return;
-          status.textContent = answer.available ? '✓ Available as @' + answer.login : answer.reason === 'taken' ? 'Taken. Try @' + answer.suggestion + '.' : answer.message;
+          status.textContent = answer.available ? 'Available' : answer.message;
+          if(!answer.available&&answer.reason==='taken'&&answer.suggestion){
+            const use=document.createElement('button');use.type='button';use.className='linkbtn';use.textContent='Taken. Use @'+answer.suggestion;
+            use.onclick=()=>{if(!live(revision))return;input.value=answer.suggestion;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();};status.replaceChildren(use);
+          }
           status.classList.toggle('ok', answer.available);
         } catch (error) { if (live(revision)) status.textContent = error.message; }
       }, 400);

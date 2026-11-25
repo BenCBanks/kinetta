@@ -2461,7 +2461,7 @@ function showFirstRunWelcome({setupNeeded = false} = {}) {
     if (!create.isConnected || viewPath !== location.pathname + location.search) return;
     store.set(FIRST_RUN_WELCOME_SEEN, true);
     if (mode === 'setup') {
-      showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account', intro: "This is a brand-new Kinetta. Create your account first. You'll be its admin and can invite your people next.", send: body => api('/api/setup', json('POST', body))});
+      showNewAccount({title: 'Welcome to Kinetta', button: 'Create account', intro: "This is a brand-new Kinetta. Create your account first. You'll be its admin and can invite your people next.", send: body => api('/api/setup', json('POST', body))});
     } else if (mode === 'signup') {
       history.replaceState(null, '', '/signup'); showSignup();
     } else if (mode === 'beta') {
@@ -2595,61 +2595,37 @@ function enrollmentEmailError(input, message, resetOnly=false) {
   input.setAttribute('aria-invalid','true');input.focus({preventScroll:true});note.scrollIntoView({block:'center',behavior:'smooth'});
 }
 
+const namePrivacy = 'Friends see your full name. Others see your first name and @username.';
+const normalizeAccountName = value => value.normalize('NFC').trim().replace(/\s+/gu,' ');
+function accountNameFields(me={}) {
+  return `<div class="account-names">${[['first_name','First name','given-name'],['last_name','Last name','family-name']].map(([key,label,complete])=>`<label>${label}<input name="${key}" value="${esc(me[key]||'')}" autocomplete="${complete}" autocapitalize="words" maxlength="80" enterkeyhint="next" required></label>`).join('')}</div>`;
+}
+function accountNameProblem(value,label) {
+  if(!value)return `Please add your ${label.toLowerCase()}.`;
+  const chars=Array.from(value);
+  const allowedJoiner=(char,i)=>{let left=i-1;while(left>=0&&/\p{M}/u.test(chars[left]))left--;return /[\u200c\u200d]/u.test(char)&&left>=0&&/\p{L}/u.test(chars[left])&&i+1<chars.length&&/\p{L}/u.test(chars[i+1]);};
+  if(chars.length>40||! /\p{L}/u.test(value)||chars.some((char,i)=>!/[\p{L}\p{M} '.’\-]/u.test(char)&&!allowedJoiner(char,i)))return `${label} must be 1–40 characters, using letters, spaces, hyphens or apostrophes.`;
+  return null;
+}
 function showNewAccount({title, intro, button, send, signup = false, ageConfirm = signup, email = signup, card = null,challenge=null}) {
-  const pick = !email;
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
-    <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
-    ${email ? `<label>Email<input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted" id="enrollment-email-help">You'll log in with it. We'll send a link to confirm it; it's never shown to other people.</p>` : ''}
-    ${pick ? `<label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></label>
-    <p class="small muted">What you'll type to log in: lowercase letters, numbers or _.</p>` : ''}
+    ${accountNameFields()}
+    <label>Username<span class="account-username"><span aria-hidden="true">@</span><input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></span></label>
+    <p class="small muted">${namePrivacy}</p>
+    ${email ? `<label>Email<input name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted" id="enrollment-email-help">You'll log in with it. We'll send a link to confirm it; it's never shown to other people.</p>` : ''}
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
     <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
     <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone on Kinetta</option><option value="friends">Approved friends</option><option value="me">Only me</option></select></label>
     <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
-    ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
-    ${email ? `<details class="username-choice"><summary>Choose your @username (optional)</summary><label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next"></label></details>` : ''}
     ${ageConfirm ? '<label class="check"><input type="checkbox" name="age_ok" required><span>I\'m 16 or older</span></label>' : ''}
     ${signup ? '<label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>' : ''}
     ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"${challenge.join_default?' checked':''}><span>Join ${esc(challenge.title)} ${email?'after I confirm my email':'when I create my account'}. Only my username, permitted photo and progress are shared.</span></label>`:''}
     ${card?.allow_requests?`<label class="check"><input type="checkbox" name="card_request"${card.request_default===false?'':' checked'}><span>Send @${esc(card.username)} a friend request ${email?'after I confirm my email':'when I create my account'}</span></label>`:''}
     <p class="err" role="alert"></p>
-    <button class="primary" type="submit">${esc(button)}</button></form></div>`;
+    <button class="primary" type="submit">${esc(button)}</button>${signup?'<a class="text-link" href="/" id="s-login">Already have an account? Log in</a>':''}</form></div>`;
   const f = $('form', root), agreement = globalThis.CommunityTerms?.enrollment(f);
-  let signupStep = null, setSignupStep = null, advanceSignup = null;
-  if (signup) {
-    const intro=f.firstElementChild,heading=intro.querySelector('h1'),back=document.createElement('button'),progress=document.createElement('p');
-    const panels=[0,1,2].map((step)=>{const panel=document.createElement('section');panel.className='signup-step';panel.dataset.signupStep=String(step);panel.setAttribute('aria-labelledby','signup-step-title-'+step);return panel;});
-    const stepTitle=document.createElement('h2');stepTitle.id='signup-step-title-0';stepTitle.className='signup-step-title';
-    const names=f.querySelector('input[name="name"]'),emailInput=f.querySelector('input[name="email"]'),usernameInput=f.querySelector('details.username-choice input[name="login"]'),passwordInput=f.querySelector('input[name="password"]'),ageInput=f.querySelector('input[name="age_ok"]'),shareInput=f.querySelector('select[name="share_default"]');
-    const nameLabel=names.closest('label'),emailLabel=emailInput?.closest('label'),usernameDetails=f.querySelector('details.username-choice'),passwordLabel=passwordInput.closest('label'),ageLabel=ageInput?.closest('label'),shareLabel=shareInput.closest('label');
-    const emailHelp=f.querySelector('#enrollment-email-help'),usernameHint=usernameDetails?.previousElementSibling,emailUsernameHint=[...f.querySelectorAll('p.small.muted')].find(node=>node.textContent.includes("We'll give you a username"));
-    const passwordHint=passwordLabel.nextElementSibling,shareHint=shareLabel.nextElementSibling,honeypot=f.querySelector('.hp'),challengeLabel=f.querySelector('input[name="challenge_join"]')?.closest('label'),cardLabel=f.querySelector('input[name="card_request"]')?.closest('label'),error=f.querySelector('.err'),terms=error.previousElementSibling,submit=f.querySelector('button[type="submit"]');
-    intro.append(progress,stepTitle);
-    back.type='button';back.className='signup-back';back.setAttribute('aria-label','Back');back.innerHTML='<span aria-hidden="true">‹</span>';intro.prepend(back);
-    progress.className='signup-progress';progress.setAttribute('aria-live','polite');
-    f.classList.add('signup-wizard');
-    const place=(panel,nodes)=>nodes.filter(Boolean).forEach(node=>panel.append(node));
-    place(panels[0],[nameLabel,emailLabel,emailHelp,usernameHint,usernameDetails,emailUsernameHint]);
-    place(panels[1],[passwordLabel,passwordHint,ageLabel,honeypot]);
-    place(panels[2],[shareLabel,shareHint,challengeLabel,cardLabel,terms,error,submit]);
-    panels.forEach(panel=>f.append(panel));
-    const next=document.createElement('button');next.type='button';next.className='primary wide signup-next';next.textContent='Continue';
-    panels[0].append(next);panels[1].append(next.cloneNode(true));
-    const go=panels.map(panel=>panel.querySelector('.signup-next'));
-    const titles=[['About you','Step 1 of 3 · Your details'],['A secure sign-in','Step 2 of 3 · Password and age'],['Choose your audience','Step 3 of 3 · Sharing']];
-    setSignupStep=step=>{signupStep=step;panels.forEach((panel,index)=>{panel.hidden=index!==step;});heading.textContent='Create your account';stepTitle.id='signup-step-title-'+step;stepTitle.textContent=titles[step][0];progress.textContent=titles[step][1];error.remove();panels[step].append(error);(step===0?names:step===1?passwordInput:submit).focus();};
-    setSignupStep(0);
-    back.onclick=()=>{if(signupStep>0)return setSignupStep(signupStep-1);if(store.get('kinetta.challengeLink')||store.get('kinetta.cardLink')||store.get('kinetta.friendLink')){history.replaceState(null,'','/');return showLogin();}history.replaceState(null,'','/');showFirstRunWelcome();};
-    advanceSignup=()=>{
-      if(signupStep>=2)return;
-      const fields=signupStep===0?[names,emailInput,usernameInput].filter(Boolean):[passwordInput,ageInput].filter(Boolean);
-      const invalid=fields.find(input=>!input.disabled&&!input.checkValidity());
-      if(invalid){invalid.reportValidity();invalid.focus();return;}
-      setSignupStep(signupStep+1);
-    };
-    go.filter(Boolean).forEach(button=>button.onclick=advanceSignup);
-  } else f.name.focus();
+  f.classList.add('account-enrollment');f.elements.first_name.focus();
   const usernameOwner=readOwner(),usernameRoute=location.pathname+location.search;
   const usernameError=$('.err',f);let usernameLoadMessage=null;
   const usernameLoadFailed=message=>{
@@ -2661,48 +2637,53 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
     usernameLoadMessage=null;
   };
   const username = f.login&&lazyUsernameAvailability(f.login,()=>f.isConnected&&usernameOwner===readOwner()&&usernameRoute===location.pathname+location.search,usernameLoadFailed,usernameLoadSucceeded);
-  if (pick) {
-    f.name.addEventListener('input', () => {   // suggest a username from the first name until they type their own
-      if (f.login.dataset.touched) return;
-      f.login.value = (f.name.value.trim().split(/\s+/)[0] || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9_]/g, '').slice(0, 30);
-      username?.changed();
-    });
-    f.login.addEventListener('input', () => { f.login.dataset.touched = '1'; });
-  }
+  const suggest=()=>{
+    if(f.login.dataset.touched)return;
+    const ascii=value=>value.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const first=ascii(f.elements.first_name.value).slice(0,24),initial=ascii(f.elements.last_name.value).slice(0,1);
+    f.login.value=first?first+initial:'';f.login.closest('label').querySelector('.field-err')?.remove();f.login.removeAttribute('aria-invalid');username?.changed();
+  };
+  for(const key of ['first_name','last_name'])f.elements[key].addEventListener('input',suggest);
+  f.login.addEventListener('input',()=>{f.login.dataset.touched='1';});
   // Errors appear under the field they're about and scroll into view (Ben, 2026-10-24: a short password failed silently,
   // because the one message line sat below the fold behind the keyboard). A live hint counts password characters.
   const hint = f.password.closest('label').nextElementSibling;
   f.password.addEventListener('input', () => { const n = f.password.value.length; hint.textContent = n >= 10 ? 'Long enough.' : `At least 10 characters · ${n} so far. A short sentence you'll remember works well.`; hint.classList.toggle('ok', n >= 10); });
-  const fieldErr = (name, text) => {
-    $$('.field-err', f).forEach((x) => x.remove()); $$('[aria-invalid]', f).forEach((x) => x.removeAttribute('aria-invalid'));
-    const input = name && f.elements[name], err = $('.err', f);
-    err.textContent = input ? '' : text;
-    const at = input ? input.closest('label') : err;
-    if (input) { const details=input.closest('details');if(details)details.open=true;at.insertAdjacentHTML('afterend', `<p class="field-err" role="alert">${esc(text)}</p>`); input.setAttribute('aria-invalid', 'true'); input.focus({preventScroll: true}); }
-    at.scrollIntoView({block: 'center', behavior: 'smooth'});
+  const clearErrors=()=>{$$('.field-err',f).forEach(x=>x.remove());$$('[aria-invalid]',f).forEach(x=>x.removeAttribute('aria-invalid'));$('.err',f).textContent='';};
+  const fieldErr = (name, text, focus=true) => {
+    const input=name&&f.elements[name],err=$('.err',f);if(!input){err.textContent=text;return;}
+    const at=input.closest('label');at.insertAdjacentHTML('beforeend',`<span class="field-err" role="alert">${esc(text)}</span>`);input.setAttribute('aria-invalid','true');
+    if(focus){input.focus({preventScroll:true});input.scrollIntoView({block:'center',behavior:'smooth'});}
   };
   // fixing a field clears its message
-  f.addEventListener('input', (e) => { const l = e.target.closest('label'); if (l?.nextElementSibling?.classList.contains('field-err')) { l.nextElementSibling.remove(); e.target.removeAttribute('aria-invalid'); } });
+  f.addEventListener('input', (e) => { const l=e.target.closest('label');l?.querySelector('.field-err')?.remove();e.target.removeAttribute('aria-invalid'); });
   // which field a server answer is about
-  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && f.login ? 'login' : /\bname\b/i.test(m) ? 'name' : /16 or older/i.test(m) && ageConfirm ? 'age_ok' : null;
+  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && f.login ? 'login' : /last name/i.test(m) ? 'last_name' : /\bname\b/i.test(m) ? 'first_name' : /16 or older/i.test(m) && ageConfirm ? 'age_ok' : null;
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if(signupStep!==null&&signupStep<2){advanceSignup?.();return;}
     const b = $('button[type=submit]', f) || $('button', f);
-    if (!f.name.value.trim()) return fieldErr('name', 'Enter your name.');
-    if (pick && !f.login.value.trim()) return fieldErr('login', 'Choose a username.');
-    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.value.trim())) return fieldErr('email', 'Enter your email address, like name@example.com.');
-    if (f.password.value.length < 10) return fieldErr('password', `Use at least 10 characters for your password (you have ${f.password.value.length}).`);
-    if (ageConfirm && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 16 or older. Tick the box to continue.');
-    b.disabled = true; fieldErr(null, '');
-    try { const termsVersion = agreement ? await agreement() : null; const result=await send({terms_version: termsVersion, ...(ageConfirm ? {age_ok:f.age_ok.checked} : {}), name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
-        ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim(), ...(f.login.value.trim() ? {login:f.login.value.trim().toLowerCase()} : {})}),
+    if(b.disabled)return;
+    clearErrors();const problems=[];
+    for(const [key,label] of [['first_name','First name'],['last_name','Last name']]){
+      const input=f.elements[key],raw=input.value;input.value=normalizeAccountName(raw);
+      const problem=/[\p{Cc}\p{Cf}]/u.test(raw.replace(/[\u200c\u200d]/gu,''))?'Use letters in your '+label.toLowerCase()+'.':accountNameProblem(input.value,label);
+      if(problem)problems.push([key,problem]);
+    }
+    if(!/^[a-z0-9_]{2,30}$/.test(f.login.value.trim().toLowerCase()))problems.push(['login','Use 2–30 lowercase letters, numbers or _.']);
+    if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.value.trim()))problems.push(['email','Enter your email address, like name@example.com.']);
+    if(f.password.value.length<10)problems.push(['password',`Use at least 10 characters for your password (you have ${f.password.value.length}).`]);
+    if(ageConfirm&&!f.age_ok.checked)problems.push(['age_ok','Kinetta is for people 16 or older. Tick the box to continue.']);
+    if(f.elements.terms_ok&&!f.elements.terms_ok.checked)problems.push(['terms_ok','Read and accept the Community terms to continue.']);
+    problems.forEach(([key,message],index)=>fieldErr(key,message,index===0));if(problems.length)return;
+    b.disabled=true;b.textContent='Creating account…';
+    try { const termsVersion = agreement ? await agreement() : null; const result=await send({terms_version: termsVersion, ...(ageConfirm ? {age_ok:f.age_ok.checked} : {}), first_name:f.elements.first_name.value,last_name:f.elements.last_name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
+        login:f.login.value.trim().toLowerCase(),...(email?{email:f.email.value.trim()}:{}),
         ...(signup ? {website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})});
       if(signup&&result?.pending&&result?.login)return showSignupPending(result);
       // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
       if (getAppFirst()) { store.set('kinetta.getApp', '1'); history.replaceState(null, '', '/'); return showGetApp(); }
       history.replaceState(null, '', '/welcome'); await start(); }
-    catch (x) { if(signup&&(x.code==='email_waiting_for_confirmation'||x.code==='email_exists'))setSignupStep?.(0);if(x.code==='email_waiting_for_confirmation'&&email)enrollmentEmailError(f.email,x.message,true);else if(x.code==='email_exists'&&email)enrollmentEmailError(f.email,x.message);else {const field=fieldOf(x.message||'');if(field==='login')username?.error('');fieldErr(field,x.message);} b.disabled = false; }
+    catch (x) { if(x.code==='email_waiting_for_confirmation'&&email)enrollmentEmailError(f.email,x.message,true);else if(x.code==='email_exists'&&email)enrollmentEmailError(f.email,x.message);else {const field=fieldOf(x.message||'');if(field==='login')username?.error('');clearErrors();fieldErr(field,x.message);} b.disabled = false;b.textContent=button; }
   });
 }
 function showSignupPending(result) {
@@ -2795,7 +2776,7 @@ async function showJoin(token) {
     };
     return;
   }
-  showNewAccount({title: 'Join Kinetta', button: 'Create my account', ageConfirm:true, email: !!info.email,card:info.card,challenge:info.challenge,
+  showNewAccount({title: 'Join Kinetta', button: 'Create account', ageConfirm:true, email: !!info.email,card:info.card,challenge:info.challenge,
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private. <a href="/" id="j-login">Log in to accept with an existing account</a>.`,
     send: async (body) => {
       const result=await api('/api/join', json('POST', {...body, token}));
@@ -2836,7 +2817,7 @@ async function showSignup(friendLink = store.get('kinetta.friendLink')) {
     if(waiting){history.replaceState(null,'','/beta');return showBeta();}
     return enrollmentStatus('Join Kinetta','Public signup is closed. Open your invitation link to create an account, or log in.');
   }
-  showNewAccount({title: 'Create your account', button: 'Create my account', signup: true, card,challenge,
+  showNewAccount({title: 'Create your account', button: 'Create account', signup: true, card,challenge,
     intro: (inviter ? `${esc(inviter)} invited you. You’ll be friends once you confirm your email. ` : '') + 'Your workouts and food, in one app.',
     send: async (body) => {
       if(card)body={...body,card_code:cardCode};
