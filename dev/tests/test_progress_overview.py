@@ -109,3 +109,6 @@ finally:
             c.post('/api/account/delete', {'password': PW})
 
 print('Progress overview: authenticated isolation across three accounts, Only me totals, timezone active days, routes, records, protein and weight, no read writes PASS')
+
+from progress_series_checks import run as check_progress_series
+check_progress_series()

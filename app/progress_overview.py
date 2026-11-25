@@ -6,8 +6,10 @@ from fastapi import APIRouter, Depends
 
 from . import db, energy, plans
 from .auth import current_user
+from .progress_series import series
 
 router = APIRouter(prefix='/api/progress')
+router.add_api_route('/series', series, methods=['GET'])
 
 
 @router.get('/overview')

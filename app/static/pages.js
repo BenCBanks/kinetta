@@ -1355,7 +1355,7 @@ function wireSport(el, cur, options = PSPORTS) {
     if (!e.target.closest('#p-sport')) return;
     pickSheet('Sport', pickRows(options.map(([k,n])=>[k,n,'',k==='all'?'activity':k==='lifting'?'workout':k,'c-grey']),cur), k=>{
       if(k!=='lifting')try { localStorage.setItem('fit.psport',k); } catch(e) { /* no storage */ }
-      const u=new URLSearchParams(location.search);u.set('sport',k);if(u.has('metric'))u.set('metric',progressMetricForSport(k,u.get('metric')));go(location.pathname+'?'+u,{replace:true});
+      const u=new URLSearchParams(location.search);u.set('sport',k);if(u.has('metric'))u.set('metric',((u.get('period')||'week')==='week'?progressWeeklyMetric:progressMetricForSport)(k,u.get('metric')));go(location.pathname+'?'+u,{replace:true});
     });
   });
 }
@@ -1397,13 +1397,26 @@ function progressMileageError(body, q) {
 function progressPeriods(period) {
   return '<div class="me-period mileage-toggle" role="group" aria-label="Totals period">'+PPERIODS.map(([k,n])=>`<button type="button" data-progress-period="${k}" aria-pressed="${period===k}">${n}</button>`).join('')+'</div>';
 }
+const PROGRESS_SERIES_METRICS = [
+  ['distance','Distance','distance','sum'],['time','Time','time','sum'],['ascent','Climb','ascent','sum'],
+  ['climb-average','Climb per run','ascent','average'],['pace','Pace','pace','average'],
+  ['avg_hr','Heart rate','avg_hr','average'],['workouts','Workouts','workouts','sum']
+];
+function progressWeeklyMetric(sport, metric) {
+  return PROGRESS_SERIES_METRICS.some(row=>row[0]===metric)?metric:'distance';
+}
+function progressSeriesPath(sport, metric) {
+  const row=PROGRESS_SERIES_METRICS.find(row=>row[0]===metric)||PROGRESS_SERIES_METRICS[0];
+  return '/api/progress/series?'+new URLSearchParams({metric:row[2],aggregate:row[3],group_by:'week',period_unit:'weeks',period_count:'12',sport});
+}
 function progressMetricForSport(sport, metric) {
   if (metric === 'time' || metric === 'distance') return metric;
   if (sport === 'ride') return 'speed';
   if (sport === 'run' || sport === 'walk') return 'pace';
   return 'distance';
 }
-function progressMetrics(sport, metric) {
+function progressMetrics(sport, metric, weekly=false) {
+  if(weekly){const label=PROGRESS_SERIES_METRICS.find(row=>row[0]===metric)?.[1]||'Distance';return `<button type="button" class="progress-series-metric" data-progress-series-metric aria-label="Metric: ${esc(label)}. Change">${esc(label)}${svg('down')}</button>`;}
   const choices = [['distance', 'Distance'], ['time', 'Moving time']];
   if (sport === 'ride') choices.push(['speed', 'Speed']);
   else if (sport === 'run' || sport === 'walk') choices.push(['pace', 'Pace']);
@@ -1425,6 +1438,8 @@ function wireProgressPeriods(el) {
   el.addEventListener('click', e => {
     const viewButton=e.target.closest('[data-progress-view]');
     if(viewButton){setProgressView($('#p-home-totals',el),viewButton.dataset.progressView==='table');return;}
+    if(e.target.closest('[data-progress-series-metric]')){const q=new URLSearchParams(location.search),cur=progressWeeklyMetric('',q.get('metric'));
+      pickSheet('Metric',pickRows(PROGRESS_SERIES_METRICS.map(([key,label])=>[key,label]),cur),key=>{q.set('metric',key);go('/progress?'+q,{replace:true});});return;}
     const metricButton=e.target.closest('[data-progress-metric]');if(metricButton){const q=new URLSearchParams(location.search);q.set('metric',metricButton.dataset.progressMetric);go('/progress?'+q,{replace:true});return;}
     const b = e.target.closest('[data-progress-period]'); if (!b) return;
     const q = new URLSearchParams(location.search); q.set('period',b.dataset.progressPeriod);
@@ -1505,13 +1520,13 @@ function progressTiles(box, overview=null, {ready=false}={}) {
 async function progressHome(el, q) {
   App.progressHome={owner:readOwner(),href:location.pathname+location.search};
   const sport = pSport(q), period = PPERIODS.some(p=>p[0]===q.get('period')) ? q.get('period') : 'week';
-  const viewSport=forView(sport,'totals'),metric=progressMetricForSport(viewSport,q.get('metric')||'distance');
+  const viewSport=forView(sport,'totals'),metric=(period==='week'?progressWeeklyMetric:progressMetricForSport)(viewSport,q.get('metric')||'distance');
   let showTable=false;try{showTable=localStorage.getItem('fit.ptable')==='true';}catch(e){/* no storage */}
-  const showTableToggle=metric==='distance'||metric==='time';
+  const showTableToggle=period!=='week'&&(metric==='distance'||metric==='time');
   el.innerHTML = `<div class="top progress-heading progress-home-heading"><h1>Progress</h1><div class="acts"><button type="button" class="icon-btn" id="progress-share" aria-label="Share a progress picture">${svg('share')}</button>${bellBtn()}</div></div>
     <div class="progress-home"><div id="p-combined-week"></div><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
     <h2 class="sec-head">Explore your progress</h2><div class="progress-grid explore-list progress-inset-list" id="p-explore"></div></div>`;
-  const progressReads=[`/api/progress/volume?period=${period}`,'/api/progress/overview','/api/fitness?days=60','/api/activity-food'];
+  const progressReads=[period==='week'?progressSeriesPath(viewSport,metric):`/api/progress/volume?period=${period}`,'/api/progress/overview','/api/fitness?days=60','/api/activity-food'];
   const cached=progressReads.every(path=>App.cache.has(path)||!!kept(path));
   const paint=PaintGate.begin(el,'progress',{cached});
   wireProgressFocus(el); wireProgressPeriods(el);
@@ -1524,7 +1539,7 @@ async function progressHome(el, q) {
   $('#progress-share',el).onclick=()=>Recaps.open('month');
   Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
   const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);totals._showTable=showTableToggle&&showTable;
-  progressFilters(el,totals,`<div class="progress-totals-header">${sportBtn(viewSport)}<div class="totals-view-toggle"><button type="button" data-progress-view="${showTable?'chart':'table'}" ${showTableToggle?'':'hidden'} aria-pressed="${showTable}" aria-label="${showTable?'Show chart':'Show table'}" aria-controls="m-chart m-table" title="${showTable?'Show chart':'Show table'}">${svg(showTable?'chart':'list')}</button></div></div>${progressMetrics(viewSport,metric)}`);
+  progressFilters(el,totals,`<div class="progress-totals-header">${sportBtn(viewSport)}<div class="totals-view-toggle"><button type="button" data-progress-view="${showTable?'chart':'table'}" ${showTableToggle?'':'hidden'} aria-pressed="${showTable}" aria-label="${showTable?'Show chart':'Show table'}" aria-controls="m-chart m-table" title="${showTable?'Show chart':'Show table'}">${svg(showTable?'chart':'list')}</button></div></div>${progressMetrics(viewSport,metric,period==='week')}`);
   wireSport(el,viewSport);
   q.set('sport',viewSport);q.set('period',period);if(q.has('metric'))q.set('metric',metric);
   const weekRead=$('#p-combined-week',el)?combinedWeek($('#p-combined-week',el)):null;
@@ -1687,7 +1702,38 @@ function monthSeries(firstYm, get) {   // every month from firstYm to this month
   }
   return out;
 }
+async function pWeeklySeries(body,q) {
+  const sport=q.get('sport')||'run',metric=progressWeeklyMetric(sport,q.get('metric'));
+  const title=PROGRESS_SERIES_METRICS.find(row=>row[0]===metric)[1];
+  const convert=v=>v==null?null:metric==='distance'?toU(v):['ascent','climb-average'].includes(metric)?v*(imp()?1/.3048:1):v;
+  const unit=metric==='distance'?U.du():['ascent','climb-average'].includes(metric)?U.eu():metric==='pace'?'':metric==='avg_hr'?'bpm':'';
+  const value=v=>v==null?'–':metric==='time'?U.time(v):metric==='pace'?U.pace(v):metric==='distance'?String(+v.toFixed(1)):String(Math.round(v));
+  const fmt=v=>value(v)+(unit?' '+unit:'');
+  const owner=readOwner();body._hideProgressFilters=false;body.innerHTML=`<div id="m-body">${skelChart()}</div>`;
+  try{await load(progressSeriesPath(sport,metric),r=>{
+    if(!body.isConnected||owner!==readOwner())return;
+    const box=$('#m-body',body),known=r.points.filter(p=>p.n>p.missing&&p.value!=null);
+    const current=r.points.at(-1),thisValue=convert(current?.value),overall=convert(r.summary.overall);
+    const stats=ProgressUI.statRow([{label:'This week',value:value(thisValue),unit},{label:r.aggregate==='average'?'Average':'Weekly avg',value:value(r.aggregate==='sum'?known.length?r.points.reduce((n,p)=>n+(convert(p.value)||0),0)/r.points.length:null:overall),unit},{label:metric==='pace'?'Fastest week':'Best week',value:value(convert(metric==='pace'?r.summary.lowest:r.summary.highest)),unit}]).replace('class="stat-row"','class="stat-row progress-total-stats"');
+    const footer=`<div class="progress-total-footer"><span class="progress-total-caption">${esc(progressWeekLabel(new Date(current.start+'T12:00')))} · ${esc(fmt(thisValue))}</span>${ProgressUI.rangeText(PPERIODS,'week',{label:'Totals range',attribute:'progress-period'})}</div>`;
+    box.innerHTML=`<div class="card progress-totals-card">${r.workouts?stats:''}<div id="m-chart"></div>${footer}</div>`;
+    const chart=$('#m-chart',box);
+    if(!r.workouts){chart.innerHTML=`<p class="small muted progress-series-empty">No ${sport==='run'?'runs':sport==='all'?'workouts':SPORT_NAMES[sport]?.toLowerCase()+' workouts'} in the last 12 weeks.</p>`;return;}
+    if(known.length<2){chart.innerHTML=`<p class="small muted progress-series-empty">Not enough data yet.</p>${known.length?`<p class="small">${esc(title)} · <b>${esc(fmt(convert(known[0].value)))}</b></p>`:''}`;return;}
+    const label=p=>progressWeekLabel(new Date(p.start+'T12:00'))+(p.in_progress?' (so far)':'');
+    const columns=r.points.map(p=>({label:label(p),tick:progressPeriodTick(new Date(p.start+'T12:00'),'week'),partial:p.in_progress,segs:[{k:'value',v:convert(p.value)||0}]}));
+    const description=p=>`${label(p)} · ${p.value==null?'Not recorded':fmt(convert(p.value))} · ${p.n-p.missing} ${p.n-p.missing===1?'workout':'workouts'}`;
+    requestAnimationFrame(()=>{
+      if(!chart.isConnected)return;
+      periodBars(chart,columns,{keys:[{k:'value',name:title}],fmt,yfmt:value,axisUnit:unit,yTicks:3,height:160,distance:true,inlineSelection:true,ariaLabel:title+' by week. Select a bar to inspect.',
+        onSelectPeriod:i=>{const readout=$('.readout',chart);readout.hidden=i==null;readout.textContent=i==null?'':description(r.points[i]);}});
+      $$('[data-period-index].period-column',chart).forEach((column,i)=>{column.setAttribute('aria-label',description(r.points[i]));if(r.points[i].value==null)column.querySelector('.distance-empty')?.remove();});
+      if(r.missing)chart.insertAdjacentHTML('beforeend',`<p class="small muted">${r.missing} ${r.missing===1?'workout':'workouts'} without ${esc(title.toLowerCase())} ${r.missing===1?'is':'are'} not counted.</p>`);
+    });
+  });}catch(error){if(error.status!==403)throw error;if(body.isConnected&&owner===readOwner())body.innerHTML='<div class="card"><p class="small muted">Review Health data sharing in Connections to see this chart.</p><a class="row-link" href="/connections">Connections'+svg('chev')+'</a></div>';}
+}
 async function pMileage(body, q, {home=false}={}) {
+  if(home&&(q.get('period')||'week')==='week')return pWeeklySeries(body,q);
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
   const metric = progressMetricForSport(sport, q.get('metric') || 'distance'), paceMetric = metric === 'pace' || metric === 'speed';
   const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
