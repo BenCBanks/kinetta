@@ -24,6 +24,7 @@ KINDS = {'distance', 'elevation', 'long_outings', 'sessions'}
 UNITS = {'km', 'mi', 'm', 'ft', 'outings', 'sessions'}
 GROUP_SPORTS = tuple(ACTIVITY_SPORTS)
 MAX_MEMBERS = 50
+MAX_LIVE_INVITES = 20
 LONG_OUTING_SECONDS = 3600
 _GROUP_TOTAL_SHARING_SQL = "(m.sharing_level='total_shared' AND coalesce(p.share_achievements,false))"
 
@@ -231,6 +232,12 @@ def _new_invite(c, group, request, *, rotate=True):
         c.execute('UPDATE event_groups SET invite_generation=%s WHERE id=%s', (generation, group['id']))
     c.execute('''INSERT INTO group_invites(group_id,generation,token_hash,expires_at)
                  VALUES(%s,%s,%s,%s)''', (group['id'], generation, _token_hash(token), dt.datetime.now(UTC) + INVITE_TTL))
+    c.execute('''UPDATE group_invites SET revoked_at=now()
+                 WHERE id IN (
+                   SELECT id FROM group_invites
+                   WHERE group_id=%s AND revoked_at IS NULL AND expires_at>now()
+                   ORDER BY created_at DESC,id DESC OFFSET %s
+                 )''', (group['id'], MAX_LIVE_INVITES))
     return _invite_link(token, request)
 
 

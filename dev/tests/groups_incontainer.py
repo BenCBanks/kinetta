@@ -247,6 +247,45 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.anon.get('/api/group-invites/' + reopened.json()['invite_url'].rsplit('/', 1)[1]).status_code, 200,
                          'the existing Make a new invite action reopens joining after stop')
 
+    def test_removed_member_cannot_use_a_live_link_after_nonrotating_invite_open(self):
+        group, original = self.make()
+        self.assertEqual(self.accept(original, who=1).status_code, 200)
+        opened = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={'rotate': False})
+        self.assertEqual(opened.status_code, 200, opened.text)
+        live_token = opened.json()['invite_url'].rsplit('/', 1)[1]
+        self.assertEqual(self.anon.get('/api/group-invites/' + live_token).status_code, 200)
+
+        login = self.clients[1].get('/api/me').json()['login']
+        removed = self.clients[0].post('/api/groups/' + group['id'] + '/remove', json={'username': login})
+        self.assertEqual(removed.status_code, 200, removed.text)
+        self.assertEqual(self.anon.get('/api/group-invites/' + live_token).status_code, 200,
+                         'removal leaves the shared link live for other people')
+        refused = self.accept(live_token, who=1)
+        self.assertEqual(refused.status_code, 404,
+                         'a removed member cannot rejoin through a link that remains live for others')
+        self.assertEqual(refused.json()['detail'], groups.INVITE_UNAVAILABLE)
+
+    def test_group_keeps_only_the_20_newest_live_invite_links(self):
+        self.assertEqual(groups.MAX_LIVE_INVITES, 20)
+        group, first = self.make()
+        tokens = [first]
+        for _ in range(groups.MAX_LIVE_INVITES):
+            response = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={'rotate': False})
+            self.assertEqual(response.status_code, 200, response.text)
+            tokens.append(response.json()['invite_url'].rsplit('/', 1)[1])
+
+        with db.connect() as c:
+            live_count = c.execute('''SELECT count(*) AS n FROM group_invites
+                                      WHERE group_id=%s AND revoked_at IS NULL AND expires_at>now()''',
+                                   (group['id'],)).fetchone()['n']
+        self.assertEqual(live_count, groups.MAX_LIVE_INVITES)
+        self.assertEqual(self.anon.get('/api/group-invites/' + tokens[0]).status_code, 404,
+                         'the oldest link is revoked after the cap is exceeded')
+        self.assertEqual(self.anon.get('/api/group-invites/' + tokens[1]).status_code, 200,
+                         'the next-oldest link stays live when the cap is exceeded')
+        self.assertEqual(self.anon.get('/api/group-invites/' + tokens[-1]).status_code, 200,
+                         'the newest link stays live when the cap is exceeded')
+
     def test_activity_strip_is_member_scoped_and_mute_is_per_account(self):
         first, _ = self.make()
         second, _ = self.make()
