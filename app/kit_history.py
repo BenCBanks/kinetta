@@ -66,7 +66,7 @@ def conversation(c, uid, visit_id):
 def scope(conversation_id, generation, visit_id):
     # Only fixed SQL, never a caller-supplied condition or account identifier.
     return (('conversation_id=%s', (conversation_id,)) if conversation_id else
-            ('generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid', (generation, visit_id)))
+            ('conversation_id IS NULL AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid', (generation, visit_id)))
 
 
 
@@ -93,6 +93,8 @@ def permitted_history(answer, current):
             and all(type(value) is bool and (not value or current[key]) for key,value in saved.items()))
 
 
+MAX_TURNS=200
+DAILY_TURNS=30
 MAX_THREADS=500
 MAX_VISITS=100
 OPENS_PER_MINUTE=30
@@ -127,3 +129,22 @@ def materialize(c,uid,conversation_id):
         raise HTTPException(404,'Kit conversation unavailable')
     c.execute('UPDATE kit_visits SET conversation_id=%s,draft_conversation_id=NULL '
       'WHERE user_id=%s AND draft_conversation_id=%s',(conversation_id,uid,conversation_id))
+
+
+
+def admit_turn(c,uid,condition,args):
+    # Fixed account-bound scopes only; caller serializes on the account lock.
+    if c.execute('SELECT count(*) n FROM kit_turns WHERE user_id=%s AND '+condition,(uid,*args)).fetchone()['n']>=MAX_TURNS:
+        raise HTTPException(429,'This chat has 200 messages. Start a new chat to continue.')
+    used=c.execute("SELECT requests FROM ai_daily_usage WHERE user_id=%s AND kind='kit_conversation' AND day=(now() AT TIME ZONE 'UTC')::date",(uid,)).fetchone()
+    if used and used['requests']>=DAILY_TURNS:
+        raise HTTPException(429,'You have reached the daily limit for Kit messages. Please try again tomorrow.')
+
+
+def discard_unstarted(c,uid,row):
+    c.execute('DELETE FROM kit_turns WHERE user_id=%s AND id=%s',(uid,row['id']))
+    cid=row['conversation_id']
+    if cid and not c.execute('SELECT 1 FROM kit_turns WHERE user_id=%s AND conversation_id=%s',(uid,cid)).fetchone():
+        # Keep the active visit usable, but return the empty chat to temporary state.
+        c.execute('UPDATE kit_visits SET draft_conversation_id=conversation_id,conversation_id=NULL WHERE user_id=%s AND conversation_id=%s',(uid,cid))
+        c.execute('DELETE FROM kit_threads WHERE user_id=%s AND id=%s',(uid,cid))

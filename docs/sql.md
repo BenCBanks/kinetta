@@ -108,3 +108,8 @@ Kit history and model replay exclude them. This quarantine is distinct from actu
 source deletion or consent revocation: those permanently erase affected answers to
 SQL NULL with `invalidated_at`. Restoring permission cannot resurrect erased data.
 Consented preference notes and routine sync updates are preserved.
+
+Source invalidation **wipes the answer JSON in kit_turns itself** and keeps an
+irreversible invalidated_at marker, even after consent is restored. Personal SQL
+readers can still read their own question and marker, but the original answer is
+NULL; the API supplies the removal message. This is not API-only hiding.

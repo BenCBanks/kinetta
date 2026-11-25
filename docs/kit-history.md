@@ -63,3 +63,9 @@ All creation paths share those limits, including legacy visits and Clear.
 Invalidated messages retain the question and return `invalidated:true` with the answer
 interpretation “This answer was removed because its health data was removed or sharing
 was turned off.” They cannot be retried or replayed to the model, even after regrant.
+
+Each chat is capped at 200 turns (including failed/invalidated turns), under the
+account lock. Existing message-ID retries remain idempotent at the cap. Exhausted
+daily quotas reject create before insertion; generation preflight failures without
+a provider reservation erase the new turn and return an empty chat to draft state.
+An attempted generation may retain a failed turn for explicit Retry.
