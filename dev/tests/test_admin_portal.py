@@ -92,8 +92,14 @@ class Portal(unittest.TestCase):
         b=self.beta();draft=self.draft(b)
         with self.mail_env():
             first=self.client.post(f"/api/admin/beta/{b['id']}/responses",json=draft);self.assertEqual(first.status_code,200,first.text)
-            self.assertIn('It works once, for 7 days',first.json()['body']);self.assertIn("reply and we'll set you up",first.json()['body'])
-            self.assertEqual(self.client.post(f"/api/admin/beta/{b['id']}/responses",json=draft).json()['id'],draft['request_key'])
+            preview=first.json()['body']
+            self.assertIn('It works once, for 7 days',preview)
+            self.assertTrue(preview.startswith('Hello,\n\nWelcome to the test beta.'))
+            self.assertIn('\n\nThe Kinetta team\n\n',preview)
+            self.assertTrue(preview.endswith("You're getting this because this address was used for a Kinetta account. Questions: feedback@kinetta.app · kinetta.app"))
+            self.assertNotIn("reply and we'll set you up",preview)
+            retry=self.client.post(f"/api/admin/beta/{b['id']}/responses",json=draft)
+            self.assertEqual(retry.json()['id'],draft['request_key']);self.assertEqual(retry.json()['body'],preview)
             self.assertEqual(self.client.post(f"/api/admin/beta/{b['id']}/responses",json={**draft,'message':'Welcome'}).status_code,409)
             path='/api/admin/responses/'+draft['request_key']+'/send'
             with patch('app.admin_mail.httpx.post',side_effect=httpx.ReadTimeout('lost acknowledgement')) as transport:
@@ -107,6 +113,7 @@ class Portal(unittest.TestCase):
                 self.assertIn('\n\nThe Kinetta team\n\n',sent_text)
                 self.assertIn('Open this link to create your Kinetta account.',sent_text)
                 self.assertNotIn("reply and we'll set you up",sent_text)
+                self.assertEqual(sent_text,preview,'admin preview and delivered text are identical')
                 self.assertEqual(self.client.post(path,json={}).json()['state'],'accepted');self.assertEqual(transport.call_count,1)
             with db.connect() as c:
                 row=c.execute('SELECT body,invite_id FROM beta_responses WHERE id=%s',(draft['request_key'],)).fetchone();self.assertNotIn('/join/',row['body'])

@@ -310,6 +310,9 @@ def response(rid:int,body:Draft,user=Depends(admin_user)):
                 if c.execute('SELECT 1 FROM invites WHERE id=%s AND used_at IS NOT NULL',(b['invite_id'],)).fetchone():raise HTTPException(409,'This applicant already joined.')
                 c.execute('DELETE FROM invites WHERE id=%s AND used_at IS NULL',(b['invite_id'],));audit(c,user['id'],'invite.revoke',b['invite_id'])
             c.execute('UPDATE beta_requests SET status=%s,invite_id=NULL WHERE id=%s',('waitlisted' if body.kind=='waitlist' else 'declined',rid))
+        # Store the exact message the admin preview shows; deliver() applies the same
+        # formatter again, which is intentionally idempotent for safe retries.
+        text=admin_mail.format_plain_text_email(text,greeting='Hello,')
         c.execute('INSERT INTO beta_responses (id,request_id,actor_id,kind,fingerprint,recipient,subject,body,invite_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',(body.request_key,rid,user['id'],body.kind,fingerprint,b['email'],body.subject,seal(text),iid))
         audit(c,user['id'],'beta.response_queued',rid)
     return {'id':str(body.request_key),'state':'queued','body':text}

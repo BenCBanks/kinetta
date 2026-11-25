@@ -22,6 +22,14 @@ from .auth import current_user
 
 router = APIRouter()
 VERIFY_HOURS, RESET_MINUTES = 24, 60
+UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS = 14
+
+
+def unconfirmed_account_delete_at(created):
+    """Return the exact UTC-aware deadline used for unconfirmed-account deletion."""
+    return created + dt.timedelta(days=UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS)
+
+
 SENT = 'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'
 RECOVERY_UNAVAILABLE = 'Email recovery isn’t available on this Kinetta. Contact the server administrator to regain access.'
 RESEND_SENT = 'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.'
@@ -267,8 +275,8 @@ def send_due_confirmation_reminders(limit=100):
     messages = []
     with db.connect() as c:
         reservation_lock(c)
-        rows = c.execute("""SELECT id, name, email::text AS email, email_confirmation_reminder_count AS sent,
-                                   (created::date + 14) AS deletion_date
+        rows = c.execute("""SELECT id, name, email::text AS email, created,
+                                   email_confirmation_reminder_count AS sent
           FROM users WHERE needs_email_confirm AND email_verified_at IS NULL AND suspended_at IS NULL AND email IS NOT NULL
             AND created >= (SELECT applied FROM schema_version WHERE version=109)
             AND ((email_confirmation_reminder_count=0 AND created<=now()-interval '1 day')
@@ -282,7 +290,7 @@ def send_due_confirmation_reminders(limit=100):
             c.execute("""UPDATE users SET email_confirmation_reminder_count=email_confirmation_reminder_count+1,
                          email_confirmation_reminder_at=now()
                        WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (user['id'],))
-            deletion_date = user['deletion_date'].isoformat()
+            deletion_date = unconfirmed_account_delete_at(user['created']).date().isoformat()
             if user['sent'] == 0:
                 subject = 'Your Kinetta account needs one more step'
                 text = (f"Confirm your email to keep your account: {link}. This link replaces earlier ones and works for {VERIFY_HOURS} hours. "

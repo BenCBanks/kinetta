@@ -27,10 +27,13 @@ def format_plain_text_email(body, *, greeting=None):
         text = re.sub(r'^(?:Hi|Hello)[^\n]*\n\s*\n', '', text, count=1, flags=re.I)
     text = re.sub(r'(?i)reply to this email(?:\s+(?:right away|if you have questions))?(?:\s+and we(?:\x27|’)ll help(?: sort it out)?)?\.?',
                   'For help, email feedback@kinetta.app.', text)
+    text = re.sub(r'(?i)If you\x27d like the iPhone beta,\s*reply and we(?:\x27|’)ll set you up\.',
+                  'For iPhone beta help, email feedback@kinetta.app.', text)
     text = re.sub(r'(?i)reply and we(?:\x27|’)ll set you up\.', 'For iPhone beta help, email feedback@kinetta.app.', text)
     text = re.sub(r'(Kinetta account )\(([^()@\s]+)\)', r'\1(@\2)', text)
     text = text.replace("Here's your link to create your Kinetta account.",
                         'Open this link to create your Kinetta account.')
+    text = re.sub(r'\n\s*The Kinetta team\s*\n\s*' + re.escape(EMAIL_FOOTER) + r'\s*$', '', text)
     text = re.sub(r'\n\s*The Kinetta team\s*$', '', text)
     text = re.sub(r'\n\s*' + re.escape(EMAIL_FOOTER) + r'\s*$', '', text)
     return text.rstrip() + '\n\n' + TEAM_SIGNATURE + '\n\n' + EMAIL_FOOTER

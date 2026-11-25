@@ -40,6 +40,9 @@ class AccountEmail(unittest.TestCase):
         self.sent = patch('app.account_email.httpx.post', side_effect=receipt); self.mail = self.sent.start(); self.addCleanup(self.sent.stop)
 
     def test_shared_plain_text_email_formatter(self):
+        created = datetime.datetime(2030, 1, 2, 18, 30, tzinfo=datetime.timezone.utc)
+        self.assertEqual(account_email.UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS, 14)
+        self.assertEqual(account_email.unconfirmed_account_delete_at(created), created + datetime.timedelta(days=14))
         text = admin_mail.format_plain_text_email(
             "Hi Fictional Member,\n\nSomeone signed in to your Kinetta account (zz_fixture) from a new device. "
             "Reply to this email and we'll help.")
@@ -50,6 +53,7 @@ class AccountEmail(unittest.TestCase):
         admin_reply = admin_mail.format_plain_text_email('A fictional response.', greeting='Hello,')
         self.assertTrue(admin_reply.startswith('Hello,\n\nA fictional response.'))
         self.assertIn('\n\nThe Kinetta team\n\n', admin_reply)
+        self.assertEqual(admin_mail.format_plain_text_email(admin_reply, greeting='Hello,'), admin_reply)
 
     def restore(self):      # each test starts from the same known passwords, even after a failure
         with db.connect() as c:
@@ -437,7 +441,10 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
         second = self.messages()[-1]
         with db.connect() as c:
-            deletion_date = c.execute('SELECT created::date + 14 AS date FROM users WHERE id=%s', (user['id'],)).fetchone()['date'].isoformat()
+            created = c.execute('SELECT created FROM users WHERE id=%s', (user['id'],)).fetchone()['created']
+        deadline = account_email.unconfirmed_account_delete_at(created)
+        self.assertEqual(deadline - created, datetime.timedelta(days=account_email.UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS))
+        deletion_date = deadline.date().isoformat()
         self.assertEqual(second['subject'], f'Confirm your Kinetta email by {deletion_date}')
         self.assertIn(f"Accounts that aren't confirmed within 14 days are deleted on {deletion_date}.", second['text'])
         self.assertIn('This link replaces earlier ones', second['text'])
