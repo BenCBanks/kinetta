@@ -359,9 +359,9 @@ def memories(user=Depends(current_user)):
     with db.connect() as c:
         locked(c,uid)
         c.execute("DELETE FROM kit_memories WHERE user_id=%s AND updated<now()-interval '180 days'",(uid,))
-        settings=c.execute('SELECT memory_enabled FROM kit_conversations WHERE user_id=%s',(uid,)).fetchone()
-        rows=c.execute('SELECT id,text,updated FROM kit_memories WHERE user_id=%s ORDER BY updated DESC,id DESC',(uid,)).fetchall()
-        return {'enabled':settings['memory_enabled'],'memories':rows}
+        settings=c.execute('SELECT memory_enabled,memory_version FROM kit_conversations WHERE user_id=%s',(uid,)).fetchone()
+        rows=c.execute('SELECT id,text,kind,source,created,updated,health_included FROM kit_memories WHERE user_id=%s ORDER BY updated DESC,id DESC',(uid,)).fetchall()
+        return {'enabled':settings['memory_enabled'],'version':settings['memory_version'],'memories':rows}
 
 
 @router.put('/memory')
@@ -369,7 +369,8 @@ def memory_settings(body:MemorySettings,user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
         locked(c,uid)
-        c.execute('UPDATE kit_conversations SET memory_enabled=%s,memory_version=memory_version+1 WHERE user_id=%s',(body.enabled,uid))
+        c.execute('UPDATE kit_conversations SET memory_enabled=%s WHERE user_id=%s',(body.enabled,uid))
+        kit_memory.changed(c,uid)
         if not body.enabled:c.execute('DELETE FROM kit_memories WHERE user_id=%s',(uid,))
     return {'ok':True}
 
@@ -379,7 +380,7 @@ def forget_all(user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
         locked(c,uid)
-        c.execute('UPDATE kit_conversations SET memory_version=memory_version+1 WHERE user_id=%s',(uid,))
+        kit_memory.changed(c,uid)
         c.execute('DELETE FROM kit_memories WHERE user_id=%s',(uid,))
     return {'ok':True}
 
@@ -389,6 +390,22 @@ def forget_one(memory_id:int,user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
         locked(c,uid)
-        c.execute('UPDATE kit_conversations SET memory_version=memory_version+1 WHERE user_id=%s',(uid,))
+        kit_memory.changed(c,uid)
         c.execute('DELETE FROM kit_memories WHERE user_id=%s AND id=%s',(uid,memory_id))
     return {'ok':True}
+
+
+@router.post('/memory')
+def add_memory(body:kit_memory.MemoryIn,user=Depends(current_user)):
+    uid=user['id']
+    with db.connect() as c:
+        locked(c,uid)
+        return kit_memory.save(c,uid,body)
+
+
+@router.patch('/memory/{memory_id}')
+def edit_memory(memory_id:int,body:kit_memory.MemoryIn,user=Depends(current_user)):
+    uid=user['id']
+    with db.connect() as c:
+        locked(c,uid)
+        return kit_memory.save(c,uid,body,memory_id)

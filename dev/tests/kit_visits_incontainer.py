@@ -80,7 +80,7 @@ try:
         pending=body(third,'I train on Sundays.');request(a,'POST','/messages',pending)
         with patch('app.coach_chat.answer',side_effect=slow),ThreadPoolExecutor(max_workers=1) as pool:
             future=pool.submit(request,a,'POST','/messages/'+pending['client_id']+'/answer',{'generation':third['generation'],'visit_id':third['visit_id']});assert started.wait(10)
-            request(a,'DELETE','/memory');release.set();assert future.result()['state']=='answered'
+            request(a,'DELETE','/memory');release.set();assert future.result()['cancelled']
         assert not request(a,'GET','/memory')['memories']
         started.clear();release.clear();pending=body(third,'I train in the evenings.');request(a,'POST','/messages',pending)
         with patch('app.coach_chat.answer',side_effect=slow),ThreadPoolExecutor(max_workers=1) as pool:
