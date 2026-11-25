@@ -65,7 +65,8 @@ class Groups(unittest.TestCase):
         return group, token
 
     def accept(self, token, who=1):
-        return self.clients[who].post(f'/api/group-invites/{token}/accept', json={})
+        # Legacy Groups fixtures stay private unless a case exercises the new join choice.
+        return self.clients[who].post(f'/api/group-invites/{token}/accept', json={'share_total':False})
 
     def activity(self, who, at, *, sport='hike', distance=1000, ascent=20, seconds=1200, name='PRIVATE WORKOUT', visibility='friends'):
         with db.connect() as c:
@@ -99,7 +100,7 @@ class Groups(unittest.TestCase):
                 self.assertTrue(c.execute("SELECT relrowsecurity FROM pg_class WHERE relname='group_friend_invites'").fetchone()['relrowsecurity'])
                 self.assertTrue(c.execute("SELECT has_table_privilege('fit_readers','group_friend_invites','SELECT') AS ok").fetchone()['ok'])
                 self.assertTrue(c.execute("SELECT has_table_privilege('fit_all_readers','group_friend_invites','SELECT') AS ok").fetchone()['ok'])
-                policy=c.execute("SELECT polqual::text AS qual FROM pg_policy WHERE polrelid='group_friend_invites'::regclass AND polname='own_invitee_rows'").fetchone()['qual']
+                policy=c.execute("SELECT pg_get_expr(polqual,polrelid) AS qual FROM pg_policy WHERE polrelid='group_friend_invites'::regclass AND polname='own_invitee_rows'").fetchone()['qual']
                 self.assertIn('invitee_id',policy)
                 self.assertIn('fit_me()',policy)
                 fields=c.execute("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname='notifications_group_fields'").fetchone()['definition']
@@ -217,13 +218,13 @@ class Groups(unittest.TestCase):
             invite=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(group['id'],self.ids[2])).fetchone()
             c.execute("INSERT INTO group_members(group_id,user_id,status,sharing_level) VALUES(%s,%s,'left','total_shared')",
                       (group['id'],self.ids[2]))
-        joined=self.clients[2].post(f"/api/group-invites/{token}/accept",json={'share_total':False})
+        joined=self.clients[2].post(f"/api/group-invites/{token}/accept",json={'share_total':True})
         self.assertEqual(joined.status_code,200,joined.text)
         with db.connect() as c:
             member=c.execute('SELECT status,sharing_level FROM group_members WHERE group_id=%s AND user_id=%s',(group['id'],self.ids[2])).fetchone()
             invite_state=c.execute('SELECT status,responded_at IS NOT NULL AS responded FROM group_friend_invites WHERE id=%s',(invite['id'],)).fetchone()
             self.assertEqual(c.execute('SELECT count(*) AS n FROM notifications WHERE group_friend_invite_id=%s',(invite['id'],)).fetchone()['n'],0)
-        self.assertEqual(member,{'status':'active','sharing_level':'just_in'})
+        self.assertEqual(member,{'status':'active','sharing_level':'total_shared'})
         self.assertEqual(invite_state,{'status':'accepted','responded':True})
 
     def test_friend_accept_conflict_path_saves_share_choice(self):
@@ -236,11 +237,11 @@ class Groups(unittest.TestCase):
         self.assertEqual(sent.status_code,200,sent.text)
         with db.connect() as c:
             invite=c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s AND status=\'pending\'',(group['id'],self.ids[2])).fetchone()
-        accepted=self.clients[2].post(f"/api/group-friend-invites/{invite['id']}/accept",json={'share_total':False})
+        accepted=self.clients[2].post(f"/api/group-friend-invites/{invite['id']}/accept",json={'share_total':True})
         self.assertEqual(accepted.status_code,200,accepted.text)
         with db.connect() as c:
             member=c.execute('SELECT status,sharing_level FROM group_members WHERE group_id=%s AND user_id=%s',(group['id'],self.ids[2])).fetchone()
-        self.assertEqual(member,{'status':'active','sharing_level':'just_in'})
+        self.assertEqual(member,{'status':'active','sharing_level':'total_shared'})
 
     def test_goal_sports_start_date_training_line_and_weekly_target(self):
         zone = ZoneInfo('America/New_York')
@@ -376,7 +377,7 @@ class Groups(unittest.TestCase):
         self.assertNotIn('Half marathon', preview.text)
         self.assertNotIn(group['title'], preview.text)
         self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).status_code, 404)
-        accepted = self.accept(original)
+        accepted = self.clients[1].post('/api/group-invites/' + original + '/accept',json={})
         self.assertEqual(accepted.status_code, 200, accepted.text)
         self.assertEqual(accepted.json()['member_count'], 2)
         self.assertEqual(accepted.json()['sharing_level'], 'total_shared', 'the link join switch defaults on')
