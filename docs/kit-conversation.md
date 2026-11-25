@@ -26,3 +26,29 @@ array and otherwise use the existing interpretation path; they should never part
 
 Numeric evidence checks are deterministic. Qualitative accuracy and coaching usefulness also require claim
 validation and human-reviewed provider evaluation; contract fixtures alone do not establish model quality.
+
+## Complete responses and token limits
+
+Ordinary Gemini conversational answers reserve 8192 output tokens at LOW and 16384 at MEDIUM.
+Thinking and visible JSON share that allowance. This is a ceiling, not an answer-length target:
+by default the prompt asks for one or two short paragraphs, below 120 words, with only necessary facts.
+Explicit detail requests allow up to 600 words. The live default remains LOW.
+
+A `MAX_TOKENS` response is never displayed, even if its partial JSON happens to parse or has no content.
+Production can make one correction with no tools, the same evidence and doubled output ceiling (16384 LOW,
+32768 MEDIUM), requesting a short complete replacement. Consent, current visit, budgets and exact claim checks
+still apply. A second truncation fails closed; there is no third call. Other validation errors retain the
+existing single correction. Smoke experiments disable corrections and retain their two-provider-turn cap.
+
+Private evaluator rows include `provider_turns`: finish reason, thinking setting, requested output ceiling,
+and prompt/candidate/thinking/total token counts per call. Unknown values stay null. Rejected text and errors
+remain paired. The evaluator observes the existing settlement boundary for frozen older baselines, without rewriting their bytes;
+finish reasons are null only when the provider omitted them.
+
+Cost estimates use the app's configured Flash rates ($1.50/M input, $7.50/M output including thinking), not a
+new live pricing claim. Raising a ceiling adds no fixed fee: the estimate is input_tokens × 0.0000015 +
+(candidate_tokens + thinking_tokens) × 0.0000075. For example, 5000 input + 500 visible + 2000 thinking tokens
+cost $0.02625. Output-only maxima for one full-budget initial response are $0.06144 LOW / $0.12288 MEDIUM;
+one full-budget retry adds at most $0.12288 / $0.24576 output, plus its input. Tool turns cost separately.
+Actual average change needs the next owner-run experiment; fewer failed correction calls may offset the
+larger allowance. Existing dollar caps remain enforced, so a larger reservation may stop an experiment earlier.

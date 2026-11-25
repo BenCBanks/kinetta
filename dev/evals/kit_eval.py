@@ -68,6 +68,7 @@ metadata.update(candidate_fingerprint=ai_release.kit_fingerprint(),ai_text=ai_re
 save_report(metadata)
 today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
 diagnostics=RejectionDiagnostics(coach_chat)
+diagnostics.attach(baseline)
 weekly_case_ids={case[0] for case in selected_cases
                  if len(case)>3 and isinstance(case[3],dict) and case[3].get('weekly_review')}
 weekly_accounts={};weekly_manifests={}
@@ -194,6 +195,7 @@ try:
        'fixture':weekly_manifests.get(cid),'weekly_request':transport,'weekly_review':weekly,
        'evaluation_account':'health-consent-off' if weekly and cid=='weekly-health-consent-off' else 'primary',
        'answer':answer,'error':error,'provider_requests':provider_requests,
+       'provider_turns':rejection.get('provider_turns',[]),
        'expected_refusal':expected_refusal,'passed':passed,
        'rejection':rejection if rejection and 'validation_error' in rejection else None,
        'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}

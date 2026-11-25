@@ -23,12 +23,23 @@ class RejectionDiagnostics:
     def __init__(self, coach_chat):
         self._state = local()
         self._install(coach_chat)
+        # Frozen baseline bytes need not know about diagnostics. Observe the existing
+        # settlement boundary to recover finish metadata before an old adapter discards it.
+        budget=getattr(coach_chat,'ai_budget',None)
+        if budget is not None:
+            original_settle=budget.settle
+            def settle(attempt,result):
+                if getattr(self._state,'capture',None) is not None:
+                    self._state.provider_result=result
+                return original_settle(attempt,result)
+            budget.settle=settle
 
     def begin(self):
         capture = {}
         self._state.capture = capture
         self._state.raw = None
         self._state.usage = None
+        self._state.provider_result = None
         return capture
 
     def end(self):
@@ -64,12 +75,28 @@ class RejectionDiagnostics:
 
         def record_turn(original):
             def wrapped(*args, **kwargs):
+                self._state.provider_result=None
                 result = original(*args, **kwargs)
                 calls, text, _ = result
                 capture = getattr(self._state, 'capture', None)
-                if capture is not None and not calls:
-                    self._state.raw = text
-                    self._state.usage = result[2]
+                if capture is not None:
+                    payload=getattr(self._state,'provider_result',None) or {}
+                    candidate=(payload.get('candidates') or [{}])[0]
+                    usage={**(payload.get('usageMetadata') or {}),**result[2]}
+                    if usage.get('finishReason') is None:usage['finishReason']=candidate.get('finishReason')
+                    capture.setdefault('provider_turns',[]).append({
+                        'finish_reason':usage.get('finishReason'),
+                        'thinking_level':usage.get('thinkingLevel'),
+                        'max_output_tokens':usage.get('maxOutputTokens'),
+                        'tool_calls':len(calls),
+                        'usage':{key:usage.get(key) for key in ('promptTokenCount','candidatesTokenCount',
+                                                            'thoughtsTokenCount','totalTokenCount')}})
+                    if not calls:
+                        self._state.raw = text
+                        self._state.usage = usage
+                        if usage.get('finishReason')=='MAX_TOKENS':
+                            from .kit_conversation import OutputTruncated
+                            self._record(OutputTruncated(),text)
                 return result
             return wrapped
 

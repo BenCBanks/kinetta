@@ -633,18 +633,18 @@ def _weekly_period(today):
     return {'start':start,'end':end,'previous_start':previous_start,'previous_end':previous_end,'label':label}
 
 
-def _gemini_turn(messages, definitions, *, system=SYSTEM):
+def _gemini_turn(messages, definitions, *, system=SYSTEM, thinking_level=None):
     declarations = [{'name': t['name'], 'description': t['description'], 'parametersJsonSchema': t['input_schema']} for t in definitions]
     from . import kit_claims
     weekly = system == KIT_WEEKLY_SYSTEM or kit_claims.is_weekly_system(system)
     from . import kit_conversation
     body = {'systemInstruction': {'parts': [{'text': system}]}, 'contents': messages,
             'tools': [{'functionDeclarations': declarations}],
-            'generationConfig': {'temperature': .2, 'maxOutputTokens': kit_conversation.output_tokens(system,4096 if weekly else 2500)}}
+            'generationConfig': {'temperature': .2, 'maxOutputTokens': kit_conversation.output_tokens(system,4096 if weekly else 2500,thinking_level=thinking_level)}}
     model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
     from . import kit_conversation
     if (weekly or system == KIT_SYSTEM or kit_conversation.is_system(system)) and model == 'gemini-3.8-flash':
-        body['generationConfig']['thinkingConfig'] = {'thinkingLevel':'LOW'}
+        body['generationConfig']['thinkingConfig'] = {'thinkingLevel':thinking_level or 'LOW'}
     if not declarations:
         body.pop('tools')
         body['generationConfig']['responseMimeType'] = 'application/json'
@@ -660,11 +660,14 @@ def _gemini_turn(messages, definitions, *, system=SYSTEM):
     else: ai_budget.settle(attempt,result)
     finally: ai_budget.finish(attempt)
     content = (result.get('candidates') or [{}])[0].get('content')
-    if not content: raise ValueError('Kit did not return an answer')
+    if not content:
+        truncated=kit_conversation.empty_truncation(result,system,thinking_level)
+        if truncated is not None:return truncated
+        raise ValueError('Kit did not return an answer')
     messages.append(content)  # Preserve function IDs and thought signatures exactly, including parallel calls.
     calls = [p['functionCall'] for p in content.get('parts', []) if 'functionCall' in p]
     text = ''.join(p.get('text', '') for p in content.get('parts', []) if not p.get('thought'))
-    usage = result.get('usageMetadata') or {}
+    usage = kit_conversation.provider_usage(result,result.get('usageMetadata') or {},system=system,thinking_level=thinking_level)
     return calls, text, usage
 
 
@@ -758,6 +761,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
             from . import kit_conversation
             try:
+                if kit and not weekly_review:kit_conversation.check_completion(tokens)
                 raw=_json(text)
                 conversation_contract=conversation_contract or (kit and not weekly_review and kit_conversation.has_blocks(raw))
                 checked = (kit_conversation.check_for_question(raw, evidence, question, weekly_review=weekly_review, require_blocks=conversation_contract)
@@ -798,11 +802,13 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                         with db.coach_connect(uid) as c:
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
                     from . import kit_claims
-                    retry_message=(kit_claims.conversation_retry_prompt(error) if conversation_contract else _kit_retry_prompt(error))
+                    retry_message=(kit_conversation.truncation_prompt() if kit_conversation.is_truncated(error) else
+                                   kit_claims.conversation_retry_prompt(error) if conversation_contract else _kit_retry_prompt(error))
                     messages.append({'role':'user','parts':[{'text':retry_message}]} if provider=='gemini'
                                     else {'role':'user','content':retry_message})
                     try:
-                        with ai_budget.scope(uid):retry_calls,retry_text,retry_tokens=turn(messages,[])
+                        with ai_budget.scope(uid),kit_conversation.retry_budget(error):
+                            retry_calls,retry_text,retry_tokens=turn(messages,[])
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
                     if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
                     if not coach.allowed(uid):raise ValueError(coach.off())
@@ -811,7 +817,9 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
                     for key in usage:usage[key]+=int(retry_tokens.get(key) or 0)
                     if retry_calls:raise ValueError('Kit could not verify that answer. Try again.')
-                    try:checked=kit_conversation.check_for_question(_json(retry_text),evidence,question,require_blocks=conversation_contract)
+                    try:
+                        kit_conversation.check_completion(retry_tokens)
+                        checked=kit_conversation.check_for_question(_json(retry_text),evidence,question,require_blocks=conversation_contract)
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
             if kit and not weekly_review:
                 # The UI consumes only interpretation. Keep the validated source fields internal
