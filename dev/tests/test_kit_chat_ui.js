@@ -42,6 +42,21 @@ assert.equal(c.Kit.foodIntent('2 eggs and toast',true)?.kind,'food','the follow-
 assert.equal(c.Kit.foodIntent('How many calories was breakfast?',true),null,'a follow-up question stays in Kit');
 const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,3);assert(accountKeys.some(k=>k.startsWith('fit.kit.visit:')),'device erasure also drops the locally retained visit identifier');assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
+{
+ const blocks={};vm.createContext(blocks);
+ vm.runInContext(pick('  function answerBlocks(a){','  function copyIncludesValue(')+'\nglobalThis.blocks=answerBlocks;globalThis.copy=answerCopy;',blocks);
+ const answer={answer_blocks:[{kind:'paragraph',text:'Your logged runs covered 12 km.'},{kind:'list',items:['Keep your next run easy.','Leave room for rest.']}],interpretation:'Legacy flattened copy',reason:'Legacy reason'};
+ assert.equal(blocks.copy(answer),'Your logged runs covered 12 km. Keep your next run easy. Leave room for rest.','duplicate-fact checks use only the visible blocks');
+ assert.equal(blocks.blocks(answer),answer.answer_blocks,'server-formatted values/labels pass through unchanged');
+ for(const invalid of [undefined,null,[],{},[{kind:'chart',text:'No chart'}],[{kind:'paragraph',text:' '}],[{kind:'paragraph',text:3}],[{kind:'list',items:[]}],[{kind:'list',items:['ok',null]}],[{kind:'paragraph',text:'ok'},null]]){
+  const old={answer_blocks:invalid,interpretation:'Saved answer'};
+  assert.equal(blocks.blocks(old),null,'an absent or malformed block array uses the entire legacy fallback');
+  assert.equal(blocks.copy(old),'Saved answer');
+ }
+ for(const invalid of [Array.from({length:11},()=>({kind:'paragraph',text:'x'})),[{kind:'paragraph',text:'x'.repeat(1601)}],[{kind:'list',items:Array(7).fill('x')}],[{kind:'list',items:['x'.repeat(601)]}]])assert.equal(blocks.blocks({answer_blocks:invalid}),null,'out-of-contract bounds fall back without truncation');
+ for(const valid of [[{kind:'paragraph',text:'🙂'.repeat(1600)}],[{kind:'list',items:Array(6).fill('x'.repeat(600))}],Array.from({length:10},()=>({kind:'paragraph',text:'x'}))])assert.equal(blocks.blocks({answer_blocks:valid}),valid,'exact bounds and Unicode follow the checked Python contract');
+ for(const mode of ['weekly_review','workout_review'])assert.equal(blocks.blocks({...answer,[mode]:{}}),null,mode+' keeps its dedicated renderer');
+}
 assert(source.includes("send(c,label,index)")&&source.includes("button.querySelector('span')?.textContent"),'a starter sends its visible button label separately from its hidden guidance index');
 assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the stored question verbatim');
 assert(source.includes('filter(q=>workoutMode||isFirstPersonFollowup(q))')&&source.includes('class="kit-suggested-reply" data-kit-followup'),'Kit keeps ordinary first-person checks and presents app-chosen workout follow-ups');

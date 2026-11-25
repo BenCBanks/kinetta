@@ -1,6 +1,6 @@
 // Fictional Kit answer: plain training verdicts and user-voice replies at phone widths.
 'use strict';
-const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {chromium,webkit}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS||'/tmp/kit-answer-ui';
 const generation='fixture-kit-ask-detail-generation';
 const message={id:1,client_id:'fixture-kit-ask-detail',question:'How was my recent training?',state:'answered',answer:{
@@ -15,12 +15,66 @@ const message={id:1,client_id:'fixture-kit-ask-detail',question:'How was my rece
   'Do you feel ready to train again?'
  ]
 }};
+// These are checked server-response stand-ins, not generated coaching or model-quality evidence.
+async function conversationBlocksUi(browser,state){
+ const rich={answer_blocks:[
+  {kind:'paragraph',text:'Keep the next run easy and see how your legs feel afterward.'},
+  {kind:'paragraph',text:'Your recorded runs covered 12 km. That gives us a starting point; it does not tell us how recovered you feel.'},
+  {kind:'list',items:['Choose an easy effort you can comfortably talk through.','Leave the harder session for a day when your legs feel ready.','Tell me if your available days have changed.']}
+ ],interpretation:'Legacy flattened copy must not repeat.',verdict:'Legacy verdict must not repeat.',reason:'Legacy reason must not repeat.',
+ facts:[{label:'Distance',path:['known_totals','distance_m'],value:12000,display_value:'12 km'},{label:'Protein goal',path:['protein_target'],value:120,display_value:'120 g'}],
+ follow_ups:['Help me plan my next run','Review my food logs'],selection:{id:'fictional-proposal'}};
+ const thin={answer_blocks:[{kind:'paragraph',text:'I do not have enough recorded workouts to compare yet.'},{kind:'paragraph',text:'Tell me what you want to work toward, and we can choose a next step.'}],interpretation:'Legacy copy',facts:[],actions:['plan']};
+ for(const width of [390,330])for(const theme of ['light','dark']){
+  const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpected=[];
+  let answer=rich;const visit='fictional-blocks-visit',gen='fictional-blocks-generation';
+  p.on('pageerror',e=>errors.push(e.message));
+  try{
+   await c.route('**/*',async route=>{
+    const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
+    if(u.pathname==='/api/me'&&req.method()==='GET'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...(me.ai_access||{}),coach:{available:true,entitled:true}}}});}
+    if(u.pathname==='/api/coach/conversation/visits'&&req.method()==='POST')return route.fulfill({json:{visit_id:visit,generation:gen,ready:true}});
+    if(u.pathname==='/api/coach/conversation'&&req.method()==='GET')return route.fulfill({json:{generation:gen,ready:true,before:null,messages:[{id:1,client_id:'fictional-blocks-message',question:'How should I approach my next week?',state:'answered',answer}]}});
+    if(u.pathname==='/api/challenges/signup/continue'&&req.method()==='POST')return route.fulfill({json:{joined:null}});
+    if(req.method()!=='GET'){unexpected.push(u.pathname);return route.fulfill({json:{}});}
+    return route.continue();
+   });
+   const load=async()=>{await p.goto(base+'/me/kit?from=progress');await p.locator('.kit-answer').waitFor({state:'visible'});};
+   await load();
+   assert.deepEqual(await p.locator('.kit-answer-blocks>p').allTextContents(),rich.answer_blocks.filter(b=>b.kind==='paragraph').map(b=>b.text));
+   assert.deepEqual(await p.locator('.kit-answer-blocks li').allTextContents(),rich.answer_blocks[2].items);
+   assert.equal(await p.locator('.kit-answer').innerText().then(t=>t.includes('Legacy')),false,'the blocks replace all flattened/verdict/reason duplicates');
+   assert.equal(await p.locator('.kit-facts>div').count(),1,'a value cited in the paragraph is not repeated in the fact rows');
+   assert.equal(await p.locator('.kit-facts dt').innerText(),'Protein goal','uncited app-labelled facts are retained');
+   assert.equal(await p.locator('[data-kit-review]').count(),1,'the proposal still requires its explicit Review action');
+   assert.deepEqual(await p.locator('.kit-suggested-reply span').allTextContents(),rich.follow_ups,'existing sendable follow-ups are retained');
+   const geometry=await p.locator('.kit-answer-blocks').evaluate(el=>({font:parseFloat(getComputedStyle(el).fontSize),overflow:el.scrollWidth>el.clientWidth+1,right:el.getBoundingClientRect().right,viewport:innerWidth}));
+   assert(geometry.font===15&&!geometry.overflow&&geometry.right<=geometry.viewport,`${width}px ${theme}: regular Kit text fits without horizontal clipping: ${JSON.stringify(geometry)}`);
+   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-conversation-${width}-${theme}.png`),animations:'disabled'});}
+   answer=thin;await load();
+   assert.equal(await p.locator('.kit-facts').count(),0,'thin answers do not manufacture fact rows');
+   assert.equal(await p.locator('.kit-answer-followups a').innerText(),'Training plan','legacy app actions remain reachable');
+   if(out)await p.screenshot({path:path.join(out,`kit-conversation-thin-${width}-${theme}.png`),animations:'disabled'});
+   answer={answer_blocks:[{kind:'paragraph',text:'A partial block must not render'},{kind:'unsupported',text:'Unknown'}],interpretation:'Saved answer stays readable.',facts:[]};await load();
+   assert.equal(await p.locator('.kit-answer-blocks').count(),0,'malformed blocks use the complete legacy renderer');
+   assert.equal(await p.locator('.kit-answer').innerText(),'Saved answer stays readable.');
+   const hostile='<img src=x onerror=alert(1)> **plain text** [not a link](javascript:alert(1))';
+   answer={answer_blocks:[{kind:'paragraph',text:hostile},{kind:'list',items:[hostile]}],facts:[]};await load();
+   assert.deepEqual(await p.locator('.kit-answer-blocks p,.kit-answer-blocks li').allTextContents(),[hostile,hostile],'block prose stays literal text');
+   assert.equal(await p.locator('.kit-answer-blocks img,.kit-answer-blocks a,.kit-answer-blocks strong').count(),0,'neither HTML nor Markdown becomes executable markup');
+   assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[],'block rendering makes no generation or data-changing request');
+  }finally{await c.close();}
+ }
+ console.log('Conversational Kit blocks: 390/330 light/dark; paragraphs/list, thin data, legacy fallback, escaped text, actions and fact deduplication pass.');
+}
 async function main(){
- const browser=await chromium.launch(),login=await browser.newContext(),contexts=[];
+ const browser=await (process.env.KIT_UI_BROWSER==='webkit'?webkit:chromium).launch(),login=await browser.newContext(),contexts=[];
  try{
   const signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});
   assert.equal(signed.status(),200,'fictional demo account can sign in: '+await signed.text());
   const state=await login.storageState();
+  await conversationBlocksUi(browser,state);
+  if(process.env.KIT_BLOCKS_ONLY)return;
   for(const width of [390,330])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
    const visitRequests=[],endRequests=[],conversationReads=[],clearRequests=[];
