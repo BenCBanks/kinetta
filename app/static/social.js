@@ -608,7 +608,7 @@ async function homeFeed(el) {
   weeklyRecapAfterReady(recap,account);
   let items=[],shown=null,pageRevision=0;
   const active=()=>account===readOwner()&&list.isConnected,tools=feedTools(el,()=>account===readOwner()&&list.isConnected);
-  homeAfterReady(el,account,()=>activityGroupStrip(groupStrip,account));
+  homeAfterReady(el,account,()=>Promise.allSettled([tools.refresh(),activityGroupStrip(groupStrip,account)]));
   const draw=pg=>{
     if(!active())return;
     const visible=visibleFeedRows(pg.rows);pg={...pg,rows:visible,friends:visible.filter(a=>a.owner).length};
@@ -696,7 +696,7 @@ function feedTools(el,current){
   });
   async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/challenges').then(rows=>{if(live()){challenges=rows;challengeKnown=true;}})]);ready=true;draw();}
   const onResize=()=>{if(!live())return;applySlot();if(ready&&challengeKnown)measureSlot();};window.addEventListener('resize',onResize,{passive:true});viewResources.set(host,()=>window.removeEventListener('resize',onResize));
-  applySlot();draw();const initial=refresh();return{refresh,ready:initial};
+  applySlot();draw();const initial=Promise.resolve();return{refresh,ready:initial};
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
