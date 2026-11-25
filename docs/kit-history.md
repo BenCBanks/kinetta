@@ -24,7 +24,8 @@ Source deletion or consent revocation permanently wipes sensitive/unknown-proven
 answers and cancels pending work; restoring consent or reimporting data cannot restore
 them. Questions and an irreversible invalidation timestamp remain until chat deletion.
 Database triggers cover consent revocation, imported workout deletion, Garmin disconnect,
-weight/sample/exclusion removal, and resting/day-energy/projection deletion. Routine sync
+weight/sample/exclusion removal, and resting/day-energy/raw-stream deletion. Health daily-weight and best-effort
+projection rebuilds retain their underlying source records and never erase Kit data. Routine sync
 updates, including corrected measurements, do not erase saved answers or notes or cancel
 pending work. Sensitive preference notes are deleted on consent revocation, not on routine
 updates or source deletion: they are the person's own saved words. Owner reporting SQL

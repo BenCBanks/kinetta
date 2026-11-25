@@ -2363,21 +2363,28 @@ MIGRATIONS = [
     CREATE TRIGGER kit_invalidation_sticks BEFORE UPDATE ON kit_turns
       FOR EACH ROW EXECUTE FUNCTION fit_kit_invalidation_sticks();
     CREATE FUNCTION fit_kit_source_removed() RETURNS trigger LANGUAGE plpgsql AS $$
-    DECLARE oldrow jsonb; newrow jsonb; k text; invalidate boolean=false;
+    DECLARE oldrow jsonb; newrow jsonb; k text; invalidate boolean=false; revoked boolean=false;
     BEGIN
       IF TG_OP<>'INSERT' THEN oldrow=to_jsonb(OLD); END IF;
       IF TG_OP<>'DELETE' THEN newrow=to_jsonb(NEW); END IF;
       IF TG_TABLE_NAME='profile' THEN
         FOREACH k IN ARRAY ARRAY['ai_ok','health_ai_ok','health_weight_ai_ok','garmin_ai_ok','health_weight_read'] LOOP
-          invalidate=invalidate OR (oldrow->k='true'::jsonb AND newrow->k IS DISTINCT FROM 'true'::jsonb);
+          revoked=revoked OR (oldrow->k='true'::jsonb AND newrow->k IS DISTINCT FROM 'true'::jsonb);
         END LOOP;
-        invalidate=invalidate OR (OLD.weight_kg IS NOT NULL AND NEW.weight_kg IS NULL);
+        invalidate=revoked OR (OLD.weight_kg IS NOT NULL AND NEW.weight_kg IS NULL);
       ELSIF TG_TABLE_NAME='connections' THEN
         invalidate=oldrow->>'kind'='garmin_connect';
       ELSIF TG_TABLE_NAME='activities' THEN
         invalidate=(oldrow->>'source' IN ('healthkit','garmin_connect')
           OR oldrow->>'healthkit_id' IS NOT NULL) AND
           TG_OP='DELETE';
+      ELSIF TG_TABLE_NAME='weights' THEN
+        -- A Health daily weight is a projection: rebuilding it must not erase Kit
+        -- while its original, permitted sample is still present.
+        invalidate=TG_OP='DELETE' AND NOT (oldrow->>'source' IS NOT DISTINCT FROM 'healthkit'
+          AND EXISTS(SELECT 1 FROM health_weight_samples s
+            WHERE s.user_id=(oldrow->>'user_id')::bigint
+              AND s.sample_id=(oldrow->>'health_sample_id')::uuid AND NOT s.deleted AND NOT s.excluded));
       ELSIF TG_TABLE_NAME='health_weight_samples' AND TG_OP='UPDATE' THEN
         invalidate=(newrow->>'deleted'='true' AND oldrow->>'deleted'<>'true')
           OR (newrow->>'excluded'='true' AND oldrow->>'excluded'<>'true');
@@ -2387,11 +2394,7 @@ MIGRATIONS = [
       END IF;
       IF invalidate THEN
         PERFORM fit_invalidate_kit(coalesce((oldrow->>'user_id')::bigint,(newrow->>'user_id')::bigint),
-          TG_TABLE_NAME='profile' AND (oldrow->'ai_ok' IS DISTINCT FROM newrow->'ai_ok'
-            OR oldrow->'health_ai_ok' IS DISTINCT FROM newrow->'health_ai_ok'
-            OR oldrow->'health_weight_ai_ok' IS DISTINCT FROM newrow->'health_weight_ai_ok'
-            OR oldrow->'garmin_ai_ok' IS DISTINCT FROM newrow->'garmin_ai_ok'
-            OR oldrow->'health_weight_read' IS DISTINCT FROM newrow->'health_weight_read'));
+          revoked);
       END IF;
       RETURN NULL;
     END $$;
@@ -2422,7 +2425,7 @@ MIGRATIONS = [
     CREATE TRIGGER kit_weight_excluded AFTER INSERT ON health_weight_exclusions
       FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed();
     DO $$ DECLARE t text; BEGIN
-      FOREACH t IN ARRAY ARRAY['weights','health_resting','day_energy','activity_streams','best_efforts'] LOOP
+      FOREACH t IN ARRAY ARRAY['weights','health_resting','day_energy','activity_streams'] LOOP
         EXECUTE format('CREATE TRIGGER kit_source_removed AFTER DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fit_kit_source_removed()',t);
       END LOOP;
     END $$;

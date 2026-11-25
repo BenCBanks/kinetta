@@ -188,7 +188,7 @@ class HistoryStorage(unittest.TestCase):
                 ('best_efforts',"INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) VALUES(%s,%s,'run',1000,'1 km',300,now())")]:
                 c.execute(seed,(self.a,aid));_,_,mid=self.fixture(c,self.a)
                 c.execute(sql.SQL('DELETE FROM {} WHERE user_id=%s').format(sql.Identifier(table)),(self.a,))
-                self.assertIsNotNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE id=%s',(mid,)).fetchone()['invalidated_at'])
+                self.assertEqual(c.execute('SELECT invalidated_at FROM kit_turns WHERE id=%s',(mid,)).fetchone()['invalidated_at'] is not None,table=='activity_streams')
             _,_,mid=self.fixture(c,self.a)
             c.execute("INSERT INTO health_weight_exclusions(user_id,day,before_time) VALUES(%s,current_date,now())",(self.a,))
             self.assertIsNotNone(c.execute('SELECT invalidated_at FROM kit_turns WHERE id=%s',(mid,)).fetchone()['invalidated_at'])
@@ -252,6 +252,28 @@ class HistoryStorage(unittest.TestCase):
             self.assertIsNone(c.execute('SELECT answer FROM kit_turns WHERE id=%s',(mid,)).fetchone()['answer'])
             self.assertIsNone(c.execute('SELECT lease FROM kit_turns WHERE id=%s',(pending,)).fetchone()['lease'])
             self.assertEqual(c.execute('SELECT count(*) n FROM kit_memories WHERE user_id=%s',(self.a,)).fetchone()['n'],1)
+
+    def test_health_weight_and_workout_projection_rebuilds_do_not_erase(self):
+        from app import api_health_weights
+        with db.connect() as c:
+            c.execute("UPDATE profile SET ai_ok=true,health_ai_ok=true,health_weight_ai_ok=true,health_weight_read=true WHERE user_id=%s",(self.a,))
+            sample=uuid.uuid4()
+            c.execute('INSERT INTO health_weight_samples(user_id,sample_id,sampled_at,kg,observed_at) VALUES(%s,%s,now(),70,now())',(self.a,sample))
+            api_health_weights.rebuild(c,self.a,'UTC')
+            aid=c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'run','healthkit','Fictional rebuilt run',now()) RETURNING id",(self.a,)).fetchone()['id']
+            _,_,mid=self.fixture(c,self.a);_,_,running=self.fixture(c,self.a,'running')
+            c.execute("INSERT INTO kit_memories(user_id,text,health_included) VALUES(%s,'I prefer evening walks.',true)",(self.a,))
+            turns=c.execute('SELECT * FROM kit_turns WHERE id=ANY(%s) ORDER BY id',([mid,running],)).fetchall()
+            version=c.execute('SELECT memory_version FROM kit_conversations WHERE user_id=%s',(self.a,)).fetchone()['memory_version']
+            for kg in [70,71]:
+                c.execute('UPDATE health_weight_samples SET kg=%s,observed_at=now() WHERE user_id=%s AND sample_id=%s',(kg,self.a,sample))
+                api_health_weights.rebuild(c,self.a,'UTC')
+                c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) VALUES(%s,%s,'run',1000,'1 km',300,now())",(self.a,aid))
+                c.execute('DELETE FROM best_efforts WHERE user_id=%s AND activity_id=%s',(self.a,aid))
+                self.assertEqual(c.execute('SELECT * FROM kit_turns WHERE id=ANY(%s) ORDER BY id',([mid,running],)).fetchall(),turns)
+                self.assertEqual(c.execute('SELECT memory_version FROM kit_conversations WHERE user_id=%s',(self.a,)).fetchone()['memory_version'],version)
+                self.assertEqual(c.execute('SELECT count(*) n FROM kit_memories WHERE user_id=%s',(self.a,)).fetchone()['n'],1)
+                self.assertEqual(c.execute('SELECT kg FROM weights WHERE user_id=%s',(self.a,)).fetchone()['kg'],kg)
 
 
 if __name__=='__main__':unittest.main()
