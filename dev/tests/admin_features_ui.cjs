@@ -13,7 +13,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
     page.on('pageerror',e=>errors.push(e.message));
     await context.route('**/*',route=>{const r=route.request(),u=new URL(r.url());return u.origin!==base||!['GET','HEAD'].includes(r.method())?route.abort():route.continue();});
     await page.goto(base+'/admin');await page.locator('#portal:not([hidden])').waitFor();
-    const waitView=async view=>{await page.waitForFunction(view=>who&&current===view&&!document.querySelector('#portal').hidden&&document.querySelector('#content').textContent.trim()&&document.querySelector('#content').textContent!=='Loading…',view);assert.equal(await page.locator('#retry').isVisible(),false,'page loaded without fallback');};
+    const waitView=async view=>{await page.waitForFunction(view=>who&&current===view&&!document.querySelector('#portal').hidden&&document.querySelector('#content').textContent.trim()&&document.querySelector('#content').textContent!=='Loading…'&&(view!=='overview'||document.querySelector('#overview-metrics')),view);assert.equal(await page.locator('#retry').isVisible(),false,'page loaded without fallback');};
     const goView=async(view,selector='.admin-nav')=>{await page.locator(selector+' [data-view='+view+']').click();await waitView(view);};
     assert.equal(new URL(page.url()).hash,'#today');
     const destinations=[['overview','today','Today'],['people','people','People'],['reports','reports','Reports'],['beta','requests','Requests'],['more','more','More']];
