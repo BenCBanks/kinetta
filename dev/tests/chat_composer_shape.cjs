@@ -12,14 +12,15 @@ module.exports=async(p,state,width,theme,out)=>{
   const metrics=await p.locator(row).evaluate(n=>{
    const rect=n=>{const r=n.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
    const field=n.querySelector('textarea'),plus=document.querySelector('#thread-plus,#dk-plus'),send=n.querySelector('.thread-send'),page=document.querySelector('#page');
-   return{row:rect(n),field:rect(field),font:parseFloat(getComputedStyle(field).fontSize),textInset:parseFloat(getComputedStyle(field).paddingLeft),send:rect(send),plus:plus?{...rect(plus),inside:n.contains(plus)}:null,page:rect(page),padding:parseFloat(getComputedStyle(page).paddingLeft),overflow:document.documentElement.scrollWidth>innerWidth+1,text:field.value};
+   const probe=document.createElement('span');probe.style.backgroundColor='var(--card2)';page.append(probe);const expectedFill=getComputedStyle(probe).backgroundColor;probe.remove();
+   return{row:rect(n),field:rect(field),font:parseFloat(getComputedStyle(field).fontSize),textInset:parseFloat(getComputedStyle(field).paddingLeft),send:rect(send),plus:plus?{...rect(plus),inside:n.contains(plus),fill:getComputedStyle(plus).backgroundColor,radius:getComputedStyle(plus).borderTopLeftRadius,expectedFill}:null,page:rect(page),padding:parseFloat(getComputedStyle(page).paddingLeft),overflow:document.documentElement.scrollWidth>innerWidth+1,text:field.value};
   });
   assert.equal(metrics.textInset,14,'text and placeholder have 14px left padding');assert.equal(metrics.font,17,'composer text uses the approved 17px size');assert.equal(metrics.text,text,'draft text remains exact');
   assert.equal(metrics.send.width,44);assert.equal(metrics.send.height,44);
   assert(metrics.send.left>=metrics.row.left&&metrics.send.right<=metrics.row.right&&metrics.send.bottom<=metrics.row.bottom,'Send stays inside the growing field');
   assert.equal(metrics.overflow,false);
   assert(Math.abs(metrics.row.right-(metrics.page.right-metrics.padding))<1,'composer uses the page right margin');
-  if(metrics.plus){assert.equal(metrics.plus.width,44);assert.equal(metrics.plus.height,44);assert.equal(metrics.plus.inside,false,'plus is outside the field');assert(Math.abs(metrics.plus.left-metrics.padding)<1,'plus uses the page left margin');assert(metrics.row.left-metrics.plus.right>=8,'plus and field have an 8px gap');assert(Math.abs(metrics.plus.bottom-metrics.row.bottom)<1,'plus stays aligned with Send as text grows');}
+  if(metrics.plus){assert.equal(metrics.plus.fill,metrics.plus.expectedFill,'plus retains its soft filled circle in both themes');assert.equal(metrics.plus.radius,'50%');assert.equal(metrics.plus.width,44);assert.equal(metrics.plus.height,44);assert.equal(metrics.plus.inside,false,'plus is outside the field');assert(Math.abs(metrics.plus.left-metrics.padding)<1,'plus uses the page left margin');assert(metrics.row.left-metrics.plus.right>=8,'plus and field have an 8px gap');assert(Math.abs(metrics.plus.bottom-metrics.row.bottom)<1,'plus stays aligned with Send as text grows');}
   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`shape-${state}-${width}-${theme}-${label}.png`)});}
  }
  await field.fill('');await field.blur();
