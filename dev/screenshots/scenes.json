@@ -171,6 +171,13 @@
     }
   ],
   [
+    "home-food-review",
+    "/food",
+    {
+      "foodChat": "home-review"
+    }
+  ],
+  [
     "scan",
     "/food",
     {
