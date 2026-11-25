@@ -4,7 +4,8 @@ Kit conversations are kept until the person deletes them. The client confirms si
 and all deletion. Account export includes threads and messages; account deletion
 cascades them. Separately saved preference notes retain their existing inspect/delete/off
 controls and are not erased by deleting a conversation. Deleted content can remain in
-backups until those backups are replaced. Publish this wording with the reviewed client.
+backups until those backups are replaced. The matching public wording is included in
+`site/content/privacy.md`; ship the saved-chat client with the reviewed API.
 
 `KINETTA_KIT_HISTORY_ENABLED=1` enables new/resumed durable visits; default `0` preserves
 legacy transient chats. Saved history stays readable/deletable even when switched off.
