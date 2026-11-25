@@ -45,3 +45,21 @@ def remove(c, uid, conversation_id=None):
 def visible(row):
     """Legacy unknown provenance is retained privately, never shown or replayed."""
     return row.get('replay_blocked_at') is None
+
+def enabled():
+    import os
+    return os.environ.get('KINETTA_KIT_HISTORY_ENABLED') == '1'
+
+
+def conversation(c, uid, visit_id):
+    if visit_id is None:
+        return None
+    row = c.execute('SELECT conversation_id FROM kit_visits WHERE user_id=%s AND id=%s',
+                    (uid, visit_id)).fetchone()
+    return row['conversation_id'] if row else None
+
+
+def scope(conversation_id, generation, visit_id):
+    # Only fixed SQL, never a caller-supplied condition or account identifier.
+    return (('conversation_id=%s', (conversation_id,)) if conversation_id else
+            ('generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid', (generation, visit_id)))
