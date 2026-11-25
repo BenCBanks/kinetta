@@ -69,3 +69,21 @@ def scope(conversation_id, generation, visit_id):
 def prune(c, uid):
     preserve(c, uid)
     c.execute("DELETE FROM kit_visits WHERE user_id=%s AND (created<now()-interval '24 hours' OR ended<now()-interval '24 hours')", (uid,))
+
+
+def consents(c, uid):
+    row = c.execute('SELECT health_ai_ok,health_weight_ai_ok,garmin_ai_ok FROM profile WHERE user_id=%s', (uid,)).fetchone()
+    return {key:bool(row and row[column]) for key,column in
+            [('health','health_ai_ok'),('weight','health_weight_ai_ok'),('garmin','garmin_ai_ok')]}
+
+
+def permitted_history(answer, current):
+    if not (answer or {}).get('health_included'):
+        return True
+    saved = answer.get('history_consents')
+    # Historical/older answers lack exact provenance. Never infer permission from
+    # source records that the person may since have removed from their account.
+    if saved is None:
+        return all(current.values())
+    return (isinstance(saved,dict) and saved.keys()==current.keys()
+            and all(type(value) is bool and (not value or current[key]) for key,value in saved.items()))
