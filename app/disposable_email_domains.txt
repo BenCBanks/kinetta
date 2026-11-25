@@ -1,0 +1,12 @@
+# Sampled from disposable-email-domains/disposable-email-domains disposable_email_blocklist.conf.
+# Source data and this derived subset are dedicated to the public domain under CC0 1.0 Universal.
+# Source: https://github.com/disposable-email-domains/disposable-email-domains
+10minutemail.com
+dispostable.com
+fakeinbox.com
+getnada.com
+guerrillamail.com
+mailinator.com
+throwawaymail.com
+trashmail.com
+yopmail.com

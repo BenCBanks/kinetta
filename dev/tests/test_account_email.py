@@ -2,6 +2,7 @@
 import base64, datetime, hmac, json, os, re, time, unittest
 from unittest.mock import patch
 import httpx
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from app import db, auth, account_email, admin_mail, api_account
 from app.main import app
@@ -330,11 +331,19 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertIn('Did you mean gmail.com?', r.json()['detail'])
         self.assertIn('Keep my address', r.json()['detail'])
-        for ending in ('con', 'cmo', 'vom', 'cpm', 'ocm', 'comm', 'c'):
+        for ending in ('con', 'cmo', 'vom'):
             r = a.put('/api/account/email', json={'email': f'fictional@example.{ending}', 'password': PW})
             self.assertEqual(r.status_code, 400, ending)
-        self.assertEqual(account_email.check_new_email('fictional@example.fr'), 'fictional@example.fr')
-        self.assertEqual(account_email.check_new_email('fictional@example.dev'), 'fictional@example.dev')
+        for ending in ('fr', 'dev', 'ninja', 'family', 'international', 'xn--p1ai'):
+            self.assertEqual(account_email.check_new_email(f'fictional@example.{ending}'), f'fictional@example.{ending}')
+        for address in ('fictional@mailinator.com', 'fictional@sub.mailinator.com', 'fictional@yopmail.com'):
+            with self.subTest(address=address), self.assertRaises(HTTPException):
+                account_email.check_new_email(address)
+        with self.assertRaises(HTTPException):
+            account_email.check_new_email('fictional@-bad.ninja')
+        disposable = a.put('/api/account/email', json={'email': 'fictional@mailinator.com', 'password': PW})
+        self.assertEqual(disposable.status_code, 400)
+        self.assertIn('email address that can receive', disposable.json()['detail'])
         self.assertEqual(self.mail.call_count, 0, 'rejected addresses never receive a confirmation message')
         r = a.put('/api/account/email', json={'email': 'fictional@gmial.com', 'password': PW, 'confirm_typo': True})
         self.assertEqual(r.status_code, 200, r.text)

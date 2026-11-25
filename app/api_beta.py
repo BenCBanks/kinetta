@@ -15,7 +15,7 @@ from .admin_auth import admin_user
 from .api_account import _admin, create_invite, InviteIn
 
 router = APIRouter()
-EMAIL_RE = re.compile(r'^[^@\s<>]+@[^@\s<>]+\.[a-z]{2,}$', re.I)
+EMAIL_RE = re.compile(r'^[^@\s<>]+@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])$', re.I)
 MAX_WAITING = 500     # stop taking requests if this many are unanswered (keeps a flood from filling the disk)
 
 

@@ -9,6 +9,7 @@ database (auth_attempts), so the limits survive restarts. Messages are plain tex
 import datetime as dt
 import logging
 import os
+from pathlib import Path
 import secrets
 import time
 import httpx
@@ -34,9 +35,10 @@ DOMAIN_TYPOS = {
     'icloud.con': 'icloud.com',
 }
 BAD_EMAIL_ENDINGS = {'con': 'com', 'cmo': 'com', 'vom': 'com'}
-COUNTRY_TLDS = frozenset('ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bl bm bn bo bq br bs bt bv bw by bz ca cc cd cf cg ch ci ck cl cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg eh er es et fi fj fk fm fo fr ga gb gd ge gf gg gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm hn hr ht hu id ie il im in io iq ir is it je jm jo jp ke kg kh ki km kn kp kr kw ky kz la lb lc li lk lr ls lt lu lv ly ma mc md me mf mg mh mk ml mm mn mo mp mq mr ms mt mu mv mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm pn pr ps pt pw py qa re ro rs ru rw sa sb sc sd se sg sh si sj sk sl sm sn so sr ss st sv sx sy sz tc td tf tg th tj tk tl tm tn to tr tt tv tw tz ua ug um us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw'.split())
-COMMON_TLDS = frozenset('aero academy agency app art asia biz blog cafe camera careers cat charity church city cloud club com company computer coop design dev digital doctor email edu finance fitness flowers food fun games global gov group guru health homes house info int jobs law legal life link live mil mobi museum name net news online org page photography photo pizza place pro pub recipes run science services shop site social software solutions space store studio tech technology tel today travel tv university website wiki world xyz zone eu uk'.split())
-KNOWN_TLDS = COUNTRY_TLDS | COMMON_TLDS
+DISPOSABLE_EMAIL_DOMAINS = frozenset(
+    line.strip().lower() for line in Path(__file__).with_name('disposable_email_domains.txt').read_text().splitlines()
+    if line.strip() and not line.lstrip().startswith('#')
+)
 
 
 def email_suggestion(email):
@@ -60,14 +62,15 @@ def _clean_email(v):
 def check_new_email(v, confirm_typo=False):
     """Validate a newly entered address; common domain suggestions need an explicit owner choice."""
     v = _clean_email(v)
-    ending = v.rpartition('@')[2].rpartition('.')[2]
+    domain = v.rpartition('@')[2]
+    ending = domain.rpartition('.')[2]
     if ending in BAD_EMAIL_ENDINGS:
         raise HTTPException(400, 'Did you mean .com? Check the email ending.')
-    if ending not in KNOWN_TLDS:
-        raise HTTPException(400, 'Check the email ending.')
     suggestion = email_suggestion(v)
     if suggestion and not confirm_typo:
         raise HTTPException(400, f"Did you mean {suggestion.rpartition('@')[2]}? Choose Keep my address to continue.")
+    if any(domain == blocked or domain.endswith('.' + blocked) for blocked in DISPOSABLE_EMAIL_DOMAINS):
+        raise HTTPException(400, 'Use an email address that can receive account messages.')
     return v
 
 
