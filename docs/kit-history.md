@@ -34,7 +34,10 @@ after deletion. Single deletion also interrupts other in-flight answers for that
 Visits still end/expire at 24 hours, cancelling work. Saved turns are detached first and
 survive; interrupted turns become Retry with no automatic provider call. A fresh resumed
 visit can retry them. At most six completed answers enter model history; consent filtering,
-release/access/budget checks and lease races remain. Historical numbers are not current
+release/access/budget checks and lease races remain. Sensitive saved answers carry a
+server-stamped source-permission snapshot: deleting source records cannot bypass later
+revocation. Permission changes during a durable turn discard its result; older sensitive
+context without provenance is filtered conservatively. Historical numbers are not current
 evidence. Legacy Clear starts a fresh transient chat and preserves durable history.
 
 Migration 119 adds owner-RLS threads and owner-constrained visit/message references;

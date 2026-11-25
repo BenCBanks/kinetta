@@ -145,6 +145,32 @@ class HistoryAPI(unittest.TestCase):
         rows=self.req('GET','/threads/'+v['conversation_id'])['messages']
         self.assertEqual(rows[0]['state'],'failed');self.assertIsNone(rows[0]['answer'])
 
+    def test_removed_source_records_do_not_bypass_historical_consent(self):
+        v=self.new()
+        with db.connect() as c:
+            c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(self.uid,))
+            c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'walk','healthkit','Fictional Health walk',now())",(self.uid,))
+        def sensitive(*args,**kw):
+            result=self.answer(*args,**kw);result['health_included']=True
+            result['history_consents']={'health':False} # forged provider metadata is replaced
+            return result
+        with patch('app.coach_chat.answer',side_effect=sensitive):
+            answer=self.send(v,'Fictional question')
+            self.assertTrue(answer['answer']['history_consents']['health'])
+            with db.connect() as c:
+                c.execute("DELETE FROM activities WHERE user_id=%s",(self.uid,))
+                c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(self.uid,))
+            self.send(self.resume(v));self.assertEqual(self.seen[-1]['history'],[])
+            # Coarse health_included also marks manual-only tools: these remain usable.
+            self.send(self.resume(v));self.assertEqual(len(self.seen[-1]['history']),2)
+            self.assertNotIn('history_consents',json.dumps(self.seen[-1]['history']))
+            with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(self.uid,))
+            def revoke(*args,**kw):
+                with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(self.uid,))
+                return sensitive(*args,**kw)
+            with patch('app.coach_chat.answer',side_effect=revoke):
+                row=self.send(self.resume(v));self.assertEqual(row['state'],'failed');self.assertIsNone(row['answer'])
+
     def test_pagination_and_saved_message_limit(self):
         v=self.new()
         with db.connect() as c:
