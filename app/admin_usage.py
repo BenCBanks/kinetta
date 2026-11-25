@@ -8,6 +8,11 @@ from . import db
 
 router=APIRouter(prefix='/api/admin')
 
+# Stored Kit feature/label values from ai_budget.reserve. The generic food-chat
+# classifier (`food chat`) and other AI tools stay excluded.
+KIT_BUDGET_KINDS=('Kit conversation','Kit question','food chat context','food chat Kit',
+                  'food chat daily note','weekly review','coach note')
+
 def record_login(c,uid,channel='web',outcome='success',stage='session'):
     # A bounded retention window also applies on quiet servers when the portal is read.
     c.execute("DELETE FROM admin_login_events WHERE created<now()-interval '90 days'")
@@ -88,9 +93,16 @@ def usage(days:int=Query(30,ge=1,le=90),user=Depends(admin_user)):
         food={r['day']:r['n'] for r in c.execute("SELECT (created AT TIME ZONE 'UTC')::date AS day,count(*) AS n FROM food_entries WHERE created>=%s::date AT TIME ZONE 'UTC' GROUP BY 1",(start,))}
         imports=c.execute("SELECT count(*) FILTER(WHERE status='done') AS completed,count(*) FILTER(WHERE status='failed') AS failed FROM imports WHERE created>=%s::date AT TIME ZONE 'UTC'",(start,)).fetchone()
         sources=c.execute("SELECT source,count(*) AS n FROM activities WHERE created>=%s::date AT TIME ZONE 'UTC' GROUP BY source ORDER BY count(*) DESC,source",(start,)).fetchall()
+        kit_spend=c.execute("""SELECT
+          coalesce(sum(charged_micros) FILTER (WHERE day=%s),0) AS today_micros,
+          coalesce(sum(charged_micros),0) AS month_micros
+          FROM ai_food_attempts WHERE kind=ANY(%s)
+            AND day>=date_trunc('month',%s::date)::date""",(today,list(KIT_BUDGET_KINDS),today)).fetchone()
     rows=[]
     for ago in range(days):
         day=start+dt.timedelta(days=ago)
         rows.append({'day':day,'active':active.get(day,0) if day>=since.astimezone(dt.timezone.utc).date() else None,'workouts':workouts.get(day,0),'food_entries':food.get(day,0)})
     return {'days':days,'since':since,'zone':'UTC','counts':{**counts,'workouts':sum(workouts.values()),'food_entries':sum(food.values())},
+            'kit_spend':{'today_usd':kit_spend['today_micros']/1_000_000,
+                         'month_usd':kit_spend['month_micros']/1_000_000,'zone':'UTC'},
             'signup_funnel':signup_funnel,'daily':rows,'imports':imports,'sources':sources}

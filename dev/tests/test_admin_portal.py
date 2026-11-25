@@ -143,6 +143,21 @@ class Portal(unittest.TestCase):
             raw,headers=event('email.bounced','bounce-'+uuid.uuid4().hex);anonymous.post('/api/admin/email-events',content=raw,headers=headers)
             raw,headers=event('email.delivered','late-'+uuid.uuid4().hex);anonymous.post('/api/admin/email-events',content=raw,headers=headers)
             self.assertEqual(self.client.get(f"/api/admin/beta/{b['id']}/responses").json()[0]['state'],'bounced')
+            raw,headers=event('email.sent','sent-'+uuid.uuid4().hex);anonymous.post('/api/admin/email-events',content=raw,headers=headers)
+            event_id=headers['svix-id']
+            with db.connect() as c:
+                self.assertEqual(c.execute('SELECT state FROM admin_mail_events WHERE id=%s',(event_id,)).fetchone()['state'],'sent')
+                self.assertEqual(c.execute('SELECT state FROM beta_responses WHERE id=%s',(d['request_key'],)).fetchone()['state'],'bounced')
+            failed_pid='test-failed-'+uuid.uuid4().hex;pid=failed_pid
+            token_hash=auth.token_hash('fictional-confirmation-token-'+uuid.uuid4().hex)
+            with db.connect() as c:
+                c.execute("UPDATE beta_responses SET state='accepted',provider_id=%s WHERE id=%s",(failed_pid,d['request_key']))
+                c.execute("INSERT INTO account_tokens(token_hash,user_id,kind,email,expires,resend_id) VALUES (%s,%s,'verify_email','zz_test_failed@example.test',now()+interval '1 hour',%s)",(token_hash,self.member,failed_pid))
+            raw,headers=event('email.failed','failed-'+uuid.uuid4().hex);anonymous.post('/api/admin/email-events',content=raw,headers=headers)
+            with db.connect() as c:
+                self.assertEqual(c.execute('SELECT state FROM admin_mail_events WHERE id=%s',(headers['svix-id'],)).fetchone()['state'],'failed')
+                self.assertEqual(c.execute('SELECT state FROM beta_responses WHERE id=%s',(d['request_key'],)).fetchone()['state'],'bounced')
+                self.assertIsNotNone(c.execute('SELECT bounced_at FROM account_tokens WHERE token_hash=%s',(token_hash,)).fetchone()['bounced_at'])
     def test_https_tunnel_origin_and_secure_cookie(self):
         # Through a Cloudflare Tunnel the app gets plain http with X-Forwarded-Proto: https; the browser's Origin is https.
         c=TestClient(app);c.headers.update({'Origin':'https://portal.example.test','Host':'portal.example.test','X-Forwarded-Proto':'https','Content-Type':'application/json'})

@@ -28,7 +28,7 @@ sectionPicker.innerHTML=[...document.querySelectorAll('[data-view]')].map(b=>`<o
 sectionPicker.onchange=()=>show(sectionPicker.value);
 async function show(view){if(document.body)document.body.dataset.adminView=view;const heading=$('#portal h1');if(heading)heading.textContent=view==='features'?'Features':'Administration';current=view;sectionPicker.value=view;const rev=++revision;err.textContent='';$('#retry').hidden=true;content.innerHTML='<p>Loading…</p>';document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.view===view?'page':'false'));
 try{const query=view==='features'?featureQuery():['logins','usage'].includes(view)?'?'+new URLSearchParams({days:reportDays,...(view==='logins'?{...(loginOutcome?{outcome:loginOutcome}:{}),...(loginAccount?{account:loginAccount}:{})}:{})}):'';const special=typeof adminQuery==='function'?adminQuery(view):null;const data=await api('/'+({audit:'audit-history',requests:'data-requests'}[view]||view)+(special===null?query:special));if(rev!==revision||!who)return;
- if(view==='overview')await overviewView(data,rev);
+ if(view==='overview'){await overviewView(data,rev);await overviewMetrics(rev)}
  if(view==='people')peopleView(data,rev);
  if(view==='readiness')readinessView(data,rev);
  if(view==='requests')requestsView(data,rev);
@@ -42,6 +42,23 @@ try{const query=view==='features'?featureQuery():['logins','usage'].includes(vie
  if(view==='audit')auditView(data,rev);
 }catch(e){if(rev!==revision)return;content.innerHTML='<p>Could not load this section.</p>';error(e);$('#retry').hidden=false}}
 $('#retry').onclick=()=>show(current);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>show(b.dataset.view));
+function overviewMetricsMarkup(mail,spend){
+ const number=v=>Number.isSafeInteger(Number(v))&&Number(v)>=0?String(Number(v)):'0';
+ const dollars=v=>Number.isFinite(Number(v))&&Number(v)>=0?'$'+Number(v).toFixed(2):'$0.00';
+ const m=mail||{},s=spend||{};
+ return '<section class="notice" id="overview-metrics" aria-label="Email and Kit totals"><p><b>Email · 7 days</b>: Sent '+number(m.sent)+' · Delivered '+number(m.delivered)+' · Bounced '+number(m.bounced)+' · Failed '+number(m.failed)+'</p>'+
+  '<p><b>Kit · estimated USD</b>: Today '+dollars(s.today_usd)+' · This month '+dollars(s.month_usd)+'</p></section>';
+}
+async function overviewMetrics(rev){
+ const host=$('#overview-readiness');if(!host)return;
+ try{
+  const [readiness,usage]=await Promise.all([api('/readiness'),api('/usage?days=1')]);
+  if(rev!==revision||!who)return;
+  host.insertAdjacentHTML('afterend',overviewMetricsMarkup(readiness.email_health,usage.kit_spend));
+ }catch(e){
+  if(rev===revision&&who)host.insertAdjacentHTML('afterend','<section class="notice" id="overview-metrics-unavailable"><p>Email and Kit totals could not load.</p></section>');
+ }
+}
 function confirmAction(title,text,label,fn){modal(title,'<p>'+esc(text)+'</p><button class="primary" id="confirm">'+esc(label)+'</button>',(box,close)=>$('#confirm',box).onclick=()=>busy($('#confirm',box),async()=>{await fn();close();await show(current)}))}
 function createMember(){modal('Create Member account','<p>This creates a Member account without administrator rights. Prefer an invitation so the member can choose their own password. Share an initial password only through a trusted channel.</p><form id="member"><label>Name<input name="name" required maxlength="60"></label><label>Username<input name="login" required maxlength="30" autocomplete="off"></label><label>Initial password<input name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="200"></label><button type="submit">Create Member</button></form>',(box,close)=>{$('#member',box).onsubmit=e=>{e.preventDefault();const f=e.currentTarget;busy($('button[type=submit]',f),async()=>{await api('/people',{name:f.elements.name.value,login:f.elements.login.value,password:f.elements.password.value});close();await show('people')})}})}
 // Accounts (#233, 2026-10-24): search, pages of 50, and one account page with support information and actions.
