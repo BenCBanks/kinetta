@@ -16,10 +16,13 @@
 .account-enrollment input:not([type=checkbox]) { font-size: 16px; color: var(--tx); min-height: 44px; }
 .account-names { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; min-width: 0; }
 .account-names label { min-width: 0; }
+.account-username-field { display: grid; gap: 8px; }
+.account-enrollment .username-status { margin: 0; }
+.account-enrollment .username-status .linkbtn { display: flex; align-items: flex-start; line-height: 20px; }
 .account-username { display: flex; align-items: center; gap: 4px; border: 1px solid var(--color-outline); border-radius: var(--r2); padding-inline: 14px; background: var(--card); color: var(--tx3); }
 .account-username input { min-width: 0; border: 0; flex: 1; padding-inline: 0; background: transparent; box-shadow: none; }
 .account-username:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
-.account-enrollment .check { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 8px 10px; }
+.account-enrollment .check { min-height: 44px; color: var(--tx); display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 8px 10px; }
 .account-enrollment .check .field-err { grid-column: 1 / -1; }
 .account-enrollment input[aria-invalid=true] { outline: 2px solid var(--alert); outline-offset: 1px; }
 .account-enrollment .field-err { display: block; color: var(--alert); font-size: 13px; font-weight: 400; }

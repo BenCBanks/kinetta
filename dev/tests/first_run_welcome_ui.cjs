@@ -45,6 +45,19 @@ const policy={setup:false,signup:true,full:false,beta:false};
    await p.locator('.username-status button').filter({hasText:'Taken. Use @zoes2'}).waitFor();assert.equal(await p.locator('input[name=login]').inputValue(),'zoes');
    await p.locator('input[name=email]').fill('zoe@example.test');await p.locator('input[name=password]').fill('fictional secure phrase');await p.locator('input[name=age_ok]').check();await p.locator('input[name=terms_ok]').check();
    assert.equal(await p.locator('[aria-invalid=true]').count(),0,'typing clears every corrected field error');
+   const enrollment=await p.locator('.account-enrollment').evaluate(form=>{
+    const field=form.querySelector('.account-username'),status=form.querySelector('.username-status');
+    return {gap:status.getBoundingClientRect().top-field.getBoundingClientRect().bottom,
+     checks:[...form.querySelectorAll('.check')].map(n=>({height:n.getBoundingClientRect().height,color:getComputedStyle(n).color})),
+     color:getComputedStyle(form).color,passwordHintHidden:form.password.closest('label').nextElementSibling.hidden};
+   });
+   assert.equal(enrollment.gap,8,'username suggestion sits 8px below its field');
+   assert(enrollment.checks.every(n=>n.height>=44&&n.color===enrollment.color),'checkbox rows use normal text colour and 44px targets');
+   assert(enrollment.passwordHintHidden,'a valid password removes the hint row');
+   assert.equal(await p.locator('#enrollment-email-help').innerText(),"We'll send a link to confirm it.");
+   assert.match(await p.locator('.account-enrollment').innerText(),/Friends see your full name\. Others see your first name and @username\./);
+   assert.doesNotMatch(await p.locator('.account-enrollment').innerText(),/Long enough\.|Everyone means signed-in members/);
+   assert.equal(await p.locator('select[name=share_default]').inputValue(),'everyone','audience default remains unchanged');
    if(out)await p.locator('.login').screenshot({path:path.join(out,`signup-taken-${width}-${theme}.png`),animations:'disabled'});
    await p.locator('.username-status button').click();await p.locator('.username-status').filter({hasText:'Available'}).waitFor();assert.equal(await p.locator('input[name=login]').inputValue(),'zoes2');
    await p.locator('input[name=last_name]').fill('Fictional');assert.equal(await p.locator('input[name=login]').inputValue(),'zoes2','manual username survives name changes');

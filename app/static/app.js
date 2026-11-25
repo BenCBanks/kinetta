@@ -2611,13 +2611,12 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
     ${accountNameFields()}
-    <label>Username<span class="account-username"><span aria-hidden="true">@</span><input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></span></label>
+    <div class="account-username-field"><label>Username<span class="account-username"><span aria-hidden="true">@</span><input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></span></label></div>
     <p class="small muted">${namePrivacy}</p>
-    ${email ? `<label>Email<input name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted" id="enrollment-email-help">You'll log in with it. We'll send a link to confirm it; it's never shown to other people.</p>` : ''}
+    ${email ? `<label>Email<input name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted" id="enrollment-email-help">We'll send a link to confirm it.</p>` : ''}
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
     <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
     <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone on Kinetta</option><option value="friends">Approved friends</option><option value="me">Only me</option></select></label>
-    <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
     ${ageConfirm ? '<label class="check"><input type="checkbox" name="age_ok" required><span>I\'m 16 or older</span></label>' : ''}
     ${signup ? '<label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>' : ''}
     ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"${challenge.join_default?' checked':''}><span>Join ${esc(challenge.title)} ${email?'after I confirm my email':'when I create my account'}. Only my username, permitted photo and progress are shared.</span></label>`:''}
@@ -2648,7 +2647,7 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
   // Errors appear under the field they're about and scroll into view (Ben, 2026-10-24: a short password failed silently,
   // because the one message line sat below the fold behind the keyboard). A live hint counts password characters.
   const hint = f.password.closest('label').nextElementSibling;
-  f.password.addEventListener('input', () => { const n = f.password.value.length; hint.textContent = n >= 10 ? 'Long enough.' : `At least 10 characters · ${n} so far. A short sentence you'll remember works well.`; hint.classList.toggle('ok', n >= 10); });
+  f.password.addEventListener('input', () => { const n = f.password.value.length; hint.hidden = n >= 10; hint.textContent = `At least 10 characters · ${n} so far. A short sentence you'll remember works well.`; });
   const clearErrors=()=>{$$('.field-err',f).forEach(x=>x.remove());$$('[aria-invalid]',f).forEach(x=>x.removeAttribute('aria-invalid'));$('.err',f).textContent='';};
   const fieldErr = (name, text, focus=true) => {
     const input=name&&f.elements[name],err=$('.err',f);if(!input){err.textContent=text;return;}
