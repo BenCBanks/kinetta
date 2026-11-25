@@ -195,14 +195,18 @@ def main():
                     'thinking_tokens':thinking_tokens,'latency_ms':latency_ms,
                     'answer_text':captured.get('answer_text'),'cost_usd':None if cost_micros is None else cost_micros / 1_000_000,
                     'run_spent_or_reserved_usd':spent_micros / 1_000_000})
+            status = f"rejection_code={rejection or 'none'}"
+            if error_type:
+                status += f' error={error_type}'
+            print(f"{case['name']}: {status}", flush=True)
             if spent_micros >= RUN_CAP_MICROS:
                 break
         record({'type':'summary','completed_cases':rows_written - 1,'selected_cases':len(cases),
                 'spent_or_reserved_usd':spent_micros / 1_000_000,'hard_cap_usd':1.0,
                 'complete':rows_written - 1 == len(cases)})
-        print(json.dumps({'output':str(output),'completed_cases':rows_written - 2,
-                          'spent_or_reserved_usd':spent_micros / 1_000_000,
-                          'hard_cap_usd':1.0,'complete':rows_written - 2 == len(cases)}))
+        print(f'Evaluation output: {output}', flush=True)
+        print(f'Cases completed: {rows_written - 2}/{len(cases)}', flush=True)
+        print(f'Total cost: ${spent_micros / 1_000_000:.6f} charged or reserved; $1.00 hard cap', flush=True)
     finally:
         if uid is not None:
             with db.connect() as connection:
