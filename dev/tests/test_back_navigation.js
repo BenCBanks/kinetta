@@ -12,6 +12,14 @@ assert.equal(n.transition(push.next,'/me/friends','/people/zz_test_friend','fict
 for(const bad of ['//elsewhere.test/path','https://elsewhere.test/path','javascript:alert(1)','data:text/html,x','relative/path',''])assert.equal(n.path(bad),null,bad);
 for(const [p,label] of [['/route/1','Route'],['/lift/ex/1','Exercise'],['/plan','Training plan'],['/progress?view=records&sport=run','Records'],['/food?view=overview&from=progress','Food & weight'],['/progress?view=lifting','Lifting'],['/progress?section=lifting','Lifting'],['/activity','Home'],['/activity?view=groups','Groups'],['/activity/1','Activity'],['/food/meals','Recipes'],['/progress?section=food','Food & weight'],['/notifications','Notifications'],['/me/settings','Settings'],['/me/groups','Groups'],['/people/zz_test_friend','Profile']])assert.equal(n.label(p),label);
 const inventory=JSON.parse(fs.readFileSync('dev/tests/ui_inventory.json','utf8'));for(const row of inventory.routes)for(const value of row.paths){const p=value.replace(/\{[^}]+\}/g,'1');assert(n.label(p)&&n.label(p)!=='Back',p);}
+for(const row of inventory.routes)for(const value of row.paths){const p=value.replace(/\{[^}]+\}/g,'1');assert(n.appPath(p),'registered app route is accepted for navigation: '+p);}
+for(const p of ['/groups/00000000-0000-4000-8000-000000000001','/groups/invites/1','/group-invite/token'])assert(n.appPath(p),p+' is a Groups app route');
+for(const [entry,label] of [['/activity?view=groups','Groups'],['/me/groups','Groups'],['/notifications','Notifications']]){
+ const prior=n.transition(null,entry,'/groups/00000000-0000-4000-8000-000000000001',owner);
+ const destination=n.destination(prior.next,'/groups/00000000-0000-4000-8000-000000000001','/activity?view=groups',owner,{historyLength:2});
+ assert.deepEqual(check(destination),{history:true,path:entry,label},'group detail preserves '+entry+' as its Back destination');
+}
+const coldGroup=n.destination(null,'/groups/00000000-0000-4000-8000-000000000001','/activity?view=groups',owner,{historyLength:1});assert.deepEqual(check(coldGroup),{history:false,path:'/activity?view=groups',label:'Groups'},'cold group links fall back to Home > Groups');
 for(const auth of ['/','/index.html','/unrelated-page','/signup','/join/fictional','/login','/forgot','/reset/fictional'])assert.equal(n.transition(null,auth,'/me/friends',owner).next.kinettaNavigation.from,null,'authentication entry is not an app return destination');
 assert.equal(n.transition(null,'/activity/unknown-return','/me/friends',owner,{fromKnown:false}).next.kinettaNavigation.from,null,'an unregistered URL cannot supply a named app return');
 assert.equal(n.label('/me/friends/?q=River'),'Friends');assert.equal(n.label('/progress/?view=lifting'),'Lifting','trailing slash labels match the normalized router');

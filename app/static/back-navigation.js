@@ -42,5 +42,5 @@ const BackNavigation=(()=>{
   if(historyLength>1&&from&&from.path!==here)return {history:true,path:from.path,label:label(from.path)};
   return {history:false,path:target,label:label(target)};
  }
- return Object.freeze({path,parent,label,entry,transition,destination});
+ return Object.freeze({path,parent,label,appPath,entry,transition,destination});
 })();
