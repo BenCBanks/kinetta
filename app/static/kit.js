@@ -447,25 +447,41 @@ Object.assign(KitChat, (() => {
   function threadHistory(c){
     if(!active(c))return;
     sheet('Chats','<div id="kit-chats"><p class="muted">Loading chats…</p></div>',(body,close)=>{
-      const box=$('#kit-chats',body),valid=()=>active(c)&&body.isConnected;let rows=[],before=null,sequence=0;
+      const box=$('#kit-chats',body),sh=body.closest('.sheet'),valid=()=>active(c)&&body.isConnected;
+      let rows=[],before=null,sequence=0,loading=false,swipe=null,suppressTap=false;
+      sh.classList.add('kit-history-sheet');
+      const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
+      menu.setAttribute('aria-label','Chat history options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
+      menu.onclick=()=>sheet('Chat history options',`<button class="linkbtn wide kit-history-action" id="kit-earlier-reviews">Earlier Kit reviews</button>${rows.length?'<button class="linkbtn wide danger kit-history-action" id="kit-delete-all">Delete all chats</button>':''}`,(b,done)=>{
+        $('#kit-earlier-reviews',b).onclick=()=>{done();close();savedReviews();};
+        const all=$('#kit-delete-all',b);if(all)all.onclick=()=>{done();void remove(null);};
+      });
+      const reveal=(row,on)=>{row.classList.toggle('is-revealed',on);const button=$('[data-kit-delete]',row);button.inert=!on;button.setAttribute('aria-hidden',String(!on));};
       const render=()=>{
-        box.innerHTML=`<button class="linkbtn wide" id="kit-new-chat">New chat</button><div class="kit-history-list">${rows.map(row=>`<div class="kit-history-row"><button class="kit-history-open" data-kit-chat="${esc(row.conversation_id)}" ${row.conversation_id===c.conversation_id?'aria-current="true"':''}><strong>${esc(row.title||'New chat')}</strong><small>${esc(Number.isFinite(Date.parse(row.updated))?new Date(row.updated).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'')}</small></button><button class="linkbtn danger" data-kit-delete="${esc(row.conversation_id)}" aria-label="Delete chat: ${esc(row.title||'New chat')}">Delete</button></div>`).join('')}</div>${!rows.length?'<p>No saved chats yet.</p>':''}${before?'<button class="linkbtn wide" id="kit-more-chats">Earlier chats</button>':''}<button class="linkbtn wide" id="kit-earlier-reviews">Earlier Kit reviews</button>${rows.length?'<button class="linkbtn wide danger" id="kit-delete-all">Delete all chats</button>':''}<p class="err" id="kit-history-error" role="alert"></p>`;
+        const top=box.scrollTop;sh.classList.toggle('kit-history-tall',!!before||rows.length>=8);
+        box.innerHTML=`<button class="linkbtn kit-history-action" id="kit-new-chat">${svg('plus')}<span>New chat</span></button><div class="kit-history-list">${rows.map(row=>`<div class="kit-history-row"><button class="kit-history-delete" data-kit-delete="${esc(row.conversation_id)}" aria-label="Delete chat: ${esc(row.title||'New chat')}" aria-hidden="true" inert>Delete</button><div class="kit-history-front"><button class="kit-history-open" data-kit-chat="${esc(row.conversation_id)}" ${row.conversation_id===c.conversation_id?'aria-current="true"':''}><span><strong>${esc(row.title||'New chat')}</strong><small>${esc(Number.isFinite(Date.parse(row.updated))?new Date(row.updated).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'')}</small></span>${row.conversation_id===c.conversation_id?svg('check'):''}</button><button class="icon-btn kit-history-options" data-kit-options="${esc(row.conversation_id)}" aria-label="Chat options: ${esc(row.title||'New chat')}">${svg('more')}</button></div></div>`).join('')}</div>${!rows.length?'<p>No saved chats yet.</p>':''}<p class="err" id="kit-history-error" role="alert"></p><button class="linkbtn kit-history-action" id="kit-history-retry" hidden>Try again</button>`;
+        box.scrollTop=top;
         $('#kit-new-chat',box).onclick=()=>{close();void beginThread(c);};
-        $('#kit-earlier-reviews',box).onclick=()=>{close();savedReviews();};
-        $$('[data-kit-chat]',box).forEach(b=>b.onclick=()=>{close();void beginThread(c,b.dataset.kitChat);});
+        $$('[data-kit-chat]',box).forEach(b=>b.onclick=()=>{if(suppressTap)return;if(b.closest('.is-revealed')){reveal(b.closest('.kit-history-row'),false);return;}close();void beginThread(c,b.dataset.kitChat);});
         $$('[data-kit-delete]',box).forEach(b=>b.onclick=()=>remove(b.dataset.kitDelete));
-        const all=$('#kit-delete-all',box);if(all)all.onclick=()=>remove(null);
-        const more=$('#kit-more-chats',box);if(more)more.onclick=()=>load(true);
+        $$('[data-kit-options]',box).forEach(b=>b.onclick=()=>sheet('Chat options','<button class="linkbtn danger kit-history-action" id="kit-row-delete">Delete chat</button>',(bdy,done)=>{$('#kit-row-delete',bdy).onclick=()=>{done();void remove(b.dataset.kitOptions);};}));
       };
+      // Horizontal touch is a shortcut; every row also has a keyboard-accessible menu.
+      box.addEventListener('touchstart',e=>{e.stopPropagation();const row=e.target.closest('.kit-history-row');swipe=e.touches.length===1&&row?{row,x:e.touches[0].clientX,y:e.touches[0].clientY,horizontal:false}:null;},{passive:true});
+      box.addEventListener('touchmove',e=>{e.stopPropagation();if(!swipe)return;const dx=e.touches[0].clientX-swipe.x,dy=e.touches[0].clientY-swipe.y;if(!swipe.horizontal&&Math.abs(dy)>Math.abs(dx)&&Math.abs(dy)>8){swipe=null;return;}if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)){swipe.horizontal=true;e.preventDefault();e.stopPropagation();$$('.is-revealed',box).forEach(row=>reveal(row,false));reveal(swipe.row,dx<0);}},{passive:false});
+      box.addEventListener('touchend',e=>{e.stopPropagation();if(swipe?.horizontal){e.preventDefault();e.stopPropagation();suppressTap=true;setTimeout(()=>suppressTap=false,250);}swipe=null;},{passive:false});
+      box.addEventListener('touchcancel',()=>{swipe=null;});
+      box.addEventListener('scroll',()=>{if(before&&!loading&&box.scrollHeight-box.scrollTop-box.clientHeight<80)void load(true);},{passive:true});
       const load=async(append=false)=>{
-        const request=++sequence;
+        const request=++sequence;loading=true;
         try{const data=await threadList(c,append?before:null);if(!valid()||request!==sequence)return;
           if(!data.enabled){box.innerHTML='<p>Chat history is unavailable. Your saved chats are kept.</p>';return;}
           rows=[...new Map((append?[...rows,...data.conversations]:data.conversations).map(row=>[row.conversation_id,row])).values()];before=data.before;render();
-        }catch(e){if(valid()){if(!$('#kit-history-error',box))box.innerHTML='<p class="err" id="kit-history-error" role="alert"></p><button class="linkbtn wide" id="kit-history-retry">Try again</button>';$('#kit-history-error',box).textContent=e.message;const retry=$('#kit-history-retry',box);if(retry)retry.onclick=()=>load();}}
+        }catch(e){if(valid()){if(!$('#kit-history-error',box))box.innerHTML='<p class="err" id="kit-history-error" role="alert"></p><button class="linkbtn kit-history-action" id="kit-history-retry">Try again</button>';$('#kit-history-error',box).textContent=e.message;const retry=$('#kit-history-retry',box);if(retry){retry.hidden=false;retry.onclick=()=>load(append);}}}
+        finally{if(request===sequence)loading=false;}
       };
       const remove=async id=>{
-        if(!valid()||!await confirmSheet(id?'Delete this chat?':'Delete all Kit chats?',{body:'Chat messages will be removed. Saved memories stay. This cannot be undone.',action:id?'Delete chat':'Delete all chats'})||!valid())return;
+        if(!valid()||!await confirmSheet(id?'Delete this chat?':'Delete all Kit chats?',{body:"This can't be undone.",action:id?'Delete chat':'Delete all chats'})||!valid())return;
         $$('button',box).forEach(b=>b.disabled=true);
         try{
           const data=await api(THREADS+(id?'/'+encodeURIComponent(id):''),{method:'DELETE'});if(!valid())return;

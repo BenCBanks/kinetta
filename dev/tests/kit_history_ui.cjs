@@ -2,11 +2,12 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 module.exports=async(browser,state,base,out)=>{
- const uuid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),A=uuid(1),B=uuid(2),C=uuid(3);
+ const uuid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),A=uuid(1),B=uuid(2),C=uuid(3),D=uuid(37);
  for(const width of [390,330])for(const theme of ['light','dark']){
   const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage();
   const errors=[],requests=[],deleted=[],unexpected=[];let gen=900,next=10,failDelete=false,failList=false,delayRead=false,releaseOld=null,otherOwner=false,staleResume=true,step='initial';
   const records=new Map([[A,{title:'Planning my next week',text:'Keep the next run easy.'}],[B,{title:'Food logs and energy',text:'Your recorded meals are a starting point.'}],[C,{title:'An earlier training question',text:'Leave time for rest.'}]]);
+  for(let i=20;i<38;i++)records.set(uuid(i),{title:'Training question '+(i-19),text:'Keep a comfortable effort.'});
   const message=(id,text)=>({id,client_id:'fictional-history-'+id,question:'A saved question',state:'answered',answer:{answer_blocks:[{kind:'paragraph',text}],interpretation:text,facts:[]}});
   const envelope=(id,visit=null,before=false)=>({conversation_id:id,generation:uuid(gen),visit_id:visit,ready:true,before:before?null:id===B?10:null,messages:before?[message(1,'Earlier saved answer.')]:records.get(id)?.title?[message(11,records.get(id).text)]:[]});
   const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-history-${name}-${width}-${theme}.png`),animations:'disabled'});}};
@@ -21,7 +22,7 @@ module.exports=async(browser,state,base,out)=>{
      if(method==='GET'&&u.pathname===prefix){
       if(failList)return route.fulfill({status:503,json:{detail:'Chats could not load.'}});
       const all=otherOwner?[]:[...records].map(([conversation_id,row])=>({conversation_id,title:row.title,created:'2026-11-20T12:00:00Z',updated:'2026-11-25T12:00:00Z',message_count:row.title?1:0}));
-      return route.fulfill({json:{enabled:true,retention:'until_deleted',generation:uuid(gen),conversations:u.searchParams.has('before')?all.slice(2):all.slice(0,2),before:!u.searchParams.has('before')&&all.length>2?all[1].conversation_id:null}});
+      return route.fulfill({json:{enabled:true,retention:'until_deleted',generation:uuid(gen),conversations:u.searchParams.has('before')?all.slice(20):all.slice(0,20),before:!u.searchParams.has('before')&&all.length>20?all[19].conversation_id:null}});
      }
      if(method==='POST'){
       const body=req.postDataJSON();assert.equal(body.generation,uuid(gen),'create/resume uses the latest deletion-fenced generation');
@@ -47,9 +48,15 @@ module.exports=async(browser,state,base,out)=>{
    assert.equal(requests.filter(r=>r.method==='POST').length,2,'a generation conflict refreshes the list once before resuming');
    assert.equal(await p.locator('.kit-answer').innerText(),'Keep the next run easy.','the most recent saved chat resumes on a fresh device');
    const history=p.getByRole('button',{name:'Chats',exact:true});await p.locator('#kit-text').fill('Draft for my training chat');
-   await history.click();await p.locator('[data-kit-chat]').first().waitFor();assert.equal(await p.locator('[data-kit-chat]').count(),2);
-   await shot('list');await p.locator('#kit-more-chats').click();await p.locator(`[data-kit-chat="${C}"]`).waitFor();
-   assert.equal(await p.locator('[data-kit-chat]').count(),3,'conversation cursor appends older chats');
+   await history.click();await p.locator('[data-kit-chat]').first().waitFor();assert.equal(await p.locator('[data-kit-chat]').count(),20);
+   const geometry=await p.locator('.kit-history-row').first().evaluate(el=>({height:el.getBoundingClientRect().height,font:getComputedStyle(el.querySelector('strong')).fontSize,options:el.querySelector('[data-kit-options]').getBoundingClientRect().width}));
+   assert(Math.abs(geometry.height-56)<.5,'chat rows use a 56px target');assert.equal(geometry.font,'16px');assert(Math.abs(geometry.options-44)<.5,'row overflow stays 44px');
+   assert.equal(await p.getByRole('button',{name:/^Delete chat:/}).count(),0,'Delete is hidden until swipe or menu');
+   assert.equal(await p.locator('.kit-history-open[aria-current] svg').count(),1,'a tick marks the current chat');
+   assert.equal(await p.locator('#kit-earlier-reviews,#kit-delete-all,#kit-more-chats').count(),0,'secondary actions stay out of the list');
+   assert(await p.locator('.kit-history-sheet').evaluate(el=>el.getBoundingClientRect().height>innerHeight-20),'many chats use full available height');
+   await shot('list');await p.locator('#kit-chats').evaluate(el=>{el.scrollTop=el.scrollHeight;el.dispatchEvent(new Event('scroll'));});await p.locator(`[data-kit-chat="${D}"]`).waitFor();
+   assert.equal(await p.locator('[data-kit-chat]').count(),21,'scrolling appends older chats in the same list');
    await p.getByRole('button',{name:'Close',exact:true}).click();
    delayRead=true;const oldRead=p.waitForRequest(r=>new URL(r.url()).pathname.endsWith('/threads/'+A)&&r.method()==='GET');
    await p.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});await oldRead;
@@ -69,13 +76,17 @@ module.exports=async(browser,state,base,out)=>{
    assert.equal(requests.filter(r=>r.method==='POST').at(-1).path.endsWith('/'+A+'/resume'),true,'24h temporary-visit expiry resumes the durable conversation');
    assert.notEqual(requests.filter(r=>r.method==='POST').at(-1).body.visit_id,oldVisit);assert.deepEqual(deleted,[],'backgrounding/reload/expiry never deletes history');
    await shot('resumed');
-   await history.click();await p.locator(`[data-kit-delete="${B}"]`).click();await p.locator('[data-confirm-cancel]').click();assert.deepEqual(deleted,[],'single deletion requires confirmation');
-   step='failed delete B';failDelete=true;await p.locator(`[data-kit-delete="${B}"]`).click();await p.locator('[data-confirm-ok]').click();await p.waitForFunction(()=>document.querySelector('#kit-history-error')?.textContent.includes('Kinetta is having trouble'));
+   await history.click();await p.locator(`[data-kit-chat="${B}"]`).waitFor();
+   const swipeRow=p.locator(`[data-kit-chat="${B}"]`).locator('..').locator('..');
+   await swipeRow.evaluate(el=>{const touch=(type,touches)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:touches});el.dispatchEvent(e);};touch('touchstart',[{clientX:250,clientY:150}]);touch('touchmove',[{clientX:140,clientY:151}]);touch('touchend',[]);});
+   await p.locator('.kit-history-row.is-revealed [data-kit-delete]').waitFor({state:'visible'});await shot('swipe');
+   await p.locator(`[data-kit-delete="${B}"]`).click();await p.locator('[data-confirm-cancel]').click();assert.deepEqual(deleted,[],'single deletion requires confirmation');
+   step='failed delete B';failDelete=true;await p.locator(`[data-kit-options="${B}"]`).click();await p.locator('#kit-row-delete').click();await p.locator('[data-confirm-ok]').click();await p.waitForFunction(()=>document.querySelector('#kit-history-error')?.textContent.includes('Kinetta is having trouble'));
    assert.equal(await p.locator(`[data-kit-chat="${B}"]`).count(),1,'a failed deletion keeps the row');
-   await p.locator(`[data-kit-delete="${B}"]`).click();await shot('delete-confirm');await p.locator('[data-confirm-ok]').click();await p.locator(`[data-kit-chat="${B}"]`).waitFor({state:'detached'});
+   await p.locator(`[data-kit-options="${B}"]`).click();await p.locator('#kit-row-delete').click();assert.equal(await p.locator('.confirm-sheet p').innerText(),"This can't be undone.");await shot('delete-confirm');await p.locator('[data-confirm-ok]').click();await p.locator(`[data-kit-chat="${B}"]`).waitFor({state:'detached'});
    await p.waitForFunction(()=>document.querySelector('#kit-status')?.textContent==='');assert.deepEqual(deleted,[B]);
-   await p.locator('#kit-delete-all').click();await p.locator('[data-confirm-cancel]').click();assert.deepEqual(deleted,[B],'delete-all cancellation makes no request');
-   await p.locator('#kit-delete-all').click();await p.locator('[data-confirm-ok]').click();await p.waitForFunction(()=>document.querySelector('#kit-chats')?.textContent.includes('No saved chats yet.'));
+   await p.getByRole('button',{name:'Chat history options',exact:true}).click();await shot('options');await p.locator('#kit-delete-all').click();await p.locator('[data-confirm-cancel]').click();assert.deepEqual(deleted,[B],'delete-all cancellation makes no request');
+   await p.getByRole('button',{name:'Chat history options',exact:true}).click();await p.locator('#kit-delete-all').click();await p.locator('[data-confirm-ok]').click();await p.waitForFunction(()=>document.querySelector('#kit-chats')?.textContent.includes('No saved chats yet.'));
    assert.deepEqual(deleted,[B,'all']);await shot('empty');await p.getByRole('button',{name:'Close',exact:true}).click();
    assert.equal(await p.locator('#kit-text').inputValue(),'Draft for my training chat','deletion keeps the unsent draft in the fresh chat');
    step='account change';const cutoff=requests.length;await p.evaluate(()=>KitChat.eraseDevice());otherOwner=true;await p.reload();await history.waitFor();await p.waitForFunction(()=>!document.querySelector('#kit-send').disabled||document.querySelector('#kit-starters button')?.disabled===false);
