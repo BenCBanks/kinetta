@@ -123,6 +123,7 @@ for device in preferred:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
     if stage=='activity-photos-save':sim('privacy',udid,'grant','photos-add','com.kinetta.app')
     container=Path(sim('get_app_container',udid,'com.kinetta.app','data'))
+    if a.store:store_status_bar()
     process_launch_epoch_ms=time.time_ns()/1_000_000 if measure_startup else None
     process_launch_monotonic_ns=time.monotonic_ns() if measure_startup else None
     sim('launch',udid,'com.kinetta.app')

@@ -21,7 +21,7 @@
   }
   if(cfg.store&&cfg.stage==='food'){
     const style=document.createElement('style');
-    style.textContent='#kit-messages{align-content:end!important}.kit-food-inline .thread-day{display:none!important}';
+    style.textContent='.food-thread #thread-messages{align-content:end!important}.food-thread .thread-day{display:none!important}';
     (document.head||document.documentElement).append(style);
   }
   if(cfg.headerPage||cfg.store||cfg.groups){
@@ -186,7 +186,7 @@
     if(cfg.store&&cfg.stage==='header-track')storeMapCrop=await frameStoreTrackMap();
     if(cfg.store&&cfg.stage==='food'){
       // Keep the title stable across food-context redraws in this screenshot-only fixture.
-      const host=document.querySelector('.kit-food-inline'),label=host?.querySelector('#thread-context .thread-context-label');
+      const host=document.querySelector('.food-thread'),label=host?.querySelector('#thread-context .thread-context-label');
       if(host&&label){
         const setToday=()=>{const current=host.querySelector('#thread-context .thread-context-label');if(current&&current.textContent!=='Today')current.textContent='Today';};
         setToday();new MutationObserver(setToday).observe(host,{subtree:true,childList:true,characterData:true});
@@ -218,7 +218,7 @@
       }
     }
     if(cfg.store&&cfg.stage==='food'){
-      const label=document.querySelector('.kit-food-inline #thread-context .thread-context-label');
+      const label=document.querySelector('.food-thread #thread-context .thread-context-label');
       if(label)label.textContent='Today';
     }
     if(cfg.activityFeed){let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#ff-list .post[data-href="/activity/1"]')&&!!document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Fictional own and friend Activity cards did not finish rendering');}
@@ -244,9 +244,10 @@
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
     const field=document.querySelector('#thread-text'),fieldSize=field?{...rect('#thread-text'),scrollHeight:field.scrollHeight,clientHeight:field.clientHeight}:null;
     const featuredAchievements=cfg.stage==='header-me'?[...document.querySelectorAll('.me-featured-achievements .profile-achievement[data-achievement-code]')].map(item=>({code:item.dataset.achievementCode,box:rect(item)})):[];
+    const foodLastMessage=cfg.stage==='food'?rect('.food-thread #thread-messages article:last-child'):null,foodComposer=cfg.stage==='food'?rect('#thread-composer'):null;
     const headerSelector=cfg.stage==='track-review'?'.track-review-top':cfg.stage==='food'?'.thread-heading':'.top';
     if(cfg.startupTiming)cfg.startupTiming.metricsSnapshotPerfMs=performance.now();
-    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,storeMapCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(headerSelector),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(cfg.stage==='food'?{storeKitTitle:document.querySelector('.kit-food-inline #thread-context .thread-context-label')?.textContent||'',storeKitDateDividers:[...document.querySelectorAll('.kit-food-inline .thread-day')].filter(e=>getComputedStyle(e).display!=='none').length,storeKitGap:rect('#thread-composer').y-rect('.kit-food-inline').bottom}:{}),...(photosSave?{photosSave}:{}),...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
+    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,storeMapCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(headerSelector),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(cfg.stage==='food'?{storeKitTitle:document.querySelector('.food-thread #thread-context .thread-context-label')?.textContent||'',storeKitDateDividers:[...document.querySelectorAll('.food-thread .thread-day')].filter(e=>getComputedStyle(e).display!=='none').length,storeKitGap:foodLastMessage&&foodComposer?foodComposer.y-foodLastMessage.bottom:999}:{}),...(photosSave?{photosSave}:{}),...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
     if(cfg.store&&cfg.stage==='header-food')result.storeNutrition={card:rect('.nutrition-day-summary'),gear:rect('#fd-goal'),protein:rect('[data-macro="protein_g"]')};
     if(cfg.stage==='achievement-share-track'){const tabs=[...document.querySelectorAll('[data-achievement-scope]')],preview=document.querySelector('[data-achievement-preview-image]'),send=document.querySelector('[data-achievement-share-send]');result.achievementShare={title:document.querySelector('.sheet header h2')?.textContent,tabs:tabs.map(tab=>({label:tab.textContent.trim(),selected:tab.getAttribute('aria-selected')})),preview:{loaded:!!preview?.complete&&preview.naturalWidth>0,alt:preview?.alt||'',width:preview?.naturalWidth||0,height:preview?.naturalHeight||0},sendText:send?.textContent.trim(),sendDisabled:send?.disabled};}
     if(cfg.groups){const fields=document.querySelector('.group-create-fields');result.groups={fields:{...rect('.group-create-fields'),clientWidth:fields.clientWidth,scrollWidth:fields.scrollWidth},date:rect('[name=event_date]'),name:rect('[name=title]'),grid:rect('.group-goal-fields'),labels:[...document.querySelectorAll('.group-create-fields>label')].map(label=>rect(label))};}
