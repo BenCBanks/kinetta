@@ -7,12 +7,19 @@ def ck(cond, m):
     assert cond, m; n += 1
 # --- findable ---
 ck(a.get('/api/sharing')[1]['findable'] is True, 'findable by default')
-ck([p['login'] for p in c.get('/api/people/search?q=test%20r')[1]] == ['zz_test_rachel'], 'other finds rachel')
+# Keep the surname distinct from the username so these checks cannot pass through username matching.
+s, _ = b.put('/api/account', {'first_name': 'Riley', 'last_name': 'Cedarvale'}); ck(s == 200, 'set fictional searchable names')
+ck([p['login'] for p in c.get('/api/people/search?q=zz_test_rachel')[1]] == ['zz_test_rachel'], 'non-friend finds by username')
+ck(any(p['login'] == 'zz_test_rachel' and p['name'] == 'Riley' for p in c.get('/api/people/search?q=Riley')[1]), 'non-friend finds by first name only')
+ck(c.get('/api/people/search?q=Cedarvale')[1] == [], 'non-friend cannot match a last name')
+ck(c.get('/api/people/search?q=Riley%20Cedar')[1] == [], 'non-friend cannot match a full-name prefix with a space')
+ck([p['login'] for p in a.get('/api/people/search?q=Cedarvale')[1]] == ['zz_test_rachel'], 'accepted friend finds by last name')
 s, _ = b.put('/api/sharing', {'findable': False}); ck(s == 200, 'turn off')
-ck(c.get('/api/people/search?q=test%20r')[1] == [], f"hidden from strangers {c.get('/api/people/search?q=test%20r')[1]}")
+ck(not any(p['login'] == 'zz_test_rachel' for p in c.get('/api/people/search?q=Riley')[1]), 'first-name discovery respects opt-out')
 ck([p['login'] for p in c.get('/api/people/search?q=zz_test_rachel')[1]] == ['zz_test_rachel'], 'exact username still works')
-ck([p['login'] for p in a.get('/api/people/search?q=test%20r')[1]] == ['zz_test_rachel'], 'friends still find her')
+ck([p['login'] for p in a.get('/api/people/search?q=Riley%20Cedar')[1]] == ['zz_test_rachel'], 'friends still find her by full name')
 b.put('/api/sharing', {'findable': True})
+b.put('/api/account', {'name': 'Test Rachel'})
 # --- sharing a dish ---
 s, d = a.post('/api/dishes', {'name': 'Test chili'}); did = d['id']; ck(d['mine'] and d['shared_with'] == [], 'new dish mine')
 a.post(f'/api/dishes/{did}/items', {'name': 'Beans', 'grams': 800, 'per100': {'kcal': 100, 'protein_g': 7, 'carbs_g': 18, 'fat_g': 0.5}})
