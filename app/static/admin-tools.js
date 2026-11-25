@@ -45,6 +45,18 @@ function confirmForm(title,intro,html,send,after){
  });
 }
 const confirmUser=p=>'<label>Type @'+esc(p.login)+' to confirm<input name="confirm" autocomplete="off" spellcheck="false" data-confirm-login="'+esc(p.login)+'" required></label>';
+function todayView(data){
+ const metrics=[['new_signups','New sign-ups today'],['unconfirmed','Awaiting email confirmation'],['open_reports','Open reports'],['kit_requests','Kit requests today']];
+ const labels={available:'Available',configured:'Configured',not_configured:'Not configured',disabled:'Disabled',required:'Required',verified:'Verified',needs_check:'Needs check'};
+ const sources={'this request':'This request',configuration:'Configuration','administrator evidence':'Recorded evidence'};
+ content.innerHTML='<h2>Today</h2><p class="small today-date">'+esc(data.day)+' · '+esc(data.zone)+'</p><dl id="today-metrics">'+metrics.map(([key,label])=>'<div><dt>'+esc(label)+'</dt><dd>'+esc(data.counts[key])+'</dd></div>').join('')+'</dl><div class="today-workspace"><section aria-labelledby="attention-title"><h3 id="attention-title">Needs attention</h3><div class="today-attention">'+(data.needs_attention.length?data.needs_attention.map((row,i)=>'<button data-attention="'+i+'"><span><span class="today-severity '+(row.severity==='red'?'urgent':'check')+'" aria-hidden="true"></span>'+esc(row.label)+'</span>'+(['email','authenticator','backup'].includes(row.key)?'':'<strong>'+esc(row.count)+'</strong>')+'<span aria-hidden="true">›</span></button>').join(''):'<p>No items need attention.</p>')+'</div></section><section aria-labelledby="services-title"><h3 id="services-title">Service status</h3><p class="small">Configuration and recorded evidence, not live monitoring.</p><dl class="today-services">'+data.services.map(row=>'<div><dt>'+esc(row.label)+'</dt><dd><strong>'+esc(labels[row.status]||row.status)+'</strong><span class="small">'+esc(sources[row.source]||row.source)+'</span></dd></div>').join('')+'</dl><button data-dest="readiness">Review launch checks</button></section></div>';
+ content.querySelectorAll('[data-attention]').forEach(button=>button.onclick=()=>{
+  const [view,query='']=data.needs_attention[Number(button.dataset.attention)].destination.split('?');
+  if(!['people','reports','readiness'].includes(view))return;
+  if(view==='people'){const q=new URLSearchParams(query);Object.assign(peopleState,{q:'',role:'',status:q.get('status')==='unconfirmed'?'unconfirmed':'',issue:['imports','connections'].includes(q.get('issue'))?q.get('issue'):'',joined_after:'',active_since:'',page:1});}
+  show(view);
+ });wireDestinations(content);
+}
 async function overviewView(data,rev){
  cfg=data.email;const card=(title,number,sub,dest,issue='')=>`<button class="card overview-action" data-dest="${dest}"${issue?` data-issue="${issue}"`:''}><span>${esc(title)}</span><strong class="metric">${esc(number)}</strong><small>${esc(sub)}</small></button>`;
  content.innerHTML='<h2>Service overview</h2><div id="overview-readiness" class="notice" role="status">Checking launch evidence…</div><div class="cards">'+

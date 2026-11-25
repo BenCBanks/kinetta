@@ -24,7 +24,7 @@ const date=s=>s?new Date(s).toLocaleString():'—';
 const table=(heads,rows)=>'<div class="table"><table role="table" aria-label="'+esc($('#content h2')?.textContent||'Administration records')+'"><thead><tr>'+heads.map(h=>'<th scope="col">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
 function buttons(row,actions){return '<div class="actions">'+actions.map(([a,label])=>`<button data-action="${a}" data-id="${esc(row.id??row.login)}">${label}</button>`).join('')+'</div>'}
 // Routes are an allowlist; hashes select existing pages, never API paths or account identifiers.
-const ADMIN_ROUTES={overview:['today','Today','overview'],people:['people','People','people'],reports:['reports','Reports','reports'],
+const ADMIN_ROUTES={service:['more/overview','Service overview','more'],overview:['today','Today','overview'],people:['people','People','people'],reports:['reports','Reports','reports'],
  beta:['requests','Requests','beta'],more:['more','More','more'],invites:['requests/invitations','Invitations','beta'],
  requests:['requests/data','Data requests','beta'],segments:['reports/segments','Segments & times','reports'],
  usage:['more/usage','Usage','more'],features:['more/features','Features','more'],readiness:['more/readiness','Launch checks','more'],
@@ -43,13 +43,14 @@ function adminNavigation(view){
  nav.querySelectorAll('[data-view]').forEach(a=>a.onclick=e=>{e.preventDefault();show(a.dataset.view);});
 }
 function adminMore(){
- content.innerHTML='<div class="admin-more-list">'+['usage','features','readiness','logins','audit'].map(view=>`<a href="#${ADMIN_ROUTES[view][0]}" data-view="${view}"><span>${ADMIN_ROUTES[view][1]}</span><span aria-hidden="true">›</span></a>`).join('')+'</div>';
+ content.innerHTML='<div class="admin-more-list">'+['service','usage','features','readiness','logins','audit'].map(view=>`<a href="#${ADMIN_ROUTES[view][0]}" data-view="${view}"><span>${ADMIN_ROUTES[view][1]}</span><span aria-hidden="true">›</span></a>`).join('')+'</div>';
  content.querySelectorAll('[data-view]').forEach(a=>a.onclick=e=>{e.preventDefault();show(a.dataset.view);});
 }
 window.addEventListener('hashchange',()=>{if(who&&location.hash!=='#main'){if($('#dialog').open)$('#dialog').close();show(adminViewFromHash());}});
 async function show(view){if(!Object.hasOwn(ADMIN_ROUTES,view))view='overview';if(document.body)document.body.dataset.adminView=view;const changed=current!==view;current=view;adminNavigation(view);const rev=++revision;err.textContent='';$('#retry').hidden=true;content.innerHTML='<p>Loading…</p>';if(changed)window.scrollTo(0,0);if(view==='more'){adminMore();return;}
-try{const query=view==='features'?featureQuery():['logins','usage'].includes(view)?'?'+new URLSearchParams({days:reportDays,...(view==='logins'?{...(loginOutcome?{outcome:loginOutcome}:{}),...(loginAccount?{account:loginAccount}:{})}:{})}):'';const special=typeof adminQuery==='function'?adminQuery(view):null;const data=await api('/'+({audit:'audit-history',requests:'data-requests'}[view]||view)+(special===null?query:special));if(rev!==revision||!who)return;
- if(view==='overview'){await overviewView(data,rev);await overviewMetrics(rev)}
+try{const query=view==='features'?featureQuery():['logins','usage'].includes(view)?'?'+new URLSearchParams({days:reportDays,...(view==='logins'?{...(loginOutcome?{outcome:loginOutcome}:{}),...(loginAccount?{account:loginAccount}:{})}:{})}):'';const special=typeof adminQuery==='function'?adminQuery(view):null;const data=await api('/'+({overview:'today',service:'overview',audit:'audit-history',requests:'data-requests'}[view]||view)+(special===null?query:special));if(rev!==revision||!who)return;
+ if(view==='overview')todayView(data);
+ if(view==='service'){await overviewView(data,rev);await overviewMetrics(rev)}
  if(view==='people')peopleView(data,rev);
  if(view==='readiness')readinessView(data,rev);
  if(view==='requests')requestsView(data,rev);

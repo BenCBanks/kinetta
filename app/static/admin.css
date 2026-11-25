@@ -125,3 +125,15 @@ body[data-admin-view=people] .people-find{display:block;position:sticky;top:calc
  .admin-queue-item{display:grid;grid-template-columns:1fr 1.5fr 1.2fr;column-gap:24px;align-items:start}.admin-queue-item h3{grid-column:1}.admin-queue-item>.actions{grid-column:3;grid-row:1 / span 4;margin:0;display:flex;flex-wrap:wrap}.admin-queue-item>.actions button{flex:1 1 110px}.admin-queue-item>p,.admin-queue-item>small{grid-column:2;margin-top:0}
 }
 @media(hover:hover){.admin-queue-open:hover{background:var(--color-soft)}.admin-queue-item button:hover{background:var(--color-soft)}}
+/* Today: bounded daily counts and two operator columns on desktop. */
+.today-date{margin:0 0 12px}
+#today-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin:0 0 28px;padding:16px 0;border-block:1px solid var(--color-divider)}
+#today-metrics dt{font-size:14px;color:var(--color-text-secondary);min-height:42px}#today-metrics dd{font-size:28px;font-weight:650;margin:4px 0 0}
+.today-workspace{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:40px}.today-workspace section{min-width:0}.today-workspace h3{margin:0 0 12px}.today-workspace p{margin:8px 0}
+.today-attention button{display:flex;align-items:center;gap:12px;min-height:52px;width:100%;padding:12px 0;border:0;border-bottom:1px solid var(--color-divider);border-radius:0;background:transparent;color:var(--color-text);text-align:left}
+.today-attention button>span:first-child{flex:1;min-width:0}.today-attention strong{font-size:16px}.today-attention button>span:last-child{color:var(--color-text-secondary)}
+.today-severity{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:9px}.today-severity.urgent{background:var(--color-error)}.today-severity.check{background:var(--color-text-secondary)}
+.today-services{margin:0 0 16px}.today-services>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14px}.today-services dd{margin:0;text-align:right}.today-services strong{font-weight:600}.today-services .small{display:block;margin-top:3px}
+@media(max-width:1000px){#today-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}#today-metrics dt{min-height:40px}.today-workspace{grid-template-columns:1fr;gap:28px}}
+@media(hover:hover){.today-attention button:hover{background:var(--color-soft)}}
+.today-attention button:active{background:var(--color-soft)}

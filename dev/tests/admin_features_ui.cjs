@@ -12,8 +12,9 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
     await context.addCookies([{name:'kinetta_admin',value:session.cookie,url:base+'/api',httpOnly:true,sameSite:'Strict'}]);
     page.on('pageerror',e=>errors.push(e.message));
     await context.route('**/*',route=>{const r=route.request(),u=new URL(r.url());return u.origin!==base||!['GET','HEAD'].includes(r.method())?route.abort():route.continue();});
+    const todayChecks=await require('./admin_today_checks.cjs').install(page,base);
     await page.goto(base+'/admin');await page.locator('#portal:not([hidden])').waitFor();
-    const waitView=async view=>{await page.waitForFunction(view=>who&&current===view&&!document.querySelector('#portal').hidden&&document.querySelector('#content').textContent.trim()&&document.querySelector('#content').textContent!=='Loading…'&&(view!=='overview'||document.querySelector('#overview-metrics')),view);assert.equal(await page.locator('#retry').isVisible(),false,'page loaded without fallback');};
+    const waitView=async view=>{await page.waitForFunction(view=>who&&current===view&&!document.querySelector('#portal').hidden&&document.querySelector('#content').textContent.trim()&&document.querySelector('#content').textContent!=='Loading…'&&(view!=='overview'||document.querySelector('#today-metrics')),view);assert.equal(await page.locator('#retry').isVisible(),false,'page loaded without fallback');};
     const goView=async(view,selector='.admin-nav')=>{await page.locator(selector+' [data-view='+view+']').click();await waitView(view);};
     assert.equal(new URL(page.url()).hash,'#today');
     const destinations=[['overview','today','Today'],['people','people','People'],['reports','reports','Reports'],['beta','requests','Requests'],['more','more','More']];
@@ -49,6 +50,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
     await page.locator('#feature-bucket').selectOption('day');await page.locator('.feature-table').waitFor();checks++;
     const fit=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1,controls:[...document.querySelectorAll('.feature-controls select')].map(e=>e.getBoundingClientRect().height)}));assert.equal(fit.overflow,false);assert(fit.controls.every(h=>h>=44));assert.deepEqual(errors,[]);checks++;
     if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`features-${width}-${theme}.png`),fullPage:true});await page.screenshot({path:path.join(out,`features-viewport-${width}-${theme}.png`)});await page.locator('.feature-funnel').screenshot({path:path.join(out,`features-funnel-${width}-${theme}.png`)});}
+    checks+=await todayChecks();
     checks+=await require('./admin_queue_checks.cjs')(page,base);assert.deepEqual(errors,[]);
     console.log(`Features ${width}px ${theme}: real admin aggregates/funnel, small groups, sorts, all ranges, trend selector, controls and no overflow/errors PASS`);
    }finally{await context.close();}
