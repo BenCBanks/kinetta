@@ -135,6 +135,7 @@ class Usage(unittest.TestCase):
    old='zz_test_signup7_'+marker+'_old';event_ids.append(old)
    con.execute("INSERT INTO admin_mail_events(id,provider_id,state,created) VALUES (%s,%s,'delivered',now()-interval '8 days')",(old,'fictional-'+marker+'-old'))
    rows=[(today,'Kit conversation',100_000),(today,'food chat daily note',200_000),
+         (today,'food chat',800_000),
          (month_start,'weekly review',300_000),(today,'recipe review',900_000),
          (last_month,'Kit conversation',700_000)]
    for day,kind,charge in rows:

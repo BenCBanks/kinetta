@@ -106,12 +106,13 @@ def webhook_event(raw,headers):
     # Keep delivery outcomes distinct for the aggregate admin health view. A
     # provider "sent" event means accepted for delivery, not inbox delivery.
     state={'email.sent':'sent','email.delivered':'delivered','email.bounced':'bounced','email.failed':'failed'}.get(kind)
+    effect='bounced' if state in ('bounced','failed') else state
     with db.connect() as c:
         c.execute('SELECT pg_advisory_xact_lock(hashtext(%s))',('mail-event:'+pid,))
         if not c.execute('INSERT INTO admin_mail_events (id,provider_id,state) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id',(eid,pid,state)).fetchone():return {'ok':True}
-        if state and state != 'sent':
-            c.execute("UPDATE beta_responses SET state=%s WHERE provider_id=%s AND (state <> 'bounced' OR %s='bounced')",(state,pid,state))
-        if state == 'bounced':
+        if effect and effect != 'sent':
+            c.execute("UPDATE beta_responses SET state=%s WHERE provider_id=%s AND (state <> 'bounced' OR %s='bounced')",(effect,pid,effect))
+        if effect == 'bounced':
             c.execute("""UPDATE account_tokens SET bounced_at=coalesce(bounced_at,now())
                          WHERE resend_id=%s AND kind='verify_email' AND used_at IS NULL""", (pid,))
     return {'ok':True}

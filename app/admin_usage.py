@@ -8,9 +8,9 @@ from . import db
 
 router=APIRouter(prefix='/api/admin')
 
-# Ledger labels for Kit answers and reviews. Other AI tools (food-photo
-# estimates, recipe review and general food coaching) stay excluded.
-KIT_BUDGET_KINDS=('Kit conversation','Kit question','food chat','food chat context','food chat Kit',
+# Stored Kit feature/label values from ai_budget.reserve. The generic food-chat
+# classifier (`food chat`) and other AI tools stay excluded.
+KIT_BUDGET_KINDS=('Kit conversation','Kit question','food chat context','food chat Kit',
                   'food chat daily note','weekly review','coach note')
 
 def record_login(c,uid,channel='web',outcome='success',stage='session'):

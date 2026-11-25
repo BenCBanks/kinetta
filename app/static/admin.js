@@ -46,8 +46,8 @@ function overviewMetricsMarkup(mail,spend){
  const number=v=>Number.isSafeInteger(Number(v))&&Number(v)>=0?String(Number(v)):'0';
  const dollars=v=>Number.isFinite(Number(v))&&Number(v)>=0?'$'+Number(v).toFixed(2):'$0.00';
  const m=mail||{},s=spend||{};
- return '<section class="notice" id="overview-email-health"><h3>Email health · last 7 days</h3><p>Sent: <b>'+number(m.sent)+'</b> · Delivered: <b>'+number(m.delivered)+'</b> · Bounced: <b>'+number(m.bounced)+'</b> · Failed: <b>'+number(m.failed)+'</b></p></section>'+
-  '<section class="notice" id="overview-kit-spend"><h3>Kit spend · estimated USD</h3><p>Today: <b>'+dollars(s.today_usd)+'</b> · This month: <b>'+dollars(s.month_usd)+'</b></p></section>';
+ return '<section class="notice" id="overview-metrics" aria-label="Email and Kit totals"><p><b>Email · 7 days</b>: Sent '+number(m.sent)+' · Delivered '+number(m.delivered)+' · Bounced '+number(m.bounced)+' · Failed '+number(m.failed)+'</p>'+
+  '<p><b>Kit · estimated USD</b>: Today '+dollars(s.today_usd)+' · This month '+dollars(s.month_usd)+'</p></section>';
 }
 async function overviewMetrics(rev){
  const host=$('#overview-readiness');if(!host)return;
