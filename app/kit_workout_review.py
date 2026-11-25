@@ -273,8 +273,14 @@ def checked_answer(raw, evidence):
             or JARGON_DENY.search(next_step) or feeling_claim(verdict) or feeling_claim(next_step)
             or NEXT_STEP_CHAIN.search(next_step)):
         _reject('voice_invalid')
-    _check_relations(verdict, compare['data'])
-    _check_relations(next_step, compare['data'])
+    # Rendered placeholders may themselves contain relation words (for example,
+    # a pace fact ending in “faster” and an HR fact ending in “lower”). Keep
+    # those app-computed labels out of the prose relation check so each claim
+    # is checked against the metric the person actually named.
+    relation_verdict = coach_chat.PLACEHOLDER.sub('', review.verdict)
+    relation_next_step = coach_chat.PLACEHOLDER.sub('', review.next_step)
+    _check_relations(relation_verdict, compare['data'])
+    _check_relations(relation_next_step, compare['data'])
     verdict_sentences = len(SENTENCE_END.findall(review.verdict.strip()))
     next_sentences = len(SENTENCE_END.findall(review.next_step.strip()))
     if not (1 <= verdict_sentences <= 3 and next_sentences == 1):

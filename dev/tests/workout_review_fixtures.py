@@ -53,7 +53,7 @@ def multi_metric_answer(data):
         {'evidence_id':'e2','path':['deltas','avg_hr'],'value':data['deltas']['avg_hr']},
     ]
     return {'facts':facts,'workout_review':{
-        'verdict':'Compared with your last {e2:0}, the pace difference was {e2:1}, and the heart rate difference was {e2:2}.',
+        'verdict':'Compared with your last {e2:0}, your pace was {e2:1}, and your heart rate was {e2:2}.',
         'next_step':'Add a note.'},'follow_ups':['Compare it with my last workout.']}
 
 
@@ -103,14 +103,17 @@ CASES = [
     fixture('reject harder feeling in verdict',data=comparison(),raw=answer(data=comparison(),verdict='Your run felt harder than usual. Compared with your last {e2:0}, your pace was {e2:1}.'),expected='voice_invalid'),
     fixture('reject tired feeling in next step',data=comparison(),raw=answer(data=comparison(),next_step='You may feel tired after that.'),expected='voice_invalid'),
     fixture('reject first person in verdict',data=comparison(),raw=answer(data=comparison(),verdict="I can't tell how it felt. Compared with your last {e2:0}, your pace was {e2:1}."),expected='voice_invalid'),
-    fixture('vs abbreviation is not a sentence end',data=comparison(),raw=answer(data=comparison(),verdict='Compared with your last {e2:0}, your pace was {e2:1} vs. your usual run.')),
+    fixture('reject first person in next step',data=comparison(),raw=answer(data=comparison(),next_step='I would add a note. It may help next time.'),expected='voice_invalid'),
+    fixture('fixed honesty clause is allowed',data=comparison(),raw=answer(data=comparison(),verdict="You can't tell how it felt. Compared with your last {e2:0}, your pace was {e2:1}.")),
+    fixture('reject harder feeling in next step',data=comparison(),raw=answer(data=comparison(),next_step='Your run felt harder than usual.'),expected='voice_invalid'),
+    fixture('vs abbreviation is not a sentence end',data=comparison(),raw=answer(data=comparison(),verdict='Compared with your last {e2:0}, your pace was {e2:1} vs. that last run.')),
     fixture('add a note suggestion',data=comparison(),raw=answer(data=comparison(),next_step='Add a note.')),
     fixture('reject record how it felt wording',data=comparison(),raw=answer(data=comparison(),next_step='Record how it felt.'),expected='voice_invalid'),
 ]
 
 
 def run():
-    assert len(CASES)==48
+    assert len(CASES)==51
     assert kit_workout_review.REJECTION_CODES==frozenset({'answer_shape','numeric_unsupported','fact_unsupported','relation_unsupported','health_claim_unsupported','follow_up_invalid','voice_invalid'})
     assert kit_workout_review.WorkoutReviewRejected('model supplied arbitrary text').reason_code=='answer_shape'
     for case in CASES:
