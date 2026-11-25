@@ -102,3 +102,20 @@ for unit in ('miles','grams','kcal','watts','seventy'):
     try:coach_chat.checked_answer(bad,evidence,kit=True)
     except ValueError:pass
     else:raise AssertionError('Extra numeric/unit suffix accepted: '+unit)
+
+# The correction must not escape claim validation by switching to a legacy shape.
+legacy_unsafe={'verdict':'You have diabetes.','reason':'This is a personal diagnosis.','facts':[]}
+for initial,correction,should_pass in (
+    ({'blocks':[{'kind':'paragraph','text':'You have diabetes.'}],'facts':[]},legacy_unsafe,False),
+    (legacy_unsafe,{'blocks':[{'kind':'paragraph','text':'Ask a clinician about persistent symptoms.'}],'facts':[]},True),
+):
+    calls=[]
+    def provider(messages,definitions,**kwargs):
+        calls.append(1);return [],json.dumps(initial if len(calls)==1 else correction),{}
+    with patch('app.coach.allowed',return_value=True),patch('app.coach.provider',return_value='gemini'), \
+         patch('app.kit_tools.KitTools.call',lambda *args,**kwargs:profile['data']), \
+         patch('app.coach_chat._gemini_turn',provider):
+        try:result=coach_chat.answer(1,'Help me understand my workout.',kit=True)
+        except ValueError:assert not should_pass
+        else:assert should_pass and result['answer_blocks']
+    assert len(calls)==2

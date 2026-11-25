@@ -128,6 +128,11 @@ def weekly_fact_class(fact):
     return None
 
 
+def conversation_retry_prompt(error):
+    return (coach_chat._kit_retry_prompt(error)+' Use the conversational blocks/facts JSON contract, not legacy '
+            'verdict/reason. Correct unsupported claims or omit them; no extra tools or evidence.')
+
+
 def weekly_retryable(error):
     return isinstance(error,(ValidationError,json.JSONDecodeError,coach_chat.KitValidationError)) or str(error) in {
         'Unsupported measurement path','Weekly section topic does not match referenced fact',

@@ -79,7 +79,9 @@ def is_system(system):
     return system == SYSTEM
 
 
-def check_for_question(raw, evidence, question, *, weekly_review=False):
+def check_for_question(raw, evidence, question, *, weekly_review=False, require_blocks=False):
+    if require_blocks and not has_blocks(raw):
+        raise ValueError('Conversational answers require blocks')
     if not weekly_review and has_blocks(raw):
         return coach_chat.checked_answer(raw, evidence, kit=True, conversation_question=question)
     return coach_chat.checked_answer(raw, evidence, kit=True, weekly_review=weekly_review)

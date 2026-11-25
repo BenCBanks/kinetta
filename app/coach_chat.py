@@ -689,6 +689,7 @@ def _claude_turn(messages, definitions, *, system=SYSTEM):
 def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False,
            workout_review=False, workout_evidence=None):
     """`turn` is a stand-in hook for deterministic tests; production uses the configured provider."""
+    conversation_contract=kit and not weekly_review and turn is None
     if workout_review:
         from . import kit_workout_review
         return kit_workout_review.answer(uid, question, workout_evidence, turn=turn, active=active)
@@ -756,7 +757,9 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
             from . import kit_conversation
             try:
-                checked = (kit_conversation.check_for_question(_json(text), evidence, question, weekly_review=weekly_review)
+                raw=_json(text)
+                conversation_contract=conversation_contract or (kit and not weekly_review and kit_conversation.has_blocks(raw))
+                checked = (kit_conversation.check_for_question(raw, evidence, question, weekly_review=weekly_review, require_blocks=conversation_contract)
                            if kit else checked_answer(_json(text), evidence, kit=kit,weekly_review=weekly_review))
             except ValueError as error:
                 if not kit: raise
@@ -790,7 +793,8 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     if any(e['tool'] not in health_tools and 'data' in e for e in evidence):
                         with db.coach_connect(uid) as c:
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
-                    retry_message=_kit_retry_prompt(error)
+                    from . import kit_claims
+                    retry_message=(kit_claims.conversation_retry_prompt(error) if conversation_contract else _kit_retry_prompt(error))
                     messages.append({'role':'user','parts':[{'text':retry_message}]} if provider=='gemini'
                                     else {'role':'user','content':retry_message})
                     try:
@@ -803,7 +807,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
                     for key in usage:usage[key]+=int(retry_tokens.get(key) or 0)
                     if retry_calls:raise ValueError('Kit could not verify that answer. Try again.')
-                    try:checked=kit_conversation.check_for_question(_json(retry_text),evidence,question)
+                    try:checked=kit_conversation.check_for_question(_json(retry_text),evidence,question,require_blocks=conversation_contract)
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
             if kit and not weekly_review:
                 # The UI consumes only interpretation. Keep the validated source fields internal
