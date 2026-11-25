@@ -995,7 +995,7 @@ function foodEditor(food, after) {
 // ---------- photo + description -> Gemini estimate (2026-10-09) ----------
 // Selection stays local until the explicit confirmation; one request covers all retained views.
 async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,description=null,itemize=false,active=()=>true}={}) {
-  if (!files.length) return;
+  if (!files.length || globalThis.EmailConfirmation?.lock()) return;
   if (files.length>6) { toast('Choose up to 6 photos at a time'); return; }
   let photos=[];
   try { for (const file of files) { if (file.size>20000000) throw Error('Choose photos under 20 MB each'); photos.push(await shrinkPhoto(file,1600)); if(!active())return; }

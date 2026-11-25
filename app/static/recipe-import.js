@@ -19,7 +19,7 @@ const RecipeImport=(()=>{
     $('#recipe-screenshot',c.el).onclick=()=>screenshot(c);
     $('#recipe-type',c.el).onclick=e=>{if(active(c))newDish(e.currentTarget);};
   }
-  function screenshot(c){if(!active(c))return;
+  function screenshot(c){if(!active(c)||globalThis.EmailConfirmation?.lock())return;
     if(!aiCan('food')){toast('Recipe screenshots need Kit enabled in Me. You can still create a recipe yourself.');return;}
     const file=document.createElement('input');file.type='file';file.accept='image/*';file.multiple=true;
     file.onchange=async()=>{if(!active(c))return;await reviewFoodPhotos([...file.files],async images=>{if(!active(c))return;c.mode='photo';c.url='';c.id=newId();c.editor=null;c.photos=images;remember(c);await read(c);},{recipe:true,active:()=>active(c)});};file.click();

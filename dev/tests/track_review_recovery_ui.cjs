@@ -17,7 +17,7 @@ const fixture=require('../demo/track_session.cjs');
    const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
    if(request.method()==='POST'&&url.pathname==='/api/activities/track'){
     attempts.push(JSON.parse(request.postData()||'{}'));
-    return attempts.length===1?route.fulfill({status:503,json:{detail:'Fictional temporary outage'}}):route.fulfill({status:201,json:{id:990358,duplicate:false}});
+    return attempts.length===1?route.fulfill({status:503,json:{detail:'Fictional temporary outage'}}):route.fulfill({status:201,json:{id:990358,duplicate:false,warning:'Activity saved without photos. Confirm your email to upload photos.'}});
    }
    if(request.method()==='POST'&&url.pathname==='/api/milestones/celebrate')return route.fulfill({json:{items:[],pending:false}});
    if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
@@ -42,6 +42,7 @@ const fixture=require('../demo/track_session.cjs');
   assert.deepEqual(JSON.parse(JSON.stringify(restored.request)),attempts[0],'reload restores the exact confirmed request');
   await page.locator('#track-save').click();await page.locator('.track-saved').waitFor();
   assert.equal(attempts.length,2,'explicit Retry sends one second request');
+  await page.getByText('Activity saved without photos. Confirm your email to upload photos.',{exact:true}).waitFor();
   assert.deepEqual(attempts[1],attempts[0],'Retry preserves identical client ID and request body');
   assert.equal(await page.evaluate(async()=>TrackReviewStore.pending('kinetta.track:'+JSON.stringify([location.origin,App.me.id]))),null,'intercepted success clears the pending confirmed request');
   assert.deepEqual(blockedWrites,[],'the case blocks every other application write');

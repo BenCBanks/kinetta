@@ -142,7 +142,7 @@
       ${d?.error?`<p class="small danger" role="alert">${esc(d.error)}</p><button type="button" class="ghost wide" id="track-review-retry">Retry photo storage</button>`:''}</div>`;
   }
   function wireReviewPhotos(live) {
-    const add=$('#track-photos-add'),file=$('#track-photos-file');if(add)add.onclick=()=>file.click();
+    const add=$('#track-photos-add'),file=$('#track-photos-file');if(add)add.onclick=()=>{if(!globalThis.EmailConfirmation?.lock(true))file.click();};
     if(file)file.onchange=async()=>{
       if(!live() || photoBusy || saving || !reviewDraft?.loaded || reviewDraft.request)return;
       const files=[...file.files];if(!files.length)return;
@@ -293,7 +293,7 @@
           if(session.native){nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});if(!current())return;await TrackNative.call('clear',{id:session.id,intervalResultSaved:!!frozen.request.intervals});}
           if(!current())return;
           await TrackReviewStore.remove(k,active.id);if(!current())return;
-          store.del(k);session=null;reviewDraft=null;invalidate('/api/');toast(result.duplicate?'Activity saved. Check its sharing on the activity.':'Activity saved');
+          store.del(k);session=null;reviewDraft=null;invalidate('/api/');toast(result.warning || (result.duplicate?'Activity saved. Check its sharing on the activity.':'Activity saved'));
           if(result.duplicate)go(`/activity/${result.id}`);else if(location.pathname==='/track')go(`/track?done=${result.id}`,{replace:true});else sync();
         } catch(x) {
           if(!current())return;
