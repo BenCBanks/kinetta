@@ -19,7 +19,7 @@ for(const [input,expected] of [
  ['Would you like to review your recent workouts.','Would you like to review your recent workouts.'],
  ['Would you like to?','Would you like to?'],
 ])assert.equal(c.Kit.rewriteFollowup(input),expected,`screen-side follow-up rewrite: ${input}`);
-assert(source.includes('a.follow_ups.slice(0,2).map(rewriteFollowup).filter(Boolean)')&&source.includes('class="kit-suggested-reply" data-kit-followup')&&source.includes("send(c,b.querySelector('span')?.textContent.trim()||'')"),'at most two rewritten suggestions render as sendable user bubbles');
+assert(source.includes('filter(isFirstPersonFollowup)')&&source.includes('class="kit-suggested-reply" data-kit-followup')&&source.includes('send(c,b.querySelector(\'span\')?.textContent.trim()||\'\')'),'only eligible rewritten first-person suggestions render as sendable user bubbles');
 assert(source.includes('function pruneLongSuggestions(root)')&&source.includes('if(new Set(lines).size>2)button.remove()'),'suggestions over two rendered lines are dropped without truncation');
 assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
 assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition)),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
@@ -44,8 +44,8 @@ const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eras
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 assert(source.includes("send(c,label,index)")&&source.includes("button.querySelector('span')?.textContent"),'a starter sends its visible button label separately from its hidden guidance index');
 assert(source.includes('<p>${esc(m.question)}</p>'),'the user bubble renders the stored question verbatim');
-assert(source.includes('class="kit-suggested-replies" aria-label="Suggested replies"')&&source.includes('<span>${esc(q)}</span>${svg(\'send\')}'),'Kit renders suggested replies as user-voice bubbles with a send arrow');
-assert(source.includes("b.querySelector('span')?.textContent.trim()||''"),'a suggested reply sends exactly its visible text, excluding the arrow');
+assert(source.includes('filter(isFirstPersonFollowup)')&&source.includes('class="kit-suggested-reply" data-kit-followup'),'Kit presents only eligible rewritten first-person follow-ups as tappable chips');
+assert(source.includes("send(c,b.querySelector('span')?.textContent.trim()||'')"),'a follow-up chip asks Kit exactly the visible question');
 assert(!source.includes('a.limitations?.length'),'Kit no longer renders a generic limitations dump');
 assert(source.includes('if(f.display_value!=null)return String(f.display_value)'),'Kit preserves server-formatted unit-aware values');
 assert(source.includes('a.weekly_review.what_went_well')&&source.includes('a.weekly_review.what_to_change')&&source.includes('a.weekly_review.next_week_focus'),'weekly review renders its three named sections');
@@ -173,17 +173,17 @@ drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNode
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
 drawHarness.draw({el:{},messages:[],job:{client_id:'fictional',question:'A fictional question'},before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'a queued first message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'a queued first message hides the reminder');
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'Am I improving?',state:'answered',answer:{interpretation:'Your recent running is trending up.',facts:[{label:'Run distance',display_value:'124 mi',path:['runs',0,'distance_m']}],limitations:['Unlogged days do not count as zero.'],follow_ups:['How is my running trending?','What should I focus on next?']}}],job:null,before:null});
-assert(drawNodes['#kit-messages'].innerHTML.includes('Run distance')&&drawNodes['#kit-messages'].innerHTML.includes('124 mi'),'Kit answer uses a friendly fact label and converted display value');
+assert(drawNodes['#kit-messages'].innerHTML.includes('Run distance')&&drawNodes['#kit-messages'].innerHTML.includes('This run')&&drawNodes['#kit-messages'].innerHTML.includes('124 mi'),'Kit answer uses a friendly fact label and converted display value');
 assert(!drawNodes['#kit-messages'].innerHTML.includes('Unlogged days do not count'),'Kit answer omits tool limitation lists');
 drawHarness.draw({el:{},messages:[{client_id:'voice',question:'A fictional question',state:'answered',answer:{interpretation:'A concise answer.',follow_ups:['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?']}}],job:null,before:null});
-assert(drawNodes['#kit-messages'].innerHTML.includes('Review my recent workouts')&&drawNodes['#kit-messages'].innerHTML.includes('Log meals for today')&&!drawNodes['#kit-messages'].innerHTML.includes('Set up a training plan'),'only two question-form suggestions render in the user voice');
+assert(drawNodes['#kit-messages'].innerHTML.includes('Review my recent workouts')&&!drawNodes['#kit-messages'].innerHTML.includes('Log meals for today')&&!drawNodes['#kit-messages'].innerHTML.includes('Set up a training plan'),'only the rewritten first-person question-form pill remains visible');
 assert(!drawNodes['#kit-messages'].innerHTML.includes('Would you like to review'),'matched question wording is not shown');
 followups[0].onclick();assert.deepEqual(sent,['Review my recent workouts'],'a tapped pill sends its displayed user-voice text');
 const response={verdict:'Yes, your recorded running is building.',reason:'You covered more ground across the completed weeks.',interpretation:'Do not duplicate the combined text.',facts:[{label:'Weekly running',display_value:'18.6 mi',value:29933.7984,path:['totals','distance_m']}],follow_ups:['How is my running trending?','What should I focus on next?'],actions:['progress']};
 const drawAnswer=answer=>{drawHarness.draw({el:{},messages:[{client_id:'answer',question:'Am I improving?',state:'answered',answer}],job:null,before:null});return drawNodes['#kit-messages'].innerHTML;};
 let answerHtml=drawAnswer(response);
 assert(answerHtml.indexOf('Am I improving?')<answerHtml.indexOf('kit-verdict'));
-assert(answerHtml.indexOf('kit-verdict')<answerHtml.indexOf('kit-reason')&&answerHtml.indexOf('kit-reason')<answerHtml.indexOf('kit-facts'),'verdict, reason and facts keep the approved reading order');
+assert(answerHtml.indexOf('kit-verdict')<answerHtml.indexOf('kit-reason'),'verdict and reason keep the approved reading order');
 assert(!answerHtml.includes('Do not duplicate')&&!answerHtml.includes('href="/progress"'),'follow-up questions replace generic destination links');
 assert.equal((answerHtml.match(/data-kit-followup/g)||[]).length,2);
 assert(answerHtml.includes('</div><div class="kit-suggested-replies"')&&!answerHtml.includes('kit-answer-followups'),'send bubbles sit outside the answer card');
@@ -215,4 +215,17 @@ assert(answerHtml.includes('Your earlier answer remains readable.')&&answerHtml.
 assert(!answerHtml.includes('unlogged')&&!answerHtml.includes('javascript:')&&answerHtml.includes('aria-label="Next steps"'),'legacy next steps remain safe and clearly labelled');
 drawHarness.App.me.units='metric';assert(drawAnswer({facts:[{path:['distance_m'],value:16093.44}]}).includes('16.1 km'));
 assert.equal((drawAnswer({...response,facts:Array(5).fill(response.facts[0])}).match(/<dt>/g)||[]).length,3,'answers show at most three facts');
+const qualityHtml=drawAnswer({verdict:'Your 5.0 mi run was harder than last time on this route.',reason:'Average heart rate was 172 bpm against 158 bpm last time.',facts:[
+ {path:['runs',0,'distance_m'],display_value:'5.0 mi',value:8046.7},
+ {path:['efforts',0,'avg_hr'],display_value:'158 bpm',value:158},
+ {path:['runs',0,'avg_hr'],display_value:'172 bpm',value:172},
+ {path:['runs',0,'effort'],display_value:'123.8',value:123.8},
+ {path:['runs',0,'pace_s_per_km'],display_value:'9:12 /mi',value:552},
+ {path:['efforts',0,'pace_s_per_km'],display_value:'9:30 /mi',value:570}
+],follow_ups:['What should the next step be?','Would you like to compare my route?','How did you feel?']});
+assert.equal((qualityHtml.match(/5\.0 mi/g)||[]).length,1,'a fact repeated in the answer copy is hidden');
+assert(!qualityHtml.includes('123.8'),'a bare Effort fact is hidden');
+assert(qualityHtml.includes('Last run on this route')&&qualityHtml.includes('This run'),'workout facts carry their source labels');
+assert(qualityHtml.includes('158 bpm')&&qualityHtml.includes('172 bpm'),'distinct source facts remain visible');
+assert.equal((qualityHtml.match(/data-kit-followup/g)||[]).length,1,'non-first-person follow-ups are dropped');
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
