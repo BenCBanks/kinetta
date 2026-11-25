@@ -10,7 +10,7 @@ concurrency:
 jobs:
   capture:
     # Capture-only Draft evidence: no signing, releases, provider calls or site writes.
-    runs-on: macos-26-intel
+    runs-on: macos-26
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
