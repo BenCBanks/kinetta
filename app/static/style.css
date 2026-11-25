@@ -1844,16 +1844,15 @@ button.thread-food:active { opacity: .7; }
 .kit-weekly-review section p {font-size:15px;line-height:1.45;margin:0;white-space:pre-line;overflow-wrap:anywhere;}
 .kit-action {display:flex;align-items:center;justify-content:space-between;min-height:44px;}
 .kit-action svg {width:16px;}
-.kit-memories p {white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0}
-.kit-memory-row {padding:14px 0;border-bottom:1px solid var(--line)}
-.kit-memory-actions,.kit-memory-edit-actions {display:flex;gap:16px;align-items:center}
-.kit-memory-actions button {min-height:44px}
-.kit-memory-edit-actions {margin-top:16px}
-.kit-memory-edit-actions button {flex:1}
-.kit-memory-empty {padding:20px 0}
-#kit-memory-form label {display:block;margin:16px 0;font-size:15px}
-#kit-memory-form select,#kit-memory-form textarea {display:block;width:100%;margin-top:8px;font-size:16px}
-#kit-memory-form textarea {min-height:100px;resize:vertical}
+#kit-memory {overflow-y:auto;min-height:0;overscroll-behavior:contain;}
+#kit-memory-add {min-height:56px;font-size:16px;}
+.kit-memory-switch {font-size:16px;}
+.kit-memory-row+.kit-memory-row {border-top:1px solid var(--line);}
+.kit-memory-empty {padding:20px 0;}
+.kit-memory-edit-actions {display:flex;gap:16px;align-items:center;margin-top:16px;}
+.kit-memory-edit-actions button {flex:1;}
+#kit-memory-form textarea {display:block;width:100%;margin-top:16px;min-height:100px;resize:vertical;font-size:16px;}
+#kit-memory-delete {margin-top:12px;}
 /* Pull to refresh: the page moves down and this spinner turns in the gap above it (refresh.js). */
 .ptr {position:fixed;z-index:120;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:var(--card);color:var(--accent);box-shadow:0 2px 10px #0002;border:1px solid var(--line);opacity:0;pointer-events:none;will-change:transform,opacity}
 .ptr.glide {transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .25s}

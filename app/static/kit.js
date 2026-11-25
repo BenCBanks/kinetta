@@ -541,49 +541,77 @@ Object.assign(KitChat, (() => {
   function memorySettings(){
     const session=readOwner();
     sheet('What Kit remembers','<div id="kit-memory"><p class="muted">Loading memory…</p></div>',body=>{
-      const box=$('#kit-memory',body),valid=()=>session===readOwner()&&body.isConnected;
-      const date=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});};
-      const labels={goal:'Goal',preference:'Preference',routine:'Routine'},sources={chat:'From your chat',user:'Added by you',edit:'Edited by you'};
+      const box=$('#kit-memory',body),sh=body.closest('.sheet'),valid=()=>session===readOwner()&&body.isConnected;
+      const title=$('h2',sh),labels={goal:'Goal',preference:'Preference',routine:'Routine'};
+      const date=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
+      let data=null,swipe=null,suppressTap=false;
+      sh.classList.add('kit-history-sheet');
+      const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
+      menu.setAttribute('aria-label','Memory options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
+      const remove=async(id,button)=>{
+        if(!valid())return;
+        button.disabled=true;
+        try{await api('/api/coach/conversation/memory'+(id?'/'+id:''),{method:'DELETE'});if(valid())await draw();}
+        catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;button.disabled=false;}}
+      };
+      menu.onclick=()=>{
+        if(!valid())return;
+        sheet('Memory options','<button type="button" class="linkbtn wide danger kit-history-action" id="kit-forget-all">Forget all memories</button>',(b,done)=>{
+          $('#kit-forget-all',b).onclick=async event=>{
+            if(!valid())return;
+            const button=event.currentTarget;
+            if(!await confirmSheet('Forget all memories?',{body:'Kit will stop remembering these details.',action:'Forget all'})||!valid())return;
+            done();await remove(null,button);
+          };
+        });
+      };
+      const reveal=(row,on)=>{row.classList.toggle('is-revealed',on);const button=$('[data-kit-forget]',row);button.inert=!on;button.setAttribute('aria-hidden',String(!on));};
+      // Keep list swipes out of the sheet's vertical-dismiss gesture; row taps also work with a keyboard.
+      box.addEventListener('touchstart',e=>{e.stopPropagation();const row=e.target.closest('.kit-memory-row');swipe=e.touches.length===1&&row?{row,x:e.touches[0].clientX,y:e.touches[0].clientY,horizontal:false}:null;},{passive:true});
+      box.addEventListener('touchmove',e=>{e.stopPropagation();if(!swipe)return;const dx=e.touches[0].clientX-swipe.x,dy=e.touches[0].clientY-swipe.y;if(!swipe.horizontal&&Math.abs(dy)>Math.abs(dx)&&Math.abs(dy)>8){swipe=null;return;}if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)){swipe.horizontal=true;e.preventDefault();$$('.is-revealed',box).forEach(row=>reveal(row,false));reveal(swipe.row,dx<0);}},{passive:false});
+      box.addEventListener('touchend',e=>{e.stopPropagation();if(swipe?.horizontal){e.preventDefault();suppressTap=true;setTimeout(()=>suppressTap=false,250);}swipe=null;},{passive:false});
+      box.addEventListener('touchcancel',()=>{swipe=null;});
+      const edit=memory=>{
+        if(!valid())return;
+        const editable=Number.isSafeInteger(data.version)&&data.enabled;let kind=memory?.kind||'preference';
+        title.textContent=memory?'Edit detail':'Add a detail';menu.hidden=true;
+        box.innerHTML=`<form id="kit-memory-form"><div class="underline-tabs" role="group" aria-label="Type">${Object.entries(labels).map(([key,label])=>`<button type="button" data-kit-kind="${key}" aria-pressed="${kind===key}" ${editable?'':'disabled'}>${label}</button>`).join('')}</div><label class="vh" for="kit-memory-text">Detail</label><textarea id="kit-memory-text" rows="3" maxlength="400" required placeholder="I prefer morning runs." ${editable?'':'readonly'}>${esc(memory?.text||'')}</textarea><p class="err" id="kit-memory-error" role="alert"></p><div class="kit-memory-edit-actions"><button type="button" class="ghost" id="kit-memory-cancel">Cancel</button>${editable?'<button type="submit" class="primary" id="kit-memory-save">Save</button>':''}</div>${memory?'<button type="button" class="linkbtn wide danger kit-history-action" id="kit-memory-delete">Delete</button>':''}</form>`;
+        $$('[data-kit-kind]',box).forEach(button=>button.onclick=()=>{
+          if(!valid())return;kind=button.dataset.kitKind;$$('[data-kit-kind]',box).forEach(tab=>tab.setAttribute('aria-pressed',String(tab===button)));
+        });
+        $('#kit-memory-cancel',box).onclick=()=>{if(valid())draw();};
+        const del=$('#kit-memory-delete',box);if(del)del.onclick=()=>remove(memory.id,del);
+        $('#kit-memory-form',box).onsubmit=async event=>{
+          event.preventDefault();if(!valid()||!editable)return;
+          const text=$('#kit-memory-text',box).value.trim();if(!text)return;
+          const save=$('#kit-memory-save',box);save.disabled=true;
+          try{
+            await api('/api/coach/conversation/memory'+(memory?'/'+memory.id:''),json(memory?'PATCH':'POST',{text,kind,version:data.version}));
+            if(valid())await draw();
+          }catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;save.disabled=false;}}
+        };
+      };
       const draw=async()=>{
         try{
-          const data=await api('/api/coach/conversation/memory');if(!valid())return;
-          const editable=Number.isSafeInteger(data.version);
-          box.innerHTML=`<label class="check"><input type="checkbox" id="kit-memory-on" ${data.enabled?'checked':''}>Remember useful details</label><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<article class="kit-memory-row"><p class="small muted">${esc(labels[m.kind]||'Detail')}</p><p>${esc(m.text)}</p><p class="small muted">${esc([sources[m.source],date(m.updated)].filter(Boolean).join(' · '))}</p><div class="kit-memory-actions">${editable&&data.enabled?`<button type="button" class="linkbtn" data-kit-edit="${m.id}">Edit</button>`:''}<button type="button" class="linkbtn danger" data-kit-forget="${m.id}">Forget</button></div></article>`).join(''):'<p class="muted kit-memory-empty">No saved details yet.</p>'}</div>${editable&&data.enabled&&data.memories.length<12?'<button type="button" class="linkbtn wide" id="kit-memory-add">Add a detail</button>':''}<p class="small muted">Up to 12 details, kept for six months. Turning memory off forgets them. Your chats and records stay saved.</p>${data.memories.length?'<button type="button" class="linkbtn wide danger" id="kit-forget-all">Forget all memories</button>':''}<p class="err" id="kit-memory-error" role="alert"></p>`;
-          const edit=memory=>{
-            if(!valid())return;
-            box.innerHTML=`<form id="kit-memory-form"><label>Type<select id="kit-memory-kind">${Object.entries(labels).map(([key,label])=>`<option value="${key}" ${(memory?.kind||'preference')===key?'selected':''}>${label}</option>`).join('')}</select></label><label>Detail<textarea id="kit-memory-text" rows="3" maxlength="400" required placeholder="I prefer morning runs.">${esc(memory?.text||'')}</textarea></label><p class="small muted">A detail for Kit. Your saved targets stay unchanged.</p><p class="err" id="kit-memory-error" role="alert"></p><div class="kit-memory-edit-actions"><button type="button" class="ghost" id="kit-memory-cancel">Cancel</button><button type="submit" class="primary" id="kit-memory-save">Save</button></div></form>`;
-            $('#kit-memory-cancel',box).onclick=()=>{if(valid())draw();};
-            $('#kit-memory-form',box).onsubmit=async event=>{
-              event.preventDefault();if(!valid())return;
-              const text=$('#kit-memory-text',box).value.trim();if(!text)return;
-              const save=$('#kit-memory-save',box);save.disabled=true;
-              try{
-                await api('/api/coach/conversation/memory'+(memory?'/'+memory.id:''),json(memory?'PATCH':'POST',{text,kind:$('#kit-memory-kind',box).value,version:data.version}));
-                if(valid())await draw();
-              }catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;save.disabled=false;}}
-            };
-            $('#kit-memory-text',box).focus();
-          };
+          const next=await api('/api/coach/conversation/memory');if(!valid())return;data=next;
+          title.textContent='What Kit remembers';menu.hidden=!data.memories.length;
+          const editable=Number.isSafeInteger(data.version)&&data.enabled;
+          box.innerHTML=`${editable&&data.memories.length<12?`<button type="button" class="linkbtn kit-history-action" id="kit-memory-add">${svg('plus')}<span>Add a detail</span></button>`:''}<label class="switch-row kit-memory-switch"><span>Remember useful details</span><input type="checkbox" role="switch" id="kit-memory-on" ${data.enabled?'checked':''}></label><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<div class="kit-history-row kit-memory-row"><button type="button" class="kit-history-delete" data-kit-forget="${m.id}" aria-label="Delete" aria-hidden="true" inert>${svg('trash')}</button><div class="kit-history-front"><button type="button" class="kit-history-open" data-kit-edit="${m.id}"><span><strong>${esc(m.text)}</strong><small>${esc([labels[m.kind]||'Detail',date(m.updated)].filter(Boolean).join(' · '))}</small></span></button></div></div>`).join(''):'<p class="muted kit-memory-empty">No saved details yet.</p>'}</div><p class="err" id="kit-memory-error" role="alert"></p>`;
           const add=$('#kit-memory-add',box);if(add)add.onclick=()=>edit(null);
-          $$('[data-kit-edit]',box).forEach(button=>button.onclick=()=>edit(data.memories.find(m=>String(m.id)===button.dataset.kitEdit)));
+          $$('[data-kit-edit]',box).forEach(button=>button.onclick=()=>{
+            if(!valid()||suppressTap)return;const row=button.closest('.kit-memory-row');if(row.classList.contains('is-revealed')){reveal(row,false);return;}
+            edit(data.memories.find(m=>String(m.id)===button.dataset.kitEdit));
+          });
+          $$('[data-kit-forget]',box).forEach(button=>button.onclick=()=>remove(button.dataset.kitForget,button));
           $('#kit-memory-on',box).onchange=async e=>{
             if(!valid())return;
-            const enabled=e.target.checked;
-            const toggle=e.target;if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Everything Kit remembers is removed. Your records stay saved.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
-            e.target.disabled=true;
-            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;e.target.checked=!enabled;e.target.disabled=false;}}
+            const toggle=e.target,enabled=toggle.checked;
+            if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Kit will forget your saved details.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
+            toggle.disabled=true;
+            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}
+            catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;toggle.checked=!enabled;toggle.disabled=false;}}
           };
-          $$('[data-kit-forget]',box).forEach(button=>button.onclick=async()=>{
-            if(!valid())return;
-            if(!await confirmSheet('Forget this detail?',{body:'Kit will stop using it in future answers. Your chats stay saved.',action:'Forget'})||!valid())return;
-            button.disabled=true;try{await api('/api/coach/conversation/memory/'+button.dataset.kitForget,{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;button.disabled=false;}}
-          });
-          const all=$('#kit-forget-all',box);if(all)all.onclick=async()=>{
-            if(!valid())return;
-            if(!await confirmSheet('Forget all Kit memories?',{body:'Your records and current chat stay saved.',action:'Forget all'})||!valid())return;
-            all.disabled=true;try{await api('/api/coach/conversation/memory',{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;all.disabled=false;}}
-          };
-        }catch(e){if(valid())box.innerHTML=`<p class="err">${esc(e.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
+        }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
       };draw();
     });
   }
