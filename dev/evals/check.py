@@ -32,3 +32,5 @@ except ValueError: pass
 else: raise AssertionError('Skipped cases must fail')
 print('AI evaluation contracts: 300 reference cases; nutrition/product/serving/schema/latency/cost regression gates passed. No model called.')
 import test_kit_weekly_fixtures
+from test_kit_measure import run as check_kit_measure
+check_kit_measure()
