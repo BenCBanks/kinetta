@@ -29,7 +29,7 @@
     return visible>0&&painted;
   }
   function storeReady(){
-      if(cfg.tour){const target=document.querySelector(cfg.tour.ready),box=target?.getBoundingClientRect();return !!box&&box.width>0&&box.height>0&&document.querySelectorAll(cfg.tour.ready).length>=(cfg.tour.count||1)&&(!cfg.tour.map||paintedMap(document.querySelector(cfg.tour.map)||document));}
+      if(cfg.tour){const target=document.querySelector(cfg.tour.ready),box=target?.getBoundingClientRect(),photo=cfg.tour.photo&&document.querySelector(cfg.tour.photo);return !!box&&box.width>0&&box.height>0&&document.querySelectorAll(cfg.tour.ready).length>=(cfg.tour.count||1)&&(!cfg.tour.photo||(photo?.complete&&photo.naturalWidth>0))&&(!cfg.tour.map||paintedMap(document.querySelector(cfg.tour.map)||document));}
       const checks={
         'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelector('.me-card-weekly .me-week')&&document.querySelector('.me-featured-achievements .profile-achievement[data-achievement-code]:nth-child(3)'),
         activity:()=>document.querySelector('[data-dt="charts"][aria-selected="true"]')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),

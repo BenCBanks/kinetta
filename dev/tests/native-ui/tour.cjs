@@ -17,7 +17,7 @@ const scenes={
  'food-saved-meals':{route:'/food/meals',actions:['[data-library-tab="usuals"]'],ready:'#library-usuals [data-meal]'},
  'friends-home-feed':{route:'/activity',ready:'#ff-list .post[data-href="/activity/friends/2"]',scroll:'#ff-list .post[data-href="/activity/friends/2"]',map:'#ff-list .post[data-href="/activity/friends/2"] .leaflet-container'},
  'friends-list':{route:'/me/friends',ready:'.fr-friend',count:3},
- 'friends-shared-activity':{route:'/activity/friends/2',ready:'#s-soc [data-ttalk]'},
+ 'friends-shared-activity':{route:'/activity/friends/2',ready:'#s-soc [data-ttalk]',photo:'.media-photo img'},
  'friends-audience':{route:'/activity/1?edit=1',actions:['#e-visibility-open'],ready:'.activity-edit-audience [data-vis="friends"]'},
 };
 module.exports=function(name){
@@ -48,7 +48,7 @@ module.exports=function(name){
  r['/api/activities/3/lifts']={exercises:[['Squat',1,60],['Bench press',2,40],['Dumbbell row',3,20]].map(([name,exercise_id,kg])=>({name,exercise_id,kind:'weight',sets:[1,2,3].map(n=>({n,kg,reps:8,done:true,pr:[]})),last:{start_time:day(7)+'T08:00Z',sets:[{kg:kg-2.5,reps:8,done:true}]}}))};
  r['/api/routes/1']={id:1,name:'Park loop',sport:'run',line:run.line,fastest_id:1,pace_trend:null,efficiency_trend:null,activities:[3,2,1,0].map((n,i)=>({...run,id:i+1,start_time:day(n*7)+'T08:30Z',elapsed_s:1800+n*30}))};
  const friend={...r['/api/feed/friends'][0],photos:[{id:1,url:'/static/tour-park.jpg',thumb:'/static/tour-park.jpg'}],social:{...run.social,mine:false},reactions:run.social.reactions,cheers:4,comments:2};
- r['/api/feed/friends']=[friend];r['/api/shared/2']=friend;
+ r['/api/feed/friends']=[friend];r['/api/shared/2']={...friend,line:null};
  if(name==='friends-home-feed'){r['/api/activities']=[];r['/api/feed/friends']=[{...friend,photos:[]}];}
  r['/api/food/weekly-review']={entries:0};r['/api/food/meals']=[{id:1,name:'Yogurt and berries',items:[{name:'Greek yogurt'},{name:'Blueberries'}],totals:{kcal:260}},{id:2,name:'Chicken salad bowl',items:[{name:'Chicken'},{name:'Mixed greens'}],totals:{kcal:520}}];
  r['/api/dishes']=[];r['/api/food/foods']=[];r['/api/food/usual']=[];

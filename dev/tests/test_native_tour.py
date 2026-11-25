@@ -28,11 +28,12 @@ assert.throws(()=>tour('unknown'),/Unknown native tour scene/);'''
     def test_tour_requests_stay_closed_except_fixture_visit_creation(self):
         script=r'''const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const store=require(process.argv[2])('kit-weekly-insight'),config={stage:'header-me',tour:store.tour,store,root:16};
-const c=vm.createContext({KinettaUIFixture:config,addEventListener(){},document:{documentElement:{style:{}}},history:{replaceState(a,b,route){assert.equal(route,'/me/kit?from=progress');}},localStorage:{clear(){}},location:{origin:'https://example.test',href:'https://example.test/'},performance:{now:()=>0},fetch:async()=>{throw Error('Network forbidden');},Response,URL,structuredClone});
+const c=vm.createContext({KinettaUIFixture:config,addEventListener(){},document:{documentElement:{style:{}}},history:{replaceState(a,b,route){assert.equal(route,'/me/kit?from=progress');}},localStorage:{clear(){}},location:{origin:'https://example.test',href:'https://example.test/'},performance:{now:()=>0},fetch:async path=>{assert.equal(path,'https://example.test/static/tour-park.jpg');return new Response('fictional photo',{headers:{'Content-Type':'image/jpeg'}});},Response,URL,structuredClone});
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);
 (async()=>{
  const visit=await vm.runInContext("fetch('/api/coach/conversation/visits',{method:'POST',body:JSON.stringify({visit_id:'fictional-visit'})}).then(r=>r.json())",c);
  assert.equal(visit.visit_id,'fictional-visit');
+ const photo=await vm.runInContext("fetch('/api/activity-photos/1?size=thumb')",c);assert.equal(photo.headers.get('Content-Type'),'image/jpeg');
  for(const p of ['/api/coach/conversation/messages','/api/food/thread/messages','/api/profile'])await assert.rejects(vm.runInContext(`fetch('${p}',{method:'POST'})`,c),/blocked unexpected request/);
  assert.equal(config.blocked.length,3);
 })().catch(e=>{console.error(e);process.exitCode=1;});'''

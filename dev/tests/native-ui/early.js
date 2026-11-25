@@ -44,6 +44,8 @@
   const prefs={auto_log:false,tone:'friendly',daily_note:false},nativeFetch=fetch;
   globalThis.fetch=async(input,options={})=>{
     const raw=typeof input==='string'?input:input.url,u=new URL(raw,location.href),p=u.pathname;
+    // The private-photo renderer uses authenticated fetch, never the fixture's URL fields.
+    if(cfg.tour&&p==='/api/activity-photos/1'&&(options.method||input?.method||'GET')==='GET')return nativeFetch(location.origin+'/static/tour-park.jpg');
     if(p.startsWith('/api/')){
       if(p==='/api/me'&&cfg.startupTiming&&cfg.startupTiming.apiMeStartPerfMs==null)cfg.startupTiming.apiMeStartPerfMs=performance.now();
       requests.push(p);let data;
