@@ -3,12 +3,14 @@
 Run inside a throwaway app container with an explicitly configured key, using the
 same seeded database for baseline/candidate. Write output outside the public repo.
 """
+from functools import partial
 import argparse,datetime as dt,hashlib,json,os,time,uuid
 from pathlib import Path
 from app import db,coach,coach_chat,ai_budget,ai_release
 from app.kit_eval_diagnostics import RejectionDiagnostics, parse_case_ids, select_cases
 from kit_cases import CASES
 from kit_gate_cases import GATE_CASE_IDS
+from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_low
 from kit_eval_support import DEFAULT_BUDGET_USD, valid_budget, load_baseline, configure_budget, capped, bounded_results
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
                                  run_weekly_answer, is_expected_health_consent_refusal,
@@ -21,6 +23,7 @@ p.add_argument('--output',required=True);p.add_argument('--baseline-results')
 p.add_argument('--variant',choices=('both','baseline','candidate'),default='both')
 p.add_argument('--cases',action='append',metavar='ID',help='case ID; repeat or use comma-separated IDs')
 p.add_argument('--dry-run',action='store_true',help='Validate inputs and write private metadata only; no provider/database calls')
+p.add_argument('--setting-smoke',action='store_true',help='Ten same-code Flash LOW/MEDIUM cases, not a release gate')
 p.add_argument('--gate',action='store_true',help='Use the forty-case chat/weekly release set and require both variants')
 args=p.parse_args()
 if not valid_budget(args.budget_usd):p.error('Budget must be positive and at most $2.50 per run')
@@ -35,11 +38,13 @@ if output.parent.stat().st_mode & 0o077:p.error('Output directory must be 0700')
 if output.exists():p.error('Refusing to overwrite existing output')
 requested_cases=parse_case_ids(args.cases)
 if args.gate:
- if args.variant!='both' or args.baseline_results or requested_cases:p.error('--gate requires both variants and the fixed gate set')
- requested_cases=set(GATE_CASE_IDS)
+ if args.variant!='both' or (args.baseline_results and not args.setting_smoke) or requested_cases:p.error('--gate requires both variants and the fixed gate set')
+ requested_cases=set(SMOKE_IDS if args.setting_smoke else GATE_CASE_IDS)
 try:selected_cases=select_cases(CASES,requested_cases)
 except ValueError as error:p.error(str(error))
-if args.gate and (len(selected_cases)!=40 or len(set(GATE_CASE_IDS))!=40):p.error('Gate set must contain forty distinct cases')
+if args.gate and len(selected_cases)!=(10 if args.setting_smoke else 40):p.error('Invalid fixed comparison case set')
+if args.setting_smoke and (not args.gate or args.budget_usd>CAP_USD or args.baseline_commit!=args.candidate_commit):
+ p.error('Setting smoke requires identical code, both variants and a budget at most $0.45')
 baseline_path=Path(args.baseline)
 if not baseline_path.is_file():p.error('Baseline file does not exist')
 # Compile without importing: dry-run cannot initialize provider/database logic.
@@ -49,6 +54,14 @@ metadata={'reviewed':False,'complete':False,'dry_run':args.dry_run,
  'baseline_sha256':hashlib.sha256(baseline_path.read_bytes()).hexdigest(),
  'case_count':len(selected_cases),'selected_case_ids':[case[0] for case in selected_cases],
  'budget_usd':args.budget_usd,'provider_calls':0 if args.dry_run else None}
+reused=[]
+if args.setting_smoke:
+ metadata.update(setting_smoke=True,input_digest=input_digest(root,selected_cases,ai_release.FILES['kit']),
+                 thinking_settings={'baseline':'LOW','candidate':'MEDIUM'},
+                 human_rubric={key:None for key in RUBRIC})
+ if args.baseline_results:
+  try:reused=cached_low(json.loads(Path(args.baseline_results).read_text()),metadata['input_digest'])
+  except ValueError as error:p.error(str(error))
 def save_report(value):
  temporary=output.with_name(output.name+'.partial')
  fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
@@ -63,6 +76,9 @@ if args.dry_run:
 configure_budget(args.budget_usd)
 os.environ['GEMINI_MODEL']='gemini-3.8-flash'
 baseline=load_baseline(args.baseline)
+if args.setting_smoke:
+ baseline._gemini_turn=partial(baseline._gemini_turn,thinking_level='LOW')
+ coach_chat._gemini_turn=partial(coach_chat._gemini_turn,thinking_level='MEDIUM')
 baseline.KitAnswer.model_json_schema()  # Fail before any paid call if forward references regress.
 metadata.update(candidate_fingerprint=ai_release.kit_fingerprint(),ai_text=ai_release.ai_text('kit'),models=ai_release.models('kit'))
 save_report(metadata)
@@ -205,12 +221,13 @@ try:
                     'tool_coverage':row['tool_coverage'],'error':error}),flush=True)
   return row
  previous=json.loads(Path(args.baseline_results).read_text()) if args.baseline_results else {}
- reused=[r for r in previous.get('results',[]) if r['variant']=='baseline' and (not requested_cases or r['case'] in requested_cases)]
+ if not args.setting_smoke:
+  reused=[r for r in previous.get('results',[]) if r['variant']=='baseline' and (not requested_cases or r['case'] in requested_cases)]
  results.extend(reused)
  done={r['case'] for r in reused}
  variants=('baseline','candidate') if args.variant=='both' else (args.variant,)
  jobs=[(i,v,case) for i,case in enumerate(selected_cases) for v in variants if v!='baseline' or case[0] not in done]
- for result in bounded_results(run,jobs):
+ for result in bounded_results(run,jobs,workers=1 if args.setting_smoke else 2):
   results.append(result)
   with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
   failed_cases=[r['case'] for r in results if not r.get('passed')]

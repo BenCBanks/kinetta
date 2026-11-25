@@ -2,6 +2,7 @@
 Expected tools check task coverage, not qualitative correctness or medical safety.
 """
 CASES=[
+ ('conversation-detail','Explain in detail how to build a sustainable workout routine around my saved goals. Separate my records from general advice; ask about available days rather than inventing them.',{'profile','goals','app_features','training_plan'}),
  ('food-today','Review my logged food today. What is known and what is missing?',{'nutrition_summary','food_log'}),
  ('protein','How much protein did I log yesterday?',{'nutrition_summary','food_log'}),
  ('sodium','What does my logged sodium look like over the past week?',{'nutrition_summary','food_log'}),

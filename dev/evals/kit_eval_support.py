@@ -47,12 +47,12 @@ def capped(error):
                 and ('AI is paused' in error or 'today.' in error))
 
 
-def bounded_results(run, jobs):
+def bounded_results(run, jobs, *, workers=2):
     # Do not eagerly queue the entire paid run. Finish at most the two in-flight
     # responses, then stop on a reservation/attempt cap and retain partial evidence.
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        for offset in range(0, len(jobs), 2):
-            batch = list(pool.map(run, jobs[offset:offset + 2]))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for offset in range(0, len(jobs), workers):
+            batch = list(pool.map(run, jobs[offset:offset + workers]))
             yield from batch
             if any(capped(row.get('error')) for row in batch):
                 return

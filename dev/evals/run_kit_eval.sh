@@ -7,8 +7,10 @@ umask 077
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRY_RUN=0
 OFFLINE_SMOKE=0
+SETTING_SMOKE=0
+REUSE_LOW=""
 BASELINE=""; BASELINE_COMMIT=""; CANDIDATE_COMMIT=""; BUDGET="2.50"
-usage() { echo "Usage: $0 --baseline FILE --baseline-commit SHA --candidate-commit SHA [--budget-usd USD (default 2.50)] [--dry-run|--offline-smoke]"; }
+usage() { echo "Usage: $0 --baseline FILE --baseline-commit SHA --candidate-commit SHA [--budget-usd USD (default 2.50)] [--dry-run|--offline-smoke] [--setting-smoke] [--reuse-low FILE]"; }
 while (($#)); do
   case "$1" in
     --baseline|--baseline-commit|--candidate-commit|--budget-usd)
@@ -20,6 +22,8 @@ while (($#)); do
         --budget-usd) BUDGET="$2" ;;
       esac
       shift 2 ;;
+    --setting-smoke) SETTING_SMOKE=1; shift ;;
+    --reuse-low) REUSE_LOW="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --offline-smoke) OFFLINE_SMOKE=1; shift ;;
     --help|-h) usage; exit 0 ;;
@@ -27,6 +31,7 @@ while (($#)); do
   esac
 done
 [[ -f "$BASELINE" && -n "$BASELINE_COMMIT" && -n "$CANDIDATE_COMMIT" && -n "$BUDGET" ]] || { usage >&2; exit 2; }
+[[ -z "$REUSE_LOW" || ( "$SETTING_SMOKE" == 1 && -f "$REUSE_LOW" ) ]] || { echo "LOW cache requires setting smoke and a real file" >&2; exit 2; }
 ((DRY_RUN + OFFLINE_SMOKE <= 1)) || { usage >&2; exit 2; }
 BASELINE_COMMIT="$(git -C "$ROOT" rev-parse --verify "$BASELINE_COMMIT^{commit}")"
 CANDIDATE_COMMIT="$(git -C "$ROOT" rev-parse --verify "$CANDIDATE_COMMIT^{commit}")"
@@ -115,7 +120,7 @@ fi
 
 # The production image excludes dev/. Copy only the isolated evaluation sources.
 compose exec -T -u 0 app mkdir -p /srv/dev/evals
-for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py test_kit_baseline_incontainer.py; do
+for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_setting_smoke.py test_kit_baseline_incontainer.py; do
   compose cp "$ROOT/dev/evals/$source" "app:/srv/dev/evals/$source"
 done
 compose cp "$BASELINE" app:/tmp/kit-eval-baseline-coach.py
@@ -123,6 +128,11 @@ compose exec -T app mkdir -m 700 -p "$CONTAINER_OUTPUT_DIR"
 OPTIONS=(--gate --variant both --baseline /tmp/kit-eval-baseline-coach.py
   --baseline-commit "$BASELINE_COMMIT" --candidate-commit "$CANDIDATE_COMMIT"
   --budget-usd "$BUDGET" --output "$CONTAINER_OUTPUT")
+if ((SETTING_SMOKE == 1)); then OPTIONS+=(--setting-smoke); fi
+if [[ -n "$REUSE_LOW" ]]; then
+  compose cp "$REUSE_LOW" app:/tmp/kit-low-cache.json
+  OPTIONS+=(--baseline-results /tmp/kit-low-cache.json)
+fi
 if ((OFFLINE_SMOKE == 1)); then
   compose exec -T -e PYTHONPATH=/srv app python /srv/dev/evals/test_kit_baseline_incontainer.py \
     --baseline /tmp/kit-eval-baseline-coach.py --output "$CONTAINER_OUTPUT"
