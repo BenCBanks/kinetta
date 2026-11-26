@@ -1,6 +1,6 @@
 # Batch-two evaluation handoff
 
-Run from this evaluation Draft, stacked on combined batch-two source `383645ab`
+Run from this evaluation Draft, stacked on combined batch-two source `666d5a9c`
 with context/chart integration included. Do not edit the integration worktree. This changes dev tooling only. The wrapper pins the app bytes and Kit text of that source (ledger-only additions allowed);
 the evaluator also records the exact current HEAD. Do not change the candidate mid-run.
 
