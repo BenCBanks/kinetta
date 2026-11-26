@@ -241,6 +241,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
                 raise ValueError('Empty or oversized conversation block')
             display = coach_chat._kit_prose(text, facts, extra_words=kit_claims.boundary_words(text),
                                              sentence_boundary=True, placeholder_pattern=REFERENCE, render_value=lambda fact:kit_weekly.display_value(fact,text,facts) if weekly_review else fact['display_value'])
+            display = kit_weekly.count_grammar(display)
             if len(display) > limit:
                 raise ValueError('Oversized formatted conversation block')
             check_rendered(display)
