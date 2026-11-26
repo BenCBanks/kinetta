@@ -1996,7 +1996,7 @@ route(/^\/me\/people$/, 'me', async (el) => {
 route(/^\/track$/, 'track', async (el) => {
   Track.sync();
   el.classList.add('track-home-page');
-  el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts">${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div></div><div id="track-content"></div>`;
+  el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts"><button type="button" class="icon-btn" id="track-settings" aria-label="Track settings">${svg('gear')}</button></div></div><div id="track-content"></div>`;
   await Track.restoreReview();
   if (TrackNative.supported) { try { await Track.pullNative(); } catch (error) { toast(error.message); } }
 
@@ -2030,7 +2030,15 @@ route(/^\/track$/, 'track', async (el) => {
       });
       const visibleOrder=allButtons.filter(button=>!button.classList.contains('track-home-hidden')).map(button=>+button.dataset.quick);
       if(visibleOrder.some((index,position)=>ordered[position]!==index)||visibleOrder.length!==ordered.length)ordered.forEach(index=>{const button=allButtons.find(item=>+item.dataset.quick===index);if(button)row.append(button);});
-      const more=$('#track-other',content),selectedVisible=ordered.includes(selected);
+      // Keep complete icon/label pairs; overflow choices remain in More.
+      const shown=ordered.map(index=>allButtons.find(button=>+button.dataset.quick===index)).filter(Boolean);
+      const required=()=>shown.reduce((width,button)=>width+button.getBoundingClientRect().width,0)+Math.max(0,shown.length-1)*8;
+      while(shown.length>1&&required()>row.getBoundingClientRect().width+.01){
+        let remove=shown.findLastIndex(button=>+button.dataset.quick!==selected&&button!==document.activeElement);
+        if(remove<0)break;
+        shown.splice(remove,1)[0].classList.add('track-home-hidden');
+      }
+      const more=$('#track-other',content),selectedVisible=shown.some(button=>+button.dataset.quick===selected);
       if(more){more.setAttribute('aria-pressed',String(!selectedVisible));more.setAttribute('aria-label',selectedVisible?'More activities':'More activities, selected '+(choices[selected]?.label||''));if(selectedVisible&&more.querySelector('span')?.textContent!=='More')more.innerHTML=`<span>More</span>${svg('down')}`;}
       if(allButtons.length<3)allButtons.forEach(button=>button.classList.remove('track-home-hidden'));
     }
@@ -2079,12 +2087,6 @@ route(/^\/track$/, 'track', async (el) => {
     if(interval&&interval.dataset.trackHomeControl!=='1'){interval.innerHTML=`${svg('clock')}<span>Intervals</span>${svg('chev')}`;interval.dataset.trackHomeControl='1';}
     const audio=$('#track-options',content);
     if(audio){if(audio.dataset.trackHomeControl!=='1'||audio.querySelector('span')?.textContent!=='Audio & auto-pause'){audio.innerHTML=`${svg('sound')}<span>Audio &amp; auto-pause</span>${svg('chev')}`;audio.dataset.trackHomeControl='1';}const current=audio.getAttribute('aria-label')||'',prefix='Audio & auto-pause',details=current.startsWith(prefix)?current.slice(prefix.length).replace(/^\.\s*/,''):current.split('. ').slice(1).join('. '),label=`${prefix}${details?`. ${details}`:''}`;if(current!==label)audio.setAttribute('aria-label',label);}
-    const explore=$('#track-explore',content),connection=explore?.querySelector('a[data-track-feature="connections"]');
-    if(connection){
-      explore.classList.add('track-connections');
-      connection.className='track-connection-row';connection.setAttribute('aria-label','Connections');
-      if(connection.dataset.trackHomeDecorated!=='1'){connection.innerHTML=`<span>${svg('watch')}<b>Connections</b></span>${svg('chev')}`;connection.dataset.trackHomeDecorated='1';}
-    }
     const mapWrap=$('#track-ready-map-wrap',content),mapError=$('#track-ready-error',content);
     mapWrap?.classList.toggle('track-map-failed',/^Map unavailable\b/.test(mapError?.textContent.trim()||''));
   };
