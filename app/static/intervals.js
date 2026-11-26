@@ -91,14 +91,13 @@ globalThis.Intervals=(()=>{
    const extra=(k,name)=>{const lead=`<label class="interval-extra"><input type="checkbox" data-extra="${k}"${f[k]?' checked':''}> ${name}</label>`;return f[k]?line(k,name,lead):`<div class="interval-line">${lead}</div>`;};
    const refresh=()=>{if(!valid())return;const name=$('[data-name]',b);if(name)name.placeholder=autoName(f);try{$('#interval-sum',b).textContent=total(expand(build(f,ids)));$('#interval-error',b).textContent='';}catch(e){$('#interval-sum',b).textContent='';$('#interval-error',b).textContent=e.message;}};
    const draw=()=>{if(!valid())return;
-    $('#interval-editor',b).innerHTML=`${line('run','Run')}${line('walk','Walk')}<div class="interval-line"><span>Repeat</span><input data-repeat inputmode="numeric" value="${esc(f.repeat)}" aria-label="Times to repeat"><span class="muted">times</span></div><div class="interval-extras">${extra('warm','Warm-up')}${extra('cool','Cool-down')}</div>${voiceControls()}<label class="interval-name">Name <span class="muted small">optional</span><input data-name maxlength="120" value="${esc(f.name)}"></label><p class="interval-totals" id="interval-sum" role="status"></p><p class="small danger" id="interval-error" role="alert"></p><button type="button" class="primary wide" data-save>Save and use in Track</button><button type="button" class="ghost wide" data-cancel>Cancel</button>`;
+    $('#interval-editor',b).innerHTML=`${line('run','Run')}${line('walk','Walk')}<div class="interval-line"><span>Repeat</span><input data-repeat inputmode="numeric" value="${esc(f.repeat)}" aria-label="Times to repeat"><span class="muted">times</span></div><div class="interval-extras">${extra('warm','Warm-up')}${extra('cool','Cool-down')}</div>${voiceControls()}<label class="interval-name">Name <span class="muted small">optional</span><input data-name maxlength="120" value="${esc(f.name)}"></label><p class="interval-totals" id="interval-sum" role="status"></p><p class="small danger" id="interval-error" role="alert"></p><button type="button" class="primary wide" data-save>Save and use in Track</button>`;
     wireVoiceControls(b);
     $$('[data-amount]',b).forEach(input=>input.oninput=()=>{f[input.dataset.amount].amount=input.value;refresh();});
     $$('[data-unit]',b).forEach(input=>input.onchange=()=>{f[input.dataset.unit].unit=input.value;refresh();});
     $('[data-repeat]',b).oninput=e=>{f.repeat=e.target.value;refresh();};
     $$('[data-extra]',b).forEach(input=>input.onchange=()=>{f[input.dataset.extra]=input.checked?{amount:'5',unit:'min'}:null;draw();});
     $('[data-name]',b).oninput=e=>{f.name=e.target.value;};
-    $('[data-cancel]',b).onclick=()=>{close();library(changed);};
     $('[data-save]',b).onclick=async e=>{if(busy)return;let plan;try{plan=expand(build(f,ids));}catch(x){$('#interval-error',b).textContent=x.message;return;}
      // A retry of the same content reuses its save ID, so a lost reply can't create a second copy.
      const body=JSON.stringify(plan.definition);if(attempted!==body){mutation=uid();attempted=body;}

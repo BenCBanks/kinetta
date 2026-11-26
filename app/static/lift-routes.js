@@ -464,8 +464,8 @@ async function liftSummary(el, aid, r) {
 
 function noteSheet(e, after) {
   const owner = readOwner();
-  sheet('Note for next time', `<form class="form" id="nt"><textarea name="note" maxlength="500" rows="3" placeholder="e.g. seat on 4, narrow grip">${esc(e.note || '')}</textarea>
-    <p class="small muted">Shown with ${esc(e.name)} every time you log it.</p><div class="actions"><button class="primary">Save note</button></div></form>`, (b, close) => {
+  sheet('Note for next time', `<form class="form" id="nt"><label>Note<textarea name="note" maxlength="500" rows="3" placeholder="e.g. seat on 4, narrow grip">${esc(e.note || '')}</textarea></label>
+    <div class="actions"><button class="primary">Save note</button></div></form>`, (b, close) => {
     $('#nt', b).onsubmit = async (ev) => {
       ev.preventDefault(); if (!b.isConnected || owner !== readOwner()) return; const note = $('textarea', b).value.trim();
       try { await api(`/api/lifts/exercises/${e.exercise_id || e.id}`, json('PATCH', {note})); if (!b.isConnected || owner !== readOwner()) return; e.note = note || null; invalidate('/api/lifts'); close(); after(); }
@@ -477,7 +477,7 @@ function noteSheet(e, after) {
 // ---------- choosing an exercise ----------
 // Yours first (most recent), then the common ones by muscle group; typing filters both, and a new name can be added.
 function exercisePicker(skip, pick) {
-  sheet('Add exercise', `<input type="search" id="xp-q" placeholder="Search or type a new one" autocomplete="off" enterkeyhint="done">
+  sheet('Add exercise', `<label>Exercise<input type="search" id="xp-q" placeholder="Search or type a new one" autocomplete="off" enterkeyhint="done"></label>
     <div id="xp-list">${skel(1)}</div>`, async (b, close) => {
     const owner = readOwner(), active = () => b.isConnected && !b.closest('.scrim')?.inert && owner === readOwner();
     let all, choosing = false;
@@ -560,7 +560,7 @@ function drawExercise(el, h) {
       catch (x) { toast(x.message); }
     };
     $('#lx-del', b).onclick = () => sheet('Delete this exercise?', `<p>Every set of ${esc(e.name)} goes too, from all ${e.sessions} session${e.sessions === 1 ? '' : 's'}. The sessions themselves stay.</p>
-      <div class="btnrow"><button class="ghost" data-close>Cancel</button><button class="primary danger-btn" id="lx-yes">Delete</button></div>`, (b2, close2) => {
+      <div class="btnrow"><button class="primary danger-btn" id="lx-yes">Delete</button></div>`, (b2, close2) => {
       $('#lx-yes', b2).onclick = async () => {
         try { await api(`/api/lifts/exercises/${e.id}`, {method: 'DELETE'}); invalidate('/api/'); close2(); close(); go('/progress?view=lifting', {replace: true}); toast(`${e.name} deleted`); }
         catch (x) { toast(x.message); }

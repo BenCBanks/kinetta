@@ -334,7 +334,7 @@
 .entry-edit-fields .form { gap:8px; }
 .entry-edit-fields .form label { gap:4px; }
 .entry-edit-fields > #es-nut .nut { padding:10px 0;margin-bottom:6px; }
-.entry-edit-footer { flex:none;padding-top:10px;border-top:1px solid var(--line);background:var(--bg); }
+.entry-edit-footer { flex:none;padding-top:10px;border-top:1px solid var(--line);background:transparent; }
 .entry-edit-footer .primary { width:100%;min-height:44px; }
 
 /* Choose food uses a text subtitle, text tabs and one consistent trailing add action. */

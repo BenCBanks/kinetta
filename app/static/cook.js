@@ -704,13 +704,12 @@ function dishMenu(d, set, search, known, rename) {
 // Keep deletion separate from ingredient removal and preserve the person's logged portions.
 function deleteRecipe(d) {
   const owner=readOwner();
-  sheet('Delete recipe?',`<p>Delete <b>${esc(d.name)}</b> from My Recipes? Friends you shared it with will lose access.</p><p>Portions already logged stay in each person’s food log.</p><p class="small danger" id="recipe-delete-error" role="alert" hidden></p><div class="actions"><button type="button" class="ghost" id="recipe-delete-cancel">Cancel</button><button type="button" class="primary danger" id="recipe-delete-confirm">Delete recipe</button></div>`,(b,close)=>{
+  sheet('Delete recipe?',`<p>Delete <b>${esc(d.name)}</b> from My Recipes? Friends you shared it with will lose access.</p><p>Portions already logged stay in each person’s food log.</p><p class="small danger" id="recipe-delete-error" role="alert" hidden></p><div class="actions"><button type="button" class="primary danger" id="recipe-delete-confirm">Delete recipe</button></div>`,(b,close)=>{
     guardFoodSheet(b,close,owner);
-    const cancel=$('#recipe-delete-cancel',b),button=$('#recipe-delete-confirm',b),error=$('#recipe-delete-error',b);
-    cancel.onclick=close;
+    const button=$('#recipe-delete-confirm',b),error=$('#recipe-delete-error',b);
     button.onclick=async()=>{
       if(button.disabled||!b.isConnected||readOwner()!==owner)return;
-      button.disabled=cancel.disabled=true;error.hidden=true;
+      button.disabled=true;error.hidden=true;
       try {
         await api(`/api/dishes/${d.id}`,{method:'DELETE'});
         if(!b.isConnected||readOwner()!==owner)return;
@@ -719,7 +718,7 @@ function deleteRecipe(d) {
         if(!b.isConnected||readOwner()!==owner)return;
         // A lost acknowledgement is safe to retry: a missing recipe has already been deleted.
         if(x.status===404){App.cache.delete('/api/dishes');App.cache.delete(`/api/dishes/${d.id}`);close();go('/food/meals',{replace:true});toast('Recipe deleted');return;}
-        error.textContent=x.message;error.hidden=false;button.disabled=cancel.disabled=false;
+        error.textContent=x.message;error.hidden=false;button.disabled=false;
       }
     };
   });

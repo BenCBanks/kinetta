@@ -160,6 +160,27 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
  }
  try{
+  async function eventDateJourney(theme){
+    let {context,page,errors,groupDateChanges,ongoingState}=await open(theme);await page.goto(base+groupUrl(idOngoing));await page.locator('.group-roster').waitFor();
+    assert.equal(await page.locator('.group-title-summary').innerText(),'Since Oct 1');assert.equal(await page.locator('.group-goal-period').innerText(),'Since Oct 1');
+    assert.equal(await page.locator('.group-event-day,.group-recap').count(),0);assert.equal(await page.locator('.group-total-note,.group-member-value').count(),0,'two members do not reveal combined or individual amounts');
+    assert.equal(await page.locator('[data-group-update="7010"] p').innerText(),'Fictional trail notes are ready.');
+    await capture(page,`groups-ongoing-390-${theme}`);
+    await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="recap-consent"]').count(),0,'dateless groups have no recap-consent prompt');
+    await page.locator('[data-gact="event-date"]').click();const editDate=page.locator('#group-event-date-form [name=event_date]'),clearEditDate=page.locator('#group-event-date-form [data-group-date-clear]');
+    assert.equal(await editDate.inputValue(),'');assert.equal(await clearEditDate.isVisible(),false);assert.equal(await page.locator('[data-group-date-label]').innerText(),'None');assert.equal(await editDate.getAttribute('aria-label'),'End date');assert.equal(await page.locator('#group-event-date-form p,#group-event-date-form [data-close]').count(),0);assert.equal(await clearEditDate.innerText(),'Remove date');
+    await capture(page,`groups-edit-date-390-${theme}`);await editDate.fill('2026-11-14');
+    const addDate=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idOngoing+'/event-date')&&r.request().method()==='PATCH');await page.locator('#group-event-date-form button[type=submit]').click();assert.equal((await addDate).status(),200);
+    await page.locator('.group-event-day').waitFor({state:'detached'});await page.waitForFunction(()=>!document.querySelector('.group-goal-period')&&document.querySelector('.group-title-summary')?.textContent.includes('week to go'));
+    assert.equal(groupDateChanges.at(-1).event_date,'2026-11-14');assert.equal(await page.locator('[data-group-update="7010"]').count(),1);await page.evaluate(()=>document.querySelector('.toast')?.classList.remove('on'));await capture(page,`groups-dated-390-${theme}`);
+    await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="recap-consent"]').count(),1,'adding a date enables recap consent');await page.locator('[data-close]').last().click();
+    await page.locator('#group-options').click();await page.locator('[data-gact="event-date"]').click();await editDate.waitFor();await clearEditDate.click();assert.equal(await editDate.inputValue(),'');
+    const clearDate=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idOngoing+'/event-date')&&r.request().method()==='PATCH');await page.locator('#group-event-date-form button[type=submit]').click();assert.equal((await clearDate).status(),200);
+    await page.locator('.group-goal-period').waitFor();assert.equal(await page.locator('.group-title-summary').innerText(),'Since Oct 1');assert.equal(await page.locator('[data-group-update="7010"]').count(),1);
+    assert.equal(ongoingState().updates[0].reactions.clap,1,'changing the date preserves existing update reactions');assert.equal(await page.locator('.group-recap').count(),0);
+    assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+  }
+  if(process.env.KINETTA_GROUPS_DATE_ONLY==='1'){for(const theme of ['light','dark'])await eventDateJourney(theme);console.log('Group end date native row: unset/set/remove/save and preservation390 light/dark PASS');return;}
   if(GROUP_PICKER_ONLY||GROUP_UPDATES_ONLY){for(const theme of ['light','dark'])for(const width of [390,330])await checkFriendPicker(theme,width);console.log('Groups friend picker 390/330 light/dark PASS');if(GROUP_PICKER_ONLY)return;}
   if(GROUP_LOADING_ONLY){
    for(const theme of ['light','dark'])await checkGroupLoading(theme);
@@ -243,7 +264,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    await page.locator('[data-group-strip-show]').click();await page.locator('.feed-groups-link').waitFor();assert.equal(await page.locator('[data-group-strip-mute]').count(),0);assert.equal(await page.locator('.feed-groups-link').count(),1,'Show restores the strip');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme,390,'more'));await page.goto(base+'/activity');await waitActivity(page);
-   assert.equal(await page.locator('.feed-groups-more').innerText(),'+1');assert.equal(await page.locator('.feed-groups-more').getAttribute('href'),'/me/groups');
+   assert.equal(await page.locator('.feed-groups-more').innerText(),'+1');assert.equal(await page.locator('.feed-groups-more').getAttribute('href'),'/activity?view=groups');
    const moreTitleLayout=await page.locator('.feed-groups-copy b').evaluate(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return{height:r.height,lineHeight:parseFloat(s.lineHeight),width:el.clientWidth,scrollWidth:el.scrollWidth};});assert(moreTitleLayout.height<=moreTitleLayout.lineHeight*1.2&&moreTitleLayout.scrollWidth<=moreTitleLayout.width+1,`short title stays on one line with +1 at 390px (${theme}): ${JSON.stringify(moreTitleLayout)}`);
    const moreStrip=await page.locator('#activity-groups-strip').evaluate(el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,actions:el.querySelectorAll('button').length,more:el.querySelector('.feed-groups-more').getBoundingClientRect().toJSON()}));assert(moreStrip.scrollWidth<=moreStrip.width+1&&moreStrip.actions===0&&moreStrip.more.width>=44&&moreStrip.more.height>=44,`multi-group strip fits with only the separate 44px +N action (${theme}): ${JSON.stringify(moreStrip)}`);
    await capture(page,`activity-groups-plus-one-390-${theme}`,null,{fullPage:false});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
@@ -284,24 +305,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.equal(await page.locator('[data-group-share]').count(),1,'One docked Share invite link action replaces raw URLs and copy actions');
    await page.keyboard.press('Escape');await context.close();contexts.splice(contexts.indexOf(context),1);
 
-    ({context,page,errors,groupDateChanges,ongoingState}=await open(theme));await page.goto(base+groupUrl(idOngoing));await page.locator('.group-roster').waitFor();
-    assert.equal(await page.locator('.group-title-summary').innerText(),'Since Oct 1');assert.equal(await page.locator('.group-goal-period').innerText(),'Since Oct 1');
-    assert.equal(await page.locator('.group-event-day,.group-recap').count(),0);assert.equal(await page.locator('.group-total-note,.group-member-value').count(),0,'two members do not reveal combined or individual amounts');
-    assert.equal(await page.locator('[data-group-update="7010"] p').innerText(),'Fictional trail notes are ready.');
-    await capture(page,`groups-ongoing-390-${theme}`);
-    await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="recap-consent"]').count(),0,'dateless groups have no recap-consent prompt');
-    await page.locator('[data-gact="event-date"]').click();const editDate=page.locator('#group-event-date-form [name=event_date]'),clearEditDate=page.locator('#group-event-date-form [data-group-date-clear]');
-    assert.equal(await editDate.inputValue(),'');assert.equal(await clearEditDate.isVisible(),false);assert.match(await page.locator('#group-event-date-form').innerText(),/Clear the date for an ongoing goal/);
-    await capture(page,`groups-edit-date-390-${theme}`);await editDate.fill('2026-11-14');
-    const addDate=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idOngoing+'/event-date')&&r.request().method()==='PATCH');await page.locator('#group-event-date-form button[type=submit]').click();assert.equal((await addDate).status(),200);
-    await page.locator('.group-event-day').waitFor({state:'detached'});await page.waitForFunction(()=>!document.querySelector('.group-goal-period')&&document.querySelector('.group-title-summary')?.textContent.includes('week to go'));
-    assert.equal(groupDateChanges.at(-1).event_date,'2026-11-14');assert.equal(await page.locator('[data-group-update="7010"]').count(),1);await page.evaluate(()=>document.querySelector('.toast')?.classList.remove('on'));await capture(page,`groups-dated-390-${theme}`);
-    await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="recap-consent"]').count(),1,'adding a date enables recap consent');await page.locator('[data-close]').last().click();
-    await page.locator('#group-options').click();await page.locator('[data-gact="event-date"]').click();await editDate.waitFor();await clearEditDate.click();assert.equal(await editDate.inputValue(),'');
-    const clearDate=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idOngoing+'/event-date')&&r.request().method()==='PATCH');await page.locator('#group-event-date-form button[type=submit]').click();assert.equal((await clearDate).status(),200);
-    await page.locator('.group-goal-period').waitFor();assert.equal(await page.locator('.group-title-summary').innerText(),'Since Oct 1');assert.equal(await page.locator('[data-group-update="7010"]').count(),1);
-    assert.equal(ongoingState().updates[0].reactions.clap,1,'changing the date preserves existing update reactions');assert.equal(await page.locator('.group-recap').count(),0);
-    assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   await eventDateJourney(theme);
 
    ({context,page,errors}=await open(theme));await page.goto(base+`/group-invite/${token}`);await page.locator('#group-accept').waitFor();
    assert.equal(await page.locator('.group-invite-card h1').innerText(),'You’re invited to a group');assert.equal(await page.locator('#group-accept').innerText(),'Join');assert(!/Fictional Trail Group|fictional_member/.test(await page.locator('.group-invite-card').innerText()));

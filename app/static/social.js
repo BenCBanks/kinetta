@@ -1166,9 +1166,9 @@ const friendCountText = n => n===0?'No friends yet':`${n} ${n===1?'friend':'frie
 function friendChangeSheet(p, block, onChange) {
   const owner=readOwner(),verb=block?'Block':'Remove';
   const message=block?`Neither of you can find or see the other on Kinetta. You stop being friends. They aren’t told.`:`You’ll stop seeing each other’s friends-only activities. They aren’t told.`;
-  sheet(`${verb} ${p.name}?`, `<p>${esc(message)}</p><p class="err" role="alert"></p><div class="actions"><button type="button" class="ghost" data-keep>${block?'Cancel':'Keep'}</button><button type="button" class="primary danger-btn" data-confirm>${verb}</button></div>`,(b,close)=>{
+  sheet(`${verb} ${p.name}?`, `<p>${esc(message)}</p><p class="err" role="alert"></p><div class="actions">${block?'':'<button type="button" class="ghost" data-keep>Keep</button>'}<button type="button" class="primary danger-btn" data-confirm>${verb}</button></div>`,(b,close)=>{
     const live=()=>owner===readOwner()&&b.isConnected;
-    $('[data-keep]',b).onclick=close;
+    const keep=$('[data-keep]',b);if(keep)keep.onclick=close;
     $('[data-confirm]',b).onclick=async()=>{
       if(!live()||$('[data-confirm]',b).disabled)return;
       $$('button',b).forEach(x=>x.disabled=true);
@@ -1400,21 +1400,20 @@ function groupGoalSheet(draft,changed){
   },{flow:'auto'});
 }
 function groupEventDateSheet(group,reload){
-  sheet('Edit event date',`<form class="form group-create-form" id="group-event-date-form"><div class="group-create-fields">
-    <label>Event date (optional)<input name="event_date" type="date" value="${esc(group.event_date||'')}"></label>
-    <button class="group-date-clear" type="button" data-group-date-clear${group.event_date?'':' hidden'}>Clear date</button>
-    <p class="small muted">Clear the date for an ongoing goal. Its total starts with this group.</p>
-    </div><div class="group-create-footer"><button class="primary wide" type="submit">Save</button><button class="linkbtn wide" type="button" data-close>Cancel</button></div></form>`,(body,close)=>{
-      const form=$('#group-event-date-form',body),date=form.elements.event_date,clearDate=$('[data-group-date-clear]',form);
-      const syncDateClear=()=>{clearDate.hidden=!date.value;};date.oninput=syncDateClear;date.onchange=syncDateClear;
-      clearDate.onclick=()=>{date.value='';syncDateClear();date.focus({preventScroll:true});};
-      $('[data-close]',body).onclick=close;
+  sheet('Edit event date',`<form class="form group-event-date-form" id="group-event-date-form">
+    <label class="group-end-date-row"><span>End date</span><span data-group-date-label>None</span>${svg('chev')}<input name="event_date" type="date" aria-label="End date" value="${esc(group.event_date||'')}"></label>
+    <button class="linkbtn" type="button" data-group-date-clear hidden>Remove date</button>
+    <button class="primary wide" type="submit">Save</button></form>`,(body,close)=>{
+      const form=$('#group-event-date-form',body),date=form.elements.event_date,remove=$('[data-group-date-clear]',form),label=$('[data-group-date-label]',form);
+      const sync=()=>{remove.hidden=!date.value;label.textContent=date.value?fdate(date.value+'T12:00:00',{month:'short',day:'numeric',year:'numeric'}):'None';};date.oninput=sync;date.onchange=sync;sync();
+      remove.onclick=()=>{date.value='';sync();};
       form.onsubmit=async event=>{event.preventDefault();const save=$('button[type=submit]',form);if(save.disabled)return;save.disabled=true;
         try{await api(`/api/groups/${encodeURIComponent(group.id)}/event-date`,json('PATCH',{event_date:date.value||null}));close();toast('Group updated');reload();}
         catch(error){if(body.isConnected){toast(error.message);save.disabled=false;}}
       };
     });
 }
+
 route(/^\/me\/groups$/, 'me', async el=>{
   const createRequested=new URLSearchParams(location.search).get('create')==='1';
   el.classList.add('groups-page');el.innerHTML=`<div class="top">${backBtn('Friends')}<h1>Groups</h1><button type="button" class="linkbtn" id="group-new">Create</button></div><div id="group-list"><div class="card group-list-card group-list-loading" role="status" aria-busy="true"><span class="vh">Loading your groups…</span>${[0,1].map(()=>'<div class="group-loading-row" aria-hidden="true"><span class="sk group-loading-glyph"></span><span class="group-loading-copy"><span class="sk group-loading-title"></span><span class="sk group-loading-summary"></span></span><span class="sk group-loading-value"></span></div>').join('')}</div></div>`;wireBack(el,'/me/friends');
@@ -1481,16 +1480,16 @@ function groupUpdateMarkup(group,update){
 function groupUpdateMenu(group,update,reload){
   const opts=[];if(update.can_delete)opts.push('<button type="button" class="row-link danger" data-update-action="delete"><span>Delete update</span>'+svg('chev')+'</button>');
   if(update.can_report)opts.push('<button type="button" class="row-link" data-update-action="report"><span>Report update</span>'+svg('chev')+'</button>');
-  groupActionSheet('Update options',`<div class="group-options-list">${opts.join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
-    $('[data-close]',body).onclick=close;$$('[data-update-action]',body).forEach(button=>button.onclick=()=>{close();
+  groupActionSheet('Update options',`<div class="group-options-list">${opts.join('')}</div>`,(body,close)=>{
+    $$('[data-update-action]',body).forEach(button=>button.onclick=()=>{close();
       if(button.dataset.updateAction==='delete')groupConfirm('Delete update?','This update and its cheers will be removed from the group.',async()=>{try{await api(`/api/groups/${encodeURIComponent(group.id)}/updates/${update.id}`,{method:'DELETE'});toast('Update deleted');reload();}catch(error){toast(error.message);}});
       else groupUpdateReport(group,update,reload);
     });
   });
 }
 function groupUpdateReport(group,update,reload){
-  groupActionSheet('Report update',`<form class="form" id="group-update-report-form"><p class="small muted">The people who run this Kinetta see your report. Group members aren’t told who sent it.</p><div class="checks">${Object.entries(REPORT_WHY).map(([key,label])=>`<label class="check"><input type="radio" name="reason" value="${key}"> ${esc(label)}</label>`).join('')}</div><label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label><button type="submit" class="primary wide">Send report</button><button type="button" class="linkbtn wide" data-close>Cancel</button></form>`,(body,close)=>{
-    const form=$('#group-update-report-form',body);$('[data-close]',body).onclick=close;form.onsubmit=async event=>{event.preventDefault();const reason=form.elements.reason.value;if(!reason){toast('Choose a reason');return;}try{await api(`/api/groups/${encodeURIComponent(group.id)}/updates/${update.id}/report`,json('POST',{reason,note:form.elements.note.value}));close();toast('Report sent');reload();}catch(error){toast(error.message);}};
+  groupActionSheet('Report update',`<form class="form" id="group-update-report-form"><p class="small muted">The people who run this Kinetta see your report. Group members aren’t told who sent it.</p><div class="checks">${Object.entries(REPORT_WHY).map(([key,label])=>`<label class="check"><input type="radio" name="reason" value="${key}"> ${esc(label)}</label>`).join('')}</div><label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label><button type="submit" class="primary wide">Send report</button></form>`,(body,close)=>{
+    const form=$('#group-update-report-form',body);form.onsubmit=async event=>{event.preventDefault();const reason=form.elements.reason.value;if(!reason){toast('Choose a reason');return;}try{await api(`/api/groups/${encodeURIComponent(group.id)}/updates/${update.id}/report`,json('POST',{reason,note:form.elements.note.value}));close();toast('Report sent');reload();}catch(error){toast(error.message);}};
   });
 }
 function groupGoal(group){
@@ -1544,7 +1543,7 @@ function groupMenu(group,reload,onLeave){
   if(Number(group.member_count)>=3)opts.push(`<button type="button" class="row-link" data-gact="monday-recap"><span class="grow"><span>${group.monday_recap_enabled?'Turn off Monday recap':'Get Monday recap'}</span><small>In-app alert · off by default</small></span>${svg('chev')}</button>`);
   opts.push(`<button type="button" class="row-link group-sharing-row" data-gact="sharing" role="switch" aria-checked="${group.sharing_level==='total_shared'}"><span>Share my total</span><span class="switch-track" aria-hidden="true"></span></button>`,`<button type="button" class="row-link" data-gact="notifications"><span>${group.notifications_muted?'Unmute group notifications':'Mute group notifications'}</span>${svg('chev')}</button>`);
   opts.push(`<button type="button" class="row-link" data-gact="leave"><span>Leave group</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="report"><span>Report group</span>${svg('chev')}</button>`);
-  groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
+  groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div>`,(body,close)=>{
     const run=async(path,method='POST',payload={})=>{try{await api(path,json(method,payload));close();toast('Group updated');reload();}catch(error){toast(error.message);}};
     $$('[data-gact]',body).forEach(button=>button.onclick=()=>{const action=button.dataset.gact;close();
       if(action==='invite'||action==='reopen')groupInvite(group);
@@ -1559,19 +1558,19 @@ function groupMenu(group,reload,onLeave){
       else if(action==='recap-consent')api('/api/groups/'+encodeURIComponent(group.id)+'/recap-consent',json('POST',{consent:!group.recap_consent})).then(()=>{toast(group.recap_consent?'Your name was removed from the recap':'Your name can appear in the recap');reload();}).catch(error=>toast(error.message));
       else if(action==='report')groupReport(group);
     });
-    $('[data-close]',body).onclick=close;
+
   });
 }
-function groupConfirm(title,copy,yes){groupActionSheet(title,`<p>${esc(copy)}</p><div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button type="button" class="primary" data-yes>Continue</button></div>`,(body,close)=>{$('[data-close]',body).onclick=close;$('[data-yes]',body).onclick=()=>{close();yes();};});}
+function groupConfirm(title,copy,yes){groupActionSheet(title,`<p>${esc(copy)}</p><div class="actions"><button type="button" class="primary" data-yes>Continue</button></div>`,(body,close)=>{$('[data-yes]',body).onclick=()=>{close();yes();};});}
 function groupMemberAction(group,title,action,reload){
   const members=group.members.filter(m=>!m.organizer),label=action==='transfer'?'Transfer organizer':'Remove member';
-  groupActionSheet(title,`<div class="group-options-list">${members.map(m=>`<button type="button" class="row-link" data-member="${esc(m.username)}"><span>@${esc(m.username)}</span>${svg('chev')}</button>`).join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
-    $('[data-close]',body).onclick=close;$$('[data-member]',body).forEach(button=>button.onclick=()=>{const username=button.dataset.member;close();groupConfirm(`${label}?`,`@${username} will ${action==='transfer'?'become the organizer':'be removed from this group'}.`,async()=>{try{await api(`/api/groups/${encodeURIComponent(group.id)}/${action}`,json('POST',{username}));toast('Group updated');reload();}catch(error){toast(error.message);}});});
+  groupActionSheet(title,`<div class="group-options-list">${members.map(m=>`<button type="button" class="row-link" data-member="${esc(m.username)}"><span>@${esc(m.username)}</span>${svg('chev')}</button>`).join('')}</div>`,(body,close)=>{
+    $$('[data-member]',body).forEach(button=>button.onclick=()=>{const username=button.dataset.member;close();groupConfirm(`${label}?`,`@${username} will ${action==='transfer'?'become the organizer':'be removed from this group'}.`,async()=>{try{await api(`/api/groups/${encodeURIComponent(group.id)}/${action}`,json('POST',{username}));toast('Group updated');reload();}catch(error){toast(error.message);}});});
   });
 }
 function groupReport(group){
-  groupActionSheet('Report group',`<form class="form" id="group-report-form"><p class="small muted">The people who run this Kinetta see your report. Group members aren’t told who sent it.</p><div class="checks">${Object.entries(REPORT_WHY).map(([key,label])=>`<label class="check"><input type="radio" name="reason" value="${key}"> ${esc(label)}</label>`).join('')}</div><label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label><button type="submit" class="primary wide">Send report</button><button type="button" class="linkbtn wide" data-close>Cancel</button></form>`,(body,close)=>{
-    const form=$('#group-report-form',body);$('[data-close]',body).onclick=close;form.onsubmit=async event=>{event.preventDefault();const reason=form.elements.reason.value;if(!reason){toast('Choose a reason');return;}try{await api('/api/groups/'+encodeURIComponent(group.id)+'/report',json('POST',{reason,note:form.elements.note.value}));close();toast('Report sent');}catch(error){toast(error.message);}};
+  groupActionSheet('Report group',`<form class="form" id="group-report-form"><p class="small muted">The people who run this Kinetta see your report. Group members aren’t told who sent it.</p><div class="checks">${Object.entries(REPORT_WHY).map(([key,label])=>`<label class="check"><input type="radio" name="reason" value="${key}"> ${esc(label)}</label>`).join('')}</div><label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label><button type="submit" class="primary wide">Send report</button></form>`,(body,close)=>{
+    const form=$('#group-report-form',body);form.onsubmit=async event=>{event.preventDefault();const reason=form.elements.reason.value;if(!reason){toast('Choose a reason');return;}try{await api('/api/groups/'+encodeURIComponent(group.id)+'/report',json('POST',{reason,note:form.elements.note.value}));close();toast('Report sent');}catch(error){toast(error.message);}};
   });
 }
 route(/^\/groups\/([0-9a-f-]{36})$/i,groupRouteTab,async(el,id)=>{
@@ -1605,7 +1604,7 @@ function reportSheet(p, what = {}, onBlocked) {
     <div class="checks">${Object.entries(REPORT_WHY).map(([k, n]) => `<label class="check"><input type="radio" name="why" value="${k}"> ${esc(n)}</label>`).join('')}</div>
     <label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label>
     <p class="small muted">The people who run this Kinetta see your report and what was reported. ${esc(p.name)} isn't told who reported it.</p>
-    <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Send report</button></div>
+    <div class="actions"><button class="primary">Send report</button></div>
     <h3 class="ghead">Block ${esc(p.name)}</h3>
     <p class="small muted">You stop being friends, they can't see your activities, find you or ask to be friends, and you won't see their activities, cheers or comments. They aren't told. Undo it under Me › Sharing.</p>
     <button type="button" class="ghost wide danger" id="rp-block">Block ${esc(p.name)}</button></form>`, (b, close) => {

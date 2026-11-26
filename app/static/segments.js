@@ -209,7 +209,7 @@ const Segments = (() => {
   function publish(s) {
     sheet('Publish to everyone?', `<p><b>${esc(s.name)}</b> becomes visible to everyone signed in to this Kinetta: its name, description, path and the distance, exactly as they are now.</p>
       <ul class="small"><li>Publishing can’t be undone. A published segment can only be retired by an admin.</li><li>Nothing about your own activities is shared by this. Your times appear only if you join leaderboards.</li></ul>
-      <label class="check-row"><input type="checkbox" id="pb-ok"> <span>Publish this segment, unchanged</span></label><button class="primary wide" id="pb-go" disabled>Publish</button><button class="ghost wide" data-close>Cancel</button>`, (b, close) => {
+      <label class="check-row"><input type="checkbox" id="pb-ok"> <span>Publish this segment, unchanged</span></label><button class="primary wide" id="pb-go" disabled>Publish</button>`, (b, close) => {
       $('#pb-ok', b).onchange = (e) => { $('#pb-go', b).disabled = !e.target.checked; };
       $('#pb-go', b).onclick = async () => { try { await api(`/api/segments/${s.id}/publish`, json('POST', {understood_public: true})); close(); toast('Published'); render(); } catch (x) { toast(x.message); } };
     });
