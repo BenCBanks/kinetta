@@ -654,7 +654,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 /* Idle Track: compact controls around a flexible, near full-width map. */
 #page.track-home-page:has(#track-content.gps-ready > #track-setup):not(:has(.track-saved, #track-open-lift:not(:empty))) {
   box-sizing:border-box; display:flex; flex-direction:column; height:100dvh;
-  padding-top:calc(env(safe-area-inset-top) + 4px);
+  padding-top:calc(env(safe-area-inset-top) + min(4px,var(--shell-top-gap)));
   padding-bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 8px) !important;
 }
 #page.track-home-page:has(#track-setup) > .top { flex:none; min-height:44px; margin-bottom:0; }
