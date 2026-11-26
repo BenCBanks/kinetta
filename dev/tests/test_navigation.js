@@ -97,3 +97,20 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  assert(app.includes("history.scrollRestoration='manual'"),'the router owns restoration instead of racing browser defaults');
  console.log('Navigation positions: Back, Forward, in-place refresh and account isolation PASS');
 }
+
+// Kit cannot replace a section's landing page, including pre-fix session state.
+{
+ const values=new Map(),origin='https://fictional.invalid',root={},c={URL,URLSearchParams,Date,location:{origin,href:origin+'/activity',search:''},Native:{base:''},App:{me:{id:1},pageReady:true,pages:[{re:/^\/activity$/,tab:'activity'},{re:/^\/me$/,tab:'me'},{re:/^\/me\/kit$/,tab:'me'},{re:/^\/progress\/weight$/,tab:'progress'}]},lazyRouteBundles:[],sessionStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},document:{querySelector:()=>null},$:()=>root,$$:()=>[],scrollY:0};
+ vm.createContext(c);vm.runInContext(app.slice(app.indexOf('const TABS ='),app.indexOf('let navScrollFrame =')),c);
+ const key='kinetta.sectionReturn',save=path=>c.saveSectionReturn(undefined,{path,root}),land=tab=>c.savedSectionReturn(tab)?.path||'/'+tab;
+ save('/activity');save('/me/kit?from=activity');assert.equal(land('me'),'/me','Home -> Kit -> Me opens Me');
+ save('/me');save('/me/kit?from=me');save('/activity');assert.equal(land('me'),'/me','Me -> Kit -> Home -> Me opens Me');
+ for(const tab of ['me','activity','food','progress']){
+  values.set(key,JSON.stringify({owner:c.sectionReturnOwner(),sections:{[tab]:{path:'/me/kit?from=activity',savedAt:Date.now(),y:0,open:[]}}}));
+  assert.equal(c.savedSectionReturn(tab),null);assert(!JSON.parse(values.get(key)).sections[tab],'old Kit return is removed from persisted storage');
+ }
+ assert.equal(c.sectionReturnPathAllowed('me','/me/kit/'),false,'trailing slash does not bypass exclusion');
+ c.location.search='?from=nutrition';assert.equal(c.sectionTabForPath('/progress/weight?from=nutrition'),'food');assert.equal(c.sectionReturnPathAllowed('progress','/progress/weight?from=nutrition'),false);assert.equal(c.sectionReturnPathAllowed('food','/progress/weight?from=nutrition'),true);
+ c.location.search='';assert.equal(c.sectionTabForPath('/progress/weight?from=progress'),'progress','Weight retains explicit origin and existing Back contract');
+ console.log('Kit navigation: both Me journeys, stale cross-section returns purged, trailing slash and Weight origin PASS');
+}

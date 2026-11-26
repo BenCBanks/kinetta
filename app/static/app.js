@@ -118,7 +118,7 @@ const lazyRouteBundles = [
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/me\/sharing(?:\/(?:routes|blocked))?$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
-  {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/me\/kit$/, tab: () => ({nutrition:'food',activity:'activity',progress:'progress',track:'track',strength:'track'}[new URLSearchParams(location.search).get('from')] || 'me'), scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
   {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
 ];
@@ -1222,7 +1222,9 @@ function sectionReturnStore() {
     for (const [tab, state] of Object.entries(value.sections)) {
       if (!TABS.some(([key]) => key === tab) || !state || typeof state.path !== 'string' ||
           !Number.isFinite(state.savedAt) || now - state.savedAt > SECTION_RETURN_TTL || now < state.savedAt ||
-          !Number.isFinite(state.y) || !Array.isArray(state.open)) delete value.sections[tab];
+          !Number.isFinite(state.y) || !Array.isArray(state.open) || !sectionReturnPathAllowed(tab, state.path)) {
+        delete value.sections[tab]; saveSectionReturnStore(value);
+      }
     }
     return value;
   } catch (_) { return {owner, sections: {}}; }
@@ -1251,6 +1253,8 @@ function savedSectionReturn(tab) {
 function sectionReturnPathAllowed(tab, path) {
   if (!tab || sectionTabForPath(path) !== tab) return false;
   const url = new URL(path, location.href);
+  // Kit is a conversation reached from several sections, never a section's landing page.
+  if (url.pathname.replace(/\/+$/, '') === '/me/kit') return false;
   // Track's logger and nested recording/editor routes own their own recovery state.
   if (tab === 'track' && (url.pathname !== '/track' || (typeof Track !== 'undefined' && Track.active))) return false;
   return true;
