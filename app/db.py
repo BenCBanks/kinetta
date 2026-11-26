@@ -2545,6 +2545,10 @@ MIGRATIONS = [
     """,
 
     # 124. One-time snapshot reconciliation before the legacy write adapters become active.
+    # Schemas 121-123 expose no per-challenge writes (SQL readers have SELECT only), so legacy
+    # sharing_level is the only user-made choice. Lifespan migrates before workers/requests;
+    # new adapters and challenge APIs cannot write a choice before this reconciliation.
+    # Never replay this SQL after cutover: the versioned runner preserves later choices.
     """INSERT INTO group_challenges(group_id,creator_id,legacy_group_id,title,metric,target,unit,sports,
         start_date,end_date,time_zone,note,training_for,ended_at,created)
       SELECT id,organizer_id,id,title,goal_type,goal_target,goal_unit,goal_sports,

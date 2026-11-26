@@ -16,10 +16,10 @@ def seed_legacy(c, group_id):
 
 def join(c, group_id, user_id):
     """An actual join refreshes the time boundary, never a recorded challenge opt-out."""
+    # Explicit join OFF applies to every new choice; defaults never override it.
     # Migration 122 reconciled old goals; joining a people-only group must not create one.
     c.execute('''INSERT INTO group_challenge_members(challenge_id,group_id,user_id,share_total,joined_at)
-        SELECT q.id,m.group_id,m.user_id,
-            CASE WHEN q.legacy_group_id IS NOT NULL THEN m.sharing_level='total_shared' ELSE true END,m.joined_at
+        SELECT q.id,m.group_id,m.user_id,m.sharing_level='total_shared',m.joined_at
         FROM group_challenges q JOIN group_members m ON m.group_id=q.group_id
         WHERE m.group_id=%s AND m.user_id=%s AND m.status='active'
         ON CONFLICT(challenge_id,user_id) DO UPDATE
