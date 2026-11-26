@@ -84,12 +84,12 @@ try:
             assert not c.execute('SELECT id FROM kit_memories WHERE user_id=%s',(uid,)).fetchall()
         with db.connect() as c:api_account.erase(c,{'id':uid,'sql_role':None})
         with db.connect() as c:assert not c.execute('SELECT id FROM kit_memories WHERE user_id=%s',(uid,)).fetchall()
-    # Reproduce an existing 120 memory upgrading to 121, then roll back the fixture DDL.
+    # Reproduce an existing 121 memory upgrading to 122, then roll back the fixture DDL.
     with db.connect() as c:
         with c.transaction(force_rollback=True):
             c.execute('ALTER TABLE kit_memories DROP COLUMN kind,DROP COLUMN source')
             row=c.execute("INSERT INTO kit_memories(user_id,text,created,updated) VALUES (%s,'My goal is a comfortable race.',now()-interval '7 days',now()-interval '2 days') RETURNING id,created,updated",(other,)).fetchone()
-            c.execute(db.MIGRATIONS[120])  # Migration 121, even after later migrations are appended.
+            c.execute(db.MIGRATIONS[121])  # Migration 122, even after later migrations are appended.
             upgraded=c.execute('SELECT kind,source,created,updated FROM kit_memories WHERE user_id=%s AND id=%s',(other,row['id'])).fetchone()
             assert upgraded=={'kind':'goal','source':'chat','created':row['created'],'updated':row['updated']}
     print('Kit memory correction: schema, ownership, versions, source/date, consent, leases, upgrade, bounds, RLS/export/delete PASS')
