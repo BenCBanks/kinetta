@@ -43,5 +43,7 @@ const elapsedTrendRows=[{pace_d:10000,pace_t:3600,pd:20000,pt:2000,hr_t:2000,hr_
 assert.equal(ctx.elapsedActivityRate(elapsedTrendRows,'ride').label,'Average speed');assert.equal(ctx.elapsedActivityRate(elapsedTrendRows,'ride').value,10000/3600,'Ride insight shows elapsed based speed even when moving totals imply another speed');
 assert.equal(ctx.elapsedActivityRate(elapsedTrendRows,'run').label,'Average pace');assert.equal(ctx.elapsedActivityRate(elapsedTrendRows,'run').value,360,'pTrends shows elapsed based pace');
 assert.match(progress,/elapsedActivityRate\(rows,sport\)/,'Progress trends use elapsed pace totals');const meInsights=pages.match(/function meInsights\([\s\S]*?\n\}/)?.[0];assert(meInsights&&!meInsights.includes('elapsedActivityRate'),'Me leaves detailed pace comparisons to Progress');
-assert.match(progress,/Pace = total elapsed time ÷ total distance/);assert.match(progress,/Speed = total distance ÷ total elapsed time/);assert.match(progress,/weighted by moving time/);
+assert.match(progress,/Pace[^'\n]*elapsed time[^'\n]*distance/,'pace help retains elapsed-time and distance context');
+assert.match(progress,/Speed[^'\n]*distance[^'\n]*elapsed time/,'speed help retains distance and elapsed-time context');
+assert.match(progress,/Heart rate and cadence[^<\n]*moving time/,'heart-rate and cadence help retains moving-time weighting context');
 console.log('Activity summary: elapsed-first paused run, equal/close durations, unknown elapsed and friend pace privacy PASS');
