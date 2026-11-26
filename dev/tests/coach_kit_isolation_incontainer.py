@@ -46,7 +46,11 @@ with db.connect() as c:
     c.execute("""INSERT INTO activities(user_id,sport,source,name,start_time,distance_m,moving_s,elapsed_s)
         VALUES (%s,'run','healthkit','Off-account Health fixture','2021-01-03T14:00:00Z',1,1,1)""", (off,))
 
+with db.connect() as c:
+    goal_a=c.execute("INSERT INTO goals(user_id,sport,period,metric,target) VALUES(%s,'run','week','count',3) RETURNING id",(a,)).fetchone()['id']
+
 catalog = {
+    'goal_change_options': {'goal_id': goal_a, 'value': 4, 'unit': 'activities'},
     'profile': {},
     'nutrition_summary': RANGE,
     'period_compare': {'start': '2021-01-08', 'end': '2021-01-14'},
@@ -89,7 +93,7 @@ assert set(catalog) == registered, (sorted(registered - set(catalog)), sorted(se
 # These are the tools that KitTools deliberately allows without Health consent.
 health_gated = set(catalog) - {
     'profile', 'nutrition_summary', 'nutrition_adequacy', 'meal_combinations', 'meal_options',
-    'stored_foods', 'food_log', 'nutrition_days_vs_goal', 'goals', 'app_features',
+    'stored_foods', 'food_log', 'nutrition_days_vs_goal', 'goals', 'goal_change_options', 'app_features',
 }
 outputs = {}
 kit = KitTools(a)
