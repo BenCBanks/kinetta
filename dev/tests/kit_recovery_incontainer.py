@@ -105,3 +105,19 @@ result,calls,_=run(next(r for r in rows if r['case']=='low-intake'))
 assert not calls and not result.get('app_fallback') and 'doctor' in result['interpretation']
 assert kit_recovery._attempt.get() is None
 print('Ordinary gate replay: 21 accepted model replies unchanged; all 14 rejected outputs stay rejected; 7 checked app recoveries PASS. Consent/cancel/owner/unknown/provider/limit guards PASS; zero provider calls')
+
+# A known-data nutrition assessment must not acquire an invented missing-nutrient
+# reason, even in the last-resort generic fallback.
+known = dict(uid=987,evidence=[dict(evidence_id='e1',tool='profile',data=dict(units='metric')),
+    dict(evidence_id='e2',tool='nutrition_adequacy',data=dict(days=[],logged_days=0))],
+    usage={},began=time.monotonic())
+with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),patch('app.db.coach_connect'):
+    result=kit_recovery.fallback(987,'Compare my recorded calories and protein with my saved targets.',known,None,'answer_verification')
+assert result['app_fallback'] and 'missing nutrient' not in result['interpretation']
+assert result['facts']==[]
+print('Known/no assessed nutrient gaps cannot be invented by the generic recovery PASS')
+with patch('app.coach.allowed',return_value=True):
+    state=dict(uid=987,evidence=[dict(evidence_id='e1',tool='profile',data=dict(units='metric'))],usage={},began=time.monotonic())
+    result=kit_recovery.fallback(987,'Coaching context: old weight preference\nQuestion: Review my training',state,None,'answer_verification')
+assert 'activity history' in result['interpretation'] and 'Progress' not in result['interpretation']
+print('Recovery uses the current message instead of older context keywords PASS')

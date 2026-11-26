@@ -9,12 +9,12 @@ const chart={metric:'ascent',aggregate:'average',group_by:'week',sport:'run',per
  const state=await login.storageState();
  for(const width of [390,330])for(const theme of ['light','dark']){
   const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,isMobile:true,hasTouch:true,deviceScaleFactor:2,serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[];
-  let selected=structuredClone(chart),interpretation='Your recorded climb rose across these weeks so far.';
+  let question=null,selected=structuredClone(chart),interpretation='Your recorded climb rose across these weeks so far.';
   p.on('pageerror',e=>errors.push(e.message));
   await c.route('**/*',async route=>{const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
    if(u.pathname==='/api/me'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{...me.ai_access,coach:{entitled:true,available:true,reason:null}}}});}
    if(u.pathname==='/api/coach/conversation/visits')return route.fulfill({json:{visit_id:req.postDataJSON().visit_id,generation:'chart-fixture',ready:true}});
-   if(u.pathname==='/api/coach/conversation')return route.fulfill({json:{generation:'chart-fixture',ready:true,messages:[{id:1,client_id:'fictional-chart',question:`Show my ${selected.aggregate==='sum'?'total':'average'} ${{ascent:'climb',avg_hr:'heart rate',workouts:'workouts',pace:'pace'}[selected.metric]||selected.metric} for the last three weeks.`,state:'answered',answer:{chart:selected,answer_blocks:[{kind:'paragraph',text:interpretation}],interpretation,facts:[{label:'Should be hidden',display_value:'999 ft'}],follow_ups:['I want to compare my recent runs','I want to see my recorded pace']}}]}});
+   if(u.pathname==='/api/coach/conversation')return route.fulfill({json:{generation:'chart-fixture',ready:true,messages:[{id:1,client_id:'fictional-chart',question:question||`Show my ${selected.aggregate==='sum'?'total':'average'} ${{ascent:'climb',avg_hr:'heart rate',workouts:'workouts',pace:'pace'}[selected.metric]||selected.metric} for the last three weeks.`,state:'answered',answer:{chart:selected,answer_blocks:interpretation.split('\n\n').map(text=>({kind:'paragraph',text})),interpretation,facts:[{label:'Should be hidden',display_value:'999 ft'}],follow_ups:['I want to compare my recent runs','I want to see my recorded pace']}}]}});
    if(u.pathname==='/api/challenges/signup/continue')return route.fulfill({json:{joined:null}});
    if(['POST','PUT','PATCH','DELETE'].includes(req.method())){writes.push(u.pathname);return route.fulfill({json:{}});}return route.continue();
   });
@@ -56,6 +56,16 @@ const chart={metric:'ascent',aggregate:'average',group_by:'week',sport:'run',per
   selected={...structuredClone(chart),workouts:0,points:[]};interpretation='There are no recorded runs in this period.';await load();assert.equal(await p.locator('.kit-chart svg').count(),0);assert.match(await p.locator('.kit-chart').innerText(),/No runs in the last 3 weeks/);assert.doesNotMatch(await p.locator('.kit-answer').innerText(),/There are no recorded/,'empty app copy is not repeated by the model');await shot('empty');
   selected={...structuredClone(chart),workouts:1,missing:0,points:[{...chart.points[0],n:1,missing:0}]};interpretation='Only one recorded run is available in this period.';await load();assert.equal(await p.locator('.kit-chart svg').count(),0);assert.equal(await p.locator('.kit-chart .kit-facts').count(),1);await shot('single');
   selected={...structuredClone(chart),group_by:'workout',start:'2026-10-28',truncated:true,workouts:30,missing:0,points:Array.from({length:30},(_,i)=>({start:new Date(Date.UTC(2026,9,28+i)).toISOString(),plot_value:100+i,display_value:`${100+i} ft`,n:1,missing:0}))};await load();assert.equal(await p.locator('.kit-chart circle').count(),30);assert.match(await p.locator('.kit-chart-note').innerText(),/Latest 30 runs/);await shot('truncated');
+  question='Review my training';
+  selected={...structuredClone(chart),metric:'distance',aggregate:'sum',presentation:'line',sport:'all',axis_unit:'mi',period_count:6,start:'2026-10-19',missing:1,workouts:8,
+   points:[['2026-10-19',2.5,1,0],['2026-10-26',null,0,0],['2026-11-02',5,2,0],['2026-11-09',null,1,1],['2026-11-16',6.2,2,0],['2026-11-23',8.7,2,0]].map(([start,value,n,missing],i)=>({start,plot_value:value,display_value:value==null?'Unknown':`${value} mi`,n,missing,in_progress:i===5}))};
+  interpretation='You have logged 22.4 mi of running in the recent period.\n\nOne thing to consider is whether strength work would fit your goals. You could choose a familiar session that suits you.';
+  await load();assert.equal(await p.locator('.kit-chart rect').count(),0,'automatic weekly distance is a line');assert.equal(await p.locator('.kit-chart circle').count(),4);
+  assert.equal((await p.locator('.kit-chart-line').getAttribute('d')).match(/M/g).length,3,'automatic chart retains unmeasured gaps');
+  assert.equal(await p.locator('.kit-answer-blocks>p').count(),2,'warm review uses short paragraphs');
+  const dateBoxes=await p.locator('.kit-chart-date').evaluateAll(labels=>labels.map(label=>label.getBBox()).map(b=>({left:b.x,right:b.x+b.width})));assert(dateBoxes.slice(1).every((b,i)=>b.left>dateBoxes[i].right+4),'six-week date labels have clear gaps');
+  await p.getByRole('slider').press('End');await p.getByRole('slider').blur();await shot('training-review');
+  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);await c.close();
  }
  console.log('Kit chart average trends/count+total bars/pace/HR/gaps/empty/single: 390/330 light/dark; drag+keyboard, no clipping or writes PASS');
