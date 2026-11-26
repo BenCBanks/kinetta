@@ -280,10 +280,10 @@ Object.assign(KitChat, (() => {
     if(!chart.workouts)return `<section class="kit-chart"><p>No ${esc(noun.toLowerCase())} in the last ${esc(String(chart.period_count))} ${esc(chart.period_unit)}.</p></section>`;
     const header=`<h3>${esc(title)}</h3><p class="kit-chart-subtitle">${esc(noun)} · ${esc(date(chart.start))} – ${esc(date(chart.end))}</p>`;
     if(known.length<2)return `<section class="kit-chart">${header}${known.length?`<dl class="kit-facts"><div><dt>${esc(date(known[0].start))}</dt><dd>${esc(known[0].display_value)}</dd></div></dl>`:''}${notes}</section>`;
-    const values=known.map(p=>p.plot_value),line=chart.metric!=='workouts'&&(chart.aggregate!=='sum'||chart.group_by==='workout'||['pace','avg_hr'].includes(chart.metric)),
+    const values=known.map(p=>p.plot_value),line=chart.metric!=='workouts'&&(chart.presentation==='line'||chart.aggregate!=='sum'||chart.group_by==='workout'||['pace','avg_hr'].includes(chart.metric)),
       {min,max,ticks:axisTicks}=chartScale(values,line,chart.metric==='pace'),range=max-min,
       y=v=>chart.metric==='pace'?20+(v-min)*110/range:130-(v-min)*110/range,
-      step=points.length>12?4:points.length>6?2:1;
+      step=Math.max(1,Math.ceil((points.length-1)/3));
     const tick=value=>chart.metric==='pace'?`${Math.floor(Math.round(value)/60)}:${String(Math.round(value)%60).padStart(2,'0')}${chart.axis_unit}`:
       `${new Intl.NumberFormat(undefined,{maximumFractionDigits:1,notation:max>=10000?'compact':'standard'}).format(value)} ${chart.axis_unit}`;
     const labels=axisTicks.map(tick),
@@ -301,7 +301,7 @@ Object.assign(KitChat, (() => {
       return line?`<circle data-point="${i}" cx="${px}" cy="${py}" r="3"><title>${esc(label)}</title></circle>`:
         `<rect data-point="${i}" x="${px-barWidth/2}" y="${py}" width="${barWidth}" height="${Math.max(1,130-py)}" rx="2"><title>${esc(label)}</title></rect>`;
     }).join('');
-    return `<section class="kit-chart" data-kit-chart>${header}<div class="kit-chart-selection" aria-live="polite"><span></span></div><div class="kit-chart-plot" data-first="${first}" data-last="${last}" role="slider" tabindex="0" aria-label="${esc(title)}" aria-valuemin="0" aria-valuemax="${points.length-1}" aria-valuenow="${points.length-1}"><svg viewBox="0 0 320 158" aria-hidden="true">${ticks}${line?`<path class="kit-chart-line" d="${path}"/>`:''}${marks}${points.map((p,i)=>i%step===0||i===points.length-1?`<text class="kit-chart-date" x="${x(i)}" y="153" text-anchor="middle">${esc(date(p.start))}</text>`:'').join('')}</svg></div>${notes}</section>`;
+    return `<section class="kit-chart" data-kit-chart>${header}<div class="kit-chart-selection" aria-live="polite"><span></span></div><div class="kit-chart-plot" data-first="${first}" data-last="${last}" role="slider" tabindex="0" aria-label="${esc(title)}" aria-valuemin="0" aria-valuemax="${points.length-1}" aria-valuenow="${points.length-1}"><svg viewBox="0 0 320 158" aria-hidden="true">${ticks}${line?`<path class="kit-chart-line" d="${path}"/>`:''}${marks}${points.map((p,i)=>(i%step===0&&(i===0||points.length-1-i>=step))||i===points.length-1?`<text class="kit-chart-date" x="${x(i)}" y="153" text-anchor="middle">${esc(date(p.start))}</text>`:'').join('')}</svg></div>${notes}</section>`;
   }
   function bindChart(host,chart){
     const plot=$('.kit-chart-plot',host);if(!plot)return;
