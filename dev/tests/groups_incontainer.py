@@ -1599,7 +1599,8 @@ class GroupChallengeCompatibility(unittest.TestCase):
                       (group['id'], self.ids[1]))
             c.execute('UPDATE group_challenge_members SET share_total=true WHERE group_id=%s AND user_id=%s',
                       (group['id'], self.ids[0]))
-            c.execute('DELETE FROM schema_version WHERE version=%s', (version,))
+            # Later migrations must be replayable too: the runner resumes after the highest version.
+            c.execute('DELETE FROM schema_version WHERE version>=%s', (version,))
             patches.enter_context(patch.object(db, 'connect', side_effect=lambda: nullcontext(c)))
             patches.enter_context(patch.object(db, 'bootstrap'))
             def after_migration(*args, **kwargs):
@@ -1732,6 +1733,49 @@ class GroupChallengeUpgrade(unittest.TestCase):
         owner=self.client(0)
         try:self.assertEqual(owner.get('/api/groups/'+str(g['id'])).status_code,200)
         finally:owner.close()
+
+    def test_original_goal_survives_when_its_first_organizer_hands_over_and_leaves(self):
+        private_text='DEPARTING ACCOUNT PRIVATE SENTINEL'
+        with db.connect() as c:
+            c.execute('UPDATE users SET name=%s WHERE id=%s',(private_text,self.ids[0]))
+            c.execute('UPDATE profile SET bio=%s WHERE user_id=%s',(private_text,self.ids[0]))
+            g=self.seed(c);self.backfill(c)
+            c.execute('UPDATE event_groups SET organizer_id=%s WHERE id=%s',(self.ids[1],g['id']))
+            kept=c.execute('SELECT * FROM group_challenges WHERE legacy_group_id=%s',(g['id'],)).fetchone()
+            kept={**kept,'creator_id':None}
+            members=c.execute('SELECT * FROM group_challenge_members WHERE group_id=%s AND user_id<>%s ORDER BY user_id',
+                              (g['id'],self.ids[0])).fetchall()
+            added=self.challenge(c,g['id'],0,private_text)
+        client=self.client(0)
+        try:
+            response=client.post('/api/account/delete',json={'password':'fictional group testing phrase'})
+            self.assertEqual(response.status_code,200,response.text)
+        finally:client.close()
+        with db.connect() as c:
+            rows=c.execute('SELECT * FROM group_challenges WHERE group_id=%s',(g['id'],)).fetchall()
+            self.assertEqual(rows,[kept],'original ID and every shared goal field survive; only creator is cleared')
+            self.assertNotIn(added,[r['id'] for r in rows])
+            self.assertNotIn(private_text,json.dumps(rows,default=str))
+            self.assertIsNone(c.execute('SELECT id FROM users WHERE id=%s',(self.ids[0],)).fetchone())
+            self.assertIsNone(c.execute('SELECT user_id FROM profile WHERE user_id=%s',(self.ids[0],)).fetchone())
+            self.assertEqual(c.execute('SELECT * FROM group_challenge_members WHERE group_id=%s ORDER BY user_id',
+                                      (g['id'],)).fetchall(),members,'other members and their sharing choices survive unchanged')
+
+    def test_temp_table_cannot_capture_original_goal_preservation(self):
+        with db.connect() as c:
+            g=self.seed(c);self.backfill(c)
+            c.execute('UPDATE event_groups SET organizer_id=%s WHERE id=%s',(self.ids[1],g['id']))
+            kept=c.execute('SELECT * FROM group_challenges WHERE legacy_group_id=%s',(g['id'],)).fetchone()
+        # A fresh backend prevents a previously cached PL/pgSQL plan from hiding temp-table shadowing.
+        with psycopg.connect(db.CONNINFO,row_factory=dict_row) as c, c.transaction(force_rollback=True):
+            c.execute('CREATE TEMP TABLE group_challenges (creator_id bigint,legacy_group_id uuid)')
+            c.execute('INSERT INTO pg_temp.group_challenges VALUES(%s,%s)',(self.ids[0],g['id']))
+            shadow=c.execute('SELECT * FROM pg_temp.group_challenges').fetchall()
+            c.execute('DELETE FROM public.users WHERE id=%s',(self.ids[0],))
+            self.assertEqual(c.execute('SELECT * FROM pg_temp.group_challenges').fetchall(),shadow,
+                             'the definer must never write to a caller-controlled temporary relation')
+            self.assertEqual(c.execute('SELECT * FROM public.group_challenges WHERE group_id=%s',(g['id'],)).fetchall(),
+                             [{**kept,'creator_id':None}],'the real goal keeps its original ID and contents')
 
     def test_organizer_deletion_cascades_only_their_groups_and_authored_challenges(self):
         with db.connect() as c:

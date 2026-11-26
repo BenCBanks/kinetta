@@ -2564,6 +2564,18 @@ MIGRATIONS = [
         SET share_total=EXCLUDED.share_total,joined_at=EXCLUDED.joined_at;
     """,
 
+    # 125. A group's original goal belongs to the group: when the person who first set it deletes their
+    # account (after handing the group to someone else), keep the goal and forget who created it.
+    # Challenges a person added later are still removed with their account.
+    """CREATE OR REPLACE FUNCTION fit_keep_group_goal() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog, pg_temp AS $$
+    BEGIN
+      UPDATE public.group_challenges SET creator_id=NULL WHERE creator_id=OLD.id AND legacy_group_id IS NOT NULL;
+      RETURN OLD;
+    END $$;
+    REVOKE ALL ON FUNCTION fit_keep_group_goal() FROM PUBLIC;
+    DROP TRIGGER IF EXISTS users_keep_group_goal ON users;
+    CREATE TRIGGER users_keep_group_goal BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION fit_keep_group_goal();""",
+
 ]
 
 
