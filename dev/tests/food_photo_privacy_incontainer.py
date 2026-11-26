@@ -2,12 +2,16 @@
 import base64
 import io
 import json
+import random
+import threading
 import unittest
 import uuid
 from contextlib import ExitStack, nullcontext
 from unittest.mock import patch
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
 from PIL import Image
 from app import api_food_photos as P, auth, db
 from app.main import app
@@ -61,6 +65,7 @@ class Privacy(unittest.TestCase):
         for client in self.clients:
             client.close()
         with db.connect() as c:
+            c.execute('DELETE FROM auth_attempts WHERE key=ANY(%s)', ([f'food-photo-decode:{uid}' for uid in self.ids],))
             c.execute('DELETE FROM users WHERE id=ANY(%s)', (self.ids,))
 
     def transport(self, request, **kwargs):
@@ -120,6 +125,54 @@ class Privacy(unittest.TestCase):
         for path in ('/api/food/photo', '/api/food/label', '/api/recipe-links/photo'):
             response = a.post(path, json={'image': 'bad', 'client_id': str(uuid.uuid4())})
             self.assertEqual(response.status_code, 403, response.text)
+
+    def test_committed_throttle_before_decode_and_global_slots(self):
+        body = P.food_photo.PhotoIn(image='bad')
+        def clean(uid):
+            try: P.clean(body, {'id': uid}); return 200
+            except HTTPException as e: return e.status_code
+        with patch.object(P, 'REQUESTS_PER_MINUTE', 2):
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                self.assertEqual(sorted(pool.map(clean, [self.ids[0]] * 6)), [400, 400, 429, 429, 429, 429])
+            with patch.object(P.Image, 'open', side_effect=AssertionError('Decode before limiter')):
+                self.assertEqual(clean(self.ids[0]), 429)
+            self.assertEqual(clean(self.ids[1]), 400, 'Separate account retains its budget')
+        body = P.food_photo.PhotoIn(image=jpeg())
+        entered, release = threading.Barrier(3), threading.Event()
+        def held(*args):
+            entered.wait(timeout=5); self.assertTrue(release.wait(5)); return args[0].hex()
+        with patch.object(P, '_decode_slots', threading.BoundedSemaphore(2)), patch.object(P, '_encode', side_effect=held):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                jobs = [pool.submit(P.clean, body, {'id': uid}) for uid in self.ids]
+                try:
+                    entered.wait(timeout=5)
+                    with patch.object(P.Image, 'open', side_effect=AssertionError('Decode despite full slots')):
+                        self.assertEqual(clean(self.ids[0]), 503)
+                finally: release.set()
+                # Stand-in encodes are invalid JPEGs: failure still releases both slots.
+                for job in jobs:
+                    with self.assertRaises(HTTPException): job.result()
+            self.assertTrue(P._decode_slots.acquire(blocking=False)); P._decode_slots.release()
+
+    def test_resize_and_quality_fit_before_rejecting(self):
+        pixels = Image.frombytes('RGB', (2400, 1600), random.Random(7).randbytes(2400 * 1600 * 3))
+        raw = io.BytesIO(); pixels.save(raw, 'JPEG', quality=35)
+        self.assertLess(len(raw.getvalue()) * 6, 8_000_000)
+        self.assertGreater(len(base64.b64decode(P._encode(raw.getvalue(), 4_000_000))), 8_000_000 // 6)
+        images = [base64.b64encode(raw.getvalue() + bytes([i])).decode() for i in range(6)]
+        result = P.clean(P.food_photo.PhotoIn(images=images), {'id': self.ids[0]})
+        saved = [base64.b64decode(value) for value in result.images]
+        self.assertLessEqual(sum(map(len, saved)), 8_000_000)
+        self.assertTrue(all(len(value) <= 8_000_000 // 6 for value in saved))
+        self.assertTrue(all(max(Image.open(io.BytesIO(value)).size) <= 2048 for value in saved))
+        # Force both quality reduction and the dimension fallback with a small deterministic budget.
+        real_save = Image.Image.save
+        with patch.object(P.Image.Image, 'save', autospec=True, side_effect=real_save) as save:
+            # Inspect quality attempts without replacing the real encoder.
+            encoded = P._encode(raw.getvalue(), 20_000)
+            self.assertTrue(any(call.kwargs.get('quality') == 60 for call in save.call_args_list))
+        self.assertLessEqual(len(base64.b64decode(encoded)), 20_000)
+        self.assertLess(max(Image.open(io.BytesIO(base64.b64decode(encoded))).size), 2048)
 
 
 if __name__ == '__main__':
