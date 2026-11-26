@@ -56,7 +56,7 @@ module.exports=async(browser,base,out)=>{
    await p.evaluate(async()=>{await loadClassicScript(SOCIAL_ROUTE_ASSET);const el=document.createElement('div');el.innerHTML='<div id="feed-top"><div class="top"><h1>Home</h1><div class="acts"></div></div></div><div id="feed-tools"></div>';document.body.append(el);await feedTools(el,()=>true).refresh();globalThis.mixedHomeLabel=el.querySelector('.challenge-summary').textContent;el.remove();});
    assert.match(await p.evaluate(()=>mixedHomeLabel),/3 challenges/);
    await p.goto(base+`/groups/${gid}/challenges/${qid}?from=challenges`);await p.locator('[data-challenge-sharing]').waitFor();await p.locator('[data-back]').click();await p.locator('.challenge-list-row').first().waitFor();assert.equal(new URL(p.url()).pathname,'/me/challenges','cold detail Back returns to Challenges');
-   mode='empty';await p.goto(base+'/me/challenges');await p.locator('.challenge-empty').waitFor();await save('empty');
+   mode='empty';await p.goto(base+'/me/challenges');await p.locator('.challenge-empty').waitFor();await save('empty');await p.locator('#challenge-first').click();await p.locator('[data-challenge-scope=me]').click();await p.locator('.challenge-templates').waitFor();await p.keyboard.press('Escape');
    assert.deepEqual(errors,[]);assert(writes.every(v=>v==='/api/challenges/signup/continue'),'no data-changing/provider calls');
   }finally{await c.close();}
  }
