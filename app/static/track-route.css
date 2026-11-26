@@ -658,8 +658,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
   padding-bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 8px) !important;
 }
 #page.track-home-page:has(#track-setup) > .top { flex:none; min-height:44px; margin-bottom:0; }
-#page.track-home-page:has(#track-setup) > .top h1 { transform:none; }
-html:not(.native) #page.track-home-page:has(#track-setup) > .top h1 { transform:translateY(4px); }
+#page.track-home-page:has(#track-setup) > .top h1 { transform:translateY(4px); }
 #page.track-home-page:has(#track-setup) #track-content { display:flex; flex-direction:column; flex:1; min-height:0; }
 #track-content #track-setup { display:flex; flex-direction:column; flex:1; min-height:0; gap:6px; padding-bottom:0; border-bottom:0; }
 #track-content .track-sport-row { flex:none; align-items:center; min-height:56px; }
