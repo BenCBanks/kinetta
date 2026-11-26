@@ -2596,7 +2596,7 @@ MIGRATIONS = [
 
     """
     -- 127: freeze new training prescriptions; existing schedules intentionally stay legacy.
-    ALTER TABLE training_plans ADD COLUMN prescription jsonb
+    ALTER TABLE training_plans ADD COLUMN IF NOT EXISTS prescription jsonb
       CHECK(prescription IS NULL OR coalesce((jsonb_typeof(prescription)='object'
         AND prescription->>'version'='2' AND jsonb_typeof(prescription->'weeks')='array'
         AND jsonb_typeof(prescription->'paces')='object' AND jsonb_typeof(prescription->'history')='object'),false));
