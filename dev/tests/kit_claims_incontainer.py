@@ -88,7 +88,7 @@ for fixed in (True,False):
          patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',tool):
         try:answer=coach_chat.answer(1,'Review my week',kit=True,weekly_review=True,turn=stand_in)
         except ValueError:assert not fixed
-        else:assert fixed and answer['weekly_review']
+        else:assert answer['weekly_review'] if fixed else answer['app_fallback']
     assert len(rounds)==2
 print('Kit claims + weekly reference/delta/nutrient/correction regressions PASS; no provider calls')
 

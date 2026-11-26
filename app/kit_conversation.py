@@ -207,7 +207,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         batch = coach_chat.checked_answer(legacy, evidence, kit=True)
         facts.extend(batch['facts'])
         checked = checked or batch
-    from . import kit_claims
+    from . import kit_claims, kit_weekly
     blocks = []
     source_texts=[]
     for block in answer.blocks:
@@ -219,7 +219,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
             if not text.strip() or len(text) > limit:
                 raise ValueError('Empty or oversized conversation block')
             display = coach_chat._kit_prose(text, facts, extra_words=kit_claims.boundary_words(text),
-                                             sentence_boundary=True, placeholder_pattern=REFERENCE, render_value=lambda fact:fact['display_value'])
+                                             sentence_boundary=True, placeholder_pattern=REFERENCE, render_value=lambda fact:kit_weekly.display_value(fact,text,facts) if weekly_review else fact['display_value'])
             if len(display) > limit:
                 raise ValueError('Oversized formatted conversation block')
             check_rendered(display)
@@ -227,7 +227,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         blocks.append({'kind':'paragraph','text':rendered[0]} if isinstance(block, Paragraph)
                       else {'kind':'list','items':rendered})
     texts = [text for block in answer.blocks for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
-    checks=kit_claims.validate(source_texts, facts, evidence, question=user_question(question), reference=REFERENCE, selection=checked['selection'])
+    checks=kit_claims.validate(source_texts, facts, evidence, question=user_question(question), reference=REFERENCE, selection=checked['selection'], weekly_review=weekly_review)
     interpretation = '\n\n'.join(block['text'] if block['kind']=='paragraph'
                                  else '\n'.join('• '+item for item in block['items']) for block in blocks)
     summary=meal_summary(checked['selection'],facts,texts)

@@ -35,13 +35,17 @@ def boundary_words(text):
             if word not in BOUNDARY_UNITS and not NUMBER_TOKEN.match(word)}
 
 
-def validate(texts, facts, evidence, *, question='', reference, selection=None):
+def validate(texts, facts, evidence, *, question='', reference, selection=None, weekly_review=False):
     # Facts, values, paths and source identity are checked separately. Prose quality belongs
     # to evaluation, not nearest-word heuristics that mistake advice for a personal claim.
     traces=[]
     for text in texts:
         counted,checks=food_count_phrase(text,facts,evidence);traces.extend(checks)
         prose = reference.sub('',counted)
+        if weekly_review:
+            from . import kit_weekly
+            prose=kit_weekly.bind_counts(prose,evidence)
+            traces.extend(kit_weekly.check_directions(text,facts,evidence))
         if HEALTH.search(prose):raise ClaimRejected('health_claim')
         if NUMBER_WORD.search(advice_quantities(bound_logged_days(prose,evidence))):raise ClaimRejected('numeric_unsupported')
     if eating_safety_answer(question) is not None:raise ClaimRejected('health_claim')
@@ -109,7 +113,7 @@ def weekly_boundary_words():
 def additional_measurement(tool, path):
     return (daily_nutrition_path(tool,path) or tool=='nutrition_adequacy' and path==['logged_days']
             or tool=='meal_combinations' and len(path)==2 and path[0]=='remaining' and path[1] in coach_chat._NUTRIENTS
-            or tool=='period_compare' and path==['change','workouts','absolute']
+            or tool=='period_compare' and path in (['change','workouts','absolute'],['change','duration_s','absolute'])
             or tool=='training_plan' and path==['plan','runs']
             or tool=='goals' and len(path)==3 and path[0]=='activity_goals'
             and type(path[1]) is int and path[1]>=0 and path[2]=='target')
@@ -123,6 +127,9 @@ def daily_nutrition_path(tool,path):
 
 
 def goal_fact(tool,data,path,value,units):
+    from . import kit_weekly
+    delta=kit_weekly.duration_delta(tool,data,path,value,units)
+    if delta is not None:return delta
     if daily_nutrition_path(tool,path):
         field={'logged_total':'comparable_day_subtotal','known_subtotal':'comparable_day_subtotal',
                'target':'comparable_target_subtotal','difference':'full_range_difference'}[path[3]]
