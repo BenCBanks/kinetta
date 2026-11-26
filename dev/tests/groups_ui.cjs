@@ -186,6 +186,17 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    for(const theme of ['light','dark'])await checkGroupLoading(theme);
    console.log('Groups list loading 390 light/dark PASS');return;
   }
+  if(process.env.KINETTA_GROUPS_HOME_ONLY==='1'){
+   for(const theme of ['light','dark'])for(const width of [390,330])for(const state of ['one','more','ongoing']){
+    const {context,page,errors}=await open(theme,width,state,state==='ongoing'?'ongoing':'list');await page.goto(base+'/activity');await waitActivity(page);
+    if(state==='ongoing')assert.equal(await page.locator('.feed-groups-strip').count(),0,'a stale dateless group stays off Home');
+    else{assert.equal(await page.locator('.feed-groups-strip').getAttribute('aria-label'),'Next group event');assert.match(await page.locator('.feed-groups-copy b').innerText(),/Fictional Trail Group/);assert.equal(await page.locator('.feed-groups-more').count(),state==='more'?1:0);}
+    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'Home groups fit the phone');await capture(page,`home-groups-${state}-${width}-${theme}`,null,{fullPage:false});
+    if(state==='ongoing'){await page.goto(base+'/me/groups');await page.locator('.group-list-row').waitFor();assert.equal(await page.locator('.group-list-row small').innerText(),'You: 12 of 600 mi · Since Oct 1');await capture(page,`ongoing-list-${width}-${theme}`,null,{fullPage:false});}
+    assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   }
+   console.log('Home dated/undated groups, more count and Since date 390/330 light/dark PASS');return;
+  }
   if(GROUP_HOME_EMPTY_ONLY){
    for(const theme of ['light','dark']){
     const {context,page,errors}=await open(theme,390,'none','none');await page.goto(base+'/activity?view=groups');await page.locator('#group-empty-create').waitFor();
@@ -274,12 +285,11 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    await capture(page,`activity-groups-none-390-${theme}`,null,{fullPage:false});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme,390,'ongoing'));await page.goto(base+'/activity');await waitActivity(page);
-   assert.match(await page.locator('.feed-groups-copy b').innerText(),/Fictional trail club · All time/);assert.match(await page.locator('.feed-groups-copy small').innerText(),/You: 12 km of 100 km/);
-   assert.equal(await page.locator('.feed-groups-strip').getAttribute('aria-label'),'Group goal','ongoing groups do not present an event countdown');assert.doesNotMatch(await page.locator('.feed-groups-strip').innerText(),/week to go|Event today/);
+   assert.equal(await page.locator('.feed-groups-strip').count(),0,'even a stale undated strip response stays hidden on Home');
    await capture(page,`activity-groups-ongoing-390-${theme}`,null,{fullPage:false});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme,390,'none','ongoing'));await page.goto(base+'/me/groups');await page.locator('.group-list-row').waitFor();
-   assert.equal(await page.locator('.group-list-row small').innerText(),'You: 12 of 600 mi · All time','the Groups list labels an ongoing personal target');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   assert.equal(await page.locator('.group-list-row small').innerText(),'You: 12 of 600 mi · Since Oct 1','the Groups list labels an ongoing personal target');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors,postedGroups}=await open(theme));
    await page.goto(base+'/me/friends?find=1');await page.locator('#fr-groups-discover').waitFor();

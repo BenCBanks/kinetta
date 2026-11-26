@@ -717,15 +717,12 @@ def group_activity_strip(user=Depends(current_user)):
         preference = c.execute('SELECT group_strip_muted FROM profile WHERE user_id=%s', (user['id'],)).fetchone()
         muted = bool(preference and preference['group_strip_muted'])
         rows = c.execute('''SELECT g.* FROM event_groups g JOIN group_members m ON m.group_id=g.id
-                            WHERE m.user_id=%s AND m.status='active' ORDER BY g.event_date ASC NULLS LAST,g.created''',
+                            WHERE m.user_id=%s AND m.status='active' AND g.event_date IS NOT NULL ORDER BY g.event_date ASC NULLS LAST,g.created''',
                          (user['id'],)).fetchall()
         now = _now()
-        upcoming = [row for row in rows if row['event_date'] is None or
-                    row['event_date'] >= now.astimezone(_zone(row['time_zone'])).date()]
-        upcoming.sort(key=lambda row: (row['event_date'] is None,
-                                       dt.datetime.combine(row['event_date'], dt.time.min,
-                                                           _zone(row['time_zone'])).astimezone(UTC)
-                                       if row['event_date'] else row['created'], row['created']))
+        upcoming = [row for row in rows if row['event_date'] >= now.astimezone(_zone(row['time_zone'])).date()]
+        upcoming.sort(key=lambda row: (dt.datetime.combine(row['event_date'], dt.time.min,
+                                                           _zone(row['time_zone'])).astimezone(UTC), row['created']))
         if muted or not upcoming:
             return {'muted': muted, 'has_upcoming': bool(upcoming)}
         answer = _answer(c, upcoming[0], user['id'])
