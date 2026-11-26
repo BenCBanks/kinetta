@@ -1,13 +1,36 @@
 # Batch-two evaluation handoff
 
+Use the spend-controlled entry point for new release testing:
+
+```sh
+dev/evals/run_kit_release_eval.sh --installed-report "$REPORT" --replay
+dev/evals/run_kit_release_eval.sh --installed-report "$REPORT" --dry-run
+# Owner only, after the pinned baseline has been bootstrapped once:
+dev/evals/run_kit_release_eval.sh --installed-report "$REPORT"
+```
+
+The default is a ten-case smoke. With a matching cached baseline, expect about
+$0.18 for the ten candidate answers; the full continuation reuses those answers
+and costs about $0.54 more. The shared candidate allowance is $0.80. First use
+of the new weekly baseline/fixture clock requires an owner-run baseline-only
+bootstrap (about $0.72 once, separately capped at $0.80). No provider calls were
+made while preparing this handoff. Old moving-date captures cannot be relabelled.
+The exact-head offline receipt must be refreshed after any commit. See
+[KIT_EVAL_SPEND.md](KIT_EVAL_SPEND.md) for cache, receipt and bootstrap rules.
+Fixture time stays pinned at 2026-11-26 noon UTC. The source/report pin now uses
+the reviewed weekly baseline #1579, not the superseded pre-weekly source.
+
+The lower-level 40-case wrapper below remains available for explicit comparison
+preparation. Its old $2.50 allowance is not the staged release wrapper's limit.
+
 Run from the frozen `kit-coach-batch-2` branch, rebased onto main including weekly fallback #1579.
-The candidate app pin is `5953ec685598de4e4924aaf0f26c23d912578a35`; the final evaluator HEAD is recorded separately.
+The candidate app pin is `fec816e3d4081eb18dbf903438d64741ecb807a9`; the final evaluator HEAD is recorded separately.
 It includes history/memory/goals, checked streaming, contextual next steps, conversational charts,
 scoped gate regressions #1580, checked ordinary recovery, supported warm coaching and the approved
 weekly total bars with client declutter #1586. Do not change the candidate mid-run.
 The wrapper pins app bytes and Kit text; ledger-only additions are allowed.
 
-The baseline is live **ba8e9500049f25b2cb769d09a25d99fc4cb198c1**. The wrapper extracts
+The pinned approved weekly baseline is **7a9fb03f205a00e01ee3859b1aa1ab91f4469eff**. The wrapper extracts
 its entire app tree, verifies the installed report's pinned SHA256 and matching
 Kit text/model fingerprint, and records that pin. Baseline tools, schema, prompts,
 validators and formatting load from that tree. Only the disposable DB and capped
