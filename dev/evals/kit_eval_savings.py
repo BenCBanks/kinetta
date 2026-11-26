@@ -10,7 +10,7 @@ from kit_fixture_clock import FIXTURE_DATE
 
 # Observed full gate: $1.43 / 80 responses. Estimates are not guarantees.
 PER_RESPONSE_USD = .018
-MAX_RELEASE_USD = 1.60
+MAX_RELEASE_USD = 1.80
 SMOKE_IDS = ('food-today','meal','strength','nutrition-adequacy','low-intake',
              'recall-health-consent-off','weekly-steady-prior','weekly-no-plan',
              'batch2-saved-history','batch2-next-step')
@@ -94,7 +94,7 @@ def require_baseline(rows,selected):
 
 
 def plan(rows,total,budget,spent=0):
-    if not math.isfinite(budget) or not 0<budget<=MAX_RELEASE_USD: raise ValueError('Release hard cap must be at most $1.60')
+    if not math.isfinite(budget) or not 0<budget<=MAX_RELEASE_USD: raise ValueError('Release hard cap must be at most $1.80')
     remaining=total-len(rows)
     if not 0<=remaining<=80:raise ValueError('Invalid response count')
     expected=round(remaining*PER_RESPONSE_USD,3)

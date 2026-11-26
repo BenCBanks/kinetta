@@ -80,6 +80,38 @@ def main():
             with db.connect() as c:
                 ledger=c.execute('SELECT count(*) AS n,sum(charged_micros) AS cost FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,)).fetchone()
             assert ledger['n']==160 and ledger['cost']==1560000,ledger
+        # Final release resume: real transport bodies and real SQL padded holds,
+        # no HTTP/provider. The daily caps receive the unspent release allowance.
+        import io
+        captured=json.loads(Path('/tmp/kit-review/evals/fixtures/kit-batch2-release-review.json').read_text())
+        load=next(r for r in captured['results'] if r['variant']=='candidate' and r['case']=='load')
+        evidence=load['answer_evidence'];holds=[];http=[];reserve=ai_budget.reserve
+        def hold(model,label,payload=None):
+            holds.append(ai_budget.price(model,*ai_budget.request_tokens(payload)))
+            return reserve(model,label,payload)
+        def response(request,**kwargs):
+            index=len(http);http.append(1)
+            if index<2:
+                item=evidence[index+1]
+                parts=[{'functionCall':{'name':item['tool'],'args':item['arguments']}}]
+            else:parts=[{'text':json.dumps({'blocks':[{'kind':'paragraph','text':'You could keep your next session easy.'}],'facts':[]})}]
+            return io.BytesIO(json.dumps({'candidates':[{'finishReason':'STOP','content':{'role':'model','parts':parts}}],
+                'usageMetadata':{'promptTokenCount':6000,'candidatesTokenCount':100}}).encode())
+        configure_budget(1.80-1.452946)
+        # Earlier simulated attempts are a separate run; isolate this disposable ledger.
+        with db.connect() as c:
+            c.execute('DELETE FROM ai_food_attempts WHERE user_id=ANY(%s)',(uids,))
+            c.execute("UPDATE ai_service_budget SET charged_micros=0 WHERE day=(now() AT TIME ZONE 'UTC')::date")
+        with patch.dict(os.environ,{'KINETTA_AI_ENABLED':'1','GEMINI_API_KEY':'offline-stand-in'}), \
+             patch.object(coach,'allowed',return_value=True),patch.object(coach,'provider',return_value='gemini'), \
+             patch.object(coach,'health_ok',return_value=True), \
+             patch('app.kit_tools.KitTools.call',side_effect=lambda name,args:next(e['data'] for e in evidence if e['tool']==name)), \
+             patch.object(ai_budget,'reserve',side_effect=hold),patch('urllib.request.urlopen',side_effect=response):
+            answer=coach_chat.answer(uids[0],load['question'],kit=True)
+        assert answer and len(http)==3 and len(holds)==3,(answer,http,holds)
+        assert max(holds)+2*9750<347054,holds
+        print(json.dumps({'final_release_allowance_usd':.347054,'real_SQL_reserved_holds_usd':[n/1e6 for n in holds],
+                          'stubbed_http_calls':len(http),'provider_calls':0}))
         assert before=={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in root.glob('*.py')}
         report={'offline_smoke':True,'reviewed':False,'release_evidence':False,'provider_calls':0,
                 'standin_responses':len(seen),'baseline_pin':pin,'saved_history_memory_goal_input_paths':'pass',

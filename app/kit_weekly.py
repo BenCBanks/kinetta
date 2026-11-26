@@ -69,6 +69,17 @@ def display_value(fact, text, facts):
     return fact['display_value']
 
 
+def count_grammar(text):
+    """Inflect count nouns after checked values are substituted; never alter a value."""
+    pattern = r'(?<![\w.,])(-?\d+)(\s+(?:(?:more|fewer|additional|recorded|logged)\s+)?)(workouts?|sessions?|days?|weeks?|meals?|entries|entry|reps?|sets?)\b'
+    def replace(match):
+        noun = match[3]
+        singular = 'entry' if noun.lower() in {'entry', 'entries'} else noun.rstrip('s')
+        plural = 'entries' if singular.lower() == 'entry' else singular + 's'
+        return match[1] + match[2] + (singular if abs(int(match[1])) == 1 else plural)
+    return re.sub(pattern, replace, text)
+
+
 def fallback(uid, question, state, active):
     from . import coach, coach_chat, db, kit_conversation, kit_claims
     if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')

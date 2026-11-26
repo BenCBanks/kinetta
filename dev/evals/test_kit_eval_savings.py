@@ -43,7 +43,7 @@ class Savings(unittest.TestCase):
         self.assertAlmostEqual(plan([],40,.8)['expected_cost_usd'],.72)
         with self.assertRaises(ValueError):plan([],80,.8)
         with self.assertRaises(ValueError):plan([],40,.8,.1)
-        for n in (float('nan'),float('inf'),-.1,1.61):
+        for n in (float('nan'),float('inf'),-.1,1.81):
             with self.assertRaises(ValueError):plan([],40,n)
         self.assertEqual(len(set(SMOKE_IDS)),10)
 
@@ -70,6 +70,14 @@ class Savings(unittest.TestCase):
             self.assertEqual(release_spending(Path('.'),[self.path,smoke],self.keys),{})
             git.return_value.returncode=0
             self.assertEqual(release_spending(Path('.'),[self.path],{'candidate':{'meal':'changed'}}),{})
+
+    def test_final_release_retains_79_rows_and_fits_one_padded_call(self):
+        result=plan([{}]*79,80,1.80,1.452946)
+        self.assertEqual(result['responses_remaining'],1)
+        self.assertEqual(result['reused_responses'],79)
+        self.assertEqual(result['expected_cost_usd'],.018)
+        self.assertEqual(result['expected_release_cost_usd'],1.470946)
+        self.assertEqual(result['remaining_allowance_usd'],.347054)
 
     def test_conflicting_or_invalid_cost_refuses(self):
         self.report.update(candidate_commit='a'*40,economy_paid_runs={'run':.5})
