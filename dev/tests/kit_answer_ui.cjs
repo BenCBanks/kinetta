@@ -76,6 +76,7 @@ async function main(){
   const signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});
   assert.equal(signed.status(),200,'fictional demo account can sign in: '+await signed.text());
   const state=await login.storageState();
+  if(!process.env.KIT_WAIT_ONLY){
   if(process.env.KIT_MEMORY_ONLY){await require('./kit_memory_ui.cjs')(browser,state,base,out);return;}
   if(!process.env.KIT_BLOCKS_ONLY)await require('./kit_memory_ui.cjs')(browser,state,base,out);
   if(!process.env.KIT_BLOCKS_ONLY)await require('./kit_history_ui.cjs')(browser,state,base,out);
@@ -268,6 +269,7 @@ async function main(){
       await c.close();contexts.pop();
   }
   console.log('Ask Kit detail UI and #1493 visit retention: 390/330 light/dark; background/reload retains visit+draft; explicit/30m/24h paths pass; no writes/provider calls.');
+  }
   for(const width of [390,330])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,reducedMotion:theme==='dark'?'reduce':'no-preference',serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],unexpectedWrites=[];contexts.push(c);
    let row=null,failOnRead=false,question='';
@@ -286,7 +288,8 @@ async function main(){
     if(['POST','PUT','PATCH','DELETE'].includes(req.method())){unexpectedWrites.push(u.pathname);return route.fulfill({json:{}});}
     return route.continue();
    });
-   await p.goto(base+'/me/kit?from=activity');await p.locator('#kit-text').fill(theme==='light'?'Review my latest workout':'Check my records');await p.locator('#kit-send').click();
+   await p.goto(base+'/me/kit?from=activity');await p.locator('#kit-text').fill(theme==='light'?'Review my latest workout':'Check my records');
+   await p.locator('#kit-send').click();
    await p.locator('.kit-waiting-bubble .thread-typing').waitFor({state:'visible'});
    assert.equal(question,theme==='light'?'Review my latest workout':'Check my records');
    // Poll and measure the current bubble atomically: the answer response redraws
@@ -294,31 +297,34 @@ async function main(){
    const typingMetrics=await p.waitForFunction(()=>{
     const el=document.querySelector('.kit-waiting-bubble'),r=el?.getBoundingClientRect();
     if(!el?.isConnected||!r?.width||!r?.height)return false;
-    const s=getComputedStyle(el),tr=el.querySelector('.thread-typing')?.getBoundingClientRect();
-    return{width:r.width,height:r.height,x:r.x,radius:s.borderTopLeftRadius,border:s.borderTopWidth,display:s.display,cls:el.className,typingBox:tr&&{width:tr.width,height:tr.height}};
+    const typing=el.querySelector('.thread-typing'),spans=[...typing?.querySelectorAll('span')||[]];
+    if(!typing||spans.length!==3)return false;
+    const s=getComputedStyle(el),tr=typing.getBoundingClientRect(),ts=getComputedStyle(typing);
+    const dots=spans.map(node=>{const css=getComputedStyle(node);return{name:css.animationName,width:css.width,height:css.height,duration:css.animationDuration,transform:css.transform,running:node.getAnimations().some(animation=>animation.animationName==='kit-typing'&&animation.playState==='running')};});
+    return{width:r.width,height:r.height,x:r.x,radius:s.borderTopLeftRadius,border:s.borderTopWidth,display:s.display,cls:el.className,typingBox:{width:tr.width,height:tr.height},dots,dotLayout:{width:ts.width,gap:ts.gap}};
    },null,{timeout:2000});
    const typingBox=await typingMetrics.jsonValue();await typingMetrics.dispose();
    assert.equal(typingBox.width,48,`${width}px ${theme}: typing pill is 48px wide: ${JSON.stringify(typingBox)}`);
    assert.equal(typingBox.height,28,`${width}px ${theme}: typing pill is 28px high: ${JSON.stringify(typingBox)}`);
    assert(typingBox.x<=24&&typingBox.radius==='14px'&&typingBox.border==='0px',`${width}px ${theme}: typing pill is rounded and left aligned: ${JSON.stringify(typingBox)}`);
-   const dots=p.locator('.kit-waiting-bubble .thread-typing span');
-   let initialDots=await dots.evaluateAll(spans=>spans.map(node=>({name:getComputedStyle(node).animationName,width:getComputedStyle(node).width,height:getComputedStyle(node).height,duration:getComputedStyle(node).animationDuration,transform:getComputedStyle(node).transform,
-    running:node.getAnimations().some(animation=>animation.animationName==='kit-typing'&&animation.playState==='running')})));
+   // Keep dot and pill measurements from the same connected DOM snapshot.
+   // evaluateAll can retain spans that the answer response redraws before styles are read.
+   let initialDots=typingBox.dots;
    assert(initialDots.length===3,`${theme}: the compact wait bubble has three dots`);
-   assert(initialDots.every(dot=>dot.width==='6px'&&dot.height==='6px'),`${theme}: dots measure 6px`);
+   assert(initialDots.every(dot=>dot.width==='6px'&&dot.height==='6px'),`${theme}: dots measure 6px: ${JSON.stringify(initialDots)}`);
    assert(initialDots.every(dot=>dot.transform==='none'),`${theme}: dot animation does not translate`);
-   const dotLayout=await p.locator('.kit-waiting-bubble .thread-typing').evaluate(el=>({width:getComputedStyle(el).width,gap:getComputedStyle(el).gap}));
+   const dotLayout=typingBox.dotLayout;
    assert.deepEqual(dotLayout,{width:'30px',gap:'6px'},`${width}px ${theme}: dots have 6px gaps`);
    if(theme==='dark')assert(initialDots.every(dot=>!dot.running),'reduced motion keeps the three dots static');
    else{
     assert(initialDots.every(dot=>dot.duration==='1.2s'),`${theme}: dot fade cycle is 1.2s`);
     const deadline=Date.now()+2000;
-    while(!initialDots.every(dot=>dot.name==='kit-typing'&&dot.running)&&Date.now()<deadline){
+    while((initialDots.length!==3||!initialDots.every(dot=>dot.name==='kit-typing'&&dot.running))&&Date.now()<deadline){
      await p.waitForTimeout(25);
-     initialDots=await dots.evaluateAll(spans=>spans.map(node=>({name:getComputedStyle(node).animationName,
+     initialDots=await p.evaluate(()=>[...document.querySelectorAll('.kit-waiting-bubble .thread-typing span')].map(node=>({name:getComputedStyle(node).animationName,
       running:node.getAnimations().some(animation=>animation.animationName==='kit-typing'&&animation.playState==='running')})));
     }
-    assert(initialDots.every(dot=>dot.name==='kit-typing'&&dot.running),'normal motion starts the typing-dot animation within 2s');
+    assert(initialDots.length===3&&initialDots.every(dot=>dot.name==='kit-typing'&&dot.running),'normal motion starts the typing-dot animation within 2s');
    }
    const capture=async state=>{if(out){await p.evaluate(()=>{document.scrollingElement?.scrollTo(0,0);document.querySelector('#kit-messages')?.scrollTo(0,0);});fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-waiting-${width}-${theme}-${state}.png`),animations:'disabled'});}};
    await capture('sending');
@@ -352,6 +358,7 @@ async function main(){
    assert.deepEqual(unexpectedWrites,[],`${theme}: fixtures make no unexpected writes or provider calls`);
    await c.close();contexts.pop();
   }
+  if(process.env.KIT_WAIT_ONLY){console.log('Ask Kit waiting/error fixture: 390/330 light/dark, atomic dot measurements and explicit 4s/20s clock steps PASS');return;}
    for(const width of [390,330])for(const theme of ['light','dark']){
    const insufficient=width===330&&theme==='dark',fallbackOnly=insufficient;
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:3,timezoneId:'America/New_York'}),p=await c.newPage(),compareCalls=[],kitMessagePosts=[],unexpectedWrites=[];let row=null,question='';contexts.push(c);
