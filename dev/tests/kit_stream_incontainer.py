@@ -125,6 +125,26 @@ try:
             try:kit_stream.current(uids[0],cid,b)
             except HTTPException as error:assert error.status_code==403
             else:raise AssertionError('Revoked access emitted')
+        # Database invalidation is irreversible: exercise it on separate fictional rows.
+        for field in ('replay_blocked_at','invalidated_at'):
+            blocked_id=uuid4()
+            with db.connect() as c:
+                c.execute("INSERT INTO kit_turns(user_id,client_id,generation,question,state,answer) VALUES(%s,%s,%s,'Fictional archived answer','answered',%s)",
+                          (uids[0],blocked_id,generation,json.dumps(result['answer'])))
+                c.execute('UPDATE kit_turns SET '+field+'=now() WHERE user_id=%s AND client_id=%s',(uids[0],blocked_id))
+            try:kit_stream.current(uids[0],blocked_id,b)
+            except HTTPException as error:assert error.status_code==409
+            else:raise AssertionError('Quarantined/invalidated answer emitted')
+        # A disconnect after the last provider check still cannot persist answer or memory.
+        cancelled_id=uuid4();flag=Event()
+        kit_thread.create(kit_thread.MessageIn(client_id=cancelled_id,generation=generation,question='Another fictional question'),user={'id':uids[0]})
+        def disconnect(*args,**kwargs):
+            result=provider(*args,**kwargs);flag.set();return result
+        with patch('app.coach_chat.answer',side_effect=disconnect):
+            assert kit_stream.generate(uids[0],cancelled_id,b,flag)=={'cancelled':True}
+        with db.connect() as c:
+            lost=c.execute('SELECT state,answer,lease FROM kit_turns WHERE user_id=%s AND client_id=%s',(uids[0],cancelled_id)).fetchone()
+            assert lost['state']=='failed' and lost['answer'] is None and lost['lease'] is None
         kit_thread.clear(kit_thread.ClearIn(generation=generation,confirmed=True),user={'id':uids[0]})
         try:kit_stream.current(uids[0],cid,b)
         except HTTPException as error:assert error.status_code==409

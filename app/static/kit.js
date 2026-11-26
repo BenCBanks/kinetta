@@ -73,7 +73,7 @@ Object.assign(KitChat, (() => {
   }
   function keepDraft(c){const field=$('#kit-text',c.el);if(field?.value)try{save(c,'draft',field.value);}catch{}}
   function leaveRoute(c){
-    if(c.closed)return;c.closed=true;clearTimeout(c.timer);keepDraft(c);
+    if(c.closed)return;c.closed=true;clearTimeout(c.timer);c.streamController?.abort();keepDraft(c);
     const visit=readVisit(c.owner);if(visit?.visit_id!==c.visit_id)return;
     const record=visit.left_at?visit:{...visit,left_at:Date.now()};
     if(!visit.left_at)writeVisit(c.owner,record);scheduleVisitExpiry(c.owner,record);
@@ -328,7 +328,7 @@ Object.assign(KitChat, (() => {
     catch(e){if(!active(c)||c.visit_id!==visit||c.conversation_id!==thread||c.generation!==generation)return;if(!before&&!recovering&&(e.status===409||c.historyEnabled&&e.status===404)){await beginThreadOrVisit(c,e.status===404);return;}throw e;}
     if(!active(c)||c.visit_id!==visit||c.conversation_id!==thread||c.generation!==generation)return;
     if(c.generation&&c.generation!==data.generation){if(c.job&&!$('#kit-text',c.el).value){$('#kit-text',c.el).value=c.job.question;try{save(c,'draft',c.job.question);}catch{}}c.messages=[];c.job=null;c.sending=false;c.answerErrors={};store.del(chatKey(c,'pending'));status(c,'This chat was cleared on another device. Your draft is kept.');}
-    c.generation=data.generation;c.ready=data.ready;c.before=data.before;c.loaded=true;
+    c.generation=data.generation;c.ready=data.ready;c.streamSupported=data.stream_supported===true;c.before=data.before;c.loaded=true;
     const rows=before?[...data.messages,...c.messages]:data.messages;
     c.messages=[...new Map(rows.map(m=>[m.client_id,m])).values()].sort((a,b)=>a.id-b.id);
     if(c.job&&c.job.generation!==c.generation){c.job=null;store.del(chatKey(c,'pending'));}
@@ -347,15 +347,55 @@ Object.assign(KitChat, (() => {
     else if(c.messages.some(m=>m.state==='running'))later(c);
   }
   const later=c=>{clearTimeout(c.timer);c.timer=setTimeout(()=>{if(active(c))refresh(c).catch(e=>status(c,e.message));},2500);};
+  async function streamAnswer(c,id,body,valid){
+    const controller=new AbortController();c.streamController=controller;
+    const timeout=setTimeout(()=>controller.abort(),305000);
+    let reader;
+    try{
+      const response=await fetch(Native.base+'/api/coach/conversation/messages/'+id+'/stream',{
+        ...json('POST',body),credentials:Native.on?'omit':'same-origin',cache:'no-store',signal:controller.signal,
+        headers:{'Content-Type':'application/json','X-Kinetta-Account':String(App.me.id),...Native.headers()}});
+      if(!valid())return {cancelled:true};
+      if([404,405].includes(response.status))return null; // Older server: ordinary answer route owns generation.
+      if(!response.ok||!response.body||!response.headers.get('Content-Type')?.startsWith('text/event-stream'))throw Error('stream_failed');
+      reader=response.body.getReader();const decoder=new TextDecoder(),blocks=[];let pending='',complete=null;
+      while(!complete){
+        const {done,value}=await reader.read();if(done)break;
+        if(!valid())return {cancelled:true};
+        pending+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');
+        if(pending.length>131072)throw Error('stream_failed');
+        let end;
+        while((end=pending.indexOf('\n\n'))>=0){
+          const frame=pending.slice(0,end);pending=pending.slice(end+2);
+          const event=frame.split('\n').find(line=>line.startsWith('event: '))?.slice(7);
+          if(!event)continue;
+          const data=JSON.parse(frame.split('\n').filter(line=>line.startsWith('data: ')).map(line=>line.slice(6)).join('\n'));
+          if(event==='error')throw Error('stream_failed');
+          if(event==='block'){
+            if(!Number.isInteger(data.index)||data.index!==blocks.length||!answerBlocks({answer_blocks:[data.block]}))throw Error('stream_failed');
+            blocks.push(data.block);if(blocks.length>10)throw Error('stream_failed');
+            // Transient display only: follow-ups/actions arrive in the authoritative complete envelope.
+            c.messages=c.messages.map(m=>String(m.client_id)===String(id)?{...m,answer:{answer_blocks:[...blocks],facts:[]}}:m);draw(c);
+            await new Promise(resolve=>requestAnimationFrame(resolve));
+          }else if(event==='complete'){
+            if(String(data.message?.client_id)!==String(id)||data.message.state!=='answered')throw Error('stream_failed');
+            complete=data.message;break;
+          }else if(event!=='start')throw Error('stream_failed');
+        }
+      }
+      if(!complete)throw Error('stream_failed');return complete;
+    }finally{clearTimeout(timeout);await reader?.cancel().catch(()=>{});if(c.streamController===controller)c.streamController=null;}
+  }
   async function answer(c,id){
-    if(!active(c)||c.sending||!c.ready||!kitChatOn())return;c.answerErrors||={};delete c.answerErrors[id];c.sending=true;const generation=c.generation,visit_id=c.visit_id,valid=()=>active(c)&&c.generation===generation&&c.visit_id===visit_id;controls(c);
+    if(!active(c)||c.sending||!c.ready||!kitChatOn())return;c.answerErrors||={};delete c.answerErrors[id];c.sending=true;const generation=c.generation,visit_id=c.visit_id,valid=()=>active(c)&&c.generation===generation&&c.visit_id===visit_id;controls(c);clearTimeout(c.timer);
     const pendingQuestion=c.messages.find(m=>String(m.client_id)===String(id)&&m.state==='pending')?.question;
     try{
-      const row=await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation,visit_id}));if(!valid())return;
+      const row=(c.streamSupported?await streamAnswer(c,id,{generation,visit_id},valid):null)??await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation,visit_id}));if(!valid())return;
       if(row.cancelled){await refresh(c);return;}
       c.messages=c.messages.map(m=>String(m.client_id)===String(id)?row:m);draw(c);
       if(row.state==='running')later(c);else await refresh(c).catch(()=>status(c,'Your answer is saved. Return when online to refresh the full history.'));
     }catch(error){if(valid()){
+      c.messages=c.messages.map(m=>String(m.client_id)===String(id)?{...m,answer:null}:m);
       // A pre-provider rejection can delete an accepted turn (and its empty thread).
       // Carry its question through refresh/new-thread recovery, never over a newer draft.
       const question=pendingQuestion,field=$('#kit-text',c.el);
