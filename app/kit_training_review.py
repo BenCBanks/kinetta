@@ -38,7 +38,9 @@ def visual(series, profile):
     answer = SimpleNamespace(chart=SimpleNamespace(evidence_id='e2'),
                              blocks=[SimpleNamespace(text='Your recorded distance so far.')])
     checked = kit_charts.checked_chart(answer,evidence,dict(facts=[]))
-    checked['chart']['presentation'] = 'line'
+    checked['chart']['presentation'] = 'weekly_totals'
+    for point in checked['chart']['points']:
+        if point['plot_value'] is None:point['display_value'] = 'No distance recorded'
     return checked
 
 

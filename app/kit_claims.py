@@ -3,7 +3,7 @@ import json
 import re
 from pydantic import ValidationError
 from typing import Literal
-from . import coach_chat, kit_charts
+from . import coach_chat, kit_charts, kit_record_counts
 
 Reason = Literal['numeric_unsupported','topic_unsupported','relation_unsupported','voice_invalid','health_claim']
 CODES = frozenset(Reason.__args__)
@@ -41,7 +41,8 @@ def validate(texts, facts, evidence, *, question='', reference, selection=None, 
     traces=[]
     for text in texts:
         counted,checks=food_count_phrase(text,facts,evidence);traces.extend(checks)
-        prose = reference.sub('',counted)
+        prose,count_checks = kit_record_counts.bind(reference.sub('',counted),evidence,weekly_review=weekly_review)
+        traces.extend(count_checks)
         if weekly_review:
             from . import kit_weekly
             prose=kit_weekly.bind_counts(prose,evidence)
@@ -333,8 +334,8 @@ def missing_nutrient_evidence(texts,evidence):
     return traces
 
 
-METRICS = re.compile(r'\b(?:workouts?|sessions?|completed activity|recorded activity|distance|moving (?:time|duration)|training time|duration|pace|heart rate|weight|training load|fitness|sodium|protein|saturated fat|sugar|fibre|fiber|calories|intake)\b',re.I)
-DIRECTIONS = re.compile(r'\b(?:more|higher|high|increas\w*|rose|ris(?:e|ing)|longer(?!-)|faster|quicker|better|improv\w*|stronger|fitter|less|fewer|lower|low|decreas\w*|dropp\w*|shorter|slower|worse|same|unchanged|usual|typical)\b',re.I)
+METRICS = re.compile(r'\b(?:workouts?|sessions?|completed activity|recorded activity|distance|moving (?:time|duration)|training time|time training|duration|pace|heart rate|weight|training load|fitness|sodium|protein|saturated fat|sugar|fibre|fiber|calories|intake)\b',re.I)
+DIRECTIONS = re.compile(r'\b(?:more|higher|high|increas\w*|rose|ris(?:e|ing)|longer(?!-)|faster|quicker|better|improv\w*|stronger|fitter|less|fewer|lower|low|decreas\w*|dropp\w*|fell|fall(?:ing)?|shorter|slower|worse|downward|upward|same|unchanged|usual|typical)\b',re.I)
 
 
 def claim_clauses(text):
@@ -361,6 +362,9 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
     for text in texts:
         for sentence in claim_clauses(text):
             lower=sentence.casefold()
+            # Prospective weighing advice is not a claim that measurements were equal.
+            if re.fullmatch(r'logging consistently at the same time of day will (?:give|help provide) a clearer picture(?: over time)?[.!]?',lower.strip()):
+                continue
             # Advice, limitations and questions are not assertions about a measured comparison.
             if re.match(r'^(?:to |a (?:helpful|practical) next step|building more movement into your week|pick |try |start |consider |focus |choose |use |open |head |save |expand |keep |let |balance |log |anchor |check |you (?:can|could|should) |how |what |should |could you )',lower) and not re.search(r'\b(?:was|were|rose|increased|decreased|reflects?|you (?:logged|recorded|completed))\b|\b(?:your|you|recorded|data)\b[^.!?]*\b(?:is|are)\b',lower):continue
             if 'higher than recorded' in lower and re.search(r'\b(?:may|might|could|can)\b',lower):
@@ -368,6 +372,15 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
             if 'fluctuation' in lower and successful(evidence,'weight_trend'):
                 if not re.search(r'\b(?:may|might|could|can)\b',lower):raise ClaimRejected('health_claim')
                 require([proof(e,['limitations'],'possible_fluctuation') for e in successful(evidence,'weight_trend') if e['data'].get('limitations')]);continue  # A cause is unknown; use may/can, never a diagnosis.
+            # Unknown intake explicitly contrasted with low intake is a limitation,
+            # not a measured low value. Remove only this negated comparison.
+            if re.search(r'\bintake remains (?:largely )?(?:unknown|unlogged) rather than (?:complete or )?low\b',lower):
+                sources=successful(evidence,'nutrition_adequacy')
+                require([proof(e,['unlogged_finished_days'],'incomplete_logging') for e in sources
+                         if len(sources)==1 and e['data'].get('truncated') is False
+                         and type(e['data'].get('unlogged_finished_days')) is int and e['data']['unlogged_finished_days']>0])
+                sentence=re.sub(r'\brather than (?:complete or )?low\b','',sentence,flags=re.I)
+                lower=sentence.casefold()
             absent_target=False
             if re.search(r'\b(?:no|not|without|unset|none)\b',lower) and 'target' in lower:
                 for name,field in {'saturated fat':'saturated_fat_target_g','sodium':'sodium_target_mg','sugar':'sugar_target_g','protein':'protein_target','calorie':'kcal_target'}.items():
@@ -413,7 +426,7 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
             for metric in metrics:
                 word=metric[0].lower();direction=min(directions,key=lambda m:abs(m.start()-metric.start()))[0].lower()
                 if re.search(r'\bnot\b',lower):raise ClaimRejected('relation_unsupported')
-                positive=bool(re.fullmatch(r'more|higher|high|increas\w*|rose|ris(?:e|ing)|longer|faster|quicker|better|improv\w*|stronger|fitter',direction))
+                positive=bool(re.fullmatch(r'more|higher|high|increas\w*|rose|ris(?:e|ing)|longer|faster|quicker|better|improv\w*|stronger|fitter|upward',direction))
                 if re.fullmatch(r'better|improv\w*|stronger|fitter|worse',direction):raise ClaimRejected('relation_unsupported')
                 sign=0 if direction in ('same','unchanged','usual','typical') else 1 if positive else -1
                 field=('workouts' if re.search(r'workout|session|activity',word) else 'duration_s' if re.search(r'time|duration',word)
@@ -424,6 +437,11 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
                         form=e['data'].get('facts',{}).get('latest_load',{}).get('form')
                         if type(form) in (int,float) and coach_chat.math.isfinite(form) and form < -20 and sign==1:
                             sources.append(proof(e,['facts','latest_load','form'],'app_high_load'))
+                elif word=='weight':
+                    for e in successful(evidence,'weight_trend'):
+                        value=e['data'].get('endpoint_change_kg')
+                        if type(value) in (int,float) and coach_chat.math.isfinite(value) and (value>0)-(value<0)==sign:
+                            sources.append(proof(e,['endpoint_change_kg'],'higher' if sign>0 else 'lower' if sign<0 else 'same'))
                 elif field:
                     if field=='pace_s_per_km' and direction in ('faster','quicker','slower'):sign=-sign
                     for e in successful(evidence,'period_compare'):

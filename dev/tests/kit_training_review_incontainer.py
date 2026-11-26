@@ -18,8 +18,10 @@ series=dict(metric='distance',aggregate='sum',group_by='week',sport='all',period
 original=copy.deepcopy(series)
 for units,unit in [('metric','km'),('imperial','mi')]:
     chart=training.visual(series,dict(units=units))['chart']
-    assert chart['presentation']=='line' and chart['axis_unit']==unit
+    assert chart['presentation']=='weekly_totals' and chart['axis_unit']==unit
     assert chart['points'][1]['plot_value'] is None and chart['points'][3]['plot_value'] is None
+    assert chart['points'][1]['display_value']=='No distance recorded'
+    assert len(chart['points'])==6
     assert chart['points'][-1]['in_progress'] and chart['points'][-1]['plot_value']>0
     assert chart['points'][0]['display_value']==('4 km' if units=='metric' else '2.5 mi')
 assert series==original,'No mutation of source measurements'
@@ -50,7 +52,7 @@ def run(result=None,question='Review my training',health=True,garmin=True,enable
     return answer,calls
 
 answer,calls=run()
-assert len(calls)==2 and answer['chart']['presentation']=='line'
+assert len(calls)==2 and answer['chart']['presentation']=='weekly_totals'
 assert answer['interpretation']==base['interpretation'] and answer['facts']==base['facts']
 assert answer['health_included'] and answer['garmin_included']
 assert answer['tools_used']==['activities','profile','chart_series']
@@ -72,14 +74,17 @@ evidence=[dict(evidence_id='e1',tool='profile',data=dict(units='metric')),
           dict(evidence_id='e2',tool='recent_runs',data=dict(totals=dict(count=4,distance_m=18000)))]
 facts=[dict(evidence_id='e2',path=['totals','distance_m'],value=18000)]
 for text in ['You have recorded {e2:0} of running. You could choose a comfortable activity for your next session.',
-             'Your recorded running adds up to {e2:0}. One thing to consider is whether a strength session would fit your goals.']:
+             'You’ve put {e2:0} of running in your log—a useful starting point for planning your next session. One thing to consider is whether a strength session would fit your goals.']:
     checked=kit_conversation.checked_answer(dict(blocks=[dict(kind='paragraph',text=text)],facts=facts),evidence,question='Review my training')
     assert '18 km' in checked['interpretation']
 for text in ['Your fitness improved with {e2:0} of running.', 'You have a complete lack of strength training.']:
     try:kit_conversation.checked_answer(dict(blocks=[dict(kind='paragraph',text=text)],facts=facts),evidence,question='Review my training')
     except ValueError:pass
     else:raise AssertionError('Unsupported training claim passed: '+text)
-assert all(s in kit_coaching.PROMPT for s in ('recorded facts support','Not recorded does not mean not done','as an option'))
+assert all(s in kit_coaching.PROMPT for s in ('recorded facts support','Not recorded does not mean not done','as an option','before offering a suggestion','squats, lunges and core'))
+concrete='You’ve put {e2:0} of running in your log—a useful starting point for planning your next session. If you want to add strength work, you could start with a short bodyweight session: squats, lunges and core, if comfortable.'
+result=kit_conversation.checked_answer(dict(blocks=[dict(kind='paragraph',text=concrete)],facts=facts),evidence,question='Review my training')
+assert '18 km' in result['interpretation'] and 'squats, lunges and core' in result['interpretation']
 print('Training review: measured weeks/gaps/units, independent checked prose+fallback, owner/consent/cancel/AI, warm factual options PASS; 0 provider calls')
 
 # The automatic path uses the real fixed SQL reader with its uid and source gates.
