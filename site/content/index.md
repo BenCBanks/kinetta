@@ -51,23 +51,35 @@ Every run, ride and lift, with the details.
 See a route and splits for a run or ride, or set-by-set history and records for a lift.
 ## home-kit-insight-kicker
 
-Kit insights
+Meet Kit
 
 ## home-kit-insight-title
 
-Ask Kit about your week.
+Meet Kit, the coach that knows your training and your food.
 
 ## home-kit-insight-description
 
-Ask one question about your training week.
+Ask in your own words. Kit reads your workouts and meals, answers in plain language, and tells you when it doesn't have enough to say. Any change it suggests waits for your OK.
 
-## home-kit-question
+## home-kit-question-week
 
-Am I improving?
+Review my week
 
-## home-kit-answer
+## home-kit-question-focus
 
-Yes, mostly: your completed-week running trend is up over the last 8 weeks. This week is still in progress at 4.8 mi.
+What should I focus on next?
+
+## home-kit-question-meal
+
+Suggest a meal from my saved foods.
+
+## home-kit-example-caption
+
+Tested Kit answer · fictional data
+
+## home-kit-small-print
+
+For adults 18+. Kit is not medical advice.
 
 ## home-badges-kicker
 
