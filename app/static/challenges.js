@@ -5,6 +5,8 @@ const ChallengeRingPalette=Object.freeze({neutral:'#929BA4',progress:'#2F64D8',c
 if(typeof module!=='undefined'&&module.exports)module.exports=ChallengeRingPalette;
 if(typeof globalThis!=='undefined')globalThis.ChallengeRingPalette=ChallengeRingPalette;
 if(typeof window!=='undefined')window.ChallengeRingPalette=ChallengeRingPalette;
+// Cold Challenges routes do not load the Social icon registry.
+IC.people ||= '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/>';
 const challengeSummaryMount=Challenges.mount;
 const ChallengeRoutes=(()=>{
   const stateFromRing=node=>[...node.classList].find(name=>name.startsWith('is-'))?.slice(3)||'progress';
@@ -20,7 +22,7 @@ const ChallengeRoutes=(()=>{
   const dateInZone=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:App.me?.tz||'UTC',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),get=t=>p.find(x=>x.type===t)?.value||'';return `${get('year')}-${get('month')}-${get('day')}`;};
   const mondayAfter=d=>{const weekday=new Date(d+'T12:00:00Z').getUTCDay();return addDays(d,((8-weekday)%7)||7);};
   const number=Challenges.number,summary=Challenges.summary;
-  const path=q=>'/me/challenges/'+encodeURIComponent(q.code);
+  const path=Challenges.href;
   const total=Challenges.total;
   const title=q=>kinds[q.kind]&&Number.isFinite(Number(q.target))&&q.target>0&&(q.kind!=='distance'||['km','mi'].includes(q.unit))?kinds[q.kind]+' · '+number(q.target,q.unit)+(q.kind==='distance'?' '+q.unit:''):q.title||'Challenge';
   function dateRange(q){
@@ -77,6 +79,25 @@ const ChallengeRoutes=(()=>{
       draw();
     });
   }
+  function chooseCreate(){
+    const owner=readOwner();
+    sheet('New challenge','<div class="list"><button type="button" class="row-link" data-challenge-scope="me">Just me</button><button type="button" class="row-link" data-challenge-scope="group">A group</button></div>',(b,close)=>{
+      guardFoodSheet(b,close,owner);
+      $('[data-challenge-scope="me"]',b).onclick=()=>{if(owner===readOwner()){close();create();}};
+      $('[data-challenge-scope="group"]',b).onclick=()=>{if(owner===readOwner()){close();chooseGroup();}};
+    });
+  }
+  function chooseGroup(){
+    const owner=readOwner();sheet('Choose a group','<div data-challenge-groups role="status">Loading groups…</div>',(b,close)=>{
+      guardFoodSheet(b,close,owner);const live=()=>b.isConnected&&owner===readOwner(),box=$('[data-challenge-groups]',b);
+      const load=async()=>{try{
+        const [groups]=await Promise.all([api('/api/groups'),loadClassicScript(SOCIAL_ROUTE_ASSET)]);if(!live())return;
+        const available=groups.filter(g=>!g.closed);
+        box.innerHTML=available.length?available.map(g=>`<button type="button" class="row-link" data-challenge-group="${esc(g.id)}">${svg('people')}<span class="grow">${esc(g.title)}</span>${svg('chev')}</button>`).join(''):'<p>No groups yet.</p><a class="row-link" href="/activity?view=groups">Groups</a>';
+        $$('[data-challenge-group]',box).forEach(button=>button.onclick=()=>{if(!live())return;const group=available.find(g=>g.id===button.dataset.challengeGroup);close();groupChallengeEditor(group,null,()=>go('/groups/'+encodeURIComponent(group.id)));});
+      }catch(error){if(live()){box.innerHTML='<p role="alert"></p><button type="button" class="linkbtn">Retry</button>';$('p',box).textContent=error.message;$('button',box).onclick=load;}}};load();
+    });
+  }
   function create(){
     sheet('Start a challenge',`<div class="card list challenge-templates">${Object.entries(kinds).map(([key,label])=>`<button type="button" class="row-link" data-challenge-kind="${key}"><span class="ri">${svg(icons[key])}</span><span class="grow"><b>${label}</b><small>${descriptions[key]}</small></span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>`,(b,close)=>{const owner=readOwner();guardFoodSheet(b,close,owner);$$('[data-challenge-kind]',b).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;close();createForm(button.dataset.challengeKind);});});
   }
@@ -103,7 +124,7 @@ const ChallengeRoutes=(()=>{
   const activityBack=el=>{el.classList.add('has-back');el._backFallback='/activity';return `<a class="back" href="/activity" data-back data-challenge-back aria-label="Back to Home">${svg('back')}<span>Home</span></a>`;};
   async function mount(node,{me=false}={}){
     if(me)return challengeSummaryMount(node,{me:true});
-    if(!node)return;const owner=readOwner();try{const items=await api('/api/challenges');if(!node.isConnected||owner!==readOwner())return;const glance=summary(items),active=glance?.active||[];
+    if(!node)return;const owner=readOwner();try{const items=await api(Challenges.listPath);if(!node.isConnected||owner!==readOwner())return;const glance=summary(items),active=glance?.active||[];
       node.innerHTML=`<section class="challenge-section"><h2 class="sec-head">Challenges</h2>${active.length?`<div class="card list">${active.map(q=>`<a class="row-link" href="${path(q)}"><span class="grow"><b>${esc(title(q))}</b><small>${esc(dateRange(q))} · ${number(q.self.value,q.unit)} / ${total(q)}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`:''}<button type="button" class="ghost wide" data-start-challenge>Start a challenge</button><a class="linkbtn wide" href="/me/challenges">All your challenges</a></section>`;$('[data-start-challenge]',node).onclick=create;
     }catch(_){if(node.isConnected&&owner===readOwner()&&!me)node.innerHTML='<a class="ghost wide" href="/me/challenges">Open challenges</a>';}
   }
@@ -144,29 +165,45 @@ const ChallengeRoutes=(()=>{
     viewResources.set(el,()=>{generation++;clearInterval(timer);clearHold();el.removeEventListener('pointerdown',down);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',cancel);el.removeEventListener('pointerleave',clearHold);el.removeEventListener('click',click,true);el.removeEventListener('contextmenu',context);window.removeEventListener('scroll',syncTitle);});
     await load(true);if(!live())return;timer=setInterval(()=>{if(live()&&!el._challengePress&&!document.hidden&&!document.querySelector('.scrim:not(.is-closing)'))load();},30000);
   }
-  return{create,createForm,mount,page,picture,activityBack,title,dateRange,invitationText,invitationCaption,participants};
+  return{chooseCreate,create,createForm,mount,page,picture,activityBack,title,dateRange,invitationText,invitationCaption,participants};
 })();
 Object.assign(Challenges,ChallengeRoutes);
+function challengeEndLabel(q,past=false){
+  const end=q.ended_on||q.end;if(!end)return 'No end date';
+  const label=new Date(end+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'});
+  return (past?'Ended ':'Ends ')+label;
+}
 function challengeListRow(q,{past=false}={}){
+  if(q.group_id){
+    const value=q.group_total,percent=value==null?0:Math.min(100,Math.max(0,Number(value)/q.target*100));
+    const ring=`<span class="challenge-list-ring is-${q.self.complete?'goal':past?'missed':'progress'}" role="img" aria-label="${value==null?'Group total not shared':esc(Challenges.number(value,q.unit)+' of '+Challenges.total(q))}"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="challenge-list-ring-track" cx="20" cy="20" r="17"/>${percent?`<circle class="challenge-list-ring-value" cx="20" cy="20" r="17" pathLength="100" stroke-dasharray="${percent} 100"/>`:''}</svg></span>`;
+    const progress=`You ${Challenges.number(q.self.value,q.unit)} ${q.unit} · Group ${value==null?'not shared':Challenges.number(value,q.unit)+' of '+Challenges.total(q)}`;
+    return `<a class="inset-row has-detail challenge-list-row${past?' is-past':''}" href="${Challenges.href(q)}">${ring}<span class="inset-label has-detail"><span>${esc(q.title)}</span><small class="challenge-group-name">${svg('people')}${esc(q.group_name)}</small><small>${esc(progress)}</small><small>${esc(challengeEndLabel(q,past))}</small></span><span class="chev">${svg('chev')}</span></a>`;
+  }
   const self=q.self||{value:0,days_left:0,finished:false,complete:false},target=Number(q.target)||0,value=Math.max(0,Number(self.value)||0),raw=target?Math.max(0,Math.round(value/target*1000)/10):0,percent=Math.min(100,raw),closed=!!self.finished||q.joining_closed,invited=!q.member&&!q.joining_closed,parts=new Intl.DateTimeFormat('en-CA',{timeZone:App.me?.tz||'UTC',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),today=`${parts.find(x=>x.type==='year').value}-${parts.find(x=>x.type==='month').value}-${parts.find(x=>x.type==='day').value}`,notStarted=!closed&&raw===0&&q.start>today,state=raw>100?'over':closed?(self.complete?'goal':'missed'):notStarted?'not-started':'progress',rowTitle=Challenges.title(q).replace(/(\d)\s+(?=(?:mi|km)\b)/,'$1\u00a0');
-  const status=past?`${Challenges.dateRange(q)} · ${Challenges.number(value,q.unit)} / ${Challenges.total(q)}`:invited?`${q.creator?'@'+q.creator+' invited':'Invitation'} · ${Challenges.dateRange(q)}`:closed?(self.complete?'Goal reached':'Finished')+` · ${Challenges.dateRange(q)}`:`${Challenges.number(value,q.unit)} of ${Challenges.total(q)} · ${self.days_left===0?'Ends today':self.days_left+' '+(self.days_left===1?'day':'days')+' left'}`;
+  const status=invited?`${q.creator?'@'+q.creator+' invited':'Invitation'}`:`${Challenges.number(value,q.unit)} ${past?'/':'of'} ${Challenges.total(q)}`;
   const arc=invited||percent===0?'':`<circle class="challenge-list-ring-value" cx="20" cy="20" r="17" pathLength="100" stroke-dasharray="${state==='over'?100:percent} 100"/>`,tail=past?`<span class="challenge-list-result">${self.complete?`<span>Goal reached</span><span class="challenge-finished-mark" role="img" aria-label="Goal reached">${svg('check')}</span>`:'<span>Finished</span>'}</span><span class="chev">${svg('chev')}</span>`:closed&&self.complete?`<span class="challenge-finished-mark" role="img" aria-label="Goal reached">${svg('check')}</span>`:`<span class="chev">${svg('chev')}</span>`,href=past?`/me/challenges/${encodeURIComponent(q.code)}?past=1`:`/me/challenges/${encodeURIComponent(q.code)}`;
-  const ringAttrs=past?`role="img" aria-label="${esc(state==='over'?Math.round(raw)+'% of goal':self.complete?'Goal reached':'Finished')}"`:`role="progressbar" aria-label="${esc(Challenges.title(q))} progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${invited?0:percent}"`;return `<a class="inset-row has-detail challenge-list-row${past?' is-past':''}" href="${href}"><span class="challenge-list-ring is-${state}" ${ringAttrs}><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="challenge-list-ring-track" cx="20" cy="20" r="17"/>${arc}</svg></span><span class="inset-label has-detail"><span>${esc(rowTitle)}</span><small>${esc(status)}</small></span>${tail}</a>`;
+  const ringAttrs=past?`role="img" aria-label="${esc(state==='over'?Math.round(raw)+'% of goal':self.complete?'Goal reached':'Finished')}"`:`role="progressbar" aria-label="${esc(Challenges.title(q))} progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${invited?0:percent}"`;return `<a class="inset-row has-detail challenge-list-row${past?' is-past':''}" href="${href}"><span class="challenge-list-ring is-${state}" ${ringAttrs}><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="challenge-list-ring-track" cx="20" cy="20" r="17"/>${arc}</svg></span><span class="inset-label has-detail"><span>${esc(rowTitle)}</span><small>${esc(status)}</small><small>${esc(challengeEndLabel(q,past))}</small></span>${tail}</a>`;
 }
 function applyChallengeRingColors(root){root.querySelectorAll('.challenge-list-ring').forEach(node=>{const state=[...node.classList].find(name=>name.startsWith('is-'))?.slice(3)||'progress';node.style.color=window.ChallengeRingPalette.color(state);});}
 route(/^\/me\/challenges$/,'activity',async el=>{
-  const owner=readOwner();el.innerHTML=`<div class="top challenge-list-top">${Challenges.activityBack(el)}<h1>Challenges</h1><div class="challenge-list-actions"><a class="icon-btn home-find-friends" href="/me/friends?find=1&from=home" aria-label="Find friends">${svg('search')}</a><button type="button" class="icon-btn challenge-add" id="challenge-start" aria-label="Start a challenge"><span aria-hidden="true">+</span></button></div></div><div id="challenge-list">${skel(1)}</div>`;$('#challenge-start',el).onclick=Challenges.create;
+  const owner=readOwner();el.innerHTML=`<div class="top challenge-list-top">${Challenges.activityBack(el)}<h1>Challenges</h1><div class="challenge-list-actions"><a class="icon-btn home-find-friends" href="/me/friends?find=1&from=home" aria-label="Find friends">${svg('search')}</a><button type="button" class="icon-btn challenge-add" id="challenge-start" aria-label="Start a challenge">${svg('plus')}</button></div></div><div id="challenge-list">${skel(1)}</div>`;$('#challenge-start',el).onclick=Challenges.chooseCreate;
   try{
-    const items=await api('/api/challenges');if(!el.isConnected||owner!==readOwner())return;$('#challenge-start',el).hidden=!items.length;
-    const active=items.filter(q=>q.member&&!q.self?.finished&&!q.joining_closed),invitations=items.filter(q=>!q.member&&!q.joining_closed),past=items.filter(q=>q.self?.finished||q.joining_closed).sort((a,b)=>new Date((b.ended_on||b.end)+'T12:00:00Z')-new Date((a.ended_on||a.end)+'T12:00:00Z'));
-    const group=(name,rows,{isPast=false,seeAll=false}={})=>rows.length?`<section class="inset-section challenge-list-group"><h2 class="inset-caption">${name}</h2><div class="inset-group">${rows.map(q=>challengeListRow(q,{past:isPast})).join('')}${seeAll?'<a class="inset-row challenge-see-all" href="/me/challenges/past">See all<span class="chev">'+svg('chev')+'</span></a>':''}</div></section>`:'';
-    $('#challenge-list',el).innerHTML=items.length?`${group('Active',active)}${group('Invitations',invitations)}${group('Past challenges',past.slice(0,3),{isPast:true,seeAll:past.length>3})}`:`<div class="challenge-empty"><span class="challenge-empty-icon" aria-hidden="true">${svg('trophy')}</span><p>No challenges yet.</p><button type="button" class="primary" id="challenge-first">Start a challenge</button><div class="first-step-presets"><button type="button" class="linkbtn" data-challenge-template="distance">Monthly distance</button><button type="button" class="linkbtn" data-challenge-template="active_days">Weekly active days</button></div></div>`;applyChallengeRingColors($('#challenge-list',el));
-    const first=$('#challenge-first',el);if(first)first.onclick=Challenges.create;$$('[data-challenge-template]',el).forEach(button=>button.onclick=()=>Challenges.createForm(button.dataset.challengeTemplate,button.dataset.challengeTemplate==='distance'?'this_month':'this_week'));
+    const items=await api(Challenges.listPath);if(!el.isConnected||owner!==readOwner())return;$('#challenge-start',el).hidden=!items.length;
+    const active=items.filter(q=>!q.self?.finished&&!q.joining_closed).sort(Challenges.ending),past=items.filter(q=>q.self?.finished||q.joining_closed).sort(Challenges.ending);
+    let ended=false;
+    const draw=()=>{
+      const rows=ended?past:active;
+      $('#challenge-list',el).innerHTML=items.length?`<div class="underline-tabs" role="tablist" aria-label="Challenge state"><button type="button" role="tab" data-challenge-state="active" aria-selected="${!ended}">Active</button><button type="button" role="tab" data-challenge-state="ended" aria-selected="${ended}">Ended</button></div><section class="challenge-list-group" aria-label="${ended?'Ended':'Active'} challenges">${rows.length?`<div class="inset-group">${rows.map(q=>challengeListRow(q,{past:ended})).join('')}</div>`:`<p class="challenge-past-empty">No ${ended?'ended':'active'} challenges.</p>`}</section>`:`<div class="challenge-empty"><span class="challenge-empty-icon" aria-hidden="true">${svg('trophy')}</span><p>No challenges yet.</p><button type="button" class="primary" id="challenge-first">Start a challenge</button><div class="first-step-presets"><button type="button" class="linkbtn" data-challenge-template="distance">Monthly distance</button><button type="button" class="linkbtn" data-challenge-template="active_days">Weekly active days</button></div></div>`;
+      applyChallengeRingColors($('#challenge-list',el));
+      $$('[data-challenge-state]',el).forEach(button=>button.onclick=()=>{ended=button.dataset.challengeState==='ended';draw();$(`[data-challenge-state="${ended?'ended':'active'}"]`,el).focus({preventScroll:true});});
+    };draw();
+    const first=$('#challenge-first',el);if(first)first.onclick=Challenges.chooseCreate;$$('[data-challenge-template]',el).forEach(button=>button.onclick=()=>Challenges.createForm(button.dataset.challengeTemplate,button.dataset.challengeTemplate==='distance'?'this_month':'this_week'));
   }catch(e){if(el.isConnected&&owner===readOwner())showError($('#challenge-list',el),e);}
 });
 route(/^\/me\/challenges\/past$/,'activity',async el=>{
   const owner=readOwner();el.classList.add('has-back');el._backFallback='/me/challenges';el.innerHTML=`<div class="top"><a class="back" href="/me/challenges" data-back aria-label="Back to Challenges">${svg('back')}<span>Challenges</span></a></div><h1>Past challenges</h1><div id="challenge-past-list">${skel(1)}</div>`;
-  try{const items=await api('/api/challenges');if(!el.isConnected||owner!==readOwner())return;const past=items.filter(q=>q.self?.finished||q.joining_closed).sort((a,b)=>new Date((b.ended_on||b.end)+'T12:00:00Z')-new Date((a.ended_on||a.end)+'T12:00:00Z'));$('#challenge-past-list',el).innerHTML=past.length?`<div class="inset-group">${past.map(q=>challengeListRow(q,{past:true})).join('')}</div>`:'<p class="challenge-past-empty">Finished challenges appear here.</p>';applyChallengeRingColors($('#challenge-past-list',el));}
+  try{const items=await api(Challenges.listPath);if(!el.isConnected||owner!==readOwner())return;const past=items.filter(q=>q.self?.finished||q.joining_closed).sort((a,b)=>new Date((b.ended_on||b.end)+'T12:00:00Z')-new Date((a.ended_on||a.end)+'T12:00:00Z'));$('#challenge-past-list',el).innerHTML=past.length?`<div class="inset-group">${past.map(q=>challengeListRow(q,{past:true})).join('')}</div>`:'<p class="challenge-past-empty">Finished challenges appear here.</p>';applyChallengeRingColors($('#challenge-past-list',el));}
   catch(e){if(el.isConnected&&owner===readOwner())showError($('#challenge-past-list',el),e);}
 });
 route(/^\/(?:me\/challenges|challenge)\/([A-Za-z0-9_-]{1,60})$/,'activity',(el,code)=>Challenges.page(el,code,{readOnly:new URLSearchParams(location.search).get('past')==='1'}));

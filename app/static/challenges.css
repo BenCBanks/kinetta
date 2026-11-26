@@ -86,17 +86,16 @@
 
 /* #1024: compact challenge groups share the Settings InsetGroup surface and rows. */
 .challenge-add { display:grid; flex:none; place-items:center; width:44px; height:44px; border:0; background:transparent; color:var(--accent); }
-.challenge-add span { font-size:30px; font-weight:400; line-height:1; }
 #page.has-back > .top.challenge-list-top { display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center; }
 .challenge-list-top > .back { justify-self:start;min-width:0; }
 .challenge-list-top > h1 { grid-column:2;min-width:0;max-width:100%;margin:0;font:600 var(--text-nav-title)/1.2 var(--font);letter-spacing:-.02em;text-align:center;white-space:nowrap; }
 .challenge-list-actions { grid-column:3;display:flex;justify-self:end;gap:8px;min-width:44px; }
 .challenge-list-actions > :is(a,button) { flex:none;width:44px;height:44px; }
 .challenge-list-group + .challenge-list-group { margin-top:18px; }
-.challenge-list-row { min-height:60px; gap:12px; }
+.challenge-list-row { min-height:60px; gap:12px; padding-top:10px; padding-bottom:10px; }
 .challenge-list-row .inset-label { font-size:1rem; font-weight:400; }
 .challenge-list-row .inset-label>span:first-child { font-size:16px; font-weight:600; }
-.challenge-list-row .inset-label small { font-size:.8125rem; }
+.challenge-list-row .inset-label small { font-size:max(13px,.8125rem); }
 .challenge-list-ring { display:block; position:relative; flex:none; width:40px; height:40px; color:var(--accent); }
 .challenge-list-ring svg { display:block; width:40px; height:40px; transform:rotate(-90deg); }
 .challenge-list-ring circle { fill:none; stroke:var(--line); stroke-width:3; }
@@ -105,7 +104,7 @@
 .challenge-finished-mark { display:grid; flex:none; place-items:center; width:28px; height:28px; color:var(--color-achievement); }
 .challenge-finished-mark svg { width:18px; height:18px; }
 .challenge-empty { display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:12px 0 20px; }
-.challenge-empty p { margin:0; color:var(--tx2); font-size:.9375rem; }
+.challenge-empty p { margin:0; color:var(--tx2); font-size:max(15px,.9375rem); }
 .challenge-empty-icon { display:grid; place-items:center; width:36px; height:36px; color:var(--tx3); }
 .challenge-empty-icon svg { width:28px; height:28px; }
 .challenge-empty .primary { min-height:44px; }
@@ -117,3 +116,15 @@
 .challenge-past-empty{margin:24px 0;color:var(--tx2);font-size:15px;text-align:center;}
 .challenge-past-status{margin:0 0 10px;}
 .challenge-create{gap:14px;}
+
+.challenge-list-row .inset-label small { white-space:normal;overflow-wrap:anywhere; }
+.challenge-list-row .challenge-group-name { display:flex;align-items:center;gap:5px; }
+.challenge-group-name svg { width:14px;height:14px;flex:none; }
+[data-challenge-groups] .row-link { min-height:48px;gap:10px; }
+[data-challenge-groups] .row-link>svg { width:18px;height:18px;flex:none; }
+#challenge-list .underline-tabs [aria-selected="true"] { color:var(--tx);font-weight:600; }
+#challenge-list .underline-tabs [aria-selected="true"]::after { content:"";position:absolute;right:0;bottom:-1px;left:0;height:2px;background:var(--accent); }
+
+#challenge-list > .underline-tabs { gap:8px; margin-bottom:8px; }
+.challenge-list-row + .challenge-list-row, [data-challenge-scope] + [data-challenge-scope], [data-challenge-group] + [data-challenge-group] { margin-top:8px; }
+[data-challenge-scope], [data-challenge-group] { font-size:15px; }

@@ -162,6 +162,8 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
  }
  try{
+  await require('./mixed_challenges_ui.cjs')(browser,base,shots);
+  if(process.env.KINETTA_MIXED_CHALLENGES_ONLY==='1')return;
   async function eventDateJourney(theme){
    const {context,page,errors,groupDateChanges,ongoingState}=await open(theme);await openChallenge(page,idOngoing);
    assert.equal(await page.locator('.group-goal-period').innerText(),'Since Oct 1');

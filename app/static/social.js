@@ -684,15 +684,15 @@ function feedTools(el,current){
     if(!live())return;host.setAttribute('aria-busy',String(!ready));
     fitHeader();
     const summary=Challenges.summary(challenges),q=summary?.first;
-    const timing=q?(q.start>isoDay(new Date())?'Starts '+new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}):q.self.complete?'Goal reached':q.self.days_left===0?'Ends today':q.self.days_left===1?'1 day left':q.self.days_left+' days left'):'';
+    const timing=q?(q.start>isoDay(new Date())?'Starts '+new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}):q.self.complete?'Goal reached':!q.end?'No end date':q.self.days_left===0?'Ends today':q.self.days_left===1?'1 day left':q.self.days_left+' days left'):'';
     const countLabel=summary?summary.count+' '+(summary.count===1?'challenge':'challenges'):'',progress=summary?summary.progress.replace(' / ','/') : '';
-    host.innerHTML=summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}" aria-label="${esc(`${countLabel}, ${progress}, ${timing}`)}"><span class="ri">${svg('trophy')}</span><span class="grow"><span class="challenge-summary-main">${esc(countLabel)} · ${esc(progress)}</span><span class="challenge-summary-timing"><span class="challenge-summary-separator"> · </span>${esc(timing)}</span></span><span class="chev">${svg('chev')}</span></a></div>`:'';
+    host.innerHTML=summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="${Challenges.href(q)}" aria-label="${esc(`${countLabel}, ${progress}, ${timing}`)}"><span class="ri">${svg('trophy')}</span><span class="grow"><span class="challenge-summary-main">${esc(countLabel)} · ${esc(progress)}</span><span class="challenge-summary-timing"><span class="challenge-summary-separator"> · </span>${esc(timing)}</span></span><span class="chev">${svg('chev')}</span></a></div>`:'';
     if(ready&&challengeKnown)measureSlot();
   }
   host.addEventListener('click',e=>{if(!live()||e.metaKey||e.ctrlKey||e.button>0)return;const tile=e.target.closest('[data-activity-feature],[data-feed-tool]');if(!tile)return;const id=tile.dataset.activityFeature||tile.dataset.feedTool;Discovery.visit('activity',id);
     if(id==='invite'){e.preventDefault();e.stopPropagation();KinettaCard.open();}
   });
-  async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/challenges').then(rows=>{if(live()){challenges=rows;challengeKnown=true;}})]);ready=true;draw();}
+  async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api(Challenges.listPath).then(rows=>{if(live()){challenges=rows;challengeKnown=true;}})]);ready=true;draw();}
   const onResize=()=>{if(!live())return;applySlot();if(ready&&challengeKnown)measureSlot();};window.addEventListener('resize',onResize,{passive:true});viewResources.set(host,()=>window.removeEventListener('resize',onResize));
   applySlot();draw();const initial=Promise.resolve();return{refresh,ready:initial};
 }
@@ -1420,7 +1420,7 @@ function groupReactionCheers(groupId,updateId=null,removeMine=null){
 function groupRouteTab(){
   const entry=history.state?.kinettaNavigation?.from;
   const source=BackNavigation.path(entry?.path);
-  return source&&/^\/me(?:\/|\?|$)/.test(source)?'me':'activity';
+  return source&&source!=='/me/challenges'&&/^\/me(?:\/|\?|$)/.test(source)?'me':'activity';
 }
 function groupRecapPicture(group){
   return (async()=>{
@@ -1537,7 +1537,7 @@ function groupChallengePage(el,group,q){
   const legacy=q.legacy_goal?group:{},goal={...legacy,goal_type:q.metric,goal_target:q.target,goal_unit:q.unit,total:q.total,your_total:q.your_total,event_state:q.ended_at?'complete':legacy.event_state||'challenge'};
   const roster={...group,sharing_level:q.share_total&&q.members.find(m=>m.username===App.me?.login)?.shares_total?'total_shared':'just_in',members:q.members.map(m=>({...m,photo:group.members.find(p=>p.username===m.username)?.photo,sharing_total_only:m.value===undefined}))};
   el.innerHTML=`<div class="top">${backBtn('Group')}<span class="grow group-challenge-parent">${esc(group.title)}</span>${q.can_manage&&!q.ended_at?'<button type="button" class="icon-btn" data-challenge-options aria-label="Challenge options">'+svg('more')+'</button>':''}</div><header class="group-title"><h1>${esc(q.title)}</h1><p class="group-title-summary">${esc(GROUP_GOALS[q.metric])} · ${q.ended_at?'Ended':q.end_date?esc(groupDate(q.end_date,q.time_zone)):'No end date'}</p></header>${q.training_for?`<p class="group-training-for">Training for ${esc(q.training_for)}</p>`:''}${q.note?`<p class="group-note">${esc(q.note)}</p>`:''}${groupGoal(goal)}${q.legacy_goal&&group.event_state==='today'?'<section class="group-event-day card">Today’s the day</section>':q.legacy_goal&&group.event_state==='complete'?groupRecapCard(group):''}<section class="group-members-section"><h2>Members</h2><div class="card group-roster">${groupRoster({...roster,goal_unit:q.unit},true)}</div></section><label class="group-join-share"><span>Share my total</span><input type="checkbox" role="switch" data-challenge-sharing${q.share_total?' checked':''}></label>`;
-  wireBack(el,'/groups/'+group.id);
+  wireBack(el,new URLSearchParams(location.search).get('from')==='challenges'?'/me/challenges':'/groups/'+group.id);
   const recap=$('[data-group-recap-share]',el);if(recap)recap.onclick=()=>openGroupRecapShare(el,group,recap);
   $('[data-challenge-sharing]',el).closest('label').insertAdjacentHTML('afterend',App.me?.share_achievements?'':'<p class="small muted">Totals are hidden while activity sharing is off in Settings.</p>');
   $('[data-challenge-sharing]',el).onchange=async event=>{const input=event.currentTarget;input.disabled=true;try{await api(path+'/sharing',json('POST',{share_total:input.checked}));await reload();}catch(error){if(input.isConnected){input.checked=q.share_total;input.disabled=false;toast(error.message);}}};

@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const esc=x=>String(x).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-const c={esc,avatar:()=>'<span class="av"></span>',profileHref:p=>'/people/'+encodeURIComponent(p.login),backBtn:l=>'<button>'+esc(l)+'</button>',svg:()=>'',skel:()=>'',App:{me:{login:'zz_test_owner',name:'Fictional Owner'}}};vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/friends-ui.js','utf8')+'\nglobalThis.ui=FriendsUI;',c);
+const c={IC:{},esc,avatar:()=>'<span class="av"></span>',profileHref:p=>'/people/'+encodeURIComponent(p.login),backBtn:l=>'<button>'+esc(l)+'</button>',svg:()=>'',skel:()=>'',App:{me:{login:'zz_test_owner',name:'Fictional Owner'}}};vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/friends-ui.js','utf8')+'\nglobalThis.ui=FriendsUI;',c);
 const person={login:'zz_test_<script>',name:'Fictional <img onerror="x">'},r={friends:[],incoming:[{...person,via_card:true}],outgoing:[{login:'zz_test_sent',name:'Fictional Sender'}]};
 const shell=c.ui.shell('Home');assert(shell.includes('Search name or @username'));assert(shell.includes('id="fr-invite"'));assert(shell.includes('fr-requests'));assert(shell.includes('fr-suggest'));
 for(const retired of ['Your profile','Your friends will appear here','New activities:','/me/sharing','fr-own-list','fr-lists','data-invite-empty'])assert(!shell.includes(retired),`Find friends omits ${retired}`);
@@ -15,7 +15,7 @@ for(const rule of ['.friend-discovery{','.friend-filter{','#fr-own-list .person[
 assert(!shell.includes('href="/me/challenges"'),'Challenge navigation belongs to Home; Invite remains on Find friends');
 const challengeRoutes=[];c.route=(pattern,tab)=>challengeRoutes.push({pattern,tab});
 vm.runInContext(fs.readFileSync('app/static/challenge-summary.js','utf8')+'\n'+fs.readFileSync('app/static/challenges.js','utf8')+'\nglobalThis.challengeUI=Challenges;',c);
-const challenge=(code,days,extra={})=>({code,member:true,target:4,unit:'days',self:{value:2,days_left:days,finished:false},...extra});
+const challenge=(code,days,extra={})=>({code,end:'2030-01-'+String(10+days).padStart(2,'0'),member:true,target:4,unit:'days',self:{value:2,days_left:days,finished:false},...extra});
 assert.equal(c.challengeUI.summary([]),null);
 assert.equal(c.challengeUI.summary([challenge('left',1,{member:false}),challenge('done',0,{self:{finished:true}})]),null);
 const summary=c.challengeUI.summary([challenge('later',5),challenge('soon',1)]);assert.equal(summary.count,2);assert.equal(summary.first.code,'soon');assert.equal(summary.progress,'2 / 4 days');
