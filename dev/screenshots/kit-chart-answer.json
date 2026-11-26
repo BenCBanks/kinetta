@@ -1,0 +1,61 @@
+{
+  "source": {
+    "kind": "fictional_chart_ui_fixture",
+    "commit": "1a949cef",
+    "test": "dev/tests/kit_chart_ui.cjs",
+    "release_gate": "Kit batch-2 must be live before website publication"
+  },
+  "question": "Show my average climb per run for the last three weeks.",
+  "answer": {
+    "answer_blocks": [
+      {
+        "kind": "paragraph",
+        "text": "Your recorded climb rose across these weeks so far."
+      }
+    ],
+    "interpretation": "Your recorded climb rose across these weeks so far.",
+    "facts": [],
+    "selection": null,
+    "actions": [],
+    "follow_ups": [],
+    "chart": {
+      "metric": "ascent",
+      "aggregate": "average",
+      "group_by": "week",
+      "sport": "run",
+      "period_count": 3,
+      "period_unit": "weeks",
+      "timezone": "America/New_York",
+      "start": "2026-11-10",
+      "end": "2026-11-26",
+      "axis_unit": "ft",
+      "workouts": 8,
+      "missing": 1,
+      "truncated": false,
+      "points": [
+        {
+          "start": "2026-11-10",
+          "plot_value": 125,
+          "display_value": "125 ft",
+          "n": 4,
+          "missing": 1
+        },
+        {
+          "start": "2026-11-17",
+          "plot_value": 171,
+          "display_value": "171 ft",
+          "n": 3,
+          "missing": 0
+        },
+        {
+          "start": "2026-11-24",
+          "plot_value": 200,
+          "display_value": "200 ft",
+          "n": 1,
+          "missing": 0,
+          "in_progress": true
+        }
+      ]
+    }
+  }
+}

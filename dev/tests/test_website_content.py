@@ -29,21 +29,21 @@ class CopyTests(unittest.TestCase):
   self.assertIn('assets/tour/challenge-detail-light.webp',home)
   self.assertIn('assets/tour/challenge-detail-dark.webp',home)
   self.assertNotRegex(home.lower(),r'private\s+by\s+default|free\s+during\s+beta')
- def test_kit_coach_uses_live_features_and_real_app_capture(self):
+ def test_kit_coach_uses_real_app_capture(self):
   home=(content.ROOT/'site/index.html').read_text()
   for text in ["Meet Kit, the coach that knows your training and your food.",
                "Any change it suggests waits for your OK.", "Review my week",
                "What should I focus on next?", "Suggest a meal from my saved foods.",
-               "For adults 18+. Kit is not medical advice.", "Tested Kit answer · fictional data"]:
+               "For adults 18+. Kit is not medical advice.", "Kit chart · fictional data"]:
    self.assertIn(text,home)
   self.assertIn('data-app-capture="kit-coach-answer"',home)
   for theme in ['light','dark']:
    for density in ['','-1x']:
-    asset=f'{theme}-kit-insight-progress{density}.webp'
+    asset=f'{theme}-kit-chart-progress{density}.webp'
     self.assertIn(asset,home)
     self.assertTrue((content.ROOT/'site/assets/shots'/asset).is_file())
   section=home.split('id="meet-kit"',1)[1].split('</section>',1)[0]
-  self.assertNotRegex(section.lower(),r'saved chats|memory|chart|data-demo')
+  self.assertNotRegex(section.lower(),r'saved chats|memory|data-demo')
   self.assertNotIn('data-week-chart',home)
   self.assertNotIn('Confirm lunch',home)
   self.assertNotIn('Lunch logged',home)
