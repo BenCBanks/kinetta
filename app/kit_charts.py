@@ -25,6 +25,43 @@ class ChartReference(Empty):
     evidence_id: str = Field(pattern=r'^e[1-9]\d*$')
 
 
+def request_arguments(arguments, question):
+    # One calendar week starts on Monday; an explicit past-week workout chart
+    # means the seven local dates ending today. Keep other requests untouched.
+    if (isinstance(arguments,dict) and arguments.get('group_by')=='workout'
+            and arguments.get('period_unit')=='weeks' and type(arguments.get('period_count')) is int and arguments['period_count']==1
+            and re.search(r'\bpast week\b',question or '',re.I)
+            and not re.search(r'\b(?:(?:this|calendar|previous|prior) week|compare|versus)\b',question or '',re.I)):
+        return {**arguments,'period_unit':'days','period_count':7}
+    return arguments
+
+
+def counted_records(prose, evidence):
+    # Bind spelled-out counts only to one complete current chart source. This
+    # does not make previous conversation or an unconsented source evidence.
+    words='zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
+    pattern=r'\b('+'|'.join(words)+r') (?:recorded|logged) (workouts?|sessions?|runs?|rides?|walks?|hikes?|swims?)\b'
+    records=[e for e in evidence if e.get('tool')==CHART_TOOL and 'error' not in e
+             and isinstance(e.get('data'),dict) and 'error' not in e['data']]
+    traces=[]
+    def replace(match):
+        if len(records)!=1:raise ValueError('Unverified recorded workout count')
+        record=records[0];data=record['data'];count=data.get('workouts')
+        sport={'run':'run','runs':'run','ride':'ride','rides':'ride','walk':'walk','walks':'walk',
+               'hike':'hike','hikes':'hike','swim':'swim','swims':'swim'}.get(match[2].casefold())
+        prefix=re.split(r'[.!?;]\s*',prose[:match.start()])[-1]
+        if (type(count) is not int or count<0 or data.get('truncated') is not False
+                or data.get('group_by')!='workout' or words.index(match[1].casefold())!=count
+                or sport is not None and sport!=data.get('sport')
+                or re.search(r'\b(?:no|not|never|fewer|more|less|previous|prior)\b',prefix,re.I)
+                or re.search(r'\b(?:over|under|at least|at most)\s*$',prefix,re.I)
+                or re.search(r'(?:\b(?:'+'|'.join(words)+r'|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)(?: and)?|[-–—‑])\s*$',prefix,re.I)):
+            raise ValueError('Unverified recorded workout count')
+        traces.append({'evidence_id':record['evidence_id'],'path':['workouts'],'relation':'equal'})
+        return 'recorded activity evidence'
+    return re.sub(pattern,replace,prose,flags=re.I),traces
+
+
 def chart_fact(data, path, value, units):
     if len(path) != 2 or path[0] != 'summary' or path[1] not in SUMMARY_FIELDS:
         raise ValueError('Unsupported measurement path')
@@ -72,9 +109,15 @@ def claim_evidence(sentence, evidence):
     return [{'evidence_id':ev['evidence_id'],'path':['summary','direction'],'relation':found[0]}]
 
 
-def checked_chart(answer, evidence, result, *, weekly_review=False):
+def checked_chart(answer, evidence, result, *, weekly_review=False, question=None):
     ref=answer.chart
-    if ref is None:return {}
+    if ref is None:
+        if (not weekly_review and re.search(r'\b(?:chart|graph|plot)\b',question or '',re.I)
+                and not re.search(r"\b(?:no|without|do not|don't) (?:a |the )?(?:chart|graph|plot)\b",question or '',re.I)
+                and any(e.get('tool')==CHART_TOOL and 'error' not in e
+                        and isinstance(e.get('data'),dict) and 'error' not in e['data'] for e in evidence)):
+            raise ValueError('Requested chart reference is missing')
+        return {}
     ev=next((e for e in evidence if e['evidence_id']==ref.evidence_id and 'error' not in e),None)
     if weekly_review or not ev or ev.get('tool')!=CHART_TOOL or 'error' in ev['data']:
         raise ValueError('Chart lacks permitted evidence')
