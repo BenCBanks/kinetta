@@ -3,7 +3,7 @@ import json
 import re
 from pydantic import ValidationError
 from typing import Literal
-from . import coach_chat
+from . import coach_chat, kit_charts
 
 Reason = Literal['numeric_unsupported','topic_unsupported','relation_unsupported','voice_invalid','health_claim']
 CODES = frozenset(Reason.__args__)
@@ -367,6 +367,9 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
                 if not absent_target and re.search(r'\b(?:you|your)\b',lower):raise ClaimRejected('relation_unsupported')
             for nutrient,field in (('sodium','sodium_mg'),('protein','protein_g'),('sugar','sugar_g'),('saturated fat','saturated_fat_g')):
                 if re.search(r'\b(?:no|missing|unknown) '+nutrient+r'\b',lower):require(nullable(field))
+            chart_proof=kit_charts.claim_evidence(sentence,evidence)
+            if chart_proof is not None:
+                traces.extend(chart_proof);continue
             previous=bool(re.search(r'\b(?:before|previous|preceding|prior)\b',lower))
             if re.search(r'\bno (?:recorded )?workouts?\b|\bnone were recorded before\b',lower):
                 period='previous' if previous else 'current'
