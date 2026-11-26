@@ -409,3 +409,7 @@ def edit_memory(memory_id:int,body:kit_memory.MemoryIn,user=Depends(current_user
     with db.connect() as c:
         locked(c,uid)
         return kit_memory.save(c,uid,body,memory_id)
+
+
+from .kit_goal_actions import router as goal_router
+router.include_router(goal_router)

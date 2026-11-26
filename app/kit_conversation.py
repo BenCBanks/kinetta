@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import Field, StrictStr
 from . import coach_chat
 from .coach_chat import Empty, Fact, Selection
+from .kit_goal_contract import GoalSelection, PROMPT, checked_selection
 
 _corrections = ContextVar('kit_corrections_enabled',default=True)
 
@@ -122,7 +123,7 @@ class ShortList(Empty):
 class ConversationAnswer(Empty):
     blocks: list[Paragraph | ShortList] = Field(min_length=1, max_length=10)
     facts: list[Fact] = Field(default_factory=list, max_length=8)
-    selection: Selection | None = None
+    selection: Selection | GoalSelection | None = None
     actions: coach_chat.Answer.model_fields['actions'].annotation = Field(default_factory=list, max_length=3)
     follow_ups: list[StrictStr] = Field(default_factory=list, max_length=2)
 
@@ -168,6 +169,9 @@ Do not promise unsupported readers/actions. Do not request unconsented data or i
 '''
 
 
+SYSTEM += PROMPT
+
+
 def has_blocks(raw):
     return isinstance(raw, dict) and 'blocks' in raw
 
@@ -202,11 +206,13 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
     for start in range(0, max(1, len(answer.facts)), 3):
         legacy = dict(verdict='Recorded values.', reason='These come from your records.',
                       facts=[f.model_dump() for f in answer.facts[start:start+3]],
-                      selection=answer.selection.model_dump() if answer.selection else None,
+                      selection=answer.selection.model_dump() if answer.selection and answer.selection.kind != 'goal' else None,
                       actions=answer.actions, follow_ups=answer.follow_ups)
         batch = coach_chat.checked_answer(legacy, evidence, kit=True)
         facts.extend(batch['facts'])
         checked = checked or batch
+    if isinstance(answer.selection, GoalSelection):
+        checked['selection'] = checked_selection(answer.selection, evidence, user_question(question))
     from . import kit_claims
     blocks = []
     source_texts=[]

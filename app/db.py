@@ -2471,6 +2471,12 @@ MIGRATIONS = [
       ELSE 'preference' END;""",
 
 
+    """
+    -- 122: typed, explicitly confirmed own activity-goal target proposals.
+    ALTER TABLE coach_proposals DROP CONSTRAINT coach_proposals_kind_check;
+    ALTER TABLE coach_proposals ADD CONSTRAINT coach_proposals_kind_check CHECK (kind IN ('plan','food','goal'));
+    """,
+
 ]
 
 

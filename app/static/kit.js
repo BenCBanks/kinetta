@@ -502,6 +502,12 @@ Object.assign(KitChat, (() => {
 })());
 route(/^\/me\/kit$/,()=>({nutrition:'food',activity:'activity',progress:'progress',track:'track',strength:'track'}[new URLSearchParams(location.search).get('from')]||'me'),el=>KitChat.mount(el));
 function kitReview(selection, options = {}) {
+  if(selection.kind==='goal'){
+    const owner=readOwner();
+    return loadClassicScript('/static/kit-goal-ui.js?v=__ASSET_HASH__')
+      .then(()=>{if(owner===readOwner())kitGoalReview(selection,options);})
+      .catch(e=>{if(owner===readOwner())toast(e.message);});
+  }
   const candidate = selection.candidate;
   sheet('Review proposed change', `<p class="small">Nothing changes until you confirm.</p>
     ${selection.kind === 'plan' ? `<p>${esc(candidate.reason)}</p>${candidate.changes.map((w) => `<div class="card"><b>${esc(w.title)}</b><p class="small">${esc(w.day)} · ${esc(w.detail)}</p></div>`).join('')}`
