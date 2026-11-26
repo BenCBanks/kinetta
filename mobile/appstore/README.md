@@ -18,6 +18,10 @@ Nothing here uploads, signs or submits an app. `listing-en-US.json` holds plain-
 
 Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-rating.md` and `review-notes.md` together. Unfilled placeholders deliberately block a submission-ready claim. The guarded reviewer CLI is implemented and passed its marked disposable integration. This preparation alone creates no production reviewer account; choosing a separate fictional review server and providing private credentials remain owner gates.
 
+## Current submission refresh (26 November 2026)
+
+Start with [submission-readiness.md](submission-readiness.md), the proposed [ten-scene screenshot plan](screenshots-plan.md) and [privacy-label changes](privacy-label-changes.md). They cover current Track, Notifications and Kit saved chats/memory/charts on main, while holding pending Groups claims. New Store scenes still need fixture/runner work and exact-bundle capture; no new screenshots or upload are claimed by the plan. The older eight-shot set below remains historical capture guidance, not evidence that its frames match today's app. The new plan takes priority for choosing the next set; Ben must approve the final order and assets.
+
 ## Native screenshot artifacts
 
 The current native runner defines this eight-shot, light-mode story in `dev/tests/native-ui/run.py` (`STORE_STAGES`): Home feed (`header-activity`), Activity detail (`activity`), Track ready (`header-track`), Nutrition day (`header-food`), Add food chat (`food`), Progress (`header-progress`), Me with three earned featured medals (`header-me`), and Friends feed (`friends-typical`). The Nutrition fixture shows 915 of 1,800 kcal across two fictional meals; Me's medals meet their catalog thresholds. When the native job finishes, review and attach the `appstore-6.9-fictional` artifact from that exact app bundle. The files remain workflow artifacts, not Git assets.

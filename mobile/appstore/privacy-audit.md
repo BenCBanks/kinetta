@@ -1,4 +1,4 @@
-# App Privacy — owner-review draft, 25 November 2026
+# App Privacy — owner-review draft, 26 November 2026
 
 Reviewed against this branch's source, not a production-data inspection. Enter matching answers for the submitted build and configured services in App Store Connect; changing this file or the bundled manifest does not do that. Apple defines collection as readable retention beyond serving a request, including partners. Optional core features still need disclosure. See [Apple's definitions](https://developer.apple.com/app-store/app-privacy-details/).
 
@@ -41,6 +41,10 @@ Group membership and available settings are stored on the server per account and
 The app persists selected signed-in screen responses locally for quick reopening/offline display. Each `fit.c:` entry is keyed to the server and numeric account ID; it contains only the response for its own API path (`app/static/app.js`, `KEEP`, `keep`, `kept`). Logout, account change, successful account deletion, and an expired-authentication response clear these entries and the in-memory screen cache. The cache is not sent to another service; it is a local copy of data already covered by the rows above, so this adds no collected-data category or purpose. The cleanup contract is covered by `dev/tests/test_async_reads.js`.
 
 The manifest includes this conservative inventory. Usage Data → Product Interaction is used for Analytics and linked to the user. Keep Analytics alongside App Functionality for User ID, Health and Fitness: aggregate feature reports can include counts derived from Health-sourced workouts and weight/food records. **Collection is enabled on the hosted service for all accounts, with no per-person opt-in or withdrawal control**; self-hosted operators choose their own setting. The live state was supplied by the owner and is not independently verified by this source review. Confirm the matching App Store Connect answers for the submitted build. Do not infer Apple approval or a consent exception from aggregation. See [review guidelines](https://developer.apple.com/app-store/review/guidelines/#health-and-health-research) and `docs/admin-features.md`.
+
+## Current submission delta (26 November 2026)
+
+[privacy-label-changes.md](privacy-label-changes.md) supersedes older temporary-chat assumptions and records the current linked/tracking/purpose answers, saved history versus separate memory retention/deletion, bounded provider context, charts and metrics. Broad categories above remain the full inventory. Older dated feature sections describe their source-time behavior; do not apply them to a pending Groups cutover or infer today's runtime switch. New UI/storage details do not themselves require a new manifest category. Health-derived analytics eligibility and actual partner practices remain owner release decisions.
 
 ## Optional iPhone contact matching
 
