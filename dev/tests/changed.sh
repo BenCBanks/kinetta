@@ -4,6 +4,10 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 BASE="${CHANGED_BASE:-origin/main}"
 group_order="core assets food social challenge-share activity-detail challenges track lift plan progress profile admin welcome hints community cards standalone"
+# Explicit path planning is independent of repository history. Diff-only focused
+# mappings are reserved for real changed-screen runs, which have a base ref.
+list_tests=0
+if [[ "${1:-}" == --list-tests ]]; then list_tests=1; fi
 
 caption_handoff_only() {
   local files expected patch edits line
@@ -26,7 +30,7 @@ caption_handoff_only() {
   for line in "${edits[@]}"; do [[ "$line" =~ (invitationCaption|ShareArt\.deliver|return\{create,createForm) ]] || return 1; done
 }
 caption_only=0
-if caption_handoff_only; then caption_only=1; fi
+if [[ $list_tests == 0 ]] && caption_handoff_only; then caption_only=1; fi
 
 detail_reaction_css_only() {
   local files path patch edits line added removed
@@ -46,7 +50,7 @@ detail_reaction_css_only() {
   done
 }
 detail_reaction_only=0
-if detail_reaction_css_only; then detail_reaction_only=1; fi
+if [[ $list_tests == 0 ]] && detail_reaction_css_only; then detail_reaction_only=1; fi
 
 login_css_only() {
   local files index_patch style_patch login_patch selector
@@ -60,7 +64,7 @@ login_css_only() {
   for selector in '-.login-recovery, .enrollment-email-links' '-.login-recovery a, .enrollment-email-links a' '-.login-recovery-status:empty, .resend-status:empty' '-.login-new {'; do grep -Fq -- "$selector" <<< "$style_patch" || return 1; done
 }
 login_css_only_change=0
-if login_css_only; then login_css_only_change=1; fi
+if [[ $list_tests == 0 ]] && login_css_only; then login_css_only_change=1; fi
 
 me_tools_css_only() {
   local files style_patch profile_patch removed added count
@@ -75,7 +79,7 @@ me_tools_css_only() {
   grep -Fq '.me-tools,.me-help-tools {' <<< "$added" || return 1
 }
 me_tools_css_only_change=0
-if me_tools_css_only; then me_tools_css_only_change=1; fi
+if [[ $list_tests == 0 ]] && me_tools_css_only; then me_tools_css_only_change=1; fi
 me_tools_mapping_active=0
 
 food_css_only() {
@@ -91,7 +95,7 @@ food_css_only() {
   [[ -n "$removed" && "$removed" == "$added" ]] || return 1
 }
 food_css_only_change=0
-if food_css_only; then food_css_only_change=1; fi
+if [[ $list_tests == 0 ]] && food_css_only; then food_css_only_change=1; fi
 food_css_mapping_active=0
 
 activity_import_css_only() {
@@ -106,7 +110,7 @@ activity_import_css_only() {
 }
 activity_import_css_only_change=0
 activity_import_css_mapping_active=0
-if activity_import_css_only; then activity_import_css_only_change=1; fi
+if [[ $list_tests == 0 ]] && activity_import_css_only; then activity_import_css_only_change=1; fi
 
 map_path() {
   local path="$1" patterns pattern group scenes
@@ -202,7 +206,6 @@ NODE
   fi
 }
 
-list_tests=0
 ui_shard="${CHANGED_UI_SHARD:-1/1}"
 [[ "$ui_shard" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] || { echo "CHANGED_UI_SHARD must be INDEX/COUNT" >&2; exit 2; }
 shard_index="${BASH_REMATCH[1]}"; shard_count="${BASH_REMATCH[2]}"
@@ -214,10 +217,10 @@ case "${1:-}" in
   "") ;;
   *) echo "Usage: changed.sh [--check-map|--check-files path ...|--list-tests path ...]" >&2; exit 2 ;;
 esac
-git rev-parse --verify "$BASE" >/dev/null || { echo "Missing $BASE; fetch origin main before checking changed screens." >&2; exit 2; }
 if [[ $list_tests == 1 ]]; then
   changed="$(printf '%s\n' "$@")"
 else
+  git rev-parse --verify "$BASE" >/dev/null || { echo "Missing $BASE; fetch origin main before checking changed screens." >&2; exit 2; }
   changed="$( { git diff --name-only --no-renames "$BASE...HEAD"; git diff --name-only --no-renames HEAD; git diff --name-only --cached --no-renames; git ls-files --others --exclude-standard; } | sort -u )"
 fi
 [[ -n "$changed" ]] || { echo "No changes from $BASE."; exit 0; }

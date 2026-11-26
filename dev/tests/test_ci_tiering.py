@@ -51,9 +51,13 @@ class CITieringTests(unittest.TestCase):
         def scheduled(paths, shard):
             result = subprocess.run(
                 ["bash", "dev/tests/changed.sh", "--list-tests", *paths], cwd=ROOT,
-                env={**os.environ, "CHANGED_UI_SHARD": shard}, text=True, capture_output=True,
+                # Backend checkouts need not fetch origin/main. Explicit paths must
+                # plan the same coverage even when no diff base is available.
+                env={**os.environ, "CHANGED_UI_SHARD": shard,
+                     "CHANGED_BASE": "refs/heads/zz_test_unavailable_ci_base"}, text=True, capture_output=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, "", "explicit path planning must not attempt Git diffs")
             return [line[4:] for line in result.stdout.splitlines() if line.startswith("UI: ")]
 
         all_paths = subprocess.check_output(["git", "ls-files", "app/static"], cwd=ROOT, text=True).splitlines()
