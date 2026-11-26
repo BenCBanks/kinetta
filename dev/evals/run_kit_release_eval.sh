@@ -16,7 +16,7 @@ while (($#)); do
     --replay) REPLAY=1; shift ;;
     --installed-report|--cache) OPTIONS+=("$1" "$2"); shift 2 ;;
     --dry-run) OPTIONS+=("$1"); shift ;;
-    *) echo 'Use --installed-report FILE [--replay|--dry-run|--full] [--cache CAPTURE (repeatable)] [--budget-usd USD (max1.60)]' >&2; exit 2 ;;
+    *) echo 'Use --installed-report FILE [--replay|--dry-run|--full] [--cache CAPTURE (repeatable)] [--budget-usd USD (max1.80)]' >&2; exit 2 ;;
   esac
 done
 if ((REPLAY)); then

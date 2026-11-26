@@ -87,3 +87,16 @@ assert chart['summary']['last'] is None and chart['summary']['change'] is None a
 assert chart['summary']['lowest']==3000
 assert sorted(r['distance_m'] for r in row['observed_context'][0]['fixture_records'])==[3000,5000,7000]
 print('Release review: 34 captured model replies accepted; false all-sport/daily + ambiguous sugar rejected; context/fallback/count/date/chart negatives PASS; 0 provider calls')
+
+# Grammar is applied after exact measurement validation, to paragraphs and lists alike.
+for source,expected in [('1 more workouts','1 more workout'),('2 more workout','2 more workouts'),
+    ('0 workouts','0 workouts'),('-1 fewer workouts','-1 fewer workout'),
+    ('1 recorded days','1 recorded day'),('2 entry','2 entries'),('1 entries','1 entry'),
+    ('1.5 workouts','1.5 workouts'),('12.1 workouts','12.1 workouts')]:
+    assert kit_weekly.count_grammar(source)==expected,(source,expected)
+row=rows['weekly-steady-prior']
+raw=dict(facts=[dict(evidence_id='e2',path=['change','workouts','absolute'],value=1)],
+         blocks=[dict(kind='list',items=['You logged {e2:0} more workouts.'])])
+result=coach_chat.checked_answer(raw,row['answer_evidence'],kit=True,weekly_review=True)
+assert '1 more workout' in result['interpretation'] and '1 more workouts' not in result['interpretation']
+print('Post-format count grammar: singular/plural and unchanged numbers PASS')
