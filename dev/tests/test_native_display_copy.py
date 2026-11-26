@@ -43,6 +43,22 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
         result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/early.js'),str(ROOT/'dev/tests/native-ui/appstore.cjs')],cwd=ROOT,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
 
+    def test_store_food_totals_and_homepage_privacy_match_the_fixture(self):
+        node=r"""const assert=require('node:assert/strict'),fixture=require(process.argv[1]);
+for(const homepage of [false,true]){
+  const r=fixture(homepage).responses,day=r['/api/food/day'],history=r['/api/food/history'][0];
+  for(const key of ['kcal','protein_g','carbs_g','fat_g']){
+    assert.equal(day.entries.reduce((sum,entry)=>sum+entry[key],0),day.totals[key]);
+    assert.equal(history[key],day.totals[key],'the history and daily screenshot show the same logged food');
+  }
+  assert.equal(r['/api/me'].protein_target,day.targets.protein_target);
+  assert.equal(r['/api/activities/1'].visibility,homepage?'me':'friends');
+  assert.equal(r['/api/activities/1/social'].visibility,homepage?'me':'friends');
+}"""
+        result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/appstore.cjs')],
+                              cwd=ROOT,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+
     def test_original_and_update_keep_fixture_isolation(self):
         with tempfile.TemporaryDirectory() as temp:
             source=Path(temp)/'Original.app';public=source/'public';static=public/'static';static.mkdir(parents=True)

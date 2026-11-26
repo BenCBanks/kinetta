@@ -4,6 +4,26 @@
   const cfg=globalThis.KinettaUIFixture;
   Native.autoSync=()=>Promise.resolve();Native.resumeFoodEntry=()=>Promise.resolve();
   if(cfg.store){Native.setBadge=()=>Promise.resolve();Native.haptic=()=>{};Challenges.resumeSignup=()=>Promise.resolve();}
+  if(cfg.store&&cfg.stage==='header-track'){
+    const style=document.createElement('style');
+    style.textContent='#track-ready-map-wrap{height:400px!important;min-height:400px!important;flex:none!important}#track-ready-map{height:100%!important;min-height:400px!important}#track-gps-chip:not([hidden]){display:block!important;padding:7px 12px!important;border:1px solid var(--line)!important;border-radius:999px!important;background:var(--card)!important;box-shadow:0 2px 10px #0002!important;color:var(--tx)!important}.track-sport-row{align-items:center!important}.track-sport-row #track-other{align-self:center!important;margin:0!important}';
+    (document.head||document.documentElement).append(style);
+  }
+  if(cfg.store&&cfg.stage==='header-food'){
+    const style=document.createElement('style');
+    style.textContent='.nutrition-day-summary{position:relative!important}.nutrition-day-summary>.nutrition-summary-tools{position:absolute!important;top:32px!important;right:8px!important;z-index:2!important;height:44px!important;margin:0!important}.nutrition-day-summary>.nutrition-summary-tools .nutrition-goals{width:44px;height:44px}.nutrition-day-summary>.nutrition-summary{align-items:flex-start!important;padding-top:0!important}.nutrition-day-summary .nutrition-macros{padding-top:64px!important}';
+    (document.head||document.documentElement).append(style);
+  }
+  if(cfg.store&&cfg.stage==='header-progress'){
+    const style=document.createElement('style');
+    style.textContent='#p-explore>[data-progress-feature="weight"]~[data-progress-feature]{display:none!important}';
+    (document.head||document.documentElement).append(style);
+  }
+  if(cfg.store&&cfg.stage==='food'){
+    const style=document.createElement('style');
+    style.textContent='.food-thread #thread-messages{align-content:end!important}.food-thread .thread-day{display:none!important}';
+    (document.head||document.documentElement).append(style);
+  }
   if(cfg.headerPage||cfg.store||cfg.groups){
     // Measure the real native layout without reading Health/GPS or registering alerts.
     Native.syncPush=()=>Promise.resolve();Native.healthOn=Native.foodHealthOn=async()=>false;Native.healthStatus=async()=>null;
@@ -34,7 +54,7 @@
         'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelector('.me-card-weekly .me-week')&&document.querySelector('.me-featured-achievements .profile-achievement[data-achievement-code]:nth-child(3)'),
         activity:()=>document.querySelector('[data-dt="charts"][aria-selected="true"]')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
         'header-track':()=>document.querySelector('#track-start')?.getAttribute('aria-label')==='Start run'&&!document.querySelector('#track-lap')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
-        'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915')&&document.querySelector('.calorie-ring[role="progressbar"][aria-valuenow="915"]'),
+        'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('1,200')&&document.querySelector('.calorie-ring[role="progressbar"][aria-valuenow="1200"]'),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('#p-explore[aria-busy="false"]')&&document.querySelector('[data-progress-fitness]')?.textContent.trim(),
         'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
@@ -77,14 +97,36 @@
     }
     throw Error('Store scene did not finish painting: '+cfg.stage);
   }
-  async function positionStoreCrop(){
-    const selector=cfg.stage==='header-me'?'.me-insights .me-insight:last-child':'#fd-copy',target=document.querySelector(selector),nav=document.querySelector('nav.tabs');
+  async function waitForStoreCrop(selector){
+    for(let n=0;n<100;n++){
+      const target=document.querySelector(selector),text=(target?.innerText??target?.textContent??'').trim();
+      const box=target?.getBoundingClientRect();
+      if(box?.width>0&&box.height>0&&text.includes('Heart rate'))return;
+      await new Promise(ok=>setTimeout(ok,50));
+    }
+    throw Error('Store crop anchor did not render: '+selector);
+  }
+  async function positionStoreCrop(selector){
+    const target=document.querySelector(selector),nav=document.querySelector('nav.tabs');
     if(!target||!nav)throw Error('Store crop anchor missing: '+selector);
     const before=target.getBoundingClientRect(),navTop=nav.getBoundingClientRect().top,delta=Math.max(0,before.bottom+12-navTop);
     if(delta)window.scrollTo(0,window.scrollY+delta);
     await new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)));
+    if(cfg.store&&typeof expandBottomNav==='function')expandBottomNav();
     const box=target.getBoundingClientRect(),tab=nav.getBoundingClientRect();
-    return{selector,text:target.innerText.trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
+    return{selector,text:(target.innerText??target.textContent??'').trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
+  }
+  async function frameStoreTrackMap(){
+    let wrap=null,container=null,ready=false;
+    for(let n=0;n<150;n++){
+      wrap=document.querySelector('#track-ready-map-wrap');
+      container=document.querySelector('#track-ready-map');
+      const box=wrap?.getBoundingClientRect(),tiles=container?.querySelectorAll('canvas.leaflet-tile-loaded');
+      if(wrap&&container?.classList.contains('leaflet-container')&&box?.width>0&&box.height>=250&&tiles?.length){ready=true;break;}
+      await new Promise(ok=>setTimeout(ok,100));
+    }
+    if(!ready)throw Error('Track Store map fixture did not render sized Leaflet tiles within 15 seconds');
+    const r=wrap.getBoundingClientRect();return{height:r.height,credit:!!container.querySelector('.leaflet-control-attribution')};
   }
   function storeActivityDiagnostics(){
     const box=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
@@ -146,6 +188,19 @@
     if(cfg.activity){let socialReady=false;for(let n=0;n<150;n++){const box=document.querySelector('#d-soc'),requested=cfg.requests.includes('/api/activities/1/social'),social=cfg.store?.responses?.['/api/activities/1/social']||cfg.activity.social,hasContent=social.cheers.length||social.comments.length;socialReady=!!box&&(requested||hasContent)&&(hasContent?!box.hidden:box.hidden);if(socialReady)break;await new Promise(ok=>setTimeout(ok,100));}if(!socialReady)throw Error('Owner activity empty-social state did not finish loading');}
     if(cfg.groups){document.querySelector('#group-empty-create')?.click();let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#group-create-form');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Groups create form did not open');}
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
+    let storeCrop=null;
+    let storeMapCrop=null;
+    if(cfg.store&&cfg.stage==='activity'){const selector='#d-charts .chartbox[data-chart-index="1"]';await waitForStoreCrop(selector);storeCrop=await positionStoreCrop(selector);}
+    if(cfg.store&&cfg.stage==='header-progress')storeCrop=await positionStoreCrop('#p-explore [data-progress-feature="weight"]');
+    if(cfg.store&&cfg.stage==='header-track')storeMapCrop=await frameStoreTrackMap();
+    if(cfg.store&&cfg.stage==='food'){
+      // Keep the title stable across food-context redraws in this screenshot-only fixture.
+      const host=document.querySelector('.food-thread'),label=host?.querySelector('#thread-context .thread-context-label');
+      if(host&&label){
+        const setToday=()=>{const current=host.querySelector('#thread-context .thread-context-label');if(current&&current.textContent!=='Today')current.textContent='Today';};
+        setToday();new MutationObserver(setToday).observe(host,{subtree:true,childList:true,characterData:true});
+      }
+    }
     if(cfg.stage==='review')finishDish(cfg.dish);
     if(cfg.stage==='achievement-share-track'){
       let runTab=null;for(let n=0;n<100;n++){runTab=document.querySelector('#profile-achievement-page[aria-busy="false"] [data-achievement-sport="run"]');if(runTab)break;await new Promise(ok=>setTimeout(ok,100));}if(!runTab)throw Error('Run achievement tab is missing');runTab.click();
@@ -164,6 +219,28 @@
     }
     await document.fonts.ready;await new Promise(ok=>setTimeout(ok,2000));
     if(cfg.store)await waitForStorePaint();
+    if(cfg.store&&cfg.stage==='activity'){
+      // The Store frame ends after the two reviewed series; keep later charts from peeking under the fixed tabs.
+      for(const chart of [...document.querySelectorAll('#d-charts .chartbox')].slice(2))chart.style.setProperty('display','none','important');
+      // Production styles use one accent fill for every series; tint each fixture area from its own line color.
+      for(const chart of document.querySelectorAll('#d-charts .chartbox')){
+        const area=chart.querySelector('.sample-area'),color=area?.nextElementSibling?.getAttribute('stroke');
+        if(area&&color){area.style.setProperty('fill',`color-mix(in srgb, ${color} 22%, var(--card))`,'important');area.style.setProperty('opacity','.22','important');}
+        for(const label of chart.querySelectorAll('svg .yl')){label.style.setProperty('paint-order','stroke','important');label.style.setProperty('stroke','var(--card)','important');label.style.setProperty('stroke-width','4px','important');label.style.setProperty('stroke-linejoin','round','important');}
+      }
+    }
+    if(cfg.store&&cfg.stage==='food'){
+      const label=document.querySelector('.food-thread #thread-context .thread-context-label');
+      if(label)label.textContent='Today';
+      const foods=[...document.querySelectorAll('.food-thread .thread-food')];
+      for(const [name,amount,kcal] of [['Oatmeal with blueberries','1 serving',500],['Chicken salad bowl','180 g',700]]){
+        const row=foods.find(item=>item.querySelector('strong')?.textContent.trim()===name);
+        if(!row)continue;
+        const detail=row.querySelector('.compact-food-meta .thread-amount')||row.querySelector('.tf-main small');if(detail)detail.textContent=name==='Chicken salad bowl'?'≈180 g · estimated portion':`${amount} · estimated portion`;
+        row.querySelector('.compact-food-meta .tf-source')?.remove();
+        const calories=row.querySelector('.tf-kcal');if(calories)calories.textContent=`≈ ${kcal} kcal`;
+      }
+    }
     if(cfg.activityFeed){let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#ff-list .post[data-href="/activity/1"]')&&!!document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Fictional own and friend Activity cards did not finish rendering');}
     // Route startup restores scroll on its next frame; exercise scrolling only once it has settled.
     if(cfg.stage==='activity-sticky'){document.querySelector('.dtabs').scrollIntoView({block:'start'});for(let n=0;n<150;n++){if(!document.querySelector('.detail-sticky').hidden&&document.querySelector('.detail-map-hero').getBoundingClientRect().bottom<=0)break;await new Promise(ok=>setTimeout(ok,100));}}
@@ -181,16 +258,18 @@
     for(let n=0;n<50&&!document.documentElement.classList.contains('native-display-ready');n++)await new Promise(ok=>setTimeout(ok,100));
     // Layout/display settling can replace tiles after the early paint check.
     if(cfg.store)await waitForStorePaint();
-    // Store scenes stay at the top of each page so the native safe-area header and full labelled nav are visible.
-    const storeCrop=null;
+    // Store scenes retain the safe-area header except the two deliberate content crops above.
     const nav=document.querySelector('nav.tabs'),navStyle=getComputedStyle(nav),navigation={
       ready:document.documentElement.classList.contains('native-display-ready'),visible:navStyle.display!=='none',box:rect('nav.tabs'),
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
     const field=document.querySelector('#thread-text'),fieldSize=field?{...rect('#thread-text'),scrollHeight:field.scrollHeight,clientHeight:field.clientHeight}:null;
     const featuredAchievements=cfg.stage==='header-me'?[...document.querySelectorAll('.me-featured-achievements .profile-achievement[data-achievement-code]')].map(item=>({code:item.dataset.achievementCode,box:rect(item)})):[];
+    const foodLastMessage=cfg.stage==='food'?rect('.food-thread #thread-messages article:last-child'):null,foodComposer=cfg.stage==='food'?rect('#thread-composer'):null;
     const headerSelector=cfg.stage==='track-review'?'.track-review-top':cfg.stage==='food'?'.thread-heading':'.top';
     if(cfg.startupTiming)cfg.startupTiming.metricsSnapshotPerfMs=performance.now();
-    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(headerSelector),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(photosSave?{photosSave}:{}),...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
+    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,storeMapCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(headerSelector),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(cfg.stage==='food'?{storeKitTitle:document.querySelector('.food-thread #thread-context .thread-context-label')?.textContent||'',storeKitDateDividers:[...document.querySelectorAll('.food-thread .thread-day')].filter(e=>getComputedStyle(e).display!=='none').length,storeKitGap:foodLastMessage&&foodComposer?foodComposer.y-foodLastMessage.bottom:999}:{}),...(photosSave?{photosSave}:{}),...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
+    if(cfg.store&&cfg.stage==='header-food')result.storeNutrition={card:rect('.nutrition-day-summary'),gear:rect('#fd-goal'),ring:rect('.calorie-ring-wrap'),protein:rect('[data-macro="protein_g"]')};
+    if(cfg.store&&cfg.stage==='activity')result.storeCharts=[...document.querySelectorAll('#d-charts .chartbox')].map(chart=>({name:chart.querySelector('.lbl>span:first-child')?.textContent.trim()||'',average:chart.querySelector('[data-chart-value]')?.textContent.trim()||'',yLabels:[...chart.querySelectorAll('.activity-chart-y-label')].map(label=>label.textContent.trim())}));
     if(cfg.stage==='achievement-share-track'){const tabs=[...document.querySelectorAll('[data-achievement-scope]')],preview=document.querySelector('[data-achievement-preview-image]'),send=document.querySelector('[data-achievement-share-send]');result.achievementShare={title:document.querySelector('.sheet header h2')?.textContent,tabs:tabs.map(tab=>({label:tab.textContent.trim(),selected:tab.getAttribute('aria-selected')})),preview:{loaded:!!preview?.complete&&preview.naturalWidth>0,alt:preview?.alt||'',width:preview?.naturalWidth||0,height:preview?.naturalHeight||0},sendText:send?.textContent.trim(),sendDisabled:send?.disabled};}
     if(cfg.groups){const fields=document.querySelector('.group-create-fields');result.groups={fields:{...rect('.group-create-fields'),clientWidth:fields.clientWidth,scrollWidth:fields.scrollWidth},date:rect('[data-group-create-date]'),name:rect('[name=title]'),grid:rect('[data-group-create-goal]'),footer:rect('.group-create-footer'),submit:rect('.group-create-footer button'),backgroundInert:!!nav.closest('[inert]'),navHit:document.elementFromPoint(nav.getBoundingClientRect().x+nav.clientWidth/2,nav.getBoundingClientRect().y+nav.clientHeight/2)?.closest('nav.tabs')===nav,hint:document.querySelector('[name=title]')?.placeholder,value:document.querySelector('[name=title]')?.value,labels:[...document.querySelectorAll('.group-create-fields>*')].map(row=>rect(row))};}
     if(cfg.headerPage){

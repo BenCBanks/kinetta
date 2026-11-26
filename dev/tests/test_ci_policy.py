@@ -142,11 +142,39 @@ class CIPolicyTests(unittest.TestCase):
         self.assertIn('cancel-in-progress: ${{ github.event_name != \'schedule\' && github.event_name != \'workflow_dispatch\' }}',ios)
         for name,next_name in (('build','native-ui'),('native-ui','store-ui'),('store-ui','testflight')):
             job=ios.split(f'\n  {name}:\n',1)[1].split(f'\n  {next_name}:\n',1)[0]
-            self.assertIn('github.event.pull_request.draft == false',job)
+            if name in ('build','store-ui'):
+                self.assertIn("needs.changes.outputs.store == 'true'",job)
+            else:
+                self.assertIn('github.event.pull_request.draft == false',job)
         self.assertIn("native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}",ios)
         self.assertIn('python3 dev/ci/policy.py',ios)
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping
         self.assertIn('RUN python -m app.asset_build app/static app/static',(ROOT/'Dockerfile').read_text())
+
+    def test_draft_store_preview_preserves_native_gate(self):
+        ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        def condition(name):
+            job=ios.split(f'\n  {name}:\n',1)[1].split('\n    runs-on:',1)[0]
+            expression=re.search(r'\n    if: (.*?)(?=\n    [^ ])',job+'\n    end:',re.S).group(1)
+            return ' '.join(expression.removeprefix('>-').split())
+        conditions={name:condition(name) for name in ('build','native-ui','store-ui')}
+        for event,draft,native,store,release in product(
+                ('pull_request','workflow_dispatch','schedule'),(True,False),
+                ('true','false'),('true','false'),('0','1')):
+            values={'github.event_name':event,'github.event.pull_request.draft':draft,
+                    'needs.changes.outputs.native':native,'needs.changes.outputs.store':store,
+                    'needs.changes.outputs.release':release}
+            expected={'build':native=='true' and (event!='pull_request' or not draft or store=='true')
+                      and (event!='schedule' or release=='1'),
+                      'native-ui':native=='true' and (event!='pull_request' or not draft),
+                      'store-ui':native==store=='true'}
+            for name,condition_text in conditions.items():
+                expression=condition_text.replace(' == false',' == False')
+                expression=re.sub(r'needs\.[\w.-]+|github\.[\w.]+',
+                                  lambda match:repr(values[match.group()]),expression)
+                expression=expression.replace('&&',' and ').replace('||',' or ')
+                self.assertEqual(eval(expression,{'__builtins__':{}},{}),expected[name],
+                                 (name,event,draft,native,store,release))
 
     def test_homepage_waits_for_its_uploaded_artifact_before_deploy(self):
         pages=(ROOT/'.github/workflows/pages.yml').read_text()
