@@ -2576,6 +2576,24 @@ MIGRATIONS = [
     DROP TRIGGER IF EXISTS users_keep_group_goal ON users;
     CREATE TRIGGER users_keep_group_goal BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION fit_keep_group_goal();""",
 
+    # 126. Resolve database privacy helpers through their canonical schema without changing their grants or policies.
+    """CREATE OR REPLACE FUNCTION public.fit_me() RETURNS bigint
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog, pg_temp
+      AS $$ SELECT id FROM public.users WHERE sql_role=session_user $$;
+    CREATE OR REPLACE FUNCTION public.fit_group_blocked(target bigint) RETURNS boolean
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog, pg_temp
+      AS $$ SELECT EXISTS(SELECT 1 FROM public.blocks
+        WHERE (user_id=public.fit_me() AND blocked=target) OR
+          (user_id=target AND blocked=public.fit_me())) $$;
+    CREATE OR REPLACE FUNCTION public.fit_group_challenge_access(target_group uuid, creator bigint) RETURNS boolean
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog, pg_temp AS $$
+      SELECT EXISTS(SELECT 1 FROM public.group_members m JOIN public.users u ON u.id=m.user_id
+        WHERE m.group_id=target_group AND m.user_id=public.fit_me() AND m.status='active'
+          AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND u.password_change_expires IS NULL
+          AND (creator IS NULL OR EXISTS(SELECT 1 FROM public.users a WHERE a.id=creator
+            AND NOT a.needs_email_confirm AND a.suspended_at IS NULL AND a.password_change_expires IS NULL
+            AND NOT public.fit_group_blocked(a.id)))) $$;""",
+
 ]
 
 
