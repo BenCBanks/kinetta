@@ -190,8 +190,8 @@ assert(css.includes('@media (max-width:350px)')&&css.includes('.kit-training-row
 assert(css.includes('.kit-suggested-reply {')&&css.includes('max-width:92%')&&css.includes('background:var(--accent2)')&&css.includes('color:var(--accent)')&&css.includes('border:0;'),'suggested replies are borderless brand bubbles within the message column');
 assert(css.includes('.food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2;'),'the narrow two-row food-chat layout does not move Ask Kit off its one-row navigation header');
 assert(!source.includes('id="kit-fine"')&&!source.includes('kit-footer-memory'),'Ask Kit has no provider or Memory footer');
-assert(source.includes('id="kit-memory-open">Memory</button>')&&source.includes("$('#kit-memory-open',body).onclick=()=>{close();memorySettings();};"),'Memory is reachable from the top-right menu');
-assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('Your chat stays while you switch apps. Start a new one anytime.')&&source.includes('providerName()'),'About Kit explains visit retention and keeps provider details');
+assert(source.includes('id="kit-memory-open"')&&source.includes('<span>Memory</span>')&&source.includes("$('#kit-memory-open',body).onclick=()=>{close();memorySettings();};"),'Memory is reachable from the top-right menu');
+assert(source.includes('id="kit-about-open"')&&source.includes('<span>About Kit</span>')&&source.includes('Your chat stays while you switch apps. Start a new one anytime.')&&source.includes('providerName()'),'About Kit explains visit retention and keeps provider details');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
 const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null,')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
 const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-older':{hidden:false}};

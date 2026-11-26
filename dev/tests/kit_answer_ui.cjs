@@ -188,8 +188,11 @@ async function main(){
    assert(Math.abs(emptyDock.viewport-emptyFieldBottom-8)<=1,`${width}px ${theme}: empty input uses the same 8px dock as answers`);
    await p.locator('#kit-settings').click();
    assert.equal(await p.locator('#kit-memory-open').innerText(),'Memory');
-   const menuRows=await p.locator('.kit-chat-menu > .linkbtn').evaluateAll(rows=>rows.map(row=>{const r=row.getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:r.height};}));
-   assert.equal(menuRows.length,3);assert(menuRows.every((row,i)=>row.height>=44&&(!i||row.top>=menuRows[i-1].bottom)),`${width}px ${theme}: menu actions are separate 44px rows`);
+   const menuRows=await p.locator('.kit-chat-menu > .row-link').evaluateAll(rows=>rows.map(row=>{const r=row.getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:r.height};}));
+   assert.deepEqual(await p.locator('.kit-chat-menu > .row-link').allTextContents(),['New chat','Memory','Kit & data permissions','About Kit']);
+   assert.equal(await p.locator('.kit-chat-menu > .row-link > svg').count(),4,'every menu row has an icon');
+   assert.equal(await p.locator('.sheet .sbody > p,.sheet .ghost').count(),0,'menu has no explainer or grey action button');
+   assert.equal(menuRows.length,4);assert(menuRows.every((row,i)=>row.height>=52&&(!i||row.top>=menuRows[i-1].bottom)),`${width}px ${theme}: menu actions are separate 52px rows`);
    await p.locator('#kit-about-open').click();assert.match(await p.locator('.sheet').innerText(),/Uses Google's Gemini/);
    await p.keyboard.press('Escape');
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-empty-${width}-${theme}.png`),animations:'disabled'});}
