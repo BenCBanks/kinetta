@@ -111,7 +111,7 @@ const Native = (() => {
 
   // ---------- Native iPhone notifications ----------
   const push = P.KinettaPush;
-  let pushTask = null, pushEnableTask = null, pushTokenTask = Promise.resolve(), pushStopping = false, pushPosted = null, pushPostedAt = 0, pushTokenRevision = 0, pushPostTask = Promise.resolve(), pushAccount = null, pushAt = 0;
+  let pushTask = null, pushEnableTask = null, pushTokenTask = Promise.resolve(), pushStopping = false, pushPosted = null, pushPostedAt = 0, pushTokenRevision = 0, pushPostTask = Promise.resolve(), pushAccount = null, pushAt = 0, pushAllowed = null;
   const pushOwner = () => App.me && JSON.stringify([N.base, App.me.id]);
   N.pushSupported = !!push;
   N.pushEntryBlocked = false;
@@ -209,9 +209,13 @@ const Native = (() => {
       await N.ready;
       const changedBuild = N.appBuild && (await get(pushBuildKey(account))) !== N.appBuild;
       if (account !== pushOwner() || token !== N.token || pushStopping) return;
-      if (!changedBuild && pushAccount === account && Date.now() - pushAt < 60000) return;
+      const st = await N.pushStatus();
+      if (account !== pushOwner() || token !== N.token || pushStopping) return;
+      // A Settings permission change must be seen even within the registration throttle.
+      const permissionChanged = st.allowed !== pushAllowed; pushAllowed = st.allowed;
+      if (!changedBuild && !permissionChanged && pushAccount === account && Date.now() - pushAt < 60000) return;
       pushAccount = account; pushAt = Date.now();
-      const st = await N.pushStatus(), wanted = st.enabled || (await get('push.wanted')) === account;
+      const wanted = st.enabled || (await get('push.wanted')) === account;
       if (account === pushOwner() && token === N.token && st.allowed && wanted) await N.registerPush();
     })().catch(() => { pushAt = 0; }).finally(() => { pushTask = null; });
     // First registration after an update precedes handling a notification or updating its badge.

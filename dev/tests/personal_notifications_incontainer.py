@@ -71,8 +71,38 @@ try:
     assert a.put(endpoint, json={'streak': True}).status_code == 400
     for body in [{'plan': 1}, {'weekly': 'true'}, {'streak': 'true'}, {'plan_time': '03:00'}, {'plan_time': '09:15'}, {'weekly': False, 'user_id': other}]:
         assert a.put(endpoint, json=body).status_code == 422
-    with patch.object(apns, 'ready', return_value=False):
-        assert a.put(endpoint, json={'weekly': True, 'confirmed': True}).status_code == 409
+    # Choices are independent of delivery setup; changing them never enrolls a phone or sends.
+    with db.connect() as c:
+        device = c.execute('SELECT * FROM native_push_devices WHERE user_id=%s', (uid,)).fetchone()
+    for registered in (False, True):
+        with db.connect() as c:
+            c.execute('DELETE FROM native_push_devices WHERE user_id=%s', (uid,))
+            if registered:
+                c.execute('INSERT INTO native_push_devices(token,environment,user_id,session_hash) VALUES(%s,%s,%s,%s)',
+                          (device['token'], device['environment'], uid, device['session_hash']))
+        for ready in (False, True):
+            with patch.object(apns, 'ready', return_value=ready), patch.object(apns, 'deliver', side_effect=AssertionError('Saving must not send')):
+                assert a.put(endpoint, json={'plan': False, 'weekly': False}).status_code == 200
+                result = a.put(endpoint, json={'plan': True, 'weekly': True, 'plan_time': '18:00', 'confirmed': True})
+                assert result.status_code == 200, result.text
+                saved = result.json()
+                assert saved['plan'] and saved['weekly'] and saved['plan_time'] == '18:00'
+                assert saved['push_ready'] == ready and saved['device_ready'] == registered
+                assert not b.get(endpoint).json()['plan'] and not b.get(endpoint).json()['weekly']
+                with db.connect() as c:
+                    assert c.execute('SELECT count(*) n FROM native_push_devices WHERE user_id=%s', (uid,)).fetchone()['n'] == int(registered)
+        # A due, eligible summary still cannot deliver or claim without a device/setup.
+        fid = food(uid, at.date() - dt.timedelta(days=1))
+        try:
+            with patch.object(apns, 'ready', return_value=False), patch.object(apns, 'deliver', side_effect=AssertionError('Setup is absent')):
+                assert M.tick(at) == 0
+            if not registered:
+                assert M.tick(at, send=lambda *_: (_ for _ in ()).throw(AssertionError('No registered device'))) == 0
+            with db.connect() as c:
+                assert not c.execute('SELECT 1 FROM personal_notification_attempts WHERE user_id=%s', (uid,)).fetchone()
+        finally:
+            with db.connect() as c:
+                c.execute('DELETE FROM food_entries WHERE id=%s', (fid,))
     with patch.object(apns, 'ready', return_value=True):
         assert a.put(endpoint, json={'weekly': True, 'confirmed': True}).status_code == 200
         first = b.get(endpoint).json()

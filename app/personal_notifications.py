@@ -78,8 +78,7 @@ def settings(body: Preference, user=Depends(current_user)):
             if value and (not cfg[key] or not cfg.get(key + '_after')):
                 if not body.confirmed:
                     raise HTTPException(400, 'Choose this notification explicitly before enabling it')
-                if key != 'streak' and (not apns.ready() or not device_ready(c, user['id'])):
-                    raise HTTPException(409, 'Turn on iPhone notifications after server setup is complete')
+                # Saving a choice is not device enrollment; the worker checks delivery readiness.
                 cfg[key + '_after'] = now
             cfg[key] = value
         if body.plan_time is not None and body.plan_time != cfg['plan_time']:

@@ -109,6 +109,13 @@ route(/^\/me\/notifications$/, 'me', async (el) => {
     const box = $('#nt-push', el); if (!box) return;
     pushCard(box, r);
   }, {maxAge: 0});
+  let refreshing=null;
+  const refreshPhone=()=>{
+    if(!Native.on||!active()||document.hidden||refreshing)return;
+    refreshing=(async()=>{await Native.pushNavigationReady;if(!active())return;const r=await api('/api/notifications');if(active())await pushCard($('#nt-push',el),r);})().catch(()=>{}).finally(()=>{refreshing=null;});
+  };
+  window.addEventListener('focus',refreshPhone);document.addEventListener('visibilitychange',refreshPhone);
+  viewResources.set(el,()=>{window.removeEventListener('focus',refreshPhone);document.removeEventListener('visibilitychange',refreshPhone);});
 });
 async function pushCard(box, r, message='') {
   if (!box) return;
@@ -143,7 +150,8 @@ async function pushCard(box, r, message='') {
     <p class="err" role="alert" id="np-error">${esc(message)}</p>`,alertTypes());
   const error=$('#np-error',box),on=$('#np-on',box),settings=$('#np-settings',box),retry=$('#np-retry',box);
   if(retry)retry.onclick=()=>{if(valid())pushCard(box,r);};
-  if(settings)settings.onclick=async()=>{if(!valid()||settings.disabled)return;settings.disabled=true;try{await Native.openPushSettings({enable:!!status.denied});}catch(x){if(valid())error.textContent=x.message;}finally{if(valid())settings.disabled=false;}};
+  // Opening Settings preserves prior enrollment intent, including an old in-app opt-out.
+  if(settings)settings.onclick=async()=>{if(!valid()||settings.disabled)return;settings.disabled=true;try{await Native.openPushSettings();}catch(x){if(valid())error.textContent=x.message;}finally{if(valid())settings.disabled=false;}};
   const phoneAction=(button,run)=>{
     if(!button)return;button.onclick=async()=>{
       if(!valid()||button.disabled)return;button.disabled=true;error.textContent='';
@@ -185,13 +193,14 @@ async function personalNotificationCard(box,message='',pushPreferences=null){
     const monthlySummary=box.personalPush.monthly_summary!==false;
     const web=!Native.on,expanded=(box.querySelector?.('details.personal-notifications')?.open??box.personalExpanded)===true;
     const savedRows=keys=>keys.map(k=>`<div class="switch-row saved-alert-row" data-saved-alert="${k}"><span>${esc(k==='milestones'?'Milestones':PUSH_NAMES[k])}</span><span class="muted">${box.personalPush[k]===true?'On':box.personalPush[k]===false?'Off':'Not set'}</span></div>`).join('');
-    const phoneSetup=unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':web?'For iPhone alerts, turn on notifications in the Kinetta iPhone app.':'Turn on iPhone notifications above.'}</p>`:'';
-    box.innerHTML=`<${web?'details':'section'} class="card personal-notifications${web?' chev-row':''}"${web&&expanded?' open':''}>${web?`<summary>Saved alert preferences</summary><h2>iPhone alerts</h2><p class="small muted">Change Social and Reminders in the iPhone app.</p><h3>Social</h3>${savedRows(['friends','cheers','comments','dishes'])}<h3>Reminders</h3>${savedRows(['activities','milestones','challenge_joins','challenge_reminders','challenge_finished'])}`:''}<h2>Training & progress</h2><p class="small muted">${web?'iPhone alerts':'Planned workouts, weekly summaries and streak reminders are off by default'} · ${esc(state.tz)}</p>
-      <div class="notification-choices"><div class="personal-notice-choice"><label class="switch-row"><span>Planned workouts<small>Only when a workout is still due.</small></span><input type="checkbox" role="switch" data-personal="plan"${state.plan?' checked':''}${unavailable&&!state.plan?' disabled':''}></label>
+    const phoneSetup=unavailable?'<p class="small muted">Your choices are saved. Alerts start when iPhone notifications are ready.</p>':'';
+    const savedTraining=web?['plan','plan_time','weekly','monthly'].map((key,i)=>{const labels=['Planned workouts','Reminder time','Weekly summary','Monthly summary'],value=key==='plan_time'?times.find(([time])=>time===state.plan_time)?.[1]||state.plan_time:(key==='monthly'?monthlySummary:state[key])?'On':'Off';return `<div class="switch-row saved-alert-row" data-saved-personal="${key}"><span>${labels[i]}</span><span class="muted">${esc(value)}</span></div>`;}).join(''):'';
+    box.innerHTML=`<${web?'details':'section'} class="card personal-notifications${web?' chev-row':''}"${web&&expanded?' open':''}>${web?`<summary>Saved alert preferences</summary><h2>iPhone alerts</h2><p class="small muted">Change push choices in the iPhone app.</p><h3>Social</h3>${savedRows(['friends','cheers','comments','dishes'])}<h3>Reminders</h3>${savedRows(['activities','milestones','challenge_joins','challenge_reminders','challenge_finished'])}`:''}<h2>Training & progress</h2><p class="small muted">${web?'iPhone alerts':'Planned workouts, weekly summaries and streak reminders are off by default'} · ${esc(state.tz)}</p>
+      ${web?savedTraining:`<div class="notification-choices"><div class="personal-notice-choice"><label class="switch-row"><span>Planned workouts<small>Only when a workout is still due.</small></span><input type="checkbox" role="switch" data-personal="plan"${state.plan?' checked':''}></label>
       ${state.plan?`<label class="personal-notice-time">Reminder time<select data-personal="plan_time">${times.map(([k,v])=>`<option value="${k}"${state.plan_time===k?' selected':''}>${v}</option>`).join('')}</select></label>`:''}</div>
-      <div class="personal-notice-choice"><label class="switch-row"><span>Weekly summary<small>Monday at 9 am.</small></span><input type="checkbox" role="switch" data-personal="weekly"${state.weekly?' checked':''}${unavailable&&!state.weekly?' disabled':''}></label></div>
-      <div class="personal-notice-choice"><label class="switch-row"><span>Monthly summary<small>On the first of the month at 9 am.</small></span><input type="checkbox" role="switch" data-monthly-summary${monthlySummary?' checked':''}${web&&unavailable&&!monthlySummary?' disabled':''}></label></div>
-      ${web?`</div>${phoneSetup}<h2>Bell reminder</h2><p class="small muted">Available on the web and iPhone.</p><div class="notification-choices">`:''}<div class="personal-notice-choice"><label class="switch-row"><span>Streak reminder<small>Friday at 6 pm · only if you have not logged a workout this week.</small></span><input type="checkbox" role="switch" data-personal="streak"${state.streak?' checked':''}></label></div></div>
+      <div class="personal-notice-choice"><label class="switch-row"><span>Weekly summary<small>Monday at 9 am.</small></span><input type="checkbox" role="switch" data-personal="weekly"${state.weekly?' checked':''}></label></div>
+      <div class="personal-notice-choice"><label class="switch-row"><span>Monthly summary<small>On the first of the month at 9 am.</small></span><input type="checkbox" role="switch" data-monthly-summary${monthlySummary?' checked':''}></label></div></div>`}
+      ${web?`<h2>Bell reminder</h2><p class="small muted">Available on the web and iPhone.</p>`:''}<div class="notification-choices"><div class="personal-notice-choice"><label class="switch-row"><span>Streak reminder<small>Friday at 6 pm · only if you have not logged a workout this week.</small></span><input type="checkbox" role="switch" data-personal="streak"${state.streak?' checked':''}></label></div></div>
       ${web?'':phoneSetup}
       ${state.plan||state.weekly||state.streak?'<p class="settings-footnote">Weekly summaries need a recent activity or food log. iPhone alerts may be delayed.</p>':''}
       <p class="small${error?' err':''}" role="status" data-personal-status>${esc(error)}</p></${web?'details':'section'}>`;
@@ -216,6 +225,7 @@ async function personalNotificationCard(box,message='',pushPreferences=null){
       }
     });
     const summaryInput=$('[data-monthly-summary]',box);
+    if(!summaryInput)return;
     summaryInput.onchange=async()=>{
       if(!valid()||summaryInput.disabled)return;
       const enabled=summaryInput.checked,focused=globalThis.document?.activeElement===summaryInput;

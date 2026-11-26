@@ -7,9 +7,10 @@ module.exports=async function nativeNotificationChecks(browser,{base,out}={}){
   // This endpoint saves choices independently of device registration/Apple permission.
   const existing=await(await login.request.get(base+'/api/notifications',{headers:{Authorization:'Bearer '+token}})).json();assert((await login.request.put(base+'/api/notifications/settings',{headers:{Origin:base,Authorization:'Bearer '+token},data:{cheers:existing.push.cheers}})).ok());
  }finally{await login.close();}
- const cases=[['enabled',true,false,true],['denied',false,true,false],['not-asked',false,false,false],['previously-off',true,false,false]];
+ const cases=[['enabled',true,false,true],['denied',false,true,false],['not-asked',false,false,false],['previously-off',true,false,false],['setup-pending',false,false,false]];
  for(const width of [390,330])for(const theme of ['light','dark'])for(const [name,allowed,denied,registered]of cases){
   const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true}),p=await c.newPage(),errors=[],unexpected=[],saved=[],posts=[];
+  const setupReady=name!=='setup-pending',personalSaves=[];let personal={plan:false,weekly:false,streak:false,plan_time:'08:00',tz:'UTC'};
   let push={friends:true,cheers:true,comments:false,dishes:true,activities:true,milestones:false,challenge_joins:true,challenge_reminders:true,challenge_finished:false,monthly_summary:false},deviceReady=registered,failSave=false;
   try{
    await c.addInitScript(({base,token,id,allowed,denied,registered})=>{
@@ -24,8 +25,8 @@ module.exports=async function nativeNotificationChecks(browser,{base,out}={}){
    await c.route('**/*',async r=>{
     const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();
     if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});
-    if(u.pathname==='/api/notifications')return r.fulfill({json:{items:[],unread:0,push_ready:true,push}});
-    if(u.pathname==='/api/notifications/personal')return r.fulfill({json:{plan:false,weekly:false,streak:false,plan_time:'08:00',tz:'UTC',push_ready:true,device_ready:deviceReady}});
+    if(u.pathname==='/api/notifications')return r.fulfill({json:{items:[],unread:0,push_ready:setupReady,push}});
+    if(u.pathname==='/api/notifications/personal'){if(q.method()==='PUT'){const change=q.postDataJSON();personalSaves.push(change);personal={...personal,...change};}return r.fulfill({json:{...personal,push_ready:setupReady,device_ready:deviceReady}});}
     if(u.pathname==='/api/notifications/settings'&&q.method()==='PUT'){saved.push(q.postDataJSON());if(failSave){failSave=false;return r.fulfill({status:503,json:{detail:'Fictional preference failure'}});}push={...push,...q.postDataJSON()};return r.fulfill({json:{push}});}
     if(u.pathname==='/api/push/ios'&&q.method()==='POST'){posts.push(q.postDataJSON());deviceReady=true;return r.fulfill({json:{ok:true}});}
     if(!['GET','HEAD'].includes(q.method())){unexpected.push(u.pathname);return r.fulfill({json:{}});}
@@ -34,7 +35,7 @@ module.exports=async function nativeNotificationChecks(browser,{base,out}={}){
    await p.goto(base+'/me/notifications');await p.locator('#np-kinds').waitFor();await p.locator('[data-monthly-summary]').waitFor();
    assert.equal(await p.locator('#np-off').count(),0,'there is no in-app all-off action');
    const choices=p.locator('#np-kinds input[role=switch]');assert.equal(await choices.count(),9);assert.equal(await p.locator('#np-kinds input:disabled').count(),0,'all saved types editable with any permission state');
-   assert(!(await p.locator('[data-monthly-summary]').isDisabled()),'monthly preference can be saved without phone permission');
+   assert.equal(await p.locator('[data-personal=plan]:disabled,[data-personal=weekly]:disabled').count(),0,'plan and weekly choices never depend on registration/setup');assert(!(await p.locator('[data-monthly-summary]').isDisabled()),'monthly preference can be saved without phone permission');
    assert.equal(await p.locator('#nt-personal [data-saved-alert]').count(),0,'read-only values are web only');
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`native-${name}-${width}-${theme}.png`),animations:'disabled'});await p.locator('#np-kinds input[name=challenge_finished]').evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));await p.screenshot({path:path.join(out,`native-${name}-types-${width}-${theme}.png`),animations:'disabled'});}
    await p.locator('#np-kinds input[name=cheers]').uncheck();await p.waitForFunction(()=>!document.querySelector('#np-kinds input[name=cheers]').disabled);assert(saved.some(v=>v.cheers===false));assert.equal(push.cheers,false);
@@ -42,8 +43,13 @@ module.exports=async function nativeNotificationChecks(browser,{base,out}={}){
    failSave=true;await p.locator('#np-kinds input[name=comments]').check();await p.locator('#np-error').filter({hasText:'Kinetta is having trouble'}).waitFor();assert(!(await p.locator('#np-kinds input[name=comments]').isChecked()));
    await p.evaluate(async()=>pushCard(document.querySelector('#nt-push'),await api('/api/notifications')));assert(!(await p.locator('#np-kinds input[name=cheers]').isChecked()),'saved type survives a status refresh');
    await p.locator('[data-monthly-summary]').check();await p.waitForFunction(()=>!document.querySelector('[data-monthly-summary]').disabled);assert.equal(push.monthly_summary,true);
+   for(const key of ['plan','weekly']){await p.locator(`[data-personal=${key}]`).check();await p.waitForFunction(()=>!document.querySelector('[data-personal=plan]').disabled);assert(personalSaves.some(v=>v[key]===true&&v.confirmed===true));}
+   await p.locator('[data-personal=plan_time]').selectOption('18:00');await p.waitForFunction(()=>!document.querySelector('[data-personal=plan_time]').disabled);assert.equal(personal.plan_time,'18:00');
    if(name==='enabled'||name==='denied'){
     assert.equal(await p.locator('#np-on').count(),0);await p.locator('#np-settings').click();assert.equal(await p.evaluate(()=>pushFixture.opens),1,'opens native Settings bridge');assert.equal(await p.evaluate(()=>pushFixture.registers.filter(Boolean).length),0,'opening Settings never asks iOS for permission');
+    if(name==='denied'){assert(!(await p.evaluate(()=>pushFixture.prefs['push.wanted'])),'plain Settings link never opts an old disabled phone in');await p.evaluate(()=>{pushFixture.allowed=true;pushFixture.denied=false;window.dispatchEvent(new Event('focus'));});await p.locator('#np-on').waitFor();assert.equal(posts.length,0,'granting Apple permission alone does not undo app opt-out');await p.locator('#np-on').click();await p.locator('#np-settings').waitFor();assert(await p.evaluate(async()=>(await Native.pushStatus()).enabled));}
+    else{const wanted=await p.evaluate(()=>pushFixture.prefs['push.wanted']);await p.evaluate(()=>{pushFixture.allowed=false;pushFixture.denied=true;window.dispatchEvent(new Event('focus'));});await p.locator('#nt-push').getByText('Allow Kinetta notifications in iPhone Settings.',{exact:true}).waitFor();await p.evaluate(()=>{pushFixture.allowed=true;pushFixture.denied=false;window.dispatchEvent(new Event('focus'));});await p.locator('#nt-push').getByText('Manage alerts for this iPhone in Settings.',{exact:true}).waitFor();assert.equal(await p.evaluate(()=>pushFixture.prefs['push.wanted']),wanted,'OS permission changes retain enrollment intent');}
+
    }else{
     assert.equal(await p.evaluate(()=>pushFixture.registers.length),0,'not asked/previously disabled stays unregistered until tap');
     await p.locator('#np-on').click();await p.locator('#np-settings').waitFor();assert.equal(await p.locator('#np-on').count(),0);assert.equal(await p.evaluate(()=>pushFixture.registers.filter(Boolean).length),1);assert(posts.length>0,'explicit enable posts the device again');assert(await p.evaluate(async()=>(await Native.pushStatus()).enabled),'old app-disabled phone can register with existing Apple permission');
