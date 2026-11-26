@@ -43,8 +43,9 @@ async function emulateSafeArea(route) {
   await route.fulfill({response, body: css});
 }
 // Feed media and activity-detail bar controls can cross the simulated status bar after scroll restoration.
+// Photo-only heroes are themselves full-bleed buttons: keep the image, disable its tap target for capture.
 async function hideIntersectingMediaControls(page) {
-  return page.evaluate(top => [...document.querySelectorAll('.media-photo-open, .media-controls [data-media-step], .detail-bar a, .detail-bar button')]
+  return page.evaluate(top => [...document.querySelectorAll('.media-photo-open, .media-controls [data-media-step], .detail-bar a, .detail-bar button, .detail-media button.media-photo[data-media-photo]')]
     .filter(el => {
       const r = el.getBoundingClientRect(), s = getComputedStyle(el);
       return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < top &&
@@ -52,8 +53,9 @@ async function hideIntersectingMediaControls(page) {
     })
     .map(el => {
       const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 48);
-      el.dataset.captureSafeHidden = 'true';
-      el.style.setProperty('visibility', 'hidden', 'important');
+      el.dataset.captureSafeHidden = el.matches('button.media-photo[data-media-photo]') ? 'photo' : 'control';
+      el.style.setProperty(el.dataset.captureSafeHidden === 'photo' ? 'pointer-events' : 'visibility',
+        el.dataset.captureSafeHidden === 'photo' ? 'none' : 'hidden', 'important');
       return label;
     }), TOP);
 }
@@ -292,7 +294,9 @@ async function closeCaptureContext(context) {
   for (const scheme of SCHEMES) {
     // Keep the browser's calendar day aligned with the screenshot fixture used for staging.
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: SCALE, colorScheme: scheme,
-      timezoneId: SCREENSHOT_CLOCK.timezone});
+      // Keep all CSS and fixture requests interceptable: an installed worker can
+      // serve unmodified cached CSS, bypassing the simulated safe-area rewrite.
+      timezoneId: SCREENSHOT_CLOCK.timezone, serviceWorkers: 'block'});
     let foodChatCtx = null, foodChatPage = null, foodRepeatCtx = null, foodRepeatPage = null;
     if(NEEDS_MAP){
       const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
@@ -784,8 +788,9 @@ async function closeCaptureContext(context) {
       await assertTopSafeControls(page, `${scheme}-${name}`, hiddenMediaControls);
       await page.evaluate(chrome, {dark: scheme === 'dark', width: W}); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
-      await page.evaluate(() => document.querySelectorAll('[data-capture-safe-hidden="true"]').forEach(el => {
-        el.style.removeProperty('visibility'); delete el.dataset.captureSafeHidden;
+      await page.evaluate(() => document.querySelectorAll('[data-capture-safe-hidden]').forEach(el => {
+        el.style.removeProperty(el.dataset.captureSafeHidden === 'photo' ? 'pointer-events' : 'visibility');
+        delete el.dataset.captureSafeHidden;
       }));
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
