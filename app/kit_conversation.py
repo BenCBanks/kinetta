@@ -248,6 +248,8 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         blocks.append({'kind':'paragraph','text':rendered[0]} if isinstance(block, Paragraph)
                       else {'kind':'list','items':rendered})
     texts = [text for block in answer.blocks for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
+    from . import kit_training_review
+    kit_training_review.checked_scope(source_texts, user_question(question))
     checks=kit_claims.validate(source_texts, facts, evidence, question=user_question(question), reference=REFERENCE, selection=checked['selection'], weekly_review=weekly_review)
     if weekly_review or re.search(r'\brecover(?:y|ing)?\b', user_question(question), re.I):
         blocks = coaching_wording(blocks, facts, evidence, weekly_review=weekly_review)
