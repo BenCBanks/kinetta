@@ -700,7 +700,8 @@ def _create_group(body, request, user, *, legacy_goal=True):
                              VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
                           (user['id'], body.title, body.event_date, body.time_zone, body.note, body.goal_type,
                            body.goal_target, body.goal_unit, body.goal_sports, start_date, body.training_for)).fetchone()
-        c.execute("INSERT INTO group_members(group_id,user_id) VALUES(%s,%s)", (group['id'], user['id']))
+        c.execute("INSERT INTO group_members(group_id,user_id,sharing_level) VALUES(%s,%s,%s)",
+                  (group['id'], user['id'], 'just_in' if legacy_goal else 'total_shared'))
         invite_url = _new_invite(c, group, request)
         if legacy_goal: group_challenges.seed_legacy(c, group['id'])
         return {**_answer(c, group, user['id']), 'invite_url': invite_url}

@@ -121,10 +121,14 @@ def create(group_id: UUID, body: ChallengeCreate, user=Depends(current_user)):
             start_date,end_date,time_zone,note,training_for) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT(id) DO NOTHING RETURNING *''',(body.id,group_id,user['id'],*definition.values())).fetchone()
         if not q: raise HTTPException(409,'Use a new challenge request')
-        c.execute('''INSERT INTO group_challenge_members(challenge_id,group_id,user_id,joined_at)
-            SELECT %s,group_id,user_id,joined_at FROM group_members WHERE group_id=%s AND status='active' ''',(q['id'],group_id))
+        # A new challenge must not enable sharing over either saved group/seeded opt-out.
+        c.execute('''INSERT INTO group_challenge_members(challenge_id,group_id,user_id,share_total,joined_at)
+            SELECT %s,m.group_id,m.user_id,m.sharing_level='total_shared' AND coalesce(s.share_total,true),m.joined_at
+            FROM group_members m LEFT JOIN group_challenges legacy ON legacy.legacy_group_id=m.group_id
+            LEFT JOIN group_challenge_members s ON s.challenge_id=legacy.id AND s.user_id=m.user_id
+            WHERE m.group_id=%s AND m.status='active' ''',(q['id'],group_id))
         # The existing group feed/bell reaches members, respects mute/blocks, and needs no new push channel.
-        text = f'New challenge: {q["title"]}. Sharing your total is on for this challenge. You can turn it off in the challenge.'
+        text = f'New challenge: {q["title"]}. Sharing is on unless you turned it off for this group. Change it in the challenge.'
         update = c.execute('INSERT INTO group_updates(group_id,user_id,text) VALUES(%s,%s,%s) RETURNING id',
                            (group_id,user['id'],text)).fetchone()
         G._group_notice_members(c,group_id,user['id'],'group_update',update_id=update['id'])
