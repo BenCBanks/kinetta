@@ -1,23 +1,37 @@
 // ---------- Notifications (2026-10-11, notify.py) ----------
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
-// (/me/notifications). /notifications lights no tab (it opens from several).
+// (/me/notifications). The inbox follows its entry tab, without becoming that tab’s saved root.
 const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts', milestones:'Milestones (at most one a day)',challenge_joins:'Someone joins your challenge',challenge_reminders:'Challenge reminders',challenge_finished:'Challenge finish pictures'};
-const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', group_invite:'people', cheer: 'cheer', group_update:'people', group_cheer:'cheer', group_monday_recap:'calendar', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', streak_reminder:'check', report: 'lock', monthly_summary:'calendar'};
-// One notification (2026-10-23, Ben: the list felt scrunched): the person's name in bold, a quoted comment on its own
-// quieter line, a short time, and a dot for new ones instead of tinted rows.
+const NOTE_ICON = {challenge_reminder:'trophy',challenge_join:'trophy',challenge_finished:'trophy',milestone:'trophy',friend_request: 'people', friend_accepted: 'people', group_invite:'people', cheer: 'cheer', group_update:'people', group_cheer:'cheer', group_monday_recap:'calendar', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', streak_reminder:'check', report: 'lock', monthly_summary:'calendar'};
+// Inbox copy is separate from push wording; old servers retain their original text.
 function noteRow(n) {
-  const name = n.who && n.who.name, text = String(n.text || '');
-  let lead = '', rest = text, quote = '';
-  if (name && rest.startsWith(name)) { lead = name; rest = rest.slice(name.length); }
-  const q = rest.match(/^([\s\S]*?):\s*"([\s\S]*)"$/); if (q) { rest = q[1]; quote = q[2]; }
+  const name = n.who && n.who.name, text = String(n.compact_text || n.text || '') + (n.detail ? ' · '+n.detail : '');
+  const leading = name && text.startsWith(name);
   const summary = n.kind === 'monthly_summary' && ['month','year'].includes(n.period_type) &&
     (n.period_type === 'month' ? /^\d{4}-\d{2}$/.test(n.period) : /^\d{4}$/.test(n.period));
   const summaryAttrs = summary ? ` data-summary-type="${n.period_type}" data-summary-period="${esc(n.period)}"` : '';
-  return `<a class="note${n.read ? '' : ' unread'}"${summaryAttrs} href="${esc(n.link)}">
-    <span class="note-dot${n.read ? ' is-read' : ''}"${n.read ? ' aria-hidden="true"' : ' aria-label="New"'}></span>
+  return `<a class="note${n.read ? '' : ' unread'}"${summaryAttrs} href="${esc(n.link)}" aria-label="${esc(text)}${n.read ? '' : '. New'}. ${esc(noteAgo(n.created))}">
     <span class="note-av">${avatar(n.who)}<span class="note-k" data-kind="${esc(n.kind)}">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
-    <span class="grow"><span class="note-t">${lead ? `<b>${esc(lead)}</b>` : ''}${esc(rest)}</span>${quote ? `<span class="note-q">“${esc(quote)}”</span>` : n.detail ? `<span class="note-q">${esc(n.detail)}</span>` : ''}</span>
-    <small class="note-time">${esc(noteAgo(n.created))}</small></a>`;
+    <span class="grow"><span class="note-t">${leading ? `<b>${esc(name)}</b>${esc(text.slice(name.length))}` : esc(text)}</span><small class="note-time">${esc(noteAgo(n.created))}</small></span></a>`;
+}
+// Same target, reaction, local date and read state only. The source count/read API stays unchanged.
+function groupNotificationReactions(items) {
+  const groups=new Map(),result=[];
+  for(const item of items){
+    if(item.kind!=='cheer'||!item.reaction_kind||!item.activity||!item.who?.login||!(item.compact_text||item.text||'').includes(' reacted ')){result.push(item);continue;}
+    const key=JSON.stringify([item.link,item.reaction_kind,notificationDayKey(item.created),!!item.read]);
+    const group=groups.get(key);
+    if(!group){const row={...item};groups.set(key,{row,actors:new Set([item.who.login])});result.push(row);continue;}
+    group.actors.add(item.who.login);
+    const others=group.actors.size-1;
+    if(others){
+      const first=group.row, prefix=first.compact_text||first.text;
+      const action=prefix.slice(prefix.indexOf(' reacted '));
+      // Only use the server's checked reaction wording; no parsing of arbitrary notices.
+      if(prefix.includes(' reacted '))first.compact_text=`${first.who.name} and ${others} other${others===1?'':'s'}${action}`;
+    }
+  }
+  return result;
 }
 function summaryOffset(type, period) {
   if (!App.me?.tz || !Recaps) return null;
@@ -52,14 +66,15 @@ function notificationDayGroups(items) {
   const today=notificationDayKey(new Date());
   return {today:items.filter(item=>notificationDayKey(item.created)===today),earlier:items.filter(item=>notificationDayKey(item.created)!==today)};
 }
-route(/^\/notifications$/, null, async (el) => {
-  const loadingRows=Array.from({length:3},()=>`<div class="note-loading" aria-hidden="true"><span class="sk note-loading-dot"></span><span class="sk note-loading-avatar"></span><span class="note-loading-copy"><span class="sk note-loading-line"></span><span class="sk note-loading-line note-loading-detail"></span></span><span class="sk note-loading-time"></span></div>`).join('');
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notifications</h1><div id="nt-list"><div class="notification-loading" role="status" aria-busy="true"><span class="vh">Loading notifications…</span><div class="card list notes notification-loading-card" aria-hidden="true">${loadingRows}</div></div></div>`;
-  wireBack(el, '/today');
+route(/^\/notifications$/, notificationEntryTab, async (el) => {
+  el.classList.add('notification-center');
+  const loadingRows=Array.from({length:3},()=>`<div class="note-loading" aria-hidden="true"><span class="sk note-loading-avatar"></span><span class="note-loading-copy"><span class="sk note-loading-line"></span><span class="sk note-loading-line note-loading-detail"></span></span></div>`).join('');
+  el.innerHTML = `<div class="top">${backBtn('Home')}</div><h1>Notifications</h1><div id="nt-list"><div class="notification-loading" role="status" aria-busy="true"><span class="vh">Loading notifications…</span><div class="notes notification-loading-card" aria-hidden="true">${loadingRows}</div></div></div>`;
+  wireBack(el, '/activity');
   await load('/api/notifications', (r) => {
     const list = $('#nt-list', el); if (!list) return;
-    const group = (title, items) => items.length ? `<section class="notes-group">${title ? `<h2 class="notes-h">${title}</h2>` : ''}<div class="card list notes">${items.map(noteRow).join('')}</div></section>` : '';
-    const days=notificationDayGroups(r.items);
+    const group = (title, items) => items.length ? `<section class="notes-group">${title ? `<h2 class="notes-h">${title}</h2>` : ''}<div class="notes">${items.map(noteRow).join('')}</div></section>` : '';
+    const days=notificationDayGroups(groupNotificationReactions(r.items));
     list.innerHTML = r.items.length ? group('Today',days.today) + group('Earlier',days.earlier)
       : `<p class="notifications-caught-up">You're all caught up</p>`;
     $$('[data-summary-period]',list).forEach(link=>link.addEventListener('click',event=>{

@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app/static/social-notifications.js','utf8');let owner='a',requests=[],fields=[],status={},retry={};
-const context={readOwner:()=>owner,api:(path,options)=>new Promise((resolve,reject)=>requests.push({path,options,resolve,reject})),esc:String,skel:()=>'',Native:{on:false,haptic(){}},json:(method,body)=>({method,body}),route(){},$:selector=>selector==='button'?retry:status,$$:()=>fields};
+const context={readOwner:()=>owner,api:(path,options)=>new Promise((resolve,reject)=>requests.push({path,options,resolve,reject})),esc:String,skel:()=>'',Native:{on:false,haptic(){}},json:(method,body)=>({method,body}),notificationEntryTab:()=>'activity',route(){},$:selector=>selector==='button'?retry:status,$$:()=>fields};
 vm.createContext(context);vm.runInContext(source,context);
 const state={plan:false,weekly:false,streak:false,plan_time:'08:00',tz:'UTC',device_ready:true,push_ready:true};
 const resetFields=()=>{fields=['plan','weekly','plan_time','streak'].map(key=>({dataset:{personal:key},type:key==='plan_time'?'select-one':'checkbox',value:state.plan_time,checked:false,disabled:false}));status={textContent:''};};
