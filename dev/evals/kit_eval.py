@@ -72,7 +72,7 @@ if args.batch2:
    baseline_source_tree=os.environ.get('KINETTA_KIT_BASELINE_COMMIT'),
    feature_coverage={'history':'real saved-thread resume','memory':'real memory context',
    'goals':'preview only; confirmation tested offline','streaming':'offline transport tests',
-    'charts':'supported distance chart from own fictional records; baseline may decline',
+    'charts':'supported distance chart and automatic six-week training totals from own fictional records; baseline may decline',
     'contextual_coaching':'included; saved/current context and explicit memory override'})
 reused=[]
 if args.gate and not args.setting_smoke:

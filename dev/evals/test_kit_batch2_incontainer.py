@@ -55,6 +55,13 @@ def main():
                     elif case[3].get('memory'):assert case[3]['memory'] in question
                     if case[0]=='batch2-current-overrides-memory':
                         assert question.endswith('Question: '+case[1]) and 'Sunday only' in question
+                    if case[3].get('training_records'):
+                        assert len(context[0]['fixture_records'])==3
+                        if variant=='candidate':
+                            chart=answer['chart']
+                            assert chart['presentation']=='weekly_totals' and len(chart['points'])==6
+                            assert sorted(p['value'] for p in chart['points'] if p['value'] is not None)==[3000,5000,7000]
+                            assert chart['summary']['overall']==15000
                     if case[0]=='batch2-chart-distance':
                         assert [r['distance_m'] for r in context[0]['fixture_records']]==[3000,5000,7000]
                         if variant=='candidate':

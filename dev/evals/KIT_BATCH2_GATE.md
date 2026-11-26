@@ -1,8 +1,11 @@
 # Batch-two evaluation handoff
 
-Run from this evaluation Draft, stacked on combined batch-two source `666d5a9c`
-with context/chart integration included. Do not edit the integration worktree. This changes dev tooling only. The wrapper pins the app bytes and Kit text of that source (ledger-only additions allowed);
-the evaluator also records the exact current HEAD. Do not change the candidate mid-run.
+Run from the frozen `kit-coach-batch-2` branch, rebased onto main including weekly fallback #1579.
+The candidate app pin is `5953ec685598de4e4924aaf0f26c23d912578a35`; the final evaluator HEAD is recorded separately.
+It includes history/memory/goals, checked streaming, contextual next steps, conversational charts,
+scoped gate regressions #1580, checked ordinary recovery, supported warm coaching and the approved
+weekly total bars with client declutter #1586. Do not change the candidate mid-run.
+The wrapper pins app bytes and Kit text; ledger-only additions are allowed.
 
 The baseline is live **ba8e9500049f25b2cb769d09a25d99fc4cb198c1**. The wrapper extracts
 its entire app tree, verifies the installed report's pinned SHA256 and matching
@@ -32,7 +35,7 @@ Each variant gets a fresh account for new cases; goal previews never confirm wri
 
 Paid selection: 31 retained regression cases (including all ten weekly and all
 privacy/medical cases), plus nine fixed saved-history/resume, correction, memory
-use/off, explicit goal preview, ambiguous goal, specific next-step, current-message
+use/off, explicit goal preview, ambiguous goal, training review with a specific next-step, current-message
 overrides of older memory/history, and a supported distance chart request. Human review must judge semantics; a non-null answer is not quality.
 Charts #1540 and contextual-coaching #1567 are **included** in this final batch.
 The chart case seeds own manual runs 3/5/7 km, six/four/two days ago, each with
@@ -43,7 +46,11 @@ The explicit override case supplies older running/Tuesday/Saturday statements bu
 asks for cycling on Sunday now. Require the current request to win without
 changing the saved running goal. Review that conflict, rather than rewarding
 a remembered detail merely being repeated. Optional clarification must be useful.
-Source pin: Kit text `2eb2b4bc9c8f…`, Gemini Flash release `17db21110c18…`.
+The existing `batch2-next-step` case now asks “Review my training” with saved goal/routine
+context and manual runs in three distinct measured weeks. Candidate must attach six-week total
+bars with exactly 15,000 m recorded across those weeks; the baseline may omit its unsupported
+card. Thus all 40 regression cases and ten weekly/safety cases remain covered.
+Source pin: Kit text `15e6c988b4d5…`, Gemini Flash release `3cadff0fd1bc…`.
 
 Offline rubric/replay:
 
@@ -73,7 +80,7 @@ paid interrupted/rejected rows and accumulated spend; no automatic paid retries.
 An explicit `--retry-case ID` only replaces a failed paid candidate row. Changed
 candidate/fixtures/dates refuse reuse; old installed answers are not a matching cache.
 
-Expect **$1.35–$1.85 for 80 responses**, based on the last gate's $1.176/153 requests;
+Expect **$1.40–$1.95 for 80 responses**, based on the last gate's $1.176/153 requests;
 the added context/chart prompt and chart tool turn increase input/call cost. This is
 a planning range, not a new paid measurement; corrections can cost more. Conservative preflight plans $2.00 + $0.30
 reservation headroom; hard stop **$2.50 including resumed spend**, 1000-attempt caps,

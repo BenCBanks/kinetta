@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from kit_batch2_cases import BATCH2_CASES, EXTRA, chart_records, required_shape
+from kit_batch2_cases import BATCH2_CASES, EXTRA, chart_records, training_records, required_shape
 from kit_batch2_pin import LIVE, verify, verify_candidate, CANDIDATE_TEXT
 from kit_gate_resume import identity
 from test_kit_gate import KitGatePreflight
@@ -50,6 +50,20 @@ class Batch2Gate(KitGatePreflight):
         self.assertIsNone(required_shape('batch2-chart-distance','baseline',{'interpretation':'No chart'}))
         chart['points'][1]['value']=99999
         self.assertIsNotNone(required_shape('batch2-chart-distance','candidate',{'chart':chart}))
+
+    def test_training_next_step_requires_three_measured_weeks_and_app_card(self):
+        import datetime as dt
+        for day in range(23,30):
+            records=training_records(dt.date(2026,11,day))
+            dates=[dt.date.fromisoformat(r['start_time'][:10]) for r in records]
+            self.assertEqual(len({d-dt.timedelta(days=d.weekday()) for d in dates}),3)
+        chart=dict(presentation='weekly_totals',metric='distance',aggregate='sum',group_by='week',sport='all',
+                   summary={'overall':15000},points=[{'value':v} for v in [7000,None,5000,None,3000,None]])
+        self.assertIsNone(required_shape('batch2-next-step','candidate',{'chart':chart}))
+        self.assertIsNotNone(required_shape('batch2-next-step','candidate',{'interpretation':'No chart'}))
+        self.assertIsNone(required_shape('batch2-next-step','baseline',{'interpretation':'No chart'}))
+        chart['points'][0]['value']=99999
+        self.assertIsNotNone(required_shape('batch2-next-step','candidate',{'chart':chart}))
 
     def test_candidate_pin_checks_final_source_and_rejects_app_delta(self):
         from unittest.mock import patch
