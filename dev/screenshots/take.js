@@ -11,6 +11,7 @@ const SCREENSHOT_CLOCK = require('./fixture-time.json');
 const OWNER_LOGIN = process.env.KINETTA_SCREENSHOT_FIXTURE === '1' ? 'nia' : 'alex';
 // name, address, and optionally a card title to scroll to, or something to do first
 const SHOTS = require('./scenes.json');
+const KIT_COACH_EXAMPLE = require('./kit-coach-answer.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const MAP_SHOTS = new Set(['home-feed','activity-detail','feed','activity','activity-splits','route']);
@@ -365,13 +366,8 @@ async function closeCaptureContext(context) {
           const visit_id = url.searchParams.get('visit_id');
           return route.fulfill({json: {generation: '00000000-0000-4000-8000-000000001049', visit_id, before: null, ready: true,
             messages: [{id: 1, client_id: '1049-progress-insight', generation: '00000000-0000-4000-8000-000000001049', visit_id,
-              question: 'What should I focus on next?', context: {screen: 'progress'}, state: 'answered', error: null,
-              answer: {interpretation: "Keep the next run easy and make a meal you can repeat.",
-                answer_blocks: [
-                  {kind: 'paragraph', text: 'You logged 3 runs covering 12.4 mi this week. Keep the next run easy and make a meal you can repeat.'},
-                  {kind: 'list', items: ['Training: give yourself an easy day before another hard session.', 'Food: your saved lentil bowl is one simple option for your next meal.']},
-                  {kind: 'paragraph', text: "Your food log doesn't cover every day, so I can't judge the whole week's intake."}
-                ], facts: [], actions: [], follow_ups: []}, created: '2026-11-13T14:00:00Z'}]}});
+              question: KIT_COACH_EXAMPLE.question, context: {screen: 'progress'}, state: 'answered', error: null,
+              answer: KIT_COACH_EXAMPLE.answer, created: '2026-11-13T14:00:00Z'}]}});
         }
         if (request.method() === 'POST' && url.pathname.endsWith('/end')) return route.fulfill({json: {ok: true}});
         return route.fulfill({status: 404, json: {detail: 'Unneeded screenshot fixture request.'}});
@@ -602,8 +598,10 @@ async function closeCaptureContext(context) {
         await page.getByText('Vegetables and rice', {exact: true}).waitFor({state: 'visible'});
       }
       if (kitInsightFixture) {
-        await page.locator('#kit-messages .kit-answer').filter({hasText: 'You logged 3 runs'}).waitFor({state: 'visible'});
-        if (await page.locator('.kit-answer-blocks p').count() !== 2 || await page.locator('.kit-answer-blocks li').count() !== 2) throw Error('Kit example must use the real paragraph/list renderer.');
+        await page.locator('#kit-messages .kit-answer').filter({hasText: KIT_COACH_EXAMPLE.answer.answer_blocks[0].text}).waitFor({state: 'visible'});
+        const actual = await page.locator('.kit-answer-blocks > p,.kit-answer-blocks > ul').allInnerTexts();
+        const expected = KIT_COACH_EXAMPLE.answer.answer_blocks.map(block => block.kind === 'paragraph' ? block.text : block.items.join('\n'));
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) throw Error('The tested Kit answer must render verbatim.');
         if ((await page.locator('#kit-status').innerText()).trim()) throw Error('Kit insight screenshot should not show a stale-chat warning.');
       }
       if(name==='activity'||name==='activity-detail'){

@@ -34,7 +34,7 @@ class CopyTests(unittest.TestCase):
   for text in ["Meet Kit, the coach that knows your training and your food.",
                "Any change it suggests waits for your OK.", "Review my week",
                "What should I focus on next?", "Suggest a meal from my saved foods.",
-               "For adults 18+. Kit is not medical advice.", "Current app screen · fictional example answer"]:
+               "For adults 18+. Kit is not medical advice.", "Tested Kit answer · fictional data"]:
    self.assertIn(text,home)
   self.assertIn('data-app-capture="kit-coach-answer"',home)
   for theme in ['light','dark']:

@@ -75,7 +75,7 @@ Suggest a meal from my saved foods.
 
 ## home-kit-example-caption
 
-Current app screen · fictional example answer
+Tested Kit answer · fictional data
 
 ## home-kit-small-print
 

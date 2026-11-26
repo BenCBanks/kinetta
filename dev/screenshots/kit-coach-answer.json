@@ -1,0 +1,37 @@
+{
+  "source": {
+    "kind": "evaluated_fictional_candidate",
+    "case": "weekly-steady-prior",
+    "commit": "6c64971cdf822e0f6e629efd9acf59f6b4e0d19b"
+  },
+  "question": "Review my week",
+  "answer": {
+    "answer_blocks": [
+      {
+        "kind": "paragraph",
+        "text": "You logged more workouts and increased your recorded distance and moving time compared with the week before."
+      },
+      {
+        "kind": "paragraph",
+        "text": "Your recorded training time rose, but food logging was incomplete with several days left unlogged, leaving full weekly intake and nutrition totals unknown."
+      },
+      {
+        "kind": "paragraph",
+        "text": "A practical next step is to aim for logging meals on each finished day to give an accurate picture of your fueling."
+      }
+    ],
+    "interpretation": "You logged more workouts and increased your recorded distance and moving time compared with the week before.\n\nYour recorded training time rose, but food logging was incomplete with several days left unlogged, leaving full weekly intake and nutrition totals unknown.\n\nA practical next step is to aim for logging meals on each finished day to give an accurate picture of your fueling.",
+    "facts": [],
+    "selection": null,
+    "actions": [],
+    "follow_ups": [
+      "How can I log meals consistently?",
+      "What workouts are scheduled next?"
+    ],
+    "weekly_period": {
+      "start": "2026-11-18",
+      "end": "2026-11-24",
+      "label": "Nov 18–24, 2026"
+    }
+  }
+}
