@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from kit_eval_savings import FIXTURE_DATE,plan,reuse,require_receipt,SMOKE_IDS,case_keys,require_baseline
+from kit_eval_savings import FIXTURE_DATE,plan,reuse,require_receipt,SMOKE_IDS,case_keys,require_baseline,release_spending
 from kit_fixture_clock import INSTANT,Date,DateTime,install
 
 
@@ -43,13 +43,43 @@ class Savings(unittest.TestCase):
         self.assertAlmostEqual(plan([],40,.8)['expected_cost_usd'],.72)
         with self.assertRaises(ValueError):plan([],80,.8)
         with self.assertRaises(ValueError):plan([],40,.8,.1)
-        for n in (float('nan'),float('inf'),-.1,1):
+        for n in (float('nan'),float('inf'),-.1,1.61):
             with self.assertRaises(ValueError):plan([],40,n)
         self.assertEqual(len(set(SMOKE_IDS)),10)
 
     def test_paid_smoke_requires_cached_live_rows_so_bootstrap_is_not_bought_twice(self):
         require_baseline(self.cached(),['meal'])
         with self.assertRaises(ValueError):require_baseline([],['meal'])
+
+    def test_dev_only_resume_counts_bootstrap_and_smoke_once(self):
+        self.report.update(candidate_commit='a'*40,economy_stage='baseline',economy_paid_runs={'bootstrap':.582174})
+        self.path.write_text(json.dumps(self.report))
+        smoke=Path(self.temp.name)/'smoke.json'
+        smoke.write_text(json.dumps({**self.report,'economy_stage':'smoke',
+            'economy_paid_runs':{'bootstrap':.582174,'smoke':.208383}}))
+        with patch('kit_eval_savings.subprocess.run') as git:
+            git.return_value.returncode=0
+            paid=release_spending(Path('.'),[self.path,smoke],self.keys)
+            self.assertEqual(paid,{'bootstrap':.582174,'smoke':.208383})
+            result=plan([{}]*50,80,1.60,sum(paid.values()))
+            self.assertEqual(result['responses_remaining'],30)
+            self.assertAlmostEqual(result['expected_cost_usd'],.54)
+            self.assertAlmostEqual(result['expected_release_cost_usd'],1.330557)
+            with self.assertRaises(ValueError):plan([{}]*50,80,.80,sum(paid.values()))
+            git.return_value.returncode=1
+            self.assertEqual(release_spending(Path('.'),[self.path,smoke],self.keys),{})
+            git.return_value.returncode=0
+            self.assertEqual(release_spending(Path('.'),[self.path],{'candidate':{'meal':'changed'}}),{})
+
+    def test_conflicting_or_invalid_cost_refuses(self):
+        self.report.update(candidate_commit='a'*40,economy_paid_runs={'run':.5})
+        self.path.write_text(json.dumps(self.report))
+        other=Path(self.temp.name)/'other.json'
+        with patch('kit_eval_savings.subprocess.run') as git:
+            git.return_value.returncode=0
+            for cost in (.6,-1,float('nan'),True):
+                other.write_text(json.dumps({**self.report,'economy_paid_runs':{'run':cost}}))
+                with self.assertRaises(ValueError):release_spending(Path('.'),[self.path,other],self.keys)
 
     def test_missing_or_wrong_head_receipt_refuses(self):
         with self.assertRaises(FileNotFoundError):require_receipt(self.path,Path('.'))
