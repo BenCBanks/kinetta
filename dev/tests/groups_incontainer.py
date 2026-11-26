@@ -1599,7 +1599,8 @@ class GroupChallengeCompatibility(unittest.TestCase):
                       (group['id'], self.ids[1]))
             c.execute('UPDATE group_challenge_members SET share_total=true WHERE group_id=%s AND user_id=%s',
                       (group['id'], self.ids[0]))
-            c.execute('DELETE FROM schema_version WHERE version=%s', (version,))
+            # Later migrations must be replayable too: the runner resumes after the highest version.
+            c.execute('DELETE FROM schema_version WHERE version>=%s', (version,))
             patches.enter_context(patch.object(db, 'connect', side_effect=lambda: nullcontext(c)))
             patches.enter_context(patch.object(db, 'bootstrap'))
             def after_migration(*args, **kwargs):
@@ -1732,6 +1733,23 @@ class GroupChallengeUpgrade(unittest.TestCase):
         owner=self.client(0)
         try:self.assertEqual(owner.get('/api/groups/'+str(g['id'])).status_code,200)
         finally:owner.close()
+
+    def test_original_goal_survives_when_its_first_organizer_hands_over_and_leaves(self):
+        with db.connect() as c:
+            g=self.seed(c);self.backfill(c)
+            c.execute('UPDATE event_groups SET organizer_id=%s WHERE id=%s',(self.ids[1],g['id']))
+            added=self.challenge(c,g['id'],0,'ADDED BY THE LEAVING PERSON')
+        client=self.client(0)
+        try:
+            response=client.post('/api/account/delete',json={'password':'fictional group testing phrase'})
+            self.assertEqual(response.status_code,200,response.text)
+        finally:client.close()
+        with db.connect() as c:
+            rows=c.execute('SELECT id,legacy_group_id,creator_id FROM group_challenges WHERE group_id=%s',(g['id'],)).fetchall()
+            self.assertEqual([(r['legacy_group_id'],r['creator_id']) for r in rows],[(g['id'],None)])
+            self.assertNotIn(added,[r['id'] for r in rows])
+            self.assertEqual(c.execute('SELECT user_id FROM group_challenge_members WHERE group_id=%s ORDER BY user_id',
+                                      (g['id'],)).fetchall(),[{'user_id':u} for u in self.ids[1:3]])
 
     def test_organizer_deletion_cascades_only_their_groups_and_authored_challenges(self):
         with db.connect() as c:
