@@ -63,7 +63,7 @@ module.exports=async function(browser,base){
     const geometry=await p.locator(field).evaluate((n,keyboard)=>{const box=n.getBoundingClientRect(),shell=document.querySelector('#page'),css=getComputedStyle(shell);return{gap:innerHeight-(keyboard?260:0)-box.bottom,shellPadding:parseFloat(css.paddingBottom),height:box.height,overflow:document.documentElement.scrollWidth>innerWidth+1};},keyboard);
     const row={state,width,theme,keyboard,...geometry};measurements.push(row);
     // Comments are a separate sheet; record their existing geometry during the audit.
-    if(state!=='comments'&&(Math.abs(geometry.gap-(keyboard?8:Math.max(8,safeBottom-8)))>1||geometry.overflow))failures.push(row);
+    if(state!=='comments'&&(Math.abs(geometry.gap-(keyboard?8:Math.max(8,safeBottom-16)))>1||geometry.overflow))failures.push(row);
     if(state==='comments')assert(geometry.gap>=0&&geometry.gap<=(keyboard?8:safeBottom+16)&&!geometry.overflow,'comments have no extra dock band');
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${state}-${width}-${theme}-${keyboard?'keyboard':'closed'}.png`)});}
    }
@@ -83,6 +83,6 @@ module.exports=async function(browser,base){
   }finally{await c.close();}
  }
  if(out)fs.writeFileSync(path.join(out,'dock-measurements.json'),JSON.stringify(measurements,null,2));
- assert.deepEqual(failures,[],'Food, recipe and Ask Kit docks use max(8px, safe inset - 8px) closed, or 8px above keyboard');
+ assert.deepEqual(failures,[],'Food, recipe and Ask Kit docks use max(8px, safe inset - 16px) closed, or 8px above keyboard');
  console.log('Chat dock: 390/330 light/dark, Food/recipe/Ask Kit empty and answered, keyboard, save-recipe and comments audit PASS');
 };

@@ -1546,8 +1546,8 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 html:has(.food-thread, .recipe-page), html:has(.food-thread, .recipe-page) body { overflow: hidden; }
 .shell.food-thread, .shell.recipe-page { position: fixed; top: var(--chat-top, 0px); left: 0; right: 0;
   width: 100%; height: var(--chat-height, 100dvh); min-height: 0; overflow: hidden; }
-.shell.food-thread { padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); }
-.shell.food-thread.kit-chat { padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); }
+.shell.food-thread { padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 16px)); }
+.shell.food-thread.kit-chat { padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 16px)); }
 /* Focused chats have no tab bar; the keyboard already covers the home inset. */
 html.keyboard-open .shell.food-thread, html.keyboard-open .shell.recipe-page { padding-bottom: 8px; }
 .food-thread > *, .recipe-page > * { min-width: 0; }
@@ -1558,7 +1558,7 @@ html.keyboard-open .shell.food-thread, html.keyboard-open .shell.recipe-page { p
 html:has(.recipe-page) { --tab-h: 0px; }
 html:has(.recipe-page) nav.tabs { display: none; }
 .shell.recipe-page { min-height: 0; display: flex; flex-direction: column; overflow: hidden;
-  padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); }
+  padding-bottom: max(8px, calc(env(safe-area-inset-bottom) - 16px)); }
 .recipe-page > .top { flex: none; margin-bottom: 8px; gap: 4px; }
 .recipe-page .top .acts { gap: 8px; }
 .recipe-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; overflow-wrap: anywhere; padding: 2px 2px 12px; }
@@ -1758,11 +1758,10 @@ button.thread-food:active { opacity: .7; }
 /* Keep a fresh chat near its header while the composer stays at the safe bottom. */
 .kit-chat #kit-intro {margin:16px 0 0;overflow-y:auto;padding:0 0 16px;animation:kit-in .18s ease-out;}
 .kit-chat .kit-chat-actions {display:flex;gap:8px;justify-self:end;}
+.kit-chat-menu {display:grid;}
+.kit-chat-menu > .row-link {display:flex;justify-content:flex-start;align-items:center;gap:12px;min-height:52px;padding:0;border:0;border-radius:0;background:none;color:var(--tx);text-align:left;box-shadow:none;}
+.kit-chat-menu > .row-link svg {flex:none;width:22px;height:22px;color:var(--tx2);}
 .kit-chat .kit-chat-actions .linkbtn {padding:0;font-size:max(15px,.9375rem);}
-.kit-chat #kit-composer .kit-fine {background:transparent;}
-.kit-chat #kit-composer .kit-fine {display:flex;flex:none;align-items:center;justify-content:center;gap:4px;min-height:44px;margin:0;color:var(--tx3);font-size:13px;line-height:1.2;}
-.kit-chat #kit-composer .kit-fine[hidden] {display:none;}
-.kit-chat #kit-composer .kit-fine .linkbtn {font-size:inherit;min-height:44px;padding:0 4px;}
 .kit-chat #kit-status {font-size:max(13px,.8125rem);}
 .kit-chat #kit-composer {padding-top:0;margin-top:auto;}
 .kit-chat #kit-status:empty {display:none;}
@@ -1779,8 +1778,6 @@ button.thread-food:active { opacity: .7; }
 .kit-chat .kit-starters button::before {content:'';position:absolute;inset:4px 0;border:1px solid var(--line);border-radius:999px;background:var(--card);pointer-events:none;}
 .kit-chat .kit-starters button :is(svg,span) {position:relative;}
 #thread-empty h2 {display:flex;align-items:center;gap:8px;}
-.kit-fine {margin:12px 0 0;color:var(--tx3);font-size:.8125rem;}
-.kit-fine .linkbtn {font-size:inherit;min-height:44px;padding:0 4px;}
 .kit-chat #kit-messages {overflow-anchor:none;position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:14px;padding:12px 0 8px;}
 .kit-chat #kit-messages:empty {flex:0;padding:0;}
 .kit-compose-row {grid-template-columns:minmax(0,1fr) 44px;}
@@ -2174,8 +2171,6 @@ html.native body.has-sheet::before { display: none; }
 .kit-chat #kit-intro #kit-load-retry {margin:8px 0;}
 .kit-chat #kit-starters {flex:none;}
 .kit-chat #kit-composer {padding-top:0;margin-top:auto;}
-.kit-chat #kit-fine {margin-top:0;}
-html.keyboard-open .kit-chat #kit-composer .kit-fine {display:none;}
 .chat-compose-line {display:flex;align-items:flex-end;gap:8px;width:100%;min-width:0;}
 .food-thread .thread-compose-row,.recipe-page .thread-compose-row {display:flex;align-items:flex-end;flex:1;gap:8px;min-width:0;min-height:44px;padding:0;box-sizing:border-box;border:0;border-radius:22px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);}
 .food-thread .thread-compose-row:focus-within,.recipe-page .thread-compose-row:focus-within {outline:1.5px solid var(--accent);outline-offset:-1.5px;box-shadow:none;}

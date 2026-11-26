@@ -189,17 +189,18 @@ assert(css.includes('.kit-training-row {display:grid;')&&css.includes('min-heigh
 assert(css.includes('@media (max-width:350px)')&&css.includes('.kit-training-row dd {text-align:left;}'),'narrow Kit detail rows put the verdict below the label');
 assert(css.includes('.kit-suggested-reply {')&&css.includes('max-width:92%')&&css.includes('background:var(--accent2)')&&css.includes('color:var(--accent)')&&css.includes('border:0;'),'suggested replies are borderless brand bubbles within the message column');
 assert(css.includes('.food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2;'),'the narrow two-row food-chat layout does not move Ask Kit off its one-row navigation header');
-assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button>'),'empty chat reminder sits below the composer');
-assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('Your chat stays while you switch apps. Start a new one anytime.')&&source.includes('providerName()'),'About Kit explains visit retention and keeps provider details');
+assert(!source.includes('id="kit-fine"')&&!source.includes('kit-footer-memory'),'Ask Kit has no provider or Memory footer');
+assert(source.includes('id="kit-memory-open"')&&source.includes('<span>Memory</span>')&&source.includes("$('#kit-memory-open',body).onclick=()=>{close();memorySettings();};"),'Memory is reachable from the top-right menu');
+assert(source.includes('id="kit-about-open"')&&source.includes('<span>About Kit</span>')&&source.includes('Your chat stays while you switch apps. Start a new one anytime.')&&source.includes('providerName()'),'About Kit explains visit retention and keeps provider details');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
 const drawSource=source.slice(source.indexOf('  function factLabel(f){'),source.indexOf('  async function refresh(c,before=null,')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
-const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
+const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-older':{hidden:false}};
 const followups=['Would you like to review your recent workouts?','Do you want to log meals for today?','Should we set up a training plan?'].map(q=>({onclick:null,querySelector(){return {textContent:c.Kit.rewriteFollowup(q)}}})),sent=[];
 const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:s=>s==='[data-kit-followup]'?followups:[],esc:String,rewriteFollowup:c.Kit.rewriteFollowup,pruneLongSuggestions(){},waitBubble:()=>'<div class="kit-status-bubble"></div>',controls(){},kitChatOn:()=>true,App:{me:{units:'imperial'}},actions:{progress:['Progress','/progress']},svg(){return '<svg></svg>';},send:async(_c,q)=>sent.push(q)};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
-drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
-drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
-drawHarness.draw({el:{},messages:[],job:{client_id:'fictional',question:'A fictional question'},before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'a queued first message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'a queued first message hides the reminder');
+drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');
+drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');
+drawHarness.draw({el:{},messages:[],job:{client_id:'fictional',question:'A fictional question'},before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'a queued first message removes the suggestions');
 drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'Am I improving?',state:'answered',answer:{interpretation:'Your recent running is trending up.',facts:[{label:'Run distance',display_value:'124 mi',path:['runs',0,'distance_m']}],limitations:['Unlogged days do not count as zero.'],follow_ups:['How is my running trending?','What should I focus on next?']}}],job:null,before:null});
 assert(drawNodes['#kit-messages'].innerHTML.includes('Run distance')&&drawNodes['#kit-messages'].innerHTML.includes('This run')&&drawNodes['#kit-messages'].innerHTML.includes('124 mi'),'Kit answer uses a friendly fact label and converted display value');
 assert(!drawNodes['#kit-messages'].innerHTML.includes('Unlogged days do not count'),'Kit answer omits tool limitation lists');
@@ -258,7 +259,7 @@ assert(!qualityHtml.includes('123.8'),'a bare Effort fact is hidden');
 assert(qualityHtml.includes('Last run on this route')&&qualityHtml.includes('This run'),'workout facts carry their source labels');
 assert(qualityHtml.includes('158 bpm')&&qualityHtml.includes('172 bpm'),'distinct source facts remain visible');
 assert.equal((qualityHtml.match(/data-kit-followup/g)||[]).length,1,'non-first-person follow-ups are dropped');
-console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
+console.log('Kit title, About provider, Memory menu and footer-free composer checks PASS');
 
 require('./test_email_confirmation.js');
 // Exercise real answer handling when the history API removes an unstarted rejected turn.

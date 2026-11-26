@@ -56,3 +56,26 @@ assert.equal(c.achievementUnits.title(priorTitle),'5K time','cached legacy label
 catalog.effort_metric_label='speed';
 assert.equal(c.achievementUnits.title(priorTitle),'5K speed','the catalog owns the presentation word');
 catalog.effort_metric_label='time';
+
+(async()=>{
+ const reads=[],slots={'[data-me-featured]':{dataset:{},innerHTML:''},'[data-me-showcase-streak]':{dataset:{},innerHTML:''}};
+ let release,owner='fixture-owner';c.readOwner=()=>owner;c.location={pathname:'/me',search:''};
+ c.api=url=>{reads.push(url);return new Promise(resolve=>{if(url.endsWith('/showcase'))release=resolve;else resolve({tracks:[]});});};
+ const prepared=c.layout.prepareFeatured();
+ assert.deepEqual(reads,['/api/achievements/showcase','/api/achievements'],'both featured reads start without waiting for profile data');
+ const root={isConnected:true,querySelector:selector=>slots[selector]},mounted=c.layout.mountShowcase(root,{}, {featured:true,shared:false,prepared});
+ assert.equal(reads.length,2,'mount consumes the prepared reads without fetching again');
+ owner='different-owner';release({items:[]});await mounted;
+ assert.equal(slots['[data-me-featured]'].innerHTML,'','a changed owner cannot receive the prefetched owner showcase');
+ slots['[data-me-featured]'].dataset={};
+ const routeRead=new Promise(resolve=>{release=resolve;}),routeMount=c.layout.mountShowcase(root,{}, {featured:true,shared:false,prepared:routeRead});
+ c.location.pathname='/food';release([{},null,{tracks:[]}]);await routeMount;
+ assert.equal(slots['[data-me-featured]'].innerHTML,'','a changed route cannot receive the prefetched showcase');
+ slots['[data-me-featured]'].dataset={};root.isConnected=false;reads.length=0;c.api=url=>{reads.push(url);return Promise.resolve({tracks:[]});};
+ await c.layout.mountShowcase(root,{person:{login:'friend'}},{featured:true,shared:true,prepared:Promise.resolve([{},null,{tracks:[]}])});
+ assert.deepEqual(reads,['/api/achievements/showcase?login=friend','/api/achievements?login=friend'],'shared mounts always fetch filtered data instead of prepared owner data');
+ assert.equal(slots['[data-me-featured]'].innerHTML,'','detached slots cannot receive late results');
+ c.api=()=>Promise.reject(Error('Fictional unavailable showcase'));
+ assert.equal(await c.layout.prepareFeatured(),null,'optional failures settle even if profile failure prevents a mount');
+ console.log('Featured owner reads: parallel requests, reuse, account/disconnect fences, filtered sharing and optional failure PASS');
+})().catch(error=>{console.error(error);process.exitCode=1;});

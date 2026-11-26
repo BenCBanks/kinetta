@@ -172,18 +172,29 @@ async function main(){
    assert.deepEqual(unexpectedWrites,[],`${width}px ${theme}: fixture answer makes no writes or provider requests`);
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-detail-${width}-${theme}.png`),animations:'disabled'});}
    await p.evaluate(()=>{document.documentElement.classList.add('keyboard-open');document.documentElement.style.setProperty('--chat-height','540px');const link=document.createElement('link');link.rel='stylesheet';link.href='/__fixture-keyboard.css';document.head.append(link);const keyboard=document.createElement('div');keyboard.id='fixture-keyboard';keyboard.setAttribute('aria-hidden','true');document.body.append(keyboard);});
-   const keyboardDock=await p.locator('.kit-chat').evaluate(shell=>({bottom:shell.querySelector('.kit-compose-row').getBoundingClientRect().bottom,viewport:shell.getBoundingClientRect().bottom,padding:getComputedStyle(shell).paddingBottom,fine:getComputedStyle(shell.querySelector('#kit-fine')).display}));
+   const keyboardDock=await p.locator('.kit-chat').evaluate(shell=>({bottom:shell.querySelector('.kit-compose-row').getBoundingClientRect().bottom,viewport:shell.getBoundingClientRect().bottom,padding:getComputedStyle(shell).paddingBottom,footer:!!shell.querySelector('#kit-fine')}));
    assert.equal(keyboardDock.padding,'8px',`${width}px ${theme}: keyboard dock keeps 8px: ${JSON.stringify(keyboardDock)}`);
    assert(Math.abs(keyboardDock.viewport-keyboardDock.bottom-8)<=1,`${width}px ${theme}: composer sits 8px above keyboard: ${JSON.stringify(keyboardDock)}`);
-   assert.equal(keyboardDock.fine,'none',`${width}px ${theme}: the provider footer clears the keyboard gap`);
+   assert.equal(keyboardDock.footer,false,`${width}px ${theme}: no footer is added above the keyboard`);
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-keyboard-${width}-${theme}.png`),animations:'disabled'});}
    await p.evaluate(()=>{document.documentElement.classList.remove('keyboard-open');document.documentElement.style.removeProperty('--chat-height');document.querySelector('#fixture-keyboard')?.remove();});
    forceEmpty=true;await p.reload();await p.locator('#kit-starters button').first().waitFor({state:'visible'});
    assert.equal(await p.locator('#kit-messages article').count(),0,`${width}px ${theme}: empty state has no answer card`);
-   const emptyDock=await p.locator('.kit-chat').evaluate(shell=>({padding:getComputedStyle(shell).paddingBottom,formBottom:shell.querySelector('#kit-composer').getBoundingClientRect().bottom,viewport:innerHeight,fine:getComputedStyle(shell.querySelector('#kit-fine')).display}));
+   const emptyDock=await p.locator('.kit-chat').evaluate(shell=>({padding:getComputedStyle(shell).paddingBottom,formBottom:shell.querySelector('#kit-composer').getBoundingClientRect().bottom,viewport:innerHeight,footer:!!shell.querySelector('#kit-fine')}));
    assert.equal(emptyDock.padding,'8px',`${width}px ${theme}: empty Ask Kit keeps the safe-area dock: ${JSON.stringify(emptyDock)}`);
    assert(emptyDock.viewport-emptyDock.formBottom<=8.5,`${width}px ${theme}: empty composer footer is docked above the home indicator: ${JSON.stringify(emptyDock)}`);
-   assert.notEqual(emptyDock.fine,'none',`${width}px ${theme}: Memory footer remains available in empty state`);
+   assert.equal(emptyDock.footer,false,`${width}px ${theme}: empty chat has no provider/Memory footer`);
+   const emptyFieldBottom=await p.locator('.kit-compose-row').evaluate(row=>row.getBoundingClientRect().bottom);
+   assert(Math.abs(emptyDock.viewport-emptyFieldBottom-8)<=1,`${width}px ${theme}: empty input uses the same 8px dock as answers`);
+   await p.locator('#kit-settings').click();
+   assert.equal(await p.locator('#kit-memory-open').innerText(),'Memory');
+   const menuRows=await p.locator('.kit-chat-menu > .row-link').evaluateAll(rows=>rows.map(row=>{const r=row.getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:r.height};}));
+   assert.deepEqual(await p.locator('.kit-chat-menu > .row-link').allTextContents(),['New chat','Memory','Kit & data permissions','About Kit']);
+   assert.equal(await p.locator('.kit-chat-menu > .row-link > svg').count(),4,'every menu row has an icon');
+   assert.equal(await p.locator('.sheet .sbody > p,.sheet .ghost').count(),0,'menu has no explainer or grey action button');
+   assert.equal(menuRows.length,4);assert(menuRows.every((row,i)=>row.height>=52&&(!i||row.top>=menuRows[i-1].bottom)),`${width}px ${theme}: menu actions are separate 52px rows`);
+   await p.locator('#kit-about-open').click();assert.match(await p.locator('.sheet').innerText(),/Uses Google's Gemini/);
+   await p.keyboard.press('Escape');
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-ask-empty-${width}-${theme}.png`),animations:'disabled'});}
    forceEmpty=false;overflowMode=true;await p.reload();await p.locator('.kit-suggested-reply').first().waitFor({state:'visible'});
    assert.equal(await p.locator('.kit-suggested-reply').count(),1,`${width}px ${theme}: an unrewriteable reply beyond two lines is dropped`);
