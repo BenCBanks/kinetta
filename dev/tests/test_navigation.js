@@ -1,6 +1,11 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const app=fs.readFileSync('app/static/app.js','utf8');
+{
+ const c={App:{pages:[{re:/^\/me\/health$/,tab:'track'},{re:/^\/activity$/,tab:'activity'}]}};
+ vm.createContext(c);vm.runInContext(app.slice(app.indexOf('function homePageFallback'),app.indexOf('function render(options)')),c);
+ assert.equal(c.homePageFallback().tab,'activity','unknown routes use Home even when Apple Health is registered first');
+}
 // Actual weigh-in sheet (weekly check-in): opening and prefill are read-only, late prefill respects typing.
 (async()=>{
  let owner='one',prefill,closed=0,html='',writes=[],focused=0,refreshed=0,callbacks=0;

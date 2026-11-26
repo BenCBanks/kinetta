@@ -1144,7 +1144,7 @@ function weightHistory(box) {
     if (!valid()) return;
     const pts = W.points, wt = (kg) => `${U.weight(kg)} ${imp() ? 'lb' : 'kg'}`;
     box.innerHTML = pts.length ? `<div class="card"><div class="bigstat">${stat('Trend', W.trend_kg ? U.weight(W.trend_kg) : '–', imp() ? 'lb' : 'kg')}${stat('Per week', W.rate_kg_per_week == null ? '–' : (W.rate_kg_per_week > 0 ? '+' : '') + U.weight(W.rate_kg_per_week), imp() ? 'lb' : 'kg')}</div>
-        <div id="w-chart"></div><p class="small muted">The trend smooths out day-to-day water swings; it's the number to watch.</p></div>
+        <div id="w-chart"></div></div>
       <div class="card"><h2>Weigh-ins</h2>${[...pts].reverse().slice(0, 60).map((p) => `<div class="row weight-history-row"><span>${esc(new Date(p.day + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}))}<small class="weight-source muted">${esc(p.source_label||'Manual')}</small></span>
         <span class="num">${wt(p.kg)} <small class="muted">trend ${U.weight(p.trend)}</small> <button class="linkbtn danger" data-del="${p.day}" aria-label="Delete weigh-in">×</button></span></div>`).join('')}</div>`
       : '<div class="card empty"><b>No weigh-ins yet</b>Log one above. Kinetta smooths out the daily ups and downs into a trend.</div>';
