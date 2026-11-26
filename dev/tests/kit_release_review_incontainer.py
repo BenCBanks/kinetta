@@ -68,7 +68,7 @@ with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',re
         assert 'I will stick' not in text and 'could not verify' not in text
         if cid=='followup-food':assert 'food-logging goal' in text and 'lunch' in text
         if cid=='batch2-history-correction':assert 'Sunday' in text and 'Tuesday' not in text and 'Saturday' not in text
-        if cid=='recovery':assert 'running covered 8.1 mi' in text and 'cycling' in text and 'unknown' in text
+        if cid=='recovery':assert '8.1 mi of running' in text and 'cycling' in text and 'no recorded distance' in text
         print(cid,'FALLBACK',text)
     row=rows['weekly-no-plan']
     result=kit_weekly.fallback(987,'Review my week',dict(evidence=row['answer_evidence'],usage={},began=time.monotonic()),None)
