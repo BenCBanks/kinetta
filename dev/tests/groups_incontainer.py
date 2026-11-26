@@ -1,9 +1,12 @@
 """Fictional Groups: private rows, hashed invites, lifecycle, blocks and aggregate-only activity progress."""
 import datetime as dt
 import hashlib
+import io
+import json
 import re
 import uuid
 import unittest
+import zipfile
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -1438,15 +1441,19 @@ class Groups(unittest.TestCase):
 
 
 class GroupChallengeUpgrade(unittest.TestCase):
-    """Additive upgrade fixtures only; no endpoint/UI uses the new tables in PR1."""
+    """Additive upgrade and account-lifecycle fixtures; group UI still uses legacy tables."""
     migration = next(m for m in db.MIGRATIONS if 'additive people-first Groups foundation' in m)
+    @classmethod
+    def setUpClass(cls):
+        cls.password = auth.hash_pw('fictional group testing phrase')
+
     def setUp(self):
         self.ids = []
         with db.connect() as c:
             for _ in range(4):
                 self.ids.append(c.execute("""INSERT INTO users(login,name,pw_hash)
-                    VALUES(%s,'Fictional schema member','no login in schema fixtures') RETURNING id""",
-                    ('zz_test_gcs_'+uuid.uuid4().hex[:12],)).fetchone()['id'])
+                    VALUES(%s,'Fictional schema member',%s) RETURNING id""",
+                    ('zz_test_gcs_'+uuid.uuid4().hex[:12],self.password)).fetchone()['id'])
                 c.execute('INSERT INTO profile(user_id,share_achievements) VALUES(%s,false)', (self.ids[-1],))
 
     def tearDown(self):
@@ -1471,7 +1478,86 @@ class GroupChallengeUpgrade(unittest.TestCase):
 
     def upgrade(self, c):
         c.execute('DROP TABLE group_challenge_members,group_challenges')
+        c.execute('DROP FUNCTION fit_group_challenge_access(uuid,bigint)')
         c.execute(self.migration)
+
+    def challenge(self, c, gid, who, title):
+        return c.execute("""INSERT INTO group_challenges(group_id,creator_id,title,metric,target,unit,
+            sports,start_date,time_zone) VALUES(%s,%s,%s,'sessions',3,'sessions',ARRAY['run'],
+            '2026-11-02','UTC') RETURNING id""",(gid,self.ids[who],title)).fetchone()['id']
+
+    def client(self, who):
+        with db.connect() as c:token=auth.new_session(c,self.ids[who],'fictional schema test')
+        client=TestClient(app);client.headers['Origin']='http://testserver'
+        client.cookies.set(auth.COOKIE,token)
+        return client
+
+    def test_account_export_includes_only_own_challenges_and_sharing(self):
+        with db.connect() as c:
+            a=self.seed(c);b=self.seed(c,who=1);self.backfill(c)
+            mine=self.challenge(c,a['id'],2,'MY CREATED CHALLENGE')
+            theirs=self.challenge(c,a['id'],1,'OTHER ACCOUNT SENTINEL')
+            c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s)',
+                      (mine,a['id'],self.ids[2]))
+            expected=c.execute('SELECT challenge_id,share_total FROM group_challenge_members WHERE user_id=%s',
+                               (self.ids[2],)).fetchall()
+        client=self.client(2)
+        try:
+            response=client.get('/api/account/export');self.assertEqual(response.status_code,200)
+            with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+                created=[json.loads(s) for s in z.read('data/group_challenges_created.jsonl').splitlines()]
+                shares=[json.loads(s) for s in z.read('data/group_challenge_members.jsonl').splitlines()]
+            self.assertEqual([q['id'] for q in created],[str(mine)])
+            self.assertNotIn('OTHER ACCOUNT SENTINEL',json.dumps(created))
+            self.assertNotIn(str(theirs),json.dumps(created))
+            self.assertTrue(all('creator_id' not in q for q in created))
+            self.assertEqual({r['challenge_id']:r['share_total'] for r in shares},
+                             {str(r['challenge_id']):r['share_total'] for r in expected})
+            self.assertEqual(len(shares),3,'both prior private choices and new default-on choice exported')
+            self.assertTrue(all('user_id' not in r for r in shares))
+        finally:client.close()
+
+    def test_full_account_deletion_removes_authored_challenges_but_not_others_group(self):
+        with db.connect() as c:
+            g=self.seed(c);self.backfill(c)
+            mine=self.challenge(c,g['id'],2,'DELETE MY AUTHORED TEXT')
+            for uid in self.ids[:3]:
+                c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s)',
+                          (mine,g['id'],uid))
+            kept=c.execute('SELECT * FROM group_challenges WHERE legacy_group_id=%s',(g['id'],)).fetchone()
+        client=self.client(2)
+        try:
+            response=client.post('/api/account/delete',json={'password':'fictional group testing phrase'})
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(client.get('/api/me').status_code,401)
+        finally:client.close()
+        with db.connect() as c:
+            self.assertIsNone(c.execute('SELECT id FROM users WHERE id=%s',(self.ids[2],)).fetchone())
+            self.assertEqual(c.execute('SELECT * FROM group_challenges WHERE group_id=%s',(g['id'],)).fetchall(),[kept])
+            self.assertEqual(c.execute('SELECT * FROM event_groups WHERE id=%s',(g['id'],)).fetchone(),g)
+            self.assertEqual(c.execute('SELECT user_id FROM group_members WHERE group_id=%s ORDER BY user_id',
+                                      (g['id'],)).fetchall(),[{'user_id':u} for u in self.ids[:2]])
+            self.assertEqual(c.execute('SELECT user_id FROM group_challenge_members WHERE group_id=%s ORDER BY user_id',
+                                      (g['id'],)).fetchall(),[{'user_id':u} for u in self.ids[:2]])
+        owner=self.client(0)
+        try:self.assertEqual(owner.get('/api/groups/'+str(g['id'])).status_code,200)
+        finally:owner.close()
+
+    def test_organizer_deletion_cascades_only_their_groups_and_authored_challenges(self):
+        with db.connect() as c:
+            a=self.seed(c);b=self.seed(c,who=1);self.backfill(c)
+            self.challenge(c,b['id'],0,'DELETED CREATOR IN ANOTHER GROUP')
+            kept=c.execute('SELECT * FROM group_challenges WHERE legacy_group_id=%s',(b['id'],)).fetchone()
+        client=self.client(0)
+        try:
+            response=client.post('/api/account/delete',json={'password':'fictional group testing phrase'})
+            self.assertEqual(response.status_code,200,response.text)
+        finally:client.close()
+        with db.connect() as c:
+            self.assertIsNone(c.execute('SELECT id FROM event_groups WHERE id=%s',(a['id'],)).fetchone())
+            self.assertEqual(c.execute('SELECT * FROM group_challenges WHERE group_id=ANY(%s)',([a['id'],b['id']],)).fetchall(),[kept])
+            self.assertEqual(c.execute('SELECT user_id FROM group_challenge_members WHERE group_id=%s ORDER BY user_id',
+                                      (b['id'],)).fetchall(),[{'user_id':u} for u in self.ids[1:3]])
 
     def test_upgrade_preserves_every_goal_and_related_record(self):
         with db.connect() as c, c.transaction(force_rollback=True):
@@ -1562,6 +1648,19 @@ class GroupChallengeUpgrade(unittest.TestCase):
                 self.assertEqual(reader.execute('SELECT user_id,share_total FROM group_challenge_members').fetchall(),[{'user_id':self.ids[2],'share_total':False}])
                 with db.connect() as c:c.execute(sql.SQL('GRANT fit_all_readers TO {}').format(sql.Identifier(role)))
                 self.assertEqual(reader.execute('SELECT group_id FROM group_challenges').fetchall(),[{'group_id':a['id']}],'read-all membership never bypasses group RLS')
+                for uid in (self.ids[0],self.ids[2]):
+                    for column,value in [('suspended_at',dt.datetime(2026,11,26,tzinfo=dt.timezone.utc)),
+                                         ('needs_email_confirm',True),
+                                         ('password_change_expires',dt.datetime(2030,1,1,tzinfo=dt.timezone.utc))]:
+                        with self.subTest(account=uid,column=column):
+                            with db.connect() as c:
+                                c.execute(sql.SQL('UPDATE users SET {}=%s WHERE id=%s').format(sql.Identifier(column)),(value,uid))
+                            self.assertEqual(reader.execute('SELECT id FROM group_challenges').fetchall(),[])
+                            self.assertEqual(reader.execute('SELECT user_id FROM group_challenge_members').fetchall(),[])
+                            with db.connect() as c:
+                                c.execute(sql.SQL('UPDATE users SET {}=%s WHERE id=%s').format(sql.Identifier(column)),
+                                          (False if column=='needs_email_confirm' else None,uid))
+                            self.assertEqual(reader.execute('SELECT group_id FROM group_challenges').fetchall(),[{'group_id':a['id']}])
                 for statement in ['UPDATE group_challenge_members SET share_total=true','DELETE FROM group_challenges']:
                     with self.assertRaises(psycopg.errors.InsufficientPrivilege):reader.execute(statement)
                 with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.ids[0],self.ids[2]))
@@ -1569,6 +1668,11 @@ class GroupChallengeUpgrade(unittest.TestCase):
                 self.assertEqual(reader.execute('SELECT user_id FROM group_challenge_members').fetchall(),[])
                 with db.connect() as c:
                     c.execute('DELETE FROM blocks WHERE user_id=%s',(self.ids[0],))
+                    c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.ids[2],self.ids[0]))
+                self.assertEqual(reader.execute('SELECT id FROM group_challenges').fetchall(),[])
+                self.assertEqual(reader.execute('SELECT user_id FROM group_challenge_members').fetchall(),[])
+                with db.connect() as c:
+                    c.execute('DELETE FROM blocks WHERE user_id=%s',(self.ids[2],))
                     c.execute("UPDATE group_members SET status='left' WHERE group_id=%s AND user_id=%s",(a['id'],self.ids[2]))
                 self.assertEqual(reader.execute('SELECT id FROM group_challenges').fetchall(),[])
         finally:

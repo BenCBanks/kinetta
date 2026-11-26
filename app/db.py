@@ -2463,10 +2463,12 @@ MIGRATIONS = [
 
     """
     -- 121: additive people-first Groups foundation; legacy API/UI remain authoritative until cutover.
+    -- One startup transaction holds schema_version and FK/backfill locks until commit;
+    -- concurrent group writes can wait during this bounded, unsplit backfill.
     CREATE TABLE group_challenges (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       group_id uuid NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
-      creator_id bigint REFERENCES users(id) ON DELETE SET NULL,
+      creator_id bigint REFERENCES users(id) ON DELETE CASCADE,
       legacy_group_id uuid UNIQUE REFERENCES event_groups(id) ON DELETE CASCADE,
       title text NOT NULL CHECK(length(btrim(title)) BETWEEN 1 AND 80),
       metric text NOT NULL CHECK(metric IN ('distance','elevation','long_outings','sessions')),
@@ -2493,11 +2495,20 @@ MIGRATIONS = [
       FOREIGN KEY(challenge_id,group_id) REFERENCES group_challenges(id,group_id) ON DELETE CASCADE,
       FOREIGN KEY(group_id,user_id) REFERENCES group_members(group_id,user_id) ON DELETE CASCADE);
     CREATE INDEX group_challenge_members_owner ON group_challenge_members(user_id,challenge_id);
+    -- SQL logins cannot read private account-state columns directly.
+    CREATE FUNCTION fit_group_challenge_access(target_group uuid, creator bigint) RETURNS boolean
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+      SELECT EXISTS(SELECT 1 FROM group_members m JOIN users u ON u.id=m.user_id
+        WHERE m.group_id=target_group AND m.user_id=fit_me() AND m.status='active'
+          AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND u.password_change_expires IS NULL
+          AND (creator IS NULL OR EXISTS(SELECT 1 FROM users a WHERE a.id=creator
+            AND NOT a.needs_email_confirm AND a.suspended_at IS NULL AND a.password_change_expires IS NULL
+            AND NOT fit_group_blocked(a.id)))) $$;
+    REVOKE ALL ON FUNCTION fit_group_challenge_access(uuid,bigint) FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION fit_group_challenge_access(uuid,bigint) TO fit_readers;
     ALTER TABLE group_challenges ENABLE ROW LEVEL SECURITY;
     CREATE POLICY active_group_challenges ON group_challenges FOR SELECT TO fit_readers USING(
-      EXISTS(SELECT 1 FROM group_members m WHERE m.group_id=group_challenges.group_id
-        AND m.user_id=fit_me() AND m.status='active') AND
-      (creator_id IS NULL OR NOT fit_group_blocked(creator_id)));
+      fit_group_challenge_access(group_id,creator_id));
     ALTER TABLE group_challenge_members ENABLE ROW LEVEL SECURITY;
     CREATE POLICY own_group_challenge_members ON group_challenge_members FOR SELECT TO fit_readers USING(
       user_id=fit_me() AND EXISTS(SELECT 1 FROM group_challenges q
