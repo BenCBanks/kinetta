@@ -1439,6 +1439,7 @@ class Groups(unittest.TestCase):
 
 class GroupChallengeUpgrade(unittest.TestCase):
     """Additive upgrade fixtures only; no endpoint/UI uses the new tables in PR1."""
+    migration = next(m for m in db.MIGRATIONS if 'additive people-first Groups foundation' in m)
     def setUp(self):
         self.ids = []
         with db.connect() as c:
@@ -1465,12 +1466,12 @@ class GroupChallengeUpgrade(unittest.TestCase):
         return g
 
     def backfill(self, c):
-        migration = db.MIGRATIONS[-1]
+        migration = self.migration
         c.execute(migration[migration.index('INSERT INTO group_challenges('):])
 
     def upgrade(self, c):
         c.execute('DROP TABLE group_challenge_members,group_challenges')
-        c.execute(db.MIGRATIONS[-1])
+        c.execute(self.migration)
 
     def test_upgrade_preserves_every_goal_and_related_record(self):
         with db.connect() as c, c.transaction(force_rollback=True):
@@ -1504,8 +1505,8 @@ class GroupChallengeUpgrade(unittest.TestCase):
                 g=self.seed(c,start=day,end=day)
                 a=dt.datetime.fromisoformat(first);z=dt.datetime.fromisoformat(last)
                 for at in [a-dt.timedelta(seconds=1),a,a+dt.timedelta(hours=3),z-dt.timedelta(seconds=1),z]:
-                    c.execute("""INSERT INTO activities(user_id,sport,name,start_time,distance_m,ascent_m,moving_s,elapsed_s,visibility)
-                        VALUES(%s,'run','Fictional DST activity',%s,1000,20,3600,3600,'friends')""",(self.ids[0],at))
+                    c.execute("""INSERT INTO activities(user_id,sport,name,start_time,distance_m,ascent_m,moving_s,elapsed_s,source,visibility)
+                        VALUES(%s,'run','Fictional DST activity',%s,1000,20,3600,3600,'manual','friends')""",(self.ids[0],at))
                 self.upgrade(c)
                 q=c.execute('''SELECT metric AS goal_type,target AS goal_target,unit AS goal_unit,sports AS goal_sports,
                     start_date AS goal_start_date,end_date AS event_date,time_zone FROM group_challenges WHERE group_id=%s''',(g['id'],)).fetchone()
@@ -1552,12 +1553,15 @@ class GroupChallengeUpgrade(unittest.TestCase):
             c.execute('UPDATE users SET sql_role=%s WHERE id=%s',(role,self.ids[2]))
             for table in ['group_challenges','group_challenge_members']:
                 self.assertTrue(c.execute('SELECT relrowsecurity AS v FROM pg_class WHERE relname=%s',(table,)).fetchone()['v'])
-                for restricted in ['fit_all_readers','fit_coach']:
+                for restricted in ['fit_coach']:
                     self.assertFalse(c.execute('SELECT has_table_privilege(%s,%s,\'SELECT\') AS v',(restricted,table)).fetchone()['v'])
+                self.assertEqual(c.execute("SELECT count(*) AS n FROM pg_policies WHERE tablename=%s AND 'fit_all_readers'=ANY(roles)",(table,)).fetchone()['n'],0)
         try:
             with psycopg.connect(db._conninfo(role,password),row_factory=dict_row,autocommit=True) as reader:
                 self.assertEqual(reader.execute('SELECT group_id FROM group_challenges').fetchall(),[{'group_id':a['id']}])
                 self.assertEqual(reader.execute('SELECT user_id,share_total FROM group_challenge_members').fetchall(),[{'user_id':self.ids[2],'share_total':False}])
+                with db.connect() as c:c.execute(sql.SQL('GRANT fit_all_readers TO {}').format(sql.Identifier(role)))
+                self.assertEqual(reader.execute('SELECT group_id FROM group_challenges').fetchall(),[{'group_id':a['id']}],'read-all membership never bypasses group RLS')
                 for statement in ['UPDATE group_challenge_members SET share_total=true','DELETE FROM group_challenges']:
                     with self.assertRaises(psycopg.errors.InsufficientPrivilege):reader.execute(statement)
                 with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.ids[0],self.ids[2]))
@@ -1579,6 +1583,7 @@ class GroupChallengeUpgrade(unittest.TestCase):
             c.execute('DELETE FROM group_challenge_members WHERE challenge_id=%s AND user_id=%s',(q,self.ids[2]))
             row=c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s) RETURNING share_total',(q,a['id'],self.ids[2])).fetchone()
             self.assertTrue(row['share_total'])
+            c.execute('DELETE FROM group_challenge_members WHERE challenge_id=%s AND user_id=%s',(q,self.ids[2]))
             for gid,uid in [(b['id'],self.ids[2]),(a['id'],self.ids[3])]:
                 with self.assertRaises(psycopg.errors.ForeignKeyViolation), c.transaction():
                     c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s)',(q,gid,uid))
