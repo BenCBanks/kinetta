@@ -33,11 +33,19 @@ const ChallengeRoutes=(()=>{
     const month=new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'long'});
     return `${month} ${(kinds[q.kind]||'challenge').toLowerCase()}`;
   }
+  function invitationGoal(q){
+    const amount=number(q.target,q.unit),singular=Number(q.target)===1;
+    const noun={active_days:'active day',activities:'workout',food_days:'food logging day',protein_days:'protein goal day'}[q.kind];
+    return `${amount} ${noun?noun+(singular?'':'s'):q.unit}`;
+  }
   function invitationText(q){
     const sports=(q.sports||[]).map(s=>SPORT_NAMES[s]).filter(Boolean).join(', ');
-    return `Join me for '${shareHeading(q)}' on Kinetta: ${number(q.target,q.unit)} ${q.unit}${sports?`, ${sports}`:''}, ${dateRange(q)}. View the challenge and join: ${q.url}`;
+    return `Join me for '${shareHeading(q)}' on Kinetta: ${invitationGoal(q)}${sports?`, ${sports}`:''}, ${dateRange(q)}. View the challenge and join: ${q.url}`;
   }
-  function invitationCaption(q){return `Join my ${number(q.target,q.unit)} ${q.unit} challenge on Kinetta, ${dateRange(q)}: ${q.url}`;}
+  function invitationCaption(q){
+    return q.kind==='distance'?`Join my ${invitationGoal(q)} challenge on Kinetta, ${dateRange(q)}: ${q.url}`:
+      `Join my challenge on Kinetta: ${invitationGoal(q)}, ${dateRange(q)}. ${q.url}`;
+  }
   const participants=q=>q.participants==null||!Number.isInteger(q.participants)||q.participants<0?'':q.participants+' '+(q.participants===1?'participant':'participants');
   const signature=(q,finish)=>JSON.stringify([q.title,q.start,q.end,q.target,q.unit,q.joining_closed,finish?q.self:null]);
   async function fetchOne(code){const owner=readOwner(),q=await api('/api/challenges/'+encodeURIComponent(code));if(owner!==readOwner())throw Error('The account changed.');return q;}
