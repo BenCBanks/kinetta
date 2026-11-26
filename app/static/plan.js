@@ -29,7 +29,7 @@ function workoutTone(type) {
 const planWeekOpen=new Map();
 function compactWorkoutPace(w,paces,plan){
   if(w.adjusted)return '';
-  const key={easy:'easy',recovery:'recovery',long:'long',medium_long:'easy',tempo:'tempo',intervals:'intervals',race:plan.goal_s?'goal':{'5k':'5k','10k':'10k',half:'hmp',marathon:'mp'}[plan.race]}[w.type],value=paces[key];
+  const key={easy:'easy',recovery:'recovery',long:'long',medium_long:'easy',tempo:'tempo',intervals:'intervals',race:plan.goal_s&&paces.goal?'goal':{'5k':'5k','10k':'10k',half:'hmp',marathon:'mp'}[plan.race]}[w.type],value=paces[key];
   return Array.isArray(value)?`${value[0].split('/')[0]}–${value[1]}`:value||'';
 }
 function compactWorkoutRow(w,U,paces,plan){
@@ -132,7 +132,7 @@ async function planInto(box, fresh, requestedRaceDay = '') {
 function planOverview(box, d) {
   const p = d.plan, U = p.unit, pr = d.progress || {}, s = d.summary || {}, fmtT = (x) => (x ? dur(x) : '–');
   const cur = d.weeks.find((w) => w.n === d.this_week) || d.weeks.find((w) => w.start > d.today) || d.weeks[d.weeks.length - 1];
-  const pc = d.paces || {};
+  const pc = d.paces || {}, hasGoalPace = !!(p.goal_s && pc.goal);
   const paceRow = (name, v, what) => v ? `<div class="pace-row"><span><b>${esc(name)}</b><small class="muted">${esc(what)}</small></span><b class="num">${esc(Array.isArray(v) ? `${v[0].split('/')[0]}–${v[1]}` : v)}</b></div>` : '';
   const goalKey = {'5k': '5k', '10k': '10k', half: 'hmp', marathon: 'mp'}[p.race];
   const started = d.today >= p.start_day, w = d.today_workout, n = d.next_workout;
@@ -160,7 +160,7 @@ function planOverview(box, d) {
     <div class="plan-detail-section"><h2>Your paces</h2>
       ${d.vdot || d.prescription_version===2&&Object.keys(pc).length ? paceRow('Easy & long runs', pc.easy, 'chatty, relaxed - most of your running') + paceRow('Recovery', pc.recovery, 'the day after a long run') +
         paceRow('Tempo', pc.tempo, 'comfortably hard, about 1-hour race pace') + paceRow('Intervals', pc.intervals, 'hard repeats, about 5K effort') +
-        paceRow(p.goal_s ? 'Goal race pace' : 'Race pace from fitness', p.goal_s ? pc.goal : pc[goalKey], p.goal_s ? `for your ${fmtT(p.goal_s)} goal` : d.prescription_version===2?'from recent fitness when this plan was created':'from best efforts in the past 90 days')
+        paceRow(hasGoalPace ? 'Goal race pace' : 'Race pace from fitness', hasGoalPace ? pc.goal : pc[goalKey], hasGoalPace ? `for your ${fmtT(p.goal_s)} goal` : d.prescription_version===2?'from recent fitness when this plan was created':'from best efforts in the past 90 days')
         + '<p class="small muted">Easy = conversational · Tempo = a few words · Intervals = hard and controlled. In heat or on hills, go by feel.</p>'
         : '<p class="small">Easy = conversational · Tempo = a few words · Intervals = hard and controlled.</p>'}</div>
     </details>`;
