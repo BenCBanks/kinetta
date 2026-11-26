@@ -212,7 +212,7 @@ if ((OFFLINE_SMOKE == 1)) && [[ -n "$ECONOMY_STAGE" ]]; then
   done
 fi
 if ((OFFLINE_SMOKE == 1 && BATCH2 == 1)); then
-  for source in kit_history_api_incontainer.py kit_memory_incontainer.py kit_goal_actions_incontainer.py kit_stream_incontainer.py; do
+  for source in kit_main_upgrade_incontainer.py kit_history_api_incontainer.py kit_memory_incontainer.py kit_goal_actions_incontainer.py kit_stream_incontainer.py; do
     compose cp "$ROOT/dev/tests/$source" "app:/tmp/$source"
     compose exec -T -e PYTHONPATH=/srv -e KINETTA_AI_ENABLED=1 app python "/tmp/$source"
   done

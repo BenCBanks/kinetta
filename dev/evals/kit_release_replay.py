@@ -13,6 +13,7 @@ import subprocess
 import sys
 from kit_eval_savings import case_keys, write_private
 from kit_batch2_cases import BATCH2_CASES
+from kit_main_rebase import verify as verify_main_rebase
 
 SOURCE = 'ec1eb655659d9c21c000f40847a7d48f46cd8851'
 REGENERATE = frozenset()
@@ -56,9 +57,11 @@ def prove(root,report):
     for row in report['results']:
         if row.get('case_input_digest')!=old_keys[row['variant']].get(row['case']):
             raise ValueError('Archived case inputs/source cannot be verified: '+row['case'])
+    rebased_paths=verify_main_rebase(root)
     changed=git(root,'diff','--name-only',SOURCE,'--','app').decode().splitlines()
     for name in changed:
         if name=='app/ai_fingerprints.json':continue  # ledger is never used as reuse proof
+        if name in rebased_paths:continue  # closed main-only byte/migration proof, not prompt changes
         hashes=APP_CHANGES.get(name)
         if hashes is None:raise ValueError('Provider input/source changed: '+name)
         before=git(root,'show',SOURCE+':'+name).decode();after=(root/name).read_text()
