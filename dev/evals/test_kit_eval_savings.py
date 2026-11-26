@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from kit_eval_savings import FIXTURE_DATE,plan,reuse,require_receipt,SMOKE_IDS,case_keys
+from kit_eval_savings import FIXTURE_DATE,plan,reuse,require_receipt,SMOKE_IDS,case_keys,require_baseline
 from kit_fixture_clock import INSTANT,Date,DateTime,install
 
 
@@ -46,6 +46,10 @@ class Savings(unittest.TestCase):
         for n in (float('nan'),float('inf'),-.1,1):
             with self.assertRaises(ValueError):plan([],40,n)
         self.assertEqual(len(set(SMOKE_IDS)),10)
+
+    def test_paid_smoke_requires_cached_live_rows_so_bootstrap_is_not_bought_twice(self):
+        require_baseline(self.cached(),['meal'])
+        with self.assertRaises(ValueError):require_baseline([],['meal'])
 
     def test_missing_or_wrong_head_receipt_refuses(self):
         with self.assertRaises(FileNotFoundError):require_receipt(self.path,Path('.'))

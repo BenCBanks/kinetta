@@ -61,6 +61,11 @@ def reuse(reports,keys,selected):
     return list(rows.values())
 
 
+def require_baseline(rows,selected):
+    if {r['case'] for r in rows if r['variant']=='baseline'}!=set(selected):
+        raise ValueError('Bootstrap/reuse the pinned live baseline before paid candidate testing')
+
+
 def plan(rows,total,budget,spent=0):
     if not math.isfinite(budget) or not 0<budget<=.80: raise ValueError('Economy run hard cap must be at most $0.80')
     remaining=total-len(rows)
@@ -92,7 +97,7 @@ if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--receipt');p.add_argument('--write',action='store_true')
     p.add_argument('--prepare');p.add_argument('--baseline-commit');p.add_argument('--stage',choices=('smoke','full','baseline'),default='smoke')
     p.add_argument('--cache',action='append',default=[]);p.add_argument('--cache-dir',type=Path)
-    p.add_argument('--budget-usd',type=float,default=.80)
+    p.add_argument('--budget-usd',type=float,default=.80);p.add_argument('--require-baseline',action='store_true')
     args=p.parse_args();root=Path(__file__).resolve().parents[2]
     if args.prepare:
         if args.cache_dir:
@@ -105,6 +110,7 @@ if __name__=='__main__':
         selected=[c[0] for c in BATCH2_CASES if args.stage!='smoke' or c[0] in SMOKE_IDS]
         variants=['baseline'] if args.stage=='baseline' else ['baseline','candidate']
         rows=[r for r in reuse(args.cache,keys,selected) if r['variant'] in variants]
+        if args.require_baseline and args.stage!='baseline':require_baseline(rows,selected)
         paid_runs={}
         for path in args.cache:
             old=json.loads(Path(path).read_text())
