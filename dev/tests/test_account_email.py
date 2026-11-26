@@ -1,6 +1,6 @@
 """Email on accounts and Forgot password (#232 A–C) against a disposable database; the mail provider is a stand-in."""
 import base64, datetime, hmac, json, os, re, time, unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import httpx
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -52,6 +52,39 @@ class AccountEmail(unittest.TestCase):
                 text = background.tasks[0].args[2]
                 self.assertTrue(text.startswith('Hi Riley,\n\n' if first == 'Riley' else 'Hello,\n\n'))
                 self.assertNotIn('Hi ,', text)
+
+    def test_deletion_deadlines_and_email_dates_use_utc(self):
+        cases = [
+            ('2026-11-15T20:30:00-05:00', '2026-11-30T01:30:00+00:00'),
+            ('2026-11-16T01:30:00+14:00', '2026-11-29T11:30:00+00:00'),
+        ]
+        user = {'id': 1, 'first_name': 'Fictional', 'email': 'fictional@example.com'}
+        for created_text, expected_text in cases:
+            with self.subTest(created=created_text):
+                created = datetime.datetime.fromisoformat(created_text)
+                deadline = account_email.unconfirmed_account_delete_at(created)
+                self.assertEqual(deadline, datetime.datetime.fromisoformat(expected_text))
+                self.assertEqual(deadline.tzinfo, datetime.timezone.utc)
+                self.assertEqual(deadline - created, datetime.timedelta(days=14))
+                date = datetime.datetime.fromisoformat(expected_text).strftime('%d %B %Y (UTC)')
+                _, subject, text, _ = account_email._confirmation_reminder_message(Mock(), user, 'second', deadline)
+                self.assertEqual(subject, f'Confirm your Kinetta email by {date}')
+                self.assertIn(f'deleted on {date}.', text)
+        old = datetime.datetime(2026, 10, 1, tzinfo=datetime.timezone.utc)
+        for sent_text, expected_text in [
+            ('2026-11-25T20:30:00-05:00', '2026-11-30T01:30:00+00:00'),
+            ('2026-11-26T01:30:00+14:00', '2026-11-29T11:30:00+00:00'),
+        ]:
+            with self.subTest(sent=sent_text):
+                sent = datetime.datetime.fromisoformat(sent_text)
+                deadline = account_email._unconfirmed_delete_on(old, sent)
+                self.assertEqual(deadline, datetime.datetime.fromisoformat(expected_text))
+                self.assertEqual(deadline.tzinfo, datetime.timezone.utc)
+                self.assertEqual(deadline - sent, datetime.timedelta(days=4))
+                date = datetime.datetime.fromisoformat(expected_text).strftime('%d %B %Y (UTC)')
+                _, subject, text, _ = account_email._confirmation_reminder_message(Mock(), user, 'final', deadline)
+                self.assertEqual(subject, f'Your Kinetta account will be deleted on {date}')
+                self.assertIn(f'Open this link before {date}', text)
 
     def test_shared_plain_text_email_formatter(self):
         created = datetime.datetime(2030, 1, 2, 18, 30, tzinfo=datetime.timezone.utc)

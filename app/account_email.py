@@ -27,7 +27,7 @@ UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS = 14
 
 def unconfirmed_account_delete_at(created):
     """Return the exact UTC-aware deadline used for unconfirmed-account deletion."""
-    return created + dt.timedelta(days=UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS)
+    return created.astimezone(dt.timezone.utc) + dt.timedelta(days=UNCONFIRMED_ACCOUNT_DELETE_AFTER_DAYS)
 
 
 SENT = 'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'
@@ -264,7 +264,7 @@ def confirmation(background, c, uid, name, email, welcome=False):
 
 def _unconfirmed_delete_on(created, sent_at):
     """Give every final warning at least four days before deletion, including old backlog accounts."""
-    return max(unconfirmed_account_delete_at(created), sent_at + dt.timedelta(days=4))
+    return max(unconfirmed_account_delete_at(created), sent_at.astimezone(dt.timezone.utc) + dt.timedelta(days=4))
 
 
 def _purge_unconfirmed_mode():
