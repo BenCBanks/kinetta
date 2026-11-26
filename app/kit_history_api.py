@@ -16,6 +16,7 @@ class ThreadIn(ResumeIn):
 
 
 def messages(c,uid,conversation_id,generation,before=None,visit_id=None):
+    from . import kit_stream
     store.thread(c,uid,conversation_id)
     c.execute("""UPDATE kit_turns SET state='failed',lease=NULL,expires=NULL,
       error='This answer was interrupted. Tap Retry to try again.' WHERE user_id=%s
@@ -25,7 +26,7 @@ def messages(c,uid,conversation_id,generation,before=None,visit_id=None):
       (uid,conversation_id,before,before)).fetchall()
     return {'conversation_id':conversation_id,'generation':generation,'visit_id':visit_id,
       'messages':[chat.public(r) for r in reversed(rows[:50])],
-      'before':rows[49]['id'] if len(rows)>50 else None,'ready':ai_release.enabled('kit')}
+      'before':rows[49]['id'] if len(rows)>50 else None,'ready':ai_release.enabled('kit'),**kit_stream.capabilities()}
 
 
 @router.get('')
