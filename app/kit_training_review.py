@@ -30,6 +30,11 @@ def visual(series, profile):
     # A week with no measured distance is unknown, not evidence of zero training.
     for point in data['points']:
         if point['n'] <= point['missing']:point['value'] = None
+    values=[p['value'] for p in data['points'] if p['value'] is not None]
+    data['summary']={**data['summary'],'first':data['points'][0]['value'],
+        'last':data['points'][-1]['value'],'highest':max(values) if values else None,
+        'lowest':min(values) if values else None,'change':None,'direction':None}
+    # Gaps or unfinished buckets cannot establish an endpoint change or a trend.
     measured = [p for p in data['points'] if p['value'] is not None]
     if len(measured) < 3 or not any(p['value'] > 0 for p in measured):return {}
     evidence = [dict(evidence_id='e1',tool='profile',data=profile),

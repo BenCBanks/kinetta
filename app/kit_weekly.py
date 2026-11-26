@@ -90,13 +90,13 @@ def fallback(uid, question, state, active):
         paragraphs.append(sentence.replace('{}', slot))
     periods = kit_claims.successful(evidence, 'period_compare')
     if len(periods) == 1 and all(periods[0]['data'].get('current', {}).get(k) == v for k, v in (('start', start), ('end', end))):
-        add(periods[0], ['current', 'totals', 'workouts'], 'You logged {} workout during this review period.' if periods[0]['data']['current'].get('totals',{}).get('workouts') == 1 else 'You logged {} workouts during this review period.')
-        add(periods[0], ['current', 'totals', 'distance_m'], 'Your recorded distance was {}.')
+        add(periods[0], ['current', 'totals', 'workouts'], 'You have {} workout in your log this week—a starting point for your next session.' if periods[0]['data']['current'].get('totals',{}).get('workouts') == 1 else 'You have {} workouts in your log this week—a starting point for your next session.')
+        add(periods[0], ['current', 'totals', 'distance_m'], 'Together, your recorded workouts covered {}.')
     nutrition = kit_claims.successful(evidence, 'nutrition_adequacy')
     if len(nutrition) == 1 and all(nutrition[0]['data'].get(k) == v for k, v in (('start', start), ('end', end))):
-        add(nutrition[0], ['logged_days'], 'Food was logged on {} day; logged entries may cover only part of your intake.' if nutrition[0]['data'].get('logged_days') == 1 else 'Food was logged on {} days; logged entries may cover only part of your intake.')
+        add(nutrition[0], ['logged_days'], 'Your food log covers {} day; the rest of your intake is unknown.' if nutrition[0]['data'].get('logged_days') == 1 else 'Your food log covers {} days; the rest of your intake is unknown.')
     if not paragraphs:paragraphs.append('Your recorded details are unavailable for this review period.')
-    paragraphs.append('Review your activity log and add any missing meals before planning your next week.')
+    paragraphs.append('You could log your next meal as you eat it, including drinks and snacks.')
     raw = dict(blocks=[dict(kind='paragraph', text=p) for p in paragraphs], facts=facts)
     checked = kit_conversation.checked_answer(raw, evidence, question=question, weekly_review=True)
     return dict(checked, weekly_period=dict(start=start, end=end, label=period['label']),
