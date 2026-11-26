@@ -199,10 +199,10 @@ if ((BATCH2 == 1)); then BASELINE_ENV=(-e KINETTA_KIT_BASELINE_DIR=/tmp/kit-live
 if ((OFFLINE_SMOKE == 1)) && [[ -n "$ECONOMY_STAGE" ]]; then
   compose exec -T -e PYTHONPATH=/srv -e KINETTA_KIT_EVAL_ISOLATED=1 app python /srv/dev/evals/test_kit_fixture_clock_incontainer.py
   compose cp "$ROOT/dev/evals/fixtures/kit-ordinary-recovery.json" app:/tmp/kit-ordinary-recovery.json
-  compose exec -T app mkdir -p /srv/dev/evals/fixtures /srv/dev/tests
-  compose cp "$ROOT/dev/evals/fixtures/kit-batch2-release-review.json" app:/srv/dev/evals/fixtures/kit-batch2-release-review.json
-  compose cp "$ROOT/dev/tests/kit_release_review_incontainer.py" app:/srv/dev/tests/kit_release_review_incontainer.py
-  compose exec -T -e PYTHONPATH=/srv app python /srv/dev/tests/kit_release_review_incontainer.py
+  compose exec -T app mkdir -p /tmp/kit-review/evals/fixtures /tmp/kit-review/tests
+  compose cp "$ROOT/dev/evals/fixtures/kit-batch2-release-review.json" app:/tmp/kit-review/evals/fixtures/kit-batch2-release-review.json
+  compose cp "$ROOT/dev/tests/kit_release_review_incontainer.py" app:/tmp/kit-review/tests/kit_release_review_incontainer.py
+  compose exec -T -e PYTHONPATH=/srv app python /tmp/kit-review/tests/kit_release_review_incontainer.py
   for source in kit_recovery_incontainer.py kit_training_review_incontainer.py; do
     compose cp "$ROOT/dev/tests/$source" "app:/tmp/$source"
     compose exec -T -e PYTHONPATH=/srv app python "/tmp/$source"
