@@ -156,6 +156,59 @@ class Launch(unittest.TestCase):
             self.assertIsNotNone(c.execute('SELECT id FROM activities WHERE id=%s',(aid,)).fetchone())
             history=c.execute('SELECT action,target FROM admin_audit WHERE actor_id=%s',(self.ids['admin'],)).fetchall();self.assertNotIn('Newer reported comment',str(history))
 
+    def group_report(self, update=False):
+        with db.connect() as c:
+            gid = c.execute("""INSERT INTO event_groups(organizer_id,title,event_date,time_zone,goal_type,goal_target,goal_unit,goal_start_date)
+                VALUES (%s,'Fictional reported group',current_date+30,'UTC','sessions',3,'sessions',current_date) RETURNING id""", (self.ids['plain'],)).fetchone()['id']
+            for uid in (self.ids['plain'], self.ids['other']):
+                c.execute('INSERT INTO group_members(group_id,user_id) VALUES (%s,%s)', (gid,uid))
+            update_id = c.execute("INSERT INTO group_updates(group_id,user_id,text) VALUES (%s,%s,'Unrelated update sentinel') RETURNING id", (gid,self.ids['plain'])).fetchone()['id']
+            aid = c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES (%s,'run','manual','Private workout sentinel',now()) RETURNING id", (self.ids['plain'],)).fetchone()['id']
+        member,_ = self.login('other')
+        path = f'/api/groups/{gid}' + (f'/updates/{update_id}' if update else '') + '/report'
+        response = member.post(path,json={'reason':'abuse','note':'Fictional complaint'})
+        self.assertEqual(response.status_code,200,response.text)
+        return response.json()['id'],gid,update_id,aid
+
+    def test_group_removal_is_report_scoped_confirmed_and_replay_safe(self):
+        rid,gid,update_id,aid = self.group_report()
+        snap = self.a.get(f'/api/admin/review/{rid}').json()
+        self.assertEqual(snap['item']['name'],'Fictional reported group')
+        self.assertNotIn('Unrelated update sentinel',str(snap));self.assertNotIn('Private workout sentinel',str(snap))
+        body = self.decision(rid,snap,'remove_group')
+        self.assertEqual(self.a.post(f'/api/admin/review/{rid}',json={**body,'confirm':'wrong'}).status_code,400)
+        self.assertEqual(self.a.post(f'/api/admin/review/{rid}',json={**body,'group_id':str(gid)}).status_code,422,'client cannot supply a different target')
+        member,_ = self.login('other')
+        self.assertEqual(member.post(f'/api/admin/review/{rid}',json=body).status_code,403)
+        first = self.a.post(f'/api/admin/review/{rid}',json=body)
+        self.assertEqual(first.status_code,200,first.text)
+        self.assertEqual(self.a.post(f'/api/admin/review/{rid}',json=body).json(),first.json())
+        self.assertEqual(self.a.get(f'/api/admin/review/{rid}').status_code,409)
+        with db.connect() as c:
+            self.assertIsNone(c.execute('SELECT id FROM event_groups WHERE id=%s',(gid,)).fetchone())
+            self.assertIsNone(c.execute('SELECT id FROM group_updates WHERE id=%s',(update_id,)).fetchone())
+            self.assertIsNotNone(c.execute('SELECT id FROM activities WHERE id=%s',(aid,)).fetchone())
+            self.assertEqual(c.execute('SELECT status FROM reports WHERE id=%s',(rid,)).fetchone()['status'],'done')
+            rows = c.execute("SELECT target FROM admin_audit WHERE actor_id=%s AND action='report.remove_group'",(self.ids['admin'],)).fetchall()
+            self.assertEqual(rows,[{'target':str(rid)}])
+
+    def test_group_removal_rejects_renamed_or_missing_target(self):
+        rid,gid,_,_ = self.group_report();snap = self.a.get(f'/api/admin/review/{rid}').json()
+        with db.connect() as c:c.execute("UPDATE event_groups SET title='Changed name' WHERE id=%s",(gid,))
+        self.assertEqual(self.a.post(f'/api/admin/review/{rid}',json=self.decision(rid,snap,'remove_group')).status_code,409)
+        fresh = self.a.get(f'/api/admin/review/{rid}').json();self.assertEqual(fresh['item']['name'],'Changed name')
+        with db.connect() as c:c.execute('DELETE FROM event_groups WHERE id=%s',(gid,))
+        missing = self.a.get(f'/api/admin/review/{rid}').json()
+        self.assertEqual([a['value'] for a in missing['actions']],['dismiss'])
+        self.assertEqual(self.a.post(f'/api/admin/review/{rid}',json=self.decision(rid,missing,'remove_group')).status_code,409)
+
+    def test_legacy_update_report_never_unlocks_whole_group_removal(self):
+        rid,gid,update_id,_ = self.group_report(update=True)
+        snap = self.a.get(f'/api/admin/review/{rid}').json()
+        self.assertEqual([a['value'] for a in snap['actions']],['dismiss'])
+        self.assertEqual(self.a.post(f'/api/admin/review/{rid}',json=self.decision(rid,snap,'remove_group')).status_code,409)
+        with db.connect() as c:self.assertIsNotNone(c.execute('SELECT id FROM event_groups WHERE id=%s',(gid,)).fetchone())
+
     def test_real_report_api_preserves_target_type_after_comment_deletion(self):
         _,aid,cid=self.report()
         with db.connect() as c:c.execute("UPDATE activities SET visibility='everyone' WHERE id=%s",(aid,))
