@@ -54,6 +54,8 @@ async function conversationBlocksUi(browser,state){
    answer=thin;await load();
    assert.equal(await p.locator('.kit-facts').count(),0,'thin answers do not manufacture fact rows');
    assert.equal(await p.locator('.kit-answer-followups a').innerText(),'Training plan','legacy app actions remain reachable');
+   const actionGap=await p.locator('.kit-answer-followups').evaluate(el=>el.getBoundingClientRect().top-el.previousElementSibling.getBoundingClientRect().bottom);
+   assert(Math.abs(actionGap-12)<=.5,`${width}px ${theme}: Training plan has 12px separation from the final paragraph (${actionGap}px)`);
    if(out)await p.screenshot({path:path.join(out,`kit-conversation-thin-${width}-${theme}.png`),animations:'disabled'});
    answer={answer_blocks:[{kind:'paragraph',text:'A partial block must not render'},{kind:'unsupported',text:'Unknown'}],interpretation:'Saved answer stays readable.',facts:[]};await load();
    assert.equal(await p.locator('.kit-answer-blocks').count(),0,'malformed blocks use the complete legacy renderer');

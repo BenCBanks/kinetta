@@ -1805,6 +1805,7 @@ button.thread-food:active { opacity: .7; }
 .kit-answer-blocks {font-size:max(15px,.9375rem);line-height:1.5;overflow-wrap:anywhere;}
 .kit-answer-blocks>p,.kit-answer-blocks>ul {margin:0 0 12px;white-space:pre-line;}
 .kit-answer-blocks>:last-child {margin-bottom:0;}
+.kit-answer-blocks+:is(.kit-answer-followups,[data-kit-review]) {margin-top:12px;}
 .kit-answer-blocks>ul {padding-left:20px;}
 .kit-answer-blocks li+li {margin-top:6px;}
 .kit-workout-comparison {margin:0;}
