@@ -96,6 +96,15 @@ def generate(uid, client_id, body, flag):
         return kit_thread.generate(client_id, body, {'id':uid})
 
 
+def rejection(result):
+    """Carry only closed pre-generation rejection metadata, never provider/error text."""
+    status = getattr(result, 'status_code', None)
+    if status in (429, 503):
+        return {'code':'rate_limited' if status==429 else 'unavailable',
+                'status':status, 'restore_draft':True}
+    return None
+
+
 async def events(uid, client_id, body, request):
     from . import kit_thread
     stop = Event()
@@ -108,6 +117,11 @@ async def events(uid, client_id, body, request):
         yield frame('start', {'version':1})
         while time.monotonic()-began < TIMEOUT_SECONDS:
             if await request.is_disconnected():return
+            if worker.done():
+                rejected = rejection(worker.result())
+                if rejected:
+                    yield frame('error', rejected)
+                    return
             row = await asyncio.to_thread(current, uid, client_id, body)
             if row['state']=='answered':
                 blocks = checked_blocks(row.get('answer') or {})  # Validate entire envelope before first block.
@@ -135,8 +149,16 @@ async def events(uid, client_id, body, request):
                 heartbeat = now
             await asyncio.sleep(POLL_SECONDS)
         yield frame('error', {'code':'answer_timeout'})
-    except HTTPException:
-        yield frame('error', {'code':'access_changed'})
+    except HTTPException as error:
+        # discard_unstarted commits before generate returns. A read may see the
+        # missing row first; briefly join that result to retain its quota status.
+        if worker is not None and not worker.done() and error.status_code==409:
+            await asyncio.wait({worker}, timeout=.05)
+        rejected = rejection(error)
+        if worker is not None and worker.done() and not worker.cancelled():
+            try:rejected = rejection(worker.result()) or rejected
+            except Exception:pass
+        yield frame('error', rejected or {'code':'access_changed'})
     except asyncio.CancelledError:
         raise
     except Exception:
