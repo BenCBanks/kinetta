@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
 
-from . import coach, db, ai_budget, kit_charts, kit_goal_contract
+from . import coach, db, ai_budget, kit_charts, kit_goal_contract, kit_weekly
 from .coach_tools import AccountTools, FoodTools, Empty, specifications
 from .kit_answer_format import has_ambiguous_mass_unit
 
@@ -697,6 +697,7 @@ def _claude_turn(messages, definitions, *, system=SYSTEM):
                          'totalTokenCount': response.usage.input_tokens + response.usage.output_tokens}
 
 
+@kit_weekly.safe
 def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False,
            workout_review=False, workout_evidence=None):
     """`turn` is a stand-in hook for deterministic tests; production uses the configured provider."""
@@ -754,6 +755,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         system=kit_claims.weekly_system() if weekly_review else kit_conversation.SYSTEM
         turn = (lambda m,d:adapter(m,d,system=system)) if kit else adapter
     usage, began, calls_used = {'promptTokenCount': 0, 'candidatesTokenCount': 0, 'thoughtsTokenCount': 0, 'totalTokenCount': 0}, time.monotonic(), 0
+    if kit and weekly_review:kit_weekly.remember(evidence,usage,began)
     for round_index in range(MAX_ROUNDS):
         if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
         if not coach.allowed(uid):raise ValueError(coach.off())
