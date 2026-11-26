@@ -7,6 +7,7 @@ const policy={setup:false,signup:true,full:false,beta:false};
 (async()=>{
  const browser=await chromium.launch();let cases=0;
  try{for(const theme of ['light','dark'])for(const width of [390,330]){
+  const confirmation={valid:false,limited:false,identifiers:[]};
   const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true}),p=await c.newPage(),errors=[],writes=[];
   const assertVisibleTarget=async(selector,label)=>{const box=await p.locator(selector).evaluate(n=>({height:n.getBoundingClientRect().height,scrollWidth:document.documentElement.scrollWidth,innerWidth}));assert(box.height>=44,`${label} target is at least 44px: ${JSON.stringify(box)}`);assert(box.scrollWidth<=box.innerWidth+1,`${label} has no horizontal overflow: ${JSON.stringify(box)}`);};
   try{
@@ -22,6 +23,11 @@ const policy={setup:false,signup:true,full:false,beta:false};
     if(u.pathname==='/api/join/fictional-token')return r.fulfill({json:{inviter:'Fictional Friend',email:'runner@example.test'}});
     if(u.pathname==='/api/cards/fictional-card')return r.fulfill({json:{username:'fictional_runner',allow_requests:true,request_default:true}});
     if(u.pathname==='/api/challenges/fictional-challenge')return r.fulfill({json:{code:'fictional-challenge',title:'Fictional October miles',joining_closed:false}});
+    if(u.pathname==='/api/account/email/confirm')return r.fulfill(confirmation.valid?{json:{ok:true,email:'fictional@example.test'}}:{status:404,json:{detail:'This link has expired. Request a new one from the sign-in page.'}});
+    if(u.pathname==='/api/account/email/resend'){
+     confirmation.identifiers.push(q.postDataJSON().login);await new Promise(resolve=>setTimeout(resolve,150));
+     return r.fulfill(confirmation.limited?{status:429,json:{detail:'Too many tries - wait 15 minutes'}}:{json:{ok:true,message:'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.'}});
+    }
     if(q.method()!=='GET'&&q.method()!=='HEAD'){writes.push(`${q.method()} ${u.pathname}`);return r.fulfill({status:409,json:{detail:'Blocked fictional write'}});}
     return r.continue();
    });
@@ -72,11 +78,28 @@ const policy={setup:false,signup:true,full:false,beta:false};
    await p.goto(base+'/add/fictional-friend',{waitUntil:'domcontentloaded'});await p.locator('#iv-signup').waitFor();assert.equal(await p.locator('#first-run-create').count(),0,'friend invite links bypass first-run welcome');cases++;
    await p.goto(base+'/?challenge=fictional-challenge',{waitUntil:'domcontentloaded'});await p.locator('.account-enrollment').waitFor();assert.equal(await p.locator('input[name=challenge_join]').count(),1,'challenge invitation choice remains in account creation');assert.equal(await p.locator('#first-run-create').count(),0,'challenge invite links bypass first-run welcome');cases++;
    await p.goto(base+'/?card=fictional-card',{waitUntil:'domcontentloaded'});await p.locator('.account-enrollment').waitFor();assert.equal(await p.locator('input[name=card_request]').count(),1,'card invite choice remains in account creation');assert.equal(await p.locator('#first-run-create').count(),0,'card links bypass first-run welcome');cases++;
+   await p.goto(base+'/confirm-email#fictional-expired',{waitUntil:'domcontentloaded'});await p.locator('#confirm-resend-form').waitFor();
+   assert.equal(new URL(p.url()).hash,'','confirmation bearer token is removed from the visible URL');
+   assert.match(await p.locator('.login').innerText(),/Request a new one below/);await assertVisibleTarget('#confirm-resend','Resend email');await assertVisibleTarget('#c-login','Log in');
+   if(out)await p.screenshot({path:path.join(out,`confirmation-expired-${width}-${theme}.png`),animations:'disabled'});
+   const input=p.locator('#confirm-resend-form input'),button=p.locator('#confirm-resend'),status=p.locator('#confirm-resend-status');
+   for(const who of ['unknown@example.test','fictional_runner']){
+    await input.fill(who);await input.press('Enter');await p.locator('#confirm-resend:disabled').waitFor();
+    await p.evaluate(()=>document.querySelector('#confirm-resend-form').requestSubmit());
+    await p.locator('#confirm-resend:not([disabled])').waitFor();assert.equal(confirmation.identifiers.filter(x=>x===who).length,1,'duplicate submission sends only once');
+    assert.equal(await status.innerText(),'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.');
+   }
+   if(out)await p.screenshot({path:path.join(out,`confirmation-resent-${width}-${theme}.png`),animations:'disabled'});
+   confirmation.limited=true;await button.click();await p.locator('#confirm-resend:disabled').waitFor();await p.locator('#confirm-resend:not([disabled])').waitFor();assert.match(await status.innerText(),/wait 15 minutes/);
+   if(out)await p.screenshot({path:path.join(out,`confirmation-limited-${width}-${theme}.png`),animations:'disabled'});
+   confirmation.limited=false;await button.click();await p.locator('#confirm-resend:disabled').waitFor();await p.locator('#confirm-resend:not([disabled])').waitFor();assert.match(await status.innerText(),/If that account/);
+   await p.locator('#c-login').click();await p.locator('input[name=password]').waitFor();assert.equal(await p.locator('#confirm-resend-form').count(),0);
+   confirmation.valid=true;await p.goto(base+'/confirm-email#fictional-valid',{waitUntil:'domcontentloaded'});await p.getByRole('heading',{name:'Email confirmed',exact:true}).waitFor();assert.equal(await p.locator('#confirm-resend-form').count(),0,'confirmed links show no resend nag');cases++;
    policy.setup=true;await p.evaluate(()=>{for(const key of ['kinetta.firstRunWelcomeSeen','kinetta.cardLink','kinetta.challengeLink','kinetta.friendLink','kinetta.joinReturn'])localStorage.removeItem(key);});await p.goto(base+'/',{waitUntil:'domcontentloaded'});await p.locator('#first-run-create:not([disabled])').waitFor();assert.equal(await p.locator('#first-run-create').innerText(),'Create account','an empty Kinetta setup offers account creation');if(out)await p.locator('.first-run-shell').screenshot({path:path.join(out,`new-server-${width}-${theme}.png`),animations:'disabled'});await p.locator('#first-run-create').click();await p.locator('.login h1').waitFor();assert.equal(await p.locator('.login h1').innerText(),'Welcome to Kinetta');assert.match(await p.locator('.login').innerText(),/brand-new Kinetta/);if(out)await p.locator('.login').screenshot({path:path.join(out,`new-server-account-${width}-${theme}.png`),animations:'disabled'});policy.setup=false;cases++;
    policy.signup=true;policy.full=false;const native=await c.newPage(),nativeErrors=[];native.on('pageerror',e=>nativeErrors.push(e.message));await native.addInitScript(()=>{for(const key of ['kinetta.firstRunWelcomeSeen','kinetta.cardLink','kinetta.challengeLink','kinetta.friendLink','kinetta.joinReturn'])localStorage.removeItem(key);const nativeOrigin='https://login.kinetta.app',fetchLocal=window.fetch.bind(window);window.fetch=(input,init)=>{const url=typeof input==='string'?input:input.url;return fetchLocal(url.startsWith(nativeOrigin+'/')?url.replace(nativeOrigin,location.origin):input,init);};window.Capacitor={isNativePlatform:()=>true,Plugins:{Preferences:{get:async()=>({value:null}),set:async()=>({}),remove:async()=>({})},App:{getInfo:async()=>({version:'fixture',build:'1'})}}};});await native.goto(base+'/',{waitUntil:'domcontentloaded'});await native.locator('.first-run').waitFor();assert.equal(await native.evaluate(()=>Native.on),true,'the native first launch uses the welcome path');await native.locator('#first-run-create:not([disabled])').waitFor();assert.equal(await native.locator('#first-run-create').innerText(),'Create account');assert.equal(await native.evaluate(()=>Native.base),'https://login.kinetta.app','native first run selects the hosted server before enrollment state loads');if(out&&width===390)await native.locator('.first-run-shell').screenshot({path:path.join(out,`native-welcome-${theme}.png`),animations:'disabled'});await native.locator('#first-run-create').click();await native.locator('.account-enrollment').waitFor();assert.equal(await native.locator('#first-run-create').count(),0,'the native Create account action enters signup');assert.deepEqual(nativeErrors,[]);await native.close();cases++;
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);console.log(`First-run welcome ${width}px ${theme}: pass`);
   }finally{await c.close();}
  }
  }finally{await browser.close();}
- assert.equal(cases,48);console.log('First-run welcome: web/native entry, setup/signup/full/waitlist/closed states, single account form, inline errors, username suggestion, login memory and join/friend/card/challenge link bypass PASS; writes blocked');
+ assert.equal(cases,52);console.log('First-run welcome: web/native entry, setup/signup/full/waitlist/closed states, single account form, inline errors, username suggestion, login memory and join/friend/card/challenge link bypass PASS; writes blocked');
 })().catch(e=>{console.error(e);process.exitCode=1;});
