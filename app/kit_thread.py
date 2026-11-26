@@ -120,12 +120,12 @@ def read(user=Depends(current_user),before:int | None=Query(default=None,gt=0),v
         conversation_id=kit_history.conversation(c,uid,visit_id)
         if conversation_id:
             from .kit_history_api import messages
-            return messages(c,uid,conversation_id,generation,before,visit_id)
+            return {**messages(c,uid,conversation_id,generation,before,visit_id),**kit_stream.capabilities()}
         # Recover an interrupted process without silently repeating a paid attempt.
         c.execute("UPDATE kit_turns SET state='failed',error='This answer was interrupted. Tap Retry to try again.',lease=NULL WHERE user_id=%s AND generation=%s AND state='running' AND expires<=now()",(uid,generation))
         rows=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND replay_blocked_at IS NULL AND generation=%s AND visit_id IS NOT DISTINCT FROM %s::uuid AND (%s::bigint IS NULL OR id<%s) ORDER BY id DESC LIMIT 51',(uid,generation,visit_id,before,before)).fetchall()
         return {'generation':generation,'messages':[public(r) for r in reversed(rows[:50])],
-                'before':rows[49]['id'] if len(rows)>50 else None,'ready':ai_release.enabled('kit')}
+                'before':rows[49]['id'] if len(rows)>50 else None,'ready':ai_release.enabled('kit'),**kit_stream.capabilities()}
 
 
 @router.post('/messages')
@@ -269,6 +269,9 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         row=c.execute('SELECT * FROM kit_turns WHERE user_id=%s AND replay_blocked_at IS NULL AND client_id=%s FOR UPDATE',(uid,client_id)).fetchone()
         if not current or current['generation']!=body.generation or not row or row['lease']!=lease:
             return {'cancelled':True}
+        if kit_stream.cancelled():
+            c.execute("UPDATE kit_turns SET state='failed',answer=NULL,lease=NULL,expires=NULL WHERE user_id=%s AND client_id=%s",(uid,client_id))
+            return kit_stream.cancelled_reply()
         if error and not answer and new_turn and (not attempted or isinstance(failure,HTTPException) and failure.status_code==429):
             kit_history.discard_unstarted(c,uid,row)
             return JSONResponse(status_code=429 if isinstance(failure,HTTPException) and failure.status_code==429 else 503,
