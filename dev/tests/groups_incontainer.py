@@ -1927,7 +1927,7 @@ class GroupChallengeAPI(unittest.TestCase):
         self.assertEqual(self.clients[0].put(seedpath,json=edit).status_code,200)
         self.assertEqual(self.clients[0].get('/api/groups/'+self.gid).json()['goal_target'],4)
         self.assertEqual(self.accept(self.token,3).status_code,200)
-        self.assertFalse(self.clients[3].get(path).json()['share_total'],'new join uses its explicit OFF choice')
+        self.assertFalse(self.clients[3].get(path).json()['share_total'],'explicit join OFF applies to newly created independent challenge memberships')
 
     def test_creator_or_current_organizer_manages_but_not_another_member(self):
         q=self.create();path=self.root+'/'+q['id'];edit={k:v for k,v in self.body.items() if k!='id'}
@@ -2060,6 +2060,23 @@ class GroupChallengeAPI(unittest.TestCase):
         self.assertEqual(self.clients[2].post(f'/api/group-friend-invites/{iid}/accept',json={'share_total':True}).status_code,200)
         self.assertEqual(self.clients[2].get(root+'/challenges').json(),[])
         self.assertEqual(self.clients[2].post(root+'/challenges',json=self.body).status_code,200)
+        self.assertNotEqual(self.clients[2].get('/api/groups/activity-strip').json().get('next',{}).get('id'),group['id'])
+
+    def test_ending_seeded_goal_freezes_old_client_without_closing_group(self):
+        seed=next(q for q in self.clients[0].get(self.root).json() if q['legacy_goal'])
+        path=self.root+'/'+seed['id']
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET joined_at='2030-03-01T05:00Z' WHERE group_id=%s",(self.gid,))
+        self.activity(0,self.now-dt.timedelta(hours=1),sport='run')
+        before=self.clients[0].get('/api/groups/'+self.gid).json()['your_total']
+        self.assertEqual(self.clients[0].post(path+'/end').status_code,200)
+        self.activity(0,self.now+dt.timedelta(hours=1),sport='run')
+        with patch('app.groups._now',return_value=self.now+dt.timedelta(days=1)):
+            old=self.clients[0].get('/api/groups/'+self.gid).json()
+            self.assertEqual(old['your_total'],before)
+            self.assertEqual(old['event_state'],'complete');self.assertFalse(old['closed'])
+            self.assertEqual(self.clients[0].get(path).json()['your_total'],before)
+            self.assertFalse(self.clients[0].get('/api/groups/activity-strip').json()['has_upcoming'])
 
 
 unittest.main()

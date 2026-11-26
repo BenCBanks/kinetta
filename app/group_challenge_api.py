@@ -71,7 +71,7 @@ def _view(c, group, q, uid):
     me = next((m for m in members if m['user_id']==uid), None)
     own = G._contributions(c, goal, [me] if me else [], now).get(uid,0)
     return {'id':str(q['id']), 'group_id':str(group['id']), **{k:q[k] for k in FIELDS},
-            'ended_at':q['ended_at'], 'can_manage':uid in (q['creator_id'],group['organizer_id']),
+            'legacy_goal':bool(q['legacy_group_id']), 'ended_at':q['ended_at'], 'can_manage':uid in (q['creator_id'],group['organizer_id']),
             'share_total':bool(me and me['share_total']), 'your_total':own,
             **({'total':round(sum(values.values()),3)} if sharing else {}),
             'members':[{'username':m['username'],'shares_total':bool(m['shares_total']),
