@@ -355,17 +355,25 @@ assert weekly['weekly_review']['what_went_well']=='You kept a useful training rh
 assert weekly['verdict']==weekly_raw['verdict'] and weekly['reason']==weekly_raw['reason']
 assert weekly['interpretation']==weekly_raw['verdict']+' '+weekly_raw['reason']
 
-# Invalid weekly prose fails after the single answer call; unlike ordinary Kit, it cannot buy a retry.
+# Invalid model numbers still fail validation. The runner may recover only with checked app-owned prose.
+invalid_weekly_raw={**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'You logged 3 days.'}}
+try:coach_chat.checked_answer(invalid_weekly_raw,weekly_evidence,kit=True,weekly_review=True)
+except ValueError as error:assert str(error)=='Unverified numeric symbol'
+else:raise AssertionError('Invalid model number must still fail closed before app recovery')
 invalid_weekly_calls=[]
 def invalid_weekly_turn(messages,definitions):
     invalid_weekly_calls.append(definitions)
-    return [],json.dumps({**weekly_raw,'weekly_review':{**weekly_raw['weekly_review'],'what_went_well':'You logged 3 days.'}}),{}
+    return [],json.dumps(invalid_weekly_raw),{}
 with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
      patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=weekly_tool):
-    try:coach_chat.answer(uid,'Review my week',kit=True,weekly_review=True,turn=invalid_weekly_turn)
-    except ValueError as error:assert str(error)=='Kit could not verify that weekly review. Try again.'
-    else:raise AssertionError('Invalid weekly number should fail closed')
+    recovered_weekly=coach_chat.answer(uid,'Review my week',kit=True,weekly_review=True,turn=invalid_weekly_turn)
+assert recovered_weekly['app_fallback'] and recovered_weekly['fallback_reason']=='weekly_verification'
+assert 'You logged 3 days.' not in recovered_weekly['interpretation']
+assert 'weekly_review' not in recovered_weekly
+assert recovered_weekly['facts']==[], 'Undated stand-in evidence cannot supply fallback measurements'
+assert all('3' not in b['text'] for b in recovered_weekly['answer_blocks'])
 assert len(invalid_weekly_calls)==1,'weekly validation does not add a paid provider retry'
+print('Weekly invalid-number safety: raw digit rejected; app-only fallback excludes model text and undated facts; no extra provider call PASS')
 
 # Workout-review is a separate response contract; legacy Kit and weekly shapes stay unchanged.
 legacy_with_workout={**kit_raw,'workout_review':{'verdict':'My effort felt steady.','next_step':'Keep going.'}}
