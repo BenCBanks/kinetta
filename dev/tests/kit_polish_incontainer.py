@@ -26,8 +26,11 @@ for text in ('Your food log has gaps.','You were logging your regular meals.'):
 records=[profile,dict(evidence_id='e2',tool='period_compare',data=dict(current=dict(totals=dict(workouts=3))))]
 raw=dict(blocks=[dict(kind='paragraph',text='Training volume was {e2:0} workouts during this review period.')],
          facts=[dict(evidence_id='e2',path=['current','totals','workouts'],value=3)])
-result=coach_chat.checked_answer(raw,records,kit=True,weekly_review=True)
-assert result['answer_blocks'][0]['text']=='You logged 3 workouts over the past week.'
+for text in ('Training volume was {e2:0} workouts during this review period.',
+             'You logged {e2:0} workouts during this review period.'):
+ raw['blocks'][0]['text']=text
+ result=coach_chat.checked_answer(raw,records,kit=True,weekly_review=True)
+ assert result['answer_blocks'][0]['text']=='You logged 3 workouts over the past week.'
 bad=copy.deepcopy(raw);bad['facts'][0]['value']=4
 try:coach_chat.checked_answer(bad,records,kit=True,weekly_review=True)
 except ValueError:pass
