@@ -43,6 +43,7 @@ python3 dev/evals/test_food_memory_score.py
 python3 dev/evals/test_workout_review_report.py
 python3 dev/evals/test_kit_gate.py
 python3 dev/evals/test_kit_gate_resume.py
+python3 dev/evals/test_kit_weekly_gate.py
 python3 dev/evals/test_kit_setting_smoke.py
 
 echo "== syntax"

@@ -16,6 +16,23 @@ def load_baseline(path):
     # Pydantic resolves forward annotations through the defining module's namespace.
     # Register before executing; never rewrite the frozen baseline source.
     name = 'app._kit_baseline'
+    directory = os.environ.get('KINETTA_KIT_BASELINE_DIR')
+    if directory:
+        # Batch comparisons freeze ALL app helpers, not just coach_chat.py. Only
+        # the disposable connection/ledger are shared, so reservations stay capped.
+        from pathlib import Path
+        from app import db, ai_budget
+        import types
+        package = 'app._kit_live'
+        folder = Path(directory)
+        if (folder/'coach_chat.py').read_bytes() != Path(path).read_bytes():
+            raise ValueError('Full baseline tree differs from pinned coach source')
+        module = types.ModuleType(package); module.__path__ = [str(folder)]
+        sys.modules[package] = module
+        for key, shared in (('db',db),('ai_budget',ai_budget)):
+            sys.modules[package+'.'+key] = shared
+            setattr(module,key,shared)
+        name, path = package+'.coach_chat', folder/'coach_chat.py'
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     previous = sys.modules.get(name)

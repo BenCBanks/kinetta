@@ -136,7 +136,7 @@ fi
 
 # The production image excludes dev/. Copy only the isolated evaluation sources.
 compose exec -T -u 0 app mkdir -p /srv/dev/evals
-for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_gate_resume.py kit_setting_smoke.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py; do
+for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_gate_resume.py kit_setting_smoke.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py kit_weekly_gate.py kit_batch2_history_cases.py; do
   compose cp "$ROOT/dev/evals/$source" "app:/srv/dev/evals/$source"
 done
 compose cp "$BASELINE" app:/tmp/kit-eval-baseline-coach.py
@@ -144,6 +144,17 @@ compose exec -T app mkdir -m 700 -p "$CONTAINER_OUTPUT_DIR"
 OPTIONS=(--gate --variant both --baseline /tmp/kit-eval-baseline-coach.py
   --baseline-commit "$BASELINE_COMMIT" --candidate-commit "$CANDIDATE_COMMIT"
   --budget-usd "$BUDGET" --output "$CONTAINER_OUTPUT")
+BASELINE_ENV=()
+if [[ -n "${KINETTA_KIT_BASELINE_TREE:-}" ]]; then
+  compose cp "$KINETTA_KIT_BASELINE_TREE" app:/tmp/kit-live-app
+  compose cp "$KINETTA_KIT_BASELINE_PIN" app:/tmp/kit-live-pin.json
+  BASELINE_ENV=(-e KINETTA_KIT_BASELINE_DIR=/tmp/kit-live-app)
+  OPTIONS+=(--baseline-pin /tmp/kit-live-pin.json)
+fi
+if [[ -n "${KINETTA_KIT_BASELINE_CACHE:-}" ]]; then
+  compose cp "$KINETTA_KIT_BASELINE_CACHE" app:/tmp/kit-baseline-cache.json
+  OPTIONS+=(--baseline-cache /tmp/kit-baseline-cache.json)
+fi
 if ((SETTING_SMOKE == 1)); then OPTIONS+=(--setting-smoke --smoke-thinking "$SMOKE_THINKING"); fi
 if [[ -n "$GATE_RESUME" ]]; then
   compose cp "$CACHE_TEMP" app:/tmp/kit-gate-resume.json
@@ -160,12 +171,12 @@ if ((OFFLINE_SMOKE == 1 && SETTING_SMOKE == 1)); then
   compose cp "$ROOT/dev/evals/fixtures/kit-smoke3-nutrition.json" app:/tmp/kit-smoke3-fixtures.json
   compose exec -T -e PYTHONPATH=/srv -e KINETTA_KIT_EVAL_ISOLATED=1 app python /srv/dev/evals/test_kit_smoke_budget_incontainer.py
 elif ((OFFLINE_SMOKE == 1)); then
-  compose exec -T -e PYTHONPATH=/srv app python /srv/dev/evals/test_kit_baseline_incontainer.py \
+  compose exec -T -e PYTHONPATH=/srv "${BASELINE_ENV[@]}" app python /srv/dev/evals/test_kit_baseline_incontainer.py \
     --baseline /tmp/kit-eval-baseline-coach.py --output "$CONTAINER_OUTPUT"
 elif ((DRY_RUN == 1)); then
-  compose exec -T -e PYTHONPATH=/srv app python /srv/dev/evals/kit_eval.py "${OPTIONS[@]}" --dry-run
+  compose exec -T -e PYTHONPATH=/srv "${BASELINE_ENV[@]}" app python /srv/dev/evals/kit_eval.py "${OPTIONS[@]}" --dry-run
 else
   compose exec -T -e GEMINI_API_KEY -e PYTHONPATH=/srv \
-    -e KINETTA_KIT_EVAL_ISOLATED=1 -e KINETTA_AI_ENABLED=1 -e KINETTA_KIT_ENABLED=1 \
+    -e KINETTA_KIT_EVAL_ISOLATED=1 -e KINETTA_AI_ENABLED=1 -e KINETTA_KIT_ENABLED=1 "${BASELINE_ENV[@]}" \
     app python /srv/dev/evals/kit_eval.py "${OPTIONS[@]}" --accept-paid-calls
 fi

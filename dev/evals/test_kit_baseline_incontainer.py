@@ -34,9 +34,13 @@ def main():
         'what_to_change': 'Food records are incomplete.',
         'next_week_focus': 'Follow your saved plan.'}}
 
+    if os.environ.get('KINETTA_KIT_BASELINE_DIR'):
+        raw={'blocks':[{'kind':'paragraph','text':'Your saved records are available.'}],'facts':[]}
+        weekly={'blocks':[{'kind':'paragraph','text':'Review your recorded activity and keep logging your meals.'}],'facts':[]}
+
     def provider(messages, definitions, *, system):
         calls.append(system)
-        return [], json.dumps(weekly if system == baseline.KIT_WEEKLY_SYSTEM else raw), {}
+        return [], json.dumps(weekly if definitions==[] else raw), {}
 
     try:
         with db.connect() as c:
@@ -51,14 +55,15 @@ def main():
         # schema validation, rendering and SQL run against the unchanged baseline.
         with patch.dict(os.environ, {'KINETTA_AI_ENABLED': '1'}), \
              patch.object(coach, 'provider', return_value='gemini'), \
+             patch.object(baseline.coach, 'provider', return_value='gemini'), \
              patch.object(baseline, '_gemini_turn', side_effect=provider), \
              patch('urllib.request.urlopen', side_effect=AssertionError('Network provider call forbidden')):
             answer = baseline.answer(uids[0], 'What is recorded?', kit=True)
-            assert answer['interpretation'] == raw['verdict']+' '+raw['reason']
+            assert answer['interpretation'] == (raw['blocks'][0]['text'] if 'blocks' in raw else raw['verdict']+' '+raw['reason'])
             transport = request_contract(uuid.uuid4(), uuid.uuid4(), uuid.uuid4())
             result = run_weekly_answer(baseline.answer, uids[0], transport)
             assert result['error'] is None, result
-            assert result['answer']['weekly_review'] == weekly['weekly_review']
+            assert result['answer'].get('answer_blocks',result['answer'].get('weekly_review')) == weekly.get('blocks',weekly.get('weekly_review'))
             before = len(calls)
             refused = run_weekly_answer(baseline.answer, uids[1], transport)
             assert len(calls) == before, 'Consent refusal must happen before provider transport'

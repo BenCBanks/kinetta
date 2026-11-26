@@ -21,6 +21,7 @@ p=argparse.ArgumentParser()
 p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,default=DEFAULT_BUDGET_USD)
 p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',required=True);p.add_argument('--candidate-commit',required=True)
 p.add_argument('--output',required=True);p.add_argument('--baseline-results')
+p.add_argument('--baseline-pin');p.add_argument('--baseline-cache')
 p.add_argument('--resume',help='Resume an exact-input full gate without repaying completed or interrupted paid rows')
 p.add_argument('--retry-case',action='append',default=[],help='Explicitly repay only this failed paid candidate case; requires --resume')
 p.add_argument('--variant',choices=('both','baseline','candidate'),default='both')
@@ -61,6 +62,16 @@ metadata={'reviewed':False,'complete':False,'dry_run':args.dry_run,
  'case_count':len(selected_cases),'selected_case_ids':[case[0] for case in selected_cases],
  'budget_usd':args.budget_usd,'provider_calls':0 if args.dry_run else None}
 reused=[]
+if args.baseline_pin:
+ metadata['baseline_pin']=json.loads(Path(args.baseline_pin).read_text())
+ metadata['candidate_app_commit']=metadata['baseline_pin']['candidate_app_commit']
+if args.baseline_cache:
+ if args.resume or not args.gate or args.setting_smoke or not args.baseline_pin:p.error('Historical baseline requires a pinned full gate, without --resume')
+ from kit_weekly_gate import cached_baseline
+ cache=json.loads(Path(args.baseline_cache).read_text())
+ try:reused=cached_baseline(cache,selected_cases,args.baseline_commit)
+ except ValueError as error:p.error(str(error))
+ metadata['historical_baseline']={k:v for k,v in cache.items() if k!='results'}
 if args.gate and not args.setting_smoke:
  metadata.update(gate_resume_version=1,input_digest=gate_identity(root,selected_cases,args.baseline_commit,
                  args.candidate_commit,metadata['baseline_sha256']))
@@ -70,7 +81,7 @@ if args.gate and not args.setting_smoke:
    reused,metadata['prior_spend_usd']=resume_rows(previous,metadata['input_digest'],metadata['selected_case_ids'],
       recheck=lambda row:replay_gate_row(row,coach.HEALTH_NO,coach_chat._json,coach_chat.checked_answer),
       retry_cases=args.retry_case)
-   for key in ('source_report_commit','source_report_sha256'):
+   for key in ('source_report_commit','source_report_sha256','historical_baseline'):
     if key in previous:metadata[key]=previous[key]
    metadata['superseded_results']=previous.get('superseded_results',[])+[row for row in previous.get('results',[])
        if row['variant']=='candidate' and row['case'] in args.retry_case]
@@ -124,6 +135,9 @@ today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
 diagnostics=RejectionDiagnostics(coach_chat)
 from app.kit_tools import KitTools
 diagnostics.observe_tools(KitTools)
+if os.environ.get('KINETTA_KIT_BASELINE_DIR'):
+ from importlib import import_module
+ diagnostics.observe_tools(import_module(baseline.__package__+'.kit_tools').KitTools)
 diagnostics.attach(baseline)
 weekly_case_ids={case[0] for case in selected_cases
                  if len(case)>3 and isinstance(case[3],dict) and case[3].get('weekly_review')}
@@ -308,7 +322,7 @@ try:
           'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,
           'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(selected_cases),
           'selected_case_ids':[case[0] for case in selected_cases],
-          'baseline_results_reused':bool(args.baseline_results or args.resume),'results':results,
+          'baseline_results_reused':bool(args.baseline_results or args.resume or args.baseline_cache),'results':results,
           'reserved_or_estimated_usd':metadata.get('prior_spend_usd',0)+float(cost['n'])/1e6,
           'new_spend_usd':float(cost['n'])/1e6,'requests':metadata.get('prior_requests',0)+cost['requests'],
           'reused_responses':len(reused),'new_responses':len(results)-len(reused),
