@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
-from . import account_email, auth, community_filter, db, notify, reactions, names
+from . import account_email, auth, community_filter, db, notify, reactions, names, group_challenges
 from .group_limits import MAX_MEMBERS
 from .parsers import SPORTS as ACTIVITY_SPORTS
 from .auth import current_user
@@ -699,6 +699,7 @@ def create_group(body: GroupCreate, request: Request, user=Depends(current_user)
                            body.goal_target, body.goal_unit, body.goal_sports, start_date, body.training_for)).fetchone()
         c.execute("INSERT INTO group_members(group_id,user_id) VALUES(%s,%s)", (group['id'], user['id']))
         invite_url = _new_invite(c, group, request)
+        group_challenges.seed_legacy(c, group['id'])
         return {**_answer(c, group, user['id']), 'invite_url': invite_url}
 
 
@@ -763,6 +764,7 @@ def update_group_event_date(group_id: str, body: GroupEventDate, user=Depends(cu
             raise HTTPException(422, 'The event date must be on or after the goal start date')
         updated = c.execute('UPDATE event_groups SET event_date=%s WHERE id=%s RETURNING *',
                             (body.event_date, group['id'])).fetchone()
+        group_challenges.legacy_date(c, group['id'], body.event_date)
         return _answer(c, updated, user['id'])
 
 
@@ -926,11 +928,12 @@ def set_group_monday_recap(group_id: str, body: GroupMondayRecapPreference, user
 @router.post('/api/groups/{group_id}/sharing')
 def set_group_sharing_level(group_id: str, body: GroupSharingPreference, user=Depends(current_user)):
     with db.connect() as c:
-        group = _group(c, group_id, user['id'])
+        group = _group(c, group_id, user['id'], lock=True)
         updated = c.execute('UPDATE group_members SET sharing_level=%s WHERE group_id=%s AND user_id=%s AND status=\'active\'',
                             (body.level, group['id'], user['id']))
         if updated.rowcount != 1:
             raise HTTPException(404, GROUP_MISSING)
+        group_challenges.legacy_sharing(c, group['id'], user['id'], body.level=='total_shared')
     return {'level': body.level}
 
 
@@ -1045,6 +1048,7 @@ def accept_invite(token: str, request: Request, body: GroupLinkJoin = GroupLinkJ
                      ON CONFLICT(group_id,user_id) DO UPDATE SET status='active',joined_at=now(),removed_invite_generation=NULL,
                        sharing_level=EXCLUDED.sharing_level,monday_recap_enabled=false ''',
                   (group_id, user['id'],sharing_level))
+        group_challenges.join(c, group_id, user['id'])
         _consume_pending_friend_invites(c,group_id,user['id'])
         group = c.execute('SELECT * FROM event_groups WHERE id=%s', (group_id,)).fetchone()
         return _answer(c, group, user['id'])
@@ -1173,6 +1177,7 @@ def accept_friend_invite(invite_id: int, body: GroupFriendInviteAccept, request:
             (seed['group_id'],user['id'],sharing_level))
         c.execute("UPDATE group_friend_invites SET status='accepted',responded_at=now() WHERE id=%s AND status='pending'",
                   (invite_id,))
+        group_challenges.join(c, seed['group_id'], user['id'])
         _clear_friend_invite_notices(c,[invite_id])
         group=c.execute('SELECT * FROM event_groups WHERE id=%s',(seed['group_id'],)).fetchone()
         return _answer(c,group,user['id'])
@@ -1239,6 +1244,7 @@ def close_group(group_id: str, user=Depends(current_user)):
     with db.connect() as c:
         group = _organizer_group(c, group_id, user['id'], lock=True)
         c.execute('UPDATE event_groups SET closed_at=now(),joining_closed=true WHERE id=%s', (group['id'],))
+        group_challenges.close(c, group['id'])
         c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
         _revoke_friend_invites(c,group['id'])
     return {'ok': True}
@@ -1270,6 +1276,7 @@ def leave_group(group_id: str, user=Depends(current_user)):
             raise HTTPException(409, 'Transfer organizer before leaving this group')
         if group['organizer_id'] == user['id']:
             c.execute('UPDATE event_groups SET closed_at=coalesce(closed_at,now()),joining_closed=true WHERE id=%s', (group['id'],))
+            group_challenges.close(c, group['id'])
             c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
             _revoke_friend_invites(c,group['id'])
         else:

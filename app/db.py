@@ -2544,6 +2544,22 @@ MIGRATIONS = [
     ALTER TABLE coach_proposals ADD CONSTRAINT coach_proposals_kind_check CHECK (kind IN ('plan','food','goal'));
     """,
 
+    # 124. One-time snapshot reconciliation before the legacy write adapters become active.
+    """INSERT INTO group_challenges(group_id,creator_id,legacy_group_id,title,metric,target,unit,sports,
+        start_date,end_date,time_zone,note,training_for,ended_at,created)
+      SELECT id,organizer_id,id,title,goal_type,goal_target,goal_unit,goal_sports,
+        goal_start_date,event_date,time_zone,note,training_for,closed_at,created FROM event_groups
+      ON CONFLICT(legacy_group_id) DO UPDATE SET
+        title=EXCLUDED.title,metric=EXCLUDED.metric,target=EXCLUDED.target,unit=EXCLUDED.unit,sports=EXCLUDED.sports,
+        start_date=EXCLUDED.start_date,end_date=EXCLUDED.end_date,time_zone=EXCLUDED.time_zone,note=EXCLUDED.note,
+        training_for=EXCLUDED.training_for,ended_at=EXCLUDED.ended_at;
+      INSERT INTO group_challenge_members(challenge_id,group_id,user_id,share_total,joined_at)
+        SELECT q.id,m.group_id,m.user_id,m.sharing_level='total_shared',m.joined_at
+        FROM group_challenges q JOIN group_members m ON m.group_id=q.legacy_group_id
+        ON CONFLICT(challenge_id,user_id) DO UPDATE
+        SET share_total=EXCLUDED.share_total,joined_at=EXCLUDED.joined_at;
+    """,
+
 ]
 
 
