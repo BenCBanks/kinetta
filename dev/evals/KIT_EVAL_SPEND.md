@@ -52,5 +52,7 @@ preflight reserves $0.08 planning headroom and the ledger retains its padded
 request reservations. A shared $0.80 allowance counts prior same-head spend and
 halts safely if it cannot fit the next reservation; no automatic budget increase.
 A cold 80-response run is refused. Cached baseline costs are historical, not
-charged again. Resume requires passing every relevant capture with repeated
-`--cache`, including partial/failed runs so prior spending is retained.
+charged again. The wrapper automatically checks matching economy captures in its private output
+directory, including partial/failed runs so prior spending is retained. Use repeated
+`--cache` for captures moved elsewhere. Baseline bootstrap can exit nonzero for
+existing live rejections; its captured outcomes remain reusable historical rows.
