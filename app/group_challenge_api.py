@@ -1,8 +1,8 @@
 """Member-only group challenges; personal activities never leave the contribution calculator."""
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, StrictBool
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from . import db, groups as G, challenges, community_filter
 from .auth import current_user
 
@@ -18,6 +18,19 @@ class ChallengeCreate(G.GroupCreate):
 class Sharing(BaseModel):
     model_config = ConfigDict(extra='forbid')
     share_total: StrictBool
+
+
+class PeopleCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    title: str = Field(min_length=1,max_length=80,pattern=r'\S')
+    time_zone: str = Field(min_length=1,max_length=80)
+
+
+@router.post('/api/groups/people')
+def create_people(body: PeopleCreate, request: Request, user=Depends(current_user)):
+    # Required legacy columns are compatibility storage, never a real challenge.
+    legacy = G.GroupCreate(title=body.title,time_zone=body.time_zone,goal_type='sessions',goal_target=1,goal_unit='sessions')
+    return G._create_group(legacy,request,user,legacy_goal=False)
 
 
 def _context(c, gid, uid, write=False, allow_closed=False):

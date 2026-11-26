@@ -1885,7 +1885,7 @@ class GroupChallengeUpgrade(unittest.TestCase):
 
 class GroupChallengeAPI(unittest.TestCase):
     setUpClass = classmethod(Groups.setUpClass.__func__)
-    tearDown,make,accept,activity = Groups.tearDown,Groups.make,Groups.accept,Groups.activity
+    tearDown,make,accept,activity,friend = Groups.tearDown,Groups.make,Groups.accept,Groups.activity,Groups.friend
 
     def setUp(self):
         Groups.setUp(self)
@@ -2018,6 +2018,48 @@ class GroupChallengeAPI(unittest.TestCase):
                         {'goal_start_date':'2030-03-21'},{'event_date':'2030-03-09'},{'title':' '},{'user_id':self.ids[0]}]:
             self.assertIn(self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4()),**changes)).status_code,(400,422))
         self.assertEqual(self.clients[1].post(self.root+'/'+self.body['id']+'/sharing',json={'share_total':'true'}).status_code,422)
+
+    def test_closed_group_still_allows_privacy_revocation_but_not_more_challenges(self):
+        q=self.create();path=self.root+'/'+q['id']
+        self.assertEqual(self.clients[0].post('/api/groups/'+self.gid+'/close').status_code,200)
+        self.assertEqual(self.clients[1].post(path+'/sharing',json={'share_total':False}).status_code,200)
+        self.assertFalse(self.clients[1].get(path).json()['share_total'])
+        self.assertEqual(self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4()))).status_code,409)
+        self.assertEqual(self.clients[1].put(path,json={k:v for k,v in self.body.items() if k!='id'}).status_code,409)
+
+    def test_creation_limits_and_cross_group_key_collision_are_atomic(self):
+        self.create();other,_=self.make(who=3)
+        self.assertEqual(self.clients[3].post('/api/groups/'+other['id']+'/challenges',json=self.body).status_code,409)
+        with db.connect() as c:
+            c.execute('UPDATE users SET signup_confirmed_at=now() WHERE id=%s',(self.ids[1],))
+            for _ in range(20):self.assertFalse(groups.account_email.limited(c,f'new-social:comment:{self.ids[1]}',20,1440))
+        response=self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4())))
+        self.assertEqual(response.status_code,429)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_challenges WHERE group_id=%s',(self.gid,)).fetchone()['n'],2)
+            c.execute('UPDATE users SET signup_confirmed_at=NULL WHERE id=%s',(self.ids[1],))
+            c.execute('''INSERT INTO group_challenges(group_id,creator_id,title,metric,target,unit,sports,start_date,time_zone)
+                SELECT %s,%s,'Fictional bounded goal','sessions',3,'sessions',ARRAY['run'],'2030-03-01','UTC'
+                FROM generate_series(1,98)''',(self.gid,self.ids[1]))
+        self.assertEqual(self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4()))).status_code,409)
+        self.create()  # An existing retry still works at the limit.
+
+    def test_name_only_group_stays_without_challenges_through_both_join_paths(self):
+        response=self.clients[0].post('/api/groups/people',json={'title':'Fictional people crew','time_zone':'UTC'})
+        self.assertEqual(response.status_code,200,response.text)
+        group=response.json();root='/api/groups/'+group['id'];token=group['invite_url'].rsplit('/',1)[1]
+        self.assertEqual(self.clients[0].get(root+'/challenges').json(),[])
+        self.assertNotEqual(self.clients[0].get('/api/groups/activity-strip').json().get('next',{}).get('id'),group['id'])
+        self.assertEqual(self.clients[0].post('/api/groups/people',json={'title':' ','time_zone':'UTC'}).status_code,422)
+        self.assertEqual(self.accept(token,1).status_code,200)
+        self.friend(0,2)
+        username=self.clients[2].get('/api/me').json()['login']
+        self.assertEqual(self.clients[0].post(root+'/friend-invites',json={'username':username}).status_code,200)
+        with db.connect() as c:
+            iid=c.execute("UPDATE group_friend_invites SET expires_at='2030-04-09T16:00Z' WHERE group_id=%s RETURNING id",(group['id'],)).fetchone()['id']
+        self.assertEqual(self.clients[2].post(f'/api/group-friend-invites/{iid}/accept',json={'share_total':True}).status_code,200)
+        self.assertEqual(self.clients[2].get(root+'/challenges').json(),[])
+        self.assertEqual(self.clients[2].post(root+'/challenges',json=self.body).status_code,200)
 
 
 unittest.main()

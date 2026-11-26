@@ -679,8 +679,7 @@ def _group_detail(c, group, uid, answer):
     return result
 
 
-@router.post('/api/groups')
-def create_group(body: GroupCreate, request: Request, user=Depends(current_user)):
+def _create_group(body, request, user, *, legacy_goal=True):
     _valid_goal(body)
     _validate_event_date(body.event_date, body.time_zone)
     start_date = body.goal_start_date or _now().astimezone(_zone(body.time_zone)).date()
@@ -699,8 +698,13 @@ def create_group(body: GroupCreate, request: Request, user=Depends(current_user)
                            body.goal_target, body.goal_unit, body.goal_sports, start_date, body.training_for)).fetchone()
         c.execute("INSERT INTO group_members(group_id,user_id) VALUES(%s,%s)", (group['id'], user['id']))
         invite_url = _new_invite(c, group, request)
-        group_challenges.seed_legacy(c, group['id'])
+        if legacy_goal: group_challenges.seed_legacy(c, group['id'])
         return {**_answer(c, group, user['id']), 'invite_url': invite_url}
+
+
+@router.post('/api/groups')
+def create_group(body: GroupCreate, request: Request, user=Depends(current_user)):
+    return _create_group(body, request, user)
 
 
 @router.get('/api/groups')
@@ -718,7 +722,9 @@ def group_activity_strip(user=Depends(current_user)):
         preference = c.execute('SELECT group_strip_muted FROM profile WHERE user_id=%s', (user['id'],)).fetchone()
         muted = bool(preference and preference['group_strip_muted'])
         rows = c.execute('''SELECT g.* FROM event_groups g JOIN group_members m ON m.group_id=g.id
-                            WHERE m.user_id=%s AND m.status='active' AND g.event_date IS NOT NULL ORDER BY g.event_date ASC NULLS LAST,g.created''',
+                            WHERE m.user_id=%s AND m.status='active' AND g.event_date IS NOT NULL
+                              AND EXISTS(SELECT 1 FROM group_challenges q WHERE q.group_id=g.id)
+                            ORDER BY g.event_date ASC NULLS LAST,g.created''',
                          (user['id'],)).fetchall()
         now = _now()
         upcoming = [row for row in rows if row['event_date'] >= now.astimezone(_zone(row['time_zone'])).date()]
