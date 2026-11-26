@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -58,7 +59,7 @@ def collect(paths):
 
 
 def worker(payload):
-    from app import coach_chat,kit_weekly,kit_recovery
+    from app import coach_chat,kit_conversation,kit_weekly,kit_recovery
     from unittest.mock import patch
     import time
     rows=[]
@@ -70,7 +71,9 @@ def worker(payload):
             try:
                 if item['mode']=='answer':
                     raw=coach_chat._json(item['raw']) if isinstance(item['raw'],str) else item['raw']
-                    answer=coach_chat.checked_answer(raw,item['evidence'],kit=True,weekly_review=item['weekly'],conversation_question=item['question'])
+                    # Match today's final-turn contract, including rejection of archived legacy envelopes.
+                    answer=kit_conversation.check_for_question(raw,item['evidence'],item['question'],
+                        weekly_review=item['weekly'],require_blocks=True)
                 else:
                     state=dict(uid=987,evidence=item['evidence'],history=item['history'],usage={},began=time.monotonic())
                     answer=(kit_weekly.fallback(987,item['question'],state,None) if item['weekly'] else
@@ -80,6 +83,33 @@ def worker(payload):
                 row.update(status='reject',error_type=type(error).__name__,code=getattr(error,'reason_code',None) or str(error).split('\n')[0][:160])
             rows.append(row)
     return rows
+
+
+
+def wording_issues(row):
+    """Offline copy rubric; never relaxes or replaces application claim checks."""
+    if row.get('status')!='pass':return []
+    blocks=row.get('blocks') or []
+    texts=[text for block in blocks for text in (
+        [block.get('text','')] if block.get('kind')=='paragraph' else block.get('items',[]))]
+    if not texts:texts=[row.get('text') or '']
+    sentences=[part.strip() for text in texts for part in re.split(r'(?<=[.!?])\s+',text) if part.strip()]
+    issues=[]
+    if any(re.search(r'\bduring this review period\b|\bTraining volume was\b|\bRecorded distance reached\b',t,re.I) for t in texts):
+        issues.append('robotic_review_wording')
+    seen=set();meal_steps=0
+    for sentence in sentences:
+        # Count invitations, not descriptions of past logging or numerical facts.
+        invitation=(re.match(r'^(?:Log|Try|Choose|Pick|Schedule|Open|Review|Keep|Add)\b',sentence,re.I) or
+                    re.search(r'\b(?:you could|you can|next step|starting point)\b',sentence,re.I))
+        if not invitation:continue
+        normalized=re.sub(r'[^\w\s]','',sentence.casefold())
+        normalized=' '.join(normalized.split())
+        if normalized in seen and 'repeated_next_step' not in issues:issues.append('repeated_next_step')
+        seen.add(normalized)
+        if re.search(r'\b(?:log|logging) (?:your |a |the )?next (?:full |complete )?meal\b',sentence,re.I):meal_steps+=1
+    if meal_steps>1 and 'repeated_next_step' not in issues:issues.append('repeated_next_step')
+    return issues
 
 
 def private_write(path,data):
@@ -112,6 +142,8 @@ def main():
             return json.loads(result)
         before,after=run(old),run(root)
     regressions=[];changed=[];rejected=0
+    quality_failures=[dict(id=row['id'],cases=row['cases'],mode=row['mode'],issues=issues,text=row.get('text'))
+                      for row in after if (issues:=wording_issues(row))]
     for a,b in zip(before,after,strict=True):
         assert a['id']==b['id']
         if (a['status'],a.get('error_type'),a.get('code'))!=(b['status'],b.get('error_type'),b.get('code')):
@@ -122,13 +154,14 @@ def main():
         else:rejected+=1
     report=dict(baseline_commit=revision,candidate_commit=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),
                 source_files=payload['source_files'],unique_cases=len(before),provider_calls=0,reviewed=False,release_report=False,
-                changed=changed,regressions=regressions,unchanged_rejections=rejected,
+                changed=changed,regressions=regressions,unchanged_rejections=rejected,quality_failures=quality_failures,
                 summary={mode:dict(cases=sum(r['mode']==mode for r in before),
                     passed=sum(r['mode']==mode and r['status']=='pass' for r in after)) for mode in ('answer','fallback')})
     private_write(args.output,report)
     print(json.dumps({k:v for k,v in report.items() if k in {'unique_cases','provider_calls','unchanged_rejections','summary'}}|
-                     dict(changed=len(changed),regressions=len(regressions),output=str(args.output))))
+                     dict(changed=len(changed),regressions=len(regressions),quality_failures=len(quality_failures),output=str(args.output))))
     if regressions:raise SystemExit('Offline safety/fact outcome changed; inspect private report before proceeding')
+    if quality_failures:raise SystemExit('Offline wording rubric failed; inspect quality_failures in private report')
 
 
 if __name__=='__main__':main()
