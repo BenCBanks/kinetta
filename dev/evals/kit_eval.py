@@ -30,7 +30,9 @@ p.add_argument('--setting-smoke',action='store_true',help='Ten same-code Flash c
 p.add_argument('--smoke-thinking',choices=('LOW','COMPARE'),default='LOW',help='LOW only by default; explicit COMPARE adds MEDIUM')
 p.add_argument('--gate',action='store_true',help='Use the forty-case chat/weekly release set and require both variants')
 p.add_argument('--batch2',action='store_true',help='Fixed forty-case batch2 set plus real saved-history/memory/proposal path')
+p.add_argument('--economy-plan',help='Host-verified pinned-date per-case cache plan')
 args=p.parse_args()
+economy=json.loads(Path(args.economy_plan).read_text()) if args.economy_plan else None
 if args.batch2:
  if not args.gate or args.setting_smoke:p.error('--batch2 requires a full gate')
  from kit_batch2_cases import BATCH2_CASES
@@ -49,9 +51,11 @@ requested_cases=parse_case_ids(args.cases)
 if args.gate:
  if args.variant!='both' or (args.baseline_results and not args.setting_smoke) or requested_cases:p.error('--gate requires both variants and the fixed gate set')
  requested_cases=set(SMOKE_IDS if args.setting_smoke else GATE_CASE_IDS)
+all_fixture_cases=select_cases(CASES,requested_cases)
+if economy:requested_cases=set(economy['selected'])
 try:selected_cases=select_cases(CASES,requested_cases)
 except ValueError as error:p.error(str(error))
-if args.gate and len(selected_cases)!=(10 if args.setting_smoke else 40):p.error('Invalid fixed comparison case set')
+if args.gate and not economy and len(selected_cases)!=(10 if args.setting_smoke else 40):p.error('Invalid fixed comparison case set')
 if args.setting_smoke and (not args.gate or args.budget_usd>CAP_USD or args.baseline_commit!=args.candidate_commit):
  p.error('Setting smoke requires identical code, both variants and a budget at most $0.45')
 if args.resume and (not args.gate or args.setting_smoke or args.baseline_results):p.error('--resume requires a full gate')
@@ -75,7 +79,7 @@ if args.batch2:
     'charts':'supported distance chart and automatic six-week training totals from own fictional records; baseline may decline',
     'contextual_coaching':'included; saved/current context and explicit memory override'})
 reused=[]
-if args.gate and not args.setting_smoke:
+if args.gate and not args.setting_smoke and not economy:
  metadata.update(gate_resume_version=1,input_digest=gate_identity(root,selected_cases,args.baseline_commit,
                  args.candidate_commit,metadata['baseline_sha256']))
  if args.resume:
@@ -93,6 +97,13 @@ if args.gate and not args.setting_smoke:
   except (ValueError,OSError) as error:p.error(str(error))
  try:metadata['budget_preflight']=preflight(args.budget_usd,metadata.get('prior_spend_usd',0),80-len(reused))
  except ValueError as error:p.error(str(error))
+ print(json.dumps({'budget_preflight':metadata['budget_preflight']}),flush=True)
+if economy:
+ from kit_fixture_clock import FIXTURE_DATE
+ if economy['candidate_commit']!=args.candidate_commit or economy['fixture_date']!=FIXTURE_DATE:p.error('Economy plan/source mismatch')
+ reused=economy['results']
+ metadata.update(fixture_date=FIXTURE_DATE,economy=True,budget_preflight=economy['budget_preflight'],
+   prior_spend_usd=economy['budget_preflight']['prior_spend_usd'],economy_paid_runs=economy['paid_runs'])
  print(json.dumps({'budget_preflight':metadata['budget_preflight']}),flush=True)
 settings={'baseline':'LOW'} if args.smoke_thinking=='LOW' else {'baseline':'LOW','candidate':'MEDIUM'}
 if args.setting_smoke:
@@ -113,6 +124,8 @@ if remaining_budget<=0 and len(reused)<80:p.error('Resume capture already spent 
 metadata['remaining_budget_usd']=remaining_budget
 
 def save_report(value):
+ if economy and not args.dry_run:
+  value['economy_paid_runs']={**economy['paid_runs'],str(output):value.get('new_spend_usd',value.get('reserved_or_estimated_usd',0)-metadata.get('prior_spend_usd',0))}
  temporary=output.with_name(output.name+'.partial')
  fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
  with os.fdopen(fd,'w') as stream:
@@ -127,6 +140,9 @@ if args.dry_run:
 configure_budget(max(remaining_budget,.000001))
 os.environ['GEMINI_MODEL']='gemini-3.8-flash'
 baseline=load_baseline(args.baseline)
+if economy:
+ from kit_fixture_clock import install,INSTANT
+ install(db)
 if args.setting_smoke:
  baseline._gemini_turn=partial(baseline._gemini_turn,thinking_level='LOW')
  coach_chat._gemini_turn=partial(coach_chat._gemini_turn,thinking_level=settings.get('candidate','LOW'))
@@ -134,7 +150,7 @@ baseline.KitAnswer.model_json_schema()  # Fail before any paid call if forward r
 metadata.update(candidate_fingerprint=ai_release.kit_fingerprint(),ai_text=ai_release.ai_text('kit'),models=ai_release.models('kit'))
 save_report({**metadata,'results':reused,'reserved_or_estimated_usd':metadata.get('prior_spend_usd',0),
              'requests':metadata.get('prior_requests',0)})
-today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
+today=INSTANT.date() if economy else dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
 diagnostics=RejectionDiagnostics(coach_chat)
 from app.kit_tools import KitTools
 diagnostics.observe_tools(KitTools)
@@ -142,7 +158,7 @@ diagnostics.attach(baseline)
 if args.batch2:
  import importlib
  diagnostics.observe_tools(importlib.import_module('app._kit_live.kit_tools').KitTools)
-weekly_case_ids={case[0] for case in selected_cases
+weekly_case_ids={case[0] for case in (all_fixture_cases if economy else selected_cases)
                  if len(case)>3 and isinstance(case[3],dict) and case[3].get('weekly_review')}
 weekly_accounts={};weekly_manifests={}
 
@@ -163,6 +179,7 @@ def paid_checkpoint(item):
   pending={'case':case[0],'variant':v,'passed':False,'answer':None,
            'error':'Interrupted paid response; retained without automatic repayment.',
            'provider_requests':1,'provider_requests_lower_bound':True,'interrupted':True}
+  if economy:pending['case_input_digest']=economy['keys'][v][case[0]]
   save_report({**metadata,'results':results+[pending],
                'reserved_or_estimated_usd':metadata.get('prior_spend_usd',0)+float(cost['n'])/1e6,
                'requests':metadata.get('prior_requests',0)+cost['requests']})
@@ -305,6 +322,7 @@ try:
        'expected_refusal':expected_refusal,'passed':passed,
        'rejection':rejection if rejection and 'validation_error' in rejection else None,
        'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
+  if economy:row['case_input_digest']=economy['keys'][variant][cid]
   print(json.dumps({'case':cid,'variant':variant,'answered':answer is not None,
                     'expected_refusal':expected_refusal,'passed':passed,
                     'tool_coverage':row['tool_coverage'],'error':error,
@@ -315,7 +333,7 @@ try:
   reused=[r for r in previous.get('results',[]) if r['variant']=='baseline' and (not requested_cases or r['case'] in requested_cases)]
  results.extend(reused)
  done={(r['variant'],r['case']) for r in reused}
- variants=tuple(settings) if args.setting_smoke else (('baseline','candidate') if args.variant=='both' else (args.variant,))
+ variants=tuple(economy['variants']) if economy else tuple(settings) if args.setting_smoke else (('baseline','candidate') if args.variant=='both' else (args.variant,))
  jobs=[(i,v,case) for i,case in enumerate(selected_cases) for v in variants if (v,case[0]) not in done]
  def run_checkpointed(item):
   with ai_budget.after_reserve(lambda _:paid_checkpoint(item)):return run(item)

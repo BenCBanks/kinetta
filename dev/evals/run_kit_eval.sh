@@ -5,6 +5,7 @@ set -euo pipefail
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ECONOMY_STAGE=""; ECONOMY_PLAN=""; ECONOMY_CACHES=(); OFFLINE_RECEIPT=""
 DRY_RUN=0
 OFFLINE_SMOKE=0
 SETTING_SMOKE=0
@@ -27,6 +28,9 @@ while (($#)); do
         --budget-usd) BUDGET="$2" ;;
       esac
       shift 2 ;;
+    --economy-stage) ECONOMY_STAGE="$2"; shift 2 ;;
+    --cache) ECONOMY_CACHES+=(--cache "$2"); shift 2 ;;
+    --offline-receipt) OFFLINE_RECEIPT="$2"; shift 2 ;;
     --setting-smoke) SETTING_SMOKE=1; shift ;;
     --batch2) BATCH2=1; shift ;;
     --reuse-low) REUSE_LOW="$2"; shift 2 ;;
@@ -65,6 +69,17 @@ CHECK
 expected="$(git -C "$ROOT" show "$BASELINE_COMMIT:app/coach_chat.py" | sha256sum | cut -d' ' -f1)"
 actual="$(sha256sum "$BASELINE" | cut -d' ' -f1)"
 [[ "$expected" == "$actual" ]] || { echo "Baseline file does not match baseline commit's app/coach_chat.py." >&2; exit 2; }
+if [[ -n "$ECONOMY_STAGE" ]]; then
+  [[ "$BATCH2" == 1 && -z "$GATE_RESUME$REUSE_LOW" && "$SETTING_SMOKE" == 0 ]] || { echo 'Economy mode requires batch2 and --cache instead of legacy resume.' >&2; exit 2; }
+  if ((DRY_RUN == 0 && OFFLINE_SMOKE == 0)); then
+    python3 "$ROOT/dev/evals/kit_eval_savings.py" --receipt "$OFFLINE_RECEIPT"
+  fi
+  if ((OFFLINE_SMOKE == 0)); then
+    ECONOMY_PLAN="$(mktemp)"; rm -f "$ECONOMY_PLAN"
+    python3 "$ROOT/dev/evals/kit_eval_savings.py" --prepare "$ECONOMY_PLAN" \
+      --baseline-commit "$BASELINE_COMMIT" --stage "$ECONOMY_STAGE" --budget-usd "$BUDGET" "${ECONOMY_CACHES[@]}"
+  fi
+fi
 if ((DRY_RUN == 0 && OFFLINE_SMOKE == 0)); then
   [[ -n "${GEMINI_API_KEY:-}" ]] && printenv GEMINI_API_KEY >/dev/null 2>&1 || {
     echo "Export GEMINI_API_KEY in the environment; never pass a key argument." >&2; exit 2
@@ -88,6 +103,7 @@ cleanup() {
   local status=$?
   trap - EXIT
   [[ -z "$CACHE_TEMP" ]] || rm -f "$CACHE_TEMP"
+  [[ -z "$ECONOMY_PLAN" ]] || rm -f "$ECONOMY_PLAN"
   if ((APP_STARTED == 1)) && compose exec -T app test -f "$CONTAINER_OUTPUT" >/dev/null 2>&1; then
     if compose cp "app:$CONTAINER_OUTPUT" "$OUTPUT" >/dev/null 2>&1; then
       chmod 600 "$OUTPUT"
@@ -146,7 +162,7 @@ fi
 
 # The production image excludes dev/. Copy only the isolated evaluation sources.
 compose exec -T -u 0 app mkdir -p /srv/dev/evals
-for source in kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_gate_resume.py kit_setting_smoke.py kit_batch2_cases.py test_kit_batch2_incontainer.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py; do
+for source in kit_fixture_clock.py kit_eval_savings.py test_kit_fixture_clock_incontainer.py kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_gate_resume.py kit_setting_smoke.py kit_batch2_cases.py test_kit_batch2_incontainer.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py; do
   compose cp "$ROOT/dev/evals/$source" "app:/srv/dev/evals/$source"
 done
 compose cp "$BASELINE" app:/tmp/kit-eval-baseline-coach.py
@@ -171,8 +187,20 @@ if [[ -n "$REUSE_LOW" ]]; then
   compose cp "$CACHE_TEMP" app:/tmp/kit-low-cache.json
   OPTIONS+=(--baseline-results /tmp/kit-low-cache.json)
 fi
+if [[ -n "$ECONOMY_PLAN" ]]; then
+  compose cp "$ECONOMY_PLAN" app:/tmp/kit-economy-plan.json
+  OPTIONS+=(--economy-plan /tmp/kit-economy-plan.json)
+fi
 BASELINE_ENV=()
 if ((BATCH2 == 1)); then BASELINE_ENV=(-e KINETTA_KIT_BASELINE_DIR=/tmp/kit-live-app -e KINETTA_KIT_BASELINE_COMMIT -e KINETTA_KIT_BASELINE_REPORT_SHA256); fi
+if ((OFFLINE_SMOKE == 1)) && [[ -n "$ECONOMY_STAGE" ]]; then
+  compose exec -T -e PYTHONPATH=/srv -e KINETTA_KIT_EVAL_ISOLATED=1 app python /srv/dev/evals/test_kit_fixture_clock_incontainer.py
+  compose cp "$ROOT/dev/evals/fixtures/kit-ordinary-recovery.json" app:/tmp/kit-ordinary-recovery.json
+  for source in kit_recovery_incontainer.py kit_training_review_incontainer.py; do
+    compose cp "$ROOT/dev/tests/$source" "app:/tmp/$source"
+    compose exec -T -e PYTHONPATH=/srv app python "/tmp/$source"
+  done
+fi
 if ((OFFLINE_SMOKE == 1 && BATCH2 == 1)); then
   for source in kit_history_api_incontainer.py kit_memory_incontainer.py kit_goal_actions_incontainer.py kit_stream_incontainer.py; do
     compose cp "$ROOT/dev/tests/$source" "app:/tmp/$source"
