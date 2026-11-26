@@ -89,8 +89,9 @@ Training-review human rubric (fictional previews and next combined gate): open w
 supported positive before a gentle option. Name the actual action in plain English;
 reject vague suggestions such as “familiar session”, “that suits you” or “option that fits”.
 A general example is a short bodyweight session: squats, lunges and core, if comfortable;
-never infer ability, equipment, readiness or a free day. Totals use bars with every
-week labelled; no bar means no distance recorded, not proof of no activity.
+never infer ability, equipment, readiness or a free day. Totals use bars with evenly
+spaced week slots and fewer single-line dates. Empty slots remain selectable; no
+distance recorded is not proof of no activity. Keep only the missing-record note.
 
 Offline capture replay runs `dev/tests/kit_record_counts_incontainer.py` in the disposable
 test app with `kit-training-review-replay.json` copied to `/tmp/`. It checks all 40
