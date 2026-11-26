@@ -370,7 +370,11 @@ Object.assign(KitChat, (() => {
           const event=frame.split('\n').find(line=>line.startsWith('event: '))?.slice(7);
           if(!event)continue;
           const data=JSON.parse(frame.split('\n').filter(line=>line.startsWith('data: ')).map(line=>line.slice(6)).join('\n'));
-          if(event==='error')throw Error('stream_failed');
+          if(event==='error'){
+            const rejected=data.restore_draft===true&&((data.code==='rate_limited'&&data.status===429)||(data.code==='unavailable'&&data.status===503));
+            const error=Error(rejected?(data.status===429?'Kit has reached its limit. Your question is kept; try again later.':'Kit is unavailable right now. Your question is kept. Try again later.'):'Your question is kept. Try again.');
+            if(rejected){error.status=data.status;error.restoreDraft=true;}throw error;
+          }
           if(event==='block'){
             if(!Number.isInteger(data.index)||data.index!==blocks.length||!answerBlocks({answer_blocks:[data.block]}))throw Error('stream_failed');
             blocks.push(data.block);if(blocks.length>10)throw Error('stream_failed');
@@ -468,7 +472,7 @@ Object.assign(KitChat, (() => {
     return c.historyEnabled?beginThread(c,missing?null:c.conversation_id,$('#kit-text',c.el).value):begin(c,true);
   }
   async function beginThread(c,id=null,carryDraft=null){
-    if(!active(c))return;keepDraft(c);clearTimeout(c.timer);clearWait(c);cancelVisitExpiry(c.owner);
+    if(!active(c))return;keepDraft(c);clearTimeout(c.timer);c.streamController?.abort();clearWait(c);cancelVisitExpiry(c.owner);
     const request=c.historyRequest=(c.historyRequest||0)+1,field=$('#kit-text',c.el),bootDraft=!c.historyOpened?field.value:'',thread=id||newId(),visit=newId();
     c.historyOpened=true;c.conversation_id=thread;c.visit_id=visit;c.closed=false;c.loaded=false;c.ready=false;
     c.messages=[];c.localMessages=[];c.job=null;c.sending=false;c.before=null;c.answerErrors={};c.jobError='';
@@ -483,7 +487,7 @@ Object.assign(KitChat, (() => {
         if(!valid())return;
         c.generation=data.generation;c.historyGeneration=data.generation;c.visit_id=data.visit_id;c.visit_created_at=Date.now();
         writeVisit(c.owner,{visit_id:c.visit_id,created_at:c.visit_created_at,left_at:null});
-        c.messages=data.messages;c.before=data.before;c.ready=data.ready;c.loaded=true;
+        c.messages=data.messages;c.before=data.before;c.ready=data.ready;c.streamSupported=data.stream_supported===true;c.loaded=true;
         for(const row of c.messages)if(row.state==='pending')c.answerErrors[row.client_id]=true;
         store.del(key(c.owner,'draft'));status(c,'');draw(c);field.dispatchEvent(new Event('input'));c.view?.pin(true);
         if(c.messages.some(row=>row.state==='running'))later(c);

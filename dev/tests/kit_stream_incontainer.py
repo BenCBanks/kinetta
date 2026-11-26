@@ -6,6 +6,7 @@ from threading import Event
 from unittest.mock import patch
 from uuid import uuid4
 from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 from app import kit_thread, kit_stream
 
 body=kit_thread.GenerationIn(generation=uuid4())
@@ -39,6 +40,16 @@ async def transport_checks():
     denied=parsed(await collect(rows=HTTPException(403,'private secret')))
     assert denied[-1]==('event: error',{'code':'access_changed'})
     assert 'private secret' not in str(denied)
+    # Quota discards the pending row; preserve only typed status, including a
+    # read that races ahead of the worker's response after its deletion commits.
+    import time
+    for status in (429,503):
+        def reject(*args):
+            time.sleep(.01)
+            return JSONResponse(status_code=status,content={'detail':'private provider detail'})
+        quota=parsed(await collect(rows=HTTPException(409,'missing row'),generate=reject))
+        assert quota[-1]==('event: error',{'code':'rate_limited' if status==429 else 'unavailable','status':status,'restore_draft':True})
+        assert 'private provider detail' not in str(quota)
     # Consent changes between blocks: no later block or complete is emitted.
     limited=parsed(await collect(rows=[row,row,HTTPException(403,'revoked')]))
     assert [x[0] for x in limited]==['event: start','event: block','event: error']

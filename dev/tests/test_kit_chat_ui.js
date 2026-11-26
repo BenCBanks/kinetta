@@ -264,10 +264,11 @@ require('./test_email_confirmation.js');
 // Exercise real answer handling when the history API removes an unstarted rejected turn.
 (async()=>{
  const code=source.slice(source.indexOf('  async function answer(c,id){'),source.indexOf('  async function deliver(c){'));
- for(const mode of ['removed','removed-before-response','new-thread','retained','newer-draft','offline','account-change']){
+ for(const mode of ['removed','removed-before-response','stream-removed-before-response','new-thread','retained','newer-draft','offline','account-change']){
   const field={value:mode==='newer-draft'?'A newer unsent question':'',dispatchEvent(){}},saved=[];
   let owner='one';const ctx={owner:'one',historyEnabled:true,ready:true,sending:false,generation:'g',visit_id:'v',el:{},messages:[{client_id:'m',state:'pending',question:'Review my latest workout'}]};
   const h={clearTimeout(){},active:c=>c.owner===owner,kitChatOn:()=>true,controls(){},draw(){},later(){},Event:class{},status(c,text){h.notice=text;},$:()=>field,save:(c,k,v)=>saved.push([k,v]),store:{del(){}},chatKey:()=>'',json:(method,body)=>({method,body}),api:async()=>{if(mode==='account-change')owner='two';if(mode==='removed-before-response')ctx.messages=[];throw Object.assign(Error('Daily limit reached'),{status:429});},refresh:async c=>{if(mode==='offline')throw Error('Offline');if(mode!=='retained')c.messages=[];if(mode==='new-thread')c.visit_id='fresh-visit';}};
+  if(mode==='stream-removed-before-response'){ctx.streamSupported=true;h.streamAnswer=async()=>{ctx.messages=[];throw Object.assign(Error('Quota reached; question kept'),{status:429,restoreDraft:true});};h.api=()=>{throw Error('No automatic /answer retry after a stream starts');};}
   vm.createContext(h);vm.runInContext(code+'\nglobalThis.answer=answer;',h);await h.answer(ctx,'m');
   assert.equal(field.value,mode==='newer-draft'?'A newer unsent question':['retained','account-change'].includes(mode)?'':'Review my latest workout',mode+' preserves only the appropriate draft');
   if(mode==='account-change')assert.equal(saved.length,0,'late account rejection cannot save a former question');

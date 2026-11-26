@@ -1,22 +1,28 @@
 # Kit batch 2 — integration candidate
 
-Draft integration only. No evaluated release approval is inherited from batch 1.
+This candidate integrates saved chats, memory corrections, confirmed goal changes, checked-answer streaming and plain coaching on main after #1559 squash `67d35104`. It needs its own reviewed evaluation; no batch-1 approval is inherited.
 
-| Component | Frozen source |
+| Component | Reviewed source |
 | --- | --- |
-| Base batch / conversational renderer | #1559 `feb41ac4` (includes #1548 `107d4de7`) |
-| Owned, versioned memory API | #1557 `2e6d5140` |
-| Saved-history client dependency | #1553 `241c896f` |
-| Memory editor | #1558 `eddeb75e` |
-| Typed goal target preview / confirmation | #1563 `c9a47b1d` |
+| Conversational renderer / base | #1559 `67d35104` (same tree as `feb41ac4`) |
+| Owned, versioned memory API | #1557 `2e6d5140` (identical restack `2ee82099`) |
+| Saved-history client | #1553 `241c896f` (identical restack `7996634a`) |
+| Memory editor | #1558 `eddeb75e` (identical restack `3de2af83`) |
+| Typed goal preview / confirmation | #1563 `c9a47b1d` |
+| Checked-answer streaming | #1555 `7c2c4d7e` (`41b70455` + `7c2c4d7e`) |
+| Plain recovery / weekly coaching | #1565 `b4b30d15` |
 
-Memory migration 121 precedes goal migration 122. The base answer-block/action gap remains 12px. The goal review hook retains the saved message client ID, ownership/state checks and explicit confirmation. Existing source invalidation, export/deletion, rate limits and RLS remain intact. Approved client layouts are unchanged.
+Memory migration 121 precedes goal migration 122. Both router hooks and independent test registrations are retained. The approved 12px answer/action spacing, saved-message goal dispatch, ownership, consent/invalidation, SQL RLS, export and delete fences remain intact.
 
-Chart answers #1540 `862a861f` are excluded: their schema and validator use `verdict/reason` and enforce a two-sentence length limit, while this batch uses conversational `blocks` and grounded claims. The current conversational schema has no chart reference, and durable history has a different replay path. A separate port must bind chart evidence to that contract, preserve source consent/replay exclusions and adapt the renderer/tests; importing the old branch unchanged would not work.
+Streaming emits checked blocks only after the entire answer validates and saves. The first checked block can paint before completion; actions and confirmation controls wait for the authoritative complete envelope. This does not reduce provider generation latency or expose raw model tokens. Legacy and saved-thread envelopes advertise the capability; thread switches abort the transport and retain account/generation/visit fences. Closed quota/unavailable events retain the original question after rejected-turn removal, including the missing-row race, without automatically generating again.
 
-Streaming #1555 and weekly/recovery quality changes are pending separate frozen heads. Their server/streaming hunks are outside this integration checkpoint.
+Plain wording runs after original measurements and claims validate. Recovery/weekly displays omit internal scores and provide concrete next steps. Existing low-intake and consent refusals remain app-owned.
 
-Current combined Kit text: `08cf9218480b4089c365a72bcba9ca60c2aa3c1dfcabd95902e03179bfc47812`.
-Gemini `gemini-3.8-flash` candidate fingerprint: `5ddd2ae189a29275e8be8c74bc4fa218b951fd74c4f7dcb7632658153ed3fd00`.
+Chart answers #1540 are excluded: their old verdict/reason schema, short-answer validator and replay hook need a separate conversational/evidence/consent port. New contextual coaching and charts remain separately reviewed work.
 
-The text is a standalone singleton review group, separate from batch 1 equivalence. It matches the goal branch's already combined memory/goal server text; client integrations do not alter fingerprint inputs. Batch 2 requires its own privacy review and a matching reviewed evaluation before rollout. Future integrated model-facing changes require a fresh fingerprint/checkpoint. No provider calls or release approval are represented by offline checks.
+Combined Kit text: `55738ccf3f2ea2d0e3d751e79a5fed16ec0ca730d9bb9971ff931f207ba7fecf`.
+Gemini `gemini-3.8-flash` release candidate: `7068923e39052f8b501e0d9cf802d06071dacc690200f99649f5377065e9c0a6`.
+
+The combined text is a new singleton group, separate from batch 1 and standalone quality. General and food model-facing text match main. Offline tests and a zero-provider dry-run establish integration mechanics, not model quality or release approval. A fresh reviewed combined evaluation, privacy review and Ben preview are required before rollout; no old paid cache is reused.
+
+Ben preview set: first checked block versus completed answer with actions; saved-chat streaming/resume; recovery wording and next step; weekly comparison with missing food records and next step; memory correction and goal preview/receipt. Use fictional stand-ins at 390 light/dark with 330 checks. Existing unchanged memory/history/goal captures can be reused. Browser evidence does not claim physical-iPhone verification.

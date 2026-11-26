@@ -62,6 +62,9 @@ class HistoryAPI(unittest.TestCase):
     def test_default_off_auth_ownership_and_no_provider_on_read(self):
         self.assertEqual(TestClient(app).get(ROOT+'/threads').status_code,401)
         v=self.new();self.new(self.b)
+        self.assertTrue(v['stream_supported'])
+        self.assertTrue(self.req('GET','/threads/'+v['conversation_id'])['stream_supported'])
+        self.assertTrue(self.resume(v)['stream_supported'])
         for ident in [v['conversation_id'],str(uuid.uuid4())]:
             self.req('GET','/threads/'+ident,status=404,client=self.b)
             self.req('DELETE','/threads/'+ident,status=404,client=self.b)
