@@ -7,6 +7,7 @@ from pydantic import Field, StrictStr
 from . import coach_chat
 from .coach_chat import Empty, Fact, Selection
 from .kit_goal_contract import GoalSelection, PROMPT, checked_selection
+from . import kit_coaching
 
 _corrections = ContextVar('kit_corrections_enabled',default=True)
 
@@ -122,6 +123,7 @@ class ShortList(Empty):
 
 class ConversationAnswer(Empty):
     blocks: list[Paragraph | ShortList] = Field(min_length=1, max_length=10)
+    clarifying_question: StrictStr | None = Field(default=None, min_length=1, max_length=240)
     facts: list[Fact] = Field(default_factory=list, max_length=8)
     selection: Selection | GoalSelection | None = None
     actions: coach_chat.Answer.model_fields['actions'].annotation = Field(default_factory=list, max_length=3)
@@ -174,7 +176,7 @@ Do not promise unsupported readers/actions. Do not request unconsented data or i
 '''
 
 
-SYSTEM += PROMPT
+SYSTEM += PROMPT + kit_coaching.PROMPT
 
 
 def has_blocks(raw):
@@ -204,6 +206,13 @@ def check_for_question(raw, evidence, question, *, weekly_review=False, require_
 
 def checked_answer(raw, evidence, *, question=None, weekly_review=False):
     answer = ConversationAnswer.model_validate(normalise_shape(raw))
+    if answer.clarifying_question is not None:
+        text=answer.clarifying_question.strip()
+        if text.count('?')!=1 or not text.endswith('?') or len(answer.blocks)>=10:
+            raise ValueError('Use one concise clarifying question')
+        if any('?' in text for block in answer.blocks for text in ([block.text] if isinstance(block,Paragraph) else block.items)):
+            raise ValueError('Do not repeat the clarifying question')
+        answer.blocks.append(Paragraph(kind='paragraph',text=text))
     if weekly_review and (answer.selection is not None or answer.actions):raise ValueError('Weekly reviews cannot propose changes or actions')
     # Reuse exact measurement/path/unit and candidate checks; the legacy shape remains capped at three.
     facts = []
