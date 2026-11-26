@@ -323,12 +323,13 @@ async function feedPage(before,size=FEED_N) {
 }
 
 function activityGroupStripHtml(data){
-  const group=data.next,combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
-  const progress=Math.min(target||1,Math.max(0,value)),ongoing=group.event_state==='ongoing'||group.event_date==null, weeks=group.weeks_to_event||0;
-  const timing=ongoing?'All time':group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'wk'} to go`;
+  const group=data.next;if(!group?.event_date)return '';
+  const combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
+  const progress=Math.min(target||1,Math.max(0,value)),weeks=group.weeks_to_event||0;
+  const timing=group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'wk'} to go`;
   const sharing=Number(group.sharing_member_count)||0;
   const more=data.more_count?`<a class="feed-groups-more" href="/activity?view=groups" aria-label="See ${data.more_count} more ${data.more_count===1?'group':'groups'}">+${data.more_count}</a>`:'';
-  return `<section class="feed-social-strip feed-groups-strip" aria-label="${ongoing?'Group goal':'Next group event'}"><div class="feed-groups-row">
+  return `<section class="feed-social-strip feed-groups-strip" aria-label="Next group event"><div class="feed-groups-row">
     <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(timing)}</b><small>${combined?`${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))} · from ${sharing} of ${group.member_count}`:`You: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}`}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
     ${more}</div></section>`;
 }
@@ -578,7 +579,7 @@ function groupListMarkup(groups,home=false){
 function groupListSubtitle(group){
   const current=group.total!==undefined?Number(group.total)||0:Number(group.your_total)||0,target=Number(group.goal_target)||0;
   const progress=group.total!==undefined?`${groupNumber(current)} of ${groupAmount(target,group.goal_unit)}`:`You: ${groupNumber(current)} of ${groupAmount(target,group.goal_unit)}`;
-  const timing=group.event_date?`${group.weeks_to_event==null?'Event date set':`${group.weeks_to_event} ${group.weeks_to_event===1?'week':'weeks'} to go`}`:'All time';
+  const timing=group.event_date?`${group.weeks_to_event==null?'Event date set':`${group.weeks_to_event} ${group.weeks_to_event===1?'week':'weeks'} to go`}`:`Since ${fdate(group.goal_start_date+'T12:00:00',{month:'short',day:'numeric'})}`;
   return `${progress} · ${timing}`;
 }
 async function homeGroups(el) {

@@ -901,6 +901,26 @@ class Groups(unittest.TestCase):
         after = visible_numbers()
         self.assertEqual(after, before, 'private or nonsharing activity changes no returned total or count')
 
+    def test_home_strip_counts_only_dated_groups(self):
+        dated, _ = self.make()
+        another, _ = self.make()
+        foreign, _ = self.make(who=1)
+        past, _ = self.make()
+        with db.connect() as c:
+            c.execute('UPDATE event_groups SET event_date=%s WHERE id=%s',
+                      (self.now.astimezone(ZoneInfo('America/New_York')).date() - dt.timedelta(days=1), past['id']))
+        for _ in range(2):
+            response = self.clients[0].post('/api/groups', json={
+                'title': 'Fictional ongoing goal', 'time_zone': 'America/New_York',
+                'goal_type': 'distance', 'goal_target': 100, 'goal_unit': 'km'})
+            self.assertEqual(response.status_code, 200, response.text)
+        strip = self.clients[0].get('/api/groups/activity-strip').json()
+        self.assertTrue(strip['has_upcoming'])
+        self.assertIn(strip['next']['id'], (dated['id'], another['id']))
+        self.assertNotEqual(strip['next']['id'], foreign['id'])
+        self.assertEqual(strip['more_count'], 1, 'undated and other-account groups do not count')
+        self.assertEqual(len(self.clients[0].get('/api/groups').json()), 5, 'the Groups list keeps undated and past groups')
+
     def test_ongoing_group_date_can_be_added_and_cleared(self):
         zone = ZoneInfo('America/New_York')
         body = {'title': 'Fictional trail club', 'time_zone': 'America/New_York',
@@ -933,13 +953,8 @@ class Groups(unittest.TestCase):
         self.assertNotIn('total', ongoing)
         self.assertTrue(all('value' not in member for member in ongoing['members']))
         self.assertNotIn('recap', ongoing)
-        self.assertTrue(strip['has_upcoming'])
-        self.assertEqual(strip['next']['id'], group['id'])
-        self.assertIsNone(strip['next']['event_date'])
-        self.assertIsNone(strip['next']['days_to_event'])
-        self.assertIsNone(strip['next']['weeks_to_event'])
-        self.assertEqual(strip['next']['event_state'], 'ongoing')
-        self.assertNotIn('total', strip['next'])
+        self.assertFalse(strip['has_upcoming'])
+        self.assertNotIn('next', strip, 'dateless groups stay off Home')
 
         token = group['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(token, who=1).status_code, 200)
@@ -963,6 +978,7 @@ class Groups(unittest.TestCase):
         self.assertEqual(added.status_code, 200, added.text)
         self.assertEqual(added.json()['event_date'], event_date.isoformat())
         self.assertEqual(added.json()['event_state'], 'upcoming')
+        self.assertEqual(self.clients[0].get('/api/groups/activity-strip').json()['next']['id'], group['id'])
 
         with patch('app.groups._now', return_value=later):
             cleared = self.clients[0].patch(f"/api/groups/{group['id']}/event-date",
@@ -970,6 +986,7 @@ class Groups(unittest.TestCase):
             ongoing = self.clients[0].get('/api/groups/' + group['id']).json()
         self.assertEqual(cleared.status_code, 200, cleared.text)
         self.assertIsNone(cleared.json()['event_date'])
+        self.assertFalse(self.clients[0].get('/api/groups/activity-strip').json()['has_upcoming'])
         self.assertEqual(cleared.json()['event_state'], 'ongoing')
         self.assertIsNone(cleared.json()['days_to_event'])
         self.assertIsNone(cleared.json()['weeks_to_event'])
