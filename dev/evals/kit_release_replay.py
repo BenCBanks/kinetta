@@ -121,6 +121,8 @@ def replay(report,keys,current):
                     profiles=[t for t in row['tool_calls'] if t['tool']=='profile' and 'data' in t]
                     if len(charts)!=1 or not profiles:raise ValueError('Automatic card evidence missing')
                     checked.update(kit_training_review.visual(charts[0]['data'],profiles[-1]['data']))
+                # Re-rendering is free local work, not a new measured answer latency.
+                if fallback and 'latency_ms' in row['answer']:checked['latency_ms']=row['answer']['latency_ms']
                 answer={**row['answer'],**checked}
                 if not fallback:
                     answer.pop('app_fallback',None);answer.pop('fallback_reason',None)
@@ -136,6 +138,9 @@ def replay(report,keys,current):
     changed={r['case'] for r in results if r.get('safe_render_changed')}
     if changed-{'weekly-diet-request','batch2-memory-off','load'}:
         raise ValueError('Unrelated answer changed during scoped replay: '+','.join(sorted(changed)))
+    originals={(r['variant'],r['case']):r for r in report['results']}
+    if any(r['answer']!=originals[r['variant'],r['case']]['answer'] for r in results if not r.get('safe_render_changed')):
+        raise ValueError('Unrelated answer or measured metadata changed during replay')
     text=ai_release.ai_text('kit')
     fingerprint=hashlib.sha256(json.dumps(dict(scheme=2,text=text,models=report['models']),sort_keys=True).encode()).hexdigest()
     return {**report,'candidate_commit':current,'candidate_fingerprint':fingerprint,'ai_text':text,

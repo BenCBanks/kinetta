@@ -206,7 +206,7 @@ if ((OFFLINE_SMOKE == 1)) && [[ -n "$ECONOMY_STAGE" ]]; then
   compose cp "$ROOT/dev/evals/fixtures/kit-final-wording.json" app:/tmp/kit-final-wording.json
   compose cp "$ROOT/dev/tests/kit_final_wording_incontainer.py" app:/tmp/kit_final_wording_incontainer.py
   compose exec -T -e PYTHONPATH=/srv app python /tmp/kit_final_wording_incontainer.py
-  for source in kit_recovery_incontainer.py kit_training_review_incontainer.py; do
+  for source in kit_claims_incontainer.py kit_recovery_incontainer.py kit_training_review_incontainer.py; do
     compose cp "$ROOT/dev/tests/$source" "app:/tmp/$source"
     compose exec -T -e PYTHONPATH=/srv app python "/tmp/$source"
   done
