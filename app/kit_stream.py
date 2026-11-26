@@ -13,7 +13,9 @@ from . import ai_access, ai_release, coach, db, kit_history, workout_compare
 from .auth import current_user
 
 _stop = ContextVar('kit_stream_stop', default=None)
-POLL_SECONDS = 1
+# The worker still validates and saves the complete answer before any block is
+# emitted. Poll more often so an already-saved first block becomes visible quickly.
+POLL_SECONDS = .1
 HEARTBEAT_SECONDS = 10
 TIMEOUT_SECONDS = 300
 

@@ -8,6 +8,7 @@ import datetime as dt
 import unicodedata
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
@@ -852,6 +853,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     'health_included':kit and any(e['tool'] not in ({'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} | kit_goal_contract.NON_HEALTH_TOOLS) and 'data' in e for e in evidence),
                     'tools_used': [e['tool'] for e in evidence]}
         results = []
+        prepared = []
         for call in calls:
             if not coach.allowed(uid):raise ValueError(coach.off())
             calls_used += 1
@@ -859,13 +861,31 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             name, args = call.get('name'), call.get('args') or {}
             if kit and name==kit_charts.CHART_TOOL:
                 args=kit_charts.request_arguments(args,kit_conversation.user_question(question))
-            ev = {'evidence_id': f'e{len(evidence) + 1}', 'tool': name, 'arguments': args}
+            prepared.append((call,name,args))
+
+        def fetch(item):
+            call,name,args=item
             try:
                 cached=next((e for e in evidence if kit and e['tool']==name and e['arguments']==args and 'data' in e),None)
-                ev['data'] = cached['data'] if cached else json.loads(json.dumps(tools.call(name, args), default=str, allow_nan=False))
+                return cached['data'] if cached else json.loads(json.dumps(tools.call(name, args), default=str, allow_nan=False))
             except ValueError as error:
-                if kit and kit_conversation.is_consent_error(error):return kit_conversation.consent_answer()
+                return error
+
+        # Independent read-only Kit tools each use their own scoped connection. Fetching
+        # them together removes serial DB wait without changing order, evidence IDs or
+        # the provider contract. Food/non-Kit paths retain their original sequencing.
+        if kit and len(prepared)>1:
+            with ThreadPoolExecutor(max_workers=min(4,len(prepared))) as pool:
+                fetched=list(pool.map(fetch,prepared))
+        else:
+            fetched=[fetch(item) for item in prepared]
+        for (call,name,args), fetched_value in zip(prepared,fetched):
+            ev = {'evidence_id': f'e{len(evidence) + 1}', 'tool': name, 'arguments': args}
+            if isinstance(fetched_value,ValueError):
+                if kit and kit_conversation.is_consent_error(fetched_value):return kit_conversation.consent_answer()
                 ev['error'] = 'Tool unavailable: check its arguments, record ownership and Apple Health sharing consent. Do not infer values from missing data.'
+            else:
+                ev['data'] = fetched_value
             evidence.append(ev)
             if provider == 'gemini':
                 function = {'name': name, 'response': ev}
