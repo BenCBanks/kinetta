@@ -388,6 +388,9 @@ Object.assign(KitChat, (() => {
         }
       }
       if(!complete)throw Error('stream_failed');return complete;
+    }catch(error){
+      if(error.restoreDraft)throw error;
+      throw Error('Your question is kept. Try again.');
     }finally{clearTimeout(timeout);await reader?.cancel().catch(()=>{});if(c.streamController===controller)c.streamController=null;}
   }
   async function answer(c,id){
