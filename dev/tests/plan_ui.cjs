@@ -17,6 +17,28 @@ async function setWeekOpen(p,week,open,planId,currentWeek){
  },`week ${week} toggle saved`,{week,open,planId,currentWeek});
 }
 async function assertRaceDate(p){assert(await p.locator('.plan-summary-stat.plan-race-date b').evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);const ink=range.getBoundingClientRect(),slot=n.parentElement.getBoundingClientRect();return range.getClientRects().length===1&&ink.right<=slot.right+1;}),'race date stays on one line within its column');}
+async function assertWorkoutColumns(p){
+ const week=p.locator('.pweek[open]').first(),today=week.locator('button.compact-workout').first();
+ const original=await today.getAttribute('class');
+ // Exercise Today even when the real-clock fixture lands on a scheduled rest day.
+ await today.evaluate(n=>n.classList.add('today'));
+ try{
+  const columns=await week.locator('.compact-workout').evaluateAll(nodes=>nodes.map(n=>{
+   const rect=selector=>n.querySelector(selector).getBoundingClientRect(),icon=n.querySelector('.plan-day-sport'),cell=icon.getBoundingClientRect(),glyph=(icon.firstElementChild||icon).getBoundingClientRect();
+   return {date:rect('.pw-date').x,icon:cell.x+cell.width/2,glyph:glyph.x+glyph.width/2,title:rect('.pw-main > b').x,
+    status:n.querySelector('.pw-result')?rect('.pw-result').right:null,chevron:n.querySelector('.chev')?rect('.chev').right:null};
+  }));
+  assert.equal(columns.length,7);
+  for(const row of columns){
+   for(const key of ['date','icon','title'])assert(Math.abs(row[key]-columns[0][key])<1,
+    'Today, completed, missed, upcoming and rest rows share '+key+' columns');
+   assert(Math.abs(row.glyph-columns[0].icon)<1,'run boxes, checks and empty/rest icon centres match within 1px');
+  }
+  const actions=columns.filter(row=>row.chevron!==null);
+  for(const row of actions)for(const key of ['status','chevron'])assert(Math.abs(row[key]-actions[0][key])<1,
+   'workout '+key+' stays aligned at the right');
+ }finally{await today.evaluate((n,value)=>n.setAttribute('class',value),original);}
+}
 async function dismissSheet(p){await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});}
 async function headerMetrics(p){return p.locator('.plan-top').evaluate(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n),items=[...n.children].filter(x=>x.getBoundingClientRect().width&&x.getBoundingClientRect().height),centers=items.map(x=>x.getBoundingClientRect().top+x.getBoundingClientRect().height/2),children=[...n.children].map(x=>{const b=x.getBoundingClientRect(),c=getComputedStyle(x);return{tag:x.tagName,id:x.id,cls:x.className,display:c.display,x:b.x,y:b.y,width:b.width,height:b.height,flex:c.flex,position:c.position}});return{height:r.height,width:r.width,display:s.display,flexWrap:s.flexWrap,centers,children};});}
 (async()=>{
@@ -42,7 +64,7 @@ async function headerMetrics(p){return p.locator('.plan-top').evaluate(n=>{const
     const cur=d.weeks.find(w=>w.n===d.this_week)||d.weeks.find(w=>w.start>d.today)||d.weeks.at(-1),current=p.locator('.pweek').first();
     assert.equal(await current.getAttribute('data-week'),String(cur.n));assert.equal(await p.locator('.pweek[open]').count(),1);assert.equal(await p.locator('.ph-ring').count(),0);assert.equal(await p.locator('.plan-next').count(),1);assert.equal(await p.locator('.plan-legend').count(),0,'no key needed for direct sport marks');assert.equal(await p.locator('.plan-other-title').count(),0,'weeks stay in one continuous list');assert.equal(await p.locator('.plan-summary-stats .plan-summary-stat').count(),3,'one race summary with three stats');assert(await p.locator('#pl-more').evaluate(n=>!n.open));
     assert.equal(await p.locator('.plan-summary-title h2').evaluate(n=>getComputedStyle(n).fontSize),'24px');assert.equal(await p.locator('.plan-summary-title > span').evaluate(n=>getComputedStyle(n).fontSize),'14px');assert.equal(await p.locator('.plan-summary-stat b').first().evaluate(n=>getComputedStyle(n).fontSize),'20px');assert.equal(await p.locator('.plan-summary-stat.plan-race-date b').evaluate(n=>getComputedStyle(n).whiteSpace),'nowrap');await assertRaceDate(p);assert.equal(await p.locator('.plan-weeks-title h2').evaluate(n=>getComputedStyle(n).fontSize),'15px');
-    const rows=current.locator('.compact-workout');assert.equal(await rows.count(),7,'all seven dates including slim rest days');
+    const rows=current.locator('.compact-workout');assert.equal(await rows.count(),7,'all seven dates including slim rest days');await assertWorkoutColumns(p);
     for(const row of await rows.all()){const r=await row.boundingBox();assert(r.height>=44&&r.height<=46,'every day is one line with a comfortable target');assert(await row.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'workout row fits without clipping');}
     if(who==='week3'||who==='race'){
      // Keep the default current-week checks above; Monday may need an elapsed week for both outcomes.
@@ -75,10 +97,11 @@ async function headerMetrics(p){return p.locator('.plan-top').evaluate(n=>{const
    assert.deepEqual(errors,[]);assert(!writes.some(x=>x!=='/api/plans/preview'&&x!=='/api/challenges/signup/continue'),'layout opens no plan/activity writes');console.log(`Plan ${name}: summary/week/rest/matched distances/details/menu/layout PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
   const narrowCase=process.env.KINETTA_PLAN_CASE||'';
-  if(!narrowCase||/^plan-header-330(?:-dark)?$/.test(narrowCase)){
-   const theme=narrowCase.endsWith('-dark')?'dark':'light',size={width:330,height:667,root:16},{c,p}=await open('paced',theme,size);await p.locator('.pweek').first().locator('.compact-workout').last().waitFor();await p.locator('.plan-top [data-kit-entry]').waitFor();
-   await assertRaceDate(p);const header=await headerMetrics(p);assert(header.height<=60&&header.centers.length>=3&&Math.max(...header.centers)-Math.min(...header.centers)<=1,`Plan header controls stay on one row at 330px (${JSON.stringify(header)})`);const kit=p.locator('.plan-top .shell-topbar-actions > [data-kit-entry]');assert.equal(await kit.count(),1);const g=await kit.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComputedStyle(n),w=n.querySelector('.kit-entry-word');return{width:b.width,height:b.height,rightInset:innerWidth-b.right,font:getComputedStyle(w).fontSize,weight:getComputedStyle(w).fontWeight,gap:s.gap,icon:n.querySelector('svg').getBoundingClientRect().width};});assert(g.width===46&&g.height===44&&Math.abs(g.rightInset-16)<1,`Plan Kit matches its shared size and right inset at 330px: ${JSON.stringify(g)}`);assert.equal(g.font,'15px');assert.equal(g.weight,'600');assert.equal(g.gap,'5px');assert.equal(g.icon,18);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'Plan fits at 330px');if(process.env.KINETTA_KIT_ENTRY_SHOTS){fs.mkdirSync(process.env.KINETTA_KIT_ENTRY_SHOTS,{recursive:true});await p.locator('.plan-top').screenshot({path:path.join(process.env.KINETTA_KIT_ENTRY_SHOTS,`plan-330-${theme}.png`),animations:'disabled'});}if(process.env.KINETTA_CAPTURE_DIR){fs.mkdirSync(process.env.KINETTA_CAPTURE_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.KINETTA_CAPTURE_DIR,`plan-330-${theme}.png`)});}await c.close();contexts.splice(contexts.indexOf(c),1);
-  }
+  if(!narrowCase||/^plan-header-(330|375)(?:-dark)?$/.test(narrowCase)){
+  for(const width of narrowCase?[Number(narrowCase.match(/(330|375)/)[1])]:[375,330])for(const theme of narrowCase?[narrowCase.endsWith('-dark')?'dark':'light']:['light','dark']){
+   const size={width,height:844,root:16},{c,p}=await open('paced',theme,size);await p.locator('.pweek').first().locator('.compact-workout').last().waitFor();await assertWorkoutColumns(p);await p.locator('.plan-top [data-kit-entry]').waitFor();
+   await assertRaceDate(p);const header=await headerMetrics(p);assert(header.height<=60&&header.centers.length>=3&&Math.max(...header.centers)-Math.min(...header.centers)<=1,`Plan header controls stay on one row at 330px (${JSON.stringify(header)})`);const kit=p.locator('.plan-top .shell-topbar-actions > [data-kit-entry]');assert.equal(await kit.count(),1);const g=await kit.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComputedStyle(n),w=n.querySelector('.kit-entry-word');return{width:b.width,height:b.height,rightInset:innerWidth-b.right,font:getComputedStyle(w).fontSize,weight:getComputedStyle(w).fontWeight,gap:s.gap,icon:n.querySelector('svg').getBoundingClientRect().width};});assert(g.width===46&&g.height===44&&Math.abs(g.rightInset-(width>360?22:16))<1,`Plan Kit matches its shared size and right inset at ${width}px: ${JSON.stringify(g)}`);assert.equal(g.font,'15px');assert.equal(g.weight,'600');assert.equal(g.gap,'5px');assert.equal(g.icon,18);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'Plan fits at 330px');if(process.env.KINETTA_KIT_ENTRY_SHOTS){fs.mkdirSync(process.env.KINETTA_KIT_ENTRY_SHOTS,{recursive:true});await p.locator('.plan-top').screenshot({path:path.join(process.env.KINETTA_KIT_ENTRY_SHOTS,`plan-${width}-${theme}.png`),animations:'disabled'});}if(process.env.KINETTA_CAPTURE_DIR){fs.mkdirSync(process.env.KINETTA_CAPTURE_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.KINETTA_CAPTURE_DIR,`plan-${width}-${theme}.png`)});}await c.close();contexts.splice(contexts.indexOf(c),1);
+  }}
   if(!process.env.KINETTA_PLAN_CASE||process.env.KINETTA_PLAN_CASE==='actions')for(const who of ['future','first'])for(const native of [false,true]){
    const {c,p,get,errors,writes}=await open(who,'light',{width:390,height:844,root:16},native),d=await(await get('/api/plans/current')).json(),beforeMarks=JSON.stringify(d.weeks),before=(await(await get('/api/interval-presets')).json()).length,next=d.next_workout;
    await p.locator('[data-plan-start]').click();await until(p,()=>location.pathname==='/track'&&!!document.querySelector('#track-start'),'prepared Track');assert.equal(await p.locator('#track-start').getAttribute('aria-label'),'Start run');assert.equal(await p.locator('[data-quick][aria-pressed=true]').innerText(),'Run');await until(p,title=>document.querySelector('#track-plan')?.innerText.includes(title),'selected workout hint',next.title);assert((await p.locator('#track-plan').innerText()).includes(next.title));assert.deepEqual(await p.evaluate(()=>planFixtureCalls),[],'plan Start never starts recording');assert.equal(await p.evaluate(()=>Track.active),false);
