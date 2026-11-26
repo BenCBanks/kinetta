@@ -262,6 +262,15 @@ Object.assign(KitChat, (() => {
   }
   function reviewLatestWorkout(c){return send(c,'Review my latest workout',0);}
   function chartX(index,count,first,last){return first+index*(last-first)/Math.max(count-1,1);}
+  function chartScale(values,line,pace){
+    const low=line?Math.min(...values):0,high=Math.max(...values,1),raw=Math.max(high-low,high*.1)/2,
+      power=10**Math.floor(Math.log10(raw)),step=pace?
+        ([1,2,5,10,15,30,60,120,300,600,1800,3600].find(n=>n>=raw)||Math.ceil(raw/3600)*3600):
+        [1,2,5,10].find(n=>n*power>=raw)*power,
+      min=Math.floor(low/step)*step,max=Math.max(min+step,Math.ceil(high/step)*step),
+      ticks=Array.from({length:Math.round((max-min)/step)+1},(_,i)=>Number((min+i*step).toPrecision(12)));
+    return {min,max,ticks:pace?ticks:ticks.reverse()};
+  }
   function chartHtml(chart){
     const points=chart.points||[],known=points.filter(p=>p.plot_value!=null&&p.n>p.missing),
       nouns={all:'Workouts',run:'Runs',ride:'Rides',walk:'Walks',hike:'Hikes',swim:'Swims',strength:'Strength workouts'},
@@ -273,17 +282,17 @@ Object.assign(KitChat, (() => {
     const header=`<h3>${esc(title)}</h3><p class="kit-chart-subtitle">${esc(noun)} · ${esc(date(chart.start))} – ${esc(date(chart.end))}</p>`;
     if(known.length<2)return `<section class="kit-chart">${header}${known.length?`<dl class="kit-facts"><div><dt>${esc(date(known[0].start))}</dt><dd>${esc(known[0].display_value)}</dd></div></dl>`:''}${notes}</section>`;
     const values=known.map(p=>p.plot_value),line=chart.metric!=='workouts'&&(chart.aggregate!=='sum'||chart.group_by==='workout'||['pace','avg_hr'].includes(chart.metric)),
-      max=Math.max(...values,1),min=line?Math.min(...values)*.9:0,range=Math.max(max-min,1),
+      {min,max,ticks:axisTicks}=chartScale(values,line,chart.metric==='pace'),range=max-min,
       y=v=>chart.metric==='pace'?20+(v-min)*110/range:130-(v-min)*110/range,
       step=points.length>12?4:points.length>6?2:1;
     const tick=value=>chart.metric==='pace'?`${Math.floor(Math.round(value)/60)}:${String(Math.round(value)%60).padStart(2,'0')}${chart.axis_unit}`:
       `${new Intl.NumberFormat(undefined,{maximumFractionDigits:1,notation:max>=10000?'compact':'standard'}).format(value)} ${chart.axis_unit}`;
-    const labels=[0,1,2].map(i=>tick(chart.metric==='pace'?min+i*range/2:max-i*range/2)),
+    const labels=axisTicks.map(tick),
       left=Math.max(54,Math.min(112,Math.max(...labels.map(t=>t.length))*7+8)),band=(310-left-8)/points.length,
       first=line?left+24:left+4+band/2,last=line?286:306-band/2,barWidth=band-Math.min(6,band*.2),
       x=i=>chartX(i,points.length,first,last);
-    const ticks=[20,75,130].map((py,i)=>{
-      return `<line class="kit-chart-grid" x1="${left}" x2="310" y1="${py}" y2="${py}"/><text class="kit-chart-tick" x="${left-8}" y="${py+4}" text-anchor="end">${esc(labels[i])}</text>`;
+    const ticks=labels.map((label,i)=>{const py=20+i*110/(labels.length-1);
+      return `<line class="kit-chart-grid" x1="${left}" x2="310" y1="${py}" y2="${py}"/><text class="kit-chart-tick" x="${left-8}" y="${py+4}" text-anchor="end">${esc(label)}</text>`;
     }).join('');
     let connected=false,path='';
     const marks=points.map((p,i)=>{
