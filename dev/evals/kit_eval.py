@@ -12,7 +12,7 @@ from kit_cases import CASES
 from kit_gate_cases import GATE_CASE_IDS
 from kit_setting_smoke import CASE_IDS as SMOKE_IDS, CAP_USD, RUBRIC, input_digest, cached_rows, replay_row
 from kit_eval_support import DEFAULT_BUDGET_USD, valid_budget, load_baseline, configure_budget, capped, bounded_results, cap_reason
-from kit_gate_resume import identity as gate_identity, resume_rows, preflight, serial_results
+from kit_gate_resume import identity as gate_identity, resume_rows, preflight, serial_results, replay_gate_row
 from kit_weekly_fixtures import (evaluation_case_passed, period_from_today, request_contract,
                                  run_weekly_answer, is_expected_health_consent_refusal,
                                  seed_fixture, seed_other_account)
@@ -22,6 +22,7 @@ p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budg
 p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',required=True);p.add_argument('--candidate-commit',required=True)
 p.add_argument('--output',required=True);p.add_argument('--baseline-results')
 p.add_argument('--resume',help='Resume an exact-input full gate without repaying completed or interrupted paid rows')
+p.add_argument('--retry-case',action='append',default=[],help='Explicitly repay only this failed paid candidate case; requires --resume')
 p.add_argument('--variant',choices=('both','baseline','candidate'),default='both')
 p.add_argument('--cases',action='append',metavar='ID',help='case ID; repeat or use comma-separated IDs')
 p.add_argument('--dry-run',action='store_true',help='Validate inputs and write private metadata only; no provider/database calls')
@@ -49,6 +50,7 @@ if args.gate and len(selected_cases)!=(10 if args.setting_smoke else 40):p.error
 if args.setting_smoke and (not args.gate or args.budget_usd>CAP_USD or args.baseline_commit!=args.candidate_commit):
  p.error('Setting smoke requires identical code, both variants and a budget at most $0.45')
 if args.resume and (not args.gate or args.setting_smoke or args.baseline_results):p.error('--resume requires a full gate')
+if args.retry_case and not args.resume:p.error('--retry-case requires --resume')
 baseline_path=Path(args.baseline)
 if not baseline_path.is_file():p.error('Baseline file does not exist')
 # Compile without importing: dry-run cannot initialize provider/database logic.
@@ -65,7 +67,14 @@ if args.gate and not args.setting_smoke:
  if args.resume:
   try:
    previous=json.loads(Path(args.resume).read_text())
-   reused,metadata['prior_spend_usd']=resume_rows(previous,metadata['input_digest'],metadata['selected_case_ids'])
+   reused,metadata['prior_spend_usd']=resume_rows(previous,metadata['input_digest'],metadata['selected_case_ids'],
+      recheck=lambda row:replay_gate_row(row,coach.HEALTH_NO,coach_chat._json,coach_chat.checked_answer),
+      retry_cases=args.retry_case)
+   for key in ('source_report_commit','source_report_sha256'):
+    if key in previous:metadata[key]=previous[key]
+   metadata['superseded_results']=previous.get('superseded_results',[])+[row for row in previous.get('results',[])
+       if row['variant']=='candidate' and row['case'] in args.retry_case]
+   metadata['retry_cases']=args.retry_case
    metadata['prior_requests']=previous.get('requests',0)
   except (ValueError,OSError) as error:p.error(str(error))
  try:metadata['budget_preflight']=preflight(args.budget_usd,metadata.get('prior_spend_usd',0),80-len(reused))
@@ -96,7 +105,8 @@ def save_report(value):
   json.dump(value,stream,default=str,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
  os.replace(temporary,output)
 if args.dry_run:
- save_report(metadata)
+ save_report({**metadata,'results':reused,'reserved_or_estimated_usd':metadata.get('prior_spend_usd',0),
+              'requests':metadata.get('prior_requests',0)})
  print(json.dumps({'dry_run':True,'cases':len(selected_cases),'provider_calls':0,'output':str(output)}),flush=True)
  raise SystemExit(0)
 # Conservative global reservation limits apply across every fictional account.
@@ -232,8 +242,6 @@ try:
       case_uid,transport,history=history,guidance=guidance,
       request_count=lambda: provider_requests_for(case_uid,client_id))
     answer=result['answer'];error=result['error'];provider_requests=result['provider_requests']
-    if provider_requests==0 and error is None:
-     error='Weekly answer returned without an AI provider request.'
    else:
     with ai_budget.scope(case_uid,request_id,feature='Kit evaluation '+variant):
      # The pre-weekly baseline receives the same visible starter text; only the candidate
@@ -253,6 +261,8 @@ try:
   expected_refusal=is_expected_health_consent_refusal(
    cid,variant=variant,answer=answer,error=error,provider_requests=provider_requests,
    refusal_message=coach.HEALTH_NO)
+  if weekly and provider_requests==0 and error is None and not expected_refusal:
+   error='Weekly answer returned without an AI provider request.'
   if expected_refusal:error=None
   passed=evaluation_case_passed(cid,variant=variant,answer=answer,error=error,
                                 expected_refusal=expected_refusal)

@@ -17,7 +17,7 @@ class ClaimRejected(ValueError):
 
 
 HEALTH = re.compile(r'\b(?:you (?:have|are suffering from)|your (?:data|heart rate|workouts?) (?:proves?|confirms?|diagnoses?))\b[^.!?]*\b(?:diabetes|disease|illness|dehydration|overtraining|injury|deficiency)\b|\b(?:stop|skip|double|reduce) (?:your )?(?:medication|insulin|prescription)\b',re.I)
-NUMBER_WORD = re.compile(r'\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|half|quarter|dozen)\s+(?:\w+\s+)?(?:runs?|rides?|walks?|workouts?|sessions?|days?|weeks?|minutes?|hours?|grams?|calories?|miles?|kilomet(?:er|re)s?|reps?|sets?)\b|\b(?:twice|thrice)\b',re.I)
+NUMBER_WORD = re.compile(r'\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|half|quarter|dozen)\s+(?:\w+\s+)?(?:runs?|rides?|walks?|workouts?|sessions?|days?|(?:meal|food) days?|weeks?|minutes?|hours?|grams?|calories?|miles?|kilomet(?:er|re)s?|reps?|sets?)\b|\b(?:twice|thrice)\b',re.I)
 
 
 # Natural grammar can surround a slot; units, arithmetic and extra quantities cannot.
@@ -61,6 +61,19 @@ def bound_logged_days(prose,evidence):
     if len(sources)==1:
         replace(r'days? (?:had|has|have) (?:recorded|logged) (?:intake|food entries)\b',sources[0].get('logged_days'))
         replace(r'days? (?:were|are) unlogged\b',sources[0].get('unlogged_finished_days'))
+        periods=[e['data'] for e in evidence if e.get('tool')=='period_compare'
+                 and isinstance(e.get('data'),dict) and 'error' not in e and 'error' not in e['data']]
+        if len(periods)==1:
+            current=periods[0].get('current',{})
+            workouts=current.get('totals',{}).get('workouts')
+            days=sources[0].get('logged_days')
+            if (type(workouts) is int and type(days) is int
+                    and all(current.get(key) is not None and current[key]==sources[0].get(key)
+                            for key in ('start','end'))):
+                prose=re.sub(r'\bWith only ('+number+r') workouts? and ('+number+r') logged meal days?\b',
+                    lambda m:'With the recorded workout and meal-day counts'
+                    if (words.index(m[1].casefold()),words.index(m[2].casefold()))==(workouts,days)
+                    else m[0],prose,flags=re.I)
     sources=[e['data'] for e in evidence if e.get('tool')=='strength_history'
              and isinstance(e.get('data'),dict) and 'error' not in e and 'error' not in e['data']]
     if len(sources)==1:

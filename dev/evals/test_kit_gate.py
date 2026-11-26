@@ -87,6 +87,22 @@ class KitGatePreflight(unittest.TestCase):
         self.assertEqual(resumed['remaining_budget_usd'],2.45)
         self.assertEqual(resumed['provider_calls'],0)
 
+    def test_explicit_retry_retains_original_failed_row_and_spend(self):
+        initial=self.run_eval('--gate','--dry-run');self.assertEqual(initial.returncode,0,initial.stderr)
+        report=json.loads(self.output.read_text());self.output.unlink()
+        original={'case':'weekly-rest-heavy','variant':'candidate','passed':False,'provider_requests':2,'error':'numeric_unsupported'}
+        rows=[{'case':case,'variant':variant,'passed':True,'provider_requests':1}
+              for case in report['selected_case_ids'] for variant in ('baseline','candidate')
+              if (variant,case)!=('candidate','weekly-rest-heavy')]
+        report.update(reserved_or_estimated_usd=1.17626,requests=153,results=rows+[original])
+        previous=self.directory/'prior.json';previous.write_text(json.dumps(report))
+        result=self.run_eval('--gate','--dry-run','--resume',str(previous),'--retry-case','weekly-rest-heavy')
+        self.assertEqual(result.returncode,0,result.stderr)
+        resumed=json.loads(self.output.read_text())
+        self.assertEqual(resumed['superseded_results'],[original])
+        self.assertEqual(resumed['prior_spend_usd'],1.17626);self.assertEqual(resumed['prior_requests'],153)
+        self.assertEqual(resumed['provider_calls'],0)
+
 
 class KitGateRuntime(unittest.TestCase):
     def test_loader_registers_namespace_before_execution_and_preserves_bytes(self):

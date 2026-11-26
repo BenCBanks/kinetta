@@ -269,6 +269,8 @@ docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_inconta
 cat dev/tests/coach_incontainer.py dev/tests/workout_review_fixtures.py | docker compose -p "$P" exec -T app python -
 docker compose -p "$P" exec -T app python - < dev/tests/kit_conversation_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-gate-rest-heavy.json app:/tmp/kit-gate-rest-heavy.json
+docker compose -p "$P" exec -T app python - < dev/tests/kit_gate_replay_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_smoke_replay_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-smoke2-rejections.json app:/tmp/kit-smoke2-fixtures.json
 docker compose -p "$P" exec -T app python - < dev/tests/kit_truncation_incontainer.py

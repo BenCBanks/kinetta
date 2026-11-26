@@ -1,8 +1,10 @@
 """No-provider full-gate resume identity, accounting and interruption tests."""
 import copy
 import unittest
+import tempfile,subprocess
+from unittest.mock import patch
 from pathlib import Path
-from kit_gate_resume import identity,preflight,resume_rows,serial_results
+from kit_gate_resume import identity,preflight,resume_rows,serial_results,prepare_cache,refusal_replay
 from kit_cases import CASES
 
 
@@ -63,6 +65,53 @@ class Resume(unittest.TestCase):
         called=[]
         list(serial_results(lambda job:called.append(job) or {'error':None},jobs))
         self.assertEqual(called,[('baseline','meal')])
+
+    def test_replay_required_and_retry_only_explicit_failed_paid_candidate(self):
+        report=self.report();report['results'][0].update(passed=False,error='numeric_unsupported')
+        report['source_report_commit']='old'
+        with self.assertRaises(ValueError):resume_rows(report,'exact',['meal'])
+        rows,spent=resume_rows(report,'exact',['meal'],recheck=lambda row:{'passed':True},retry_cases=['meal'])
+        self.assertEqual(len(rows),1);self.assertEqual(rows[0]['variant'],'baseline');self.assertEqual(spent,.05)
+        rows,_=resume_rows(report,'exact',['meal'],recheck=lambda row:{'passed':True})
+        self.assertFalse(rows[0]['source_row']['passed']);self.assertTrue(rows[0]['passed'])
+        for changes in ({'passed':True},{'provider_requests':0},{'interrupted':True}):
+            invalid=copy.deepcopy(report);invalid['results'][0].update(changes)
+            with self.assertRaises(ValueError):resume_rows(invalid,'exact',['meal'],recheck=lambda row:{},retry_cases=['meal'])
+        with self.assertRaises(ValueError):resume_rows(report,'exact',['meal'],recheck=lambda row:{},retry_cases=['unknown'])
+
+    def test_zero_call_refusal_only_exact_envelope(self):
+        answer={'interpretation':'sharing','answer_blocks':[{'kind':'paragraph','text':'sharing'}],
+                'facts':[],'actions':[],'follow_ups':[],'selection':None,'health_included':False,'consent_refused':True}
+        row={'variant':'candidate','case':'weekly-health-consent-off','answer':answer,
+             'provider_requests':0,'error':'Weekly answer returned without an AI provider request.'}
+        self.assertTrue(refusal_replay(row,'sharing')['passed'])
+        for changes in ({'provider_requests':1},{'error':'different failure'},
+                        {'answer':{**answer,'private_health':100}}):
+            self.assertIsNone(refusal_replay({**row,**changes},'sharing'))
+
+    def test_validator_cache_proves_archived_source_and_unchanged_provider_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            def git(*args):return subprocess.check_output(['git','-C',directory,*args],stderr=subprocess.DEVNULL,text=True).strip()
+            git('init');git('config','user.email','fixture@example.test');git('config','user.name','Fictional fixture')
+            sources={'app/kit_claims.py':"NUMBER_WORD='before'\ndef bound_logged_days(x):return x\ndef weekly_system():return 'fixed prompt'\n",
+                     'app/coach_chat.py':"SYSTEM='fixed prompt'\n",'app/db.py':'# fixed schema\n',
+                     'app/kit_eval_diagnostics.py':'# fixed capture\n',
+                     'dev/evals/kit_weekly_fixtures.py':"SEED='fixed'\ndef is_expected_health_consent_refusal():return False\n",
+                     'dev/evals/kit_eval.py':' with db.connect() as c:\n  for suffix in fixed: pass\n def run(item):pass\n'}
+            for name,value in sources.items():
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(value)
+            git('add','.');git('commit','-m','Fictional archived source');revision=git('rev-parse','HEAD')
+            report={'candidate_commit':revision,'baseline_commit':'live','baseline_sha256':'bytes',
+                    'input_digest':identity(root,[],'live',revision,'bytes')}
+            (root/'app/kit_claims.py').write_text(sources['app/kit_claims.py'].replace("NUMBER_WORD='before'","NUMBER_WORD='after'"))
+            accepted=prepare_cache(root,report,[],['kit_claims.py','coach_chat.py'])
+            self.assertEqual(accepted['source_report_commit'],revision)
+            for name in ('app/coach_chat.py','app/db.py','dev/evals/kit_weekly_fixtures.py','dev/evals/kit_eval.py'):
+                before=(root/name).read_text();(root/name).write_text(before.replace('fixed','changed'))
+                with self.assertRaises(ValueError):prepare_cache(root,report,[],['kit_claims.py','coach_chat.py'])
+                (root/name).write_text(before)
+            with self.assertRaises(ValueError):prepare_cache(root,{**report,'input_digest':'different date'},[],['kit_claims.py','coach_chat.py'])
 
 
 if __name__=='__main__':unittest.main()

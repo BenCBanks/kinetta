@@ -10,9 +10,10 @@ def is_expected_health_consent_refusal(case_id, *, variant, answer, error, provi
     """Only named consent-off cases may pass as the exact existing refusal."""
     allowed_requests=(0,) if case_id=='weekly-health-consent-off' else (0,1) if case_id=='recall-health-consent-off' else ()
     exact_error=answer is None and error=='ValueError: '+refusal_message
-    exact_answer=(isinstance(answer,dict) and answer.get('consent_refused') is True
-                  and answer.get('interpretation')==refusal_message and not answer.get('facts')
-                  and not answer.get('selection') and answer.get('health_included') is False and error is None)
+    exact_answer=(answer=={'interpretation':refusal_message,
+                  'answer_blocks':[{'kind':'paragraph','text':refusal_message}],
+                  'facts':[],'actions':[],'follow_ups':[],'selection':None,
+                  'health_included':False,'consent_refused':True} and error is None)
     return (variant in ('candidate','baseline') and type(provider_requests) is int
             and provider_requests in allowed_requests and (exact_error or exact_answer))
 

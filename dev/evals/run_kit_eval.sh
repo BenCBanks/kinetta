@@ -10,10 +10,11 @@ OFFLINE_SMOKE=0
 SETTING_SMOKE=0
 REUSE_LOW=""
 GATE_RESUME=""
+RETRY_CASES=()
 SMOKE_THINKING="LOW"
 CACHE_TEMP=""
 BASELINE=""; BASELINE_COMMIT=""; CANDIDATE_COMMIT=""; BUDGET="2.50"
-usage() { echo "Usage: $0 --baseline FILE --baseline-commit SHA --candidate-commit SHA [--budget-usd USD (default 2.50)] [--dry-run|--offline-smoke] [--setting-smoke] [--resume FILE|--reuse-low FILE] [--smoke-thinking LOW|COMPARE]"; }
+usage() { echo "Usage: $0 --baseline FILE --baseline-commit SHA --candidate-commit SHA [--budget-usd USD (default 2.50)] [--dry-run|--offline-smoke] [--setting-smoke] [--resume FILE|--reuse-low FILE] [--retry-case ID] [--smoke-thinking LOW|COMPARE]"; }
 while (($#)); do
   case "$1" in
     --baseline|--baseline-commit|--candidate-commit|--budget-usd)
@@ -28,6 +29,7 @@ while (($#)); do
     --setting-smoke) SETTING_SMOKE=1; shift ;;
     --reuse-low) REUSE_LOW="$2"; shift 2 ;;
     --resume) GATE_RESUME="$2"; shift 2 ;;
+    --retry-case) RETRY_CASES+=(--retry-case "$2"); shift 2 ;;
     --smoke-thinking) SMOKE_THINKING="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --offline-smoke) OFFLINE_SMOKE=1; shift ;;
@@ -39,6 +41,7 @@ done
 if [[ -n "$GATE_RESUME" && "$SETTING_SMOKE" == 1 ]]; then REUSE_LOW="$GATE_RESUME"; GATE_RESUME=""; fi
 [[ -z "$GATE_RESUME" || -f "$GATE_RESUME" ]] || { echo "Resume capture does not exist" >&2; exit 2; }
 [[ -z "$REUSE_LOW" || ( "$SETTING_SMOKE" == 1 && -f "$REUSE_LOW" ) ]] || { echo "LOW cache requires setting smoke and a real file" >&2; exit 2; }
+(( ${#RETRY_CASES[@]} == 0 )) || [[ -n "$GATE_RESUME" ]] || { echo "--retry-case requires a full gate resume" >&2; exit 2; }
 ((DRY_RUN + OFFLINE_SMOKE <= 1)) || { usage >&2; exit 2; }
 BASELINE_COMMIT="$(git -C "$ROOT" rev-parse --verify "$BASELINE_COMMIT^{commit}")"
 CANDIDATE_COMMIT="$(git -C "$ROOT" rev-parse --verify "$CANDIDATE_COMMIT^{commit}")"
@@ -93,6 +96,11 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 cd "$ROOT"
+if [[ -n "$GATE_RESUME" ]]; then
+  CACHE_TEMP="$(mktemp)"
+  rm -f "$CACHE_TEMP"
+  python3 "$ROOT/dev/evals/kit_gate_resume.py" --prepare-cache "$GATE_RESUME" --output "$CACHE_TEMP"
+fi
 running="$(docker ps --filter 'name=^kt-.*-app-1$' --format '{{.Names}}' | wc -l)"
 if ((running >= 4)); then
   echo "Four disposable Kinetta test servers are already running; stop one before this evaluation." >&2
@@ -138,8 +146,8 @@ OPTIONS=(--gate --variant both --baseline /tmp/kit-eval-baseline-coach.py
   --budget-usd "$BUDGET" --output "$CONTAINER_OUTPUT")
 if ((SETTING_SMOKE == 1)); then OPTIONS+=(--setting-smoke --smoke-thinking "$SMOKE_THINKING"); fi
 if [[ -n "$GATE_RESUME" ]]; then
-  compose cp "$GATE_RESUME" app:/tmp/kit-gate-resume.json
-  OPTIONS+=(--resume /tmp/kit-gate-resume.json)
+  compose cp "$CACHE_TEMP" app:/tmp/kit-gate-resume.json
+  OPTIONS+=(--resume /tmp/kit-gate-resume.json "${RETRY_CASES[@]}")
 fi
 if [[ -n "$REUSE_LOW" ]]; then
   CACHE_TEMP="$(mktemp)"

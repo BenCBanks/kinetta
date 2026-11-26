@@ -91,6 +91,33 @@ conservative reserved cost, never automatically repaid. Such a row blocks releas
 resume cannot recover a response lost during process interruption. A cap before the first
 paid attempt is safe to resume. Captured answers and paid requests are never silently bought twice.
 
+For a scoped validator-only correction, the wrapper can prepare a new private resume cache
+from an archived capture. It proves the archived revision/date/input digest against Git,
+requires unchanged model/tool/prompt and database sources, and permits only the count-binding
+validator and exact refusal classification changes. Candidate raw JSON is rechecked offline;
+baseline answers and baseline failures remain the historical measurements. Original rows,
+rejection diagnostics, source SHA and prior requests/spend remain available. This resets human
+review and does not turn an offline replay into a new provider evaluation.
+
+```sh
+# Revalidate captured answers; no new calls if all eighty rows are reusable.
+dev/evals/run_kit_eval.sh --baseline "$BASELINE" --baseline-commit "$BASELINE_COMMIT" \
+  --candidate-commit "$(git rev-parse HEAD)" --budget-usd 2.50 --resume "$CAPTURE" --dry-run
+# Only if the owner wants a new response for the affected failed paid case:
+dev/evals/run_kit_eval.sh --baseline "$BASELINE" --baseline-commit "$BASELINE_COMMIT" \
+  --candidate-commit "$(git rev-parse HEAD)" --budget-usd 2.50 --resume "$CAPTURE" \
+  --retry-case weekly-rest-heavy
+```
+
+`--retry-case` is candidate-only, explicit, and refuses previously successful, unpaid, unknown
+or interrupted rows. It saves the original paid failure in `superseded_results`; prior spending
+is never refunded. For the final forty-case capture, ordinary resume reuses eighty rows with
+zero additional calls; explicit rest-heavy retry reuses seventy-nine and schedules one response.
+Plan $0.025 for that response (captured weekly attempts cost about $0.008 each), with the actual
+ledger enforcing the remaining cumulative $2.50 allowance. Old baseline failures stay visible
+and keep the strict all-passed `complete` flag false; review them explicitly rather than
+silently relabelling them or buying replacement baseline answers.
+
 The wrapper prints the host path `.../kit-gate-<UTC timestamp>-<process ID>.json` on exit.
 It lives in the wrapper's private backup output directory, next to workout captures.
 Partial evidence is also copied out on failure or Ctrl-C before removing containers/volumes.
