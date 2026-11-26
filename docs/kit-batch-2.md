@@ -1,6 +1,6 @@
 # Kit batch 2 — integration candidate
 
-This candidate integrates saved chats, memory corrections, confirmed goal changes, checked-answer streaming and plain coaching on main after #1559 squash `67d35104`. It needs its own reviewed evaluation; no batch-1 approval is inherited.
+This candidate integrates saved chats, memory corrections, confirmed goal changes, checked-answer streaming, contextual next steps and on-demand charts on main after #1559 squash `67d35104`. It needs its own reviewed evaluation; no batch-1 approval is inherited.
 
 | Component | Reviewed source |
 | --- | --- |
@@ -11,6 +11,9 @@ This candidate integrates saved chats, memory corrections, confirmed goal change
 | Typed goal preview / confirmation | #1563 `c9a47b1d` |
 | Checked-answer streaming | #1555 `7c2c4d7e` (`41b70455` + `7c2c4d7e`) |
 | Plain recovery / weekly coaching | #1565 `b4b30d15` |
+| Permitted context and one useful clarification | #1567 `05b64b06` |
+| Conversational, evidence-bound workout charts | #1540 `1164ca4b` |
+| Pinned live-baseline evaluation tooling | #1573 `c1daf687`, with combined-scope cases |
 
 Memory migration 121 precedes goal migration 122. Both router hooks and independent test registrations are retained. The approved 12px answer/action spacing, saved-message goal dispatch, ownership, consent/invalidation, SQL RLS, export and delete fences remain intact.
 
@@ -18,11 +21,15 @@ Streaming emits checked blocks only after the entire answer validates and saves.
 
 Plain wording runs after original measurements and claims validate. Recovery/weekly displays omit internal scores and provide concrete next steps. Existing low-intake and consent refusals remain app-owned.
 
-Chart answers #1540 are excluded: their old verdict/reason schema, short-answer validator and replay hook need a separate conversational/evidence/consent port. New contextual coaching and charts remain separately reviewed work.
+Contextual coaching uses only the existing permitted memories and current-chat history. Current requests take priority over old preferences; saved goals require current tool evidence. A single checked clarifying question renders as an ordinary final paragraph. It adds no storage or automatic action.
 
-Combined Kit text: `55738ccf3f2ea2d0e3d751e79a5fed16ec0ca730d9bb9971ff931f207ba7fecf`.
-Gemini `gemini-3.8-flash` release candidate: `7068923e39052f8b501e0d9cf802d06071dacc690200f99649f5377065e9c0a6`.
+On-demand workout charts use the conversational blocks contract and one verified tool reference. The app draws at most 30 account-bound points with account units, unknown-value gaps, empty/single-point states and keyboard/pointer selection. Exact summary claims, direction, source consent and final-save fences remain enforced. Charts live only inside Kit answers; weekly starters cannot request charts. Stored chart points do not enter later model history.
+
+Combined Kit text: `2eb2b4bc9c8fcd35aec6d901ebacb9cbe7b831972cfa32d1cd6cbe0bb73d3a61`.
+Gemini `gemini-3.8-flash` release candidate: `17db21110c18d3f344164268cb187d9aa5f9641b1f2ee4c03688c322a174eb2c`.
 
 The combined text is a new singleton group, separate from batch 1 and standalone quality. General and food model-facing text match main. Offline tests and a zero-provider dry-run establish integration mechanics, not model quality or release approval. A fresh reviewed combined evaluation, privacy review and Ben preview are required before rollout; no old paid cache is reused.
 
-Ben preview set: first checked block versus completed answer with actions; saved-chat streaming/resume; recovery wording and next step; weekly comparison with missing food records and next step; memory correction and goal preview/receipt. Use fictional stand-ins at 390 light/dark with 330 checks. Existing unchanged memory/history/goal captures can be reused. Browser evidence does not claim physical-iPhone verification.
+The evaluation uses the verified installed-report pin and full baseline helper tree at `ba8e9500`. Run `dev/evals/run_kit_batch2_gate.sh --installed-report "$REPORT" --dry-run` for a zero-provider preflight; `--offline-smoke` exercises provider stand-ins. Paid execution and review remain separate owner actions. The gate documentation records exact selection, cost limits and resume rules.
+
+Ben preview set: contextual next step and useful clarification; chart bars/pace, missing measurements, empty/single-point states and selection; first checked block versus completed answer/actions; recovery and weekly wording. Use fictional stand-ins at 390 light/dark with 330 checks. History, memory-editor and goal-preview screens retain their approved layouts. Browser evidence does not claim physical-iPhone verification.
