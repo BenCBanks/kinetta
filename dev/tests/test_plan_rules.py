@@ -111,6 +111,13 @@ class RulesTest(unittest.TestCase):
         for wk in snap['weeks']:
             self.assertLessEqual(sum(w.get('distance_m',0) for w in wk['workouts'] if w['type']!='race'),history(p)['weekly_m']*1.15**wk['n']+1e-5)
 
+    def test_high_base_long_run_keeps_the_longest_slot(self):
+        p=setting('half','beginner',12,3,unit='km');h=history(p)
+        h.update(weekly_m=52000,week_totals_m=[52000]*4,longest_m=13000,recent_runs=[{'day':str(BASE-dt.timedelta(days=i)),'distance_m':13000} for i in range(1,29)])
+        for wk in make(p,h)['weeks']:
+            long=next((w for w in wk['workouts'] if w['type']=='long'),None)
+            if long:self.assertEqual(long['distance_m'],max(w.get('distance_m',0) for w in wk['workouts']))
+
     def test_recent_low_week_bounds_start_and_future_rebounds(self):
         p=setting();h=history(p);h['week_totals_m'][0]=h['weekly_m']*.6
         previous=h['week_totals_m'][0]

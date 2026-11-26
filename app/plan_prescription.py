@@ -144,6 +144,13 @@ def make(settings, P, history, legacy_build, pace_text):
         else:
             eligible=[w for w in wk['workouts'] if w['type']!='race' and w['day']<race_day-dt.timedelta(days=1)
                       and not(w['type'] in ('long','long_pace','medium_long','tempo','hills','intervals','fartlek') and w['day']>=race_day-dt.timedelta(days=3))]
+            # Keep the longest slot on the long-run day even for a high starting base.
+            # The legacy template can allocate more of its residual budget to an easy day.
+            eligible=[dict(w) for w in eligible]
+            long=next((w for w in eligible if w['type'] in ('long','long_pace')),None)
+            if long:
+                biggest=max(eligible,key=lambda w:w['dist'])
+                if biggest['dist']>long['dist']:biggest['dist'],long['dist']=long['dist'],biggest['dist']
             wanted=sum(w['dist']*MI for w in eligible)
             cap=min(wanted,previous_week*1.15)
             # Scale the whole week once, never fill a negative budget with minimum-distance extras.

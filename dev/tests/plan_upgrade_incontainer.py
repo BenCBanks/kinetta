@@ -36,12 +36,14 @@ class PlanUpgrade(unittest.TestCase):
                     before=plans._build_legacy(p,plans.paces(45))
                     day=before[0]['workouts'][0]['day']
                     c.execute('INSERT INTO plan_marks(user_id,plan_id,day,done) VALUES(%s,%s,%s,true)',(uid,pid,day))
+                    c.execute("INSERT INTO plan_adjustments(user_id,plan_id,day,workout) VALUES(%s,%s,%s,'{\"type\":\"easy\",\"dist\":2,\"title\":\"Confirmed easy run\",\"detail\":\"Keep it easy.\"}')",(uid,pid,day))
                     # RLS is on the same table/owner column: adding JSON must not create a public data path.
                     policies=c.execute("SELECT * FROM pg_policies WHERE tablename='training_plans'").fetchall()
                 db.migrate()
                 with target() as c:
                     p=c.execute('SELECT * FROM training_plans WHERE id=%s AND user_id=%s',(pid,uid)).fetchone()
                     self.assertIsNone(p['prescription']);self.assertTrue(p['active'])
+                    self.assertEqual(c.execute('SELECT workout FROM plan_adjustments WHERE user_id=%s AND plan_id=%s',(uid,pid)).fetchone()['workout']['dist'],2)
                     self.assertEqual(plans.build(p,plans.paces(45)),before)
                     self.assertTrue(c.execute('SELECT done FROM plan_marks WHERE user_id=%s AND plan_id=%s',(uid,pid)).fetchone()['done'])
                     self.assertEqual(c.execute("SELECT * FROM pg_policies WHERE tablename='training_plans'").fetchall(),policies)
