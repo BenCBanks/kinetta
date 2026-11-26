@@ -404,7 +404,7 @@ Object.assign(KitChat, (() => {
       // A pre-provider rejection can delete an accepted turn (and its empty thread).
       // Carry its question through refresh/new-thread recovery, never over a newer draft.
       const question=pendingQuestion,field=$('#kit-text',c.el);
-      const restored=c.historyEnabled&&question&&!field.value.trim();
+      const restored=question&&!field.value.trim();
       if(restored){field.value=question;try{save(c,'draft',question);}catch{}field.dispatchEvent(new Event('input'));}
       c.answerErrors[id]=true;let refreshed=false;try{await refresh(c);refreshed=true;}catch{}
       if(valid()){
