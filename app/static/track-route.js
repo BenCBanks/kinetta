@@ -325,10 +325,10 @@
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><button type="button" class="gps-chip track-location-action" id="track-location-action" data-state="enable">Enable location</button><span class="gps-chip track-location-status" id="track-gps-chip" role="status" aria-live="polite" hidden></span><button type="button" class="map-full" aria-label="Full-screen map">${svg('expand')}</button><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
       <div id="track-plan" class="track-plan" hidden></div>
       <div class="track-recording-options" aria-label="This recording"><div id="track-interval-ready"></div><button type="button" class="me-chip" id="track-options" hidden></button></div>
-      <div class="track-go"><button class="${outdoor.length?'round-btn start':'primary wide'}" id="track-start"><span>Start</span></button><a id="track-log-past" class="track-log-past" data-track-feature="past" href="/track?past=1">Log a past workout</a></div>
+      <div class="track-go"><a id="track-log-past" class="track-log-past" data-track-feature="past" href="/track?past=1">Log a past workout</a><button class="${outdoor.length?'round-btn start':'primary wide'}" id="track-start"><span>Start</span></button></div>
       <p class="small danger" id="track-ready-error" role="alert"></p><p class="small muted" id="track-guidance"></p>
       </form>
-      <div id="track-open-lift"></div><section class="track-tools compact-track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">Track tools</h2><div id="track-explore" class="track-tool-list"></div></section>`;
+      <div id="track-open-lift"></div><div id="track-explore" hidden aria-busy="false"></div>`;
     if(doneId){
       Milestones.celebrate($('#track-celebration',el),doneId);
       const nextMedalNode=$('#track-next-medal',el),nextMedalOwner=readOwner();
@@ -382,7 +382,12 @@
         $('#track-auto',b).onchange=(e)=>{store.set(key+':auto:'+c.sport,e.target.checked);opts();};
         $('[data-done]',b).onclick=close;});
       Native.haptic?.('selection'); };
-    const gear=$('#track-settings');if(gear)gear.onclick=()=>{const c=choices[selected];if(c.gps)prefs(c);else toast('Spoken updates and auto-pause are for GPS activities.');};
+    const gear=$('#track-settings');if(gear)gear.onclick=()=>{const c=choices[selected];
+      sheet('Track settings',`<div class="inset-group">${c.gps?`<button type="button" class="inset-row" data-recording-settings><span class="inset-icon">${svg('sound')}</span><span class="inset-label">Recording settings</span><span class="chev">${svg('chev')}</span></button>`:''}<a class="inset-row" data-track-feature="connections" href="/track/connections"><span class="inset-icon">${svg('watch')}</span><span class="inset-label">Connections</span><span class="chev">${svg('chev')}</span></a></div>`,(b,close)=>{
+        Discovery.wire(b,'track',{attribute:'data-track-feature'});
+        $('[data-track-feature=connections]',b).onclick=close;
+        const recording=$('[data-recording-settings]',b);if(recording)recording.onclick=()=>{close();prefs(c);};
+      });};
     const pick=(i,fromPlan=false)=>{if(!readyLive()||!choices[i])return;if(!fromPlan&&planIntent){planIntent=null;$('#track-plan').hidden=true;}selected=i;choiceRevision++;store.set(key+':choice',selected);fitQuick();$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();opts();auto();};
     $('#track-other').onclick=()=>sheet('Activity',pickRows(choices.map((c,i)=>[String(i),c.label,c.gps?'GPS':c.lift?'Sets & reps':'Timer',c.lift?'workout':c.sport]),String(selected)),(b,close)=>{b.closest('.sheet').classList.add('track-sport-picker');$$('[data-pk]',b).forEach(x=>x.onclick=()=>{close();pick(+x.dataset.pk);});});
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});
@@ -438,23 +443,13 @@
       box.innerHTML=`<a href="/plan"><small>${esc(label)}</small><b>${esc(w.title)}</b></a>${canUse?'<button type="button" class="me-chip" data-plan-use>Use</button>':`<a class="me-chip" href="/plan">View plan</a>`}`;
       const button=$('[data-plan-use]',box);if(button)button.onclick=async()=>{if(!readyLive()||planLoading)return;const choice=choiceRevision,start=$('#track-start');planLoading=true;button.disabled=start.disabled=true;button.textContent='Loading…';$('#track-ready-error').textContent='';try{const loaded=await preparePlan(w,d.plan.id,{active:()=>readyLive()&&choice===choiceRevision,remember:false});if(!readyLive()||!loaded)return;pick(loaded.index,true);toast('Ready for your run. Press Start when you are.');}catch(e){if(readyLive())$('#track-ready-error').textContent=e.message;}finally{planLoading=false;if(button.isConnected){button.disabled=false;button.textContent='Use';start.disabled=controlling;}}};
     }).catch(()=>{});
-    trackDiscovery($('#track-explore'),readyLive);
     liftNowCard($('#track-open-lift'));
-  }
-  function trackDiscovery(box,current){
-    if(typeof Discovery==='undefined')return;let connections=null,health=null,settled=false;
-    const draw=()=>{if(!current())return;const count=(connections?['apple','garmin_connect'].filter(k=>connections[k]).length:0)+(health?.on?1:0);
-      const items=[{id:'connections',title:'Connections and import',icon:'watch',href:'/track/connections',
-        description:Native.on?'Manage Health and connected apps →':'Connect apps or import older workouts →',teaser:count?`${count} connected`:''}];
-      Discovery.render(box,items,{space:'track',ready:settled,attribute:'data-track-feature'});
-    };Discovery.wire(box,'track',{attribute:'data-track-feature'});draw();
-    Promise.allSettled([api('/api/connections',{maxAge:0}).then(value=>connections=value),...(Native.on?[Native.healthCall(Promise.all([Native.healthOn(),Native.healthStatus()]),'Health status is unavailable.',5000).then(([on,st])=>health={on,at:st?.last_success_at||st?.at,error:st?.error},()=>health={error:true})]:[])]).then(()=>{settled=true;draw();});
   }
 
     Track.__attachRoute({draw, refreshMap, restoreReview});
 route(/^\/track$/, 'track', async (el) => {
       Track.sync();
-      el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts">${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div></div><div id="track-content"></div>`;
+      el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts"><button type="button" class="icon-btn" id="track-settings" aria-label="Track settings">${svg('gear')}</button></div></div><div id="track-content"></div>`;
       await Track.restoreReview();
       if (TrackNative.supported) { try { await Track.pullNative(); } catch(e) { toast(e.message); } }
       Track.draw();
