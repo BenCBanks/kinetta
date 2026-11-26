@@ -1,0 +1,142 @@
+"""Checked app-owned recovery for ordinary Kit replies; no rejected prose is retained."""
+from contextvars import ContextVar
+from functools import wraps
+import json
+import math
+import re
+import time
+
+_attempt = ContextVar('kit_answer_attempt', default=None)
+NON_HEALTH = frozenset({'profile','nutrition_summary','meal_options','meal_combinations','food_log',
+                        'nutrition_days_vs_goal','stored_foods','goals','app_features'})
+FAILURES = {
+    'Kit could not verify that answer. Try again.': 'answer_verification',
+    'Kit could not answer right now. Try again shortly.': 'answer_provider',
+    'Kit did not return an answer': 'answer_provider',
+    'Kit reached the answer limit. Ask a narrower question.': 'answer_limit',
+    'Kit reached the tool limit. Ask a narrower question.': 'answer_limit',
+    'Kit did not consult your data. Please try again.': 'answer_verification',
+    'Unverified numeric symbol': 'answer_verification',
+}
+
+
+def remember(evidence, usage, began):
+    state = _attempt.get()
+    if state is not None:state.update(evidence=evidence, usage=usage, began=began)
+
+
+def topic(question):
+    if re.search(r'\bweight\b', question, re.I):return 'weight'
+    if re.search(r'\b(?:food|meals?|nutrition|protein|sugar|sodium|fat|calories)\b', question, re.I):return 'food'
+    if re.search(r'\bplan\b', question, re.I):return 'plan'
+    if re.search(r'\b(?:runs?|rides?|walks?|workouts?|recovery|training)\b', question, re.I):return 'activity'
+    return 'goal' if re.search(r'\bgoals?\b', question, re.I) else 'records'
+
+
+STEPS = {
+    'food': 'Open your food log and review the recorded portions and any missing nutrient details.',
+    'weight': 'Open Progress to review your weight entries over time.',
+    'plan': 'Open your training plan and review the next unfinished session before considering a change.',
+    'activity': 'Open your activity history and choose the workout you want to review next.',
+    'goal': 'Open your saved goals and choose the goal you want to work on next.',
+    'records': 'Open the relevant record and choose the detail you want to review next.',
+}
+
+
+def fallback(uid, question, state, active, reason):
+    from . import coach, coach_chat, db, kit_claims, kit_conversation
+    if state.get('uid') != uid:raise ValueError('Recovery owner mismatch')
+    if reason not in set(FAILURES.values()):raise ValueError('Unknown recovery reason')
+    def permitted():
+        if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
+        if not coach.allowed(uid):raise ValueError(coach.off())
+    permitted()
+    evidence = state['evidence']
+    # The original readers bind uid and source consent. Recheck Health before replaying
+    # sensitive measurements; never turn revoked consent into a partial disclosure.
+    sensitive = any(e.get('tool') not in NON_HEALTH and 'data' in e and 'error' not in e for e in evidence)
+    if sensitive:
+        with db.coach_connect(uid) as c:
+            if not coach.health_ok(c, uid):return kit_conversation.consent_answer()
+    kind = topic(question)
+    facts, paragraphs = [], []
+    def source(name):
+        matches = kit_claims.successful(evidence, name)
+        return matches[0] if len(matches) == 1 else None
+    def add(entry, path, sentence):
+        if entry is None:return
+        value = entry['data']
+        try:
+            for key in path:value = value[key]
+        except (KeyError, IndexError, TypeError):return
+        if type(value) not in (int, float) or not math.isfinite(value) or value < 0:return
+        slot = '{' + entry['evidence_id'] + ':' + str(len(facts)) + '}'
+        facts.append(dict(evidence_id=entry['evidence_id'], path=path, value=value))
+        paragraphs.append(sentence.replace('{}', slot))
+    if kind == 'food':
+        summary = source('nutrition_summary')
+        if summary and type(summary['data'].get('logged_days')) is int and summary['data']['logged_days'] > 0:
+            for field, sentence in (('kcal','Your known logged energy in the queried period was {}.'),
+                                    ('protein_g','Your known logged protein in that period was {} protein.')):
+                known = summary['data'].get('known_totals',{}).get(field)
+                if known == 0 and summary['data'].get('totals',{}).get(field) is None:continue
+                add(summary, ['known_totals',field], sentence)
+        # Existing per-entry validation adds the checked count + "each" only when
+        # every known row agrees. A row is never presented as the whole intake.
+        if not facts:
+            entries = source('food_log')
+            if entries is not None:
+                for field, noun in (('sugar_g','sugar'),('sodium_mg','sodium'),('protein_g','protein')):
+                    if not re.search(r'\b'+noun+r'\b', question, re.I):continue
+                    rows = entries['data'].get('foods', [])
+                    for i, row in enumerate(rows):
+                        fact = dict(tool='food_log', path=['foods',i,field], value=row.get(field))
+                        if kit_claims.equal_known_entries(fact, entries):
+                            add(entries, fact['path'], 'The recorded '+noun+' amount was {}.')
+                            break
+                    break
+        if facts:paragraphs.append('Logged entries may cover only part of your intake; unlogged food is unknown.')
+    elif kind == 'weight':
+        entry = source('weight_trend')
+        if entry and entry['data'].get('samples'):
+            add(entry, ['samples',len(entry['data']['samples'])-1,'kg'], 'A returned weight entry was {}.')
+            if facts:paragraphs.append('Short-term weight changes may reflect normal fluctuation.')
+    elif kind == 'activity':
+        runs = source('recent_runs')
+        add(runs, ['totals','count'], 'The returned running records include {} workouts.')
+        add(runs, ['totals','distance_m'], 'Their recorded distance was {}.')
+    generic = dict(blocks=[dict(kind='paragraph',text='I will stick to your recorded details rather than guess.'),
+                          dict(kind='paragraph',text=STEPS[kind])], facts=[])
+    raw = dict(blocks=[dict(kind='paragraph',text=p) for p in paragraphs+[STEPS[kind]]], facts=facts) if paragraphs else generic
+    try:checked = kit_conversation.checked_answer(raw, evidence, question=question)
+    except ValueError:
+        # Unsupported/ambiguous/missing units or an unusable fact stays excluded.
+        checked = kit_conversation.checked_answer(generic, evidence, question=question)
+    permitted()
+    return dict(checked, app_fallback=True, fallback_reason=reason, usage=dict(state['usage']),
+                latency_ms=round((time.monotonic()-state['began'])*1000),
+                health_included=sensitive and bool(checked['facts']),
+                tools_used=[e['tool'] for e in evidence], prompt_version='kit-numbers-4')
+
+
+def safe(answer):
+    @wraps(answer)
+    def wrapped(uid, question, **kwargs):
+        if not kwargs.get('kit') or kwargs.get('weekly_review') or kwargs.get('workout_review'):
+            return answer(uid, question, **kwargs)
+        from . import kit_claims, kit_conversation, coach
+        token = _attempt.set(dict(uid=uid))
+        try:
+            try:return answer(uid, question, **kwargs)
+            except ValueError as error:
+                state = _attempt.get()
+                if 'evidence' not in state:raise
+                if kit_conversation.is_consent_error(error):return kit_conversation.consent_answer()
+                reason = FAILURES.get(str(error))
+                if reason is None and (isinstance(error,(kit_claims.ClaimRejected,json.JSONDecodeError))
+                                       or kit_claims.weekly_retryable(error)):
+                    reason = 'answer_verification'
+                if reason is None:raise  # Cancellation, disabled AI and programming errors remain errors.
+                return fallback(uid, question, state, kwargs.get('active'), reason)
+        finally:_attempt.reset(token)
+    return wrapped

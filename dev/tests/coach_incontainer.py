@@ -189,9 +189,9 @@ def failed_retry_turn(messages,definitions):
         'follow_ups':[]}),{}
 with patch('app.coach.allowed',return_value=True),patch('app.coach.health_ok',return_value=True),\
      patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=retry_tool):
-    try:coach_chat.answer(uid,'How is my run volume?',kit=True,turn=failed_retry_turn)
-    except ValueError as error:assert str(error)=='Kit could not verify that answer. Try again.'
-    else:raise AssertionError('A failed single retry must surface the generic verification error')
+    recovered=coach_chat.answer(uid,'How is my run volume?',kit=True,turn=failed_retry_turn)
+    assert recovered['app_fallback'] and 'Still unsupported' not in recovered['interpretation']
+    assert 'carbs' not in recovered['interpretation']
 assert failed_retry_round==3, 'A rejected correction must not trigger another provider turn'
 
 # Integrated mocked period_compare -> evidence validation -> account-unit prose rendering.
@@ -591,15 +591,15 @@ for ev in [[],[run_evidence],[profile_evidence,{**run_evidence,'error':'not allo
     try:coach_chat.checked_answer(number_raw,ev,kit=True)
     except ValueError:pass
     else:raise AssertionError('Only successful current-turn evidence with account units may render')
-# Invalid model output gets exactly one correction attempt, then one plain failure.
+# Invalid model output gets exactly one correction attempt, then checked app-only recovery.
 failed_turns=[]
 def invalid_kit_turn(messages,definitions):
     failed_turns.append(True)
     return [],json.dumps({'verdict':'You ran 99 miles.','reason':'Invented from old chat.','facts':[]}),{}
 with patch('app.coach.allowed',return_value=True),patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',new=kit_fixture_tool):
-    try:coach_chat.answer(uid,'How far did I run?',kit=True,turn=invalid_kit_turn)
-    except ValueError as error:assert str(error)=='Kit could not verify that answer. Try again.'
-    else:raise AssertionError('Unsafe model answer must not reach the client')
+    recovered=coach_chat.answer(uid,'How far did I run?',kit=True,turn=invalid_kit_turn)
+    assert recovered['app_fallback'] and '99' not in recovered['interpretation']
+    assert 'Invented from old chat' not in recovered['interpretation']
 assert len(failed_turns)==2
 bad_refs=[]
 for prose,reason in [('{e9:0}.','Unknown or mismatched numeric reference'),('{e2:2}.','Unknown or mismatched numeric reference'),

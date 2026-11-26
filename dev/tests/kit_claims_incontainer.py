@@ -112,7 +112,10 @@ for initial,correction,should_pass in (
          patch('app.coach_chat._gemini_turn',provider):
         try:result=coach_chat.answer(1,'Help me understand my workout.',kit=True)
         except ValueError:assert not should_pass
-        else:assert should_pass and result['answer_blocks']
+        else:
+            assert result['answer_blocks']
+            if not should_pass:
+                assert result['app_fallback'] and 'diabetes' not in result['interpretation']
     assert len(calls)==2
 
 # Revoking consent after a bad weekly response prevents even the correction provider call.
