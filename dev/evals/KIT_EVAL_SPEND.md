@@ -73,15 +73,13 @@ dev/evals/run_kit_release_eval.sh --installed-report "$REPORT" --full \
   --budget-usd 1.80 --cache "$BASELINE" --cache "$SMOKE" --dry-run
 ```
 
-Final continuation uses an explicit approved $1.80 release cap; the default
-remains $0.80. The scoped `kit_release_replay.py` migration accepts the final
-partial capture plus `--recovery-capture` from the original full gate. It proves
-unchanged provider inputs and exact render-only changes, re-formats checked count
-nouns, and rebuilds the missing recovery answer as a checked app fallback from
-its original evidence. This is explicitly offline evidence, not a generated
-model answer or human approval. Only the capped `load` question is omitted.
-The resulting cache contains 79 rows, preserves $1.452946 prior spending, and
-schedules one answer (estimated $0.018; expected release total $1.470946).
-The disposable app receives the remaining $0.347054 for its actual padded
-reservations; production caps are untouched. Run exact-head `--replay`, then
-`--full --budget-usd 1.80 --cache "$REPLAYED" --dry-run` before owner continuation.
+The final reviewed-wording continuation uses the explicit approved $1.80 release
+cap (default $0.80). `kit_release_replay.py` now accepts the completed final
+40/40 capture from its pinned source. It proves that provider inputs, fixtures,
+clock and tools are unchanged, revalidates all captured outputs and applies only
+the three reviewed safe-render fixes. All 80 rows remain reusable; no provider
+regeneration is needed. Total prior spending is retained ($1.471773); expected
+additional cost is $0. The replay keeps original prose, evidence and provenance;
+review remains pending. It does not approve the new fingerprint or create an
+equivalence entry. After integration, refresh exact-head `--replay`, then use
+`--full --budget-usd 1.80 --cache "$REPLAYED" --dry-run` to prove zero remaining.
