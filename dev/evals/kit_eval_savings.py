@@ -33,6 +33,12 @@ def case_keys(root,cases,baseline,candidate):
         helpers[name]=ast.dump(ast.Module(body=nodes,type_ignores=[]),include_attributes=False)
     common={'date':FIXTURE_DATE,'helpers':helpers,'model':'gemini-3.8-flash','thinking':'LOW','version':1}
     sources={'baseline':source(baseline),'candidate':source(candidate)}
+    # Both variants use the disposable current transport to assemble the actual
+    # request. Context/DB changes can alter baseline inputs without altering live
+    # provider code; those must also invalidate its row, rather than conceal drift.
+    shared={name:(root/'app'/name).read_text() for name in
+            ('db.py','ai_budget.py','ai_access.py','kit_thread.py','kit_history_api.py','kit_memory.py','kit_coaching.py')}
+    sources['baseline']=digest([sources['baseline'],shared])
     return {v:{c[0]:digest([common,sources[v],c]) for c in cases} for v in sources}
 
 
@@ -67,7 +73,7 @@ def plan(rows,total,budget,spent=0):
 
 def receipt(root):
     head=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
-    if subprocess.run(['git','-C',str(root),'diff','--quiet','HEAD','--','app','dev/evals','dev/tests']).returncode:
+    if subprocess.check_output(['git','-C',str(root),'status','--porcelain','--','app','dev/evals','dev/tests']):
         raise ValueError('Commit source before offline replay')
     return {'head':head,'fixture_date':FIXTURE_DATE,'offline_replay_passed':True,
             'provider_calls':0,'reviewed':False}
@@ -85,9 +91,15 @@ if __name__=='__main__':
     import argparse
     p=argparse.ArgumentParser();p.add_argument('--receipt');p.add_argument('--write',action='store_true')
     p.add_argument('--prepare');p.add_argument('--baseline-commit');p.add_argument('--stage',choices=('smoke','full','baseline'),default='smoke')
-    p.add_argument('--cache',action='append',default=[]);p.add_argument('--budget-usd',type=float,default=.80)
+    p.add_argument('--cache',action='append',default=[]);p.add_argument('--cache-dir',type=Path)
+    p.add_argument('--budget-usd',type=float,default=.80)
     args=p.parse_args();root=Path(__file__).resolve().parents[2]
     if args.prepare:
+        if args.cache_dir:
+            for path in sorted(args.cache_dir.glob('kit-gate-*.json')):
+                prior=json.loads(path.read_text())
+                if prior.get('economy') and prior.get('fixture_date')==FIXTURE_DATE:args.cache.append(str(path))
+        args.cache=list(dict.fromkeys(args.cache))
         from kit_batch2_cases import BATCH2_CASES
         current=receipt(root)['head']; keys=case_keys(root,BATCH2_CASES,args.baseline_commit,current)
         selected=[c[0] for c in BATCH2_CASES if args.stage!='smoke' or c[0] in SMOKE_IDS]
