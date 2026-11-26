@@ -243,6 +243,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/kit_history_upgrade_inco
 if [[ "$MODE" == --quick ]]; then echo "== quick unit/API checks passed"; exit 0; fi
 
 echo "== in the app container"
+docker compose -p "$P" exec -T app python - < dev/tests/photo_safety_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/track_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/friend_count_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/retired_routes_incontainer.py

@@ -137,7 +137,7 @@ try:
         assert c.execute('SELECT count(*) AS n FROM activities WHERE user_id=%s', (uid,)).fetchone()['n'] == 2
         assert c.execute('SELECT count(*) AS n FROM track_recording_receipts WHERE user_id=%s', (uid,)).fetchone()['n'] == 2
     assert len(list(folder.glob('*.json'))) == 2
-    photo_erasure_lock_order(api_photos.prepare_activity_photo(api_photos.PhotoIn(image=image)))
+    photo_erasure_lock_order(api_photos.prepare_activity_photo(api_photos.PhotoIn(image=image), uid))
     print('PASS concurrent photo upload and account erasure follow account-first locking')
     print('PASS mid-save rollback, raw-file cleanup, exact retry, photo metadata stripping and no duplicate pixels')
 finally:
