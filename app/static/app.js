@@ -106,7 +106,7 @@ const lazyRouteBundles = [
   {re: /^\/groups\/[0-9a-f-]{36}$/i, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/groups\/invites\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/group-invite\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
-  {re: /^\/notifications$/, tab: null, scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},
+  {re: /^\/notifications$/, tab: notificationEntryTab, scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__'], styles: [FOOD_ROUTE_STYLE]},
   {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, SOCIAL_ROUTE_ASSET, COOK_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
@@ -1250,11 +1250,15 @@ function savedSectionReturn(tab) {
   }
   return state;
 }
+function notificationEntryTab() {
+  const destination=BackNavigation.destination(history.state, '/notifications', '/activity', readOwner(), {historyLength:history.length});
+  return {Home:'activity',Me:'me',Progress:'progress',Track:'track',Nutrition:'food'}[BackNavigation.parent(destination.path)] || 'activity';
+}
 function sectionReturnPathAllowed(tab, path) {
   if (!tab || sectionTabForPath(path) !== tab) return false;
   const url = new URL(path, location.href);
-  // Kit is a conversation reached from several sections, never a section's landing page.
-  if (url.pathname.replace(/\/+$/, '') === '/me/kit') return false;
+  // Kit and the inbox follow their entry section, never replacing its landing page.
+  if (['/me/kit','/notifications'].includes(url.pathname.replace(/\/+$/, ''))) return false;
   // Track's logger and nested recording/editor routes own their own recovery state.
   if (tab === 'track' && (url.pathname !== '/track' || (typeof Track !== 'undefined' && Track.active))) return false;
   return true;

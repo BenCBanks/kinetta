@@ -60,7 +60,7 @@ class Reactions(unittest.TestCase):
  def test_emoji_reaction_notifications_read_naturally(self):
   for kind,emoji in [('starstruck','🤩'),('mindblown','🤯')]:
    text,link=notify._words({'kind':'cheer','name':'Alex','activity':'workout','activity_id':7,'reaction_kind':kind})
-   self.assertEqual(text,f'Alex reacted {emoji} to your workout');self.assertEqual(link,'/activity/7')
+   self.assertEqual(text,f'Alex reacted {emoji} to workout');self.assertEqual(link,'/activity/7')
  def test_replace_retry_and_legacy(self):
   self.assertEqual(self.actor.post(self.path+'/cheer').json()['my_reaction'],'clap')
   for legacy,kind in [('cheer','clap'),('strong','muscle'),('applause','fire'),('laugh','clap'),('hike','thumbsup'),('lift','muscle'),('🥾','thumbsup'),('mountain','thumbsup')]:
@@ -120,7 +120,7 @@ class Reactions(unittest.TestCase):
     own=next(r for r in self.owner.get('/api/activities').json() if r['id']==self.aid);self.assertEqual(own['cheers'],0);self.assertEqual(sum(own['reactions'].values()),0)
  def test_native_words_preferences_revocation_and_final_recheck(self):
   self.actor.post(self.path+'/reaction',json={'kind':'applause'});nid=self.notes()[0]['id'];sent=[]
-  self.assertEqual(notify.push(nid,send=lambda d,p:sent.append(p) or True),1);self.assertIn('reacted 🔥 to your',sent[-1]['body']);self.assertEqual(sent[-1]['url'],f'/activity/{self.aid}')
+  self.assertEqual(notify.push(nid,send=lambda d,p:sent.append(p) or True),1);self.assertIn('reacted 🔥 to',sent[-1]['body']);self.assertEqual(sent[-1]['url'],f'/activity/{self.aid}')
   with db.connect() as c:c.execute("UPDATE profile SET notify='{"+'"cheers":false'+"}' WHERE user_id=%s",(self.ids[0],))
   self.assertEqual(notify.push(nid,send=lambda *_:self.fail('preference ignored')),0)
   with db.connect() as c:c.execute("UPDATE profile SET notify='{}' WHERE user_id=%s",(self.ids[0],))
@@ -134,7 +134,7 @@ class Reactions(unittest.TestCase):
   def change_before_device(uid,payload,prepare,send):
    self.actor.post(self.path+'/reaction',json={'kind':'applause'});return original(uid,payload,prepare,send)
   with patch('app.notify._deliver_native',side_effect=change_before_device):self.assertEqual(notify.push(nid,send=lambda d,p:sent.append(p) or True),1)
-  self.assertIn('reacted 🔥 to your',sent[-1]['body'])
+  self.assertIn('reacted 🔥 to',sent[-1]['body'])
   self.owner.post('/api/logout')
   try:
    sender=Mock(return_value=True);self.assertEqual(notify.push(nid,send=sender),0);sender.assert_not_called()

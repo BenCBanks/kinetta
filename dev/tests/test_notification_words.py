@@ -1,4 +1,5 @@
 """Fixed fictional workout facts, no database/model/provider/device calls."""
+import datetime as dt
 import copy
 import math
 from app import notification_words as words
@@ -10,6 +11,17 @@ def facts(**extra):return {'user_id':1,'activity_id':2,**extra}
 
 def run():
     original=copy.deepcopy(ROW)
+    assert words.inbox_activity({**ROW,'distance_m':9704.34432,'elapsed_s':3060})=='Morning Run logged · 6.03 mi · 51 min'
+    assert words.inbox_activity({**ROW,'distance_m':None,'elapsed_s':None,'moving_s':None})=='Morning Run logged'
+    assert words.inbox_activity({**ROW,'elapsed_s':None}).endswith('41 min moving')
+    challenge={'challenge_kind':'distance','challenge_target':10,'challenge_unit':'mi','end_day':dt.date(2026,11,29)}
+    assert words.inbox_challenge(challenge,dt.datetime(2026,11,26,tzinfo=dt.timezone.utc))=='Your 10 mi challenge ends Sunday'
+    assert words.inbox_challenge({**challenge,'challenge_kind':'activities','challenge_target':5},dt.datetime(2026,11,26,tzinfo=dt.timezone.utc))=='Your 5 workouts challenge ends Sunday'
+
+    for instant,ending in [('2026-11-29T12:00:00+00:00','ends today'),('2026-11-28T12:00:00+00:00','ends tomorrow'),('2026-11-30T12:00:00+00:00','ended Sunday')]:
+        assert words.challenge_ending(challenge,dt.datetime.fromisoformat(instant))==ending
+    assert words.challenge_ending({**challenge,'tz':'America/Los_Angeles'},dt.datetime(2026,11,29,2,tzinfo=dt.timezone.utc))=='ends tomorrow'
+    assert words.challenge_goal({**challenge,'challenge_kind':'activities','challenge_target':1})=='1 workout'
     for sport,kind in [('run','run'),('ride','ride'),('walk','walk'),('swim','swim'),('hike','hike'),('row','row'),('ski','ski'),('workout','workout')]:
         titles={words.activity({**ROW,'sport':sport,'activity_id':i})[0] for i in range(1,4)}
         assert len(titles)==3 and all(kind in value.lower() and 'Alex' in value and len(value)<40 for value in titles)

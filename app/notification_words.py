@@ -1,5 +1,7 @@
 """Short, deterministic notification copy from fixed, owner-scoped workout facts. No model calls."""
+import datetime as dt
 import math
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 def clean(value, limit=80):
@@ -99,3 +101,35 @@ def activity(row,facts=None):
     body=name+(' · '+summary if summary else '')
     extra=highlight(row,facts)
     return title(row),body+('\n'+extra if extra else '')
+
+
+def inbox_activity(row):
+    """Compact inbox wording. Push text and activity edit destinations are unchanged."""
+    parts=[clean(row.get('activity') or 'Workout',90)+' logged',distance(row.get('distance_m'),row.get('units'))]
+    elapsed=duration(row.get('elapsed_s'))
+    parts.append(elapsed or ((duration(row.get('moving_s'))+' moving') if duration(row.get('moving_s')) else ''))
+    return ' · '.join(part for part in parts if part)
+
+
+def challenge_goal(row):
+    amount=f"{row['challenge_target']:g}"
+    kind=row.get('challenge_kind')
+    if kind=='distance':return (amount+' '+(row.get('challenge_unit') or '')).strip()
+    noun={'active_days':'active day','activities':'workout','food_days':'food logging day','protein_days':'protein goal day'}.get(kind,'')
+    return (amount+' '+noun+('s' if row['challenge_target']!=1 else '')).strip()
+
+
+def challenge_ending(row, now=None):
+    day=row.get('end_day')
+    if not day:return 'ends soon'
+    try:zone=ZoneInfo(row.get('tz') or 'America/New_York')
+    except (ZoneInfoNotFoundError,ValueError):zone=dt.timezone.utc
+    today=(now or dt.datetime.now(dt.timezone.utc)).astimezone(zone).date()
+    delta=(day-today).days
+    if delta<0:return 'ended '+day.strftime('%A')
+    when='today' if delta==0 else 'tomorrow' if delta==1 else day.strftime('%A')
+    return 'ends '+when
+
+
+def inbox_challenge(row, now=None):
+    return f'Your {challenge_goal(row)} challenge {challenge_ending(row,now)}'

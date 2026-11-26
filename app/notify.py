@@ -335,15 +335,11 @@ def _words(r):
     if r['kind']=='signup_admin':return 'Sign-up capacity needs attention. Review accounts and the waitlist in Administration.', '/me/people'
     if r['kind']=='milestone':return notification_words.clean(r.get('milestone_title') or 'A milestone is ready to review',100), '/me/milestones'
     if r['kind'].startswith('challenge_'):
-        from .challenges import title as challenge_title
-        challenge=notification_words.clean(challenge_title({'kind':r['challenge_kind'],'target':r['challenge_target'],
-            'unit':r['challenge_unit'],'start_day':r['start_day'],'end_day':r['end_day']}),100)
+        goal=notification_words.challenge_goal(r)
         handle=notification_words.clean(r.get('login') or 'Someone',30)
-        day=r.get('end_day')
-        date=f'{day.strftime("%b")} {day.day}, {day.year}' if day else ''
-        text={'challenge_join':f"@{handle} joined ‘{challenge}’.",
-              'challenge_reminder':f"‘{challenge}’ ends in three days, on {date}.",
-              'challenge_finished':f"‘{challenge}’ has ended. View your progress and share a finish picture."}[r['kind']]
+        text={'challenge_join':f"@{handle} joined your {goal} challenge",
+              'challenge_reminder':notification_words.inbox_challenge(r),
+              'challenge_finished':f"Your {goal} challenge has ended"}[r['kind']]
         return text,'/me/challenges/'+r['challenge_code']
     if r['kind'] == 'group_monday_recap':
         title = notification_words.clean(r.get('group_title') or 'your group',80)
@@ -366,7 +362,7 @@ def _words(r):
     if r['kind']=='cheer':
         kind=reactions.canonical(r.get('reaction_kind'))
         reaction=reactions.EMOJI.get(kind,'👏')
-        return f"{who} reacted {reaction} to your {act}",f"/activity/{r['activity_id']}"
+        return f"{who} reacted {reaction} to {act}",f"/activity/{r['activity_id']}"
     if r['kind'] == 'comment':
         snip = notification_words.clean(r['comment'],80)
         return f'{who} commented on your {act}' + (f': "{snip}"' if snip else ''), f"/activity/{r['activity_id']}"
@@ -383,6 +379,11 @@ def _item(r, detail=''):
     if r['kind']=='signup_admin':r={**r,'login':'','name':'Kinetta','photo':None}
     item = {'id': r['id'], 'kind': 'monthly_summary' if summary else 'streak_reminder' if reminder else r['kind'], 'text': text, 'link': link,
             'created': r['created'], 'read': r['read'], 'who': {'login': r['login'], 'name': r['name'], 'photo': r['photo']}}
+    if r['kind']=='activity_ready':item['compact_text']=notification_words.inbox_activity(r)
+    elif r['kind']=='cheer':
+        kind=reactions.canonical(r.get('reaction_kind'))
+        item.update(reaction_kind=kind,activity=notification_words.clean(r.get('activity') or 'activity',90),
+                    compact_text=f"{notification_words.clean(r['name'],40)} reacted {reactions.EMOJI.get(kind,'👏')} to {notification_words.clean(r.get('activity') or 'activity',90)}")
     if summary:
         item.update({'period_type': summary[0], 'period': summary[1], 'detail': detail})
     return item
@@ -526,6 +527,11 @@ def _push_words(r, facts=None, c=None):
             values = summary_facts(c, r['user_id'], period_type, period, profile['tz'])
             detail = summary_detail(values, profile['units'])
         return summary_title(period_type, period), detail
+    if r['kind'].startswith('challenge_'):
+        goal=notification_words.challenge_goal(r)
+        if r['kind']=='challenge_reminder':return 'Your challenge '+notification_words.challenge_ending(r),goal
+        if r['kind']=='challenge_join':return '@'+notification_words.clean(r.get('login') or 'Someone',30)+' joined your challenge',goal
+        return 'Your challenge has ended',goal+' · View your progress'
     text,_=_words(r)
     titles={'friend_request':'Friend request','friend_accepted':'You’re now friends','group_invite':'Group invitation',
             'cheer':'New reaction','comment':'New comment','dish_shared':'Meal shared',

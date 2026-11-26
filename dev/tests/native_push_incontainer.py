@@ -21,6 +21,14 @@ print('Notification content: short headings and complete multiline body for all 
 key = ec.generate_private_key(ec.SECP256R1())
 pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
 device = {'token': 'ab' * 32, 'environment': 'production'}
+# Challenge push/inbox share concise, factual goals; custom group names stay intact.
+challenge={**base_notice,'kind':'challenge_reminder','challenge_kind':'distance','challenge_target':10,'challenge_unit':'mi','end_day':None,'login':'fictional','challenge_code':'fictional'}
+assert notify._push_words(challenge)==('Your challenge ends soon','10 mi')
+assert notify._words(challenge)==('Your 10 mi challenge ends soon','/me/challenges/fictional')
+assert notify._push_words({**challenge,'kind':'challenge_finished'})==('Your challenge has ended','10 mi · View your progress')
+assert notify._push_words({**challenge,'kind':'challenge_join'})==('@fictional joined your challenge','10 mi')
+assert 'Weekend crew' in notify._push_words({**base_notice,'kind':'group_invite','login':'fictional','group_title':'Weekend crew','group_friend_invite_id':7})[1]
+
 payload = {'title': 'Nice work! Test run saved', 'body': '5.00 km · 30 min', 'url': '/activity/1', 'badge': 1, 'tag': 'activity_ready-1'}
 requests = []
 def accept(request):
