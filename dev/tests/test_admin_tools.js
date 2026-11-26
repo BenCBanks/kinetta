@@ -8,7 +8,7 @@ function fixture(){
  const node=s=>{if(!nodes.has(s))nodes.set(s,{textContent:'',innerHTML:'',isConnected:true,disabled:false,querySelectorAll:()=>[],setAttribute(){},removeAttribute(){}});return nodes.get(s)};
  const c={crypto:require('node:crypto').webcrypto,URLSearchParams,Date,setTimeout,clearTimeout,AUDIT_LABEL:{},STATUS_LABEL:{},revision:1,dialogRevision:1,who:{id:1},err:node('err'),content:node('content'),esc:String,date:String,table:()=>'',show:v=>calls.push(v),error:e=>calls.push(e.message),
   $:s=>s==='#tool-form'?currentForm:node(s),busy:(_,f)=>{c.pending=f()},
-  modal:(_,html,wire)=>{c.dialogRevision++;currentForm={isConnected:true,reportValidity:()=>true};c.form=currentForm;c.html=html;wire({},()=>{})},api:async()=>({})};
+  modal:(_,html,wire)=>{c.dialogRevision++;currentForm={isConnected:true,elements:{namedItem:()=>null},reportValidity:()=>true};c.form=currentForm;c.html=html;wire({},()=>{})},api:async()=>({})};
  vm.createContext(c);vm.runInContext(source,c);vm.runInContext('closeTool=async close=>{close();};',c);
  return {c,node,calls};
 }
@@ -22,6 +22,13 @@ function fixture(){
  const submit=()=>f.c.form.onsubmit({preventDefault(){}});
  submit();await assert.rejects(f.c.pending,/Lost response/);submit();await assert.rejects(f.c.pending,/Lost response/);assert.equal(keys[0],keys[1]);
  f.c.form.oninput();submit();await assert.rejects(f.c.pending,/Lost response/);assert.notEqual(keys[1],keys[2]);fail=false;submit();await f.c.pending;assert.equal(done,1);
+ // Confirm sheets require the visible @username, while endpoints retain the existing username contract.
+ const typed=fixture();let validity='',sent=0;const input={value:'someone',dataset:{confirmLogin:'someone'},setCustomValidity:v=>validity=v};
+ typed.c.confirmForm('Confirm','','',form=>{assert.equal(vm.runInContext("value(globalThis.form,'confirm')",typed.c),'someone');sent++});
+ typed.c.form.elements.namedItem=()=>input;typed.c.form.reportValidity=()=>!validity;
+ typed.c.form.onsubmit({preventDefault(){}});assert.match(validity,/Type @someone exactly/);assert.equal(sent,0);
+ input.value='@someone';typed.c.form.oninput();typed.c.form.onsubmit({preventDefault(){}});await typed.c.pending;assert.equal(sent,1);
+ assert.equal(vm.runInContext("lastActiveDate('2026-11-25')===lastActiveDate('2026-11-25T23:59:59Z')",typed.c),true,'activity is a UTC date only');
  // A dismissed/replaced dialog or changed page cannot reopen the old account after a slow write.
  for(const abandon of [c=>c.revision++,c=>c.dialogRevision++,c=>{c.form.isConnected=false}]){
   const r=fixture();let release,after=0;r.c.confirmForm('Confirm','','',()=>new Promise(ok=>release=ok),()=>after++);r.c.form.onsubmit({preventDefault(){}});abandon(r.c);release({ok:true});await r.c.pending;assert.equal(after,0);

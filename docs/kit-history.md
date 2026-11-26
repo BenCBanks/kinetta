@@ -41,7 +41,8 @@ context without provenance is filtered conservatively. Historical numbers are no
 evidence. Legacy Clear starts a fresh transient chat and preserves durable history.
 
 Migration 119 adds owner-RLS threads and owner-constrained visit/message references;
-no model role archive grant. Existing records remain unlinked. Privacy, real-provider
+no model role archive grant. Migration 120 extends invalidation and legacy quarantine
+to Garmin-only answers marked `garmin_included`, without changing migration 119. Existing records remain unlinked. Privacy, real-provider
 quality, client/device checks and rollout remain separate from stand-in contract tests.
 
 

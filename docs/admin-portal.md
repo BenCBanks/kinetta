@@ -4,6 +4,12 @@ Open `/admin` in a browser at your Kinetta server's HTTPS address. Administratio
 
 For the implementation scope and remaining release evidence, see [Admin launch preparation](admin-launch.md). The guide describes the code; the portal’s dated checks describe an operator’s evidence. Neither alone certifies a launch.
 
+## Finding a page
+
+On a phone, the 56px bottom bar has Today, People, Reports, Requests and More. On a desktop, the same destinations and secondary pages sit in a 220px left list. Today keeps the existing Overview data in this client-shell update. Requests contains Beta requests, Invitations and Data requests; Reports also contains Segments & times. More opens Usage, Features, Launch checks, Sign-in history and Audit history. Session details and Sign out stay available in the header.
+
+Each page has a hash address, such as `/admin#people`, `/admin#requests/invitations` or `/admin#more/audit`. Reload, Back and Forward retain the selected page. A direct address still requires the separate administrator sign-in and authenticator. Hashes select an allowlisted page; they never carry an account identity or change access to data.
+
 ## Access and roles
 
 The first account remains the administrator. Invitations create Members. No existing account is promoted by this update. The Accounts & roles page lists every role explicitly. Administrators can change roles after typing the target username; the last administrator cannot be demoted. Demotion revokes portal sessions immediately. Administrators cannot reset/remove other administrators through member-management controls; first make an explicit role change where appropriate.
@@ -73,6 +79,15 @@ Assign a daily report/support owner. Review failed connections and imports befor
 
 ## Accounts and safe recovery
 
+People starts with a sticky search field and plain All, New, Unconfirmed and Suspended tabs. New means
+joined during the last seven UTC dates, using the existing joined-date filter. Compact 60px rows show name,
+username, account status and the last active date; no exact activity time is introduced. More filters retains
+role, support issue, sorting, date and test-account controls. A person opens with one contextual primary action:
+restore a suspended account, resend an unconfirmed account's confirmation, request a reset for a confirmed
+member, or sign out everywhere otherwise. Other support actions remain in disclosures. Confirmation sheets
+require the exact visible `@username`; the client removes the `@` before calling the unchanged server contract.
+The existing separate portal session, typed confirmation, request receipts and audit rules remain in force.
+
 Search name, username or email; combine role/status, test-account visibility, joined/active UTC dates and open-report/import/connection filters. Sort newest joined, last active or name. Loading, failed searches and Retry are explicit. An older response cannot replace a newer query.
 
 Account support leads with status, confirmed email, connections, recent imports and signed-in devices. A new iPhone sign-in can supply app version/build; existing sessions and older clients may say “not supplied”. This is client-reported metadata, not remote device inspection. Connection timestamps are the last recorded sync, not a guarantee of complete imports. Stored-photo bytes include images and thumbnails, not total account storage; monthly AI requests are a count, not a price or allowance. Ordinary support never opens workouts, GPS routes, food, health measurements or conversations.
@@ -126,3 +141,5 @@ An active account is one that requested its signed-in profile (`/api/me`) that U
 Review segment reports, appeals and held times from this section. It shows derived timing and quality checks for open cases, without private GPS streams or unrelated history. Decisions need a reason and the current reviewed version. Pause or resume every board here, and retry jobs that stopped after five attempts. See the [segment moderator guide](segments.md#moderator-guide) for retirement, takedown, appeals and recovery.
 
 Segment matching recovery: use **Segments & times → Rebuild matching results**, review a course and its generation, give a reason and explicitly confirm. Pending replacements are staged; current complete results remain visible until atomic activation. Cancel discards only the pending epoch. Privacy, assistance and moderation apply immediately, and cases retain their effort identities. Retry failed matching jobs resets at most 100 stopped jobs per request. Matcher upgrades require a reviewed per-course rebuild before new criteria can enter that board; see [segments.md](segments.md).
+
+At 1100px and wider, People uses a table-like directory alongside a scrollable person-detail pane; the selected row stays marked and search remains available. At 1280–1440px the two panes are shown together. Phones retain the account dialog. Actions still open the same exact-@username confirmation sheet.

@@ -26,9 +26,9 @@ class HistoryUpgrade(unittest.TestCase):
                 with psycopg.connect(make_conninfo(db.CONNINFO,dbname=name),row_factory=dict_row) as c:yield c
             with patch.object(db,'connect',target),patch.object(db,'bootstrap'):
                 migrations=db.MIGRATIONS
-                with patch.object(db,'MIGRATIONS',migrations[:-1]):db.migrate()
+                with patch.object(db,'MIGRATIONS',migrations[:118]):db.migrate()
                 with target() as c:
-                    self.assertEqual(c.execute('SELECT max(version) v FROM schema_version').fetchone()['v'],len(migrations)-1)
+                    self.assertEqual(c.execute('SELECT max(version) v FROM schema_version').fetchone()['v'],118)
                     fixtures=[]
                     for mode in ['consented','unused_sources_off','revoked','unknown_sources','garmin_revoked']:
                         uid=c.execute("INSERT INTO users(login,name) VALUES(%s,'Fictional Historian') RETURNING id",
@@ -54,6 +54,14 @@ class HistoryUpgrade(unittest.TestCase):
                           (uid,uuid.uuid4(),generation,visit,visit))
                         c.execute("INSERT INTO kit_memories(user_id,text,health_included) VALUES(%s,'I prefer morning runs.',true),(%s,'I prefer short replies.',false)",(uid,uid))
                         fixtures.append((uid,generation,visit,mode))
+                # Apply the exact merged119 first, then upgrade that existing database
+                # with120. This catches corrections accidentally left inside119.
+                with patch.object(db,'MIGRATIONS',migrations[:119]):db.migrate()
+                with target() as c:
+                    self.assertEqual(c.execute('SELECT max(version) v FROM schema_version').fetchone()['v'],119)
+                    uid=next(uid for uid,_,_,mode in fixtures if mode=='garmin_revoked')
+                    row=c.execute("SELECT answer FROM kit_turns WHERE user_id=%s AND answer->>'interpretation'='Garmin old answer'",(uid,)).fetchone()
+                    self.assertIsNotNone(row,'merged119 retains Garmin-only JSON;120 must correct it')
                 db.migrate()
                 with target() as c:
                     self.assertEqual(c.execute('SELECT max(version) v FROM schema_version').fetchone()['v'],len(migrations))

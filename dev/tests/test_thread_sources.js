@@ -6,6 +6,40 @@ assert.equal(c.source({source:'recent',ref:{source:'usda'}}),'USDA');assert.equa
 let owner='a',closed=0,prevented=0,stopped=0;const handlers=[];c.readOwner=()=>owner;c.toast=()=>{};vm.runInContext(foodHome.match(/function guardFoodSheet[\s\S]*?\n\}/)[0],c);c.guardFoodSheet({addEventListener:(event,fn,capture)=>{assert(capture);handlers.push(fn)}},()=>closed++,'a');const event={preventDefault(){prevented++},stopImmediatePropagation(){stopped++}};handlers[0](event);assert.equal(closed,0);owner='b';handlers[0](event);handlers[1](event);assert.equal(closed,2);assert.equal(prevented,2);assert.equal(stopped,2);
 console.log('food sources: provenance survives recent reuse/AI edits/labels; stale food-sheet clicks and submits blocked before writes PASS');
 
+// Exercise the production retry loop: idle outbox ticks must not poll optional suggestions.
+(async()=>{
+ const ctx={owner:'fictional',session:'session',el:{},day:'2026-11-25',meal:'lunch',epoch:0},field={value:''};
+ const box={hidden:true,children:[],replaceChildren(){this.children=[];},append(n){this.children.push(n);}};ctx.anotherBox=box;
+ let reads=0,retries=0,live=true,pending=false,response=async()=>({item:{label:'Fictional toast',entry_id:1}});
+ const test={current:ctx,URLSearchParams,JSON,active:()=>live,$:()=>field,pendingReview:()=>pending,
+  ownerKey:()=>ctx.owner,readOwner:()=>ctx.session,ThreadDB:{list:async()=>[]},draw(){},status(){},
+  outbox:{flush:async()=>{retries++;}},foodRemoval:{flush:async()=>{}},removalSession:()=> 'session',
+  foodToday:()=> '2026-11-25',guessMeal:()=> 'lunch',api:async()=>{reads++;return response();},svg:()=> '',
+  document:{createElement:()=>({append(){},setAttribute(){}})}};
+ vm.createContext(test);
+ vm.runInContext(thread.slice(thread.indexOf('  function hideAnother('),thread.indexOf('  function photoHtml(')),test);
+ vm.runInContext(thread.slice(thread.indexOf('  async function flush('),thread.indexOf('  function status(')),test);
+ await test.refreshAnother(ctx);const button=box.children[0];
+ for(let i=0;i<12;i++)await test.flush();
+ assert.equal(reads,1,'one initial read and zero suggestion reads across twelve idle retry ticks');
+ assert.equal(retries,12,'outbox retry processing still runs');assert.equal(box.children[0],button,'idle ticks preserve the chip');
+ ctx.epoch++;await test.refreshAnother(ctx);assert.equal(reads,2,'confirmed food changes refresh suggestions');
+ ctx.day='2026-11-24';await test.refreshAnother(ctx);ctx.meal='dinner';await test.refreshAnother(ctx);assert.equal(reads,4);
+ await test.refreshAnother(ctx,{force:true});assert.equal(reads,5,'foreground refresh sees changes made elsewhere');
+ field.value='typing';await test.refreshAnother(ctx);assert(box.hidden);field.value='';await test.refreshAnother(ctx);assert.equal(reads,6);
+ pending=true;await test.refreshAnother(ctx);assert(box.hidden);pending=false;await test.refreshAnother(ctx);assert.equal(reads,7);
+ response=async()=>{throw Error('offline');};ctx.epoch++;await test.refreshAnother(ctx);
+ for(let i=0;i<3;i++)await test.flush();assert.equal(reads,8,'an optional read failure does not start five-second polling');
+ let release;response=()=>new Promise(resolve=>release=resolve);ctx.epoch++;
+ const held=test.refreshAnother(ctx);await test.flush();assert.equal(reads,9,'in-flight reads are shared across ticks');
+ response=async()=>({item:{label:'Newer toast',entry_id:2}});await test.refreshAnother(ctx,{force:true});const newer=box.children[0];
+ release({item:{label:'Stale toast',entry_id:1}});await held;assert.equal(box.children[0],newer,'late response cannot replace the newer chip');
+ live=false;await test.refreshAnother(ctx,{force:true});assert.equal(reads,10,'departed account/route cannot fetch');
+ live=true;response=async()=>({item:null});ctx.epoch++;await test.refreshAnother(ctx);
+ for(let i=0;i<3;i++)await test.flush();assert.equal(reads,11,'an empty result stays quiet too');assert(box.hidden);
+ console.log('Food recent reuse: 12 idle retries, zero extra reads; mutations/context/foreground refresh, errors and late responses PASS');
+})().catch(e=>{console.error(e);process.exitCode=1});
+
 vm.runInContext(thread.slice(thread.indexOf('  function changedNumbers('),thread.indexOf('  function replyHtml(')),c);
 assert.equal(c.changedNumbers({logged_totals:{kcal:200,protein_g:10}},[{kcal:200,protein_g:10}]),false);
 assert.equal(c.changedNumbers({logged_totals:{kcal:200,protein_g:10}},[{kcal:100,protein_g:5}]),true);
