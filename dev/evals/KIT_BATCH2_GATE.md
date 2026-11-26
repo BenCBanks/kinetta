@@ -24,7 +24,7 @@ The lower-level 40-case wrapper below remains available for explicit comparison
 preparation. Its old $2.50 allowance is not the staged release wrapper's limit.
 
 Run from the frozen `kit-coach-batch-2` branch, rebased onto main including weekly fallback #1579.
-The candidate app pin is `fec816e3d4081eb18dbf903438d64741ecb807a9`; the final evaluator HEAD is recorded separately.
+The candidate app pin is `4180cff4`; the final evaluator HEAD is recorded separately.
 It includes history/memory/goals, checked streaming, contextual next steps, conversational charts,
 scoped gate regressions #1580, checked ordinary recovery, supported warm coaching and the approved
 weekly total bars with client declutter #1586. Do not change the candidate mid-run.
@@ -73,7 +73,7 @@ The existing `batch2-next-step` case now asks “Review my training” with save
 context and manual runs in three distinct measured weeks. Candidate must attach six-week total
 bars with exactly 15,000 m recorded across those weeks; the baseline may omit its unsupported
 card. Thus all 40 regression cases and ten weekly/safety cases remain covered.
-Source pin: Kit text `15e6c988b4d5…`, Gemini Flash release `3cadff0fd1bc…`.
+Source pin: Kit text `a629a624887e…`, Gemini Flash release `6f687277046e…`.
 
 Offline rubric/replay:
 
@@ -129,3 +129,5 @@ candidates in production order plus counterfactual counts, dates, truncation and
 relations. 38 accept; ambiguous per-entry sugar and conflicting nutrition-period
 counts still reject and use checked app recovery. Replaying historical outputs
 does not approve the changed prompt; a reviewed combined gate is still required.
+
+Release review fix: see `KIT_RELEASE_REVIEW.md` for source-proven offline reuse of 78 responses and regeneration of only load/recovery (about $0.036). This new singleton is unreviewed.
