@@ -328,6 +328,8 @@ async function main(){
    assert.equal(workCopy,theme==='light'?'Looking at your recent workouts…':'Checking your data…',`${theme}: waiting copy matches the question`);
    await capture('4s');
    const statusBox=await p.locator('.kit-waiting-bubble').boundingBox();
+   const copyWidth=await p.locator('.kit-waiting-copy').evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getBoundingClientRect().width;});
+   assert(statusBox.width<=copyWidth+34&&statusBox.height<=46,`${theme}: the waiting bubble is sized to its words: ${JSON.stringify({statusBox,copyWidth})}`);
    await p.clock.fastForward(16000);
    await p.getByText('Still working…',{exact:true}).waitFor({state:'visible'});
    await capture('20s');
@@ -341,6 +343,10 @@ async function main(){
     assert.equal(await p.locator('.kit-error-retry').innerText(),'Retry',`${theme}: Retry is the primary action`);
     assert(Math.abs(errorBox.height-statusBox.height)<=6&&Math.abs(errorBox.y-statusBox.y)<=1&&Math.abs(errorBox.x-statusBox.x)<=1,`${theme}: replacing the wait bubble with an error does not jump: ${JSON.stringify({statusBox,errorBox})}`);
     await capture('error');
+    // A connection warning must disappear once the server answers again.
+    await p.locator('#kit-status').evaluate(el=>{el.textContent="Can't reach Kinetta - check your connection.";});
+    failOnRead=false;await p.locator('.kit-error-retry').click();
+    await p.waitForFunction(()=>document.querySelector('#kit-status')?.textContent==='');
    }
    assert.deepEqual(errors,[],`${theme}: no page exceptions`);
    assert.deepEqual(unexpectedWrites,[],`${theme}: fixtures make no unexpected writes or provider calls`);
