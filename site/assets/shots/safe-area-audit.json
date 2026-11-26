@@ -372,6 +372,18 @@
       "topInsetPx": 59,
       "controlsClear": true,
       "hiddenMediaControls": []
+    },
+    {
+      "scene": "light-kit-chart-progress",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
+    },
+    {
+      "scene": "dark-kit-chart-progress",
+      "topInsetPx": 59,
+      "controlsClear": true,
+      "hiddenMediaControls": []
     }
   ]
 }

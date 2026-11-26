@@ -1,10 +1,10 @@
 {
   "source": {
     "kind": "fictional_chart_ui_fixture",
-    "commit": "1513cc0bf409dc1bec14760e04a07cb80230b7dc",
+    "commit": "0baccc26ca71bbc9d3ae297784aa8a3443b9bee8",
     "test": "dev/tests/kit_chart_ui.cjs",
-    "release_gate": "Kit batch-2 must be live before website publication",
-    "capture_commit": "1a949cefb553ffd291eaffdf016c02a908d74bf9"
+    "release_gate": "Held until Kit batch-2 is released and Ben approves this website preview",
+    "capture_commit": "0baccc26ca71bbc9d3ae297784aa8a3443b9bee8"
   },
   "question": "Show my average climb per run for the last three weeks.",
   "answer": {

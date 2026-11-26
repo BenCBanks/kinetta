@@ -286,6 +286,12 @@ async function say(page, text) {
       const kitInsightRoute = /\/api\/coach\/conversation(?:\/.*)?(?:\?.*)?$/;
       const kitInsightFixture = ['kit-insight-progress','kit-chart-progress'].includes(name);
       const kitExample = name === 'kit-chart-progress' ? KIT_CHART_EXAMPLE : KIT_COACH_EXAMPLE;
+      const chartMeRoute = '**/api/me';
+      if (name === 'kit-chart-progress') await page.route(chartMeRoute, async route => {
+        const response = await route.fetch(), me = await response.json();
+        return route.fulfill({response, json: {...me, ai_ok:true, coach:true, kit_chat:true, ai_paused:false,
+          ai_access:{...me.ai_access, coach:{entitled:true, available:true, reason:null}}}});
+      });
       if (kitInsightFixture) await page.route(kitInsightRoute, async route => {
         const request = route.request(), url = new URL(request.url());
         // Fixture only: exercise today's renderer without history or any provider call.
@@ -538,6 +544,9 @@ async function say(page, text) {
         if (name === 'kit-chart-progress') {
           if (await page.locator('.kit-chart circle').count() !== 3 || !/L/.test(await page.locator('.kit-chart-line').getAttribute('d') || '')) throw Error('Website chart requires the real joined-line card with three points.');
           if (await page.locator('.kit-chart rect').count()) throw Error('Average climb must be a line, not bars.');
+          const ticks = await page.locator('.kit-chart-tick').allTextContents();
+          if (JSON.stringify(ticks) !== JSON.stringify(['200 ft','150 ft','100 ft'])) throw Error('Website chart requires the released round axis labels.');
+          if (await page.getByText('Kit is unavailable. Your saved answers and draft are kept.', {exact:true}).count()) throw Error('Chart capture requires the ready fictional Kit state.');
         }
         if ((await page.locator('#kit-status').innerText()).trim()) throw Error('Kit insight screenshot should not show a stale-chat warning.');
       }
@@ -735,6 +744,7 @@ async function say(page, text) {
         delete el.dataset.captureSafeHidden;
       }));
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
+      if (name === 'kit-chart-progress') await page.unroute(chartMeRoute);
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
       // the other screenshots start from the same demo data.
