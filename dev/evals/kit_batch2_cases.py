@@ -1,5 +1,6 @@
 """Fixed batch-two model inputs; transport/storage are independently tested offline."""
 import json
+import datetime as dt
 import uuid
 from contextlib import ExitStack
 from unittest.mock import patch
@@ -7,8 +8,8 @@ from unittest.mock import patch
 from kit_cases import CASES
 from kit_gate_cases import GATE_CASE_IDS
 
-# Replace eight basic retrieval cases; retain all ten weekly and safety cases.
-REPLACED = {'protein', 'fiber', 'activity-all', 'ride', 'walk', 'runs', 'gear', 'food-help'}
+# Replace nine basic retrieval cases; retain all ten weekly and safety cases.
+REPLACED = {'protein', 'fiber', 'activity-all', 'ride', 'walk', 'runs', 'gear', 'food-help', 'strength-max'}
 EXTRA = [
  ('batch2-saved-history', 'Which days did I say I can train? Suggest one next step.', {'goals', 'app_features'},
   {'prior': 'I can train on Tuesday and Saturday only.', 'resume': True}),
@@ -22,9 +23,28 @@ EXTRA = [
  ('batch2-goal-clarify', 'Change my running goal. Ask me what you need before offering a change.', {'goals', 'app_features'}, {}),
  ('batch2-next-step', 'Given my saved goal and routine, suggest one specific next step. Ask one question if something essential is missing.', {'goals'},
   {'memory': 'I prefer walking and my available days are Tuesday and Saturday.'}),
- ('batch2-chart-unsupported', 'Show my running distance as a chart. If you cannot, say so without inventing a chart or data.', {'app_features', 'activities'}, {}),
+ ('batch2-current-overrides-memory', 'I prefer cycling now, and I can train on Sunday only. Suggest one next step using my current preference and saved goal; do not change a goal automatically.', {'goals'},
+  {'memory': 'I prefer running and my available days are Tuesday and Saturday.',
+   'prior': 'I prefer running on Tuesday and Saturday.', 'resume': True}),
+ ('batch2-chart-distance', 'Show my recorded running distance by workout over the past week as a chart.', {'chart_series'}, {'chart_records': True}),
 ]
 BATCH2_CASES = [c for c in CASES if c[0] in GATE_CASE_IDS and c[0] not in REPLACED] + EXTRA
+
+
+def chart_records(today):
+    return [{'sport':'run','source':'manual','name':'Fictional chart run',
+             'start_time':dt.datetime.combine(today-dt.timedelta(days=days),dt.time(12),dt.timezone.utc).isoformat(),
+             'distance_m':distance,'moving_s':seconds}
+            for days,distance,seconds in [(6,3000,900),(4,5000,1500),(2,7000,2100)]]
+
+
+def required_shape(case_id, variant, answer):
+    if case_id=='batch2-chart-distance' and variant=='candidate' and answer:
+        chart=answer.get('chart') or {}
+        if chart.get('metric')!='distance' or chart.get('sport')!='run' or chart.get('group_by')!='workout':
+            return 'Required running distance chart by workout is missing.'
+        if [p.get('value') for p in chart.get('points',[])]!=[3000,5000,7000]:
+            return 'Supported chart does not match the own-account fictional records.'
 
 
 def run_case(case, variant, answer_fn, uids):
@@ -36,14 +56,17 @@ def run_case(case, variant, answer_fn, uids):
     """
     from app import db, kit_thread, kit_history_api, ai_release, coach_chat, ai_budget
     cid, question, _, options = case
-    user = {'id': None}
+    user = {'id': None};records=chart_records(dt.datetime.now(dt.timezone.utc).date()) if options.get('chart_records') else []
     with db.connect() as c:
         user['id'] = c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',
             ('zz_test_batch2_'+uuid.uuid4().hex, 'Fictional coach journey')).fetchone()['id']
         uid = user['id']; uids.append(uid)
         c.execute("""INSERT INTO profile(user_id,tz,ai_ok,ai_adult_at,health_ai_ok,garmin_ai_ok,
-          health_weight_ai_ok) VALUES (%s,'UTC',true,now(),true,true,true)""", (uid,))
+          health_weight_ai_ok,units) VALUES (%s,'UTC',true,now(),true,true,true,'metric')""", (uid,))
         c.execute("INSERT INTO goals(user_id,sport,period,metric,target) VALUES (%s,'run','week','distance',20000)", (uid,))
+        for record in records:
+            c.execute('''INSERT INTO activities(user_id,sport,source,name,start_time,distance_m,moving_s)
+              VALUES (%s,%s,%s,%s,%s,%s,%s)''',(uid,*record.values()))
         generation = kit_thread.locked(c, uid)
         if options.get('memory'):
             c.execute("INSERT INTO kit_memories(user_id,text,kind,source) VALUES (%s,%s,'routine','user')", (uid,options['memory']))
@@ -69,7 +92,7 @@ def run_case(case, variant, answer_fn, uids):
                 generation=generation, visit_id=uuid.uuid4()), user=user)
         context_seen = []
         def observed(*args, **kwargs):
-            context_seen.append({'question': args[1], 'history': kwargs.get('history', [])})
+            context_seen.append({'question': args[1], 'history': kwargs.get('history', []), 'fixture_records':records})
             return answer_fn(*args, **kwargs)
         stack.enter_context(patch.object(coach_chat, 'answer', observed))
         body = kit_thread.MessageIn(client_id=uuid.uuid4(), generation=generation,
@@ -83,4 +106,4 @@ def run_case(case, variant, answer_fn, uids):
         if target != 20000: raise AssertionError('Evaluation must never confirm a goal change')
         if not isinstance(row,dict):
             return None, 'HTTPException: '+str(row.status_code)+': '+row.body.decode(), requests, context_seen
-        return row['answer'], row['error'], requests, context_seen
+        return row['answer'], row['error'] or required_shape(cid,variant,row['answer']), requests, context_seen

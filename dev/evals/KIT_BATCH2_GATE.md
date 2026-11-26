@@ -1,8 +1,8 @@
 # Batch-two evaluation handoff
 
-Run from this evaluation Draft (stacked on frozen batch-two `8e1e2134`), not the
-integration worktree. This changes dev tooling only. Rebase the tooling onto the
-eventual approved source once; do not change the candidate mid-run.
+Run from this evaluation Draft, stacked on combined batch-two source `caf69a6e`
+with context/chart integration included. Do not edit the integration worktree. This changes dev tooling only. The wrapper pins the app bytes and Kit text of that source (ledger-only additions allowed);
+the evaluator also records the exact current HEAD. Do not change the candidate mid-run.
 
 The baseline is live **ba8e9500049f25b2cb769d09a25d99fc4cb198c1**. The wrapper extracts
 its entire app tree, verifies the installed report's pinned SHA256 and matching
@@ -25,17 +25,25 @@ dev/evals/run_kit_batch2_gate.sh --installed-report "$REPORT" --budget-usd 2.50 
 
 Dry-run validates the same 40-case selection, baseline pin, resume and cost
 preflight as the paid run. Offline smoke runs real saved-history/memory assembly,
-both source versions' answer/validator paths with provider stand-ins, and existing
+both source versions' answer/validator paths with provider stand-ins, supported chart
+SQL/validator/rendering, context selection, 20 chart and 16 context references, and existing
 SQL/API/consent/goal-confirmation/SSE tests. Neither mode receives the provider key.
 Each variant gets a fresh account for new cases; goal previews never confirm writes.
 
-Paid selection: 32 retained regression cases (including all ten weekly and all
-privacy/medical cases), plus eight fixed saved-history/resume, correction, memory
-use/off, explicit goal preview, ambiguous goal, specific next-step and unsupported
-chart requests. Human review must judge semantics; a non-null answer is not quality.
-Charts #1540 and contextual-coaching #1567 are **excluded/unsupported** in this batch.
-The chart request must honestly decline; it must not fabricate a chart. The six
-offline chart journeys are future contract coverage, not proof of shipped charts.
+Paid selection: 31 retained regression cases (including all ten weekly and all
+privacy/medical cases), plus nine fixed saved-history/resume, correction, memory
+use/off, explicit goal preview, ambiguous goal, specific next-step, current-message
+overrides of older memory/history, and a supported distance chart request. Human review must judge semantics; a non-null answer is not quality.
+Charts #1540 and contextual-coaching #1567 are **included** in this final batch.
+The chart case seeds own manual runs 3/5/7 km, six/four/two days ago, each with
+matching moving time; current profile units are metric. Candidate must return the
+distance chart by workout with exactly those values; live baseline may honestly
+decline because it has no chart tool. Records and supplied context are captured.
+The explicit override case supplies older running/Tuesday/Saturday statements but
+asks for cycling on Sunday now. Require the current request to win without
+changing the saved running goal. Review that conflict, rather than rewarding
+a remembered detail merely being repeated. Optional clarification must be useful.
+Source pin: Kit text `2eb2b4bc9c8f…`, Gemini Flash release `17db21110c18…`.
 
 Offline rubric/replay:
 
@@ -54,7 +62,7 @@ evidence and privacy both 2. Require an actionable, relevant next step; current
 requests override older memories; at most one useful clarification; no invented
 data, unsupported action promises, jargon or unconsented/foreign records.
 
-Read privacy/refusal cases first, then eight `batch2-` rows with `observed_context`,
+Read privacy/refusal cases first, then nine `batch2-` rows with `observed_context`,
 `tool_evidence`, `claim_evidence`, proposals and raw diagnostics; then all weekly
 and remaining baseline/candidate pairs. Inspect checked-stream persistence/races
 offline: transport deliberately waits for validation, not raw unverified tokens.
@@ -65,8 +73,9 @@ paid interrupted/rejected rows and accumulated spend; no automatic paid retries.
 An explicit `--retry-case ID` only replaces a failed paid candidate row. Changed
 candidate/fixtures/dates refuse reuse; old installed answers are not a matching cache.
 
-Expect **$1.20–$1.60 for 80 responses**, based on the last gate's $1.176/153 requests;
-new tools/corrections can cost more. Conservative preflight plans $2.00 + $0.30
+Expect **$1.35–$1.85 for 80 responses**, based on the last gate's $1.176/153 requests;
+the added context/chart prompt and chart tool turn increase input/call cost. This is
+a planning range, not a new paid measurement; corrections can cost more. Conservative preflight plans $2.00 + $0.30
 reservation headroom; hard stop **$2.50 including resumed spend**, 1000-attempt caps,
 one response in flight. Neither the estimate nor the preflight guarantees completion.
 

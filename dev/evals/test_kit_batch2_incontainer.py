@@ -26,9 +26,16 @@ def main():
     before={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in root.glob('*.py')}
     raw={'blocks':[{'kind':'paragraph','text':'Review your saved activity goal before choosing your next session.'}],
          'facts':[],'selection':None,'actions':['goals'],'follow_ups':[]}
-    uids=[];seen=[]
+    uids=[];seen=[];current={}
     def provider(*args,**kwargs):
-        seen.append(args);return [],json.dumps(raw),{'finishReason':'STOP'}
+        seen.append(args);current['turns']+=1
+        if current['case']=='batch2-chart-distance' and current['variant']=='candidate':
+            if current['turns']==1:
+                return [{'name':'chart_series','args':{'metric':'distance','aggregate':'sum','group_by':'workout',
+                    'period_unit':'days','period_count':7,'sport':'run'}}],'',{}
+            return [],json.dumps({'blocks':[{'kind':'paragraph','text':'Your recorded running distance is shown.'}],
+                'facts':[],'chart':{'evidence_id':'e2'}}),{'finishReason':'STOP'}
+        return [],json.dumps(raw),{'finishReason':'STOP'}
     try:
         with patch.dict(os.environ,{'KINETTA_AI_ENABLED':'1'}), \
              patch.object(coach,'provider',return_value='gemini'), \
@@ -38,6 +45,7 @@ def main():
              patch('urllib.request.urlopen',side_effect=AssertionError('Provider network forbidden')):
             for case in EXTRA:
                 for variant,fn in (('baseline',baseline.answer),('candidate',coach_chat.answer)):
+                    current.update(case=case[0],variant=variant,turns=0)
                     answer,error,requests,context=run_case(case,variant,fn,uids)
                     assert error is None and answer and requests==0,(case[0],variant,error)
                     assert len(context)==1
@@ -45,7 +53,14 @@ def main():
                     if case[3].get('resume'):assert history[0]['text']==case[3]['prior']
                     if case[3].get('memory_off'):assert 'Tuesday' not in question
                     elif case[3].get('memory'):assert case[3]['memory'] in question
-            assert len(seen)==16
+                    if case[0]=='batch2-current-overrides-memory':
+                        assert question.endswith('Question: '+case[1]) and 'Sunday only' in question
+                    if case[0]=='batch2-chart-distance':
+                        assert [r['distance_m'] for r in context[0]['fixture_records']]==[3000,5000,7000]
+                        if variant=='candidate':
+                            assert answer['chart']['summary']['overall']==15000
+                            assert [p['plot_value'] for p in answer['chart']['points']]==[3,5,7]
+            assert len(seen)==19
             # Exercise disposable app dollar/attempt caps, not just arithmetic.
             configure_budget(2.50)
             with ai_budget.scope(uids[0],feature='Offline batch2 cap proof'):
