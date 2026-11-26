@@ -26,10 +26,17 @@ jobs:
   quick:
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
     runs-on: ubuntu-latest
-    # Core app/style changes run the full changed-screen spacing map before the Ready-tier shards.
+    # Suites run once across isolated databases. Full spacing remains independently
+    # required by the aggregate gate, so quick does not repeat that audit.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     timeout-minutes: 15
     env:
       KINETTA_VERSION: ci
+      CHANGED_UI_SHARD: ${{ matrix.shard }}/3
+      KINETTA_CHANGED_SPACING: '0'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,7 +48,7 @@ jobs:
           cache-dependency-path: dev/tests/browser/package-lock.json
       - uses: ./.github/actions/build-test-image
         with:
-          scope: tests-quick
+          scope: tests-quick-${{ matrix.shard }}
       - name: Start a throwaway Kinetta
         run: |
           GEMINI_API_KEY=placeholder-for-tests KINETTA_PORT=8798 TZ=America/New_York docker compose -p kinettatest up -d
@@ -60,6 +67,7 @@ jobs:
           CHANGED_BASE: origin/${{ github.base_ref }}
         run: dev/tests/changed.sh
       - name: Check aggregate Features portal with fictional history (writes blocked)
+        if: matrix.shard == 1
         env:
           KINETTA_URL: http://localhost:8798
           KINETTA_PROJECT: kinettatest
