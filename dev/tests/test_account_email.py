@@ -4,7 +4,8 @@ from unittest.mock import Mock, patch
 import httpx
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from app import db, auth, account_email, admin_mail, api_account, signup
+from psycopg import errors
+from app import db, auth, account_email, admin_mail, api_account, signup, community_terms
 from app.main import app
 
 PW = 'test account private password'
@@ -118,7 +119,7 @@ class AccountEmail(unittest.TestCase):
             c.execute('DELETE FROM signup_join_intents WHERE user_id = ANY(%s)', (ids,))
             c.execute('UPDATE profile SET friend_link=NULL WHERE user_id = ANY(%s)', (ids,))
             c.execute('''UPDATE users SET pw_hash=%s, email=NULL, email_verified_at=NULL,
-                         needs_email_confirm=false, signup_guard=false, signup_confirmed_at=NULL,
+                         needs_email_confirm=false, signup_guard=false, signup_confirmed_at=NULL, suspended_at=NULL,
                          password_change_expires=NULL, email_confirmation_reminder_count=0,
                          email_confirmation_reminder_at=NULL,unconfirmed_final_warning_at=NULL,
                          unconfirmed_final_warning_sent_at=NULL WHERE id=ANY(%s)''', (auth.hash_pw(PW), ids))
@@ -251,6 +252,217 @@ class AccountEmail(unittest.TestCase):
             self.assertEqual(c.execute('SELECT count(*) AS n FROM signup_join_intents WHERE user_id=%s', (user['id'],)).fetchone()['n'], 0, 'card and challenge choices cannot be applied by the background worker')
         self.assertEqual(a.get('/api/me').status_code, 401, 'reset signs out the signup session')
         self.assertEqual(anon.post('/api/login', json={'login': 'zz_pending@example.com', 'password': new}).status_code, 200)
+
+    def signup_pending(self):
+        login, email = 'zz_test_mail_signup', 'zz_signup_pending@example.com'
+        self.addCleanup(self.delete_temporary_account, login)
+        anon = TestClient(app); anon.headers['Origin'] = BASE
+        with patch.dict(os.environ, {'KINETTA_SIGNUP': 'open', 'KINETTA_MAX_ACCOUNTS': '10000'}), \
+                patch.object(api_account, 'reserved_login', return_value=False):
+            response = anon.post('/api/signup', json={'first_name': 'Riley', 'last_name': 'Example',
+                'login': login, 'email': email, 'password': PW, 'age_ok': True,
+                'terms_version': community_terms.active_version()})
+        self.assertEqual(response.status_code, 200, response.text)
+        with db.connect() as c:
+            user = c.execute('SELECT id,created,email,needs_email_confirm FROM users WHERE login=%s', (login,)).fetchone()
+        self.assertIsNone(user['email'], 'real signup stores the address only in its confirmation token')
+        self.assertTrue(user['needs_email_confirm'])
+        return anon, user, login, email
+
+    def test_real_signup_reset_resolves_pending_address_and_preserves_guards(self):
+        session, user, login, email = self.signup_pending()
+        anon = TestClient(app); anon.headers['Origin'] = BASE
+        self.mail.reset_mock()
+        unknown = anon.post('/api/password/forgot', json={'login': 'unknown@example.com'}).json()
+        for who in (login, email.upper()):
+            response = anon.post('/api/password/forgot', json={'login': who})
+            self.assertEqual(response.json(), unknown)
+            self.assertEqual(self.messages()[-1]['to'], [email])
+        token = self.link('reset-password')
+        # Issuing a reset is not confirmation and must not move the purge deadline.
+        with db.connect() as c:
+            row = c.execute('SELECT created,email,email_verified_at,needs_email_confirm FROM users WHERE id=%s', (user['id'],)).fetchone()
+            self.assertEqual(row['created'], user['created']); self.assertIsNone(row['email'])
+            self.assertIsNone(row['email_verified_at']); self.assertTrue(row['needs_email_confirm'])
+            c.execute("UPDATE profile SET friend_link='fictional_friend_link' WHERE user_id=%s", (user['id'],))
+            c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card','fictional_card',true)", (user['id'],))
+            c.execute("UPDATE account_tokens SET expires=now()-interval '1 day' WHERE user_id=%s AND kind='verify_email'", (user['id'],))
+        new = 'a brand new real signup password'
+        bad = anon.post('/api/password/reset', json={'token': token, 'password': 'short'})
+        self.assertEqual(bad.status_code, 422)
+        self.assertTrue(session.get('/api/me').json()['needs_email_confirm'])
+        with patch.object(account_email, '_join_signup_friend') as join, patch.object(account_email, '_consume_signup') as consume:
+            result = anon.post('/api/password/reset', json={'token': token, 'password': new})
+            join.assert_not_called(); consume.assert_not_called()
+        self.assertEqual(result.status_code, 200, result.text); self.assertTrue(result.json()['email_confirmed'])
+        self.assertEqual(session.get('/api/me').status_code, 401)
+        self.assertEqual(anon.post('/api/password/reset', json={'token': token, 'password': new}).status_code, 404)
+        with db.connect() as c:
+            row = c.execute('SELECT email::text,email_verified_at,needs_email_confirm,created,signup_confirmed_at FROM users WHERE id=%s', (user['id'],)).fetchone()
+            self.assertEqual(row['email'], email); self.assertIsNotNone(row['email_verified_at'])
+            self.assertFalse(row['needs_email_confirm']); self.assertEqual(row['created'], user['created'])
+            self.assertIsNotNone(row['signup_confirmed_at'])
+            self.assertIsNone(c.execute('SELECT friend_link FROM profile WHERE user_id=%s', (user['id'],)).fetchone()['friend_link'])
+            self.assertFalse(c.execute('SELECT 1 FROM signup_join_intents WHERE user_id=%s', (user['id'],)).fetchone())
+            self.assertFalse(c.execute("SELECT 1 FROM account_tokens WHERE user_id=%s AND kind='verify_email' AND used_at IS NULL", (user['id'],)).fetchone())
+        self.assertEqual(anon.post('/api/login', json={'login': email, 'password': new}).status_code, 200)
+        self.assertEqual(self.messages()[-1]['to'], [email])
+
+    def test_real_signup_reset_stale_address_isolation_and_shared_budget(self):
+        _, user, login, email = self.signup_pending()
+        other = self.pending_account('zz_other_pending@example.com', login='zz_test_mail_b')
+        anon = TestClient(app); anon.headers['Origin'] = BASE
+        self.mail.reset_mock()
+        for who in (email, login):
+            self.assertEqual(anon.post('/api/password/forgot', json={'login': who}).status_code, 200)
+            self.assertEqual(self.messages()[-1]['to'], [email])
+        stale = self.link('reset-password')
+        self.assertEqual(anon.post('/api/account/email/resend', json={'login': email}).status_code, 200)
+        self.assertEqual(self.mail.call_count, 3)
+        generic = anon.post('/api/password/forgot', json={'login': email}).json()
+        self.assertEqual(generic, anon.post('/api/password/forgot', json={'login': 'unknown@example.com'}).json())
+        self.assertEqual(self.mail.call_count, 3, 'resend and reset still share three links per hour')
+        with db.connect() as c:
+            before = c.execute('SELECT pw_hash FROM users WHERE id=%s', (user['id'],)).fetchone()['pw_hash']
+            other_before = c.execute('SELECT pw_hash,email::text,email_verified_at FROM users WHERE id=%s', (other['id'],)).fetchone()
+            account_email._token(c, user['id'], 'verify_email', 1440, 'zz_replacement@example.com')
+        response = anon.post('/api/password/reset', json={'token': stale, 'password': 'another secure reset sentence'})
+        self.assertEqual(response.status_code, 404, response.text)
+        with db.connect() as c:
+            row = c.execute('SELECT pw_hash,email,email_verified_at,needs_email_confirm FROM users WHERE id=%s', (user['id'],)).fetchone()
+            self.assertEqual(row['pw_hash'], before); self.assertIsNone(row['email'])
+            self.assertIsNone(row['email_verified_at']); self.assertTrue(row['needs_email_confirm'])
+            self.assertEqual(c.execute('SELECT pw_hash,email::text,email_verified_at FROM users WHERE id=%s', (other['id'],)).fetchone(), other_before)
+
+    def test_duplicate_pending_resets_name_each_account_and_recheck_reservation(self):
+        _, user, login, email = self.signup_pending()
+        with db.connect() as c:
+            other = c.execute("SELECT id FROM users WHERE login='zz_test_mail_b'").fetchone()['id']
+            c.execute('UPDATE users SET needs_email_confirm=true WHERE id=%s', (other,))
+            account_email._token(c, other, 'verify_email', 1440, email)
+            # Only one account has used up its shared recovery allowance.
+            for _ in range(3): self.assertFalse(account_email.email_recovery_limited(c, other))
+        anon = TestClient(app); anon.headers['Origin'] = BASE
+        self.mail.reset_mock()
+        generic = anon.post('/api/password/forgot', json={'login': 'unknown@example.com'}).json()
+        self.assertEqual(anon.post('/api/password/forgot', json={'login': email.upper()}).json(), generic)
+        self.assertEqual(len(self.messages()), 1)
+        self.assertIn(f'(@{login})', self.messages()[0]['text'])
+        with db.connect() as c: c.execute('DELETE FROM auth_attempts')
+        self.mail.reset_mock()
+        self.assertEqual(anon.post('/api/password/forgot', json={'login': email}).json(), generic)
+        self.assertEqual(len(self.messages()), 2, 'each matching account gets a separate reset')
+        tokens = {}
+        for message in self.messages():
+            self.assertEqual(message['to'], [email])
+            token = re.search(r'/reset-password#([\w-]+)', message['text']).group(1)
+            who = anon.post('/api/password/reset/check', json={'token': token}).json()['login']
+            self.assertIn(f'(@{who})', message['text'])
+            tokens[who] = token
+        self.assertEqual(set(tokens), {login, 'zz_test_mail_b'})
+        self.assertNotEqual(*tokens.values())
+        new = 'a separate safe recovery password'
+        with patch.object(account_email, 'require_available', wraps=account_email.require_available) as available:
+            response = anon.post('/api/password/reset', json={'token': tokens[login], 'password': new})
+            self.assertEqual(response.status_code, 200, response.text)
+            available.assert_called_once()
+            self.assertEqual(available.call_args.args[1:], (email, user['id']))
+            self.assertEqual(available.call_args.kwargs, {'confirmation': True})
+        # The address became confirmed on another account after this token was sent.
+        with db.connect() as c:
+            before = c.execute('SELECT pw_hash,email,email_verified_at,needs_email_confirm FROM users WHERE id=%s', (other,)).fetchone()
+        with patch.object(account_email, 'require_available', wraps=account_email.require_available) as available:
+            response = anon.post('/api/password/reset', json={'token': tokens['zz_test_mail_b'], 'password': new})
+            self.assertEqual(response.status_code, 409, response.text)
+            available.assert_called_once()
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT pw_hash,email,email_verified_at,needs_email_confirm FROM users WHERE id=%s', (other,)).fetchone(), before)
+            self.assertIsNone(c.execute('SELECT used_at FROM account_tokens WHERE token_hash=%s', (auth.token_hash(tokens['zz_test_mail_b']),)).fetchone()['used_at'])
+            self.assertTrue(auth.check_pw(c.execute('SELECT pw_hash FROM users WHERE id=%s', (user['id'],)).fetchone()['pw_hash'], new))
+
+    def test_pending_personal_records_block_issue_and_redemption_without_disclosure(self):
+        seeds = {
+            'activity': "INSERT INTO activities(user_id,sport,name,start_time,source) VALUES(%s,'run','Fictional run',now(),'manual')",
+            'food': "INSERT INTO food_entries(user_id,day,name) VALUES(%s,current_date,'Fictional meal')",
+            'health': "INSERT INTO health_resting(user_id,tz,day,resting_kcal,observed_at) VALUES(%s,'UTC',current_date,1400,now())",
+            'weight': "INSERT INTO weights(user_id,day,kg) VALUES(%s,current_date,70)",
+            'photo': "INSERT INTO profile_photos(user_id,img) VALUES(%s,decode('00','hex'))",
+            'measurement': "UPDATE profile SET rest_hr=60 WHERE user_id=%s",
+            'food_draft': """INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state)
+                             VALUES(%s,'11111111-1111-4111-8111-111111111111','user','Fictional draft',now(),current_date,'pending')""",
+        }
+        anon = TestClient(app); anon.headers['Origin'] = BASE
+        for kind, seed in seeds.items():
+            with self.subTest(kind=kind):
+                with db.connect() as c: c.execute('DELETE FROM auth_attempts')
+                session, user, login, email = self.signup_pending()
+                self.assertEqual(anon.post('/api/password/forgot', json={'login': email}).status_code, 200)
+                token = self.link('reset-password')
+                with db.connect() as c:
+                    c.execute(seed, (user['id'],))
+                    before = c.execute('SELECT pw_hash,email,email_verified_at,needs_email_confirm,created,signup_confirmed_at FROM users WHERE id=%s', (user['id'],)).fetchone()
+                    # Another person's records must never block an empty account's recovery.
+                    self.assertTrue(account_email._pending_reset_allowed(c, c.execute("SELECT id FROM users WHERE login='zz_test_mail_b'").fetchone()['id']))
+                self.mail.reset_mock()
+                generic = anon.post('/api/password/forgot', json={'login': 'unknown@example.com'}).json()
+                for who in (login, email):
+                    self.assertEqual(anon.post('/api/password/forgot', json={'login': who}).json(), generic)
+                self.assertEqual(self.mail.call_count, 0)
+                responses = [anon.post('/api/password/reset/check', json={'token': token}),
+                             anon.get('/api/password/reset/' + token),
+                             anon.post('/api/password/reset', json={'token': token, 'password': 'a secure replacement sentence'})]
+                for response in responses:
+                    self.assertEqual(response.status_code, 404, response.text)
+                    self.assertEqual(response.json(), {'detail': 'This link has expired. Request a new one from the sign-in page.'})
+                with db.connect() as c:
+                    self.assertEqual(c.execute('SELECT pw_hash,email,email_verified_at,needs_email_confirm,created,signup_confirmed_at FROM users WHERE id=%s', (user['id'],)).fetchone(), before)
+                    self.assertIsNone(c.execute('SELECT used_at FROM account_tokens WHERE token_hash=%s', (auth.token_hash(token),)).fetchone()['used_at'])
+                self.assertEqual(session.get('/api/me').status_code, 200, 'existing owner keeps their session and data')
+                # A verified address remains a recovery method even with personal data.
+                with db.connect() as c:
+                    c.execute('UPDATE users SET email=%s,email_verified_at=now(),needs_email_confirm=false WHERE id=%s', (email, user['id']))
+                self.assertEqual(anon.post('/api/password/forgot', json={'login': email}).status_code, 200)
+                self.assertEqual(anon.post('/api/password/reset', json={'token': self.link('reset-password'), 'password': 'a confirmed owner replacement sentence'}).status_code, 200)
+                self.delete_temporary_account(login)
+
+    def test_pending_reset_locks_out_concurrent_first_record_and_measurement(self):
+        _, user, _, _ = self.signup_pending()
+        with db.connect() as c:
+            c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (user['id'],))
+            self.assertTrue(account_email._pending_reset_allowed(c, user['id']))
+            for statement in (
+                "INSERT INTO weights(user_id,day,kg) VALUES(%s,current_date,70)",
+                "UPDATE profile SET rest_hr=60 WHERE user_id=%s",
+            ):
+                with self.subTest(statement=statement), self.assertRaises(errors.LockNotAvailable):
+                    with db.connect() as writer:
+                        writer.execute("SET LOCAL lock_timeout='100ms'")
+                        writer.execute(statement, (user['id'],))
+            self.assertTrue(account_email._pending_reset_allowed(c, user['id']))
+
+    def test_suspended_account_tokens_cannot_check_confirm_or_reset(self):
+        _, user, login, email = self.signup_pending()
+        anon = TestClient(app); anon.headers['Origin'] = BASE
+        verify = self.link('confirm-email')
+        self.assertEqual(anon.post('/api/password/forgot', json={'login': email}).status_code, 200)
+        reset = self.link('reset-password')
+        with db.connect() as c:
+            before = c.execute('SELECT pw_hash FROM users WHERE id=%s', (user['id'],)).fetchone()
+            c.execute('UPDATE users SET suspended_at=now() WHERE id=%s', (user['id'],))
+        self.mail.reset_mock()
+        generic = anon.post('/api/password/forgot', json={'login': 'unknown@example.com'}).json()
+        self.assertEqual(anon.post('/api/password/forgot', json={'login': email}).json(), generic)
+        self.assertEqual(self.mail.call_count, 0)
+        for response in [anon.post('/api/password/reset/check', json={'token': reset}),
+                         anon.get('/api/password/reset/' + reset),
+                         anon.post('/api/password/reset', json={'token': reset, 'password': 'a suspended account replacement'}),
+                         anon.post('/api/account/email/confirm', json={'token': verify})]:
+            self.assertEqual(response.status_code, 404, response.text)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT pw_hash FROM users WHERE id=%s', (user['id'],)).fetchone(), before)
+            self.assertFalse(c.execute('SELECT 1 FROM account_tokens WHERE user_id=%s AND used_at IS NOT NULL', (user['id'],)).fetchone())
+            row = c.execute('SELECT email,email_verified_at,needs_email_confirm FROM users WHERE id=%s', (user['id'],)).fetchone()
+            self.assertIsNone(row['email']); self.assertIsNone(row['email_verified_at']); self.assertTrue(row['needs_email_confirm'])
 
     def test_pending_reset_link_expires_if_account_email_changes(self):
         user = self.pending_account('zz_stale@example.com')
