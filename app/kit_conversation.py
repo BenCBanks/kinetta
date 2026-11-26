@@ -4,8 +4,10 @@ from contextvars import ContextVar
 from contextlib import contextmanager
 from typing import Literal
 from pydantic import Field, StrictStr
-from . import coach_chat
+from . import coach_chat, kit_charts
 from .coach_chat import Empty, Fact, Selection
+from .kit_goal_contract import GoalSelection, PROMPT, checked_selection
+from . import kit_coaching
 
 _corrections = ContextVar('kit_corrections_enabled',default=True)
 
@@ -120,9 +122,11 @@ class ShortList(Empty):
 
 
 class ConversationAnswer(Empty):
+    chart: kit_charts.ChartReference | None = None
     blocks: list[Paragraph | ShortList] = Field(min_length=1, max_length=10)
+    clarifying_question: StrictStr | None = Field(default=None, min_length=1, max_length=240)
     facts: list[Fact] = Field(default_factory=list, max_length=8)
-    selection: Selection | None = None
+    selection: Selection | GoalSelection | None = None
     actions: coach_chat.Answer.model_fields['actions'].annotation = Field(default_factory=list, max_length=3)
     follow_ups: list[StrictStr] = Field(default_factory=list, max_length=2)
 
@@ -143,6 +147,11 @@ Use one to ten blocks, paragraphs at most 1600 characters; lists have one to six
 Plain text only: no HTML, Markdown, headings, tables, embedded images or URLs. Do not repeat generic disclaimers.
 Distinguish general advice from personal conclusions. Unknown is not zero. Do not invent feelings, fitness changes,
 medical diagnoses, personal numbers, or capabilities. Ask a concise clarification if needed. Address the person as you.
+When discussing recovery, describe the recorded training in ordinary words. Do not display internal fatigue,
+fitness, form, CTL, ATL or TSB scores; those estimates do not tell you how the person feels or establish recovery.
+Give one concrete next step the person can do next, not a list of generic reminders to hydrate, rest and eat well.
+Keep it conditional where feelings or availability are unknown. A question about pain or illness needs appropriate
+professional help, never a diagnosis or a training prescription.
 Use profile for units and local date, body_profile for body measurements, and app_features for supported actions.
 Every quantitative value must come from an exact finite numeric field in a successful current-turn tool result.
 Put up to eight facts in facts: {"evidence_id":"e2","path":["totals","distance_m"],"value":5000}.
@@ -166,6 +175,9 @@ Allowed destinations: food,nutrition,record,activities,plan,progress,strength,re
 Offer at most two relevant first-person follow_ups the person could tap to send, without numbers or placeholders.
 Do not promise unsupported readers/actions. Do not request unconsented data or infer from unavailable tools.
 '''
+
+
+SYSTEM += PROMPT + kit_coaching.PROMPT + kit_charts.CHART_SYSTEM
 
 
 def has_blocks(raw):
@@ -195,6 +207,13 @@ def check_for_question(raw, evidence, question, *, weekly_review=False, require_
 
 def checked_answer(raw, evidence, *, question=None, weekly_review=False):
     answer = ConversationAnswer.model_validate(normalise_shape(raw))
+    if answer.clarifying_question is not None:
+        text=answer.clarifying_question.strip()
+        if text.count('?')!=1 or not text.endswith('?') or len(answer.blocks)>=10:
+            raise ValueError('Use one concise clarifying question')
+        if any('?' in text for block in answer.blocks for text in ([block.text] if isinstance(block,Paragraph) else block.items)):
+            raise ValueError('Do not repeat the clarifying question')
+        answer.blocks.append(Paragraph(kind='paragraph',text=text))
     if weekly_review and (answer.selection is not None or answer.actions):raise ValueError('Weekly reviews cannot propose changes or actions')
     # Reuse exact measurement/path/unit and candidate checks; the legacy shape remains capped at three.
     facts = []
@@ -202,16 +221,18 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
     for start in range(0, max(1, len(answer.facts)), 3):
         legacy = dict(verdict='Recorded values.', reason='These come from your records.',
                       facts=[f.model_dump() for f in answer.facts[start:start+3]],
-                      selection=answer.selection.model_dump() if answer.selection else None,
+                      selection=answer.selection.model_dump() if answer.selection and answer.selection.kind != 'goal' else None,
                       actions=answer.actions, follow_ups=answer.follow_ups)
         batch = coach_chat.checked_answer(legacy, evidence, kit=True)
         facts.extend(batch['facts'])
         checked = checked or batch
+    if isinstance(answer.selection, GoalSelection):
+        checked['selection'] = checked_selection(answer.selection, evidence, user_question(question))
     from . import kit_claims, kit_weekly
     blocks = []
     source_texts=[]
     for block in answer.blocks:
-        texts = [kit_claims.nutrition_wording(natural_measurements(text,facts),facts,evidence) for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
+        texts = [kit_claims.safe_wording(kit_claims.nutrition_wording(natural_measurements(text,facts),facts,evidence),facts,evidence,question) for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
         source_texts.extend(texts)
         limit = 1600 if isinstance(block, Paragraph) else 600
         rendered = []
@@ -220,6 +241,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
                 raise ValueError('Empty or oversized conversation block')
             display = coach_chat._kit_prose(text, facts, extra_words=kit_claims.boundary_words(text),
                                              sentence_boundary=True, placeholder_pattern=REFERENCE, render_value=lambda fact:kit_weekly.display_value(fact,text,facts) if weekly_review else fact['display_value'])
+            display = kit_weekly.count_grammar(display)
             if len(display) > limit:
                 raise ValueError('Oversized formatted conversation block')
             check_rendered(display)
@@ -227,7 +249,12 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         blocks.append({'kind':'paragraph','text':rendered[0]} if isinstance(block, Paragraph)
                       else {'kind':'list','items':rendered})
     texts = [text for block in answer.blocks for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
+    from . import kit_training_review
+    kit_training_review.checked_scope(source_texts, user_question(question))
     checks=kit_claims.validate(source_texts, facts, evidence, question=user_question(question), reference=REFERENCE, selection=checked['selection'], weekly_review=weekly_review)
+    if weekly_review or re.search(r'\brecover(?:y|ing)?\b', user_question(question), re.I):
+        blocks = coaching_wording(blocks, facts, evidence, weekly_review=weekly_review)
+        facts = [f for f in facts if f['path'][-1] not in {'fatigue','fitness','form','ctl','atl','tsb'}]
     interpretation = '\n\n'.join(block['text'] if block['kind']=='paragraph'
                                  else '\n'.join('• '+item for item in block['items']) for block in blocks)
     summary=meal_summary(checked['selection'],facts,texts)
@@ -237,8 +264,57 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         interpretation+='\n\n'+summary
     if len(interpretation.split()) > 600:
         raise ValueError('Conversation exceeds requested length')
-    return dict(answer_blocks=blocks, interpretation=interpretation, facts=facts, claim_evidence=checks,
+    result=dict(answer_blocks=blocks, interpretation=interpretation, facts=facts, claim_evidence=checks,
                 selection=checked['selection'], actions=checked['actions'], follow_ups=checked['follow_ups'])
+    result.update(kit_charts.checked_chart(answer,evidence,result,weekly_review=weekly_review,question=user_question(question)))
+    return result
+
+
+
+def coaching_wording(blocks, facts, evidence, *, weekly_review=False):
+    """Polish only AFTER every original number/claim has passed the existing validators."""
+    import copy
+    result=copy.deepcopy(blocks)
+    scores=[f for f in facts if f['path'][-1] in {'fatigue','fitness','form','ctl','atl','tsb'}]
+    for block in result:
+        texts=[block['text']] if block['kind']=='paragraph' else block['items']
+        for i,text in enumerate(texts):
+            for fact in scores:
+                value=re.escape(fact['display_value'])
+                score=r'(?:estimated\s+)?(?:fatigue|fitness|form|CTL|ATL|TSB)(?:\s+score)?'
+                # A score clause can be removed while keeping the separately verified workout summary.
+                text=re.sub(r',\s*(?:with|and)\s+(?:an?\s+)?'+score+r'\s+(?:reaching|of|at|was|is)\s+'+value+r'(?=[.!?]|$)', '', text, flags=re.I)
+                # A whole sentence about an internal score contributes no useful recovery conclusion.
+                text=' '.join(part for part in re.split(r'(?<=[.!?])\s+',text)
+                              if not (re.search(r'\b'+score+r'\b',part,re.I) and re.search(value,part)))
+            texts[i]=text.strip()
+        if block['kind']=='paragraph':block['text']=texts[0]
+        else:block['items']=[text for text in texts if text]
+    result=[b for b in result if b.get('text') or b.get('items')]
+    # A recovery answer needs a useful choice, not a hydration/food/rest checklist.
+    if not weekly_review and any(b['kind']=='list' for b in result):
+        for block in result:
+            if block['kind']=='list' and all(re.match(r'^(?:Schedule|Review|Choose|Make|Keep)\b',item) and not re.search(r'\d',item) for item in block['items']):
+                block['items']=block['items'][:1]
+        result=[b for b in result if not (b['kind']=='paragraph' and re.match(r'^To support recovery, consider\b',b['text']) and not re.search(r'\d',b['text']))]
+    copy_text=' '.join(b['text'] if b['kind']=='paragraph' else ' '.join(b['items']) for b in result)
+    concrete=re.search(r'\b(?:log (?:your |the |a |all )?(?:next |typical |regular )?(?:meals?|food|drinks|sessions)|'
+                       r'(?:schedule|choose|pick|plan) (?:an? |the |your )?(?:easy |next |rest )?(?:day|session|workout)|'
+                       r'(?:keep|make) (?:your |the )?next (?:session|workout) easy|'
+                       r'(?:open|review) your (?:training plan|daily food logs)|add a note)\b',copy_text,re.I)
+    if not concrete:
+        nutrition=[e['data'] for e in evidence if e.get('tool')=='nutrition_adequacy'
+                   and isinstance(e.get('data'),dict) and 'error' not in e and 'error' not in e['data']]
+        missing=len(nutrition)==1 and type(nutrition[0].get('unlogged_finished_days')) is int and nutrition[0]['unlogged_finished_days']>0
+        step=('Log your next meal as you eat it, including drinks and snacks.' if weekly_review and missing
+              else 'Choose a day for your next workout and decide what you will do before you start.' if weekly_review
+              else 'Make your next session easy, or take a rest day if you still feel tired.')
+        if result and result[-1]['kind']=='paragraph' and re.match(r'^(?:A (?:helpful|practical) next step|To get a clearer)',result[-1]['text'],re.I) and not re.search(r'\d',result[-1]['text']):
+            result[-1]['text']=step
+        elif len(result)<10:result.append({'kind':'paragraph','text':step})
+        elif result[-1]['kind']=='paragraph' and len(result[-1]['text'])+len(step)+1<=1600:result[-1]['text']+=' '+step
+        else:raise ValueError('No room for a useful next step')
+    return result
 
 
 def meal_summary(selection,facts,texts):
@@ -257,6 +333,7 @@ def meal_summary(selection,facts,texts):
 
 
 def natural_measurements(text,facts):
+    text=kit_coaching.wording(text)
     # Two exact captured constructions; references still pass the ordinary exact
     # path/value/unit checks. Never treat an appended unit as generic prose.
     def field(slot):
@@ -297,7 +374,10 @@ unknown, not zero. If no comparison is supported, describe what is recorded with
 The app supplied profile, period_compare, consistency and nutrition_adequacy for the last seven completed local
 calendar dates and the preceding seven. Use that exact evidence, no tools, prior-chat values or guessed dates.
 A partial nutrition subtotal is not full-week intake or a deficit; explain an important gap once without blame.
-Offer one practical next step suited to the available plan or stated goal; do not prescribe targets or modify a plan.
+Use everyday words: time spent training, workouts and meals; never fatigue/form/fitness scores, CTL, ATL or TSB.
+Explain the practical limit once, without saying the person is off track or telling them to log everything perfectly.
+Finish with one concrete next action, such as logging the next meal or choosing when the next workout fits.
+Use a supplied plan or stated goal when actually available; never invent one or prescribe targets or modify a plan.
 Keep selection null, actions empty, and at most two first-person follow-ups the person can tap to send.
 """
 

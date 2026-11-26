@@ -31,7 +31,12 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   if(suggested)await until(p,()=>{const box=document.querySelector('#fr-suggest');return box&&((box.parentElement.hidden)||box.querySelector('.pym-row,.friend-state-message'));},'suggestions loaded');
   return{c,p,errors,writes,searches,qrRequests,homeKitAssets,homeProgressWarmups,suggestionPhotoLogin,suggestionFallbackLogin};
  }
- async function close(c){await c.close();contexts.splice(contexts.indexOf(c),1);}
+ async function close(c){
+  // Finish intercepted fetches before closing their request context.
+  for(const p of c.pages())await p.unrouteAll({behavior:'wait'});
+  await c.unrouteAll({behavior:'wait'});
+  await c.close();contexts.splice(contexts.indexOf(c),1);
+ }
  async function closeSheet(p){await p.locator('[data-close]').last().click();await until(p,()=>!document.querySelector('[role="dialog"]'),'sheet closed');}
  async function settle(p){await p.evaluate(async()=>{await document.fonts.ready;const animations=[...document.querySelectorAll('.scrim,.sheet')].flatMap(el=>el.getAnimations());await Promise.all(animations.map(a=>a.finished.catch(()=>{})));});}
  async function capture(p,name){if(!out)return;await settle(p);fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,name+'.png'),fullPage:!/^(?:friends-|my-friends-)/.test(name)});}
@@ -293,5 +298,12 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    console.log('Friend invite 390/330 light/dark: accept, unavailable and 44px actions PASS');
   }
- }finally{for(const c of contexts)await c.close();await browser.close();}
+ }finally{
+  // Failed assertions may leave a deliberately held route; do not wait for its release here.
+  for(const c of contexts){
+   for(const p of c.pages())await p.unrouteAll({behavior:'ignoreErrors'});
+   await c.unrouteAll({behavior:'ignoreErrors'});await c.close();
+  }
+  await browser.close();
+ }
 })().catch(e=>{console.error(e);process.exitCode=1;});

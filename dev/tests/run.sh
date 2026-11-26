@@ -142,6 +142,7 @@ node dev/tests/test_share_photo.js
 node dev/tests/test_push_invitation.js
 node dev/tests/test_kit_chat_ui.js
 node --check dev/tests/kit_answer_ui.cjs
+node --check dev/tests/kit_chart_ui.cjs
 node --check dev/tests/kit_followups_voice_ui.cjs
 node dev/tests/test_kit_memory_ui.js
 node dev/tests/test_activity_sync_ui.js
@@ -244,6 +245,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/contacts_blocks_incontai
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_store_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_upgrade_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_api_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_goal_actions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_limits_incontainer.py
 
 if [[ "$MODE" == --quick ]]; then echo "== quick unit/API checks passed"; exit 0; fi
@@ -270,9 +272,20 @@ docker compose -p "$P" exec -T app python - < dev/tests/route_following_incontai
 docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_incontainer.py
 cat dev/tests/coach_incontainer.py dev/tests/workout_review_fixtures.py | docker compose -p "$P" exec -T app python -
 docker compose -p "$P" exec -T app python - < dev/tests/kit_conversation_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_charts_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_coaching_quality_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_context_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_context_chart_regressions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-final-wording.json app:/tmp/kit-final-wording.json
+docker compose -p "$P" exec -T app python - < dev/tests/kit_final_wording_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-weekly-live-replay.json app:/tmp/kit-weekly-live-replay.json
 docker compose -p "$P" exec -T app python - < dev/tests/kit_weekly_safe_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-ordinary-recovery.json app:/tmp/kit-ordinary-recovery.json
+docker compose -p "$P" exec -T app python - < dev/tests/kit_recovery_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_training_review_incontainer.py
+docker compose -p "$P" cp dev/evals/fixtures/kit-training-review-replay.json app:/tmp/kit-training-review-replay.json
+docker compose -p "$P" exec -T app python - < dev/tests/kit_record_counts_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-release-claims.json app:/tmp/kit-release-claims.json
 docker compose -p "$P" exec -T app python - < dev/tests/kit_release_claims_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-gate-rest-heavy.json app:/tmp/kit-gate-rest-heavy.json
@@ -336,7 +349,9 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_thread_kit_incontai
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_daily_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_visits_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_memory_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_transport_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_stream_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_release_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_copy_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_insights_incontainer.py

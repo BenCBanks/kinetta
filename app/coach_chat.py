@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
 
-from . import coach, db, ai_budget, kit_weekly
+from . import coach, db, ai_budget, kit_charts, kit_goal_contract, kit_weekly, kit_recovery, kit_training_review
 from .coach_tools import AccountTools, FoodTools, Empty, specifications
 from .kit_answer_format import has_ambiguous_mass_unit
 
@@ -253,6 +253,7 @@ def _compact_number(value, digits=1):
 
 def _kit_fact(tool, data, path, value, units, *, weekly=False):
     """Format verified measurements with short labels and the person's units."""
+    if tool==kit_charts.CHART_TOOL:return kit_charts.chart_fact(data,path,value,units)
     field=(path[-2] if tool=='period_compare' and path[:1]==['change'] and len(path)>1
            else path[-1] if path and isinstance(path[-1],str) else '')
     from . import kit_claims
@@ -696,6 +697,8 @@ def _claude_turn(messages, definitions, *, system=SYSTEM):
                          'totalTokenCount': response.usage.input_tokens + response.usage.output_tokens}
 
 
+@kit_training_review.attach
+@kit_recovery.safe
 @kit_weekly.safe
 def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False,
            workout_review=False, workout_evidence=None):
@@ -755,13 +758,14 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         turn = (lambda m,d:adapter(m,d,system=system)) if kit else adapter
     usage, began, calls_used = {'promptTokenCount': 0, 'candidatesTokenCount': 0, 'thoughtsTokenCount': 0, 'totalTokenCount': 0}, time.monotonic(), 0
     if kit and weekly_review:kit_weekly.remember(evidence,usage,began)
+    if kit and not weekly_review:kit_recovery.remember(evidence,usage,began)
     for round_index in range(MAX_ROUNDS):
         if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
         if not coach.allowed(uid):raise ValueError(coach.off())
         if not food_only and not kit:
             with db.coach_connect(uid) as c:
                 if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
-        if kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and 'error' not in e for e in evidence):
+        if kit and any(e['tool'] not in ({'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} | kit_goal_contract.NON_HEALTH_TOOLS) and 'error' not in e for e in evidence):
             with db.coach_connect(uid) as c:
                 if not coach.health_ok(c,uid):return kit_conversation.consent_answer()
         with ai_budget.scope(uid):
@@ -811,7 +815,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
                     if not coach.allowed(uid):raise ValueError(coach.off())
                     health_tools={'profile','nutrition_summary','meal_options','meal_combinations','food_log',
-                                  'nutrition_days_vs_goal','stored_foods','goals','app_features'}
+                                  'nutrition_days_vs_goal','stored_foods','goals','app_features'} | kit_goal_contract.NON_HEALTH_TOOLS
                     if any(e['tool'] not in health_tools and 'data' in e for e in evidence):
                         with db.coach_connect(uid) as c:
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
@@ -842,9 +846,10 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             if weekly_review:
                 checked['weekly_period']={'start':period['start'].isoformat(),'end':period['end'].isoformat(),
                                          'label':period['label']}
+            if kit:checked.update(kit_charts.source_markers(evidence))
             return {**checked, 'prompt_version': 'kit-numbers-4' if kit else PROMPT_VERSION, 'usage': usage,
                     'latency_ms': round((time.monotonic() - began) * 1000),
-                    'health_included':kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and 'data' in e for e in evidence),
+                    'health_included':kit and any(e['tool'] not in ({'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} | kit_goal_contract.NON_HEALTH_TOOLS) and 'data' in e for e in evidence),
                     'tools_used': [e['tool'] for e in evidence]}
         results = []
         for call in calls:
@@ -852,6 +857,8 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             calls_used += 1
             if calls_used > MAX_CALLS: raise ValueError('Kit reached the tool limit. Ask a narrower question.')
             name, args = call.get('name'), call.get('args') or {}
+            if kit and name==kit_charts.CHART_TOOL:
+                args=kit_charts.request_arguments(args,kit_conversation.user_question(question))
             ev = {'evidence_id': f'e{len(evidence) + 1}', 'tool': name, 'arguments': args}
             try:
                 cached=next((e for e in evidence if kit and e['tool']==name and e['arguments']==args and 'data' in e),None)

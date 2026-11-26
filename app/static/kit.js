@@ -73,7 +73,7 @@ Object.assign(KitChat, (() => {
   }
   function keepDraft(c){const field=$('#kit-text',c.el);if(field?.value)try{save(c,'draft',field.value);}catch{}}
   function leaveRoute(c){
-    if(c.closed)return;c.closed=true;clearTimeout(c.timer);keepDraft(c);
+    if(c.closed)return;c.closed=true;clearTimeout(c.timer);c.streamController?.abort();keepDraft(c);
     const visit=readVisit(c.owner);if(visit?.visit_id!==c.visit_id)return;
     const record=visit.left_at?visit:{...visit,left_at:Date.now()};
     if(!visit.left_at)writeVisit(c.owner,record);scheduleVisitExpiry(c.owner,record);
@@ -260,6 +260,62 @@ Object.assign(KitChat, (() => {
     return `<section class="kit-workout-comparison" aria-label="Workout comparison">${summary?`<p class="kit-workout-summary">${esc(summary)}</p>`:''}<p class="kit-workout-baseline">vs your last ${count} ${sport[count===1?0:1]} of similar distance</p>${count<2?'<p class="kit-workout-empty">Not enough similar runs yet to compare.</p>':rows.length?`<dl class="kit-workout-rows">${rows.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`:''}${notable?`<p class="kit-workout-notable">${esc(notable)}</p>`:''}</section>`;
   }
   function reviewLatestWorkout(c){return send(c,'Review my latest workout',0);}
+  function chartX(index,count,first,last){return first+index*(last-first)/Math.max(count-1,1);}
+  function chartScale(values,line,pace){
+    const low=line?Math.min(...values):0,high=Math.max(...values,1),raw=Math.max(high-low,high*.1)/2,
+      power=10**Math.floor(Math.log10(raw)),step=pace?
+        ([1,2,5,10,15,30,60,120,300,600,1800,3600].find(n=>n>=raw)||Math.ceil(raw/3600)*3600):
+        [1,2,5,10].find(n=>n*power>=raw)*power,
+      min=Math.floor(low/step)*step,max=Math.max(min+step,Math.ceil(high/step)*step),
+      ticks=Array.from({length:Math.round((max-min)/step)+1},(_,i)=>Number((min+i*step).toPrecision(12)));
+    return {min,max,ticks:pace?ticks:ticks.reverse()};
+  }
+  function chartHtml(chart){
+    const points=chart.points||[],known=points.filter(p=>p.plot_value!=null&&p.n>p.missing),
+      nouns={all:'Workouts',run:'Runs',ride:'Rides',walk:'Walks',hike:'Hikes',swim:'Swims',strength:'Strength workouts'},
+      noun=nouns[chart.sport]||'Workouts',metric={distance:'distance',time:'time',pace:'pace',ascent:'climb',avg_hr:'heart rate',calories:'calories',workouts:'workouts'}[chart.metric]||'measurement',
+      title=`${{sum:'Total',average:'Average',max:chart.metric==='pace'?'Fastest':'Highest'}[chart.aggregate]} ${metric}${chart.aggregate==='average'&&!['pace','avg_hr'].includes(chart.metric)?' per '+({run:'run',ride:'ride',walk:'walk',hike:'hike',swim:'swim'}[chart.sport]||'workout'):''} · ${{day:'daily',week:'weekly',month:'monthly',workout:'per workout'}[chart.group_by]}`,
+      date=value=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',timeZone:chart.timezone}).format(new Date(value.length===10?value+'T12:00:00Z':value)),
+      notes=[chart.missing?`${chart.missing} ${chart.missing===1?({all:'workout',run:'run',ride:'ride',walk:'walk',hike:'hike',swim:'swim',strength:'strength workout'}[chart.sport]||'workout'):noun.toLowerCase()} without ${metric} ${chart.missing===1?'isn’t':'aren’t'} counted.`:'',chart.truncated?`Latest ${points.length} ${noun.toLowerCase()}.`:''].filter(Boolean).map(t=>`<p class="kit-chart-note">${esc(t)}</p>`).join('');
+    if(!chart.workouts)return `<section class="kit-chart"><p>No ${esc(noun.toLowerCase())} in the last ${esc(String(chart.period_count))} ${esc(chart.period_unit)}.</p></section>`;
+    const header=`<h3>${esc(title)}</h3><p class="kit-chart-subtitle">${esc(noun)} · ${esc(date(chart.start))} – ${esc(date(chart.end))}</p>`;
+    if(known.length<2)return `<section class="kit-chart">${header}${known.length?`<dl class="kit-facts"><div><dt>${esc(date(known[0].start))}</dt><dd>${esc(known[0].display_value)}</dd></div></dl>`:''}${notes}</section>`;
+    const values=known.map(p=>p.plot_value),line=chart.metric!=='workouts'&&(chart.presentation==='line'||chart.aggregate!=='sum'||chart.group_by==='workout'||['pace','avg_hr'].includes(chart.metric)),
+      {min,max,ticks:axisTicks}=chartScale(values,line,chart.metric==='pace'),range=max-min,
+      y=v=>chart.metric==='pace'?20+(v-min)*110/range:130-(v-min)*110/range,
+      step=Math.max(1,Math.ceil((points.length-1)/3));
+    const tick=value=>chart.metric==='pace'?`${Math.floor(Math.round(value)/60)}:${String(Math.round(value)%60).padStart(2,'0')}${chart.axis_unit}`:
+      `${new Intl.NumberFormat(undefined,{maximumFractionDigits:1,notation:max>=10000?'compact':'standard'}).format(value)} ${chart.axis_unit}`;
+    const labels=axisTicks.map(tick),
+      left=Math.max(54,Math.min(112,Math.max(...labels.map(t=>t.length))*7+8)),band=(310-left-8)/points.length,
+      first=line?left+24:left+4+band/2,last=line?286:306-band/2,barWidth=band-Math.min(6,band*.2),
+      x=i=>chartX(i,points.length,first,last);
+    const ticks=labels.map((label,i)=>{const py=20+i*110/(labels.length-1);
+      return `<line class="kit-chart-grid" x1="${left}" x2="310" y1="${py}" y2="${py}"/><text class="kit-chart-tick" x="${left-8}" y="${py+4}" text-anchor="end">${esc(label)}</text>`;
+    }).join('');
+    let connected=false,path='';
+    const marks=points.map((p,i)=>{
+      if(p.plot_value==null){connected=false;return '';}
+      const px=x(i),py=y(p.plot_value);path+=(connected?' L':' M')+px+','+py;connected=true;
+      const label=`${date(p.start)}, ${p.display_value}, ${p.n} ${noun.toLowerCase()}${p.in_progress?', so far':''}`;
+      return line?`<circle data-point="${i}" cx="${px}" cy="${py}" r="3"><title>${esc(label)}</title></circle>`:
+        `<rect data-point="${i}" x="${px-barWidth/2}" y="${py}" width="${barWidth}" height="${Math.max(1,130-py)}" rx="2"><title>${esc(label)}</title></rect>`;
+    }).join('');
+    return `<section class="kit-chart" data-kit-chart>${header}<div class="kit-chart-selection" aria-live="polite"><span></span></div><div class="kit-chart-plot" data-first="${first}" data-last="${last}" role="slider" tabindex="0" aria-label="${esc(title)}" aria-valuemin="0" aria-valuemax="${points.length-1}" aria-valuenow="${points.length-1}"><svg viewBox="0 0 320 158" aria-hidden="true">${ticks}${line?`<path class="kit-chart-line" d="${path}"/>`:''}${marks}${points.map((p,i)=>(i%step===0&&(i===0||points.length-1-i>=step))||i===points.length-1?`<text class="kit-chart-date" x="${x(i)}" y="153" text-anchor="middle">${esc(date(p.start))}</text>`:'').join('')}</svg></div>${notes}</section>`;
+  }
+  function bindChart(host,chart){
+    const plot=$('.kit-chart-plot',host);if(!plot)return;
+    let index=chart.points.findLastIndex(p=>p.plot_value!=null);
+    const select=i=>{
+      index=Math.max(0,Math.min(chart.points.length-1,i));const p=chart.points[index],date=new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',timeZone:chart.timezone}).format(new Date(p.start.length===10?p.start+'T12:00:00Z':p.start)),text=`${date} · ${chart.presentation==='weekly_totals'&&p.plot_value==null?'No distance':p.display_value}${p.in_progress?' so far':''}`;
+      const value=$('.kit-chart-selection span',host);value.textContent=text;plot.setAttribute('aria-valuenow',String(index));plot.setAttribute('aria-valuetext',`${text}, ${p.n} recorded workouts`);
+      $$('[data-point]',host).forEach(el=>el.classList.toggle('selected',Number(el.dataset.point)===index));
+    };
+    const pointer=e=>{const r=plot.getBoundingClientRect(),first=Number(plot.dataset.first),last=Number(plot.dataset.last);select(Math.round(((e.clientX-r.left)/r.width*320-first)/(last-first)*(chart.points.length-1)));};
+    plot.onpointerdown=e=>{plot.setPointerCapture(e.pointerId);pointer(e);};plot.onpointermove=e=>{if(plot.hasPointerCapture(e.pointerId))pointer(e);};
+    plot.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();select(e.key==='Home'?0:e.key==='End'?chart.points.length-1:index+(e.key==='ArrowLeft'?-1:1));}};
+    select(index);
+  }
   function draw(c){
     if(!active(c))return;
     const list=$('#kit-messages',c.el),foodHost=c.foodHost;
@@ -271,15 +327,16 @@ Object.assign(KitChat, (() => {
       waitingTarget=waitingMessage&&!c.jobError&&!c.answerErrors?.[waitingMessage.client_id]?{id:String(waitingMessage.client_id),question:waitingMessage.question}:null;
     const waitingHtml=waitBubble(c,waitingTarget);
     list.innerHTML=messages.map((m,index)=>{
-      const a=m.answer,blocks=answerBlocks(a),workoutMode=!!a?.workout_review,verdict=a?.workout_review?.verdict||a?.verdict,reason=a?.workout_review?.next_step||a?.reason,copy=answerCopy(a),rawFacts=a?.facts||[],detailRows=trainingDetails(rawFacts),
+      const a=m.answer,blocks=answerBlocks(a),workoutMode=!!a?.workout_review,verdict=a?.workout_review?.verdict||a?.verdict,reason=a?.workout_review?.next_step||a?.reason,copy=answerCopy(a),rawFacts=a?.chart?[]:a?.facts||[],detailRows=trainingDetails(rawFacts),
         comparison=a?.workout_comparison?workoutComparisonHtml(a.workout_comparison):'',
         facts=workoutMode?[]:rawFacts.filter(f=>!['id','source_id','route_id','candidate_id','unlogged_days','food_unlogged_days','fitness','fatigue','form','activities_without_effort'].includes(f.path?.at(-1))&&!isBareEffort(f)&&!copyIncludesValue(copy,factValue(f))).slice(0,3),
         followups=index===messages.length-1&&!busy&&Array.isArray(a?.follow_ups)?a.follow_ups.map(rewriteFollowup).filter(Boolean).filter(q=>workoutMode||isFirstPersonFollowup(q)).slice(0,2):[],
         failed=m.state==='failed'||c.answerErrors?.[m.client_id];
       const retry=kitChatOn()&&c.ready?'<button type="button" class="primary kit-error-retry" data-kit-retry>Retry</button>':'';
-      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${blocks?answerBlocksHtml(blocks):verdict?`<p class="kit-verdict">${esc(verdict)}</p>`:a.interpretation?`<p>${esc(a.interpretation)}</p>`:''}${workoutMode?comparison:''}${!blocks&&reason?`<p class="kit-reason">${esc(reason)}</p>`:''}${!workoutMode?comparison:''}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${detailRows.length?`<dl class="kit-training-details">${detailRows.map(row=>`<div class="kit-training-row"><dt>${row.label}</dt><dd><strong>${esc(row.verdict)}</strong><small>${esc(row.detail)}</small></dd></div>`).join('')}</dl>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>{const source=factSource(f);return `<div><dt>${esc(factLabel(f))}${source?`<small class="kit-fact-source">${esc(source)}</small>`:''}</dt><dd>${esc(factValue(f))}</dd></div>`;}).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>${followups.length?`<div class="kit-suggested-replies" aria-label="Suggested replies">${followups.map(q=>`<button type="button" class="kit-suggested-reply" data-kit-followup aria-label="Send: ${esc(q)}"><span>${esc(q)}</span>${svg('send')}</button>`).join('')}</div>`:''}`:failed?errorBubble("Kit couldn't check that answer. Try a simpler question or Retry.",retry):waitingTarget?.id===String(m.client_id)?waitingHtml:''}</article>`;
+      return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer">${a.chart?chartHtml(a.chart):''}${a.chart?.workouts===0?'':blocks?answerBlocksHtml(blocks):verdict?`<p class="kit-verdict">${esc(verdict)}</p>`:a.interpretation?`<p>${esc(a.interpretation)}</p>`:''}${workoutMode?comparison:''}${!blocks&&reason?`<p class="kit-reason">${esc(reason)}</p>`:''}${!workoutMode?comparison:''}${a.weekly_review?`<div class="kit-weekly-review"><p class="kit-weekly-period">${esc(a.weekly_period?.label||'')}</p><section><h3>What went well</h3><p>${esc(a.weekly_review.what_went_well)}</p></section><section><h3>What to change</h3><p>${esc(a.weekly_review.what_to_change)}</p></section><section><h3>Next week’s focus</h3><p>${esc(a.weekly_review.next_week_focus)}</p></section></div>`:''}${detailRows.length?`<dl class="kit-training-details">${detailRows.map(row=>`<div class="kit-training-row"><dt>${row.label}</dt><dd><strong>${esc(row.verdict)}</strong><small>${esc(row.detail)}</small></dd></div>`).join('')}</dl>`:''}${facts.length?`<dl class="kit-facts">${facts.map(f=>{const source=factSource(f);return `<div><dt>${esc(factLabel(f))}${source?`<small class="kit-fact-source">${esc(source)}</small>`:''}</dt><dd>${esc(factValue(f))}</dd></div>`;}).join('')}</dl>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${!a.follow_ups?.length&&a.actions?.some(x=>Object.hasOwn(actions,x))?`<div class="kit-starters kit-answer-followups" aria-label="Next steps">${a.actions.filter(x=>Object.hasOwn(actions,x)).slice(0,3).map(x=>`<a class="kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}"><span>${actions[x][0]}</span></a>`).join('')}</div>`:''}</div>${followups.length?`<div class="kit-suggested-replies" aria-label="Suggested replies">${followups.map(q=>`<button type="button" class="kit-suggested-reply" data-kit-followup aria-label="Send: ${esc(q)}"><span>${esc(q)}</span>${svg('send')}</button>`).join('')}</div>`:''}`:failed?errorBubble("Kit couldn't check that answer. Try a simpler question or Retry.",retry):waitingTarget?.id===String(m.client_id)?waitingHtml:''}</article>`;
     }).join('')+(pending?`<article><div class="thread-user"><p>${esc(c.job.question)}</p></div>${c.jobError?errorBubble("Your question couldn't be sent. Try again.",kitChatOn()&&c.ready?'<button type="button" class="primary kit-error-retry" id="kit-retry-send">Retry</button>':''):waitingHtml}</article>`:'')+(c.foodStarted?'<div id="kit-food-slot"></div>':'');
     if(foodHost&&c.foodStarted)$('#kit-food-slot',list)?.append(foodHost);
+    $$('[data-kit-chart]',list).forEach(host=>{const message=messages.find(m=>String(m.client_id)===host.closest('[data-kit-id]').dataset.kitId);bindChart(host,message.answer.chart);});
     pruneLongSuggestions(list);
     $('#kit-starters',c.el).hidden=!!has;
     $('#kit-intro',c.el).hidden=!!has;
@@ -326,7 +383,7 @@ Object.assign(KitChat, (() => {
     catch(e){if(!active(c)||c.visit_id!==visit||c.conversation_id!==thread||c.generation!==generation)return;if(!before&&!recovering&&(e.status===409||c.historyEnabled&&e.status===404)){await beginThreadOrVisit(c,e.status===404);return;}throw e;}
     if(!active(c)||c.visit_id!==visit||c.conversation_id!==thread||c.generation!==generation)return;
     if(c.generation&&c.generation!==data.generation){if(c.job&&!$('#kit-text',c.el).value){$('#kit-text',c.el).value=c.job.question;try{save(c,'draft',c.job.question);}catch{}}c.messages=[];c.job=null;c.sending=false;c.answerErrors={};store.del(chatKey(c,'pending'));status(c,'This chat was cleared on another device. Your draft is kept.');}
-    c.generation=data.generation;c.ready=data.ready;c.before=data.before;c.loaded=true;
+    c.generation=data.generation;c.ready=data.ready;c.streamSupported=data.stream_supported===true;c.before=data.before;c.loaded=true;
     const rows=before?[...data.messages,...c.messages]:data.messages;
     c.messages=[...new Map(rows.map(m=>[m.client_id,m])).values()].sort((a,b)=>a.id-b.id);
     if(c.job&&c.job.generation!==c.generation){c.job=null;store.del(chatKey(c,'pending'));}
@@ -345,19 +402,66 @@ Object.assign(KitChat, (() => {
     else if(c.messages.some(m=>m.state==='running'))later(c);
   }
   const later=c=>{clearTimeout(c.timer);c.timer=setTimeout(()=>{if(active(c))refresh(c).catch(e=>status(c,e.message));},2500);};
+  async function streamAnswer(c,id,body,valid){
+    const controller=new AbortController();c.streamController=controller;
+    const timeout=setTimeout(()=>controller.abort(),305000);
+    let reader;
+    try{
+      const response=await fetch(Native.base+'/api/coach/conversation/messages/'+id+'/stream',{
+        ...json('POST',body),credentials:Native.on?'omit':'same-origin',cache:'no-store',signal:controller.signal,
+        headers:{'Content-Type':'application/json','X-Kinetta-Account':String(App.me.id),...Native.headers()}});
+      if(!valid())return {cancelled:true};
+      if([404,405].includes(response.status))return null; // Older server: ordinary answer route owns generation.
+      if(!response.ok||!response.body||!response.headers.get('Content-Type')?.startsWith('text/event-stream'))throw Error('stream_failed');
+      reader=response.body.getReader();const decoder=new TextDecoder(),blocks=[];let pending='',complete=null;
+      while(!complete){
+        const {done,value}=await reader.read();if(done)break;
+        if(!valid())return {cancelled:true};
+        pending+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');
+        if(pending.length>131072)throw Error('stream_failed');
+        let end;
+        while((end=pending.indexOf('\n\n'))>=0){
+          const frame=pending.slice(0,end);pending=pending.slice(end+2);
+          const event=frame.split('\n').find(line=>line.startsWith('event: '))?.slice(7);
+          if(!event)continue;
+          const data=JSON.parse(frame.split('\n').filter(line=>line.startsWith('data: ')).map(line=>line.slice(6)).join('\n'));
+          if(event==='error'){
+            const rejected=data.restore_draft===true&&((data.code==='rate_limited'&&data.status===429)||(data.code==='unavailable'&&data.status===503));
+            const error=Error(rejected?(data.status===429?'Kit has reached its limit. Your question is kept; try again later.':'Kit is unavailable right now. Your question is kept. Try again later.'):'Your question is kept. Try again.');
+            if(rejected){error.status=data.status;error.restoreDraft=true;}throw error;
+          }
+          if(event==='block'){
+            if(!Number.isInteger(data.index)||data.index!==blocks.length||!answerBlocks({answer_blocks:[data.block]}))throw Error('stream_failed');
+            blocks.push(data.block);if(blocks.length>10)throw Error('stream_failed');
+            // Transient display only: follow-ups/actions arrive in the authoritative complete envelope.
+            c.messages=c.messages.map(m=>String(m.client_id)===String(id)?{...m,answer:{answer_blocks:[...blocks],facts:[]}}:m);draw(c);
+            await new Promise(resolve=>requestAnimationFrame(resolve));
+          }else if(event==='complete'){
+            if(String(data.message?.client_id)!==String(id)||data.message.state!=='answered')throw Error('stream_failed');
+            complete=data.message;break;
+          }else if(event!=='start')throw Error('stream_failed');
+        }
+      }
+      if(!complete)throw Error('stream_failed');return complete;
+    }catch(error){
+      if(error.restoreDraft)throw error;
+      throw Error('Your question is kept. Try again.');
+    }finally{clearTimeout(timeout);await reader?.cancel().catch(()=>{});if(c.streamController===controller)c.streamController=null;}
+  }
   async function answer(c,id){
-    if(!active(c)||c.sending||!c.ready||!kitChatOn())return;c.answerErrors||={};delete c.answerErrors[id];c.sending=true;const generation=c.generation,visit_id=c.visit_id,valid=()=>active(c)&&c.generation===generation&&c.visit_id===visit_id;controls(c);
+    if(!active(c)||c.sending||!c.ready||!kitChatOn())return;c.answerErrors||={};delete c.answerErrors[id];c.sending=true;const generation=c.generation,visit_id=c.visit_id,valid=()=>active(c)&&c.generation===generation&&c.visit_id===visit_id;controls(c);clearTimeout(c.timer);
     const pendingQuestion=c.messages.find(m=>String(m.client_id)===String(id)&&m.state==='pending')?.question;
     try{
-      const row=await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation,visit_id}));if(!valid())return;
+      const row=(c.streamSupported?await streamAnswer(c,id,{generation,visit_id},valid):null)??await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation,visit_id}));if(!valid())return;
       if(row.cancelled){await refresh(c);return;}
       c.messages=c.messages.map(m=>String(m.client_id)===String(id)?row:m);draw(c);
       if(row.state==='running')later(c);else await refresh(c).catch(()=>status(c,'Your answer is saved. Return when online to refresh the full history.'));
     }catch(error){if(valid()){
+      c.messages=c.messages.map(m=>String(m.client_id)===String(id)?{...m,answer:null}:m);
       // A pre-provider rejection can delete an accepted turn (and its empty thread).
       // Carry its question through refresh/new-thread recovery, never over a newer draft.
       const question=pendingQuestion,field=$('#kit-text',c.el);
-      const restored=c.historyEnabled&&question&&!field.value.trim();
+      const restored=question&&!field.value.trim();
       if(restored){field.value=question;try{save(c,'draft',question);}catch{}field.dispatchEvent(new Event('input'));}
       c.answerErrors[id]=true;let refreshed=false;try{await refresh(c);refreshed=true;}catch{}
       if(valid()){
@@ -426,7 +530,7 @@ Object.assign(KitChat, (() => {
     return c.historyEnabled?beginThread(c,missing?null:c.conversation_id,$('#kit-text',c.el).value):begin(c,true);
   }
   async function beginThread(c,id=null,carryDraft=null){
-    if(!active(c))return;keepDraft(c);clearTimeout(c.timer);clearWait(c);cancelVisitExpiry(c.owner);
+    if(!active(c))return;keepDraft(c);clearTimeout(c.timer);c.streamController?.abort();clearWait(c);cancelVisitExpiry(c.owner);
     const request=c.historyRequest=(c.historyRequest||0)+1,field=$('#kit-text',c.el),bootDraft=!c.historyOpened?field.value:'',thread=id||newId(),visit=newId();
     c.historyOpened=true;c.conversation_id=thread;c.visit_id=visit;c.closed=false;c.loaded=false;c.ready=false;
     c.messages=[];c.localMessages=[];c.job=null;c.sending=false;c.before=null;c.answerErrors={};c.jobError='';
@@ -441,7 +545,7 @@ Object.assign(KitChat, (() => {
         if(!valid())return;
         c.generation=data.generation;c.historyGeneration=data.generation;c.visit_id=data.visit_id;c.visit_created_at=Date.now();
         writeVisit(c.owner,{visit_id:c.visit_id,created_at:c.visit_created_at,left_at:null});
-        c.messages=data.messages;c.before=data.before;c.ready=data.ready;c.loaded=true;
+        c.messages=data.messages;c.before=data.before;c.ready=data.ready;c.streamSupported=data.stream_supported===true;c.loaded=true;
         for(const row of c.messages)if(row.state==='pending')c.answerErrors[row.client_id]=true;
         store.del(key(c.owner,'draft'));status(c,'');draw(c);field.dispatchEvent(new Event('input'));c.view?.pin(true);
         if(c.messages.some(row=>row.state==='running'))later(c);
@@ -539,28 +643,77 @@ Object.assign(KitChat, (() => {
   function memorySettings(){
     const session=readOwner();
     sheet('What Kit remembers','<div id="kit-memory"><p class="muted">Loading memory…</p></div>',body=>{
-      const box=$('#kit-memory',body),valid=()=>session===readOwner()&&body.isConnected;
+      const box=$('#kit-memory',body),sh=body.closest('.sheet'),valid=()=>session===readOwner()&&body.isConnected;
+      const title=$('h2',sh),labels={goal:'Goal',preference:'Preference',routine:'Routine'};
+      const date=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
+      let data=null,swipe=null,suppressTap=false;
+      sh.classList.add('kit-history-sheet');
+      const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
+      menu.setAttribute('aria-label','Memory options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
+      const remove=async(id,button)=>{
+        if(!valid())return;
+        button.disabled=true;
+        try{await api('/api/coach/conversation/memory'+(id?'/'+id:''),{method:'DELETE'});if(valid())await draw();}
+        catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;button.disabled=false;}}
+      };
+      menu.onclick=()=>{
+        if(!valid())return;
+        sheet('Memory options','<button type="button" class="linkbtn wide danger kit-history-action" id="kit-forget-all">Forget all memories</button>',(b,done)=>{
+          $('#kit-forget-all',b).onclick=async event=>{
+            if(!valid())return;
+            const button=event.currentTarget;
+            if(!await confirmSheet('Forget all memories?',{body:'Kit will stop remembering these details.',action:'Forget all'})||!valid())return;
+            done();await remove(null,button);
+          };
+        });
+      };
+      const reveal=(row,on)=>{row.classList.toggle('is-revealed',on);const button=$('[data-kit-forget]',row);button.inert=!on;button.setAttribute('aria-hidden',String(!on));};
+      // Keep list swipes out of the sheet's vertical-dismiss gesture; row taps also work with a keyboard.
+      box.addEventListener('touchstart',e=>{e.stopPropagation();const row=e.target.closest('.kit-memory-row');swipe=e.touches.length===1&&row?{row,x:e.touches[0].clientX,y:e.touches[0].clientY,horizontal:false}:null;},{passive:true});
+      box.addEventListener('touchmove',e=>{e.stopPropagation();if(!swipe)return;const dx=e.touches[0].clientX-swipe.x,dy=e.touches[0].clientY-swipe.y;if(!swipe.horizontal&&Math.abs(dy)>Math.abs(dx)&&Math.abs(dy)>8){swipe=null;return;}if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)){swipe.horizontal=true;e.preventDefault();$$('.is-revealed',box).forEach(row=>reveal(row,false));reveal(swipe.row,dx<0);}},{passive:false});
+      box.addEventListener('touchend',e=>{e.stopPropagation();if(swipe?.horizontal){e.preventDefault();suppressTap=true;setTimeout(()=>suppressTap=false,250);}swipe=null;},{passive:false});
+      box.addEventListener('touchcancel',()=>{swipe=null;});
+      const edit=memory=>{
+        if(!valid())return;
+        const editable=Number.isSafeInteger(data.version)&&data.enabled;let kind=memory?.kind||'preference';
+        title.textContent=memory?'Edit detail':'Add a detail';menu.hidden=true;
+        box.innerHTML=`<form id="kit-memory-form"><div class="underline-tabs" role="group" aria-label="Type">${Object.entries(labels).map(([key,label])=>`<button type="button" data-kit-kind="${key}" aria-pressed="${kind===key}" ${editable?'':'disabled'}>${label}</button>`).join('')}</div><label class="vh" for="kit-memory-text">Detail</label><textarea id="kit-memory-text" rows="3" maxlength="400" required placeholder="I prefer morning runs." ${editable?'':'readonly'}>${esc(memory?.text||'')}</textarea><p class="err" id="kit-memory-error" role="alert"></p><div class="kit-memory-edit-actions"><button type="button" class="ghost" id="kit-memory-cancel">Cancel</button>${editable?'<button type="submit" class="primary" id="kit-memory-save">Save</button>':''}</div>${memory?'<button type="button" class="linkbtn wide danger kit-history-action" id="kit-memory-delete">Delete</button>':''}</form>`;
+        $$('[data-kit-kind]',box).forEach(button=>button.onclick=()=>{
+          if(!valid())return;kind=button.dataset.kitKind;$$('[data-kit-kind]',box).forEach(tab=>tab.setAttribute('aria-pressed',String(tab===button)));
+        });
+        $('#kit-memory-cancel',box).onclick=()=>{if(valid())draw();};
+        const del=$('#kit-memory-delete',box);if(del)del.onclick=()=>remove(memory.id,del);
+        $('#kit-memory-form',box).onsubmit=async event=>{
+          event.preventDefault();if(!valid()||!editable)return;
+          const text=$('#kit-memory-text',box).value.trim();if(!text)return;
+          const save=$('#kit-memory-save',box);save.disabled=true;
+          try{
+            await api('/api/coach/conversation/memory'+(memory?'/'+memory.id:''),json(memory?'PATCH':'POST',{text,kind,version:data.version}));
+            if(valid())await draw();
+          }catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;save.disabled=false;}}
+        };
+      };
       const draw=async()=>{
         try{
-          const data=await api('/api/coach/conversation/memory');if(!valid())return;
-          box.innerHTML=`<p>Kit can keep short statements you share about your preferences, goals and routines, in your own words. It keeps up to twelve for six months. Current records and what you say now take priority.</p><label class="check"><input type="checkbox" id="kit-memory-on" ${data.enabled?'checked':''}>Remember useful details</label><p class="small muted">Turning this off also removes saved memories. Removing a memory stops its use in future chats; messages in your current chat stay until you leave.</p><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<article class="card"><p>${esc(m.text)}</p><button type="button" class="linkbtn danger" data-kit-forget="${m.id}">Forget this</button></article>`).join(''):'<p class="muted">No saved memories yet.</p>'}</div>${data.memories.length?'<button type="button" class="ghost wide danger" id="kit-forget-all">Forget all memories</button>':''}<p class="err" id="kit-memory-error" role="alert"></p>`;
+          const next=await api('/api/coach/conversation/memory');if(!valid())return;data=next;
+          title.textContent='What Kit remembers';menu.hidden=!data.memories.length;
+          const editable=Number.isSafeInteger(data.version)&&data.enabled;
+          box.innerHTML=`${editable&&data.memories.length<12?`<button type="button" class="linkbtn kit-history-action" id="kit-memory-add">${svg('plus')}<span>Add a detail</span></button>`:''}<label class="switch-row kit-memory-switch"><span>Remember useful details</span><input type="checkbox" role="switch" id="kit-memory-on" ${data.enabled?'checked':''}></label><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<div class="kit-history-row kit-memory-row"><button type="button" class="kit-history-delete" data-kit-forget="${m.id}" aria-label="Delete" aria-hidden="true" inert>${svg('trash')}</button><div class="kit-history-front"><button type="button" class="kit-history-open" data-kit-edit="${m.id}"><span><strong>${esc(m.text)}</strong><small>${esc([labels[m.kind]||'Detail',date(m.updated)].filter(Boolean).join(' · '))}</small></span></button></div></div>`).join(''):'<p class="muted kit-memory-empty">No saved details yet.</p>'}</div><p class="err" id="kit-memory-error" role="alert"></p>`;
+          const add=$('#kit-memory-add',box);if(add)add.onclick=()=>edit(null);
+          $$('[data-kit-edit]',box).forEach(button=>button.onclick=()=>{
+            if(!valid()||suppressTap)return;const row=button.closest('.kit-memory-row');if(row.classList.contains('is-revealed')){reveal(row,false);return;}
+            edit(data.memories.find(m=>String(m.id)===button.dataset.kitEdit));
+          });
+          $$('[data-kit-forget]',box).forEach(button=>button.onclick=()=>remove(button.dataset.kitForget,button));
           $('#kit-memory-on',box).onchange=async e=>{
             if(!valid())return;
-            const enabled=e.target.checked;
-            const toggle=e.target;if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Everything Kit remembers is removed. Your records stay saved.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
-            e.target.disabled=true;
-            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;e.target.checked=!enabled;e.target.disabled=false;}}
+            const toggle=e.target,enabled=toggle.checked;
+            if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Kit will forget your saved details.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
+            toggle.disabled=true;
+            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}
+            catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;toggle.checked=!enabled;toggle.disabled=false;}}
           };
-          $$('[data-kit-forget]',box).forEach(button=>button.onclick=async()=>{
-            if(!valid())return;
-            button.disabled=true;try{await api('/api/coach/conversation/memory/'+button.dataset.kitForget,{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;button.disabled=false;}}
-          });
-          const all=$('#kit-forget-all',box);if(all)all.onclick=async()=>{
-            if(!valid())return;
-            if(!await confirmSheet('Forget all Kit memories?',{body:'Your records and current chat stay saved.',action:'Forget all'})||!valid())return;
-            all.disabled=true;try{await api('/api/coach/conversation/memory',{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;all.disabled=false;}}
-          };
-        }catch(e){if(valid())box.innerHTML=`<p class="err">${esc(e.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
+        }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
       };draw();
     });
   }
@@ -627,6 +780,12 @@ Object.assign(KitChat, (() => {
 })());
 route(/^\/me\/kit$/,()=>({nutrition:'food',activity:'activity',progress:'progress',track:'track',strength:'track'}[new URLSearchParams(location.search).get('from')]||'me'),el=>KitChat.mount(el));
 function kitReview(selection, options = {}) {
+  if(selection.kind==='goal'){
+    const owner=readOwner();
+    return loadClassicScript('/static/kit-goal-ui.js?v=__ASSET_HASH__')
+      .then(()=>{if(owner===readOwner())kitGoalReview(selection,options);})
+      .catch(e=>{if(owner===readOwner())toast(e.message);});
+  }
   const candidate = selection.candidate;
   sheet('Review proposed change', `<p class="small">Nothing changes until you confirm.</p>
     ${selection.kind === 'plan' ? `<p>${esc(candidate.reason)}</p>${candidate.changes.map((w) => `<div class="card"><b>${esc(w.title)}</b><p class="small">${esc(w.day)} · ${esc(w.detail)}</p></div>`).join('')}`

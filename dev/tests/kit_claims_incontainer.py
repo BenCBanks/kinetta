@@ -31,11 +31,14 @@ for text in (
     'Your distance was recorded at {e2:0}; choose a shorter session when time is tight.',
     'To build a sustainable routine around your saved running goal, balance easy efforts with adequate rest.',
     'Your saved plan can help you build a more consistent routine.',
-    'Your most recent run was recorded at {e2:0}.',
     'Choose shorter workouts if time is tight.',
     'You can try a shorter workout.',
     "I can’t tell how you felt. Add a note about this run.",
 ):check(text)
+# This fixture is an ALL-SPORT period total, not the most recent run.
+check('Your most recent run was recorded at {e2:0}.',expected='relation_unsupported')
+check('Your most recent run was recorded at {e2:0}.',facts=[dict(evidence_id='e2',path=['distance_m'],value=5000)],
+      records=[profile,dict(evidence_id='e2',tool='activity',data={'sport':'run','distance_m':5000})])
 check('You have diabetes.',expected='health_claim',facts=[])
 check('Stop your medication.',expected='health_claim',facts=[])
 check('Ask a clinician about persistent pain.',facts=[])
@@ -112,7 +115,10 @@ for initial,correction,should_pass in (
          patch('app.coach_chat._gemini_turn',provider):
         try:result=coach_chat.answer(1,'Help me understand my workout.',kit=True)
         except ValueError:assert not should_pass
-        else:assert should_pass and result['answer_blocks']
+        else:
+            assert result['answer_blocks']
+            if not should_pass:
+                assert result['app_fallback'] and 'diabetes' not in result['interpretation']
     assert len(calls)==2
 
 # Revoking consent after a bad weekly response prevents even the correction provider call.

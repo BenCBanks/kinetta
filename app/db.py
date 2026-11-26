@@ -2460,7 +2460,6 @@ MIGRATIONS = [
       OR (NOT p.garmin_ai_ok AND EXISTS(SELECT 1 FROM activities a WHERE a.user_id=p.user_id AND a.source='garmin_connect'));
 
     """,
-
     """
     -- 121: additive people-first Groups foundation; legacy API/UI remain authoritative until cutover.
     -- One startup transaction holds schema_version and FK/backfill locks until commit;
@@ -2526,6 +2525,23 @@ MIGRATIONS = [
       SELECT q.id,m.group_id,m.user_id,m.sharing_level='total_shared',m.joined_at
       FROM group_challenges q JOIN group_members m ON m.group_id=q.legacy_group_id
       ON CONFLICT(challenge_id,user_id) DO NOTHING;
+    """,
+
+    # 122. Inspectable, user-correctable Kit memory; existing statements keep their original dates.
+    """ALTER TABLE kit_memories ADD COLUMN kind text NOT NULL DEFAULT 'preference'
+      CHECK(kind IN ('goal','preference','routine')),
+      ADD COLUMN source text NOT NULL DEFAULT 'chat'
+      CHECK(source IN ('chat','user','edit'));
+    UPDATE kit_memories SET kind=CASE
+      WHEN text ~* '^(my (goal|aim)|i (want|need))' THEN 'goal'
+      WHEN text ~* '^(my (schedule|routine|available days)|i (train|run|ride|walk|work))' THEN 'routine'
+      ELSE 'preference' END;""",
+
+
+    """
+    -- 123: typed, explicitly confirmed own activity-goal target proposals.
+    ALTER TABLE coach_proposals DROP CONSTRAINT coach_proposals_kind_check;
+    ALTER TABLE coach_proposals ADD CONSTRAINT coach_proposals_kind_check CHECK (kind IN ('plan','food','goal'));
     """,
 
 ]
