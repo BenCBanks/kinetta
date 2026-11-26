@@ -23,6 +23,7 @@ module.exports=async function(browser,base){
     if(!u.pathname.startsWith('/api/'))return route.continue();
     const key=u.pathname.startsWith('/api/food/thread/reviews/draft/')?'/api/food/thread':u.pathname;
     if(state==='recipe'&&key==='/api/dishes/1/say'&&q.method()==='POST')return route.fulfill({json:{dish:r['/api/dishes/1'],reply:'Fictional ingredient checked.',added:[]}});
+    if(kit&&key==='/api/coach/conversation/threads'&&q.method()==='GET')return route.fulfill({json:{enabled:false}});
     if(kit&&key==='/api/coach/conversation/visits'&&q.method()==='POST')return route.fulfill({json:{visit_id:q.postDataJSON().visit_id,generation:'dock-fixture',ready:true}});
     if(kit&&key==='/api/coach/conversation'&&q.method()==='GET')return route.fulfill({json:{generation:'dock-fixture',ready:true,before:null,messages:state==='kit-answered'?[{id:1,client_id:draft,question:'How was my training?',state:'answered',answer:{verdict:'Your records show a steady week.',reason:'Your fictional workouts were spread through the week.',facts:[],follow_ups:[]}}]:[]}});
     if(state==='review'&&key==='/api/food/thread/reviews'&&q.method()==='POST')return route.fulfill({json:{id:9,review:{foods:entries}}});

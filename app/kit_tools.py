@@ -3,6 +3,7 @@ import datetime as dt
 from typing import Literal
 from pydantic import Field, model_validator
 from . import db, coach, energy
+from .kit_goal_contract import GoalChange, DESCRIPTION
 from .coach_tools import AccountTools, Empty, Range, Activity, TOOLS
 
 
@@ -28,6 +29,7 @@ class GoalRange(Empty):
 
 
 EXTRA = {
+    'goal_change_options': (GoalChange, DESCRIPTION),
     'stored_foods': (Stored, 'Own saved recipes, custom foods or saved meal combinations, including incomplete nutrients. Lists are paginated; pass record_id for ingredient details of one own record. Missing/other-account IDs are not found. Read only; never invent missing nutrition.'),
     'activities': (Page, 'Own workouts of every sport in inclusive local dates, newest first. Up to 50 rows; use next_before_id for older rows. Includes exact totals and explicit missing-data limits.'),
     'food_log': (Page, 'Own individual food entries in inclusive local dates: meals, quantities, source and known nutrients. Up to 50 rows; next_before_id pages older records. Unlogged is not zero; unknown nutrient flags remain explicit.'),
@@ -53,7 +55,7 @@ class KitTools(AccountTools):
         ctx = db.coach_scope(connection, self._uid) if connection is not None else db.coach_connect(self._uid)
         with ctx as c:
             # Food/app tools remain usable without disclosing unconsented Health records.
-            if name not in {'profile','nutrition_summary','nutrition_adequacy','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and not coach.health_ok(c, self._uid):
+            if name not in {'profile','nutrition_summary','nutrition_adequacy','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','goal_change_options','app_features'} and not coach.health_ok(c, self._uid):
                 raise ValueError(coach.HEALTH_NO)
             return getattr(self, '_' + name)(c, parsed)
 
@@ -143,8 +145,12 @@ class KitTools(AccountTools):
         return {'sets':rows[:50],'summary_by_exercise':summary,'next_before_id':rows[49]['id'] if len(rows)>50 else None,
                 'limitations':['Only recorded completed sets; missing sessions and unrecorded effort are unknown. Summaries cover the full date range; listed sets are paginated. A heavier recorded set does not alone establish a strength gain.']}
 
+    def _goal_change_options(self,c,r):
+        from .kit_goal_actions import options
+        return options(c, self._uid, r)
+
     def _goals(self,c,_):
-        return {'activity_goals':c.execute('SELECT sport,period,metric,target FROM goals WHERE user_id=%s ORDER BY id LIMIT 50',(self._uid,)).fetchall(),
+        return {'activity_goals':c.execute('SELECT id,sport,period,metric,target FROM goals WHERE user_id=%s ORDER BY id LIMIT 50',(self._uid,)).fetchall(),
                 'nutrition':self._profile(c, Empty()),'limitations':['Targets describe intentions, not measured results.']}
 
     def _body_profile(self,c,_):

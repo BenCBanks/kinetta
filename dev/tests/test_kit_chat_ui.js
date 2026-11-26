@@ -40,7 +40,7 @@ assert.equal(c.Kit.foodIntent('What did I eat today?'),null,'questions about log
 assert.equal(c.Kit.foodIntent('Can you record my bike ride?'),null,'activity requests stay with Kit');
 assert.equal(c.Kit.foodIntent('2 eggs and toast',true)?.kind,'food','the follow-up accepts a food description');
 assert.equal(c.Kit.foodIntent('How many calories was breakfast?',true),null,'a follow-up question stays in Kit');
-const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,3);assert(accountKeys.some(k=>k.startsWith('fit.kit.visit:')),'device erasure also drops the locally retained visit identifier');assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
+const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,4);assert(accountKeys.some(k=>k.startsWith('fit.kit.visit:')),'device erasure also drops the locally retained visit identifier');assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 {
  const blocks={};vm.createContext(blocks);
@@ -126,7 +126,7 @@ async function testFoodThreadBridge(){
  promptField.value='How has my running changed this month?';await foodRouter.send(foodContext);assert.equal(promptDeliveries,1,'an activity question from any tab stays in Kit');
  // A server-accepted message after a lost acknowledgement reconciles the durable local send.
  const removed=[];field={value:'Accepted earlier',style:{}};
- const loader={VISIT_MAX_AGE:24*60*60*1000,kitChatOn:()=>true,aiCan:()=>true,App:{me:{ai_ok:true}},api:async()=>({generation:'generation-a',messages:[{id:1,client_id:'accepted',question:'Accepted earlier',state:'answered'}],ready:true,before:null}),active:()=>true,$:()=>field,store:{del:k=>removed.push(k)},key:(o,k)=>k,draw(){},status(){},Map,answer(){throw Error('Answered messages cannot call the model again')},later(){}};
+ const loader={VISIT_MAX_AGE:24*60*60*1000,kitChatOn:()=>true,aiCan:()=>true,App:{me:{ai_ok:true}},api:async()=>({generation:'generation-a',messages:[{id:1,client_id:'accepted',question:'Accepted earlier',state:'answered'}],ready:true,before:null}),active:()=>true,$:()=>field,store:{del:k=>removed.push(k)},key:(o,k)=>k,chatKey:(ctx,k)=>k,draw(){},status(){},Map,answer(){throw Error('Answered messages cannot call the model again')},later(){}};
  vm.createContext(loader);vm.runInContext(pick('  async function refresh(c,before=null,','  const later='),loader);
  const resumed={generation:'generation-a',owner:'one',messages:[],job:{client_id:'accepted',question:'Accepted earlier',generation:'generation-a'}};
  await loader.refresh(resumed);assert.equal(resumed.job,null);assert.equal(field.value,'');assert(removed.includes('pending')&&removed.includes('draft'));
@@ -136,19 +136,31 @@ async function testFoodThreadBridge(){
  const chat={ready:true,generation:'old',messages:[{client_id:'same',state:'pending'}],sending:false};const task=answerer.answer(chat,'same');chat.generation='new';chat.messages=[];chat.sending=false;finish({client_id:'same',state:'answered',answer:{interpretation:'late'}});await task;assert.equal(chat.messages.length,0);assert.equal(draws,0);assert.equal(chat.sending,false);assert.equal(refreshes,0,'a cleared result cannot refresh over the new chat');
  chat.generation='current';chat.visit_id='first-visit';chat.messages=[{client_id:'same',state:'pending'}];const ended=answerer.answer(chat,'same');chat.visit_id='next-visit';chat.messages=[];finish({client_id:'same',state:'answered'});await ended;assert.equal(draws,0,'a late answer from an ended visit cannot enter a fresh visit');
  chat.generation='current';chat.messages=[{client_id:'same',state:'pending'}];const next=answerer.answer(chat,'same');active=false;finish({client_id:'same',state:'answered'});await next;assert.equal(chat.messages[0].state,'pending');assert.equal(draws,0,'another session never renders the old answer');
+ let retryBody;active=true;answerer.api=async(_path,body)=>{retryBody=body;return {client_id:'saved-old-turn',state:'answered'};};
+ chat.sending=false;chat.generation='current-envelope';chat.visit_id='active-resumed-visit';chat.messages=[{client_id:'saved-old-turn',state:'failed',generation:'old-row-generation',visit_id:'expired-row-visit'}];
+ await answerer.answer(chat,'saved-old-turn');assert.deepEqual({...retryBody},{generation:'current-envelope',visit_id:'active-resumed-visit'},'saved-turn retry uses envelope generation and active visit, never old row identity');
  let forbidden=0;answerer.api=()=>{forbidden++;throw Error('Unavailable model request')};answerer.kitChatOn=()=>false;active=true;await answerer.answer(chat,'same');assert.equal(forbidden,0,'unavailable retries never request an answer');
  const delivery={...answerer};vm.createContext(delivery);vm.runInContext(pick('  async function deliver(c){','  function sendStarter(c,button){'),delivery);await delivery.deliver({...chat,job:{question:'Kept'}});assert.equal(forbidden,0,'unavailable retry sending never requests a message');
  // Reload restores the serialized pending payload; network retries must preserve its exact question and context.
  for(const context of [{screen:'progress',starter_index:0},{screen:'progress'}]){
   const question=Object.hasOwn(context,'starter_index')?'Am I improving?':'How did my running change this month?';
   const pending={client_id:'saved-id',generation:'g',visit_id:'v',question,context},requests=[];
-  const retry={active:()=>true,kitChatOn:()=>true,draw(){},controls(){},status(){},clearWait(){},key:()=>'',store:{del(){}},$:()=>({value:'A different unsent draft',style:{}}),json:(_method,body)=>JSON.parse(JSON.stringify(body)),answer:async()=>{},api:async(_url,body)=>{requests.push(body);if(requests.length===1)throw Error('offline');return {...body,id:1};}};
+  const retry={active:()=>true,kitChatOn:()=>true,draw(){},controls(){},status(){},clearWait(){},key:()=>'',chatKey:()=>'',store:{del(){}},$:()=>({value:'A different unsent draft',style:{}}),json:(_method,body)=>JSON.parse(JSON.stringify(body)),answer:async()=>{},api:async(_url,body)=>{requests.push(body);if(requests.length===1)throw Error('offline');return {...body,id:1};}};
   vm.createContext(retry);vm.runInContext(pick('  async function deliver(c){','  function sendStarter(c,button){'),retry);
   const restored={job:JSON.parse(JSON.stringify(pending)),ready:true,generation:'g',visit_id:'v',messages:[],view:{pin(){}}};
   await retry.deliver(restored);assert.deepEqual(JSON.parse(JSON.stringify(restored.job)),pending,'failed send retains the saved payload');
   await retry.deliver(restored);assert.deepEqual(requests,[pending,pending],'reload and retry never replace the typed/tapped question with guidance or draft text');
  }
  let auto=0;loader.kitChatOn=()=>false;loader.api=async()=>({generation:'generation-a',messages:[{id:1,client_id:'pending',state:'pending'}],ready:true,before:null});loader.answer=()=>auto++;await loader.refresh({...resumed,job:null});assert.equal(auto,0,'pause cannot auto-answer an existing pending message');loader.kitChatOn=()=>true;loader.api=async()=>({generation:'generation-a',messages:[{id:1,client_id:'pending',state:'pending'}],ready:false,before:null});await loader.refresh({...resumed,job:null});assert.equal(auto,0,'unreviewed chat cannot auto-answer pending messages');
+ // Durable history never starts a paid pending answer merely by reading/resuming.
+ loader.api=async()=>({generation:'generation-a',messages:[{id:1,client_id:'pending',state:'pending'}],ready:true,before:null});
+ const history={...resumed,historyEnabled:true,conversation_id:'thread-a',job:null,answerErrors:{}};await loader.refresh(history);
+ assert.equal(auto,0);assert.equal(history.answerErrors.pending,true,'saved pending answers require an explicit Retry');
+ // A deletion rotating the account generation fences an older in-flight read.
+ let releaseRead;loader.api=()=>new Promise(resolve=>releaseRead=resolve);
+ const staleRead=loader.refresh(history);history.generation='after-delete';history.messages=[];
+ releaseRead({generation:'generation-a',messages:[{id:1,client_id:'deleted-message',state:'answered'}],ready:true,before:null});await staleRead;
+ assert.equal(history.generation,'after-delete');assert.equal(history.messages.length,0,'an old read cannot revive deleted content');
  console.log('Kit UI: shared safe entry URLs/actions, account-scoped cleanup, durable-before-send/storage failure, duplicate-send prevention and late clear/account response fences PASS');
 })().catch(e=>{console.error(e);process.exit(1)});
 
@@ -249,3 +261,17 @@ assert.equal((qualityHtml.match(/data-kit-followup/g)||[]).length,1,'non-first-p
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
 
 require('./test_email_confirmation.js');
+// Exercise real answer handling when the history API removes an unstarted rejected turn.
+(async()=>{
+ const code=source.slice(source.indexOf('  async function answer(c,id){'),source.indexOf('  async function deliver(c){'));
+ for(const mode of ['removed','removed-before-response','new-thread','retained','newer-draft','offline','account-change']){
+  const field={value:mode==='newer-draft'?'A newer unsent question':'',dispatchEvent(){}},saved=[];
+  let owner='one';const ctx={owner:'one',historyEnabled:true,ready:true,sending:false,generation:'g',visit_id:'v',el:{},messages:[{client_id:'m',state:'pending',question:'Review my latest workout'}]};
+  const h={active:c=>c.owner===owner,kitChatOn:()=>true,controls(){},draw(){},later(){},Event:class{},status(c,text){h.notice=text;},$:()=>field,save:(c,k,v)=>saved.push([k,v]),store:{del(){}},chatKey:()=>'',json:(method,body)=>({method,body}),api:async()=>{if(mode==='account-change')owner='two';if(mode==='removed-before-response')ctx.messages=[];throw Object.assign(Error('Daily limit reached'),{status:429});},refresh:async c=>{if(mode==='offline')throw Error('Offline');if(mode!=='retained')c.messages=[];if(mode==='new-thread')c.visit_id='fresh-visit';}};
+  vm.createContext(h);vm.runInContext(code+'\nglobalThis.answer=answer;',h);await h.answer(ctx,'m');
+  assert.equal(field.value,mode==='newer-draft'?'A newer unsent question':['retained','account-change'].includes(mode)?'':'Review my latest workout',mode+' preserves only the appropriate draft');
+  if(mode==='account-change')assert.equal(saved.length,0,'late account rejection cannot save a former question');
+  if(mode==='removed')assert.equal(h.notice,'Daily limit reached');
+ }
+ console.log('Kit history quota rejection: removed turn, empty-thread recovery, retained pending turn, newer draft, offline and account fences PASS');
+})().catch(e=>{console.error(e);process.exit(1)});

@@ -101,7 +101,8 @@ Object.assign(KitChat, (() => {
     activityEntryRequests.set(o,pending);return pending;
   }
   const active=c=>current===c&&!c.closed&&c.el.isConnected&&c.owner===owner()&&c.session===readOwner();
-  const save=(c,k,v)=>{localStorage.setItem(key(c.owner,k),JSON.stringify(v));};
+  const chatKey=(c,k)=>key(c.owner,c.conversation_id&&['draft','pending'].includes(k)?k+':'+c.conversation_id:k);
+  const save=(c,k,v)=>{localStorage.setItem(chatKey(c,k),JSON.stringify(v));};
   const status=(c,text)=>{if(active(c))$('#kit-status',c.el).textContent=text||'';};
   function clearWait(c){if(c.waitTimer)clearTimeout(c.waitTimer);c.waitTimer=null;c.waiting=null;}
   function waitBubble(c,target){
@@ -119,7 +120,7 @@ Object.assign(KitChat, (() => {
   function open(screen='me',activityId=null,question=null){
     const o=owner();
     if(o&&question){
-      if(store.get(key(o,'draft')))toast('Your existing Kit draft is kept.');
+      if(store.get(key(o,'draft'))||store.get(key(o,'conversation'))&&store.get(key(o,'draft:'+store.get(key(o,'conversation')))))toast('Your existing Kit draft is kept.');
       else try{localStorage.setItem(key(o,'draft'),JSON.stringify(question.slice(0,1500)));}catch{entryDraft={owner:o,question:question.slice(0,1500)};}
     }
     go(href(screen,activityId));
@@ -304,7 +305,7 @@ Object.assign(KitChat, (() => {
   }
   function clearDraft(c,field,submitted){
     if(submitted!=null&&field.value.trim()!==submitted.trim())return false;
-    field.value='';field.style.height='';store.del(key(c.owner,'draft'));return true;
+    field.value='';field.style.height='';store.del(chatKey(c,'draft'));return true;
   }
   async function sendFood(c,text){
     const host=await mountFoodThread(c);if(!host)return false;const field=$('#thread-text',host),form=$('#thread-composer',host),notice=$('#thread-status',host);
@@ -322,37 +323,50 @@ Object.assign(KitChat, (() => {
   }
   async function refresh(c,before=null,recovering=false){
     if(!before&&Date.now()-c.visit_created_at>=VISIT_MAX_AGE){await begin(c,true);return;}
-    let data;
-    try{data=await api('/api/coach/conversation?visit_id='+encodeURIComponent(c.visit_id)+(before?'&before='+before:''));}
-    catch(e){if(!before&&!recovering&&e.status===409){await begin(c,true);return;}throw e;}
-    if(!active(c))return;
-    if(c.generation&&c.generation!==data.generation){if(c.job&&!$('#kit-text',c.el).value){$('#kit-text',c.el).value=c.job.question;try{save(c,'draft',c.job.question);}catch{}}c.messages=[];c.job=null;c.sending=false;c.answerErrors={};store.del(key(c.owner,'pending'));status(c,'This chat was cleared on another device. Your draft is kept.');}
+    const visit=c.visit_id,thread=c.conversation_id,generation=c.generation;let data;
+    try{data=await api(c.historyEnabled?'/api/coach/conversation/threads/'+encodeURIComponent(thread)+(before?'?before='+encodeURIComponent(before):''):'/api/coach/conversation?visit_id='+encodeURIComponent(visit)+(before?'&before='+before:''));}
+    catch(e){if(!active(c)||c.visit_id!==visit||c.conversation_id!==thread||c.generation!==generation)return;if(!before&&!recovering&&(e.status===409||c.historyEnabled&&e.status===404)){await beginThreadOrVisit(c,e.status===404);return;}throw e;}
+    if(!active(c)||c.visit_id!==visit||c.conversation_id!==thread||c.generation!==generation)return;
+    if(c.generation&&c.generation!==data.generation){if(c.job&&!$('#kit-text',c.el).value){$('#kit-text',c.el).value=c.job.question;try{save(c,'draft',c.job.question);}catch{}}c.messages=[];c.job=null;c.sending=false;c.answerErrors={};store.del(chatKey(c,'pending'));status(c,'This chat was cleared on another device. Your draft is kept.');}
     c.generation=data.generation;c.ready=data.ready;c.before=data.before;c.loaded=true;
     const rows=before?[...data.messages,...c.messages]:data.messages;
     c.messages=[...new Map(rows.map(m=>[m.client_id,m])).values()].sort((a,b)=>a.id-b.id);
-    if(c.job&&c.job.generation!==c.generation){c.job=null;store.del(key(c.owner,'pending'));}
+    if(c.job&&c.job.generation!==c.generation){c.job=null;store.del(chatKey(c,'pending'));}
     const accepted=c.job&&c.messages.find(m=>m.client_id===c.job.client_id&&m.question===c.job.question);
     if(accepted){
-      const field=$('#kit-text',c.el);if(field.value.trim()===c.job.question){field.value='';field.style.height='';store.del(key(c.owner,'draft'));}
-      c.job=null;store.del(key(c.owner,'pending'));
+      const field=$('#kit-text',c.el);if(field.value.trim()===c.job.question){field.value='';field.style.height='';store.del(chatKey(c,'draft'));}
+      c.job=null;store.del(chatKey(c,'pending'));
     }
 
     if(!c.ready)status(c,'Kit chat isn’t available yet. Your food log and other app tools still work.');
     else if(!kitChatOn())status(c,App.me?.ai_ok?'Kit is unavailable. Your saved answers and draft are kept.':'Kit is off. Turn it on in Settings to chat.');
-    draw(c);
     const waiting=c.messages.find(m=>m.state==='pending');
-    if(c.ready&&kitChatOn()&&waiting&&!c.sending&&!c.answerErrors?.[waiting.client_id])answer(c,waiting.client_id);
+    if(c.historyEnabled&&waiting&&!c.sending)c.answerErrors[waiting.client_id]=true;
+    draw(c);
+    if(!c.historyEnabled&&c.ready&&kitChatOn()&&waiting&&!c.sending&&!c.answerErrors?.[waiting.client_id])answer(c,waiting.client_id);
     else if(c.messages.some(m=>m.state==='running'))later(c);
   }
   const later=c=>{clearTimeout(c.timer);c.timer=setTimeout(()=>{if(active(c))refresh(c).catch(e=>status(c,e.message));},2500);};
   async function answer(c,id){
     if(!active(c)||c.sending||!c.ready||!kitChatOn())return;c.answerErrors||={};delete c.answerErrors[id];c.sending=true;const generation=c.generation,visit_id=c.visit_id,valid=()=>active(c)&&c.generation===generation&&c.visit_id===visit_id;controls(c);
+    const pendingQuestion=c.messages.find(m=>String(m.client_id)===String(id)&&m.state==='pending')?.question;
     try{
       const row=await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation,visit_id}));if(!valid())return;
       if(row.cancelled){await refresh(c);return;}
       c.messages=c.messages.map(m=>String(m.client_id)===String(id)?row:m);draw(c);
       if(row.state==='running')later(c);else await refresh(c).catch(()=>status(c,'Your answer is saved. Return when online to refresh the full history.'));
-    }catch{if(valid()){c.answerErrors[id]=true;await refresh(c).catch(()=>{});draw(c);}}
+    }catch(error){if(valid()){
+      // A pre-provider rejection can delete an accepted turn (and its empty thread).
+      // Carry its question through refresh/new-thread recovery, never over a newer draft.
+      const question=pendingQuestion,field=$('#kit-text',c.el);
+      const restored=c.historyEnabled&&question&&!field.value.trim();
+      if(restored){field.value=question;try{save(c,'draft',question);}catch{}field.dispatchEvent(new Event('input'));}
+      c.answerErrors[id]=true;let refreshed=false;try{await refresh(c);refreshed=true;}catch{}
+      if(valid()){
+        if(restored&&refreshed&&c.messages.some(m=>String(m.client_id)===String(id))&&field.value===question){field.value='';store.del(chatKey(c,'draft'));field.dispatchEvent(new Event('input'));}
+        status(c,error.message||'Your question is kept. Try again.');draw(c);
+      }
+    }}
     finally{if(valid())c.sending=false;if(valid()){controls(c);if(c.messages.some(m=>m.state==='running'))later(c);}}
   }
   async function deliver(c){
@@ -360,10 +374,10 @@ Object.assign(KitChat, (() => {
     try{
       const m=await api('/api/coach/conversation/messages',json('POST',c.job));if(!valid())return;
       c.messages=[...c.messages.filter(x=>x.client_id!==m.client_id),m].sort((a,b)=>a.id-b.id);
-      const field=$('#kit-text',c.el);if(field.value.trim()===c.job.question){field.value='';field.style.height='';store.del(key(c.owner,'draft'));}
-      c.job=null;store.del(key(c.owner,'pending'));c.view.pin(true);draw(c);
+      const field=$('#kit-text',c.el);if(field.value.trim()===c.job.question){field.value='';field.style.height='';store.del(chatKey(c,'draft'));}
+      c.job=null;store.del(chatKey(c,'pending'));c.view.pin(true);draw(c);
       c.sending=false;await answer(c,m.client_id);
-    }catch(e){if(valid()){c.jobError=true;if(e.status===409)await refresh(c).catch(()=>{});draw(c);}}
+    }catch(e){if(valid()){c.jobError=true;if(e.status===409)await beginThreadOrVisit(c).catch(()=>{});draw(c);}}
     finally{if(valid())c.sending=false;if(valid())controls(c);}
   }
   function sendStarter(c,button){
@@ -404,7 +418,105 @@ Object.assign(KitChat, (() => {
       });
     });
   }
+  const THREADS='/api/coach/conversation/threads';
+  async function threadList(c,before=null){
+    const visit=c.visit_id,generation=c.generation,data=await api(THREADS+(before?'?before='+encodeURIComponent(before):''));
+    if(active(c)&&c.visit_id===visit&&c.generation===generation&&data.enabled)c.historyGeneration=data.generation;
+    return data;
+  }
+  async function beginThreadOrVisit(c,missing=false){
+    return c.historyEnabled?beginThread(c,missing?null:c.conversation_id,$('#kit-text',c.el).value):begin(c,true);
+  }
+  async function beginThread(c,id=null,carryDraft=null){
+    if(!active(c))return;keepDraft(c);clearTimeout(c.timer);clearWait(c);cancelVisitExpiry(c.owner);
+    const request=c.historyRequest=(c.historyRequest||0)+1,field=$('#kit-text',c.el),bootDraft=!c.historyOpened?field.value:'',thread=id||newId(),visit=newId();
+    c.historyOpened=true;c.conversation_id=thread;c.visit_id=visit;c.closed=false;c.loaded=false;c.ready=false;
+    c.messages=[];c.localMessages=[];c.job=null;c.sending=false;c.before=null;c.answerErrors={};c.jobError='';
+    if(c.foodHost){viewResources.get(c.foodHost)?.();viewResources.delete(c.foodHost);c.foodHost.remove();c.foodHost=null;}c.foodStarted=false;
+    field.value=store.get(chatKey(c,'draft'))||carryDraft||bootDraft||store.get(chatKey(c,'pending'))?.question||'';
+    field.style.height='';save(c,'draft',field.value);store.del(chatKey(c,'pending'));save(c,'conversation',thread);
+    const valid=()=>active(c)&&c.historyRequest===request&&c.visit_id===visit&&c.conversation_id===thread;
+    draw(c);status(c,'Opening your chat…');
+    const start=async(retry=true)=>{
+      try{
+        const data=await api(id?THREADS+'/'+encodeURIComponent(thread)+'/resume':THREADS,json('POST',{...(id?{}:{conversation_id:thread}),visit_id:visit,generation:c.historyGeneration}));
+        if(!valid())return;
+        c.generation=data.generation;c.historyGeneration=data.generation;c.visit_id=data.visit_id;c.visit_created_at=Date.now();
+        writeVisit(c.owner,{visit_id:c.visit_id,created_at:c.visit_created_at,left_at:null});
+        c.messages=data.messages;c.before=data.before;c.ready=data.ready;c.loaded=true;
+        for(const row of c.messages)if(row.state==='pending')c.answerErrors[row.client_id]=true;
+        store.del(key(c.owner,'draft'));status(c,'');draw(c);field.dispatchEvent(new Event('input'));c.view?.pin(true);
+        if(c.messages.some(row=>row.state==='running'))later(c);
+      }catch(e){
+        if(!valid())return;
+        if(retry&&e.status===409){await threadList(c);if(valid())return start(false);return;}
+        if(id&&e.status===404){await threadList(c);if(valid())return beginThread(c,null,field.value);return;}
+        throw e;
+      }
+    };
+    try{await start();}catch(e){if(valid()){status(c,e.message);const retry=$('#kit-load-retry',c.el);retry.hidden=false;retry.onclick=()=>beginThread(c,id,field.value);}}
+  }
+  function threadHistory(c){
+    if(!active(c))return;
+    sheet('Chats','<div id="kit-chats"><p class="muted">Loading chats…</p></div>',(body,close)=>{
+      const box=$('#kit-chats',body),sh=body.closest('.sheet'),valid=()=>active(c)&&body.isConnected;
+      let rows=[],before=null,sequence=0,loading=false,swipe=null,suppressTap=false;
+      sh.classList.add('kit-history-sheet');
+      const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
+      menu.setAttribute('aria-label','Chat history options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
+      menu.onclick=()=>sheet('Chat history options',`<button class="linkbtn wide kit-history-action" id="kit-earlier-reviews">Earlier Kit reviews</button>${rows.length?'<button class="linkbtn wide danger kit-history-action" id="kit-delete-all">Delete all chats</button>':''}`,(b,done)=>{
+        $('#kit-earlier-reviews',b).onclick=()=>{done();close();savedReviews();};
+        const all=$('#kit-delete-all',b);if(all)all.onclick=()=>{done();void remove(null);};
+      });
+      const reveal=(row,on)=>{row.classList.toggle('is-revealed',on);const button=$('[data-kit-delete]',row);button.inert=!on;button.setAttribute('aria-hidden',String(!on));};
+      const render=()=>{
+        const top=box.scrollTop;sh.classList.toggle('kit-history-tall',!!before||rows.length>=8);
+        box.innerHTML=`<button class="linkbtn kit-history-action" id="kit-new-chat">${svg('plus')}<span>New chat</span></button><div class="kit-history-list">${rows.map(row=>`<div class="kit-history-row"><button class="kit-history-delete" data-kit-delete="${esc(row.conversation_id)}" aria-label="Delete" aria-hidden="true" inert>${svg('trash')}</button><div class="kit-history-front"><button class="kit-history-open" data-kit-chat="${esc(row.conversation_id)}" ${row.conversation_id===c.conversation_id?'aria-current="true"':''}><span><strong>${esc(row.title||'New chat')}</strong><small>${esc(Number.isFinite(Date.parse(row.updated))?new Date(row.updated).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'')}</small></span>${row.conversation_id===c.conversation_id?svg('check'):''}</button><button class="icon-btn kit-history-options" data-kit-options="${esc(row.conversation_id)}" aria-label="Chat options: ${esc(row.title||'New chat')}">${svg('more')}</button></div></div>`).join('')}</div>${!rows.length?'<p>No saved chats yet.</p>':''}<p class="err" id="kit-history-error" role="alert"></p><button class="linkbtn kit-history-action" id="kit-history-retry" hidden>Try again</button>`;
+        box.scrollTop=top;
+        $('#kit-new-chat',box).onclick=()=>{close();void beginThread(c);};
+        $$('[data-kit-chat]',box).forEach(b=>b.onclick=()=>{if(suppressTap)return;if(b.closest('.is-revealed')){reveal(b.closest('.kit-history-row'),false);return;}close();void beginThread(c,b.dataset.kitChat);});
+        $$('[data-kit-delete]',box).forEach(b=>b.onclick=()=>remove(b.dataset.kitDelete));
+        $$('[data-kit-options]',box).forEach(b=>b.onclick=()=>sheet('Chat options','<button class="linkbtn danger kit-history-action" id="kit-row-delete">Delete chat</button>',(bdy,done)=>{$('#kit-row-delete',bdy).onclick=()=>{done();void remove(b.dataset.kitOptions);};}));
+      };
+      // Horizontal touch is a shortcut; every row also has a keyboard-accessible menu.
+      box.addEventListener('touchstart',e=>{e.stopPropagation();const row=e.target.closest('.kit-history-row');swipe=e.touches.length===1&&row?{row,x:e.touches[0].clientX,y:e.touches[0].clientY,horizontal:false}:null;},{passive:true});
+      box.addEventListener('touchmove',e=>{e.stopPropagation();if(!swipe)return;const dx=e.touches[0].clientX-swipe.x,dy=e.touches[0].clientY-swipe.y;if(!swipe.horizontal&&Math.abs(dy)>Math.abs(dx)&&Math.abs(dy)>8){swipe=null;return;}if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)){swipe.horizontal=true;e.preventDefault();e.stopPropagation();$$('.is-revealed',box).forEach(row=>reveal(row,false));reveal(swipe.row,dx<0);}},{passive:false});
+      box.addEventListener('touchend',e=>{e.stopPropagation();if(swipe?.horizontal){e.preventDefault();e.stopPropagation();suppressTap=true;setTimeout(()=>suppressTap=false,250);}swipe=null;},{passive:false});
+      box.addEventListener('touchcancel',()=>{swipe=null;});
+      box.addEventListener('scroll',()=>{if(before&&!loading&&box.scrollHeight-box.scrollTop-box.clientHeight<80)void load(true);},{passive:true});
+      const load=async(append=false)=>{
+        const request=++sequence;loading=true;
+        try{const data=await threadList(c,append?before:null);if(!valid()||request!==sequence)return;
+          if(!data.enabled){box.innerHTML='<p>Chat history is unavailable. Your saved chats are kept.</p>';return;}
+          rows=[...new Map((append?[...rows,...data.conversations]:data.conversations).map(row=>[row.conversation_id,row])).values()];before=data.before;render();
+        }catch(e){if(valid()){if(!$('#kit-history-error',box))box.innerHTML='<p class="err" id="kit-history-error" role="alert"></p><button class="linkbtn kit-history-action" id="kit-history-retry">Try again</button>';$('#kit-history-error',box).textContent=e.message;const retry=$('#kit-history-retry',box);if(retry){retry.hidden=false;retry.onclick=()=>load(append);}}}
+        finally{if(request===sequence)loading=false;}
+      };
+      const remove=async id=>{
+        if(!valid()||!await confirmSheet(id?'Delete this chat?':'Delete all Kit chats?',{body:"This can't be undone.",action:id?'Delete chat':'Delete all chats'})||!valid())return;
+        $$('button',box).forEach(b=>b.disabled=true);
+        try{
+          const data=await api(THREADS+(id?'/'+encodeURIComponent(id):''),{method:'DELETE'});if(!valid())return;
+          c.historyRequest=(c.historyRequest||0)+1;c.generation=data.generation;c.historyGeneration=data.generation;clearTimeout(c.timer);
+          const draft=$('#kit-text',c.el).value,currentId=c.conversation_id;
+          for(const k of Object.keys(localStorage))if((k.startsWith('fit.kit.draft:')||k.startsWith('fit.kit.pending:'))&&k.endsWith(':'+c.owner)&&(!id||k===key(c.owner,'draft:'+id)||k===key(c.owner,'pending:'+id)))localStorage.removeItem(k);
+          if(!id||id===currentId){c.conversation_id=null;c.job=null;}
+          rows=id?rows.filter(row=>row.conversation_id!==id):[];before=null;render();
+          await load();if(!valid())return;
+          await beginThread(c,!id||id===currentId?null:currentId,draft);
+        }catch(e){if(valid()){$('#kit-history-error',box).textContent=e.message;$$('button',box).forEach(b=>b.disabled=false);}}
+      };
+      void load();
+    });
+  }
   async function begin(c,forceFresh=false){
+    if(c.historyEnabled==null){
+      try{const data=await threadList(c);if(!active(c))return;
+        if(data.enabled!==false&&!(data.enabled===true&&data.retention==='until_deleted'&&typeof data.generation==='string'))throw Error('Chat history could not load. Try again.');
+        c.historyEnabled=data.enabled===true;c.initialThreads=data.conversations||[];
+      }catch(e){if(!active(c))return;if(e.status===404||e.status===405)c.historyEnabled=false;else{status(c,e.message);const retry=$('#kit-load-retry',c.el);retry.hidden=false;retry.onclick=()=>begin(c);return;}}
+    }
+    if(c.historyEnabled){const button=$('#kit-saved',c.el);button.setAttribute('aria-label','Chats');button.title='Chats';return beginThread(c,c.conversation_id||store.get(key(c.owner,'conversation'))||c.initialThreads?.[0]?.conversation_id);}
     c.closed=false;c.loaded=false;c.messages=[];c.job=null;c.sending=false;c.before=null;c.answerErrors={};
     let record=forceFresh?null:readVisit(c.owner),now=Date.now();
     if(record&&now-record.created_at>=VISIT_MAX_AGE){cancelVisitExpiry(c.owner);store.del(c.owner,'visit');record=null;}
@@ -429,28 +541,77 @@ Object.assign(KitChat, (() => {
   function memorySettings(){
     const session=readOwner();
     sheet('What Kit remembers','<div id="kit-memory"><p class="muted">Loading memory…</p></div>',body=>{
-      const box=$('#kit-memory',body),valid=()=>session===readOwner()&&body.isConnected;
+      const box=$('#kit-memory',body),sh=body.closest('.sheet'),valid=()=>session===readOwner()&&body.isConnected;
+      const title=$('h2',sh),labels={goal:'Goal',preference:'Preference',routine:'Routine'};
+      const date=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
+      let data=null,swipe=null,suppressTap=false;
+      sh.classList.add('kit-history-sheet');
+      const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
+      menu.setAttribute('aria-label','Memory options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
+      const remove=async(id,button)=>{
+        if(!valid())return;
+        button.disabled=true;
+        try{await api('/api/coach/conversation/memory'+(id?'/'+id:''),{method:'DELETE'});if(valid())await draw();}
+        catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;button.disabled=false;}}
+      };
+      menu.onclick=()=>{
+        if(!valid())return;
+        sheet('Memory options','<button type="button" class="linkbtn wide danger kit-history-action" id="kit-forget-all">Forget all memories</button>',(b,done)=>{
+          $('#kit-forget-all',b).onclick=async event=>{
+            if(!valid())return;
+            const button=event.currentTarget;
+            if(!await confirmSheet('Forget all memories?',{body:'Kit will stop remembering these details.',action:'Forget all'})||!valid())return;
+            done();await remove(null,button);
+          };
+        });
+      };
+      const reveal=(row,on)=>{row.classList.toggle('is-revealed',on);const button=$('[data-kit-forget]',row);button.inert=!on;button.setAttribute('aria-hidden',String(!on));};
+      // Keep list swipes out of the sheet's vertical-dismiss gesture; row taps also work with a keyboard.
+      box.addEventListener('touchstart',e=>{e.stopPropagation();const row=e.target.closest('.kit-memory-row');swipe=e.touches.length===1&&row?{row,x:e.touches[0].clientX,y:e.touches[0].clientY,horizontal:false}:null;},{passive:true});
+      box.addEventListener('touchmove',e=>{e.stopPropagation();if(!swipe)return;const dx=e.touches[0].clientX-swipe.x,dy=e.touches[0].clientY-swipe.y;if(!swipe.horizontal&&Math.abs(dy)>Math.abs(dx)&&Math.abs(dy)>8){swipe=null;return;}if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)){swipe.horizontal=true;e.preventDefault();$$('.is-revealed',box).forEach(row=>reveal(row,false));reveal(swipe.row,dx<0);}},{passive:false});
+      box.addEventListener('touchend',e=>{e.stopPropagation();if(swipe?.horizontal){e.preventDefault();suppressTap=true;setTimeout(()=>suppressTap=false,250);}swipe=null;},{passive:false});
+      box.addEventListener('touchcancel',()=>{swipe=null;});
+      const edit=memory=>{
+        if(!valid())return;
+        const editable=Number.isSafeInteger(data.version)&&data.enabled;let kind=memory?.kind||'preference';
+        title.textContent=memory?'Edit detail':'Add a detail';menu.hidden=true;
+        box.innerHTML=`<form id="kit-memory-form"><div class="underline-tabs" role="group" aria-label="Type">${Object.entries(labels).map(([key,label])=>`<button type="button" data-kit-kind="${key}" aria-pressed="${kind===key}" ${editable?'':'disabled'}>${label}</button>`).join('')}</div><label class="vh" for="kit-memory-text">Detail</label><textarea id="kit-memory-text" rows="3" maxlength="400" required placeholder="I prefer morning runs." ${editable?'':'readonly'}>${esc(memory?.text||'')}</textarea><p class="err" id="kit-memory-error" role="alert"></p><div class="kit-memory-edit-actions"><button type="button" class="ghost" id="kit-memory-cancel">Cancel</button>${editable?'<button type="submit" class="primary" id="kit-memory-save">Save</button>':''}</div>${memory?'<button type="button" class="linkbtn wide danger kit-history-action" id="kit-memory-delete">Delete</button>':''}</form>`;
+        $$('[data-kit-kind]',box).forEach(button=>button.onclick=()=>{
+          if(!valid())return;kind=button.dataset.kitKind;$$('[data-kit-kind]',box).forEach(tab=>tab.setAttribute('aria-pressed',String(tab===button)));
+        });
+        $('#kit-memory-cancel',box).onclick=()=>{if(valid())draw();};
+        const del=$('#kit-memory-delete',box);if(del)del.onclick=()=>remove(memory.id,del);
+        $('#kit-memory-form',box).onsubmit=async event=>{
+          event.preventDefault();if(!valid()||!editable)return;
+          const text=$('#kit-memory-text',box).value.trim();if(!text)return;
+          const save=$('#kit-memory-save',box);save.disabled=true;
+          try{
+            await api('/api/coach/conversation/memory'+(memory?'/'+memory.id:''),json(memory?'PATCH':'POST',{text,kind,version:data.version}));
+            if(valid())await draw();
+          }catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;save.disabled=false;}}
+        };
+      };
       const draw=async()=>{
         try{
-          const data=await api('/api/coach/conversation/memory');if(!valid())return;
-          box.innerHTML=`<p>Kit can keep short statements you share about your preferences, goals and routines, in your own words. It keeps up to twelve for six months. Current records and what you say now take priority.</p><label class="check"><input type="checkbox" id="kit-memory-on" ${data.enabled?'checked':''}>Remember useful details</label><p class="small muted">Turning this off also removes saved memories. Removing a memory stops its use in future chats; messages in your current chat stay until you leave.</p><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<article class="card"><p>${esc(m.text)}</p><button type="button" class="linkbtn danger" data-kit-forget="${m.id}">Forget this</button></article>`).join(''):'<p class="muted">No saved memories yet.</p>'}</div>${data.memories.length?'<button type="button" class="ghost wide danger" id="kit-forget-all">Forget all memories</button>':''}<p class="err" id="kit-memory-error" role="alert"></p>`;
+          const next=await api('/api/coach/conversation/memory');if(!valid())return;data=next;
+          title.textContent='What Kit remembers';menu.hidden=!data.memories.length;
+          const editable=Number.isSafeInteger(data.version)&&data.enabled;
+          box.innerHTML=`${editable&&data.memories.length<12?`<button type="button" class="linkbtn kit-history-action" id="kit-memory-add">${svg('plus')}<span>Add a detail</span></button>`:''}<label class="switch-row kit-memory-switch"><span>Remember useful details</span><input type="checkbox" role="switch" id="kit-memory-on" ${data.enabled?'checked':''}></label><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<div class="kit-history-row kit-memory-row"><button type="button" class="kit-history-delete" data-kit-forget="${m.id}" aria-label="Delete" aria-hidden="true" inert>${svg('trash')}</button><div class="kit-history-front"><button type="button" class="kit-history-open" data-kit-edit="${m.id}"><span><strong>${esc(m.text)}</strong><small>${esc([labels[m.kind]||'Detail',date(m.updated)].filter(Boolean).join(' · '))}</small></span></button></div></div>`).join(''):'<p class="muted kit-memory-empty">No saved details yet.</p>'}</div><p class="err" id="kit-memory-error" role="alert"></p>`;
+          const add=$('#kit-memory-add',box);if(add)add.onclick=()=>edit(null);
+          $$('[data-kit-edit]',box).forEach(button=>button.onclick=()=>{
+            if(!valid()||suppressTap)return;const row=button.closest('.kit-memory-row');if(row.classList.contains('is-revealed')){reveal(row,false);return;}
+            edit(data.memories.find(m=>String(m.id)===button.dataset.kitEdit));
+          });
+          $$('[data-kit-forget]',box).forEach(button=>button.onclick=()=>remove(button.dataset.kitForget,button));
           $('#kit-memory-on',box).onchange=async e=>{
             if(!valid())return;
-            const enabled=e.target.checked;
-            const toggle=e.target;if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Everything Kit remembers is removed. Your records stay saved.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
-            e.target.disabled=true;
-            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;e.target.checked=!enabled;e.target.disabled=false;}}
+            const toggle=e.target,enabled=toggle.checked;
+            if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Kit will forget your saved details.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
+            toggle.disabled=true;
+            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}
+            catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;toggle.checked=!enabled;toggle.disabled=false;}}
           };
-          $$('[data-kit-forget]',box).forEach(button=>button.onclick=async()=>{
-            if(!valid())return;
-            button.disabled=true;try{await api('/api/coach/conversation/memory/'+button.dataset.kitForget,{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;button.disabled=false;}}
-          });
-          const all=$('#kit-forget-all',box);if(all)all.onclick=async()=>{
-            if(!valid())return;
-            if(!await confirmSheet('Forget all Kit memories?',{body:'Your records and current chat stay saved.',action:'Forget all'})||!valid())return;
-            all.disabled=true;try{await api('/api/coach/conversation/memory',{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;all.disabled=false;}}
-          };
-        }catch(e){if(valid())box.innerHTML=`<p class="err">${esc(e.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
+        }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
       };draw();
     });
   }
@@ -466,7 +627,7 @@ Object.assign(KitChat, (() => {
     el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}" aria-label="Back">${svg('back')}</a><h1>Ask Kit</h1><div class="kit-chat-actions"><button type="button" class="icon-btn" id="kit-saved" aria-label="Earlier Kit reviews" title="Earlier Kit reviews">${svg('list')}</button><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></div></header><p id="kit-status" role="status" aria-live="polite"></p><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="kit-messages" aria-live="off"></div><section id="kit-intro"><button class="ghost wide" id="kit-load-retry" hidden>Try loading again</button></section><form id="kit-composer" class="thread-composer"><div class="kit-starters chat-suggestions" id="kit-starters" role="group" aria-label="Suggestions">${starters[ctx.screen].map((label,i)=>`<button type="button" data-kit-start="${i}">${svg(starterIcons[ctx.screen][i])}<span>${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}</span></button>`).join('')}</div><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div><p class="kit-fine" id="kit-fine">${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button></p></form>`;
     const field=$('#kit-text',el),oldJob=store.get(key(c.owner,'pending'));
     field.value=store.get(key(c.owner,'draft'))||(entryDraft?.owner===c.owner?entryDraft.question:null)||oldJob?.question||new URLSearchParams(location.search).get('question')?.slice(0,1500)||'';el.classList.toggle('has-draft',!!field.value.trim());$('#kit-starters',el).inert=!!field.value.trim();
-    entryDraft=null;store.del(key(c.owner,'pending'));
+    entryDraft=null;store.del(chatKey(c,'pending'));
     const resize=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,160)+'px';};
     field.oninput=()=>{const drafted=!!field.value.trim();el.classList.toggle('has-draft',drafted);$('#kit-starters',el).inert=drafted;try{save(c,'draft',field.value);}catch(e){status(c,'Your draft could not be saved on this phone.');}resize();controls(c);};
     field.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send(c);}};
@@ -474,14 +635,15 @@ Object.assign(KitChat, (() => {
     $$('[data-kit-start]',el).forEach(b=>b.onclick=()=>sendStarter(c,b));
     $('#kit-footer-memory',el).onclick=memorySettings;
     $('#kit-older',el).onclick=async()=>{const list=$('#kit-messages',el),h=list.scrollHeight,y=list.scrollTop;try{await refresh(c,c.before);list.scrollTop=y+list.scrollHeight-h;}catch(e){status(c,e.message);}};
-    $('#kit-saved',el).onclick=savedReviews;
+    $('#kit-saved',el).onclick=()=>c.historyEnabled?threadHistory(c):savedReviews();
     $('#kit-settings',el).onclick=()=>sheet('Kit chat',`<button type="button" class="linkbtn wide" id="kit-about-open">About Kit</button><button type="button" class="linkbtn wide" id="kit-memory-open">What Kit remembers</button><a class="linkbtn wide" href="/me/settings#ai" data-close>Kit & data permissions</a><button type="button" class="ghost wide" id="kit-clear">Start a new chat</button><p class="small muted">Your food, workouts, plans, goals and saved memories stay available.</p>`,(body,close)=>{
-      $('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',`<p>Your chat stays while you switch apps. Start a new one anytime.</p><p>Uses ${esc(providerName())}.</p><p>Kit checks your own records when needed and can keep useful details you share.</p>`);};
+      $('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',`<p>${c.historyEnabled?'Your chats stay until you delete them. Start a new one anytime.':'Your chat stays while you switch apps. Start a new one anytime.'}</p><p>Uses ${esc(providerName())}.</p><p>Kit checks your own records when needed and can keep useful details you share.</p>`);};
       $('#kit-memory-open',body).onclick=()=>{close();memorySettings();};
       $('#kit-clear',body).onclick=async e=>{
         if(!active(c)||!c.loaded)return;e.target.disabled=true;
+        if(c.historyEnabled){close();await beginThread(c);return;}
         const previousVisit=c.visit_id;
-        try{const data=await api('/api/coach/conversation/clear',json('POST',{generation:c.generation,visit_id:previousVisit,confirmed:true}));if(!active(c)||c.visit_id!==previousVisit)return;clearTimeout(c.timer);cancelVisitExpiry(c.owner);c.visit_id=data.visit_id;c.visit_created_at=Date.now();writeVisit(c.owner,{visit_id:c.visit_id,created_at:c.visit_created_at,left_at:null});c.generation=data.generation;c.sending=false;c.answerErrors={};c.messages=[];c.before=null;c.job=null;c.jobError='';store.del(key(c.owner,'pending'));store.del(key(c.owner,'draft'));field.value='';close();status(c,'');draw(c);}catch(x){if(active(c)){status(c,x.message);e.target.disabled=false;}}
+        try{const data=await api('/api/coach/conversation/clear',json('POST',{generation:c.generation,visit_id:previousVisit,confirmed:true}));if(!active(c)||c.visit_id!==previousVisit)return;clearTimeout(c.timer);cancelVisitExpiry(c.owner);c.visit_id=data.visit_id;c.visit_created_at=Date.now();writeVisit(c.owner,{visit_id:c.visit_id,created_at:c.visit_created_at,left_at:null});c.generation=data.generation;c.sending=false;c.answerErrors={};c.messages=[];c.before=null;c.job=null;c.jobError='';store.del(chatKey(c,'pending'));store.del(chatKey(c,'draft'));field.value='';close();status(c,'');draw(c);}catch(x){if(active(c)){status(c,x.message);e.target.disabled=false;}}
       };
     });
     c.view=foodChatViewport({list:$('#kit-messages',el),composer:$('#kit-composer',el),field,send:$('#kit-send',el),suggestions:$('#kit-starters',el),header:$('.thread-heading',el),active:()=>active(c),resizeField:resize});
@@ -494,7 +656,7 @@ Object.assign(KitChat, (() => {
     controls(c);resize();await begin(c);
     if(active(c))c.view.pin(true);
   }
-  function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){cancelVisitExpiry(o);tabEntryUsers.delete(o);activityEntryUsers.delete(o);activityEntryRequests.delete(o);for(const k of ['draft','pending','visit'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
+  function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){cancelVisitExpiry(o);tabEntryUsers.delete(o);activityEntryUsers.delete(o);activityEntryRequests.delete(o);for(const k of ['draft','pending','visit','conversation'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if((k.startsWith('fit.kit.draft:')||k.startsWith('fit.kit.pending:'))&&k.endsWith(':'+o))localStorage.removeItem(k);for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
   function entry(el,path){
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/food/insights':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
     if(!el||!screen)return;
@@ -517,6 +679,12 @@ Object.assign(KitChat, (() => {
 })());
 route(/^\/me\/kit$/,()=>({nutrition:'food',activity:'activity',progress:'progress',track:'track',strength:'track'}[new URLSearchParams(location.search).get('from')]||'me'),el=>KitChat.mount(el));
 function kitReview(selection, options = {}) {
+  if(selection.kind==='goal'){
+    const owner=readOwner();
+    return loadClassicScript('/static/kit-goal-ui.js?v=__ASSET_HASH__')
+      .then(()=>{if(owner===readOwner())kitGoalReview(selection,options);})
+      .catch(e=>{if(owner===readOwner())toast(e.message);});
+  }
   const candidate = selection.candidate;
   sheet('Review proposed change', `<p class="small">Nothing changes until you confirm.</p>
     ${selection.kind === 'plan' ? `<p>${esc(candidate.reason)}</p>${candidate.changes.map((w) => `<div class="card"><b>${esc(w.title)}</b><p class="small">${esc(w.day)} · ${esc(w.detail)}</p></div>`).join('')}`

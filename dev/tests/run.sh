@@ -244,6 +244,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/contacts_blocks_incontai
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_store_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_upgrade_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_api_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_goal_actions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_limits_incontainer.py
 
 if [[ "$MODE" == --quick ]]; then echo "== quick unit/API checks passed"; exit 0; fi
@@ -334,6 +335,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_thread_kit_incontai
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_daily_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_visits_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_memory_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_transport_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_release_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_copy_incontainer.py

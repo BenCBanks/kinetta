@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
 
-from . import coach, db, ai_budget
+from . import coach, db, ai_budget, kit_goal_contract
 from .coach_tools import AccountTools, FoodTools, Empty, specifications
 from .kit_answer_format import has_ambiguous_mass_unit
 
@@ -759,7 +759,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         if not food_only and not kit:
             with db.coach_connect(uid) as c:
                 if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
-        if kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and 'error' not in e for e in evidence):
+        if kit and any(e['tool'] not in ({'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} | kit_goal_contract.NON_HEALTH_TOOLS) and 'error' not in e for e in evidence):
             with db.coach_connect(uid) as c:
                 if not coach.health_ok(c,uid):return kit_conversation.consent_answer()
         with ai_budget.scope(uid):
@@ -809,7 +809,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
                     if not coach.allowed(uid):raise ValueError(coach.off())
                     health_tools={'profile','nutrition_summary','meal_options','meal_combinations','food_log',
-                                  'nutrition_days_vs_goal','stored_foods','goals','app_features'}
+                                  'nutrition_days_vs_goal','stored_foods','goals','app_features'} | kit_goal_contract.NON_HEALTH_TOOLS
                     if any(e['tool'] not in health_tools and 'data' in e for e in evidence):
                         with db.coach_connect(uid) as c:
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
@@ -842,7 +842,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                                          'label':period['label']}
             return {**checked, 'prompt_version': 'kit-numbers-4' if kit else PROMPT_VERSION, 'usage': usage,
                     'latency_ms': round((time.monotonic() - began) * 1000),
-                    'health_included':kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and 'data' in e for e in evidence),
+                    'health_included':kit and any(e['tool'] not in ({'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} | kit_goal_contract.NON_HEALTH_TOOLS) and 'data' in e for e in evidence),
                     'tools_used': [e['tool'] for e in evidence]}
         results = []
         for call in calls:
