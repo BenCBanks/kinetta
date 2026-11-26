@@ -44,6 +44,7 @@ async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
      // Keep the Today card and its pinned browser clock on the same plan day, even across local midnight.
      if(scene.todayPlan&&u.pathname==='/api/plans/current')return r.fulfill({json:fixtures.me_today.plan});
      if(scene.groups&&u.pathname==='/api/groups')return r.fulfill({json:[]});
+     if(scene.group&&/^\/api\/groups\/[0-9a-f-]+\/challenges$/.test(u.pathname))return r.fulfill({json:[]});
      if(scene.group==='empty'&&u.pathname==='/api/groups/00000000-0000-4000-8000-000000000001')return r.fulfill({json:require('./spacing_screens.cjs').GROUP_EMPTY});
      if(scene.group==='full'&&u.pathname==='/api/groups/00000000-0000-4000-8000-000000000050')return r.fulfill({json:require('./spacing_screens.cjs').GROUP_FULL});
      if(scene.invite&&u.pathname==='/api/group-invites/0123456789abcdef0123456789abcdef')return r.fulfill({json:{available:true}});

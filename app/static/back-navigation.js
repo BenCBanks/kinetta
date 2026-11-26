@@ -16,7 +16,7 @@ const BackNavigation=(()=>{
   if(p==='/food'&&u.searchParams.get('view')==='overview')return 'Food & weight';
   if(p==='/routes'&&u.searchParams.get('view')==='segments')return 'Segments';
   if(exact[p])return exact[p];
-  for(const [re,name] of [[/^\/activity\/(?:friends\/)?\d+$/,'Activity'],[/^\/groups\/invites\/\d+$/,'Group invite'],[/^\/groups\/[^/]+$/,'Group'],[/^\/group-invite\/[^/]+$/,'Group invite'],[/^\/people\/[^/]+$/,'Profile'],[/^\/food\/cook\/\d+$/,'Recipe'],[/^\/(?:track\/)?lift\/ex\/\d+$/,'Exercise'],[/^\/(?:track\/)?lift\/\d+$/,'Lifting'],[/^\/route\/\d+$/,'Route'],[/^\/segments\/\d+$/,'Segment'],[/^\/records\//,'Records'],[/^\/(?:me\/challenges|challenge)\/[^/]+$/,'Challenge'],[/^\/card\/[^/]+$/,'Kinetta card'],[/^\/add\/[^/]+$/,'Friend invite']])if(re.test(p))return name;
+  for(const [re,name] of [[/^\/activity\/(?:friends\/)?\d+$/,'Activity'],[/^\/groups\/invites\/\d+$/,'Group invite'],[/^\/groups\/[^/]+\/challenges\/[^/]+$/,'Challenge'],[/^\/groups\/[^/]+$/,'Group'],[/^\/group-invite\/[^/]+$/,'Group invite'],[/^\/people\/[^/]+$/,'Profile'],[/^\/food\/cook\/\d+$/,'Recipe'],[/^\/(?:track\/)?lift\/ex\/\d+$/,'Exercise'],[/^\/(?:track\/)?lift\/\d+$/,'Lifting'],[/^\/route\/\d+$/,'Route'],[/^\/segments\/\d+$/,'Segment'],[/^\/records\//,'Records'],[/^\/(?:me\/challenges|challenge)\/[^/]+$/,'Challenge'],[/^\/card\/[^/]+$/,'Kinetta card'],[/^\/add\/[^/]+$/,'Friend invite']])if(re.test(p))return name;
   return parent(clean);
  }
  const appPath=value=>{const p=path(value);return p&&/^\/(?:me|today|activity|track|progress|food|plan|lift|route|routes|segments|records|people|add|card|challenge|notifications|groups|group-invite|welcome)(?:\/|$)/.test(new URL(p,origin()).pathname);};
