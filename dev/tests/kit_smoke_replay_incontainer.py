@@ -53,9 +53,9 @@ def bad_provider(messages,definitions,**kwargs):
 with kit_conversation.correction_policy(False),patch('app.coach.allowed',return_value=True), \
      patch('app.coach.provider',return_value='gemini'),patch('app.kit_tools.KitTools.call',return_value={'units':'metric'}), \
      patch('app.coach_chat._gemini_turn',bad_provider):
-    try:coach_chat.answer(1,'A fictional question',kit=True)
-    except ValueError:pass
-    else:raise AssertionError('Truncated answer accepted')
+    recovered=coach_chat.answer(1,'A fictional question',kit=True)
+    assert recovered['app_fallback'] and recovered['facts']==[]
+    assert CAPTURES[0] not in recovered['interpretation']
 assert len(rounds)==1 and kit_conversation.corrections_enabled()
 # Complete current-response JSON gets a higher ceiling; legacy/weekly settings stay unchanged.
 assert kit_conversation.output_tokens(kit_conversation.SYSTEM,2500)==8192
