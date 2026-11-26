@@ -63,7 +63,8 @@ from . import account_email, signup, api_devices
 app.include_router(account_email.router)
 app.include_router(signup.router)
 app.include_router(api_devices.router)
-app.include_router(food_photo.router)
+from . import api_food_photos
+app.include_router(api_food_photos.router)
 app.include_router(nutrition_insights.router)
 app.include_router(history_import.router)
 app.include_router(plans.router)

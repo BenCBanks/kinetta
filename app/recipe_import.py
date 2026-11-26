@@ -227,5 +227,5 @@ from .recipe_photo import PhotoDraftIn
 
 @router.post('/photo')
 def photo_draft(body:PhotoDraftIn,user=Depends(current_user)):
-    from . import recipe_photo
-    return recipe_photo.read(body,user)
+    from . import recipe_photo, api_food_photos
+    return recipe_photo.read(api_food_photos.clean(body,user),user)

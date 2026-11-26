@@ -1,5 +1,6 @@
 """Disposable-data regressions: batch image contracts and summary correction/import consistency."""
-import base64,datetime as dt,json,unittest,uuid
+import base64,datetime as dt,io,json,unittest,uuid
+from PIL import Image
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import db,auth,food_photo,activities,api_health,parsers,activity_corrections
@@ -74,7 +75,9 @@ class Corrections(unittest.TestCase):
         with db.connect() as c:hit=activities.find_duplicate(c,self.uid,w.start,5000,'run',1800)
         self.assertEqual(hit['id'],aid)
     def test_images_joint_request_validation_and_legacy(self):
-        imgs=[base64.b64encode(b'\xff\xd8fictional'+bytes([i])).decode() for i in range(2)]
+        imgs=[]
+        for color in ('green','blue'):
+            raw=io.BytesIO();Image.new('RGB',(12,10),color).save(raw,'JPEG');imgs.append(base64.b64encode(raw.getvalue()).decode())
         captured=[]
         def ask(parts,*args):captured.append(parts);return {'items':[{'name':'Meal','amount':'one portion','kcal':400}]},{},'stand-in'
         with patch('app.food_photo.ask',side_effect=ask):

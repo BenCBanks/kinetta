@@ -1,5 +1,6 @@
 """Recipe unknown/photo adapters, stand-in estimator only; no paid models or photos retained."""
-import json,threading,uuid
+import base64,io,json,threading,uuid
+from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -67,7 +68,8 @@ try:
    row=c.execute('SELECT data FROM recipe_link_drafts WHERE user_id=%s AND id=%s',(uid,path.rsplit('/',1)[1])).fetchone();assert not row['data'].get('estimates')
    c.execute('UPDATE profile SET ai_ok = true, ai_adult_at = now() WHERE user_id=%s',(uid,))
  # Reuse the real estimator validation adapter; only its transport is a stand-in.
- identity=str(uuid.uuid4());photo={'client_id':identity,'image':'data:image/jpeg;base64,/9j/2Q=='}
+ raw=io.BytesIO();Image.new('RGB',(12,10),'green').save(raw,'JPEG')
+ identity=str(uuid.uuid4());photo={'client_id':identity,'image':'data:image/jpeg;base64,'+base64.b64encode(raw.getvalue()).decode()}
  model={'items':[{'name':'Fictional screenshot beans','amount':'100 g','grams':100,'kcal':200,'protein_g':10,'carbs_g':25,'fat_g':3,'fiber_g':6}],'notes':'Illustrative screenshot result; no actual OCR.'}
  with patch.object(food_photo,'ask',return_value=(model,{'usageMetadata':{}},'stand-in')) as ask:
   result=a.post('/api/recipe-links/photo',json=photo);assert result.status_code==200 and result.json()['state']=='ready',result.text
@@ -80,7 +82,7 @@ try:
  r=reviewed.json();assert r['per_serving']['kcal']==100 and r['sources']['kcal']=='estimated_ingredients'
  assert a.post(photo_path+'/save',json={'baseline':r['baseline'],'confirmed':True}).status_code==200
  with db.connect() as c:
-  rows=c.execute('SELECT data::text AS text FROM recipe_link_drafts WHERE user_id=%s',(uid,)).fetchall();assert all('/9j/2Q==' not in row['text'] and 'data:image' not in row['text'] for row in rows)
+  rows=c.execute('SELECT data::text AS text FROM recipe_link_drafts WHERE user_id=%s',(uid,)).fetchall();assert all(photo['image'] not in row['text'] and 'data:image' not in row['text'] for row in rows)
   assert not c.execute('SELECT 1 FROM food_entries WHERE user_id=ANY(%s)',(uids,)).fetchone()
  # Weighing an imported count-only ingredient preserves its known nutrition; Undo can restore it unweighted.
  d=a.get('/api/dishes/'+str(d['id'])).json();item=d['items'][1]

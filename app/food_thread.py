@@ -431,8 +431,8 @@ from .food_thread_models import ResolveIn as ThreadResolveIn
 
 @router.post('/messages/{mid}/resolve')
 def resolve_foods(mid: int,body: ThreadResolveIn,user=Depends(current_user)):
-    from . import food_thread_resolve as resolver
-    return resolver.resolve(user['id'],mid,body)
+    from . import food_thread_resolve as resolver, api_food_photos
+    return resolver.resolve(user['id'],mid,api_food_photos.clean(body,user))
 
 
 class ManualItem(N.ExtraValues):

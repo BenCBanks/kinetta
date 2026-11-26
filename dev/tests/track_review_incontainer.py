@@ -126,6 +126,9 @@ try:
     assert 'photos' not in __import__('json').loads(next(folder.glob('*.json')).read_bytes()), 'raw GPS file does not duplicate photo pixels'
     assert client.post('/api/activities/track', json=payload).json() == {'id': aid, 'duplicate': True}
     assert len(client.get(f'/api/activities/{aid}').json()['photos']) == 2
+    with db.connect() as c:
+        attempts = c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key=%s', (f'photo-upload:{uid}',)).fetchone()['n']
+        assert attempts == 3, 'two-photo requests count once each, including failure and retry'
     # Different recordings share one person-wide photo quota; exactly one may take the remaining slot.
     with patch.object(api_photos, 'PER_PERSON', 3):
         bodies = [dict(payload, client_id=str(uuid.uuid4()), photos=[image]) for _ in range(4)]

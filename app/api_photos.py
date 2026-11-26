@@ -18,8 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 
-from . import db, email_confirmation
-from .api_social import blocked, can_see
+from . import account_email, db, email_confirmation
+from .api_social import blocked, can_see, unconfirmed
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
@@ -27,6 +27,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000        # bigger than any phone photo; stops 
 PROFILE_PX = 512                           # profile photos: a square this size
 FULL_PX, THUMB_PX = 1600, 480              # activity photos: longest side
 PER_ACTIVITY, PER_PERSON = 10, 2000
+UPLOADS_PER_MINUTE = 30
 CACHE = {'Cache-Control': 'private, max-age=31536000, immutable'}   # a photo's address changes when the photo does
 
 
@@ -38,10 +39,21 @@ def _open(body):
     try:
         raw = base64.b64decode(body.image.split(',', 1)[-1], validate=True)
         im = Image.open(io.BytesIO(raw), formats=['JPEG', 'PNG', 'WEBP'])
+        if im.width * im.height > Image.MAX_IMAGE_PIXELS:
+            raise ValueError('Photo exceeds the pixel limit')
         im = ImageOps.exif_transpose(im)
         return im.convert('RGB')
     except (binascii.Error, ValueError, OSError, Image.DecompressionBombError):
         raise HTTPException(400, "That photo couldn't be opened. Try a JPEG or PNG.")
+
+
+def upload_attempt(user_id):
+    """Commit every attempt before decoding, including malformed/rejected image bodies."""
+    email_confirmation.require_upload(user_id)
+    with db.connect() as c:
+        limited = account_email.limited(c, f'photo-upload:{user_id}', UPLOADS_PER_MINUTE, 1)
+    if limited:
+        raise HTTPException(429, 'Too many photo uploads. Wait a minute and try again.', headers={'Retry-After': '60'})
 
 
 def _jpeg(im, quality=82):
@@ -62,7 +74,7 @@ def _jpeg_response(data):
 # ---------- profile photo ----------
 @router.put('/me/photo')
 def set_profile_photo(body: PhotoIn, user=Depends(current_user)):
-    email_confirmation.require_upload(user['id'])
+    upload_attempt(user['id'])
     img = _jpeg(ImageOps.fit(_open(body), (PROFILE_PX, PROFILE_PX), Image.LANCZOS))
     v = secrets.token_urlsafe(6)
     with db.connect() as c:
@@ -84,7 +96,8 @@ def remove_profile_photo(user=Depends(current_user)):
 def profile_photo(login: str, user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute(f"""SELECT pp.img FROM users u JOIN profile_photos pp ON pp.user_id = u.id
-                          WHERE u.login = %(login)s AND NOT {blocked('u.id')}""", {'login': login.lower(), 'viewer': user['id']}).fetchone()
+                          WHERE u.login = %(login)s AND NOT {blocked('u.id')}
+                          AND (u.id = %(viewer)s OR NOT {unconfirmed('u.id')})""", {'login': login.lower(), 'viewer': user['id']}).fetchone()
     if not r: raise HTTPException(404, 'Not found')
     return _jpeg_response(r['img'])
 
@@ -120,7 +133,7 @@ def lock_activity_photos(c, user_id):
 
 @router.post('/activities/{aid}/photos')
 def add_activity_photo(aid: int, body: PhotoIn, user=Depends(current_user)):
-    email_confirmation.require_upload(user['id'])
+    upload_attempt(user['id'])
     prepared = prepare_activity_photo(body)
     with db.connect() as c:
         lock_activity_photos(c, user['id'])
