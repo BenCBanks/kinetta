@@ -271,14 +271,15 @@ Object.assign(KitChat, (() => {
     if(!chart.workouts)return `<section class="kit-chart"><p>No ${esc(noun.toLowerCase())} in the last ${esc(String(chart.period_count))} ${esc(chart.period_unit)}.</p></section>`;
     const header=`<h3>${esc(title)}</h3><p class="kit-chart-subtitle">${esc(noun)} · ${esc(date(chart.start))} – ${esc(date(chart.end))}</p>`;
     if(known.length<2)return `<section class="kit-chart">${header}${known.length?`<dl class="kit-facts"><div><dt>${esc(date(known[0].start))}</dt><dd>${esc(known[0].display_value)}</dd></div></dl>`:''}${notes}</section>`;
-    const values=known.map(p=>p.plot_value),line=chart.group_by==='workout'||['pace','avg_hr'].includes(chart.metric),
+    const values=known.map(p=>p.plot_value),line=chart.metric!=='workouts'&&(chart.aggregate!=='sum'||chart.group_by==='workout'||['pace','avg_hr'].includes(chart.metric)),
       max=Math.max(...values,1),min=line?Math.min(...values)*.9:0,range=Math.max(max-min,1),
       y=v=>chart.metric==='pace'?20+(v-min)*110/range:130-(v-min)*110/range,
       step=points.length>12?4:points.length>6?2:1;
     const tick=value=>chart.metric==='pace'?`${Math.floor(Math.round(value)/60)}:${String(Math.round(value)%60).padStart(2,'0')}${chart.axis_unit}`:
       `${new Intl.NumberFormat(undefined,{maximumFractionDigits:1,notation:max>=10000?'compact':'standard'}).format(value)} ${chart.axis_unit}`;
     const labels=[0,1,2].map(i=>tick(chart.metric==='pace'?min+i*range/2:max-i*range/2)),
-      left=Math.max(54,Math.min(112,Math.max(...labels.map(t=>t.length))*7+8)),first=left+24,last=286,
+      left=Math.max(54,Math.min(112,Math.max(...labels.map(t=>t.length))*7+8)),band=(310-left-8)/points.length,
+      first=line?left+24:left+4+band/2,last=line?286:306-band/2,barWidth=band-Math.min(6,band*.2),
       x=i=>chartX(i,points.length,first,last);
     const ticks=[20,75,130].map((py,i)=>{
       return `<line class="kit-chart-grid" x1="${left}" x2="310" y1="${py}" y2="${py}"/><text class="kit-chart-tick" x="${left-8}" y="${py+4}" text-anchor="end">${esc(labels[i])}</text>`;
@@ -289,7 +290,7 @@ Object.assign(KitChat, (() => {
       const px=x(i),py=y(p.plot_value);path+=(connected?' L':' M')+px+','+py;connected=true;
       const label=`${date(p.start)}, ${p.display_value}, ${p.n} ${noun.toLowerCase()}${p.in_progress?', so far':''}`;
       return line?`<circle data-point="${i}" cx="${px}" cy="${py}" r="3"><title>${esc(label)}</title></circle>`:
-        `<rect data-point="${i}" x="${px-Math.min(20,100/points.length)/2}" y="${py}" width="${Math.min(20,100/points.length)}" height="${Math.max(1,130-py)}" rx="2"><title>${esc(label)}</title></rect>`;
+        `<rect data-point="${i}" x="${px-barWidth/2}" y="${py}" width="${barWidth}" height="${Math.max(1,130-py)}" rx="2"><title>${esc(label)}</title></rect>`;
     }).join('');
     return `<section class="kit-chart" data-kit-chart>${header}<div class="kit-chart-selection" aria-live="polite"><span></span></div><div class="kit-chart-plot" data-first="${first}" data-last="${last}" role="slider" tabindex="0" aria-label="${esc(title)}" aria-valuemin="0" aria-valuemax="${points.length-1}" aria-valuenow="${points.length-1}"><svg viewBox="0 0 320 158" aria-hidden="true">${ticks}${line?`<path class="kit-chart-line" d="${path}"/>`:''}${marks}${points.map((p,i)=>i%step===0||i===points.length-1?`<text class="kit-chart-date" x="${x(i)}" y="153" text-anchor="middle">${esc(date(p.start))}</text>`:'').join('')}</svg></div>${notes}</section>`;
   }
