@@ -62,21 +62,13 @@
       "scene": "light-charts",
       "topInsetPx": 59,
       "controlsClear": true,
-      "hiddenMediaControls": [
-        "Back to Activity",
-        "Share activity",
-        "Edit activity"
-      ]
+      "hiddenMediaControls": []
     },
     {
       "scene": "light-similar",
       "topInsetPx": 59,
       "controlsClear": true,
-      "hiddenMediaControls": [
-        "Back to Activity",
-        "Share activity",
-        "Edit activity"
-      ]
+      "hiddenMediaControls": []
     },
     {
       "scene": "light-coach",
@@ -172,7 +164,10 @@
       "scene": "light-photos",
       "topInsetPx": 59,
       "controlsClear": true,
-      "hiddenMediaControls": []
+      "hiddenMediaControls": [
+        "Open photo 1 of 2",
+        "Open photo 2 of 2"
+      ]
     },
     {
       "scene": "light-scan",
@@ -253,21 +248,13 @@
       "scene": "dark-charts",
       "topInsetPx": 59,
       "controlsClear": true,
-      "hiddenMediaControls": [
-        "Back to Activity",
-        "Share activity",
-        "Edit activity"
-      ]
+      "hiddenMediaControls": []
     },
     {
       "scene": "dark-similar",
       "topInsetPx": 59,
       "controlsClear": true,
-      "hiddenMediaControls": [
-        "Back to Activity",
-        "Share activity",
-        "Edit activity"
-      ]
+      "hiddenMediaControls": []
     },
     {
       "scene": "dark-coach",
@@ -363,7 +350,10 @@
       "scene": "dark-photos",
       "topInsetPx": 59,
       "controlsClear": true,
-      "hiddenMediaControls": []
+      "hiddenMediaControls": [
+        "Open photo 1 of 2",
+        "Open photo 2 of 2"
+      ]
     },
     {
       "scene": "dark-scan",
