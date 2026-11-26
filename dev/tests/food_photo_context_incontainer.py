@@ -11,7 +11,9 @@ from app.main import app
 itemization_gate=ai_release.food_photo_itemization_enabled
 
 PW='green teapot on the hill'
-JPEG=base64.b64encode(b'\xff\xd8'+b'fictional-image-stand-in').decode()
+from PIL import Image
+_fixture = io.BytesIO(); Image.new('RGB', (12, 10), 'green').save(_fixture, 'JPEG')
+JPEG=base64.b64encode(_fixture.getvalue()).decode()
 ESTIMATE={'items':[{'name':'Fictional curry','amount':'2 bowls','grams':600,'kcal':540,'protein_g':24,'carbs_g':60,'fat_g':22,'fiber_g':None}],
           'notes':'Assumed two home-size bowls.','model':'stand-in, not real inference'}
 PLAIN={'source':'usda','id':'fictional-plain','name':'Plain grain','brand':None,'per100':{'kcal':100,'protein_g':10,'carbs_g':10,'fat_g':2.2,'fiber_g':2},

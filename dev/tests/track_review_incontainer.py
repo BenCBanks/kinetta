@@ -126,6 +126,9 @@ try:
     assert 'photos' not in __import__('json').loads(next(folder.glob('*.json')).read_bytes()), 'raw GPS file does not duplicate photo pixels'
     assert client.post('/api/activities/track', json=payload).json() == {'id': aid, 'duplicate': True}
     assert len(client.get(f'/api/activities/{aid}').json()['photos']) == 2
+    with db.connect() as c:
+        attempts = c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key=%s', (f'photo-upload:{uid}',)).fetchone()['n']
+        assert attempts == 3, 'two-photo requests count once each, including failure and retry'
     # Different recordings share one person-wide photo quota; exactly one may take the remaining slot.
     with patch.object(api_photos, 'PER_PERSON', 3):
         bodies = [dict(payload, client_id=str(uuid.uuid4()), photos=[image]) for _ in range(4)]
@@ -137,7 +140,7 @@ try:
         assert c.execute('SELECT count(*) AS n FROM activities WHERE user_id=%s', (uid,)).fetchone()['n'] == 2
         assert c.execute('SELECT count(*) AS n FROM track_recording_receipts WHERE user_id=%s', (uid,)).fetchone()['n'] == 2
     assert len(list(folder.glob('*.json'))) == 2
-    photo_erasure_lock_order(api_photos.prepare_activity_photo(api_photos.PhotoIn(image=image), uid))
+    photo_erasure_lock_order(api_photos.prepare_activity_photo(api_photos.PhotoIn(image=image)))
     print('PASS concurrent photo upload and account erasure follow account-first locking')
     print('PASS mid-save rollback, raw-file cleanup, exact retry, photo metadata stripping and no duplicate pixels')
 finally:

@@ -424,8 +424,9 @@ def save_track(body: TrackIn, user=Depends(current_user)):
     if laps and body.moving_s - lap_seconds >= 1:
         laps.append({'distance_m': max(0, distance - lap_distance), 'moving_s': body.moving_s - lap_seconds,
                      'elapsed_s': max(body.moving_s - lap_seconds, body.elapsed_s - lap_elapsed), 'trigger': 'session_end'})
-    from .api_photos import PhotoIn, prepare_activity_photo, insert_activity_photo, lock_activity_photos
-    prepared_photos = [prepare_activity_photo(PhotoIn(image=image), user['id']) for image in body.photos]
+    from .api_photos import PhotoIn, prepare_activity_photo, insert_activity_photo, lock_activity_photos, upload_attempt
+    if body.photos: upload_attempt(user['id'])
+    prepared_photos = [prepare_activity_photo(PhotoIn(image=image)) for image in body.photos]
     interval_result=None
     if body.intervals is not None:
         from . import intervals

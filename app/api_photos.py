@@ -103,9 +103,8 @@ def profile_photo(login: str, user=Depends(current_user)):
 
 
 # ---------- activity photos ----------
-def prepare_activity_photo(body: PhotoIn, user_id):
+def prepare_activity_photo(body: PhotoIn):
     """Decode/orient/re-encode before opening a database transaction. No original metadata is retained."""
-    upload_attempt(user_id)
     im = _open(body)
     full, thumb = _scaled(im, FULL_PX), _scaled(im, THUMB_PX)
     return (_jpeg(full), _jpeg(thumb, 78), *full.size)
@@ -134,8 +133,8 @@ def lock_activity_photos(c, user_id):
 
 @router.post('/activities/{aid}/photos')
 def add_activity_photo(aid: int, body: PhotoIn, user=Depends(current_user)):
-    email_confirmation.require_upload(user['id'])
-    prepared = prepare_activity_photo(body, user['id'])
+    upload_attempt(user['id'])
+    prepared = prepare_activity_photo(body)
     with db.connect() as c:
         lock_activity_photos(c, user['id'])
         r = insert_activity_photo(c, aid, user['id'], prepared)
