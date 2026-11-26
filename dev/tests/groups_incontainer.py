@@ -1,4 +1,6 @@
 """Fictional Groups: private rows, hashed invites, lifecycle, blocks and aggregate-only activity progress."""
+import asyncio
+from contextlib import ExitStack, nullcontext
 import datetime as dt
 import hashlib
 import io
@@ -7,7 +9,7 @@ import re
 import uuid
 import unittest
 import zipfile
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
 
 import psycopg
@@ -1455,6 +1457,177 @@ class Groups(unittest.TestCase):
             self.assertEqual(self.clients[0].get('/api/groups/'+group['id']).json()['monday_recap'],
                              {'week_start':'2026-11-09','total':1.0})
 
+
+
+class GroupChallengeCompatibility(unittest.TestCase):
+    """No new routes: exercise real old-client writes against the private challenge mirror."""
+    setUpClass = classmethod(Groups.setUpClass.__func__)
+    tearDown = Groups.tearDown
+    make, accept, friend = Groups.make, Groups.accept, Groups.friend
+
+    def setUp(self):
+        Groups.setUp(self)
+        self.now = dt.datetime(2030, 3, 10, 16, tzinfo=dt.timezone.utc)
+        clock = patch('app.groups._now', return_value=self.now)
+        clock.start(); self.addCleanup(clock.stop)
+
+    def extra(self, c, gid):
+        return c.execute('''INSERT INTO group_challenges(group_id,creator_id,title,metric,target,unit,sports,start_date,time_zone)
+            SELECT group_id,creator_id,'Independent fictional goal','sessions',3,'sessions',sports,start_date,time_zone
+            FROM group_challenges WHERE legacy_group_id=%s RETURNING id''', (gid,)).fetchone()['id']
+
+    def test_old_create_date_and_sharing_writes_do_not_change_other_challenges(self):
+        group, _ = self.make(); other, _ = self.make(who=1)
+        with db.connect() as c:
+            q=c.execute('SELECT * FROM group_challenges WHERE legacy_group_id=%s',(group['id'],)).fetchone()
+            self.assertEqual(q['title'],group['title']);self.assertEqual(q['start_date'].isoformat(),group['goal_start_date'])
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_challenges WHERE group_id=ANY(%s::uuid[])',([group['id'],other['id']],)).fetchone()['n'],2)
+            extra=self.extra(c,group['id'])
+            c.execute("UPDATE group_challenges SET end_date='2030-04-01' WHERE id=%s",(extra,))
+            c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id,share_total) VALUES(%s,%s,%s,false)',(extra,group['id'],self.ids[0]))
+        self.assertEqual(self.clients[0].post('/api/groups/'+group['id']+'/sharing',json={'level':'total_shared'}).status_code,200)
+        self.assertEqual(self.clients[0].patch('/api/groups/'+group['id']+'/event-date',json={'event_date':None}).status_code,200)
+        for route,body in [('sharing',{'level':'total_shared'}),('event-date',{'event_date':None})]:
+            call=self.clients[2].post if route=='sharing' else self.clients[2].patch
+            self.assertEqual(call('/api/groups/'+group['id']+'/'+route,json=body).status_code,404)
+        with db.connect() as c:
+            shares=c.execute('SELECT challenge_id,share_total FROM group_challenge_members WHERE user_id=%s',(self.ids[0],)).fetchall()
+            self.assertEqual({r['challenge_id']:r['share_total'] for r in shares},{q['id']:True,extra:False})
+            self.assertIsNone(c.execute('SELECT end_date FROM group_challenges WHERE id=%s',(q['id'],)).fetchone()['end_date'])
+            self.assertEqual(c.execute('SELECT end_date FROM group_challenges WHERE id=%s',(extra,)).fetchone()['end_date'],dt.date(2030,4,1))
+            self.assertFalse(c.execute('SELECT share_achievements FROM profile WHERE user_id=%s',(self.ids[0],)).fetchone()['share_achievements'])
+            self.assertEqual(c.execute('SELECT end_date FROM group_challenges WHERE legacy_group_id=%s',(other['id'],)).fetchone()['end_date'].isoformat(),other['event_date'])
+
+    def test_link_join_rejoin_and_retry_preserve_independent_opt_outs(self):
+        group,token=self.make();path='/api/group-invites/'+token+'/accept'
+        with db.connect() as c:
+            opted_out=self.extra(c,group['id']);kept_on=self.extra(c,group['id'])
+            seed=c.execute('SELECT id FROM group_challenges WHERE legacy_group_id=%s',(group['id'],)).fetchone()['id']
+        self.assertEqual(self.accept(token).status_code,200)
+        with db.connect() as c:
+            choices=lambda:{r['challenge_id']:r['share_total'] for r in c.execute(
+                'SELECT challenge_id,share_total FROM group_challenge_members WHERE user_id=%s',(self.ids[1],))}
+            self.assertEqual(choices(),{seed:False,opted_out:False,kept_on:False})
+            c.execute('UPDATE group_challenge_members SET share_total=true WHERE challenge_id=%s AND user_id=%s',(kept_on,self.ids[1]))
+        self.assertEqual(self.clients[1].post(path,json={'share_total':True}).status_code,200)
+        self.assertEqual(self.clients[1].post('/api/groups/'+group['id']+'/leave').status_code,200)
+        with db.connect() as c:new=self.extra(c,group['id'])
+        self.assertEqual(self.clients[1].post(path,json={'share_total':True}).status_code,200)
+        with db.connect() as c:
+            self.assertEqual(choices(),{seed:False,opted_out:False,kept_on:True,new:True})
+            self.assertTrue(c.execute('''SELECT bool_and(q.joined_at=m.joined_at) AS v FROM group_challenge_members q
+                JOIN group_members m USING(group_id,user_id) WHERE q.user_id=%s''',(self.ids[1],)).fetchone()['v'])
+            self.assertFalse(c.execute('SELECT share_achievements FROM profile WHERE user_id=%s',(self.ids[1],)).fetchone()['share_achievements'])
+        # A fresh join's explicit OFF applies to every new challenge membership.
+        self.assertEqual(self.accept(token,2).status_code,200)
+        with db.connect() as c:
+            rows=c.execute('SELECT challenge_id,share_total FROM group_challenge_members WHERE user_id=%s',(self.ids[2],)).fetchall()
+            self.assertEqual({r['challenge_id']:r['share_total'] for r in rows},{seed:False,opted_out:False,kept_on:False,new:False})
+
+    def test_friend_join_initializes_all_challenges_and_rejects_other_account(self):
+        group,_=self.make();self.friend(0,1)
+        with db.connect() as c:self.extra(c,group['id'])
+        login=self.clients[1].get('/api/me').json()['login']
+        invitation=self.clients[0].post('/api/groups/'+group['id']+'/friend-invites',json={'username':login})
+        self.assertEqual(invitation.status_code,200,invitation.text)
+        with db.connect() as c:
+            # SQL now() is real; align this fictional invitation with the frozen application clock.
+            iid=c.execute("UPDATE group_friend_invites SET expires_at='2030-04-09T16:00Z' WHERE group_id=%s RETURNING id",(group['id'],)).fetchone()['id']
+        path=f'/api/group-friend-invites/{iid}/accept'
+        self.assertEqual(self.clients[2].post(path,json={'share_total':True}).status_code,404)
+        self.assertEqual(self.clients[1].post(path,json={'share_total':True}).status_code,200)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT share_total FROM group_challenge_members WHERE user_id=%s',(self.ids[1],)).fetchall(),[{'share_total':True}]*2)
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_challenge_members WHERE user_id=%s',(self.ids[2],)).fetchone()['n'],0)
+
+        self.friend(0,2)
+        login=self.clients[2].get('/api/me').json()['login']
+        self.assertEqual(self.clients[0].post('/api/groups/'+group['id']+'/friend-invites',json={'username':login}).status_code,200)
+        with db.connect() as c:
+            iid=c.execute("UPDATE group_friend_invites SET expires_at='2030-04-09T16:00Z' WHERE group_id=%s AND invitee_id=%s RETURNING id",(group['id'],self.ids[2])).fetchone()['id']
+        self.assertEqual(self.clients[2].post(f'/api/group-friend-invites/{iid}/accept',json={'share_total':False}).status_code,200)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT share_total FROM group_challenge_members WHERE user_id=%s',(self.ids[2],)).fetchall(),[{'share_total':False}]*2)
+
+    def test_friend_rejoin_cannot_enable_a_saved_challenge_opt_out(self):
+        group,_=self.make();self.friend(0,1)
+        with db.connect() as c:
+            extra=self.extra(c,group['id'])
+            seed=c.execute('SELECT id FROM group_challenges WHERE legacy_group_id=%s',(group['id'],)).fetchone()['id']
+        login=self.clients[1].get('/api/me').json()['login']
+        def invite():
+            self.assertEqual(self.clients[0].post('/api/groups/'+group['id']+'/friend-invites',json={'username':login}).status_code,200)
+            with db.connect() as c:
+                iid=c.execute("UPDATE group_friend_invites SET expires_at='2030-04-09T16:00Z' WHERE group_id=%s AND status='pending' RETURNING id",(group['id'],)).fetchone()['id']
+            return f'/api/group-friend-invites/{iid}/accept'
+        self.assertEqual(self.clients[1].post(invite(),json={'share_total':True}).status_code,200)
+        with db.connect() as c:c.execute('UPDATE group_challenge_members SET share_total=false WHERE challenge_id=%s AND user_id=%s',(extra,self.ids[1]))
+        for share in [False,True]:
+            self.assertEqual(self.clients[1].post('/api/groups/'+group['id']+'/leave').status_code,200)
+            self.assertEqual(self.clients[1].post(invite(),json={'share_total':share}).status_code,200)
+            with db.connect() as c:
+                rows=c.execute('SELECT challenge_id,share_total FROM group_challenge_members WHERE user_id=%s',(self.ids[1],)).fetchall()
+                self.assertEqual({r['challenge_id']:r['share_total'] for r in rows},{seed:False,extra:False})
+
+    def test_reconcile_snapshot_gap_preserves_old_records_creator_and_independent_choices(self):
+        group,token=self.make();self.accept(token)
+        migration=next(m for m in db.MIGRATIONS if 'title=EXCLUDED.title,metric=EXCLUDED.metric' in m)
+        with db.connect() as c,c.transaction(force_rollback=True):
+            extra=self.extra(c,group['id'])
+            c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id,share_total) VALUES(%s,%s,%s,false)',(extra,group['id'],self.ids[1]))
+            c.execute("UPDATE event_groups SET title='Changed during rollout',organizer_id=%s,event_date=NULL WHERE id=%s",(self.ids[1],group['id']))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",(group['id'],self.ids[1]))
+            before=c.execute('SELECT to_jsonb(g) AS v FROM event_groups g WHERE id=%s',(group['id'],)).fetchone()
+            c.execute(migration)
+            self.assertEqual(c.execute('SELECT to_jsonb(g) AS v FROM event_groups g WHERE id=%s',(group['id'],)).fetchone(),before)
+            q=c.execute('SELECT * FROM group_challenges WHERE legacy_group_id=%s',(group['id'],)).fetchone()
+            self.assertEqual(q['title'],'Changed during rollout');self.assertEqual(q['creator_id'],self.ids[0]);self.assertIsNone(q['end_date'])
+            rows=c.execute('SELECT challenge_id,share_total FROM group_challenge_members WHERE user_id=%s',(self.ids[1],)).fetchall()
+            self.assertEqual({r['challenge_id']:r['share_total'] for r in rows},{q['id']:True,extra:False})
+            c.execute('DELETE FROM group_challenges WHERE legacy_group_id=%s',(group['id'],));c.execute(migration)
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_challenges WHERE legacy_group_id=%s',(group['id'],)).fetchone()['n'],1)
+        db.migrate();db.migrate()
+
+    def test_reconciliation_precedes_workers_and_requests_and_preserves_later_choices(self):
+        from app import main, group_challenges
+        group, token = self.make(); self.accept(token)
+        migration = next(m for m in db.MIGRATIONS if 'title=EXCLUDED.title,metric=EXCLUDED.metric' in m)
+        version = db.MIGRATIONS.index(migration) + 1
+        with db.connect() as c, c.transaction(force_rollback=True), ExitStack() as patches:
+            # Reproduce schema 121's stale snapshot and intervening LEGACY-only edits.
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",
+                      (group['id'], self.ids[1]))
+            c.execute('UPDATE group_challenge_members SET share_total=true WHERE group_id=%s AND user_id=%s',
+                      (group['id'], self.ids[0]))
+            c.execute('DELETE FROM schema_version WHERE version=%s', (version,))
+            patches.enter_context(patch.object(db, 'connect', side_effect=lambda: nullcontext(c)))
+            patches.enter_context(patch.object(db, 'bootstrap'))
+            def after_migration(*args, **kwargs):
+                self.assertIsNotNone(c.execute('SELECT version FROM schema_version WHERE version=%s', (version,)).fetchone())
+                return Mock()
+            patches.enter_context(patch.object(main.threading, 'Thread', side_effect=after_migration))
+            for module, method in [(main.segments,'start_worker'), (main.milestones,'start_worker'),
+                    (main.challenges,'start_worker'), (main.personal_notifications,'start_worker'),
+                    (main.groups,'start_worker'), (main.admin_features,'start_cleanup')]:
+                patches.enter_context(patch.object(module, method, side_effect=lambda: (after_migration(), Mock())))
+            async def serve():
+                async with main.lifespan(app):
+                    rows=c.execute('SELECT user_id,share_total FROM group_challenge_members WHERE group_id=%s', (group['id'],)).fetchall()
+                    self.assertEqual({r['user_id']:r['share_total'] for r in rows}, {self.ids[0]:False,self.ids[1]:True})
+                    # Only after startup yields may a user record a per-challenge choice.
+                    group_challenges.legacy_sharing(c, group['id'], self.ids[1], False)
+            asyncio.run(serve())
+            db.migrate(); db.migrate()
+            self.assertFalse(c.execute('SELECT bool_or(share_total) AS v FROM group_challenge_members WHERE group_id=%s', (group['id'],)).fetchone()['v'])
+
+    def test_close_freezes_mirror_without_reending_already_ended_challenge(self):
+        group,_=self.make()
+        with db.connect() as c:
+            extra=self.extra(c,group['id']);c.execute("UPDATE group_challenges SET ended_at='2026-01-01T12:00Z' WHERE id=%s",(extra,))
+        self.assertEqual(self.clients[0].post('/api/groups/'+group['id']+'/close').status_code,200)
+        with db.connect() as c:
+            rows=c.execute('SELECT id,ended_at FROM group_challenges WHERE group_id=%s',(group['id'],)).fetchall()
+            self.assertTrue(all(r['ended_at'] for r in rows));self.assertEqual(next(r['ended_at'] for r in rows if r['id']==extra),dt.datetime(2026,1,1,12,tzinfo=dt.timezone.utc))
 
 
 class GroupChallengeUpgrade(unittest.TestCase):
