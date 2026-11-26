@@ -354,6 +354,9 @@ async function closeCaptureContext(context) {
       const kitInsightFixture = name === 'kit-insight-progress';
       if (kitInsightFixture) await page.route(kitInsightRoute, async route => {
         const request = route.request(), url = new URL(request.url());
+        // Fixture only: exercise today's renderer without history or any provider call.
+        if (request.method() === 'GET' && url.pathname === '/api/coach/conversation/threads')
+          return route.fulfill({json: {enabled: false}});
         if (request.method() === 'POST' && url.pathname === '/api/coach/conversation/visits') {
           const visit_id = request.postDataJSON().visit_id;
           return route.fulfill({json: {generation: '00000000-0000-4000-8000-000000001049', visit_id, ready: true}});
@@ -362,10 +365,13 @@ async function closeCaptureContext(context) {
           const visit_id = url.searchParams.get('visit_id');
           return route.fulfill({json: {generation: '00000000-0000-4000-8000-000000001049', visit_id, before: null, ready: true,
             messages: [{id: 1, client_id: '1049-progress-insight', generation: '00000000-0000-4000-8000-000000001049', visit_id,
-              question: 'Am I improving?', context: {screen: 'progress'}, state: 'answered', error: null,
-              answer: {interpretation: 'Your latest run total is below your recent average; this chart also shows stronger weeks. One week alone cannot establish a lasting trend.',
-                facts: [{label: 'This week · Run', value: '10.8 mi'}, {label: 'Weekly average · Run', value: '20.6 mi'}, {label: 'Best week · Run', value: '27.9 mi'}],
-                limitations: ['Only recorded workouts are included.'], actions: []}, created: '2026-11-13T14:00:00Z'}]}});
+              question: 'What should I focus on next?', context: {screen: 'progress'}, state: 'answered', error: null,
+              answer: {interpretation: "Keep the next run easy and make a meal you can repeat.",
+                answer_blocks: [
+                  {kind: 'paragraph', text: 'You logged 3 runs covering 12.4 mi this week. Keep the next run easy and make a meal you can repeat.'},
+                  {kind: 'list', items: ['Training: give yourself an easy day before another hard session.', 'Food: your saved lentil bowl is one simple option for your next meal.']},
+                  {kind: 'paragraph', text: "Your food log doesn't cover every day, so I can't judge the whole week's intake."}
+                ], facts: [], actions: [], follow_ups: []}, created: '2026-11-13T14:00:00Z'}]}});
         }
         if (request.method() === 'POST' && url.pathname.endsWith('/end')) return route.fulfill({json: {ok: true}});
         return route.fulfill({status: 404, json: {detail: 'Unneeded screenshot fixture request.'}});
@@ -596,7 +602,8 @@ async function closeCaptureContext(context) {
         await page.getByText('Vegetables and rice', {exact: true}).waitFor({state: 'visible'});
       }
       if (kitInsightFixture) {
-        await page.locator('#kit-messages .kit-answer').filter({hasText: 'Your latest run total'}).waitFor({state: 'visible'});
+        await page.locator('#kit-messages .kit-answer').filter({hasText: 'You logged 3 runs'}).waitFor({state: 'visible'});
+        if (await page.locator('.kit-answer-blocks p').count() !== 2 || await page.locator('.kit-answer-blocks li').count() !== 2) throw Error('Kit example must use the real paragraph/list renderer.');
         if ((await page.locator('#kit-status').innerText()).trim()) throw Error('Kit insight screenshot should not show a stale-chat warning.');
       }
       if(name==='activity'||name==='activity-detail'){

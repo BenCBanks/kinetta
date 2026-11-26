@@ -29,22 +29,22 @@ class CopyTests(unittest.TestCase):
   self.assertIn('assets/tour/challenge-detail-light.webp',home)
   self.assertIn('assets/tour/challenge-detail-dark.webp',home)
   self.assertNotRegex(home.lower(),r'private\s+by\s+default|free\s+during\s+beta')
- def test_kit_week_demo_copy_and_social_tagline_are_positive(self):
+ def test_kit_coach_uses_live_features_and_real_app_capture(self):
   home=(content.ROOT/'site/index.html').read_text()
-  self.assertIn('Yes, mostly: your completed-week running trend is up over the last 8 weeks. This week is still in progress at 4.8 mi.',home)
-  self.assertIn('This week · Run',home)
-  self.assertIn('Weekly average · Run',home)
-  self.assertIn('Best week · Run',home)
-  self.assertIn('data-week-this>4.8</b>',home)
-  self.assertIn('data-week-average>20.6</b>',home)
-  self.assertIn('data-week-best>27.9</b>',home)
-  self.assertIn('Completed weekly run totals rise across 8 weeks',home)
-  self.assertNotIn('data-week-this>0.0</b>',home)
-  self.assertIn('data-week-chart',home)
-  self.assertIn('kit-week-chart-line',home)
-  self.assertIn('kit-phone-status-icons',home)
-  self.assertNotIn('What Kit could check',home)
-  self.assertNotIn('One week alone cannot establish a lasting trend.',home)
+  for text in ["Meet Kit, the coach that knows your training and your food.",
+               "Any change it suggests waits for your OK.", "Review my week",
+               "What should I focus on next?", "Suggest a meal from my saved foods.",
+               "For adults 18+. Kit is not medical advice.", "Current app screen · fictional example answer"]:
+   self.assertIn(text,home)
+  self.assertIn('data-app-capture="kit-coach-answer"',home)
+  for theme in ['light','dark']:
+   for density in ['','-1x']:
+    asset=f'{theme}-kit-insight-progress{density}.webp'
+    self.assertIn(asset,home)
+    self.assertTrue((content.ROOT/'site/assets/shots'/asset).is_file())
+  section=home.split('id="meet-kit"',1)[1].split('</section>',1)[0]
+  self.assertNotRegex(section.lower(),r'saved chats|memory|chart|data-demo')
+  self.assertNotIn('data-week-chart',home)
   self.assertNotIn('Confirm lunch',home)
   self.assertNotIn('Lunch logged',home)
   self.assertIn('assets/shots/light-home-food-review.webp',home)
