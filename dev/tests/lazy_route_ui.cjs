@@ -181,6 +181,13 @@ async function notificationFixture(browser,loginName=user,options={}){
   await page.clock.install({time:new Date('2026-11-05T12:00:00Z')});
   const routes=await notificationRoutes(context,options);return {context,page,errors,routes};
 }
+async function savedNotificationPreferences(page){
+  const saved=page.locator('details.personal-notifications');await saved.waitFor();await saved.locator('summary').click();
+  await saved.locator('[data-saved-personal="monthly"]').waitFor();
+  assert.equal(await saved.locator('[data-saved-alert]').count(),9,'web retains all Social/Reminders choices as saved values');
+  assert.equal(await saved.locator('[data-saved-personal]').count(),4,'web retains all Training saved values');
+  assert.deepEqual(await saved.locator('input,select').evaluateAll(nodes=>nodes.map(n=>n.dataset.personal)),['streak'],'only the web bell reminder remains editable');
+}
 async function notificationLeafCase(browser){
   const normal=await notificationFixture(browser);
   try{
@@ -191,11 +198,14 @@ async function notificationLeafCase(browser){
     assert.equal(await normal.page.locator('.bell').getAttribute('aria-label'),'Notifications, 3 new','the eager bell keeps the unread count');
     await normal.page.locator('.bell').click();await ready(normal.page,'#nt-list','notification list after bell navigation');
     assert.equal(normal.routes.scriptRequests.length,1,'the /notifications route loads its leaf once');
+    await normal.page.evaluate(()=>go('/me/settings'));await ready(normal.page,'a[href="/me/notifications"]','Settings before notification preferences');
+    await normal.page.locator('a[href="/me/notifications"]').click();await savedNotificationPreferences(normal.page);
+    assert.equal(normal.routes.scriptRequests.length,1,'Settings reuses the notification leaf');
     assert.deepEqual(normal.errors,[]);assert.deepEqual(normal.routes.writes,[]);
   }finally{await normal.context.close();}
   const direct=await notificationFixture(browser);
   try{
-    await direct.page.goto(base+'/me/notifications');await ready(direct.page,'#nt-push','direct /me/notifications route');
+    await direct.page.goto(base+'/me/notifications');await ready(direct.page,'#nt-push','direct /me/notifications route');await savedNotificationPreferences(direct.page);
     assert.equal(direct.routes.scriptRequests.length,1,'the /me/notifications route loads the same leaf once');
     assert.deepEqual(direct.errors,[]);assert.deepEqual(direct.routes.writes,[]);
   }finally{await direct.context.close();}
@@ -1203,7 +1213,7 @@ async function foodWarmupCase(browser){
     await normal.page.locator('[data-summary-type="year"]').click();
     assert.deepEqual(await normal.page.evaluate(()=>window.__notificationSummaryCalls.at(-1)),{period:'year',offset:1},'the year row opens its exact period');
     await normal.page.evaluate(()=>go('/me/settings'));await ready(normal.page,'a[href="/me/notifications"]','Settings route');
-    await normal.page.locator('a[href="/me/notifications"]').click();await normal.page.locator('.notification-alerts').waitFor();assert.equal(await normal.page.locator('[data-meal-reminders],.meal-reminders').count(),0,'notification settings have no meal reminder card');
+    await normal.page.locator('a[href="/me/notifications"]').click();await savedNotificationPreferences(normal.page);assert.equal(await normal.page.locator('[data-meal-reminders],.meal-reminders').count(),0,'notification settings have no meal reminder card');
     assert.equal(normal.routes.scriptRequests.length,1,'Settings reuses the already loaded notification bundle');
     assert.deepEqual(normal.errors,[]);assert.deepEqual(normal.routes.writes,[]);
   }finally{await normal.context.close();}
