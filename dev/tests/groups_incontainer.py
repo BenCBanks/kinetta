@@ -689,7 +689,8 @@ class Groups(unittest.TestCase):
             queries = []
             execute = psycopg.Cursor.execute
             def counted(cursor, query, *args, **kwargs):
-                queries.append(query)
+                if cursor.connection is c:
+                    queries.append(query)
                 return execute(cursor, query, *args, **kwargs)
             with db.connect() as c:
                 row = c.execute('SELECT * FROM event_groups WHERE id=%s', (group['id'],)).fetchone()
@@ -720,6 +721,56 @@ class Groups(unittest.TestCase):
             c.execute('UPDATE users SET needs_email_confirm=false,suspended_at=now() WHERE id=%s', (self.ids[3],))
         suspended, _ = measured_summary()
         self.assertEqual((suspended['member_count'], suspended['total']), (1, 1))
+
+    def test_batched_summary_excludes_left_and_removed_members(self):
+        group, token = self.make()
+        for who in (1, 2, 3):
+            self.assertEqual(self.accept(token, who=who).status_code, 200)
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET sharing_level='total_shared',joined_at=%s WHERE group_id=%s",
+                      (self.now - dt.timedelta(days=2), group['id']))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+            hidden = c.execute('SELECT login::text AS login FROM users WHERE id=%s', (self.ids[3],)).fetchone()['login']
+        for who, distance in enumerate((1000, 1000, 1000, 900000)):
+            self.activity(who, self.now - dt.timedelta(hours=1), distance=distance)
+        for status in ('left', 'removed'):
+            with self.subTest(status=status):
+                with db.connect() as c:
+                    c.execute('UPDATE group_members SET status=%s,removed_invite_generation=%s WHERE group_id=%s AND user_id=%s',
+                              (status, 1 if status == 'removed' else None, group['id'], self.ids[3]))
+                response = self.clients[0].get('/api/groups/' + group['id'])
+                self.assertEqual(response.status_code, 200, response.text)
+                answer = response.json()
+                self.assertEqual((answer['member_count'], answer['sharing_member_count'], answer['total']), (3, 3, 3))
+                self.assertNotIn(hidden, [member['username'] for member in answer['members']])
+
+    def test_batched_summary_respects_each_sharing_opt_out(self):
+        group, token = self.make()
+        for who in (1, 2, 3):
+            self.assertEqual(self.accept(token, who=who).status_code, 200)
+        for who, distance in enumerate((1000, 900000, 1000, 1000)):
+            self.activity(who, self.now - dt.timedelta(hours=1), distance=distance)
+        with db.connect() as c:
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
+                      (self.now - dt.timedelta(days=2), group['id']))
+            hidden = c.execute('SELECT login::text AS login FROM users WHERE id=%s', (self.ids[1],)).fetchone()['login']
+        for opt_out in ('group', 'account'):
+            with self.subTest(opt_out=opt_out):
+                with db.connect() as c:
+                    c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s", (group['id'],))
+                    c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+                    if opt_out == 'group':
+                        c.execute("UPDATE group_members SET sharing_level='just_in' WHERE group_id=%s AND user_id=%s",
+                                  (group['id'], self.ids[1]))
+                    else:
+                        c.execute('UPDATE profile SET share_achievements=false WHERE user_id=%s', (self.ids[1],))
+                response = self.clients[0].get('/api/groups/' + group['id'])
+                self.assertEqual(response.status_code, 200, response.text)
+                answer = response.json()
+                self.assertEqual((answer['member_count'], answer['sharing_member_count'], answer['total']), (4, 3, 3))
+                member = next(member for member in answer['members'] if member['username'] == hidden)
+                self.assertFalse(member['shares_total'])
+                self.assertNotIn('value', member, 'either opt-out must hide that member’s contribution')
 
     def test_group_and_account_sharing_must_both_allow_totals_and_blocks_still_apply(self):
         group, token = self.make()

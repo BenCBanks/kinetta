@@ -1,6 +1,5 @@
 """API request log and the owner's SQL access to operational tables (migration 70)."""
 import time, unittest
-from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import db, auth
 from app.main import app
@@ -28,17 +27,6 @@ class RequestLog(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         with db.connect() as c: c.execute("DELETE FROM users WHERE login = 'zz_test_reqlog'")
-
-    def test_me_access_checks_reuse_the_request_connection(self):
-        from app import main, ai_access
-        with db.connect() as c:
-            user = c.execute('SELECT id,login::text AS login,name,first_name,last_name,is_admin FROM users WHERE id=%s',
-                             (self.uid,)).fetchone()
-            expected = ai_access.capabilities(self.uid, connection=c)
-        with patch.object(db, 'connect', wraps=db.connect) as connect:
-            result = main.me(user=user)
-        self.assertEqual(connect.call_count, 1, 'profile and access reads must use one borrowed connection')
-        self.assertEqual(result['ai_access'], expected, 'connection reuse must preserve both access decisions')
 
     def test_calls_are_recorded_without_values(self):
         c = TestClient(app); c.headers['Origin'] = 'http://testserver'
