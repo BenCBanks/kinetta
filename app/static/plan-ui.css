@@ -92,19 +92,19 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .plan-week-name b { flex:none;font-weight:600; }
 .plan-week-name > span { min-width:0;color:var(--tx2);overflow-wrap:anywhere; }
 .plan-overview .pweek > summary > .num { flex:none;color:var(--tx2);font-size:13px;text-align:right; }
-.plan-overview .pw.compact-workout { display:grid;grid-template-columns:50px 32px minmax(0,1fr) 16px;align-items:center;gap:8px;min-height:52px;padding:6px 0;border:0;border-radius:0;background:none;color:var(--tx);text-align:left; }
-.compact-workout .pw-date { color:var(--tx2);font-size:13px;font-weight:400;line-height:1.2; }
+.plan-page .pw.compact-workout { display:grid;grid-template-columns:44px 24px minmax(0,1fr) 18px;align-items:center;gap:6px;min-height:44px;padding:8px 0;border:0;border-radius:0;background:none;color:var(--tx);text-align:left; }
+.compact-workout .pw-date { color:var(--tx2);font-size:12px;font-weight:400;line-height:1.2;white-space:nowrap; }
 .plan-day-sport { display:grid;place-items:center;width:28px;height:28px; }
 .plan-day-sport .sp { width:24px;height:24px;border-radius:8px; }
 .plan-day-sport .sp svg { width:15px;height:15px; }
 .plan-day-check { display:grid;place-items:center;width:24px;height:24px;border-radius:50%;color:var(--color-achievement); }
 .plan-day-check svg { width:18px;height:18px;stroke-width:2.5; }
-.compact-workout .pw-main { display:grid;gap:2px;min-width:0; }
-.compact-workout .pw-main > b { font-size:16px;font-weight:600;line-height:1.25;overflow-wrap:anywhere; }
+.compact-workout .pw-main { display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0; }
+.compact-workout .pw-main > b { font-size:15px;font-weight:600;line-height:1.25;white-space:nowrap; }
 .compact-workout .pw-meta { display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;font-size:13px;line-height:1.25;color:var(--tx2); }
-.compact-workout .pw-result { display:inline-flex;align-items:center;gap:3px;color:var(--tx2); }
+.compact-workout .pw-result { flex:none;display:inline-flex;align-items:center;gap:3px;color:var(--tx2);font-size:12px;white-space:nowrap; }
 .compact-workout .pw-result.plan-completion { color:var(--color-achievement); }
-.plan-overview .pw.compact-workout.plan-rest { grid-template-columns:50px 32px minmax(0,1fr);min-height:52px;padding:6px 0;color:var(--tx2);font-size:15px; }
+.plan-page .pw.compact-workout.plan-rest { grid-template-columns:44px 24px minmax(0,1fr);min-height:44px;padding:8px 0;color:var(--tx2);font-size:15px; }
 .plan-extra > summary { display:flex;align-items:center;min-height:44px;cursor:pointer;font-size:15px;font-weight:600; }
 .plan-detail-section { border-top:1px solid var(--line);padding-top:12px;margin-top:12px; }
 .plan-detail-section h2 { margin-top:0;font-size:17px; }
