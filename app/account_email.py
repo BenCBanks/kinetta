@@ -554,11 +554,18 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
     email_available = mail_ready()
     with db.connect() as c:
         if limited(c, 'forgot-ip:' + auth.client_ip(request), 10, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
-        col = 'email' if '@' in who else 'login'
-        u = c.execute(f'''SELECT id, first_name, login::text AS login, email,
-                                 email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm
-                          FROM users WHERE {col} = %s AND suspended_at IS NULL''',
-                      (who,)).fetchone()
+        reservation_lock(c)
+        lookup = 'lower(COALESCE(u.email::text, pending.email::text)) = lower(%s)' if '@' in who else 'u.login = %s'
+        u = c.execute(f'''SELECT u.id, u.first_name, u.login::text AS login,
+                                 COALESCE(u.email::text, pending.email::text) AS email,
+                                 u.email_verified_at IS NOT NULL AS email_confirmed, u.needs_email_confirm
+                          FROM users u LEFT JOIN LATERAL (
+                            SELECT t.email FROM account_tokens t
+                            WHERE t.user_id=u.id AND t.kind='verify_email' AND t.used_at IS NULL
+                              AND u.needs_email_confirm AND u.email IS NULL
+                            ORDER BY t.created DESC LIMIT 1
+                          ) pending ON true
+                          WHERE {lookup} AND u.suspended_at IS NULL FOR UPDATE OF u''', (who,)).fetchone()
         # Resend and reset share at most three links an hour per account; the answer never says why nothing arrived.
         can_reset = u and u['email'] and (u['email_confirmed'] or u['needs_email_confirm'])
         if can_reset and not email_recovery_limited(c, u['id']) and email_available:
@@ -624,19 +631,25 @@ def reset(body: ResetIn, request: Request, background: BackgroundTasks):
         r = _open(c, body.token, 'reset_password', lock_user=True)
         # A pending reset link proves ownership of the address it was sent to. It cannot reset an account
         # after that account's email has changed to someone else's address.
-        if r['email'] and (not r['current'] or _clean_email(r['email']) != _clean_email(r['current'])):
+        address = r['current']
+        if not address and r['needs_email_confirm']:
+            pending = c.execute("""SELECT email FROM account_tokens WHERE user_id=%s
+                                   AND kind='verify_email' AND used_at IS NULL
+                                   ORDER BY created DESC LIMIT 1""", (r['user_id'],)).fetchone()
+            address = pending['email'] if pending else None
+        if r['email'] and (not address or _clean_email(r['email']) != _clean_email(address)):
             raise HTTPException(404, 'This link has expired. Request a new one from the sign-in page.')
         auth.check_new_password(body.password, r['login'])
-        if (r['email'] and r['current'] and not r['email_confirmed'] and r['needs_email_confirm']
-                and _clean_email(r['email']) == _clean_email(r['current'])):
+        if r['email'] and not r['email_confirmed'] and r['needs_email_confirm']:
             require_available(c, r['email'], r['user_id'], confirmation=True)
             email_confirmed = True
         try:
             c.execute('''UPDATE users SET pw_hash = %s, password_change_expires = NULL,
+                         email = CASE WHEN %s THEN %s ELSE email END,
                          email_verified_at = CASE WHEN %s THEN now() ELSE email_verified_at END,
                          needs_email_confirm = CASE WHEN %s THEN false ELSE needs_email_confirm END,
                          signup_confirmed_at = CASE WHEN %s AND signup_guard AND signup_confirmed_at IS NULL THEN now() ELSE signup_confirmed_at END
-                         WHERE id = %s''', (auth.hash_pw(body.password), email_confirmed, email_confirmed,
+                         WHERE id = %s''', (auth.hash_pw(body.password), email_confirmed, r['email'], email_confirmed, email_confirmed,
                                             email_confirmed, r['user_id']))
         except errors.UniqueViolation:
             if email_confirmed: email_exists()
@@ -652,7 +665,7 @@ def reset(body: ResetIn, request: Request, background: BackgroundTasks):
             # Remove them so the background signup worker cannot apply them later.
             c.execute('UPDATE profile SET friend_link=NULL WHERE user_id=%s', (r['user_id'],))
             c.execute("DELETE FROM signup_join_intents WHERE user_id=%s AND kind IN ('card','challenge')", (r['user_id'],))
-    password_changed(background, r['current'], r['first_name'], r['login'])
+    password_changed(background, r['email'] if email_confirmed else r['current'], r['first_name'], r['login'])
     if email_confirmed: return {'ok': True, 'email_confirmed': True}
     return {'ok': True}
 
