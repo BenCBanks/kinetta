@@ -14,10 +14,10 @@ import sys
 from kit_eval_savings import case_keys, write_private
 from kit_batch2_cases import BATCH2_CASES
 
-SOURCE = '0d050532e86b0592fbdc7e3080e47cf59b8349a9'
-REGENERATE = frozenset({'load'})
-# Only the post-validation display grammar changes. Provider inputs are frozen.
-APP_CHANGES = {'app/kit_weekly.py': {'count_grammar': '993c66fcb9b0e91ce9f7d2d6319ae77fc0d9a08c984736b5f8ca3fd944636bf7'}, 'app/kit_conversation.py': {'checked_answer': '1acd13df83b5293d5d56ff0739f213903812abfe076d4ff897f14ffb93992cff'}}
+SOURCE = 'ec1eb655659d9c21c000f40847a7d48f46cd8851'
+REGENERATE = frozenset()
+# Only the three reviewed wording implications change. Provider inputs are frozen.
+APP_CHANGES = {'app/kit_claims.py': {'VOLUME_CLAIM': '5e09fd8a1f8fe2a1403859a3609bc4d59e1b42e33aff08d3393cacbdcc5fdf3d', 'SPORT_WORD': 'ce00f23785e3a3eb6ebee0c94735206c935786cd6bf0643748a9a992ab199e29', 'volume_evidence': '47170c50de9fcd977b123fc6850eb51d79aa3c8bc9dcb5466fb8a442d0e6136b', 'safe_wording': '9b0d52c64e8b8ae78b83931e58622d616d82745028928ba525384ff3ac0c3642', 'claim_evidence': 'f677a0c1e9ea576d5b8fe11a8c6d90412b9ce4dfb1851e7b54bebff9b2b4b1c0', 'activity_scopes': '2473a0c1122ba63abd67dad5d3de8632888c3bb26d88d3d6f658c199309bc028'}, 'app/kit_conversation.py': {'checked_answer': '0fc397d52233d342e4d4f632a59a03e31b2ba15be4afa6929291a54d44c05c52'}}
 
 
 def git(root,*args):
@@ -49,9 +49,9 @@ class OldPath:
 def prove(root,report):
     if report.get('candidate_commit')!=SOURCE or report.get('fixture_date')!='2026-11-26':
         raise ValueError('Use the original pinned full release-review capture')
-    pending=[r for r in report['results'] if r['variant']=='candidate' and r['case']=='load']
-    if len(pending)!=1 or pending[0].get('answer') is not None or pending[0].get('cap_reason')!='padded_dollar_reservation':
-        raise ValueError('Only the known capped load question may be regenerated')
+    candidates=[r for r in report['results'] if r['variant']=='candidate']
+    if len(report['results'])!=80 or len(candidates)!=40 or not all(r.get('passed') for r in candidates):
+        raise ValueError('Use the completed final40/40capture; never invent a missing response')
     old_keys=case_keys(OldPath(root),BATCH2_CASES,report['baseline_commit'],SOURCE)
     for row in report['results']:
         if row.get('case_input_digest')!=old_keys[row['variant']].get(row['case']):
@@ -79,39 +79,6 @@ def prove(root,report):
         path='dev/evals/'+name;old=git(root,'show',SOURCE+':'+path).decode();new=(root/path).read_text()
         if reporting(old)!=reporting(new):raise ValueError('Fictional/provider inputs changed: '+path)
     return old_keys
-
-
-def supplement_recovery(root, report, capture):
-    """Rebuild only the checked fallback from old evidence; never reuse its false sport claim."""
-    old=json.loads(capture.read_text())
-    source='cea140b1621ee2ad6d5a2a23fc17e200e2ebc8cf'
-    if old.get('candidate_commit')!=source or old.get('fixture_date')!=report['fixture_date']:
-        raise ValueError('Recovery evidence must come from the pinned original release capture')
-    scopes={'app/kit_claims.py': {'validate': '65532a6dd8994c3b83c244d12f97c49f1cc572b76a41848d458ef85186c2b563', 'advice_quantities': '2169938c1d0799cff25ec3d59b4ec09c46df053c4b72972455d9a1bc7bb06032', 'METRICS': 'ae36f133881267cade2d459d8422e38b985b92c9d69f9867a5b8676e7f17c116', 'claim_evidence': '20a4c261d0dadd11e77b2f435414a280891d42695151b9ca0c08c58051e4eb6f', 'activity_scopes': '4a0dfb1c8662e684c9a300faab6d9525203aabbc85cc3a58c4af98f3fd805128'}, 'app/kit_record_counts.py': {'bind': '6145353ee7218b55ac3266d3fe57759c56f0856166c76e50ee83f29008b53c3a'}, 'app/kit_recovery.py': {'fallback': '93eac1e08d1ea35a2dcc57083831d72e29608516b2ca8b58e148ba8b5ba05fb5', 'safe': 'e6126d1e542686233ed0314700fcf8c6a5ed76cd369677865ab7e82e78701425', 'context_step': '24db657b03efd45bbb33233d2156a9c920a30f86abb94d584411b4a9eb5ea728'}, 'app/kit_training_review.py': {'visual': '26c087a994edebe980a5dcccd6b30d0d849df86f9fe9112d6d076a78949f4c8e'}, 'app/kit_weekly.py': {'fallback': 'aa8fcd17f1ae75e9b83a66bb51b32345c220af472f9c056c63c417db0d44723e'}, 'app/progress_series.py': {'read_series': '83d2244abfe25007c36ee26295a1bb67d957c58eaf1eeb0ac8b239e4e1eebac1'}}
-    for path,names in APP_CHANGES.items():scopes.setdefault(path,{}).update(names)
-    for path in git(root,'diff','--name-only',source,'--','app').decode().splitlines():
-        if path=='app/ai_fingerprints.json':continue
-        if path not in scopes:raise ValueError('Recovery provider source drift: '+path)
-        before=git(root,'show',source+':'+path).decode();after=(root/path).read_text()
-        if canonical(before,scopes[path])!=canonical(after,scopes[path]) or node_hashes(after,scopes[path])!=scopes[path]:
-            raise ValueError('Recovery input/source drift: '+path)
-    row=next(r for r in old['results'] if r['variant']=='candidate' and r['case']=='recovery')
-    # Evaluate the original immutable helper bytes for the archived digest.
-    class Archived(OldPath):
-        def __truediv__(self,name):return Archived(self.root,str(Path(self.name)/name))
-        def read_text(self):return git(self.root,'show',source+':'+self.name).decode()
-    expected=case_keys(Archived(root),BATCH2_CASES,old['baseline_commit'],source)
-    if row.get('case_input_digest')!=expected['candidate']['recovery']:
-        raise ValueError('Recovery evidence inputs are not the pinned fixture')
-    for name in ('kit_eval.py','kit_weekly_fixtures.py','kit_batch2_cases.py','kit_fixture_clock.py'):
-        path='dev/evals/'+name
-        before=git(root,'show',SOURCE+':'+path).decode()
-        # The intermediate source proof already checked reporting-only differences.
-        if name!='kit_eval.py' and git(root,'show',source+':'+path).decode()!=before:
-            raise ValueError('Recovery fixture changed')
-    row={**row,'force_checked_fallback':True,'answer':{**(row.get('answer') or {}),'app_fallback':True},
-         'source_commit':source,'supplemental_source_sha256':hashlib.sha256(capture.read_bytes()).hexdigest()}
-    return {**report,'results':report['results']+[row]}
 
 
 def replay(report,keys,current):
@@ -158,12 +125,17 @@ def replay(report,keys,current):
                 if not fallback:
                     answer.pop('app_fallback',None);answer.pop('fallback_reason',None)
                 row={**row,'answer':answer,'rejection':None,'error':None,'passed':True,
-                     'claim_evidence':checked.get('claim_evidence',[])}
+                     'claim_evidence':checked.get('claim_evidence',[]),
+                     'safe_render_changed':checked.get('interpretation')!=(original.get('answer') or {}).get('interpretation'),
+                     'original_interpretation':(original.get('answer') or {}).get('interpretation')}
         row={**row,'context_evidence':context_evidence(row['question'],row.get('history',[]),row.get('observed_context')),
              'app_tool_evidence':row.get('tool_calls',[]),'case_input_digest':keys[row['variant']][row['case']],
              'revalidated':row['variant']=='candidate','replay_provider_calls':0,'reused':True,
              'source_commit':original.get('source_commit',report[row['variant']+'_commit'])}
         results.append(row)
+    changed={r['case'] for r in results if r.get('safe_render_changed')}
+    if changed-{'weekly-diet-request','batch2-memory-off','load'}:
+        raise ValueError('Unrelated answer changed during scoped replay: '+','.join(sorted(changed)))
     text=ai_release.ai_text('kit')
     fingerprint=hashlib.sha256(json.dumps(dict(scheme=2,text=text,models=report['models']),sort_keys=True).encode()).hexdigest()
     return {**report,'candidate_commit':current,'candidate_fingerprint':fingerprint,'ai_text':text,
@@ -179,15 +151,14 @@ def replay(report,keys,current):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--capture',required=True,type=Path)
-    p.add_argument('--recovery-capture',type=Path);p.add_argument('--output',required=True,type=Path);p.add_argument('--in-container',action='store_true')
+    p.add_argument('--output',required=True,type=Path);p.add_argument('--in-container',action='store_true')
     args=p.parse_args();root=Path(__file__).resolve().parents[2]
     if args.in_container:
         value=json.loads(args.capture.read_text());result=replay(value['report'],value['keys'],value['current'])
         print(json.dumps(result));return
     report=json.loads(args.capture.read_text());prove(root,report)
-    if args.recovery_capture:report=supplement_recovery(root,report,args.recovery_capture)
     if {r['case'] for r in report['results'] if r['variant']=='candidate'}!={c[0] for c in BATCH2_CASES}:
-        raise ValueError('All completed cases plus the capped load row must be accounted for')
+        raise ValueError('All completed cases must be accounted for')
     current=git(root,'rev-parse','HEAD').decode().strip()
     if git(root,'status','--porcelain','--','app','dev/evals','dev/tests'):raise ValueError('Commit before preparing replay cache')
     value=dict(report=report,keys=case_keys(root,BATCH2_CASES,report['baseline_commit'],current),current=current)

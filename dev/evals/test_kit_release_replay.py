@@ -32,7 +32,7 @@ class Review(unittest.TestCase):
         a="SYSTEM='Own data only'\ndef check():\n return 1\n"
         b="SYSTEM='Other accounts allowed'\ndef check():\n return 2\n"
         self.assertNotEqual(canonical(a,{'check'}),canonical(b,{'check'}))
-        self.assertEqual(REGENERATE,{'load'})
+        self.assertEqual(REGENERATE,set())
 
     def test_unpinned_or_unverified_report_refuses(self):
         for report in ({},dict(candidate_commit='other',fixture_date='2026-11-26')):
