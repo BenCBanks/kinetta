@@ -76,7 +76,9 @@ if [[ -n "$ECONOMY_STAGE" ]]; then
   fi
   if ((OFFLINE_SMOKE == 0)); then
     ECONOMY_PLAN="$(mktemp)"; rm -f "$ECONOMY_PLAN"
-    python3 "$ROOT/dev/evals/kit_eval_savings.py" --prepare "$ECONOMY_PLAN" \
+    PAID_PLAN=()
+    if ((DRY_RUN == 0)); then PAID_PLAN=(--require-baseline); fi
+    python3 "$ROOT/dev/evals/kit_eval_savings.py" "${PAID_PLAN[@]}" --prepare "$ECONOMY_PLAN" \
       --baseline-commit "$BASELINE_COMMIT" --stage "$ECONOMY_STAGE" --budget-usd "$BUDGET" \
       --cache-dir "$HOME/pigserver/backup/2026-11-kit-eval-v2" "${ECONOMY_CACHES[@]}"
   fi

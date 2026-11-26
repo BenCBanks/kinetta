@@ -20,7 +20,8 @@ dev/evals/run_kit_release_eval.sh --installed-report "$REPORT" --full \
 
 The first use of these pinned fixtures needs a one-time baseline bootstrap:
 `--bootstrap-baseline --dry-run`, then owner-run `--bootstrap-baseline`.
-This generates only the forty live rows. Its capture becomes `$BASELINE` above.
+Paid candidate testing refuses missing cached live rows, so the default smoke
+cannot silently buy part of a second baseline. This generates only the forty live rows. Its capture becomes `$BASELINE` above.
 When live source changes, review/update the existing baseline source/report pin
 and bootstrap that source once. Old moving-date captures cannot be relabelled.
 
