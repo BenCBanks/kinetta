@@ -129,3 +129,9 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .hms input { width: 100%; min-height: 52px; padding: 8px; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
 .hms span { color: var(--tx3); font-size: 13px; font-weight: 600; }
 #ps-pace { margin: 8px 0 0; }
+
+/* Readiness belongs to the existing setup; preserve native-sized controls. */
+.plan-readiness fieldset { border: 0; padding: 0; margin: 16px 0 0; min-width: 0; }
+.plan-readiness legend { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.plan-readiness .chip { min-height: 44px; }
+.plan-scope-note { padding: 0 2px; }
