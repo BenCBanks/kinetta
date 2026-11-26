@@ -50,7 +50,7 @@ def fresh_paces(c, uid, tz, today, history, original_paces, race_m, goal_s, brea
     # A recent representative effort is necessary, not proof that every recorded run was a race.
     rows = c.execute('''SELECT b.distance_m,b.elapsed_s FROM best_efforts b JOIN activities a
         ON a.id=b.activity_id AND a.user_id=b.user_id WHERE b.user_id=%s AND b.sport='run'
-        AND b.distance_m>=1609 AND b.elapsed_s>0 AND NOT a.lift_open
+        AND b.distance_m>=1609 AND b.elapsed_s>0 AND NOT a.lift_open AND b.start_time<now()
         AND (b.start_time AT TIME ZONE %s)::date BETWEEN %s AND %s''',
         (uid,tz,today-dt.timedelta(days=28),today)).fetchall()
     from . import analysis

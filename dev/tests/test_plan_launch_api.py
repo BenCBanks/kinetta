@@ -8,7 +8,7 @@ from kc import person,PW
 project=os.environ.get('KINETTA_PROJECT','kinettatest')
 a=person('zz_test_plan_launch');a.post('/api/account/delete',{'password':PW});a=person('zz_test_plan_launch')
 b=person('zz_test_plan_launch_other');b.post('/api/account/delete',{'password':PW});b=person('zz_test_plan_launch_other')
-a.put('/api/profile',{'tz':'UTC'});a.put('/api/me',{'units':'metric'})
+assert a.put('/api/profile',{'tz':'UTC','units':'metric'})[0]==200
 today=dt.date.fromisoformat(a.get('/api/plans/options')[1]['today']);monday=today-dt.timedelta(days=today.weekday())
 body={'race':'marathon','level':'beginner','weeks':18,'runs':4,'long_day':6}
 assert a.post('/api/plans',{**body,'weeks':5})[0]==400
