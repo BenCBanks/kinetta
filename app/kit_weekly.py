@@ -59,11 +59,12 @@ def duration_delta(tool, data, path, value, units):
 
 
 def display_value(fact, text, facts):
-    # A verified signed delta expressed as "down by" needs its magnitude, not a double negative.
+    # A verified signed delta expressed as a reduction needs its magnitude, not a double negative.
     if fact['path'][:1] != ['change'] or fact['value'] >= 0:return fact['display_value']
     from .kit_conversation import REFERENCE
     for slot in REFERENCE.finditer(text):
-        if int(slot[2]) == facts.index(fact) and slot[1] == fact['evidence_id'] and re.search(r'\bdown by\s*$', text[:slot.start()], re.I):
+        if int(slot[2]) == facts.index(fact) and slot[1] == fact['evidence_id'] and (re.search(r'\b(?:down|fell|decreased|dropped) by\s*$', text[:slot.start()], re.I)
+                or re.match(r'\s+(?:fewer|less)\b',text[slot.end():],re.I)):
             return fact['display_value'].lstrip('-')
     return fact['display_value']
 

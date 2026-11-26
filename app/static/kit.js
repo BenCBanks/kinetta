@@ -284,7 +284,7 @@ Object.assign(KitChat, (() => {
     const values=known.map(p=>p.plot_value),line=chart.metric!=='workouts'&&(chart.presentation==='line'||chart.aggregate!=='sum'||chart.group_by==='workout'||['pace','avg_hr'].includes(chart.metric)),
       {min,max,ticks:axisTicks}=chartScale(values,line,chart.metric==='pace'),range=max-min,
       y=v=>chart.metric==='pace'?20+(v-min)*110/range:130-(v-min)*110/range,
-      step=Math.max(1,Math.ceil((points.length-1)/3));
+      weeklyTotals=chart.presentation==='weekly_totals',step=weeklyTotals?1:Math.max(1,Math.ceil((points.length-1)/3));
     const tick=value=>chart.metric==='pace'?`${Math.floor(Math.round(value)/60)}:${String(Math.round(value)%60).padStart(2,'0')}${chart.axis_unit}`:
       `${new Intl.NumberFormat(undefined,{maximumFractionDigits:1,notation:max>=10000?'compact':'standard'}).format(value)} ${chart.axis_unit}`;
     const labels=axisTicks.map(tick),
@@ -296,13 +296,13 @@ Object.assign(KitChat, (() => {
     }).join('');
     let connected=false,path='';
     const marks=points.map((p,i)=>{
-      if(p.plot_value==null){connected=false;return '';}
+      if(p.plot_value==null){connected=false;return weeklyTotals?`<text class="kit-chart-tick" x="${x(i)}" y="122" text-anchor="middle">No data</text>`:'';}
       const px=x(i),py=y(p.plot_value);path+=(connected?' L':' M')+px+','+py;connected=true;
       const label=`${date(p.start)}, ${p.display_value}, ${p.n} ${noun.toLowerCase()}${p.in_progress?', so far':''}`;
       return line?`<circle data-point="${i}" cx="${px}" cy="${py}" r="3"><title>${esc(label)}</title></circle>`:
         `<rect data-point="${i}" x="${px-barWidth/2}" y="${py}" width="${barWidth}" height="${Math.max(1,130-py)}" rx="2"><title>${esc(label)}</title></rect>`;
     }).join('');
-    return `<section class="kit-chart" data-kit-chart>${header}<div class="kit-chart-selection" aria-live="polite"><span></span></div><div class="kit-chart-plot" data-first="${first}" data-last="${last}" role="slider" tabindex="0" aria-label="${esc(title)}" aria-valuemin="0" aria-valuemax="${points.length-1}" aria-valuenow="${points.length-1}"><svg viewBox="0 0 320 158" aria-hidden="true">${ticks}${line?`<path class="kit-chart-line" d="${path}"/>`:''}${marks}${points.map((p,i)=>(i%step===0&&(i===0||points.length-1-i>=step))||i===points.length-1?`<text class="kit-chart-date" x="${x(i)}" y="153" text-anchor="middle">${esc(date(p.start))}</text>`:'').join('')}</svg></div>${notes}</section>`;
+    return `<section class="kit-chart" data-kit-chart>${header}<div class="kit-chart-selection" aria-live="polite"><span></span></div><div class="kit-chart-plot" data-first="${first}" data-last="${last}" role="slider" tabindex="0" aria-label="${esc(title)}" aria-valuemin="0" aria-valuemax="${points.length-1}" aria-valuenow="${points.length-1}"><svg viewBox="0 0 320 ${weeklyTotals?174:158}" aria-hidden="true">${ticks}${line?`<path class="kit-chart-line" d="${path}"/>`:''}${marks}${points.map((p,i)=>(i%step===0&&(i===0||points.length-1-i>=step))||i===points.length-1?`<text class="kit-chart-date" x="${x(i)}" y="153" text-anchor="middle">${weeklyTotals?date(p.start).split(' ').map((part,j)=>`<tspan x="${x(i)}" dy="${j?13:0}">${esc(part)}</tspan>`).join(''):esc(date(p.start))}</text>`:'').join('')}</svg></div>${weeklyTotals?'<p class="kit-chart-note">No bar = no distance recorded.</p>':''}${notes}</section>`;
   }
   function bindChart(host,chart){
     const plot=$('.kit-chart-plot',host);if(!plot)return;
