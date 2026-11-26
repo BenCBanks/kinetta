@@ -36,7 +36,7 @@ module.exports=async(browser,state,base,out)=>{
      if(method!=='GET'){unexpected.push(u.pathname);return route.fulfill({json:{}});}
      return route.continue();
     });
-    await p.goto(base+'/me/kit');await p.locator('#kit-footer-memory').click();
+    await p.goto(base+'/me/kit');await p.locator('#kit-settings').click();await p.locator('#kit-memory-open').click();
     await p.getByText(memories[0].text,{exact:true}).waitFor();
     assert.equal(await p.locator('.kit-memory-row').count(),3);
     assert.equal(await p.locator('#kit-memory').evaluate(n=>n.firstElementChild.id),'kit-memory-add','Add is the first row');

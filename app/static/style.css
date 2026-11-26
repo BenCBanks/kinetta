@@ -2198,6 +2198,8 @@ html.native body.has-sheet::before { display: none; }
 .kit-chat .kit-waiting-bubble:has(.thread-typing) .thread-typing span:nth-child(3) {animation-delay:.3s;}
 @keyframes kit-typing {0%,60%,100%{opacity:.35}30%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.kit-chat .kit-waiting-bubble:has(.thread-typing) .thread-typing span{animation:none;opacity:.6;}}
+.kit-chat .kit-waiting-bubble:has(.kit-waiting-copy) {width:fit-content;min-height:44px;padding:4px 14px;}
+.kit-chat .kit-status-bubble.kit-error-bubble {min-height:44px;padding-block:4px;}
 .kit-chat .kit-waiting-copy {display:grid;gap:2px;min-width:0;}
 .kit-chat .kit-waiting-copy p,.kit-chat .kit-error-bubble p {margin:0;overflow-wrap:anywhere;}
 .kit-chat .kit-waiting-copy .kit-still-working {color:var(--tx2);font-size:13px;}

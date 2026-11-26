@@ -103,6 +103,7 @@ Object.assign(KitChat, (() => {
   const active=c=>current===c&&!c.closed&&c.el.isConnected&&c.owner===owner()&&c.session===readOwner();
   const chatKey=(c,k)=>key(c.owner,c.conversation_id&&['draft','pending'].includes(k)?k+':'+c.conversation_id:k);
   const save=(c,k,v)=>{localStorage.setItem(chatKey(c,k),JSON.stringify(v));};
+  const CONNECTION_NOTE=/^(Can't reach Kinetta|This is taking too long)|Return when online/;
   const status=(c,text)=>{if(active(c))$('#kit-status',c.el).textContent=text||'';};
   function clearWait(c){if(c.waitTimer)clearTimeout(c.waitTimer);c.waitTimer=null;c.waiting=null;}
   function waitBubble(c,target){
@@ -384,6 +385,8 @@ Object.assign(KitChat, (() => {
     if(!active(c)||c.visit_id!==visit||c.conversation_id!==thread||c.generation!==generation)return;
     if(c.generation&&c.generation!==data.generation){if(c.job&&!$('#kit-text',c.el).value){$('#kit-text',c.el).value=c.job.question;try{save(c,'draft',c.job.question);}catch{}}c.messages=[];c.job=null;c.sending=false;c.answerErrors={};store.del(chatKey(c,'pending'));status(c,'This chat was cleared on another device. Your draft is kept.');}
     c.generation=data.generation;c.ready=data.ready;c.streamSupported=data.stream_supported===true;c.before=data.before;c.loaded=true;
+    // The server answered, so an earlier connection warning is no longer true.
+    if(CONNECTION_NOTE.test($('#kit-status',c.el).textContent))status(c,'');
     const rows=before?[...data.messages,...c.messages]:data.messages;
     c.messages=[...new Map(rows.map(m=>[m.client_id,m])).values()].sort((a,b)=>a.id-b.id);
     if(c.job&&c.job.generation!==c.generation){c.job=null;store.del(chatKey(c,'pending'));}
