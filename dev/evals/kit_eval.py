@@ -310,14 +310,17 @@ try:
   if expected_refusal:error=None
   passed=evaluation_case_passed(cid,variant=variant,answer=answer,error=error,
                                 expected_refusal=expected_refusal)
+  from kit_review_evidence import context_evidence
   row={'case':cid,'variant':variant,'question':'Review my week' if weekly else question,'history':history,
        'observed_context':observed_context,
+       'context_evidence':context_evidence(question,history,observed_context),
        'fixture':weekly_manifests.get(cid),'weekly_request':transport,'weekly_review':weekly,
        'evaluation_account':'health-consent-off' if weekly and cid=='weekly-health-consent-off' else 'primary',
        'answer':answer,'error':error,'cap_reason':boundary,'provider_requests':provider_requests,
        'provider_turns':rejection.get('provider_turns',[]),
        'answer_evidence':rejection.get('answer_evidence'),
        'tool_evidence':rejection.get('answer_evidence') or rejection.get('tool_calls') or [],
+       'app_tool_evidence':rejection.get('tool_calls') or [],
        'tool_calls':rejection.get('tool_calls') or [],'claim_evidence':(answer or {}).get('claim_evidence',[]),
        'expected_refusal':expected_refusal,'passed':passed,
        'rejection':rejection if rejection and 'validation_error' in rejection else None,

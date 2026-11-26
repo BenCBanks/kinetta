@@ -97,7 +97,7 @@ def read_series(c, user_id, request, *, now=None):
              'garmin':bool(profile.get('garmin_ai_ok'))}).fetchall()
     truncated = request.group_by == 'workout' and len(rows) > 30
     rows = list(reversed(rows[:30] if request.group_by == 'workout' else rows))
-    empty_value = 0 if request.aggregate == 'sum' else None
+    empty_value = 0 if request.metric == 'workouts' else None
     if buckets:
         by_start = {row['bucket']: row for row in rows}
         plotted = [(day, by_start.get(day)) for day in buckets]
@@ -114,9 +114,10 @@ def read_series(c, user_id, request, *, now=None):
         denominator = sum(float(row['weight_sum'] or 0) for row in rows)
         overall = numerator/denominator if denominator else None
     elif request.aggregate == 'max': overall = (min(values) if pace_max else max(values)) if values else None
-    else: overall = sum(float(row['total'] or 0) for row in rows) if values else (0 if not rows else None)
-    first, last = (values[0], values[-1]) if values else (None, None)
-    change = last-first if len(values) > 1 else None
+    else: overall = sum(float(row['total'] or 0) for row in rows) if values else (0 if not rows and request.metric == 'workouts' else None)
+    first, last = (points[0]['value'], points[-1]['value']) if points else (None, None)
+    complete=points and all(p['value'] is not None for p in points)
+    change = last-first if complete and len(values)>1 else None
     mean = sum(abs(value) for value in values)/len(values) if values else 0
     direction = None if change is None else 'flat' if change == 0 or abs(change) < mean*.1 else 'up' if change > 0 else 'down'
     if request.metric == 'pace' and direction in ('up', 'down'):

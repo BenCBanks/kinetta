@@ -165,7 +165,7 @@ fi
 
 # The production image excludes dev/. Copy only the isolated evaluation sources.
 compose exec -T -u 0 app mkdir -p /srv/dev/evals
-for source in kit_fixture_clock.py kit_eval_savings.py test_kit_fixture_clock_incontainer.py kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_gate_resume.py kit_setting_smoke.py kit_batch2_cases.py test_kit_batch2_incontainer.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py; do
+for source in kit_review_evidence.py kit_fixture_clock.py kit_eval_savings.py test_kit_fixture_clock_incontainer.py kit_eval.py kit_cases.py kit_weekly_fixtures.py kit_gate_cases.py kit_eval_support.py kit_gate_resume.py kit_setting_smoke.py kit_batch2_cases.py test_kit_batch2_incontainer.py test_kit_baseline_incontainer.py test_kit_smoke_budget_incontainer.py; do
   compose cp "$ROOT/dev/evals/$source" "app:/srv/dev/evals/$source"
 done
 compose cp "$BASELINE" app:/tmp/kit-eval-baseline-coach.py
@@ -199,6 +199,10 @@ if ((BATCH2 == 1)); then BASELINE_ENV=(-e KINETTA_KIT_BASELINE_DIR=/tmp/kit-live
 if ((OFFLINE_SMOKE == 1)) && [[ -n "$ECONOMY_STAGE" ]]; then
   compose exec -T -e PYTHONPATH=/srv -e KINETTA_KIT_EVAL_ISOLATED=1 app python /srv/dev/evals/test_kit_fixture_clock_incontainer.py
   compose cp "$ROOT/dev/evals/fixtures/kit-ordinary-recovery.json" app:/tmp/kit-ordinary-recovery.json
+  compose exec -T app mkdir -p /srv/dev/evals/fixtures /srv/dev/tests
+  compose cp "$ROOT/dev/evals/fixtures/kit-batch2-release-review.json" app:/srv/dev/evals/fixtures/kit-batch2-release-review.json
+  compose cp "$ROOT/dev/tests/kit_release_review_incontainer.py" app:/srv/dev/tests/kit_release_review_incontainer.py
+  compose exec -T -e PYTHONPATH=/srv app python /srv/dev/tests/kit_release_review_incontainer.py
   for source in kit_recovery_incontainer.py kit_training_review_incontainer.py; do
     compose cp "$ROOT/dev/tests/$source" "app:/tmp/$source"
     compose exec -T -e PYTHONPATH=/srv app python "/tmp/$source"

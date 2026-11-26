@@ -72,23 +72,26 @@ with db.connect() as c:
     partial_month = read(group_by='month')
     assert partial_month['points'][0]['partial'] and partial_month['points'][-1]['in_progress']
     c.execute('DELETE FROM activities WHERE user_id=%s',(a,))
-    # Sums retain empty zero buckets in extrema and trends; one point has no change.
+    # Missing distance is unknown; actual recorded zero remains zero and counts can be zero.
     add(a, '2024-11-12T12:00:00Z', distance=10)
     zeros = read(metric='distance',aggregate='sum')
-    assert [p['value'] for p in zeros['points']] == [0,0,10]
-    assert zeros['summary']==dict(overall=10,first=0,last=10,highest=10,lowest=0,change=10,direction='up')
+    assert [p['value'] for p in zeros['points']] == [None,None,10]
+    assert zeros['summary']==dict(overall=10,first=None,last=10,highest=10,lowest=10,change=None,direction=None)
     single = read(metric='distance',aggregate='sum',period_count=1)
     assert single['summary']==dict(overall=10,first=10,last=10,highest=10,lowest=10,change=None,direction=None)
     c.execute('DELETE FROM activities WHERE user_id=%s',(a,))
     single_zero = read(metric='distance',aggregate='sum',period_count=1)
-    assert single_zero['summary']==dict(overall=0,first=0,last=0,highest=0,lowest=0,change=None,direction=None)
+    assert single_zero['summary']==dict(overall=None,first=None,last=None,highest=None,lowest=None,change=None,direction=None)
+    add(a,'2024-11-12T12:00:00Z',distance=0)
+    assert read(metric='distance',aggregate='sum',period_count=1)['summary']['overall']==0
+    c.execute('DELETE FROM activities WHERE user_id=%s',(a,))
     # Pace and Time use the same moving-duration preference with elapsed fallback.
     add(a, '2024-11-06T12:00:00Z', distance=1000, duration=900, moving=600)
     add(a, '2024-11-12T12:00:00Z', distance=1000, duration=300, moving=None)
     assert read(metric='time',aggregate='sum')['summary']['overall']==900
     assert read(metric='pace')['summary']['overall']==450
     faster = read(metric='pace',aggregate='max')
-    assert faster['summary']['overall']==300 and faster['summary']['direction']=='faster'
+    assert faster['summary']['overall']==300 and faster['summary']['direction'] is None
     c.execute('DELETE FROM activities WHERE user_id=%s',(a,))
     empty = read()
     assert all(p['value'] is None and not p['n'] for p in empty['points'])
