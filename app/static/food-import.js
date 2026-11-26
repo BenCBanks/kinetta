@@ -9,12 +9,13 @@ route(/^\/food\/import$/, 'food', async (el) => {
       <p class="small muted">First row = column names. Recognized: <b>Date</b>, <b>Weight</b> (${wu} unless the column says kg/lb), <b>Calories</b>, <b>Protein</b>, <b>Carbs</b>, <b>Fat</b>, <b>Fiber</b>, <b>Burned</b> (or Expenditure/TDEE), <b>Deficit</b>. Any order; other columns are ignored. Several rows per day (e.g. one per meal) are added up.</p>
       <pre class="eg">Date,Weight,Calories,Protein,Carbs,Fat,Deficit
 2026-03-01,152.4,1650,110,160,55,450
-2026-03-02,152.0,1720,115,170,58,380</pre><p class="small muted">Imported burned numbers replace the app’s estimate for those days.</p><p class="small muted">For day-by-day entry, leave unknown values blank. Burned = calories + deficit. Clearing a saved cell removes that imported value. Logged food stays unchanged.</p></details>
+2026-03-02,152.0,1720,115,170,58,380</pre><p class="small muted">Imported burned numbers replace the app’s estimate for those days.</p></details>
       <form class="form" id="hi-f"><label>Paste rows<textarea name="text" rows="6" placeholder="Date, Weight, Calories, ..."></textarea></label>
         <input type="file" id="hi-file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden>
         <button class="primary wide">Preview</button></form>
       <div id="hi-prev"></div></div>
     <div class="card"><h2>Enter day by day</h2>
+      <details class="chev-row" id="hg-help"><summary>How to edit saved days</summary><p class="small muted">Leave unknown values blank. Burned = Eaten + Deficit. Clearing a saved box and saving removes that imported number. Logged food stays unchanged.</p></details>
       <div class="gridbar"><label>From<input type="date" id="hg-start" max="${today}"></label><label class="gtog"><input type="checkbox" id="hg-mac"> Show macros <span aria-hidden="true">↔</span></label></div>
       <div id="hg"></div></div>
     <div id="hi-sum"></div>`;
