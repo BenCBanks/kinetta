@@ -38,7 +38,7 @@ def boundary_words(text):
 def validate(texts, facts, evidence, *, question='', reference, selection=None, weekly_review=False):
     # Facts, values, paths and source identity are checked separately. Prose quality belongs
     # to evaluation, not nearest-word heuristics that mistake advice for a personal claim.
-    traces=[]
+    traces=activity_scopes(texts,facts,evidence)
     for text in texts:
         counted,checks=food_count_phrase(text,facts,evidence);traces.extend(checks)
         prose,count_checks = kit_record_counts.bind(reference.sub('',counted),evidence,weekly_review=weekly_review)
@@ -102,7 +102,8 @@ def advice_quantities(prose):
     sentences=re.split(r'(?<=[.!?])\s+|\n',prose)
     result=[]
     for sentence in sentences:
-        if re.match(r'^(?:Pick|Try|Start|Consider|Focus on|To build consistency, focus on)\b',sentence,re.I) and not re.search(r'\b(?:logged|recorded|completed|was|were|had|did|took)\b',sentence,re.I):
+        if re.match(r'^(?:Pick|Try|Start|Consider|Focus on|With training limited to [a-z]+, focus your time on|To build consistency, focus on)\b',sentence,re.I) and not re.search(r'\b(?:logged|recorded|completed|was|were|had|did|took)\b',sentence,re.I):
+            sentence=re.sub(r'\bone (?:(?:specific|manageable) )?(?:meal|session)\b','a proposed step',sentence,flags=re.I)
             sentence=re.sub(r'\bfor one week\b','for a short trial',sentence,flags=re.I)
             sentence=re.sub(r'\bone (?:(?:specific|regular|routine) meal (?:each|every) day|anchor meal daily)\b','a routine meal daily',sentence,flags=re.I)
         result.append(sentence)
@@ -334,7 +335,7 @@ def missing_nutrient_evidence(texts,evidence):
     return traces
 
 
-METRICS = re.compile(r'\b(?:workouts?|sessions?|completed activity|recorded activity|distance|moving (?:time|duration)|training time|time training|duration|pace|heart rate|weight|training load|fitness|sodium|protein|saturated fat|sugar|fibre|fiber|calories|intake)\b',re.I)
+METRICS = re.compile(r'\b(?:workout time|workouts?|sessions?|completed activity|recorded activity|distance|moving (?:time|duration)|training time|time training|duration|pace|heart rate|weight|training load|fitness|sodium|protein|saturated fat|sugar|fibre|fiber|calories|intake)\b',re.I)
 DIRECTIONS = re.compile(r'\b(?:more|higher|high|increas\w*|rose|ris(?:e|ing)|longer(?!-)|faster|quicker|better|improv\w*|stronger|fitter|less|fewer|lower|low|decreas\w*|dropp\w*|fell|fall(?:ing)?|shorter|slower|worse|downward|upward|same|unchanged|usual|typical)\b',re.I)
 
 
@@ -374,13 +375,20 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
                 require([proof(e,['limitations'],'possible_fluctuation') for e in successful(evidence,'weight_trend') if e['data'].get('limitations')]);continue  # A cause is unknown; use may/can, never a diagnosis.
             # Unknown intake explicitly contrasted with low intake is a limitation,
             # not a measured low value. Remove only this negated comparison.
-            if re.search(r'\bintake remains (?:largely )?(?:unknown|unlogged) rather than (?:complete or )?low\b',lower):
+            if re.search(r'\b(?:intake remains|nutrition totals remain) (?:largely )?(?:unknown|unlogged) rather than (?:complete or )?(?:low|below target)\b',lower):
                 sources=successful(evidence,'nutrition_adequacy')
                 require([proof(e,['unlogged_finished_days'],'incomplete_logging') for e in sources
                          if len(sources)==1 and e['data'].get('truncated') is False
                          and type(e['data'].get('unlogged_finished_days')) is int and e['data']['unlogged_finished_days']>0])
-                sentence=re.sub(r'\brather than (?:complete or )?low\b','',sentence,flags=re.I)
+                sentence=re.sub(r'\brather than (?:complete or )?(?:low|below target)\b','',sentence,flags=re.I)
                 lower=sentence.casefold()
+            if re.fullmatch(r'you increased your training compared to the week before',lower.strip()):
+                require([proof(e,['change',field,'absolute'],'higher')
+                    for e in successful(evidence,'period_compare')
+                    if all(type(e['data'].get('change',{}).get(f,{}).get('absolute')) in (int,float)
+                           and e['data']['change'][f]['absolute']>0 for f in ('workouts','distance_m','duration_s'))
+                    for field in ('workouts','distance_m','duration_s')])
+                continue
             absent_target=False
             if re.search(r'\b(?:no|not|without|unset|none)\b',lower) and 'target' in lower:
                 for name,field in {'saturated fat':'saturated_fat_target_g','sodium':'sodium_target_mg','sugar':'sugar_target_g','protein':'protein_target','calorie':'kcal_target'}.items():
@@ -407,6 +415,8 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
                         for j,change in enumerate(candidate.get('changes',[])):
                             if 'easy run' not in lower or change.get('type')=='easy':choices.append(proof(e,['candidates',i,'changes',j],'available'))
                 require(choices)
+            sentence=re.sub(r'\bwent up\b','increased',sentence,flags=re.I)
+            sentence=re.sub(r'\bwent down\b','decreased',sentence,flags=re.I)
             directions=list(DIRECTIONS.finditer(re.sub(r'\bwithout adding more this week\b','without adding activity this week',sentence,flags=re.I)));metrics=list(METRICS.finditer(sentence))
             if not directions:
                 if re.search(r'\b(?:compared with|compared to|versus|vs)\b',lower):
@@ -429,7 +439,7 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
                 positive=bool(re.fullmatch(r'more|higher|high|increas\w*|rose|ris(?:e|ing)|longer|faster|quicker|better|improv\w*|stronger|fitter|upward',direction))
                 if re.fullmatch(r'better|improv\w*|stronger|fitter|worse',direction):raise ClaimRejected('relation_unsupported')
                 sign=0 if direction in ('same','unchanged','usual','typical') else 1 if positive else -1
-                field=('workouts' if re.search(r'workout|session|activity',word) else 'duration_s' if re.search(r'time|duration',word)
+                field=('duration_s' if re.search(r'time|duration',word) else 'workouts' if re.search(r'workout|session|activity',word)
                        else 'distance_m' if word=='distance' else 'pace_s_per_km' if word=='pace' else 'avg_hr' if word=='heart rate' else None)
                 sources=[]
                 if word=='training load':
@@ -449,4 +459,46 @@ def claim_evidence(texts,evidence,facts=(),*,selection=None):
                         if type(value) in (int,float) and coach_chat.math.isfinite(value) and (value>0)-(value<0)==sign:
                             sources.append(proof(e,['change',field,'absolute'],'higher' if sign>0 else 'lower' if sign<0 else 'same'))
                 require(sources)
+    return traces
+
+
+def activity_scopes(texts, facts, evidence):
+    """A sport subtotal is not an all-sport total; daily means every stated date."""
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from .kit_conversation import REFERENCE
+    traces=[]
+    for text in texts:
+        # Commas can introduce the very scope that belongs to a measurement.
+        for sentence in re.split(r'(?<=[.!?])\s+|\n',text):
+            refs=[int(m[2]) for m in REFERENCE.finditer(sentence)]
+            for i in refs:
+                if i>=len(facts):continue  # ordinary reference validation rejects this
+                fact=facts[i];path=fact['path']
+                if fact['tool']!='activities' or len(path)!=3 or path[0]!='totals_by_sport':continue
+                sources=[e for e in successful(evidence,'activities') if e['evidence_id']==fact['evidence_id']]
+                if len(sources)!=1:raise ClaimRejected('relation_unsupported')
+                source=sources[0];sport=source['data']['totals_by_sport'][path[1]]['sport']
+                labels={'run':r'run(?:s|ning)?','ride':r'cycl(?:e|es|ing)|rid(?:e|es|ing)','walk':r'walk(?:s|ing)?',
+                        'swim':r'swim(?:s|ming)?','workout':r'general training|general workouts?|other workouts?'}
+                named={key for key,pattern in labels.items() if re.search(r'\b(?:'+pattern+r')\b',sentence,re.I)}
+                if (re.search(r'\b(?:all (?:sports|activities|workouts)|combined|overall)\b',sentence,re.I)
+                        or named-{sport} or sport not in named):
+                    raise ClaimRejected('relation_unsupported')
+                traces.append(proof(source,['totals_by_sport',path[1],'sport'],'measurement_scope'))
+            if not re.search(r'\b(?:daily activity|activity every day|workouts every day|logged workouts every day|consecutive days of activity)\b',sentence,re.I):continue
+            sources=successful(evidence,'activities');profiles=successful(evidence,'profile')
+            if len(sources)!=1 or len(profiles)!=1:raise ClaimRejected('relation_unsupported')
+            source=sources[0];data=source['data'];args=source.get('arguments',{})
+            if data.get('next_before_id','unknown') is not None:raise ClaimRejected('relation_unsupported')
+            try:
+                tz=ZoneInfo(profiles[0]['data']['tz']);end=dt.date.fromisoformat(args['end'])
+                start=dt.date.fromisoformat(args['start'])
+                # "past week" is seven dates ending at the source's stated end.
+                if re.search(r'\b(?:past|last) week\b',sentence,re.I):start=end-dt.timedelta(days=6)
+                days={(dt.datetime.fromisoformat(a['start_time']).astimezone(tz)).date() for a in data['activities']}
+                expected={start+dt.timedelta(days=i) for i in range((end-start).days+1)}
+            except (KeyError,ValueError,TypeError):raise ClaimRejected('relation_unsupported')
+            if not expected or not expected<=days:raise ClaimRejected('relation_unsupported')
+            traces.append(proof(source,['activities'],'every_recorded_date'))
     return traces

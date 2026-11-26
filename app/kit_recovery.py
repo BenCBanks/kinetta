@@ -59,7 +59,8 @@ def fallback(uid, question, state, active, reason):
         with db.coach_connect(uid) as c:
             if not coach.health_ok(c, uid):return kit_conversation.consent_answer()
     question = kit_conversation.user_question(question)
-    kind = topic(question)
+    context_reply = context_step(question, state.get('history') or [])
+    kind = 'food' if context_reply and context_reply[0]=='food' else topic(question)
     facts, paragraphs = [], []
     def source(name):
         matches = kit_claims.successful(evidence, name)
@@ -106,9 +107,22 @@ def fallback(uid, question, state, active, reason):
         runs = source('recent_runs')
         add(runs, ['totals','count'], 'The returned running records include {} workouts.')
         add(runs, ['totals','distance_m'], 'Their recorded distance was {}.')
-    generic = dict(blocks=[dict(kind='paragraph',text='I will stick to your recorded details rather than guess.'),
-                          dict(kind='paragraph',text=STEPS[kind])], facts=[])
-    raw = dict(blocks=[dict(kind='paragraph',text=p) for p in paragraphs+[STEPS[kind]]], facts=facts) if paragraphs else generic
+        if not facts:
+            activities=source('activities')
+            if activities is not None:
+                for i,sport in enumerate(activities['data'].get('totals_by_sport',[])):
+                    noun={'run':'running','ride':'cycling','walk':'walking','swim':'swimming'}.get(sport.get('sport'))
+                    if noun:add(activities,['totals_by_sport',i,'distance_m'],'Your recorded '+noun+' covered {}.')
+                if any(a.get('distance_m') is None for a in activities['data'].get('activities',[])):
+                    paragraphs.append('Some workout distances are unknown, so these are recorded subtotals.')
+    step=('You could keep your next session easy, or take a rest day if you feel tired.'
+          if kind=='activity' and re.search(r'\b(?:recovery|recovering|load)\b',question,re.I) else STEPS[kind])
+    if len(facts)>1 and kind=='activity':paragraphs=[' '.join(paragraphs)]
+    generic = dict(blocks=[dict(kind='paragraph',text='Let’s start with a practical next step.'),
+                          dict(kind='paragraph',text=step)], facts=[])
+    if context_reply:
+        generic=dict(blocks=[dict(kind='paragraph',text=context_reply[1])],facts=[])
+    raw = dict(blocks=[dict(kind='paragraph',text=p) for p in paragraphs+[step]], facts=facts) if paragraphs else generic
     charts = kit_claims.successful(evidence, 'chart_series')
     if (len(charts) == 1 and re.search(r'\b(?:chart|graph|plot)\b',question,re.I)
             and not re.search(r"\b(?:no|without|do not|don't) (?:a |the )?(?:chart|graph|plot)\b",question,re.I)):
@@ -135,7 +149,7 @@ def safe(answer):
         if not kwargs.get('kit') or kwargs.get('weekly_review') or kwargs.get('workout_review'):
             return answer(uid, question, **kwargs)
         from . import kit_claims, kit_conversation, coach
-        token = _attempt.set(dict(uid=uid))
+        token = _attempt.set(dict(uid=uid,history=kwargs.get('history') or []))
         try:
             try:return answer(uid, question, **kwargs)
             except ValueError as error:
@@ -150,3 +164,16 @@ def safe(answer):
                 return fallback(uid, question, state, kwargs.get('active'), reason)
         finally:_attempt.reset(token)
     return wrapped
+
+
+def context_step(question, history):
+    """Use explicit current availability, or a relevant user goal; never assistant guesses."""
+    match=re.search(r"\bI can train on (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) only\b",question,re.I)
+    if match:
+        day=match[1].capitalize()
+        return 'activity', f'Let’s plan around Sunday only. You could set aside time on Sunday for an easy walk, then decide whether that schedule works for you.'.replace('Sunday',day)
+    if not re.search(r'\b(?:that goal|logging|food)\b',question,re.I):return None
+    latest=next((item.get('text','') for item in reversed(history) if item.get('role')=='user'), '')
+    if re.search(r'\b(?:food logging|food logging routine|food-logging|logging food)\b',latest,re.I):
+        return 'food', 'For your food-logging goal, you could log lunch right after eating today, including drinks and snacks. Which meal would be easiest for you to log regularly?'
+    return None
