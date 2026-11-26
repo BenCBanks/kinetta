@@ -312,7 +312,7 @@ class PlanIn(BaseModel):
     long_day: int = Field(5, ge=5, le=6)
     race_day: dt.date | None = None
     goal_s: float | None = Field(None, gt=600, lt=8 * 3600)
-    break_days: int = Field(0, ge=0, le=365)
+    break_days: int | None = Field(None, ge=0, le=365)
 
 
 def _settings(c, uid, b: PlanIn):
@@ -350,6 +350,10 @@ def _prepare(c, uid, body):
     ready=plan_prescription.readiness(history,p['level'],p['runs'],LEVELS[p['race']][p['level']],body.break_days)
     P=plan_prescription.fresh_paces(c,uid,tz,today,history,paces,RACES[p['race']]['m'],p['goal_s'],body.break_days)
     p['prescription']=plan_prescription.make(p,P,history,_build_legacy,_pace_txt) if ready['eligible'] else None
+    if p['prescription']:
+        ready['reasons'].extend(plan_prescription.validate(p['prescription'],p,LEVELS[p['race']][p['level']]))
+        ready['eligible']=not ready['reasons']
+        if not ready['eligible']:p['prescription']=None
     return p,P,ready
 
 

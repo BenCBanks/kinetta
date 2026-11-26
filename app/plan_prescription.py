@@ -11,6 +11,16 @@ VERSION = 2
 MI = 1609.344
 
 
+def logged_break(history):
+    """Missing answers cannot erase a two-week gap in the user's recorded running."""
+    today = dt.date.fromisoformat(history['as_of'])
+    days = sorted({dt.date.fromisoformat(str(r['day'])) for r in history['recent_runs']})
+    gaps = [(after, (after-before).days-1) for before, after in zip(days, days[1:])
+            if (after-before).days > 14 and after > today-dt.timedelta(days=28)]
+    resumed, length = max(gaps, default=(None, 0))
+    return {'observed_break_days': length, 'resumed_on': str(resumed) if resumed else None}
+
+
 def running_history(c, uid, tz, today):
     rows = c.execute('''SELECT DISTINCT start_time, distance_m, coalesce(moving_s,elapsed_s) AS seconds,
         (start_time AT TIME ZONE %s)::date AS day FROM activities
@@ -18,36 +28,49 @@ def running_history(c, uid, tz, today):
         AND coalesce(moving_s,elapsed_s)>0 AND start_time<now()
         AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s''',
         (tz, uid, tz, today-dt.timedelta(days=56), today-dt.timedelta(days=1))).fetchall()
-    recent = [r for r in rows if r['day'] >= today-dt.timedelta(days=28)]
+    gap = logged_break({'as_of': str(today), 'recent_runs': rows})
+    # Pre-break volume/long runs cannot establish the returning runner's present base.
+    since = dt.date.fromisoformat(gap['resumed_on']) if gap['resumed_on'] else today-dt.timedelta(days=56)
+    usable = [r for r in rows if r['day'] >= since]
+    recent = [r for r in usable if r['day'] >= today-dt.timedelta(days=28)]
     blocks = [sum(float(r['distance_m']) for r in recent
                   if today-dt.timedelta(days=7*(i+1)) <= r['day'] < today-dt.timedelta(days=7*i)) for i in range(4)]
     return {'as_of': today.isoformat(), 'source': 'logged_running',
             'weekly_m': sum(blocks)/4, 'week_totals_m': blocks,
             'run_days_per_week': len({r['day'] for r in recent})/4,
-            'longest_m': max((float(r['distance_m']) for r in rows if r['day'] >= today-dt.timedelta(days=30)), default=0),
+            'longest_m': max((float(r['distance_m']) for r in usable if r['day'] >= today-dt.timedelta(days=30)), default=0),
             'days_since_run': (today-max(r['day'] for r in rows)).days if rows else None,
+            **gap,
             'recent_runs': [{'day':r['day'].isoformat(), 'distance_m':float(r['distance_m'])} for r in rows]}
 
 
-def readiness(history, level, runs, table, break_days=0):
+def readiness(history, level, runs, table, break_days=None):
     """Unknown logging is not proof of inactivity; never silently invent a base."""
     reasons = []
+    gap = logged_break(history)
     if level != 'first':
         minimum = table['vol'][0]*MI
+        if history['week_totals_m'][0] < minimum*.75:
+            reasons.append('Your last week of logged running is below this plan’s starting base. Rebuild consistent easy running or choose an easier plan.')
         if history['weekly_m'] < minimum:
             reasons.append('The logged four-week average is below this level’s starting distance. Choose an easier plan or build a base first.')
         if sum(v >= minimum*.75 for v in history['week_totals_m']) < 3 or history['run_days_per_week'] < min(runs, table['runs'][0])*.75:
             reasons.append('This plan needs a consistent recent running base. Add missing runs, or choose the run/walk plan.')
-        if (history['days_since_run'] is None or history['days_since_run'] > 7 or break_days >= 14):
+        if (history['days_since_run'] is None or history['days_since_run'] > 7
+                or (break_days or 0) >= 14 or gap['observed_break_days'] >= 14):
             reasons.append('After time off, rebuild consistent easy running before starting this race plan.')
         if history['longest_m'] < table['long'][0]*MI/1.1:
             reasons.append('The first long run is above your recent longest run. Build up before starting this plan.')
     return {'eligible': not reasons, 'reasons': reasons, 'history': history,
-            'reported_break_days': break_days, 'basis': 'Logged training supports these checks; missing logs remain unknown.'}
+            'reported_break_days': break_days, **gap,
+            'basis': 'Logged training supports these checks; missing logs remain unknown.'}
 
 
 def fresh_paces(c, uid, tz, today, history, original_paces, race_m, goal_s, break_days):
     # A recent representative effort is necessary, not proof that every recorded run was a race.
+    # Use effort cues throughout the four-week return window, including on older clients.
+    if (break_days or 0) >= 14 or logged_break(history)['observed_break_days'] >= 14:
+        return {}
     rows = c.execute('''SELECT b.distance_m,b.elapsed_s FROM best_efforts b JOIN activities a
         ON a.id=b.activity_id AND a.user_id=b.user_id WHERE b.user_id=%s AND b.sport='run'
         AND b.distance_m>=1609 AND b.elapsed_s>0 AND NOT a.lift_open AND b.start_time<now()
@@ -56,7 +79,7 @@ def fresh_paces(c, uid, tz, today, history, original_paces, race_m, goal_s, brea
     from . import analysis
     values = [analysis.vdot(r['distance_m'],r['elapsed_s']) for r in rows]
     values = [v for v in values if math.isfinite(v) and 25<=v<=85]
-    v = round(max(values),1) if values and history['days_since_run'] is not None and history['days_since_run']<=7 and break_days<14 else None
+    v = round(max(values),1) if values and history['days_since_run'] is not None and history['days_since_run']<=7 else None
     P = original_paces(v)
     if goal_s and v and goal_s >= analysis.race_time(v,race_m)*.95:
         P['goal'] = goal_s/(race_m/1000)
@@ -186,3 +209,26 @@ def weeks(snapshot):
         wk['start']=dt.date.fromisoformat(wk['start'])
         for w in wk['workouts']:w['day']=dt.date.fromisoformat(w['day'])
     return out
+
+
+def validate(snapshot, settings, table):
+    """Creation-time backstop: a race cannot make an inadequate build look complete.
+
+    The distance floors are conservative product screens, not clinical clearance.
+    A race-week with no other running is intentional for an early-week race.
+    """
+    training = [[w for w in wk['workouts'] if w['type'] != 'race'] for wk in snapshot['weeks']]
+    if any(not ws for ws in training[:-1]):
+        return ['This schedule has an empty training week. Build a consistent base or choose another plan.']
+    if settings['level'] == 'first':
+        return []
+    totals = [sum(w.get('distance_m', 0) for w in ws) for ws in training]
+    if any(not math.isfinite(v) or v < table['vol'][0]*MI*.5 for v in totals[:-1]):
+        return ['This schedule drops below a useful training base. Rebuild easy running before starting this plan.']
+    race_m = next(w['distance_m'] for wk in snapshot['weeks'] for w in wk['workouts'] if w['type'] == 'race')
+    longest = max((w['distance_m'] for ws in training for w in ws if w['type'] == 'long'), default=0)
+    # At least a race-distance week and a long run of 60% of the race distance.
+    # Otherwise lengthen the build or establish more logged running before approval.
+    if max(totals) < race_m or longest < race_m*.6:
+        return ['This build does not reach enough running for the race distance. Build a stronger base or choose a shorter race.']
+    return []

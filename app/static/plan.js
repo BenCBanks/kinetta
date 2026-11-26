@@ -158,9 +158,9 @@ function planOverview(box, d) {
       <h3 class="ghead">How it's built</h3><p class="small">${p.level === 'first' ? 'Run/walk sessions that slowly swap walking for running, until you can run 30 minutes and then a 5K.'
         : 'Base: easy miles. Build/Peak: more distance or harder sessions. Cutback: every 4th week. Taper: less running before race day.'}</p></div>
     <div class="plan-detail-section"><h2>Your paces</h2>
-      ${d.vdot ? paceRow('Easy & long runs', pc.easy, 'chatty, relaxed - most of your running') + paceRow('Recovery', pc.recovery, 'the day after a long run') +
+      ${d.vdot || d.prescription_version===2&&Object.keys(pc).length ? paceRow('Easy & long runs', pc.easy, 'chatty, relaxed - most of your running') + paceRow('Recovery', pc.recovery, 'the day after a long run') +
         paceRow('Tempo', pc.tempo, 'comfortably hard, about 1-hour race pace') + paceRow('Intervals', pc.intervals, 'hard repeats, about 5K effort') +
-        paceRow(p.goal_s ? 'Goal race pace' : 'Race pace from fitness', p.goal_s ? pc.goal : pc[goalKey], p.goal_s ? `for your ${fmtT(p.goal_s)} goal` : 'from best efforts in the past 90 days')
+        paceRow(p.goal_s ? 'Goal race pace' : 'Race pace from fitness', p.goal_s ? pc.goal : pc[goalKey], p.goal_s ? `for your ${fmtT(p.goal_s)} goal` : d.prescription_version===2?'from recent fitness when this plan was created':'from best efforts in the past 90 days')
         + '<p class="small muted">Easy = conversational · Tempo = a few words · Intervals = hard and controlled. In heat or on hills, go by feel.</p>'
         : '<p class="small">Easy = conversational · Tempo = a few words · Intervals = hard and controlled.</p>'}</div>
     </details>`;

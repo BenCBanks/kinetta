@@ -41,13 +41,23 @@ def make(p,h=None,P=None):return rules.make(p,P or {},h or history(p),G['_build_
 
 class RulesTest(unittest.TestCase):
     def test_all_offered_and_race_weekdays(self):
-        count=0
+        count=0;approved=0;refused=0
         for race,R in G['RACES'].items():
             for level,L in G['LEVELS'][race].items():
                 for W,runs,ld,unit in itertools.product([9] if level=='first' else R['weeks'],range(L['runs'][0],L['runs'][1]+1),(5,6),('mi','km')):
                     for dow in range(7):
                         p=setting(race,level,W,runs,ld,unit,dow);h=history(p);snap=make(p,h);weeks=rules.weeks(snap);count+=1
                         flat=[w for wk in weeks for w in wk['workouts']]
+                        issues=rules.validate(snap,p,L)
+                        if issues:
+                            refused+=1
+                            self.assertTrue(all(isinstance(reason,str) and len(reason)>20 for reason in issues))
+                        else:
+                            approved+=1
+                            self.assertTrue(all(wk['workouts'] for wk in weeks[:-1]))
+                            if level!='first':
+                                self.assertGreaterEqual(max(sum(w.get('distance_m',0) for w in wk['workouts'] if w['type']!='race') for wk in weeks),R['m'])
+                                self.assertGreaterEqual(max((w['distance_m'] for w in flat if w['type']=='long'),default=0),R['m']*.6)
                         self.assertEqual(len({w['day'] for w in flat}),len(flat));self.assertEqual(sum(w['type']=='race' for w in flat),1)
                         self.assertFalse(any(w['day']==p['race_day']-dt.timedelta(days=1) for w in flat))
                         recent=[(dt.date.fromisoformat(r['day']),r['distance_m']) for r in h['recent_runs']];prior=h['weekly_m'];stress=None
@@ -69,6 +79,8 @@ class RulesTest(unittest.TestCase):
                         q={**p,'unit':'km' if unit=='mi' else 'mi'};other=make(q,h)
                         self.assertEqual([[w.get('distance_m') for w in x['workouts']] for x in snap['weeks']],[[w.get('distance_m') for w in x['workouts']] for x in other['weeks']])
         self.assertEqual(count,2772)
+        self.assertGreater(approved,0);self.assertGreater(refused,0)
+        print(f'Finished-build audit: {approved} supported variants meet the build floors; {refused} require a stronger base/another race.')
 
     def test_unsupported_lengths_and_no_compression(self):
         G['_ctx']=lambda c,u:('UTC','mi',BASE);G['recent_weekly']=lambda *a:20
@@ -141,6 +153,48 @@ class RulesTest(unittest.TestCase):
         for wk in make(p,h)['weeks']:
             value=sum(w.get('distance_m',0) for w in wk['workouts'] if w['type']!='race')
             self.assertLessEqual(value,previous*1.15+1e-6);previous=value
+
+    def test_older_strong_weeks_and_token_run_cannot_approve_a_collapsed_build(self):
+        p=setting();h=history(p);L=G['LEVELS'][p['race']][p['level']]
+        h.update(week_totals_m=[100,40000,40000,40000],weekly_m=30025,days_since_run=1)
+        self.assertFalse(rules.readiness(h,'beginner',4,L)['eligible'])
+        snapshot=make(p,h)
+        self.assertTrue(any(not wk['workouts'] for wk in snapshot['weeks'][:-1]))
+        self.assertTrue(rules.validate(snapshot,p,L),'a race appended to empty weeks never makes a valid build')
+
+    def test_finished_build_is_checked_even_after_readiness_passes(self):
+        p=setting(weeks=12);h=history(p);L=G['LEVELS'][p['race']][p['level']]
+        self.assertTrue(rules.readiness(h,'beginner',4,L)['eligible'])
+        self.assertIn('race distance',' '.join(rules.validate(make(p,h),p,L)))
+        h.update(weekly_m=50000,week_totals_m=[50000]*4,longest_m=13000)
+        p=setting(weeks=18);snapshot=make(p,h)
+        self.assertEqual(rules.validate(snapshot,p,L),[])
+        # Removing a whole week or reducing it to token sessions is rejected independently of readiness.
+        for value in (0,100):
+            broken=copy.deepcopy(snapshot)
+            for w in broken['weeks'][4]['workouts']:w['distance_m']=value
+            self.assertTrue(rules.validate(broken,p,L))
+
+    def test_logged_break_cannot_be_overridden_by_missing_or_zero_answer(self):
+        p=setting();h=history(p);L=G['LEVELS'][p['race']][p['level']]
+        h['recent_runs']=[{'day':str(BASE-dt.timedelta(days=i)),'distance_m':10000} for i in (36,33,30,4,2,1)]
+        for reported in (None,0,14):
+            result=rules.readiness(h,'beginner',4,L,reported)
+            self.assertFalse(result['eligible']);self.assertIn('After time off',' '.join(result['reasons']))
+            self.assertEqual(result['observed_break_days'],25)
+            self.assertEqual(result['resumed_on'],str(BASE-dt.timedelta(days=4)))
+            self.assertEqual(result['reported_break_days'],reported)
+        class C:
+            def execute(self,*args):raise AssertionError('Pre-break efforts must not supply returning-runner paces')
+        self.assertEqual(rules.fresh_paces(C(),1,'UTC',BASE,h,G['paces'],42195,None,None),{})
+        # The SQL history rollup itself excludes the old base and longest run.
+        class HistoryC:
+            def execute(self,*args):return self
+            def fetchall(self):return [{'day':dt.date.fromisoformat(r['day']),'distance_m':r['distance_m']} for r in h['recent_runs']]
+        current=rules.running_history(HistoryC(),1,'UTC',BASE)
+        self.assertEqual(current['week_totals_m'],[30000,0,0,0])
+        self.assertEqual(current['run_days_per_week'],.75)
+        self.assertEqual(current['observed_break_days'],25)
 
     def test_frozen_schedule_and_legacy_unchanged(self):
         p=setting();before=G['_build_legacy'](p,G['paces'](45));self.assertEqual(G['build'](p,G['paces'](45)),before)
