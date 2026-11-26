@@ -152,7 +152,8 @@ def make(settings, P, history, legacy_build, pace_text):
                 biggest=max(eligible,key=lambda w:w['dist'])
                 if biggest['dist']>long['dist']:biggest['dist'],long['dist']=long['dist'],biggest['dist']
             wanted=sum(w['dist']*MI for w in eligible)
-            cap=min(wanted,previous_week*1.15)
+            growth=.8 if wk['phase']=='Cutback' else .75 if wk['phase'] in ('Taper','Race week') else 1.15
+            cap=min(wanted,previous_week*growth)
             # Scale the whole week once, never fill a negative budget with minimum-distance extras.
             scale=min(1,cap/wanted) if wanted else 0
             for w in eligible:

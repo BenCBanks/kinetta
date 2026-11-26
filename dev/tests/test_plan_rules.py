@@ -63,7 +63,9 @@ class RulesTest(unittest.TestCase):
                                 if w['type'] in ('long','medium_long','tempo','intervals','hills','fartlek'):
                                     if stress:self.assertGreaterEqual((w['day']-stress).days,2)
                                     stress=w['day'];self.assertLess(w['day'],p['race_day']-dt.timedelta(days=3))
-                            if level!='first':self.assertLessEqual(total,prior*1.15+1e-6);prior=total
+                            if level!='first':
+                                factor=.8 if wk['phase']=='Cutback' else .75 if wk['phase'] in ('Taper','Race week') else 1.15
+                                self.assertLessEqual(total,prior*factor+1e-6);prior=total
                         q={**p,'unit':'km' if unit=='mi' else 'mi'};other=make(q,h)
                         self.assertEqual([[w.get('distance_m') for w in x['workouts']] for x in snap['weeks']],[[w.get('distance_m') for w in x['workouts']] for x in other['weeks']])
         self.assertEqual(count,2772)
