@@ -1,25 +1,17 @@
-"""Training plans (2026-10-10): 5K, 10K, half marathon and marathon; first-timer (5K run/walk), beginner, intermediate
-and advanced; 6-20 weeks; 3-6 runs a week; long run on Saturday or Sunday.
-
-Our own generator, following the structure most published plans share (Higdon-style beginner plans: easy miles, one
-long run, no hard sessions; Hansons/Pfitzinger-style intermediate and advanced plans: tempo + interval days, goal-pace
-long runs, a mid-week long run for advanced marathoners; couch-to-5K style run/walk for first-timers):
-  - phases: base -> build -> peak -> taper -> race; weekly volume and long run grow steadily, every 4th week is a
-    lighter "cutback" week; taper 1 week (5K/10K), 2 (half), 3 (marathon).
-  - paces come from current running fitness (Daniels VDOT, same as Progress > Fitness) and update as you get fitter;
-    a goal time sets the race-pace sessions. Without any fast runs yet, workouts are described by effort only.
-Only the plan settings are stored (training_plans); the weeks are rebuilt from them, so the schedule never drifts.
-Completion (2026-10-12, revised the same day): a run that day (any source) at least the planned distance (a 2%
-allowance for GPS); a run-walk (timed, no distance) counts with any run. Runs on other days never tick off a workout.
-Ticks by hand (plan_marks) work on any workout day, past or future, and win over the runs: done, or "not done"."""
+"""Deterministic training plans. New plans store a versioned canonical prescription;
+settings-only legacy plans retain their original generator until explicitly replaced.
+Timed sessions require duration, distance sessions require distance (2% allowance).
+Manual completion corrections win; recording distance does not verify effort/intervals.
+"""
 import datetime as dt
 import math
+import json
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from . import analysis, db
+from . import analysis, db, plan_prescription
 from .auth import current_user
 
 router = APIRouter(prefix='/api/plans')
@@ -113,7 +105,7 @@ def _pace_txt(P, key, unit):
 def _r(x, step=0.5): return max(step, round(x / step) * step)
 
 
-def build(p, P):
+def _build_legacy(p, P):
     """Weeks of workouts for plan settings p (race, level, weeks, runs, long_day, start_day, race_day, unit,
     start_vol, goal_s); P = paces. Distances in the plan's unit (mi or km)."""
     race, lvl, W, unit = p['race'], p['level'], p['weeks'], p['unit']
@@ -238,6 +230,15 @@ def build(p, P):
     return weeks
 
 
+def build(p, P):
+    # NULL is intentional: pre-upgrade plans retain their exact existing generator.
+    saved=p.get('prescription')
+    if saved is not None:
+        if saved.get('version') != plan_prescription.VERSION: raise ValueError('Unsupported saved plan version')
+        return plan_prescription.weeks(saved)
+    return _build_legacy(p,P)
+
+
 def _quality(race, lvl, phase, i, frac, dow, U, pt, vol):
     """A tempo or interval session for week i. Interval reps by race distance; tempo length grows with volume."""
     wu = 1 if U == 'mi' else 2
@@ -311,6 +312,7 @@ class PlanIn(BaseModel):
     long_day: int = Field(5, ge=5, le=6)
     race_day: dt.date | None = None
     goal_s: float | None = Field(None, gt=600, lt=8 * 3600)
+    break_days: int = Field(0, ge=0, le=365)
 
 
 def _settings(c, uid, b: PlanIn):
@@ -318,22 +320,37 @@ def _settings(c, uid, b: PlanIn):
     tz, unit, today = _ctx(c, uid)
     L = LEVELS[b.race][b.level]
     weeks = 9 if b.level == 'first' else b.weeks
-    runs = min(max(b.runs, L['runs'][0]), L['runs'][1])
+    if b.weeks not in ([9] if b.level=='first' else RACES[b.race]['weeks']):
+        raise HTTPException(400, 'Choose one of the supported plan lengths. Plans are never shortened to fit a race date.')
+    if not L['runs'][0]<=b.runs<=L['runs'][1]:
+        raise HTTPException(400, 'Choose a supported number of runs for this level.')
+    runs = b.runs
     if b.race_day:
         if b.race_day <= today: raise HTTPException(400, 'Pick a race date in the future')
         start = _monday(b.race_day) - dt.timedelta(weeks=weeks - 1)
-        if start + dt.timedelta(days=6) < today:    # race sooner than the plan length: shorten (from this week)
-            weeks = (_monday(b.race_day) - _monday(today)).days // 7 + 1
-            start = _monday(today)
-            need = 6 if b.race in ('5k', '10k') else 8 if b.race == 'half' else 10
-            if weeks < need or b.level == 'first':
-                raise HTTPException(400, f"Your race is only {weeks} week{'s' if weeks != 1 else ''} away - a {RACES[b.race]['name']} plan needs at least {9 if b.level == 'first' else need}. Pick a later race date.")
+        if start < _monday(today):
+            raise HTTPException(400, 'That race is too soon for the full plan. Choose a later date or a supported shorter plan.')
+        if start > today+dt.timedelta(days=14):
+            raise HTTPException(400, 'Review your recent running closer to the plan start, within two weeks.')
+        if b.level=='first' and b.race_day.weekday()<3:
+            raise HTTPException(400, 'The full run/walk progression needs a target on Thursday or later in its final week.')
         race_day = b.race_day
     else:
-        start = _monday(today) + (dt.timedelta(weeks=1) if today.weekday() >= 3 else dt.timedelta(0))   # Thu-Sun: start next Monday
+        start = _monday(today) + (dt.timedelta(weeks=1) if today.weekday() >= 3 else dt.timedelta(0))
         race_day = start + dt.timedelta(weeks=weeks - 1, days=b.long_day)
+
     return {'race': b.race, 'level': b.level, 'weeks': weeks, 'runs': runs, 'long_day': b.long_day, 'unit': unit,
             'start_day': start, 'race_day': race_day, 'goal_s': b.goal_s, 'start_vol': recent_weekly(c, uid, unit)}
+
+
+def _prepare(c, uid, body):
+    p=_settings(c,uid,body)
+    tz,_,today=_ctx(c,uid)
+    history=plan_prescription.running_history(c,uid,tz,today)
+    ready=plan_prescription.readiness(history,p['level'],p['runs'],LEVELS[p['race']][p['level']],body.break_days)
+    P=plan_prescription.fresh_paces(c,uid,tz,today,history,paces,RACES[p['race']]['m'],p['goal_s'],body.break_days)
+    p['prescription']=plan_prescription.make(p,P,history,_build_legacy,_pace_txt) if ready['eligible'] else None
+    return p,P,ready
 
 
 def _summary(p, weeks):
@@ -354,45 +371,48 @@ def _out_week(wk, unit):
 def options(user=Depends(current_user)):
     with db.connect() as c:
         tz, unit, today = _ctx(c, user['id'])
-        v = current_vdot(c, user['id']); wk = recent_weekly(c, user['id'], unit)
-        pred = {x['label']: x['seconds'] for x in run_predictions(c, user['id'], [(R['m'], key) for key, R in RACES.items()])}
+        wk = recent_weekly(c, user['id'], unit)
+        history=plan_prescription.running_history(c,user['id'],tz,today)
+        P=plan_prescription.fresh_paces(c,user['id'],tz,today,history,paces,5000,None,0)
+        pred={key:round(P[{'5k':'5k','10k':'10k','half':'hmp','marathon':'mp'}[key]]*R['m']/1000) for key,R in RACES.items()} if P else {}
+        v=current_vdot(c,user['id']) if P else None
     k = 1.0 if unit == 'mi' else MI / 1000
     races = []
     for key, R in RACES.items():
         lv = []
         for lk, L in LEVELS[key].items():
             item = {'key': lk, 'name': LEVEL_NAMES[lk], 'desc': L['desc'], 'runs': L['runs'], 'quality': L['quality']}
-            if 'vol' in L: item |= {'peak_week': round(L['vol'][1] * k), 'longest': round(L['long'][1] * k)}
+            if 'vol' in L: item |= {'peak_week': round(L['vol'][1] * k), 'longest': round(L['long'][1] * k),
+                                    'starting_week':round(L['vol'][0]*k,1),'starting_long':round(L['long'][0]*k,1)}
             lv.append(item)
         races.append({'key': key, 'name': R['name'], 'weeks': R['weeks'], 'default_weeks': R['default'], 'levels': lv,
                       'predicted_s': pred.get(key)})
     suggest = 'first' if wk < 3 else 'beginner' if wk < 15 * k else 'intermediate' if wk < 30 * k else 'advanced'
-    return {'races': races, 'unit': unit, 'vdot': v, 'recent_weekly': wk, 'suggest_level': suggest, 'today': today.isoformat()}
+    return {'races': races, 'unit': unit, 'vdot': v, 'recent_weekly': wk, 'suggest_level': suggest, 'today': today.isoformat(),
+            'readiness':{k:v for k,v in history.items() if k!='recent_runs'}}
 
 
 @router.post('/preview')
 def preview(b: PlanIn, user=Depends(current_user)):
     with db.connect() as c:
-        p = _settings(c, user['id'], b); v = current_vdot(c, user['id'])
-    weeks = build(p, paces(v, p['goal_s'], RACES[p['race']]['m']))
-    s = _summary(p, weeks)
-    warn = None
-    if p['level'] != 'first' and p['start_vol'] < s['first_week'] * 0.6:
-        warn = (f"You've averaged {p['start_vol']:g} {p['unit']} a week lately; week 1 has {s['first_week']:g}. "
-                'Consider an easier level or a longer plan, and build up gradually.')
-    return {'summary': s, 'start_day': p['start_day'].isoformat(), 'race_day': p['race_day'].isoformat(), 'warning': warn,
-            'weeks': [_out_week(w, p['unit']) for w in weeks[:3]]}
+        p,P,ready=_prepare(c,user['id'],b)
+    if not ready['eligible']:
+        raise HTTPException(400, ' '.join(ready['reasons']))
+    weeks=build(p,P)
+    return {'summary':_summary(p,weeks),'start_day':p['start_day'].isoformat(),'race_day':p['race_day'].isoformat(),
+            'warning':None,'readiness':ready,'weeks':[_out_week(w,p['unit']) for w in weeks[:3]]}
 
 
 @router.post('')
 def create(b: PlanIn, user=Depends(current_user)):
     with db.connect() as c:
-        p = _settings(c, user['id'], b)
+        p,_,ready = _prepare(c,user['id'],b)
+        if not ready['eligible']: raise HTTPException(400, ' '.join(ready['reasons']))
         c.execute('UPDATE training_plans SET active = false, ended = now() WHERE user_id = %s AND active', (user['id'],))
-        pid = c.execute("""INSERT INTO training_plans (user_id, race, level, weeks, runs, long_day, start_day, race_day, goal_s, unit, start_vol)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        pid = c.execute("""INSERT INTO training_plans (user_id, race, level, weeks, runs, long_day, start_day, race_day, goal_s, unit, start_vol, prescription)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                         (user['id'], p['race'], p['level'], p['weeks'], p['runs'], p['long_day'], p['start_day'], p['race_day'],
-                         p['goal_s'], p['unit'], p['start_vol'])).fetchone()['id']
+                         p['goal_s'], p['unit'], p['start_vol'], json.dumps(p['prescription']))).fetchone()['id']
     return {'id': pid}
 
 
@@ -411,6 +431,11 @@ def apply_adjustments(c, uid, p, weeks):
                 workout.pop('track_intervals', None)  # an adjusted description is not a checked interval prescription
                 workout['original_dist'] = workout.get('dist')
                 workout.update(adjusted[workout['day']])
+                if p.get('prescription') and workout.get('dist'):
+                    # A confirmed reduction replaces the old segment prescription as well.
+                    m=workout['dist']*(MI if p['unit']=='mi' else 1000)
+                    workout['distance_m']=m
+                    workout['segments']=[{'kind':workout['type'],'distance_m':m}]
                 workout['adjusted'] = True
 
 
@@ -420,12 +445,17 @@ def current_from_connection(c, uid):
     if not p: return {'plan': None}
     tz, unit, today = _ctx(c, uid)
     v = current_vdot(c, uid)
-    runs = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sum(distance_m) AS m, min(id) AS id, count(*) AS n
+    runs = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sum(distance_m) AS m, sum(coalesce(moving_s,elapsed_s)) AS seconds, min(id) AS id, count(*) AS n
                         FROM activities WHERE user_id = %s AND sport = 'run' AND start_time >= %s::date - 1
                         GROUP BY 1""", (tz, uid, p['start_day'])).fetchall()
     marks = {r['day']: r['done'] for r in c.execute('SELECT day, done FROM plan_marks WHERE plan_id = %s AND user_id = %s', (p['id'], uid)).fetchall()}
     pred = run_predictions(c, uid, [(RACES[p['race']]['m'], p['race'])])
-    P = paces(v, p['goal_s'], RACES[p['race']]['m'])
+    saved=p.get('prescription')
+    P = {k:tuple(value) if isinstance(value,list) else value for k,value in saved['paces'].items()} if saved else paces(v, p['goal_s'], RACES[p['race']]['m'])
+    if saved:
+        v=v if P else None
+        key=RACE_PACE[p['race']]
+        pred=[{'seconds':round(P[key]*RACES[p['race']]['m']/1000)}] if P.get(key) else []
     weeks = build(p, P)
     apply_adjustments(c, uid, p, weeks)
     U = p['unit']; per = MI if U == 'mi' else 1000
@@ -440,7 +470,7 @@ def current_from_connection(c, uid):
         for w, raw in pairs:
             r = by_day.get(raw['day'])
             if r: w['actual'] = round((r['m'] or 0) / per, 1); w['activity_id'] = r['id']
-            enough = r and (not raw['dist'] or (r['m'] or 0) / per >= raw['dist'] * 0.98)
+            enough = r and ((r.get('seconds') or 0)>=raw['duration_s']*.98 if raw.get('duration_s') else not raw['dist'] or (r['m'] or 0) / per >= raw['dist'] * 0.98)
             if r and not enough: w['short'] = True
             if raw['day'] in marks:
                 w['by_hand'] = True
@@ -475,7 +505,7 @@ def current_from_connection(c, uid):
             'today': today.isoformat(), 'today_workout': today_w, 'next_workout': nxt, 'this_week': this_week, 'today_run': today_run,
             'days_to_race': (p['race_day'] - today).days, 'vdot': v, 'predicted_s': pred[0]['seconds'] if pred else None,
             'paces': pace_out, 'summary': _summary(p, weeks), 'progress': progress, 'level_desc': LEVELS[p['race']][p['level']]['desc'],
-            'taper_weeks': R['taper'], 'weeks': out}
+            'taper_weeks': R['taper'], 'weeks': out,'prescription_version':saved['version'] if saved else 1}
 
 
 class MarkIn(BaseModel):
