@@ -275,6 +275,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/kit_conversation_inconta
 docker compose -p "$P" exec -T app python - < dev/tests/kit_charts_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_coaching_quality_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_context_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_context_chart_regressions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-release-claims.json app:/tmp/kit-release-claims.json
 docker compose -p "$P" exec -T app python - < dev/tests/kit_release_claims_incontainer.py

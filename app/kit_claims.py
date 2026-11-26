@@ -41,7 +41,8 @@ def validate(texts, facts, evidence, *, question='', reference, selection=None):
     traces=[]
     for text in texts:
         counted,checks=food_count_phrase(text,facts,evidence);traces.extend(checks)
-        prose = reference.sub('',counted)
+        prose,chart_counts = kit_charts.counted_records(reference.sub('',counted),evidence)
+        traces.extend(chart_counts)
         if HEALTH.search(prose):raise ClaimRejected('health_claim')
         if NUMBER_WORD.search(advice_quantities(bound_logged_days(prose,evidence))):raise ClaimRejected('numeric_unsupported')
     if eating_safety_answer(question) is not None:raise ClaimRejected('health_claim')

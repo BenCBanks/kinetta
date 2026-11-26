@@ -263,7 +263,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         raise ValueError('Conversation exceeds requested length')
     result=dict(answer_blocks=blocks, interpretation=interpretation, facts=facts, claim_evidence=checks,
                 selection=checked['selection'], actions=checked['actions'], follow_ups=checked['follow_ups'])
-    result.update(kit_charts.checked_chart(answer,evidence,result,weekly_review=weekly_review))
+    result.update(kit_charts.checked_chart(answer,evidence,result,weekly_review=weekly_review,question=user_question(question)))
     return result
 
 
@@ -330,6 +330,7 @@ def meal_summary(selection,facts,texts):
 
 
 def natural_measurements(text,facts):
+    text=kit_coaching.wording(text)
     # Two exact captured constructions; references still pass the ordinary exact
     # path/value/unit checks. Never treat an appended unit as generic prose.
     def field(slot):
