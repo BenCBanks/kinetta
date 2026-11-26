@@ -9,7 +9,7 @@ function fixture(styles=[{sheet:{},href:'/static/style.css'}],href='https://fict
  vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/boot.js','utf8'),c);
  return {c,root,button,preloads,classes,launchNode,emit:e=>handlers.error(e),loaded:()=>handlers.DOMContentLoaded(),ready:()=>{launch=false;page=true;},timeout:()=>timers.forEach(fn=>fn()),reloads:()=>reloads,observer:()=>observer,addLaunch:()=>{launch=true;observer.callback();}};
 }
-let f=fixture();assert.equal(f.preloads.length,1,'Web startup adds the /api/me preload');assert.equal(f.preloads[0].href,'/api/me');assert.equal(f.preloads[0].crossOrigin,'anonymous');assert.equal(f.preloads[0].fetchPriority,'high');f.emit({target:{tagName:'IMG'}});assert.equal(f.c.KinettaBoot.failed,false,'A photo error cannot replace startup');
+let f=fixture();assert.equal(f.preloads.length,0,'The fresh app bootstrap owns the account read; no unused web preload');f.emit({target:{tagName:'IMG'}});assert.equal(f.c.KinettaBoot.failed,false,'A photo error cannot replace startup');
 f=fixture(undefined,'capacitor://localhost/');assert.equal(f.preloads.length,0,'Capacitor startup does not add a web preload');
 f=fixture(undefined,'https://fictional.invalid/',true);assert.equal(f.preloads.length,0,'Native platform startup does not add a web preload');
 f.emit({target:{tagName:'SCRIPT',src:'/static/app.js?v=1'}});assert.equal(f.c.KinettaBoot.failed,true);assert(f.root.innerHTML.includes('Try again'));f.button.onclick();assert.equal(f.reloads(),1);
