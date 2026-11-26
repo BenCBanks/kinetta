@@ -13,8 +13,8 @@ const source=fs.readFileSync('app/static/kit.js','utf8'),extract=(a,b)=>source.s
  const b=event('block',{index:0,block}),done=event('complete',{message:row});
  frames=[': keep-alive\n\n',b.slice(0,7),b.slice(7),()=>{assert.equal(draws.length,1,'checked block paints before complete');assert.equal(draws[0].answer.facts.length,0);return {value:new TextEncoder().encode(done)}}];
  assert.equal((await context.streamAnswer(c,'c',{},()=>valid)).state,'answered');assert.equal(draws[0].answer.answer_blocks[0].text,block.text);
- for(const broken of [event('block',{index:1,block}),event('block',{index:0,block:{kind:'script',text:'raw'}}),event('error',{code:'access_changed'}),b]){
-  start();frames=[broken];await assert.rejects(context.streamAnswer(c,'c',{},()=>valid));
+ for(const broken of [event('block',{index:1,block}),event('block',{index:0,block:{kind:'script',text:'raw'}}),event('error',{code:'access_changed'}),'event: block\ndata: private malformed payload\n\n',b]){
+  start();frames=[broken];await assert.rejects(context.streamAnswer(c,'c',{},()=>valid),error=>error.message==='Your question is kept. Try again.');
  }
  start();frames=[b,()=>{valid=false;return {value:new TextEncoder().encode(done)}}];assert((await context.streamAnswer(c,'c',{},()=>valid)).cancelled);assert.equal(draws.length,1,'changed owner/visit has no later paint');
  for(const status of [429,503]){
