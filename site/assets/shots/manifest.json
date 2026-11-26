@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-11-26T05:05:04.980339+00:00",
-  "revision": "2dc94d3a312d3a8240e06d3512edbfcd52eefe6f",
+  "generated_at": "2026-11-26T12:15:36.750294+00:00",
+  "revision": "3777d547e378f6e0e7fb18272b9be2c1e715aef2",
   "simulator_captures": {
-    "source_revision": "aedbf7fd33f1a094925189c23158132fc99a9a49",
+    "source_revision": "9f11b08f7dbd7d3e6f5aa35784e44bdcb5075183",
     "device": "iPhone 16",
     "runtime": "iOS 26.5",
     "sdk": "26.5",
@@ -29,7 +29,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "6d1213253ca1814d107e5fffbfffb398219949df37636448fd69796d9f2b49fe",
+        "source_sha256": "25b3693c33c7273e13b7e147cb237b8c217872f6c14b736d97c00f3171cb06f3",
         "two_x": "light-achievements.webp",
         "one_x": "light-achievements-1x.webp"
       },
@@ -53,7 +53,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "33955abb86558a6c749e7715fa5820cfb01bb8719cdf85454711bdc4fd1a6286",
+        "source_sha256": "933533da408665e37f04c2a74677ebdf34dd34cf63aed942093aa936f8325562",
         "two_x": "light-activity-detail.webp",
         "one_x": "light-activity-detail-1x.webp"
       },
