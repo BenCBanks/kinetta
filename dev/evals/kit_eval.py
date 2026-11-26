@@ -265,6 +265,7 @@ try:
      result=run_weekly_answer(
       coach_chat.answer if variant=='candidate' else baseline.answer,
       case_uid,transport,history=history,guidance=guidance,
+      question_context=(kit_thread.kit_coaching.question_context if variant=='candidate' else None),
       request_count=lambda: provider_requests_for(case_uid,client_id))
     answer=result['answer'];error=result['error'];provider_requests=result['provider_requests']
    else:
