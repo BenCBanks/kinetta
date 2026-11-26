@@ -40,6 +40,7 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
   if(current.kit&&u.pathname==='/api/me'){
    const response=await route.fetch({maxRedirects:0});assert.equal(response.status(),200,'Own account never redirects');const me=await response.json();return route.fulfill({response,json:{...me,kit_chat:true,ai_ok:true,ai_paused:false,coach:true,ai_access:{...me.ai_access,coach:{available:true,entitled:true}}}});
   }
+  if(current.kit&&method==='GET'&&u.pathname==='/api/coach/conversation/threads')return route.fulfill({json:{enabled:false}});
   if(current.kit&&u.pathname.startsWith('/api/coach/conversation')){
    const allowed=u.pathname==='/api/coach/conversation'||u.pathname==='/api/coach/conversation/visits'||/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(u.pathname);
    assert(allowed,'Journey never sends a question or changes memory');
