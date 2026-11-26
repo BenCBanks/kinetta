@@ -1301,3 +1301,7 @@ def report_group(group_id: str, body: GroupReport, user=Depends(current_user)):
         for admin in c.execute('SELECT id FROM users WHERE is_admin AND id<>%s', (user['id'],)).fetchall():
             notify.add(c, admin['id'], 'report', user['id'])
     return {'ok': True, 'id': rid}
+
+
+from .group_challenge_api import router as challenge_router
+router.include_router(challenge_router)
