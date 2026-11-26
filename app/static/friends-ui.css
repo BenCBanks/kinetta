@@ -530,3 +530,19 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .group-event-date-form [data-group-date-clear] {justify-self:start;min-height:44px;padding:0;color:var(--accent);}
 .group-event-date-form [data-group-date-clear][hidden] {display:none;}
 .group-event-date-form>button[type=submit] {min-height:50px;}
+/* People-first groups: totals and sharing live inside each challenge. */
+.group-section-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.group-section-heading h2,.group-updates-section>h2 {font-size:18px;margin:0;}
+.group-challenges-section,.group-updates-section {margin-top:22px;}
+.group-section-heading {min-height:44px;}
+.group-challenge-row {gap:12px;min-height:76px;}
+.group-challenge-row .grow {min-width:0;}
+.group-challenge-row b,.group-challenge-row small {display:block;overflow-wrap:anywhere;}
+.group-challenge-row small {color:var(--tx3);font-size:13px;margin-top:4px;}
+.group-challenge-row progress {display:block;width:100%;height:4px;margin-top:10px;accent-color:var(--accent);}
+.group-challenge-form {gap:12px;}
+.group-challenge-form .group-end-date-row {min-height:52px;}
+.group-challenge-form input:not([type=date]) {font-size:16px;}
+.group-challenge-detail .group-goal-value {font-size:32px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;}
+.group-challenge-detail .group-goal-label {color:var(--tx2);font-size:14px;}
+.group-challenge-parent {color:var(--tx2);font-size:14px;overflow-wrap:anywhere;}

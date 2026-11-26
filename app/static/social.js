@@ -574,13 +574,10 @@ function wireHomeChallengeLink(el){
   link?.addEventListener('click',event=>{if(event.defaultPrevented||event.metaKey||event.ctrlKey||event.button>0)return;if(typeof Discovery!=='undefined')Discovery.visit('activity','challenges');});
 }
 function groupListMarkup(groups,home=false){
-  return groups.length?`<div class="card list group-list-card">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow"><b>${esc(group.title)}</b><small>${esc(groupListSubtitle(group))}</small></span>${svg('chev')}</a>`).join('')}</div>`:home?`<div class="group-empty"><p>Train together and see each other’s progress.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+  return groups.length?`<div class="card list group-list-card">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow"><b>${esc(group.title)}</b><small>${esc(groupListSubtitle(group))}</small></span>${svg('chev')}</a>`).join('')}</div>`:home?`<div class="group-empty"><p>Train together and see each other’s progress.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`:`<div class="group-empty"><p>Train together and cheer each other on.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
 }
 function groupListSubtitle(group){
-  const current=group.total!==undefined?Number(group.total)||0:Number(group.your_total)||0,target=Number(group.goal_target)||0;
-  const progress=group.total!==undefined?`${groupNumber(current)} of ${groupAmount(target,group.goal_unit)}`:`You: ${groupNumber(current)} of ${groupAmount(target,group.goal_unit)}`;
-  const timing=group.event_date?`${group.weeks_to_event==null?'Event date set':`${group.weeks_to_event} ${group.weeks_to_event===1?'week':'weeks'} to go`}`:`Since ${fdate(group.goal_start_date+'T12:00:00',{month:'short',day:'numeric'})}`;
-  return `${progress} · ${timing}`;
+  return `${group.member_count} ${group.member_count===1?'member':'members'}`;
 }
 async function homeGroups(el) {
   const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner();
@@ -1359,27 +1356,14 @@ function groupInviteSheet(group,initialUrl=null){
   },{keyboardAttached:true,focusContainer:true});
 }
 function groupCreateSheet(done){
-  const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',imperial=App.me?.units==='imperial';
-  const draft={goal_type:'distance',goal_target:imperial?60:100,goal_unit:imperial?'mi':'km',goal_sports:['run','ride','walk','hike','swim','row','ski','workout','other'],event_date:null};
-  const goalLabel=()=>`${GROUP_GOALS[draft.goal_type]||'Distance'} · ${groupAmount(draft.goal_target,draft.goal_unit)} · ${draft.goal_sports.length===9?'All sports':'Selected sports'}`;
-  const eventLabel=()=>draft.event_date?new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(`${draft.event_date}T12:00:00`)):'None';
-  const refresh=()=>{const g=$('[data-group-create-goal]',document),d=$('[data-group-create-date]',document);if(g)g.querySelector('small').textContent=goalLabel();if(d)d.querySelector('small').textContent=eventLabel();};
-  sheet('Create a group',`<form class="form group-create-form" id="group-create-form"><div class="group-create-fields">
-    <label class="group-create-name-label">Group name<input name="title" maxlength="80" required autocomplete="off" enterkeyhint="go" placeholder="Weekend miles"></label>
-    <button type="button" class="group-create-row" data-group-create-goal><span>Goal</span><small>${esc(goalLabel())}</small>${svg('chev')}</button>
-    <button type="button" class="group-create-row" data-group-create-date><span>Event date</span><small>${esc(eventLabel())}</small>${svg('chev')}</button>
-    </div><div class="group-create-footer"><button class="primary wide" type="submit" disabled>Create group</button></div></form>`,(body,close)=>{
-      const form=$('#group-create-form',body),name=form.elements.title,submit=$('button[type=submit]',form),fields=$('.group-create-fields',form);
-      const update=()=>{submit.disabled=!name.value.trim();};name.addEventListener('input',update);name.focus({preventScroll:true});
-      fields.addEventListener('scroll',()=>form.classList.toggle('has-scrolled-fields',fields.scrollTop>0),{passive:true});
-      $('[data-group-create-goal]',form).onclick=()=>groupGoalSheet(draft,()=>{refresh();});
-      $('[data-group-create-date]',form).onclick=()=>groupCreateDateSheet(draft,today,()=>refresh());
-      form.onsubmit=async event=>{event.preventDefault();if(!name.value.trim()||submit.disabled)return;submit.disabled=true;
-        const data={title:name.value.trim(),training_for:'',goal_start_date:today,event_date:draft.event_date,time_zone:zone,note:'',goal_type:draft.goal_type,goal_target:Number(draft.goal_target),goal_unit:draft.goal_unit,goal_sports:[...draft.goal_sports]};
-        try{const group=await api('/api/groups',json('POST',data));if(!body.isConnected)return;close();done(group);}
-        catch(error){if(body.isConnected){toast(error.message);update();}}
-      };
-    },{flow:'new',keyboardAttached:true,focusContainer:true});
+  sheet('Create a group',`<form class="form group-create-form" id="group-create-form"><div class="group-create-fields"><label class="group-create-name-label">Group name<input name="title" maxlength="80" required autocomplete="off" enterkeyhint="go" placeholder="Saturday crew"></label></div><div class="group-create-footer"><button type="submit" class="primary wide" disabled>Create group</button></div></form>`,(body,close)=>{
+    const form=$('#group-create-form',body),name=form.elements.title,submit=$('button[type=submit]',form);
+    const update=()=>submit.disabled=!name.value.trim();name.oninput=update;
+    form.onsubmit=async event=>{event.preventDefault();if(submit.disabled)return;submit.disabled=true;
+      try{const group=await api('/api/groups/people',json('POST',{title:name.value.trim(),time_zone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}));if(!body.isConnected)return;close();done(group);}
+      catch(error){if(body.isConnected){toast(error.message);update();}}
+    };
+  },{flow:'new',keyboardAttached:true,focusContainer:true});
 }
 function groupCreateDateSheet(draft,today,changed){
   const set=value=>{draft.event_date=value||null;changed();};
@@ -1505,44 +1489,73 @@ function groupGoal(group){
   const targetText=`of ${groupAmount(target,group.goal_unit)}`;
   return `<section class="group-goal card" aria-label="Shared goal"><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} ${esc(targetText)}"></progress><div class="group-goal-main"><strong class="group-goal-value" data-type="stat">${esc(groupAmount(value,group.goal_unit))}</strong><span class="group-goal-label" data-type="secondary">${esc(targetText)}${combined?' together':''}</span></div>${group.event_state==='ongoing'?'<small class="group-goal-period">Since '+esc(new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric'}).format(new Date(`${group.goal_start_date||new Date().toISOString().slice(0,10)}T12:00:00`)))+'</small>':''}${weeklyTarget}${weekHtml}${lastWeek}${planLink}</section>`;
 }
-function groupPage(el,group,selectedTab='members',keepExpanded=false){
-  group={...group,event_state:group.event_state||(group.event_date==null?'ongoing':(group.days_to_event||0)===0?'today':'upcoming'),updates:group.updates||[],weekly_reaction:group.weekly_reaction||{my_reaction:null,reactions:{}}};
-  let expanded=keepExpanded,activeTab=selectedTab;
-  const reload=async()=>{invalidate('/api/groups/'+encodeURIComponent(group.id));try{const fresh=await api('/api/groups/'+encodeURIComponent(group.id));if(el.isConnected)groupPage(el,fresh,activeTab,expanded);}catch(error){if(el.isConnected)toast(error.message);}};
-  const draw=()=>{const weeks=group.weeks_to_event??Math.ceil(group.days_to_event/7),timing=group.event_state==='today'?"Today’s the day":group.event_state==='complete'?'Event complete':`${weeks} ${weeks===1?'week':'weeks'} to go`;
-    const summary=group.event_state==='ongoing'?`Since ${new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',timeZone:group.time_zone}).format(new Date(`${group.goal_start_date||new Date().toISOString().slice(0,10)}T12:00:00`))}`:`${groupDate(group.event_date,group.time_zone)} · ${timing}`;
+function groupChallengeRow(group,q){
+  const value=q.total??q.your_total,max=Number(q.target)||1;
+  return `<a class="row-link group-challenge-row" href="/groups/${encodeURIComponent(group.id)}/challenges/${encodeURIComponent(q.id)}"><span class="grow"><b>${esc(q.title)}</b><small>${q.ended_at?'Ended · ':''}${esc(groupAmount(value,q.unit))} of ${esc(groupAmount(q.target,q.unit))}</small><progress max="${max}" value="${Math.min(max,Math.max(0,Number(value)||0))}" aria-label="${esc(q.title)} progress"></progress></span>${svg('chev')}</a>`;
+}
+function groupPage(el,group,unused='members',keepExpanded=false){
+  let expanded=keepExpanded;
+  const base='/api/groups/'+encodeURIComponent(group.id);
+  const reload=async()=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected)groupPage(el,{...fresh,challenges},'members',expanded);}catch(error){if(el.isConnected)toast(error.message);}};
+  const draw=()=>{
+    const people={...group,sharing_level:'total_shared',members:group.members.map(m=>({...m,value:undefined,sharing_total_only:false}))};
     el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<button type="button" class="group-header-invite" id="group-header-invite">${svg('people')}<span>Invite</span></button><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
-    <header class="group-title"><div class="group-title-name">${svg('lock')}<h1>${esc(group.title)}</h1></div><p class="group-title-summary">${esc(summary)}</p>${group.training_for?`<p class="group-training-for">Training for ${esc(group.training_for)}</p>`:''}${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
-    ${groupGoal(group)}
-    ${group.event_state==='today'?'<section class="group-event-day card">Today’s the day</section>':group.event_state==='complete'?groupRecapCard(group):''}
-    <section class="group-members-section"><h2>Members <span>${group.member_count}</span></h2><div class="group-roster card" id="group-panel-members"><div id="group-members" role="list">${groupRoster(group,expanded)}</div></div>${group.member_count===1?'<button type="button" class="primary wide group-invite-friends" data-group-invite>Invite friends</button>':''}</section>
-    <div class="group-content-tabs"><div class="group-detail-tabs" role="tablist" aria-label="Group details"><button type="button" id="group-tab-members" role="tab" aria-controls="group-panel-members" aria-selected="${activeTab==='members'}" tabindex="${activeTab==='members'?'0':'-1'}" data-group-tab="members">Members</button><button type="button" id="group-tab-updates" role="tab" aria-controls="group-panel-updates" aria-selected="${activeTab==='updates'}" tabindex="${activeTab==='updates'?'0':'-1'}" data-group-tab="updates">Updates</button></div>
-    <section class="group-updates card" id="group-panel-updates" role="tabpanel" aria-labelledby="group-tab-updates"${activeTab==='updates'?'':' hidden'}><div class="group-update-list">${group.updates.length?group.updates.map(update=>groupUpdateMarkup(group,update)).join(''):'<p class="group-update-empty">No updates yet.</p>'}</div>${group.closed?'':'<form class="group-update-form"><label class="vh" for="group-update-text">Post an update</label><textarea id="group-update-text" name="text" maxlength="200" rows="2" placeholder="Share an update…" required></textarea><button type="submit" class="primary">Post an update</button><p class="group-update-status small muted" role="status"></p></form>'}</section></div>
-    `;
+      <header class="group-title"><div class="group-title-name">${svg('lock')}<h1>${esc(group.title)}</h1></div><p class="group-title-summary">Private group</p></header>
+      <section class="group-members-section"><h2>Members <span>${group.member_count}</span></h2><div class="group-roster card" id="group-panel-members"><div id="group-members" role="list">${groupRoster(people,expanded)}</div></div>${group.member_count===1?'<button type="button" class="primary wide group-invite-friends" data-group-invite>Invite friends</button>':''}</section>
+      <section class="group-challenges-section"><div class="group-section-heading"><h2>Challenges</h2>${group.closed?'':'<button type="button" class="linkbtn" data-group-add-challenge>Add</button>'}</div>${group.challenges?.length?`<div class="card list">${group.challenges.map(q=>groupChallengeRow(group,q)).join('')}</div>`:'<p class="group-update-empty">No challenges yet.</p>'}</section>
+      <section class="group-updates-section"><h2>Updates</h2><div class="group-updates card" id="group-panel-updates"><div class="group-update-list">${group.updates?.length?group.updates.map(update=>groupUpdateMarkup(group,update)).join(''):'<p class="group-update-empty">No updates yet.</p>'}</div>${group.closed?'':'<form class="group-update-form"><label class="vh" for="group-update-text">Post an update</label><textarea id="group-update-text" name="text" maxlength="200" rows="2" placeholder="Share an update…" required></textarea><button type="submit" class="primary">Post an update</button><p class="group-update-status small muted" role="status"></p></form>'}</div></section>`;
     wireBack(el,'/activity?view=groups');$('#group-options',el).onclick=()=>groupMenu(group,reload,async()=>{
       const destination=BackNavigation.destination(history.state,location.pathname+location.search,'/activity?view=groups',readOwner(),{historyLength:history.length});
-      try{await api('/api/groups/'+encodeURIComponent(group.id)+'/leave',json('POST',{}));invalidate('/api/groups');toast(`You left ${group.title}`);go(destination.path,{replace:true});}
-      catch(error){toast(error.message);}
-    });const invite=()=>groupInvite(group);$('#group-header-invite',el).onclick=invite;$('[data-group-invite]',el)?.addEventListener('click',invite);$('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
-    $$('[data-group-tab]',el).forEach(button=>button.onclick=()=>{activeTab=button.dataset.groupTab;$$('[data-group-tab]',el).forEach(tab=>{const selected=tab.dataset.groupTab===activeTab;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});$('#group-panel-updates',el).hidden=activeTab!=='updates';});
+      try{await api(base+'/leave',json('POST',{}));invalidate('/api/groups');toast(`You left ${group.title}`);go(destination.path,{replace:true});}catch(error){toast(error.message);}
+    });
+    $('#group-header-invite',el).onclick=()=>groupInvite(group);$('[data-group-invite]',el)?.addEventListener('click',()=>groupInvite(group));
+    $('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
+    $('[data-group-add-challenge]',el)?.addEventListener('click',()=>groupChallengeEditor(group,null,reload));
     $$('[data-group-reaction-group]',el).forEach(node=>wireReactionGroup(node,null));
     $$('[data-update-options]',el).forEach(button=>{const update=group.updates.find(item=>String(item.id)===button.dataset.updateOptions);if(update)button.onclick=()=>groupUpdateMenu(group,update,reload);});
-    const share=$('[data-group-recap-share]',el);if(share)share.onclick=()=>openGroupRecapShare(el,group,share);
-    const form=$('.group-update-form',el);if(form)form.onsubmit=async event=>{event.preventDefault();const text=form.elements.text.value.trim(),button=$('button[type=submit]',form),status=$('.group-update-status',form);if(!text||button.disabled)return;button.disabled=true;status.textContent='Posting…';try{await api(`/api/groups/${encodeURIComponent(group.id)}/updates`,json('POST',{text}));form.elements.text.value='';await reload();}catch(error){status.textContent=error.message;button.disabled=false;}};
-  };
-  draw();
+    const form=$('.group-update-form',el);if(form)form.onsubmit=async event=>{event.preventDefault();const text=form.elements.text.value.trim(),button=$('button[type=submit]',form),status=$('.group-update-status',form);if(!text||button.disabled)return;button.disabled=true;status.textContent='Posting…';try{await api(base+'/updates',json('POST',{text}));form.elements.text.value='';await reload();}catch(error){status.textContent=error.message;button.disabled=false;}};
+  };draw();
+}
+function groupChallengeEditor(group,q,done){
+  const draft={goal_type:q?.metric||'distance',goal_target:q?.target||100,goal_unit:q?.unit||(App.me?.units==='imperial'?'mi':'km'),goal_sports:q?.sports||['run','ride','walk','hike','swim','row','ski','workout','other']},id=q?.id||crypto.randomUUID(),base='/api/groups/'+encodeURIComponent(group.id)+'/challenges';
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:q?.time_zone||group.time_zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const dateRow=(name,label,value)=>`<label class="group-end-date-row"><span>${label}</span><span data-challenge-date-label="${name}">${value?esc(groupDate(value,group.time_zone)):'None'}</span>${svg('chev')}<input type="date" name="${name}" aria-label="${label}" value="${esc(value||'')}"></label>`;
+  sheet(q?'Edit challenge':'Add challenge',`<form class="form group-challenge-form"><label>Challenge name<input name="title" maxlength="80" required value="${esc(q?.title||'')}" placeholder="November miles"></label><button type="button" class="group-create-row" data-challenge-goal><span>Goal</span><small>${esc(groupAmount(draft.goal_target,draft.goal_unit))}</small>${svg('chev')}</button>${dateRow('goal_start_date','Start date',q?.start_date||today)}${dateRow('event_date','End date',q?.end_date)}<button class="linkbtn" type="button" data-challenge-clear-date>Remove end date</button><button type="submit" class="primary wide">${q?'Save':'Add challenge'}</button></form>`,(body,close)=>{
+    const form=$('form',body),end=form.elements.event_date,clear=$('[data-challenge-clear-date]',body);
+    const dates=()=>{clear.hidden=!end.value;$$('input[type=date]',form).forEach(input=>$(`[data-challenge-date-label="${input.name}"]`,form).textContent=input.value?groupDate(input.value,group.time_zone):'None');};dates();
+    $$('input[type=date]',form).forEach(input=>input.onchange=dates);clear.onclick=()=>{end.value='';dates();};
+    $('[data-challenge-goal]',form).onclick=()=>groupGoalSheet(draft,()=>{$('[data-challenge-goal] small',form).textContent=groupAmount(draft.goal_target,draft.goal_unit);});
+    form.onsubmit=async event=>{event.preventDefault();const button=$('button[type=submit]',form);if(button.disabled)return;button.disabled=true;
+      const data={title:form.elements.title.value.trim(),...draft,time_zone:q?.time_zone||group.time_zone,goal_start_date:form.elements.goal_start_date.value,event_date:end.value||null,note:q?.note||'',training_for:q?.training_for||''};
+      try{await api(q?base+'/'+id:base,json(q?'PUT':'POST',{...data,...(q?{}:{id})}));if(!body.isConnected)return;close();invalidate(base);done();}catch(error){if(body.isConnected){toast(error.message);button.disabled=false;}}
+    };
+  },{keyboardAttached:true,focusContainer:true});
+}
+function groupChallengePage(el,group,q){
+  const base='/api/groups/'+encodeURIComponent(group.id)+'/challenges',path=base+'/'+q.id;
+  const reload=async()=>{invalidate(path);invalidate(base);invalidate('/api/groups/'+group.id);try{const [fresh,current]=await Promise.all([api(path),api('/api/groups/'+group.id)]);if(el.isConnected)groupChallengePage(el,current,fresh);}catch(error){if(el.isConnected)toast(error.message);}};
+  const legacy=q.legacy_goal?group:{},goal={...legacy,goal_type:q.metric,goal_target:q.target,goal_unit:q.unit,total:q.total,your_total:q.your_total,event_state:q.ended_at?'complete':legacy.event_state||'challenge'};
+  const roster={...group,sharing_level:q.share_total&&q.members.find(m=>m.username===App.me?.login)?.shares_total?'total_shared':'just_in',members:q.members.map(m=>({...m,photo:group.members.find(p=>p.username===m.username)?.photo,sharing_total_only:m.value===undefined}))};
+  el.innerHTML=`<div class="top">${backBtn('Group')}<span class="grow group-challenge-parent">${esc(group.title)}</span>${q.can_manage&&!q.ended_at?'<button type="button" class="icon-btn" data-challenge-options aria-label="Challenge options">'+svg('more')+'</button>':''}</div><header class="group-title"><h1>${esc(q.title)}</h1><p class="group-title-summary">${esc(GROUP_GOALS[q.metric])} · ${q.ended_at?'Ended':q.end_date?esc(groupDate(q.end_date,q.time_zone)):'No end date'}</p></header>${q.training_for?`<p class="group-training-for">Training for ${esc(q.training_for)}</p>`:''}${q.note?`<p class="group-note">${esc(q.note)}</p>`:''}${groupGoal(goal)}${q.legacy_goal&&group.event_state==='today'?'<section class="group-event-day card">Today’s the day</section>':q.legacy_goal&&group.event_state==='complete'?groupRecapCard(group):''}<section class="group-members-section"><h2>Members</h2><div class="card group-roster">${groupRoster({...roster,goal_unit:q.unit},true)}</div></section><label class="group-join-share"><span>Share my total</span><input type="checkbox" role="switch" data-challenge-sharing${q.share_total?' checked':''}></label>`;
+  wireBack(el,'/groups/'+group.id);
+  const recap=$('[data-group-recap-share]',el);if(recap)recap.onclick=()=>openGroupRecapShare(el,group,recap);
+  $('[data-challenge-sharing]',el).closest('label').insertAdjacentHTML('afterend',App.me?.share_achievements?'':'<p class="small muted">Totals are hidden while activity sharing is off in Settings.</p>');
+  $('[data-challenge-sharing]',el).onchange=async event=>{const input=event.currentTarget;input.disabled=true;try{await api(path+'/sharing',json('POST',{share_total:input.checked}));await reload();}catch(error){if(input.isConnected){input.checked=q.share_total;input.disabled=false;toast(error.message);}}};
+  $('[data-challenge-options]',el)?.addEventListener('click',()=>groupActionSheet('Challenge options','<button type="button" class="row-link" data-challenge-edit>Edit challenge</button><button type="button" class="row-link danger" data-challenge-end>End challenge</button>',(body,close)=>{
+    $('[data-challenge-edit]',body).onclick=()=>{close();groupChallengeEditor(group,q,reload);};
+    $('[data-challenge-end]',body).onclick=()=>{close();groupConfirm('End challenge?','The final totals will be kept. The group stays open.',async()=>{try{await api(path+'/end',json('POST',{}));await reload();}catch(error){toast(error.message);}});};
+  }));
 }
 function groupActionSheet(title,html,handler){sheet(title,html,handler);}
 function groupInvite(group){groupInviteSheet(group);}
 function groupMenu(group,reload,onLeave){
   const opts=[];
-  if(group.is_organizer&&!group.closed)opts.push('<button type="button" class="row-link" data-gact="event-date"><span>Edit event date</span>'+svg('chev')+'</button>');
   if(group.is_organizer&&!group.closed)opts.push(group.joining_closed?`<button type="button" class="row-link" data-gact="reopen"><span>Make a new invite</span>${svg('chev')}</button>`:`<button type="button" class="row-link" data-gact="stop"><span>Stop new members</span>${svg('chev')}</button>`);
   if(group.is_organizer&&group.member_count>1)opts.push(`<button type="button" class="row-link" data-gact="transfer"><span>Transfer organizer</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="remove"><span>Remove a member</span>${svg('chev')}</button>`);
   if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link danger" data-gact="close"><span>Close group</span>${svg('chev')}</button>`);
   if(group.event_date)opts.push(`<button type="button" class="row-link" data-gact="recap-consent"><span>${group.recap_consent?'Remove my name from the event recap':'Include my name in the event recap'}</span>${svg('chev')}</button>`);
   if(Number(group.member_count)>=3)opts.push(`<button type="button" class="row-link" data-gact="monday-recap"><span class="grow"><span>${group.monday_recap_enabled?'Turn off Monday recap':'Get Monday recap'}</span><small>In-app alert · off by default</small></span>${svg('chev')}</button>`);
-  opts.push(`<button type="button" class="row-link group-sharing-row" data-gact="sharing" role="switch" aria-checked="${group.sharing_level==='total_shared'}"><span>Share my total</span><span class="switch-track" aria-hidden="true"></span></button>`,`<button type="button" class="row-link" data-gact="notifications"><span>${group.notifications_muted?'Unmute group notifications':'Mute group notifications'}</span>${svg('chev')}</button>`);
+  opts.push(`<button type="button" class="row-link" data-gact="notifications"><span>${group.notifications_muted?'Unmute group notifications':'Mute group notifications'}</span>${svg('chev')}</button>`);
   opts.push(`<button type="button" class="row-link" data-gact="leave"><span>Leave group</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="report"><span>Report group</span>${svg('chev')}</button>`);
   groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div>`,(body,close)=>{
     const run=async(path,method='POST',payload={})=>{try{await api(path,json(method,payload));close();toast('Group updated');reload();}catch(error){toast(error.message);}};
@@ -1576,8 +1589,12 @@ function groupReport(group){
 }
 route(/^\/groups\/([0-9a-f-]{36})$/i,groupRouteTab,async(el,id)=>{
   el.classList.add('group-page');el._backFallback='/activity?view=groups';el.innerHTML='<div class="card empty">Loading group…</div>';
-  try{const group=await api('/api/groups/'+encodeURIComponent(id));if(el.isConnected)groupPage(el,group);}
+  try{const base='/api/groups/'+encodeURIComponent(id),[group,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected)groupPage(el,{...group,challenges});}
   catch(error){if(el.isConnected)showError(el,error);}
+});
+route(/^\/groups\/([0-9a-f-]{36})\/challenges\/([0-9a-f-]{36})$/i,groupRouteTab,async(el,gid,qid)=>{
+  el.classList.add('group-page','group-challenge-detail');el.innerHTML='<div class="card empty">Loading challenge…</div>';
+  try{const base='/api/groups/'+encodeURIComponent(gid),[group,q]=await Promise.all([api(base),api(base+'/challenges/'+encodeURIComponent(qid))]);if(el.isConnected)groupChallengePage(el,group,q);}catch(error){if(el.isConnected)showError(el,error);}
 });
 route(/^\/group-invite\/([\w-]+)$/,groupRouteTab,async(el,token)=>{
   el.classList.add('group-invite-page');el.innerHTML='<div class="card empty">Checking invite…</div>';wireBack(el,'/activity?view=groups');
