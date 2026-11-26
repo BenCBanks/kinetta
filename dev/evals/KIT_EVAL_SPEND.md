@@ -48,7 +48,7 @@ HEAD requires offline replay again, even when paid rows can safely be reused.
 Based on the observed $1.43/80-response gate, plan **$0.18 smoke + $0.54 remaining
 candidate = $0.72** per release with a reusable baseline (about **50% saved**).
 The first baseline costs about $0.72 once per live source/fixture contract.
-An explicitly approved cold release can use `--budget-usd 1.60`; the default
+An explicitly approved cold release can use `--budget-usd 1.80`; the default
 remains $0.80. The cap covers baseline + smoke + remaining candidate calls,
 including cached spending. With the observed $0.582174 baseline + $0.208383
 smoke, thirty remaining candidates estimate $0.54, or $1.330557 total.
@@ -70,5 +70,18 @@ only spend tooling preserves case keys; every app byte must match the captures.
 # Approved batch continuation: cache paths may be repeated; matching private
 # captures are also discovered automatically. Dry-run adds no provider calls.
 dev/evals/run_kit_release_eval.sh --installed-report "$REPORT" --full \
-  --budget-usd 1.60 --cache "$BASELINE" --cache "$SMOKE" --dry-run
+  --budget-usd 1.80 --cache "$BASELINE" --cache "$SMOKE" --dry-run
 ```
+
+Final continuation uses an explicit approved $1.80 release cap; the default
+remains $0.80. The scoped `kit_release_replay.py` migration accepts the final
+partial capture plus `--recovery-capture` from the original full gate. It proves
+unchanged provider inputs and exact render-only changes, re-formats checked count
+nouns, and rebuilds the missing recovery answer as a checked app fallback from
+its original evidence. This is explicitly offline evidence, not a generated
+model answer or human approval. Only the capped `load` question is omitted.
+The resulting cache contains 79 rows, preserves $1.452946 prior spending, and
+schedules one answer (estimated $0.018; expected release total $1.470946).
+The disposable app receives the remaining $0.347054 for its actual padded
+reservations; production caps are untouched. Run exact-head `--replay`, then
+`--full --budget-usd 1.80 --cache "$REPLAYED" --dry-run` before owner continuation.
