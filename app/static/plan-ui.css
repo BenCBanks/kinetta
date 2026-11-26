@@ -64,7 +64,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .plan-summary-title { display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px; }
 .plan-summary-title h2 { margin:0;font-size:24px;font-weight:700;line-height:1.2; }
 .plan-summary-title > span { color:var(--tx2);font-size:14px; }
-.plan-summary-stats { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0;padding-bottom:14px;border-bottom:1px solid var(--line); }
+.plan-summary-stats { display:grid;grid-template-columns:minmax(max-content,1fr) repeat(2,minmax(0,1fr));gap:8px;margin:14px 0 0;padding-bottom:14px;border-bottom:1px solid var(--line); }
 .plan-summary-stat { display:grid;align-content:start;gap:3px;min-width:0; }
 .plan-summary-stat b { font-size:20px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere; }
 .plan-summary-stat.plan-race-date b { white-space:nowrap;overflow-wrap:normal; }

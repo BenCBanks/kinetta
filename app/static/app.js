@@ -1523,7 +1523,8 @@ function render(options) {
   // Unknown deep links use Home as their safe landing page. Load Home's lazy
   // bundle first so the fallback can render even when the route itself has no bundle.
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path))
-    || lazyRouteBundles.find((candidate) => candidate.re.test('/activity'));
+    || (!App.pages.some((page) => page.re.test(path))
+      ? lazyRouteBundles.find((candidate) => candidate.re.test('/activity')) : null);
   if (!routeStylesLoaded.has(ROUTE_SCREENS_STYLE)) {
     const owner=readOwner(),generation=++lazyRouteGeneration;
     const current=()=>generation===lazyRouteGeneration&&owner===readOwner()&&key===location.pathname+location.search&&!!App.me;

@@ -6,6 +6,15 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  vm.createContext(c);vm.runInContext(app.slice(app.indexOf('function homePageFallback'),app.indexOf('function render(options)')),c);
  assert.equal(c.homePageFallback().tab,'activity','unknown routes use Home even when Apple Health is registered first');
 }
+{
+ const c={App:{pages:[{re:/^\/me$/,tab:'me'}]},lazyRouteBundles:[{re:/^\/activity$/,tab:'activity'},{re:/^\/progress$/,tab:'progress'}]};
+ vm.createContext(c);
+ const start=app.indexOf('  const bundle = lazyRouteBundles.find',app.indexOf('function render(options)'));
+ const select='(()=>{'+app.slice(start,app.indexOf('  if (!routeStylesLoaded',start))+';globalThis.selectedBundle=bundle;})()';
+ for(const [path,tab] of [['/me',undefined],['/activity','activity'],['/progress','progress'],['/zz-not-a-page','activity']]){
+  c.path=path;vm.runInContext(select,c);assert.equal(c.selectedBundle?.tab,tab,`${path} loads only its own bundle, or Home for an unknown route`);
+ }
+}
 // Actual weigh-in sheet (weekly check-in): opening and prefill are read-only, late prefill respects typing.
 (async()=>{
  let owner='one',prefill,closed=0,html='',writes=[],focused=0,refreshed=0,callbacks=0;
