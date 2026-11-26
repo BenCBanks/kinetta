@@ -15,14 +15,19 @@ def seed_legacy(c, group_id):
 
 
 def join(c, group_id, user_id):
-    """Only called on an actual join/rejoin, after membership and its explicit choice are saved."""
-    seed_legacy(c, group_id)
+    """An actual join refreshes the time boundary, never a recorded challenge opt-out."""
+    # Migration 122 reconciled old goals; joining a people-only group must not create one.
     c.execute('''INSERT INTO group_challenge_members(challenge_id,group_id,user_id,share_total,joined_at)
-        SELECT q.id,m.group_id,m.user_id,m.sharing_level='total_shared',m.joined_at
+        SELECT q.id,m.group_id,m.user_id,
+            CASE WHEN q.legacy_group_id IS NOT NULL THEN m.sharing_level='total_shared' ELSE true END,m.joined_at
         FROM group_challenges q JOIN group_members m ON m.group_id=q.group_id
         WHERE m.group_id=%s AND m.user_id=%s AND m.status='active'
         ON CONFLICT(challenge_id,user_id) DO UPDATE
-        SET share_total=EXCLUDED.share_total,joined_at=EXCLUDED.joined_at''', (group_id, user_id))
+        SET share_total=CASE WHEN EXISTS(SELECT 1 FROM group_challenges q
+                WHERE q.id=EXCLUDED.challenge_id AND q.legacy_group_id=EXCLUDED.group_id)
+            THEN group_challenge_members.share_total AND EXCLUDED.share_total
+            ELSE group_challenge_members.share_total END,
+            joined_at=EXCLUDED.joined_at''', (group_id, user_id))
 
 
 def legacy_sharing(c, group_id, user_id, share_total):
