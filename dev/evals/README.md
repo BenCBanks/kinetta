@@ -190,9 +190,10 @@ This is a collector contract, not runtime instrumentation or a measured app benc
 
 ## Conversational Kit offline replay and human rubric
 
-`python3 dev/evals/test_kit_coach_replay.py` checks 48 distinct fictional two-turn
+`python3 dev/evals/test_kit_coach_replay.py` checks 60 distinct fictional two-turn
 journeys: length, clarification, multi-turn context, app switching, memory correction/
-deletion, consent, confirmed actions, and numerical/privacy boundaries (six each).
+deletion, consent, confirmed actions, numerical/privacy boundaries, checked streaming
+and answer-only charts (six each).
 `kit_coach_cases.py` supplies ordered user controls and each case's review focus.
 Its `fixture-…` IDs also satisfy the measurement contract; append `-turn-1`/`-turn-2`
 when collecting each message separately and list both in the expected timing IDs.
@@ -206,7 +207,7 @@ The evidence fixture is deliberately sparse: absent history/targets stay unknown
 The adapter is a future integration; these files do not run the app or call a model.
 
 Run `python3 dev/evals/kit_coach_replay.py /private/observations.json` on the complete
-48-observation list (`id`, `fictional: true`, `events`, optional `ratings`). Results
+60-observation list (`id`, `fictional: true`, `events`, optional `ratings`). Results
 contain fixed failure codes, not answer text. Reports remain outside the repository.
 Human reviewers rate each of the six `RUBRIC` dimensions 0/1/2 after reading both
 turns and the case focus: 0 wrong/unsafe, 1 partly useful, 2 clear and appropriate.
@@ -216,3 +217,21 @@ Check medical non-prescription, unsupported promises/causality, actual clarifica
 and requested length semantically; event validation cannot prove those qualities.
 Reference traces/ratings test the evaluator, not model accuracy. Every output stays
 fictional, unreviewed and ineligible as release evidence; existing paid gates remain.
+
+Batch 2 adds `stream_block` observations with owner/generation/turn/index, checked
+and saved flags, and plain text. Record these from server checks/persistence and
+client visibility, never model claims. Identical index replays replace text; changed
+replays, unchecked/unsaved fragments, stale generations and post-cancel/revocation
+blocks fail. Checked block text must match the authoritative completed answer.
+This transport waits for whole-answer validation; it does not imply raw-token or
+first-text speed improvements. Use the timing collector separately.
+
+Answer-only `chart` observations carry owner, metric, values, unit and scope.
+The fixed `SERIES` fixtures retain unknown-day gaps, reject other-account/global
+dashboard content and omit Health charts after revocation. Empty series need an
+honest explanation, not an invented line. `goal_preview` and actual `goal_saved`
+effects must match `TARGET`, with one confirmation-bound write and retry receipts.
+Existing memory cases require current versions, correction/deletion and opt-out
+handling. Reports give separate contract/quality verdicts for streaming, memory,
+actions and charts. Human scoring still judges helpfulness, appropriate chart choice,
+memory wording and clarification; offline reference traces are not runtime evidence.

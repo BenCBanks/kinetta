@@ -22,6 +22,8 @@ def identity(root,cases,baseline_commit,candidate_commit,baseline_sha256,*,today
            'candidate_commit':candidate_commit,'baseline_sha256':baseline_sha256,
            'model':'gemini-3.8-flash','thinking':'LOW','seed':seed,
            'weekly_seed':read('dev/evals/kit_weekly_fixtures.py')}
+    if any(c[0].startswith('batch2-') for c in cases):
+        value['batch2_seed']=read('dev/evals/kit_batch2_cases.py')
     return hashlib.sha256(json.dumps(value,sort_keys=True,default=lambda x:sorted(x)).encode()).hexdigest()
 
 
@@ -171,9 +173,13 @@ if __name__=='__main__':
     spec=importlib.util.spec_from_file_location('release_only',root/'app/ai_release.py')
     release=importlib.util.module_from_spec(spec);spec.loader.exec_module(release)
     data=Path(args.prepare_cache).read_bytes();report=json.loads(data)
+    if report.get('batch2'):
+        from kit_batch2_cases import BATCH2_CASES
+        CASES=BATCH2_CASES;GATE_CASE_IDS=tuple(c[0] for c in CASES)
     current=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
     if report.get('input_digest')!=identity(root,[c for c in CASES if c[0] in GATE_CASE_IDS],
             report['baseline_commit'],current,report['baseline_sha256']):
+        if report.get('batch2'):raise ValueError('Batch2 resume requires the exact candidate, inputs and dates')
         report=prepare_cache(root,report,[c for c in CASES if c[0] in GATE_CASE_IDS],release.FILES['kit'])
         report['source_report_sha256']=hashlib.sha256(data).hexdigest()
     with os.fdopen(os.open(args.output,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as stream:json.dump(report,stream)
