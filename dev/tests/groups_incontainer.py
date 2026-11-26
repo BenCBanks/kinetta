@@ -680,6 +680,47 @@ class Groups(unittest.TestCase):
             self.assertIn('just_in', actual['column_default'])
             self.assertEqual(actual['is_nullable'], 'NO')
 
+    def test_summary_queries_do_not_grow_per_member_and_keep_visibility(self):
+        group, token = self.make()
+        for who in (1, 2):
+            self.assertEqual(self.accept(token, who=who).status_code, 200)
+
+        def measured_summary():
+            queries = []
+            execute = psycopg.Cursor.execute
+            def counted(cursor, query, *args, **kwargs):
+                queries.append(query)
+                return execute(cursor, query, *args, **kwargs)
+            with db.connect() as c:
+                row = c.execute('SELECT * FROM event_groups WHERE id=%s', (group['id'],)).fetchone()
+                with patch.object(psycopg.Cursor, 'execute', counted):
+                    result = groups._answer(c, row, self.ids[0])
+            return result, len(queries)
+
+        three, before = measured_summary()
+        self.assertEqual(self.accept(token, who=3).status_code, 200)
+        four, after = measured_summary()
+        self.assertEqual((three['member_count'], four['member_count']), (3, 4))
+        self.assertEqual(after, before, 'another member must not add a block-query round trip')
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET sharing_level='total_shared',joined_at=%s WHERE group_id=%s",
+                      (self.now - dt.timedelta(days=2), group['id']))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+            c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s),(%s,%s)',
+                      (self.ids[0], self.ids[1], self.ids[2], self.ids[0]))
+        for who, distance in enumerate((1000, 900000, 900000, 2000)):
+            self.activity(who, self.now - dt.timedelta(hours=1), distance=distance)
+        answer, _ = measured_summary()
+        self.assertEqual((answer['member_count'], answer['sharing_member_count'], answer['total']), (2, 2, 3))
+        with db.connect() as c:
+            c.execute('UPDATE users SET needs_email_confirm=true WHERE id=%s', (self.ids[3],))
+        unconfirmed, _ = measured_summary()
+        self.assertEqual((unconfirmed['member_count'], unconfirmed['total']), (1, 1))
+        with db.connect() as c:
+            c.execute('UPDATE users SET needs_email_confirm=false,suspended_at=now() WHERE id=%s', (self.ids[3],))
+        suspended, _ = measured_summary()
+        self.assertEqual((suspended['member_count'], suspended['total']), (1, 1))
+
     def test_group_and_account_sharing_must_both_allow_totals_and_blocks_still_apply(self):
         group, token = self.make()
         for who in (1, 2, 3):
