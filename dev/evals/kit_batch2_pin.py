@@ -1,11 +1,29 @@
 """Offline source/report verification; never read a live server or credentials."""
-import ast
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 LIVE = 'ba8e9500049f25b2cb769d09a25d99fc4cb198c1'
 INSTALLED_REPORT_SHA256 = '5aae49f41cb3ea4bb8091a34fee4459ca6e7d8cb857c3b82d37b4b361da0e568'
+CANDIDATE_SOURCE = 'caf69a6e3228990803ec0d5eae767bccd7b50878'
+CANDIDATE_TEXT = '2eb2b4bc9c8fcd35aec6d901ebacb9cbe7b831972cfa32d1cd6cbe0bb73d3a61'
+CANDIDATE_RELEASE = '17db21110c18d3f344164268cb187d9aa5f9641b1f2ee4c03688c322a174eb2c'
+
+
+def verify_candidate(root):
+    root=Path(root)
+    if subprocess.run(['git','-C',str(root),'diff','--quiet',CANDIDATE_SOURCE,'--','app',
+                       ':(exclude)app/ai_fingerprints.json']).returncode:
+        raise ValueError('Candidate app source differs from the final combined freeze')
+    namespace={'__file__':str(root/'app/ai_release.py')}
+    exec(compile((root/'app/ai_release.py').read_text(),'candidate_release','exec'),namespace)
+    files={name:hashlib.sha256(json.dumps(namespace['model_text']((root/'app'/name).read_text())).encode()).hexdigest()
+           for name in namespace['FILES']['kit']}
+    text=hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest()
+    if text!=CANDIDATE_TEXT:raise ValueError('Candidate Kit text differs from the final combined freeze')
+    return {'source_commit':CANDIDATE_SOURCE,'ai_text':text,'fingerprint':CANDIDATE_RELEASE,
+            'source_check':'app bytes identical except equivalence ledger; evaluator HEAD recorded separately'}
 
 
 def verify(tree, report):
@@ -35,4 +53,5 @@ def verify(tree, report):
 
 if __name__ == '__main__':
     import sys
-    print(json.dumps(verify(*sys.argv[1:]), sort_keys=True))
+    pin=verify(*sys.argv[1:3]);pin['candidate']=verify_candidate(sys.argv[3])
+    print(json.dumps(pin, sort_keys=True))

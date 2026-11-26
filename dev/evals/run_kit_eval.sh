@@ -178,6 +178,14 @@ if ((OFFLINE_SMOKE == 1 && BATCH2 == 1)); then
     compose cp "$ROOT/dev/tests/$source" "app:/tmp/$source"
     compose exec -T -e PYTHONPATH=/srv -e KINETTA_AI_ENABLED=1 app python "/tmp/$source"
   done
+  for source in kit_context_incontainer.py kit_charts_incontainer.py; do
+    compose cp "$ROOT/dev/tests/$source" "app:/tmp/$source"
+    compose exec -T -e PYTHONPATH=/srv -e KINETTA_AI_ENABLED=1 app python "/tmp/$source"
+  done
+  for source in kit_chart_cases.py kit_context_cases.py; do
+    compose cp "$ROOT/dev/evals/$source" "app:/srv/dev/evals/$source"
+    compose exec -T -e PYTHONPATH=/srv app python "/srv/dev/evals/$source" --dry-run
+  done
   compose exec -T -e PYTHONPATH=/srv "${BASELINE_ENV[@]}" app python /srv/dev/evals/test_kit_batch2_incontainer.py \
     --baseline /tmp/kit-eval-baseline-coach.py --output "$CONTAINER_OUTPUT"
 elif ((OFFLINE_SMOKE == 1 && SETTING_SMOKE == 1)); then
