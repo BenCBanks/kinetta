@@ -84,20 +84,21 @@
     ]
   },
   "kit_chart_capture": {
-    "source_revision": "0baccc26ca71bbc9d3ae297784aa8a3443b9bee8",
+    "source_revision": "bb8512d636d22ef837a5a334a70adf9b89ef7b52",
     "fixture": "dev/screenshots/kit-chart-answer.json",
     "kind": "fictional-browser-renderer-fixture",
-    "release_pending": true,
+    "release_pending": false,
     "round_ticks": [
       "200 ft",
       "150 ft",
       "100 ft"
     ],
     "assets": {
-      "light-kit-chart-progress-1x.webp": "f284bd6a3daf4e77b80d8ff2bcd036484bfb9f371af71bf5227c92bf2daa9b13",
-      "dark-kit-chart-progress-1x.webp": "c200cd6b00299b84d3bdc3e2a6827798d74ac5115a31219f5766785acf11dd6e",
-      "dark-kit-chart-progress.webp": "b8f381bf087841ef931815da778c741419f9db36e5e3b04d77ee36804c8b09b0",
-      "light-kit-chart-progress.webp": "07755174fdc999b9e9ccf7a6f3de7b7c7e31a6c0c1faf31b8b452ea3ee63cc1a"
-    }
+      "light-kit-chart-progress.webp": "87000b4b8f6fb5eada365a7f69dd4b3b948ecce7be0a51508bb0132251240696",
+      "light-kit-chart-progress-1x.webp": "3ee1592d1d7b150132a75717120b99289bdff9461bd3154c1795a8544c7439e3",
+      "dark-kit-chart-progress.webp": "0cffdebf83e92890ba102eab5b5307e1f2f66e59aa4c4767a07ddbd9661422ab",
+      "dark-kit-chart-progress-1x.webp": "c893da64997bdaae6b393eeb724dee319ee46eb0c3fe408ee5ee541b7cbfc5ce"
+    },
+    "captured_at": "2026-11-26T23:11:09.079800+00:00"
   }
 }
