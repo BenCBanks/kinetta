@@ -44,6 +44,18 @@ function fixture(){
   for(const status of [503,404]){
     r=fixture();r.c.location.pathname='/reset-password';r.c.location.hash='#fictional';vm.runInContext(source.slice(source.indexOf('async function showReset('),source.indexOf('async function showConfirmEmail(')),r.c);r.c.api=async()=>{throw Object.assign(Error('Fixture lookup failure'),{status});};await r.c.showReset();assert.equal(r.c.location.hash,'','failed reset lookup strips the bearer token');assert.match(r.root.innerHTML,status===503?/Password reset couldn’t load/:/This link doesn't work/);assert(!!r.node('#enrollment-retry')===(status===503));if(status===503){let resetLookups=0;r.c.api=async path=>{assert.equal(path,'/api/password/reset/check');resetLookups++;throw Object.assign(Error('Gone'),{status:404});};await r.node('#enrollment-retry').onclick();assert.equal(resetLookups,1);assert.match(r.root.innerHTML,/Send a new link/);}
   }
+  r=fixture();r.c.location.pathname='/confirm-email';r.c.Native={on:false};r.c.navigator={userAgent:''};r.c.accountSupportError=x=>x.message;
+  vm.runInContext(source.slice(source.indexOf('async function showConfirmEmail('),source.indexOf('async function showWelcome(')),r.c);
+  r.c.api=async()=>{throw Object.assign(Error('Expired'),{status:404});};await r.c.showConfirmEmail('fictional-expired');
+  assert.match(r.root.innerHTML,/Request a new one below/);assert(r.node('#confirm-resend-form'));
+  const form=r.node('#confirm-resend-form'),button=r.node('#confirm-resend'),status=r.node('#confirm-resend-status');
+  form.elements={login:{value:' unknown@example.test '}};let finish,resends=0;
+  r.c.api=(path,options)=>{assert.equal(path,'/api/account/email/resend');assert.equal(options.body.login,'unknown@example.test');resends++;return new Promise(ok=>finish=ok);};
+  const pendingResend=form.onsubmit({preventDefault(){}});assert(button.disabled);await form.onsubmit({preventDefault(){}});assert.equal(resends,1,'pending submit cannot send twice');
+  const generic='If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.';
+  finish({message:generic});await pendingResend;assert.equal(status.textContent,generic);assert(!button.disabled);
+  r.c.api=async()=>{throw Error('Too many tries - wait 15 minutes');};await form.onsubmit({preventDefault(){}});assert.match(status.textContent,/wait 15 minutes/);assert(!button.disabled,'failed resend can retry');
+  r.node('#c-login').onclick({preventDefault(){}});assert.equal(r.root.innerHTML,'Current login');
   for(const name of ['showReset','showConfirmEmail']){
     r=fixture();r.c.location.pathname=name==='showReset'?'/reset-password':'/confirm-email';r.c.location.hash='#fictional';r.c.json=()=>({});vm.runInContext(source.slice(source.indexOf('async function '+name+'('),source.indexOf(name==='showReset'?'async function showConfirmEmail(':'async function showWelcome(')),r.c);let finish;r.c.api=()=>new Promise(ok=>finish=ok);const pending=r.c[name]('fictional');r.c.location.pathname='/';r.root.innerHTML='Newer login';finish({login:'fictional',email:'fictional@example.test',challenge_joined:'fictional'});await pending;assert.equal(r.root.innerHTML,'Newer login');assert.equal(r.values.size,0);
   }

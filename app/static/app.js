@@ -2578,9 +2578,9 @@ function pendingJoinPath() {
 function rememberJoinPath() {
   if (/^\/join\/[A-Za-z0-9_-]{1,100}$/.test(location.pathname)) store.set('kinetta.joinReturn',location.pathname);
 }
-function attachConfirmationResend(button,status,identifier) {
+function attachConfirmationResend(button,status,identifier,form=null) {
   if(!button||!status)return;
-  button.onclick=async e=>{
+  const resend=async e=>{
     e.preventDefault();if(button.disabled)return;
     const login=typeof identifier==='function'?identifier():identifier;
     if(!login?.trim()){status.textContent='Enter your email or username first.';return;}
@@ -2589,6 +2589,7 @@ function attachConfirmationResend(button,status,identifier) {
     catch(x){status.textContent=accountSupportError(x);}
     finally{button.disabled=false;}
   };
+  if(form)form.onsubmit=resend;else button.onclick=resend;
 }
 function enrollmentEmailError(input, message, resetOnly=false) {
   const label=input.closest('label'),hint=input.form.querySelector('#enrollment-email-help');if(hint)hint.hidden=true;let note=label.nextElementSibling;
@@ -2941,13 +2942,24 @@ async function showReset(token = location.hash.slice(1)) {
 async function showConfirmEmail(token) {
   const active=enrollmentView();
   root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Confirming your email…</h1></div></div>`;
-  let title, text;
+  let title, text, failed=false;
   try { const r = await api('/api/account/email/confirm', json('POST', {token})); if(!active())return;if(r.challenge_joined)store.set('kinetta.challengeLink',r.challenge_joined); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
-  catch (x) { title = "This link doesn't work"; text = x.message; }
+  catch (x) { failed=true; title = "This link doesn't work"; text = x.status===404?'This link has expired or has already been used. Request a new one below.':x.message; }
   if(!active())return;
   // Email links open in the phone's browser. On an iPhone, offer the app itself (kinetta:// is registered by the app,
   // 27 October 2026): a same-site https link can't hand off from Safari to the app.
   const iphone = !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if(failed){
+    root.innerHTML=`<div class="login"><form class="form" id="confirm-resend-form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>
+      <label>Email or username<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="120" required></label>
+      <button type="submit" class="primary wide" id="confirm-resend">Resend email</button>
+      <p class="small muted resend-status" id="confirm-resend-status" role="status" aria-live="polite"></p>
+      <a class="ghost wide" href="/" id="c-login">Log in</a></form></div>`;
+    const form=$('#confirm-resend-form',root);
+    attachConfirmationResend($('#confirm-resend',root),$('#confirm-resend-status',root),()=>form.elements.login.value,form);
+    $('#c-login',root).onclick=e=>{e.preventDefault();history.replaceState(null,'','/');showLogin();};
+    return;
+  }
   root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? '<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="/activity" id="c-go">Continue in browser</a>' : '<a class="primary wide" href="/activity" id="c-go">Open Kinetta</a>'}</div></div>`;
   $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/activity'); root.innerHTML = LAUNCH; start(); };
 }
