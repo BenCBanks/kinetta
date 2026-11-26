@@ -854,6 +854,8 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             calls_used += 1
             if calls_used > MAX_CALLS: raise ValueError('Kit reached the tool limit. Ask a narrower question.')
             name, args = call.get('name'), call.get('args') or {}
+            if kit and name==kit_charts.CHART_TOOL:
+                args=kit_charts.request_arguments(args,kit_conversation.user_question(question))
             ev = {'evidence_id': f'e{len(evidence) + 1}', 'tool': name, 'arguments': args}
             try:
                 cached=next((e for e in evidence if kit and e['tool']==name and e['arguments']==args and 'data' in e),None)
