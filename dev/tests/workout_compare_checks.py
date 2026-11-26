@@ -87,6 +87,11 @@ print(json.dumps(ids))
               f'Garmin target works without Apple Health consent: {status} {result}')
         check(result['baseline_count'] == 2, 'unconsented Health baseline is excluded from Garmin comparison')
         check(result['baseline_medians']['avg_hr'] == 150, 'Health heart rate does not enter Garmin baseline median')
+        # The comparison is app-computed; it remains available when Kit consent is off.
+        sql("from app import db\nwith db.connect() as c:c.execute(\"UPDATE profile SET ai_ok=false WHERE user_id=(SELECT id FROM users WHERE login='zz_test_workout_compare_a')\")")
+        off_status, off_result = a.post('/api/kit/workout-compare', {'activity_id': seeded['garmin_a']})
+        check(off_status == 200 and off_result['status'] == 'compared', 'app-computed comparison remains available when Kit is off')
+        sql("from app import db\nwith db.connect() as c:c.execute(\"UPDATE profile SET ai_ok=true WHERE user_id=(SELECT id FROM users WHERE login='zz_test_workout_compare_a')\")")
         check(result['relations']['pace_s_per_km'] == 'about_the_same' and result['relations']['avg_hr'] == 'about_the_same',
               'pace and heart-rate same bands are computed in the endpoint')
 

@@ -156,6 +156,18 @@ controls. First run (25 Oct, gemini-3.1-flash-lite, $0.03): the production promp
 within 15%; an added "words may be a brand" instruction did not help (26/27), so it was not adopted. Neither food
 model knows newer niche brands (Garage Beer); estimates then fall back to a generic item and say so.
 
+## Workout-review rollout
+
+The [workout-review gate runbook](WORKOUT_REVIEW.md) covers a disposable 40-input capture,
+provider-free preflight, explicit human review and private report construction. The 20-case
+smoke set cannot satisfy the release gate; all captures and reports stay outside this repository.
+
+## Shared Kit gate wrapper
+
+The [shared Kit gate runbook](KIT_GATE.md) gives the disposable baseline/candidate wrapper,
+forty-case selection, dry-run and human review fields. Use it for the existing chat/weekly
+release comparison; the workout-only runner supplements that coverage.
+
 ## Fictional Kit timing and cost contract
 
 `python3 dev/evals/test_kit_measure.py` replays fake monotonic clocks and token/ledger

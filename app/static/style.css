@@ -1802,6 +1802,12 @@ button.thread-food:active { opacity: .7; }
 .kit-answer .kit-verdict {font-size:max(16px,1rem);font-weight:700;line-height:1.45;margin:0;}
 .kit-answer .kit-reason {font-size:max(15px,.9375rem);line-height:1.5;color:var(--tx2);margin:8px 0 0;}
 .kit-answer .kit-facts {margin:12px 0;}
+.kit-answer-blocks {font-size:max(15px,.9375rem);line-height:1.5;overflow-wrap:anywhere;}
+.kit-answer-blocks>p,.kit-answer-blocks>ul {margin:0 0 12px;white-space:pre-line;}
+.kit-answer-blocks>:last-child {margin-bottom:0;}
+.kit-answer-blocks+:is(.kit-answer-followups,[data-kit-review]) {margin-top:12px;}
+.kit-answer-blocks>ul {padding-left:20px;}
+.kit-answer-blocks li+li {margin-top:6px;}
 .kit-workout-comparison {margin:0;}
 .kit-workout-summary {margin:0;color:var(--tx);font-size:15px;font-variant-numeric:tabular-nums;line-height:1.4;}
 .kit-workout-baseline {margin:8px 0 0;color:var(--tx3);font-size:13px;line-height:1.35;}

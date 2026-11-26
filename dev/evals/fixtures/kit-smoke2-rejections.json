@@ -1,0 +1,345 @@
+{
+  "note": "Exact captured fictional response strings; evidence retains original fields needed for replay, not fabricated replacements.",
+  "cases": [
+    {
+      "case": "conversation-detail",
+      "raw_model_json": "{\"blocks\":[{\"kind\":\"paragraph\",\"text\":\"Your saved running target is {e2:0} per week, and your current 10K plan schedules {e3:1} runs per week.\"},{\"kind\":\"paragraph\",\"text\":\"General guidelines for sustainability recommend balancing training load with rest and recovery:\"},{\"kind\":\"list\",\"items\":[\"Keep most running at an easy, conversational effort to accumulate volume safely.\",\"Distribute sessions across the week rather than stacking demanding days back to back.\",\"Progress weekly distance gradually and include recovery periods to adapt.\"]},{\"kind\":\"paragraph\",\"text\":\"Which specific days of the week are you available to run?\"}],\"facts\":[{\"evidence_id\":\"e2\",\"path\":[\"activity_goals\",0,\"target\"],\"value\":20000},{\"evidence_id\":\"e3\",\"path\":[\"plan\",\"runs\"],\"value\":3}],\"selection\":null,\"actions\":[{\"screen\":\"plan\"},{\"screen\":\"goals\"}],\"follow_ups\":[\"I can train on Tuesday, Thursday, and Saturday.\",\"I want to adjust my weekly goal.\"]}",
+      "evidence": [
+        {
+          "evidence_id": "e1",
+          "tool": "profile",
+          "arguments": {},
+          "data": {
+            "units": "imperial"
+          }
+        },
+        {
+          "evidence_id": "e2",
+          "tool": "goals",
+          "arguments": {},
+          "data": {
+            "activity_goals": [
+              {
+                "sport": "run",
+                "period": "week",
+                "metric": "distance",
+                "target": 20000.0
+              }
+            ]
+          }
+        },
+        {
+          "evidence_id": "e3",
+          "tool": "training_plan",
+          "arguments": {},
+          "data": {
+            "plan": {
+              "id": 1,
+              "race": "10k",
+              "race_name": "10K",
+              "level": "beginner",
+              "level_name": "Beginner",
+              "weeks": 12,
+              "runs": 3,
+              "long_day": 6,
+              "unit": "km",
+              "start_day": "2026-11-11",
+              "race_day": "2027-02-03",
+              "goal_s": null
+            }
+          }
+        }
+      ],
+      "weekly_review": false,
+      "expected": "reject"
+    },
+    {
+      "case": "strength",
+      "raw_model_json": "{\"blocks\":[{\"kind\":\"paragraph\",\"text\":\"You recorded two completed sets of Fictional squat recently.\"},{\"kind\":\"list\",\"items\":[\"One set was {e2:0} reps at {e2:1}.\",\"Another set was {e2:2} reps at {e2:3}.\"]}],\"facts\":[{\"evidence_id\":\"e2\",\"path\":[\"sets\",1,\"reps\"],\"value\":8},{\"evidence_id\":\"e2\",\"path\":[\"sets\",1,\"kg\"],\"value\":40},{\"evidence_id\":\"e2\",\"path\":[\"sets\",0,\"reps\"],\"value\":6},{\"evidence_id\":\"e2\",\"path\":[\"sets\",0,\"kg\"],\"value\":45}],\"selection\":null,\"actions\":[{\"screen\":\"strength\"}],\"follow_ups\":[\"Show my strength volume summary.\",\"How does this compare to my previous workouts?\"]}",
+      "evidence": [
+        {
+          "evidence_id": "e1",
+          "tool": "profile",
+          "arguments": {},
+          "data": {
+            "units": "imperial"
+          }
+        },
+        {
+          "evidence_id": "e2",
+          "tool": "strength_history",
+          "arguments": {
+            "end": "2026-11-25",
+            "start": "2026-10-26"
+          },
+          "data": {
+            "sets": [
+              {
+                "id": 2,
+                "activity_id": 4,
+                "start_time": "2026-11-22 12:00:00+00:00",
+                "exercise": "Fictional squat",
+                "reps": 6,
+                "kg": 45.0,
+                "secs": null,
+                "warmup": false
+              },
+              {
+                "id": 1,
+                "activity_id": 4,
+                "start_time": "2026-11-22 12:00:00+00:00",
+                "exercise": "Fictional squat",
+                "reps": 8,
+                "kg": 40.0,
+                "secs": null,
+                "warmup": false
+              }
+            ],
+            "summary_by_exercise": [
+              {
+                "exercise": "Fictional squat",
+                "completed_sets": 2,
+                "max_recorded_kg": 45.0,
+                "max_recorded_reps": 8,
+                "recorded_volume_kg": 590.0,
+                "first_day": "2026-11-22",
+                "last_day": "2026-11-22"
+              }
+            ],
+            "next_before_id": null,
+            "limitations": [
+              "Only recorded completed sets; missing sessions and unrecorded effort are unknown. Summaries cover the full date range; listed sets are paginated. A heavier recorded set does not alone establish a strength gain."
+            ]
+          }
+        }
+      ],
+      "weekly_review": false,
+      "expected": "reject"
+    },
+    {
+      "case": "nutrition-adequacy",
+      "raw_model_json": "{\"blocks\":[{\"kind\":\"paragraph\",\"text\":\"For the last completed week, only one day had logged food, leaving six days uncovered. Unlogged days represent unknown intake rather than zero intake, so full-week totals cannot be compared against your targets.\"},{\"kind\":\"paragraph\",\"text\":\"On the single logged day, recorded energy was {e2:0} against your target of {e2:1}, and recorded protein was {e2:2} against your target of {e2:3}. These figures represent partial logs rather than total intake or nutritional adequacy.\"}],\"facts\":[{\"evidence_id\":\"e2\",\"path\":[\"summary\",\"kcal\",\"comparable_day_subtotal\"],\"value\":350},{\"evidence_id\":\"e2\",\"path\":[\"summary\",\"kcal\",\"comparable_target_subtotal\"],\"value\":2200},{\"evidence_id\":\"e2\",\"path\":[\"summary\",\"protein_g\",\"comparable_day_subtotal\"],\"value\":20},{\"evidence_id\":\"e2\",\"path\":[\"summary\",\"protein_g\",\"comparable_target_subtotal\"],\"value\":120}],\"selection\":null,\"actions\":[{\"screen\":\"nutrition\"}],\"follow_ups\":[\"How do I log missing meals?\",\"What are my current nutrition targets?\"]}",
+      "evidence": [
+        {
+          "evidence_id": "e1",
+          "tool": "profile",
+          "arguments": {},
+          "data": {
+            "units": "imperial"
+          }
+        },
+        {
+          "evidence_id": "e2",
+          "tool": "nutrition_adequacy",
+          "arguments": {
+            "start": "2026-11-16",
+            "end": "2026-11-22"
+          },
+          "data": {
+            "summary": {
+              "kcal": {
+                "comparable_days": 1,
+                "comparable_day_subtotal": 350.0,
+                "comparable_target_subtotal": 2200.0,
+                "full_range_comparable": false,
+                "full_range_difference": null,
+                "full_range_target_ratio": null
+              },
+              "protein_g": {
+                "comparable_days": 1,
+                "comparable_day_subtotal": 20.0,
+                "comparable_target_subtotal": 120.0,
+                "full_range_comparable": false,
+                "full_range_difference": null,
+                "full_range_target_ratio": null
+              }
+            }
+          }
+        }
+      ],
+      "weekly_review": false,
+      "expected": "reject"
+    },
+    {
+      "case": "followup-food",
+      "raw_model_json": "{\n  \"blocks\": [\n    {\n      \"kind\": \"paragraph\",\n      \"text\": \"Focus on logging just one specific meal each day rather than aiming for full days immediately. Anchoring your log to a consistent daily moment, such as right after breakfast or lunch, helps build the habit without feeling overwhelming.\"\n    },\n    {\n      \"kind\": \"list\",\n      \"items\": [\n        \"Pick a single meal to log every day for one week.\",\n        \"Log it at the same time, such as right before eating or immediately after finishing.\",\n        \"Expand to a second meal once that first check-in feels automatic.\"\n      ]\n    }\n  ],\n  \"facts\": [],\n  \"selection\": null,\n  \"actions\": [\n    \"food\"\n  ],\n  \"follow_ups\": [\n    \"How can I set up meal reminders?\",\n    \"Show my recent food logs.\"\n  ]\n}",
+      "evidence": [
+        {
+          "evidence_id": "e1",
+          "tool": "profile",
+          "arguments": {},
+          "data": {
+            "units": "imperial"
+          }
+        },
+        {
+          "evidence_id": "e2",
+          "tool": "consistency",
+          "arguments": {
+            "end": "2026-11-24",
+            "start": "2026-10-26"
+          },
+          "data": {
+            "food_log_days": 3,
+            "recorded_workout_days": 6
+          }
+        }
+      ],
+      "weekly_review": false,
+      "expected": "pass"
+    },
+    {
+      "case": "weekly-no-plan",
+      "raw_model_json": "{\"verdict\":\"You logged training activity this week while food entries were sparse.\",\"reason\":\"Total workout distance covered {e2:0}.\",\"facts\":[{\"evidence_id\":\"e2\",\"path\":[\"current\",\"totals\",\"distance_m\"],\"value\":10000.0},{\"evidence_id\":\"e2\",\"path\":[\"change\",\"workouts\",\"absolute\"],\"value\":2},{\"evidence_id\":\"e4\",\"path\":[\"summary\",\"protein_g\",\"comparable_day_subtotal\"],\"value\":36.0}],\"weekly_review\":{\"what_went_well\":\"Completed workouts increased by {e2:1} compared with the previous week.\",\"what_to_change\":\"Protein intake across logged days reached {e4:2}, showing incomplete nutrition records.\",\"next_week_focus\":\"Aim to record meals more consistently alongside planned sessions.\"},\"selection\":null,\"actions\":[],\"follow_ups\":[\"Would you like help planning your meals for next week?\",\"What running goals do you want to target next?\"]}",
+      "evidence": [
+        {
+          "evidence_id": "e1",
+          "tool": "profile",
+          "arguments": {},
+          "data": {
+            "units": "imperial"
+          }
+        },
+        {
+          "evidence_id": "e2",
+          "tool": "period_compare",
+          "arguments": {
+            "start": "2026-11-18",
+            "end": "2026-11-24"
+          },
+          "data": {
+            "timezone": "America/Los_Angeles",
+            "current": {
+              "start": "2026-11-18",
+              "end": "2026-11-24",
+              "calendar_days": 7,
+              "totals": {
+                "distance_m": 10000.0,
+                "duration_s": 3600.0,
+                "protein_g": null,
+                "workouts": 2
+              },
+              "known_totals": {
+                "distance_m": 10000.0,
+                "duration_s": 3600.0,
+                "protein_g": 36.0
+              },
+              "unknown_measurement_counts": {
+                "distance_m": 0,
+                "duration_s": 0,
+                "protein_g": 0
+              },
+              "workout_days": 2,
+              "food_logged_days": 2,
+              "food_unlogged_days": 5,
+              "food_items": 2,
+              "duration_elapsed_fallbacks": 0,
+              "truncated": false
+            },
+            "previous": {
+              "start": "2026-11-11",
+              "end": "2026-11-17",
+              "calendar_days": 7,
+              "totals": {
+                "distance_m": null,
+                "duration_s": null,
+                "protein_g": null,
+                "workouts": 0
+              },
+              "known_totals": {
+                "distance_m": null,
+                "duration_s": null,
+                "protein_g": null
+              },
+              "unknown_measurement_counts": {
+                "distance_m": 0,
+                "duration_s": 0,
+                "protein_g": 0
+              },
+              "workout_days": 0,
+              "food_logged_days": 0,
+              "food_unlogged_days": 7,
+              "food_items": 0,
+              "duration_elapsed_fallbacks": 0,
+              "truncated": false
+            },
+            "change": {
+              "distance_m": {
+                "absolute": null,
+                "percent": null
+              },
+              "duration_s": {
+                "absolute": null,
+                "percent": null
+              },
+              "protein_g": {
+                "absolute": null,
+                "percent": null
+              },
+              "workouts": {
+                "absolute": 2,
+                "percent": null
+              }
+            },
+            "truncated": false,
+            "limitations": [
+              "Counts describe recorded completed workouts, not all activity; unfinished lifting is excluded.",
+              "Duration uses moving seconds, falling back to elapsed seconds only when moving time is missing.",
+              "Unlogged food days and unknown protein make full-period protein totals and changes unknown. Even daily logging may be incomplete.",
+              "Known totals include supplied measurements only; no measurements means unknown. Comparisons do not establish causes or health status."
+            ]
+          }
+        },
+        {
+          "evidence_id": "e3",
+          "tool": "consistency",
+          "arguments": {
+            "start": "2026-11-18",
+            "end": "2026-11-24"
+          },
+          "data": {
+            "food_log_days": 2,
+            "recorded_workout_days": 2
+          }
+        },
+        {
+          "evidence_id": "e4",
+          "tool": "nutrition_adequacy",
+          "arguments": {
+            "start": "2026-11-18",
+            "end": "2026-11-24"
+          },
+          "data": {
+            "summary": {
+              "kcal": {
+                "comparable_days": 2,
+                "comparable_day_subtotal": 840.0,
+                "comparable_target_subtotal": 4400.0,
+                "full_range_comparable": false,
+                "full_range_difference": null,
+                "full_range_target_ratio": null
+              },
+              "protein_g": {
+                "comparable_days": 2,
+                "comparable_day_subtotal": 36.0,
+                "comparable_target_subtotal": 240.0,
+                "full_range_comparable": false,
+                "full_range_difference": null,
+                "full_range_target_ratio": null
+              }
+            }
+          }
+        }
+      ],
+      "weekly_review": true,
+      "expected": "pass"
+    },
+    {
+      "case": "weekly-no-plan",
+      "raw_model_json": "{\n  \"verdict\": \"Training resumed while food logging remained partial.\",\n  \"reason\": \"The recorded distance reached {e2:0}.\",\n  \"facts\": [\n    {\n      \"evidence_id\": \"e2\",\n      \"path\": [\n        \"current\",\n        \"totals\",\n        \"distance_m\"\n      ],\n      \"value\": 10000.0\n    },\n    {\n      \"evidence_id\": \"e2\",\n      \"path\": [\n        \"change\",\n        \"workouts\",\n        \"absolute\"\n      ],\n      \"value\": 2\n    }\n  ],\n  \"weekly_review\": {\n    \"",
+      "evidence": null,
+      "weekly_review": true,
+      "expected": "truncated"
+    }
+  ]
+}

@@ -2432,6 +2432,35 @@ MIGRATIONS = [
 
     """,
 
+    """
+    -- 120: retain the batch's Garmin-only answer sensitivity after storage119 merged.
+    CREATE OR REPLACE FUNCTION fit_invalidate_kit(uid bigint, revoke_memories boolean DEFAULT false) RETURNS void LANGUAGE plpgsql AS $$
+    BEGIN
+      -- Cancel leases as well as saved answers: revoke/regrant during a provider
+      -- request must never save its late result. Unknown old provenance is sensitive.
+      UPDATE kit_conversations SET memory_version=memory_version+1 WHERE user_id=uid;
+      UPDATE kit_turns SET invalidated_at=now(),answer=NULL,lease=NULL,expires=NULL,
+        state='answered',error=NULL WHERE user_id=uid AND invalidated_at IS NULL
+        AND (state IN ('pending','running') OR answer IS NOT NULL
+             AND (answer->'health_included' IS DISTINCT FROM 'false'::jsonb OR answer->'garmin_included'='true'::jsonb));
+      IF revoke_memories THEN
+        DELETE FROM kit_memories WHERE user_id=uid AND health_included;
+      END IF;
+    END $$;
+    UPDATE kit_turns SET replay_blocked_at=now() WHERE replay_blocked_at IS NULL
+      AND answer->'garmin_included'='true'::jsonb;
+    -- Re-check disabled applicable sources with the corrected invalidation function;
+    --119 could not erase Garmin-only answers carrying health_included=false.
+    SELECT fit_invalidate_kit(p.user_id,true) FROM profile p WHERE NOT p.ai_ok
+      OR (NOT p.health_ai_ok AND (EXISTS(SELECT 1 FROM activities a WHERE a.user_id=p.user_id
+            AND (a.source='healthkit' OR a.healthkit_id IS NOT NULL))
+          OR EXISTS(SELECT 1 FROM health_resting h WHERE h.user_id=p.user_id AND p.resting_source='apple_health')))
+      OR ((NOT p.health_ai_ok OR NOT p.health_weight_ai_ok OR NOT p.health_weight_read)
+          AND (p.weight_health_derived OR EXISTS(SELECT 1 FROM weights w WHERE w.user_id=p.user_id AND w.source='healthkit')))
+      OR (NOT p.garmin_ai_ok AND EXISTS(SELECT 1 FROM activities a WHERE a.user_id=p.user_id AND a.source='garmin_connect'));
+
+    """,
+
 ]
 
 

@@ -110,6 +110,8 @@ _KIT_MEASUREMENT_PATHS = {
 
 
 def _kit_path_allowed(tool, path):
+    from . import kit_claims
+    if kit_claims.additional_measurement(tool,path):return True
     for pattern in _KIT_MEASUREMENT_PATHS.get(tool, ()):
         if len(pattern) != len(path):
             continue
@@ -163,19 +165,21 @@ def _kit_numeric_symbol(char):
             or code==0x1F51F or 0x2460<=code<=0x24FF or 0x2776<=code<=0x2793 or 0x1F100<=code<=0x1F10F)
 
 
-def _normalise_kit_prose(text):
+def _normalise_kit_prose(text, *, placeholder_pattern=PLACEHOLDER):
     def without_marks(value):
         return ''.join(char for char in value if unicodedata.category(char)!='Cf' and not unicodedata.category(char).startswith('M'))
     text=without_marks(text)
     # Check original symbols too: NFKC can turn Roman/enclosed numerals into plain letters.
-    if any(_kit_numeric_symbol(char) for char in PLACEHOLDER.sub('',text)):
+    if any(_kit_numeric_symbol(char) for char in placeholder_pattern.sub('',text)):
         raise ValueError('Unverified numeric symbol')
     return without_marks(unicodedata.normalize('NFKC',text))
 
 
-def _placeholder_boundary_ok(context, *, before):
+def _placeholder_boundary_ok(context, *, before, extra_words=(), sentence_boundary=False):
     # A colon introduces a slot after a prose label. Its own noun still comes from the fact.
     context=context.rstrip() if before else context.lstrip()
+    if not before and sentence_boundary and context and ord(context[0]) in (33, 46, 63):
+        return True
     if before and context.endswith(':'):
         return True
     # Inspect the nearest token through whitespace/punctuation, so ", km" and "(USD)"
@@ -186,7 +190,7 @@ def _placeholder_boundary_ok(context, *, before):
     if not context:
         return True
     token=re.search(r'(\w+)$',context) if before else re.match(r'(\w+)',context)
-    allowed=_PLACEHOLDER_WORDS_BEFORE if before else _PLACEHOLDER_WORDS_AFTER
+    allowed=(_PLACEHOLDER_WORDS_BEFORE if before else _PLACEHOLDER_WORDS_AFTER) | set(extra_words)
     if not token or token.group(1).casefold() not in allowed:
         return False
     rest=context[:token.start()] if before else context[token.end():]
@@ -203,22 +207,25 @@ def _placeholder_value(fact, before=''):
     if _DISPLAY_UNIT.search(display) and not has_ambiguous_mass_unit(fact):return display
     sentence_context=re.split(r'[.!?;\n]',before)[-1]
     if label and re.search(r'(?<!\w)'+re.escape(label)+r'(?!\w)',sentence_context,re.I):return display
-    return f"{display} {label}"
+    return f"{display} {label}".strip()
 
 
-def _kit_prose(text, facts):
+def _kit_prose(text, facts, *, extra_words=(), sentence_boundary=False,
+               placeholder_pattern=PLACEHOLDER, render_value=None):
     """Only digits are guaranteed to come from validated, app-rendered placeholders; wording is not verified."""
-    text=_normalise_kit_prose(text)
-    remainder=PLACEHOLDER.sub('',text)
+    text=_normalise_kit_prose(text,placeholder_pattern=placeholder_pattern)
+    remainder=placeholder_pattern.sub('',text)
     if any(_kit_numeric_symbol(char) for char in remainder) or any(char in remainder for char in '{}'):
         raise ValueError('Unverified digit or malformed reference')
-    matches=list(PLACEHOLDER.finditer(text))
+    matches=list(placeholder_pattern.finditer(text))
     for i,match in enumerate(matches):
         before,after=text[:match.start()],text[match.end():]
         left_range=i>0 and text[matches[i-1].end():match.start()].strip() in _PLACEHOLDER_RANGES
         right_range=i+1<len(matches) and text[match.end():matches[i+1].start()].strip() in _PLACEHOLDER_RANGES
-        left_ok=left_range or _placeholder_boundary_ok(before,before=True)
-        right_ok=right_range or _placeholder_boundary_ok(after,before=False)
+        left_ok=left_range or _placeholder_boundary_ok(before,before=True,extra_words=extra_words,
+                                                        sentence_boundary=sentence_boundary)
+        right_ok=right_range or _placeholder_boundary_ok(after,before=False,extra_words=extra_words,
+                                                          sentence_boundary=sentence_boundary)
         if not left_ok or not right_ok:
             detail=_placeholder_boundary_detail(text,match,before=not left_ok)
             raise KitValidationError('Unsupported text attached to numeric reference',detail)
@@ -230,8 +237,9 @@ def _kit_prose(text, facts):
                     'expected_evidence_id':expected_id}
             raise KitValidationError('Unknown or mismatched numeric reference',detail)
     def replace(match):
-        return _placeholder_value(facts[int(match.group(2))],text[:match.start()])
-    resolved=PLACEHOLDER.sub(replace,text).strip()
+        fact=facts[int(match.group(2))]
+        return render_value(fact) if render_value else _placeholder_value(fact,text[:match.start()])
+    resolved=placeholder_pattern.sub(replace,text).strip()
     if not resolved or len(resolved)>1600: raise ValueError('Answer text is empty or too long')
     return resolved
 
@@ -247,6 +255,9 @@ def _kit_fact(tool, data, path, value, units, *, weekly=False):
     """Format verified measurements with short labels and the person's units."""
     field=(path[-2] if tool=='period_compare' and path[:1]==['change'] and len(path)>1
            else path[-1] if path and isinstance(path[-1],str) else '')
+    from . import kit_claims
+    goal=kit_claims.goal_fact(tool,data,path,value,units)
+    if goal is not None:return goal
     sport=None
     if tool=='recent_runs' and path and path[0]=='runs': sport='Run'
     elif tool=='activities' and path and path[0]=='totals_by_sport':
@@ -360,7 +371,8 @@ def _weekly_sentence(text, facts):
         fact_topic=_weekly_fact_class(facts[index])
         if topic and fact_topic and fact_topic not in topic:
             raise ValueError('Weekly section topic does not match referenced fact')
-    return _kit_prose(text,facts)
+    from . import kit_claims
+    return _kit_prose(text,facts,extra_words=kit_claims.weekly_boundary_words())
 
 
 def _weekly_claim_topic(text, placeholder):
@@ -378,6 +390,9 @@ def _weekly_claim_topic(text, placeholder):
 
 
 def _weekly_fact_class(fact):
+    from . import kit_claims
+    category=kit_claims.weekly_fact_class(fact)
+    if category:return category
     tool=fact['tool']
     if tool in {'nutrition_adequacy','nutrition_summary'}:return 'food'
     if tool in {'period_compare','consistency','recent_runs','activity','activities','training_load',
@@ -385,7 +400,13 @@ def _weekly_fact_class(fact):
     return None
 
 
-def checked_answer(raw, evidence, *, kit=False, weekly_review=False):
+def checked_answer(raw, evidence, *, kit=False, weekly_review=False, workout_review=False, conversation_question=None):
+    if workout_review:
+        from . import kit_workout_review
+        return kit_workout_review.checked_answer(raw, evidence)
+    from . import kit_conversation
+    if kit and kit_conversation.has_blocks(raw):
+        return kit_conversation.checked_answer(raw, evidence, question=conversation_question, weekly_review=weekly_review)
     answer = (KitAnswer if kit else Answer).model_validate(raw)
     if weekly_review and not kit: raise ValueError('Weekly reviews require the Kit answer contract')
     if kit and not answer.reason.strip(): raise ValueError('Kit answers need a reason')
@@ -617,18 +638,22 @@ def _weekly_period(today):
     return {'start':start,'end':end,'previous_start':previous_start,'previous_end':previous_end,'label':label}
 
 
-def _gemini_turn(messages, definitions, *, system=SYSTEM):
+def _gemini_turn(messages, definitions, *, system=SYSTEM, thinking_level=None):
     declarations = [{'name': t['name'], 'description': t['description'], 'parametersJsonSchema': t['input_schema']} for t in definitions]
-    weekly = system == KIT_WEEKLY_SYSTEM
+    from . import kit_claims
+    weekly = system == KIT_WEEKLY_SYSTEM or kit_claims.is_weekly_system(system)
+    from . import kit_conversation
     body = {'systemInstruction': {'parts': [{'text': system}]}, 'contents': messages,
             'tools': [{'functionDeclarations': declarations}],
-            'generationConfig': {'temperature': .2, 'maxOutputTokens': 4096 if weekly else 2500}}
+            'generationConfig': {'temperature': .2, 'maxOutputTokens': kit_conversation.output_tokens(system,4096 if weekly else 2500,thinking_level=thinking_level)}}
     model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
-    if system in (KIT_SYSTEM, KIT_WEEKLY_SYSTEM) and model == 'gemini-3.8-flash':
-        body['generationConfig']['thinkingConfig'] = {'thinkingLevel':'LOW'}
+    from . import kit_conversation
+    if (weekly or system == KIT_SYSTEM or kit_conversation.is_system(system)) and model == 'gemini-3.8-flash':
+        body['generationConfig']['thinkingConfig'] = {'thinkingLevel':thinking_level or 'LOW'}
     if not declarations:
         body.pop('tools')
         body['generationConfig']['responseMimeType'] = 'application/json'
+        kit_conversation.final_schema(body,system)
     req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
                                  json.dumps(body, default=str).encode(), {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
     attempt=ai_budget.reserve(model,'Kit question',payload=body)
@@ -641,11 +666,14 @@ def _gemini_turn(messages, definitions, *, system=SYSTEM):
     else: ai_budget.settle(attempt,result)
     finally: ai_budget.finish(attempt)
     content = (result.get('candidates') or [{}])[0].get('content')
-    if not content: raise ValueError('Kit did not return an answer')
+    if not content:
+        truncated=kit_conversation.empty_truncation(result,system,thinking_level)
+        if truncated is not None:return truncated
+        raise ValueError('Kit did not return an answer')
     messages.append(content)  # Preserve function IDs and thought signatures exactly, including parallel calls.
     calls = [p['functionCall'] for p in content.get('parts', []) if 'functionCall' in p]
     text = ''.join(p.get('text', '') for p in content.get('parts', []) if not p.get('thought'))
-    usage = result.get('usageMetadata') or {}
+    usage = kit_conversation.provider_usage(result,result.get('usageMetadata') or {},system=system,thinking_level=thinking_level)
     return calls, text, usage
 
 
@@ -668,10 +696,20 @@ def _claude_turn(messages, definitions, *, system=SYSTEM):
                          'totalTokenCount': response.usage.input_tokens + response.usage.output_tokens}
 
 
-def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False):
+def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False,
+           workout_review=False, workout_evidence=None):
     """`turn` is a stand-in hook for deterministic tests; production uses the configured provider."""
+    from . import kit_conversation
+    conversation_contract=kit and turn is None
+    if workout_review:
+        from . import kit_workout_review
+        return kit_workout_review.answer(uid, question, workout_evidence, turn=turn, active=active)
     if weekly_review and not kit: raise ValueError('Weekly reviews are only available through Kit')
     if not coach.allowed(uid): raise ValueError(coach.off())
+    if kit and not weekly_review:
+        from . import kit_claims
+        safety=kit_claims.eating_safety_answer(question)
+        if safety is not None:return safety
     if not food_only and not kit:
         with db.coach_connect(uid) as c:
             if not coach.health_ok(c, uid): raise ValueError(coach.HEALTH_NO)
@@ -710,7 +748,9 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             else:messages[-1]['content']+='\n'+text
     if turn is None:
         adapter = _gemini_turn if provider == 'gemini' else _claude_turn
-        system=KIT_WEEKLY_SYSTEM if weekly_review else KIT_SYSTEM
+        from . import kit_conversation
+        from . import kit_claims
+        system=kit_claims.weekly_system() if weekly_review else kit_conversation.SYSTEM
         turn = (lambda m,d:adapter(m,d,system=system)) if kit else adapter
     usage, began, calls_used = {'promptTokenCount': 0, 'candidatesTokenCount': 0, 'thoughtsTokenCount': 0, 'totalTokenCount': 0}, time.monotonic(), 0
     for round_index in range(MAX_ROUNDS):
@@ -721,7 +761,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                 if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
         if kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and 'error' not in e for e in evidence):
             with db.coach_connect(uid) as c:
-                if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
+                if not coach.health_ok(c,uid):return kit_conversation.consent_answer()
         with ai_budget.scope(uid):
             # Reserve the final round for an answer, rather than paying for a lookup that cannot be used.
             calls, text, tokens = turn(messages, [] if kit and (weekly_review or round_index==MAX_ROUNDS-1) else definitions)
@@ -730,19 +770,29 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         if weekly_review and calls: raise ValueError('Weekly review cannot request additional tools')
         if not calls:
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
-            try: checked = checked_answer(_json(text), evidence, kit=kit,weekly_review=weekly_review)
+            from . import kit_conversation
+            try:
+                if kit:kit_conversation.check_completion(tokens)
+                raw=_json(text)
+                conversation_contract=conversation_contract or (kit and kit_conversation.has_blocks(raw))
+                checked = (kit_conversation.check_for_question(raw, evidence, question, weekly_review=weekly_review, require_blocks=conversation_contract)
+                           if kit else checked_answer(_json(text), evidence, kit=kit,weekly_review=weekly_review))
             except ValueError as error:
-                if not kit: raise
+                if not kit or not kit_conversation.corrections_enabled(): raise
                 if weekly_review:
-                    # Gemini can spend the whole first response budget thinking and leave a
-                    # partial JSON object. A single shorter, no-tools correction keeps the
-                    # normal validator and digit guarantee in force without a tool round.
-                    if not isinstance(error, json.JSONDecodeError):
+                    # One bounded correction handles both truncation and invalid evidence references.
+                    from . import kit_claims
+                    if not kit_claims.weekly_retryable(error):
                         raise ValueError('Kit could not verify that weekly review. Try again.') from None
-                    messages.append({'role':'user','parts':[{'text':_weekly_truncation_retry_prompt()}]} if provider=='gemini'
-                                    else {'role':'user','content':_weekly_truncation_retry_prompt()})
+                    retry_prompt=((kit_conversation.truncation_prompt() if conversation_contract else _weekly_truncation_retry_prompt()) if isinstance(error,json.JSONDecodeError) or kit_conversation.is_truncated(error)
+                                  else kit_claims.weekly_retry_prompt(error))
+                    messages.append({'role':'user','parts':[{'text':retry_prompt}]} if provider=='gemini'
+                                    else {'role':'user','content':retry_prompt})
+                    if not coach.allowed(uid):raise ValueError(coach.off())
+                    with db.coach_connect(uid) as c:
+                        if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
                     try:
-                        with ai_budget.scope(uid):
+                        with ai_budget.scope(uid),kit_conversation.retry_budget(error):
                             retry_calls,retry_text,retry_tokens=turn(messages,[])
                     except ValueError:
                         raise ValueError('Kit could not verify that weekly review. Try again.') from None
@@ -751,7 +801,8 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     for key in usage:usage[key]+=int(retry_tokens.get(key) or 0)
                     if retry_calls:raise ValueError('Kit could not verify that weekly review. Try again.')
                     try:
-                        checked=checked_answer(_json(retry_text),evidence,kit=True,weekly_review=True)
+                        kit_conversation.check_completion(retry_tokens)
+                        checked=kit_conversation.check_for_question(_json(retry_text),evidence,question,weekly_review=True,require_blocks=conversation_contract)
                     except ValueError:
                         raise ValueError('Kit could not verify that weekly review. Try again.') from None
                 else:
@@ -762,11 +813,14 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                     if any(e['tool'] not in health_tools and 'data' in e for e in evidence):
                         with db.coach_connect(uid) as c:
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
-                    retry_message=_kit_retry_prompt(error)
+                    from . import kit_claims
+                    retry_message=(kit_conversation.truncation_prompt() if kit_conversation.is_truncated(error) else
+                                   kit_claims.conversation_retry_prompt(error) if conversation_contract else _kit_retry_prompt(error))
                     messages.append({'role':'user','parts':[{'text':retry_message}]} if provider=='gemini'
                                     else {'role':'user','content':retry_message})
                     try:
-                        with ai_budget.scope(uid):retry_calls,retry_text,retry_tokens=turn(messages,[])
+                        with ai_budget.scope(uid),kit_conversation.retry_budget(error):
+                            retry_calls,retry_text,retry_tokens=turn(messages,[])
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
                     if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
                     if not coach.allowed(uid):raise ValueError(coach.off())
@@ -775,7 +829,9 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
                             if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
                     for key in usage:usage[key]+=int(retry_tokens.get(key) or 0)
                     if retry_calls:raise ValueError('Kit could not verify that answer. Try again.')
-                    try:checked=checked_answer(_json(retry_text),evidence,kit=True)
+                    try:
+                        kit_conversation.check_completion(retry_tokens)
+                        checked=kit_conversation.check_for_question(_json(retry_text),evidence,question,require_blocks=conversation_contract)
                     except ValueError:raise ValueError('Kit could not verify that answer. Try again.') from None
             if kit and not weekly_review:
                 # The UI consumes only interpretation. Keep the validated source fields internal
@@ -798,7 +854,9 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             try:
                 cached=next((e for e in evidence if kit and e['tool']==name and e['arguments']==args and 'data' in e),None)
                 ev['data'] = cached['data'] if cached else json.loads(json.dumps(tools.call(name, args), default=str, allow_nan=False))
-            except ValueError: ev['error'] = 'Tool unavailable: check its arguments, record ownership and Apple Health sharing consent. Do not infer values from missing data.'
+            except ValueError as error:
+                if kit and kit_conversation.is_consent_error(error):return kit_conversation.consent_answer()
+                ev['error'] = 'Tool unavailable: check its arguments, record ownership and Apple Health sharing consent. Do not infer values from missing data.'
             evidence.append(ev)
             if provider == 'gemini':
                 function = {'name': name, 'response': ev}

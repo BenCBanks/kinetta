@@ -26,24 +26,26 @@ class HistoryUpgrade(unittest.TestCase):
                 with psycopg.connect(make_conninfo(db.CONNINFO,dbname=name),row_factory=dict_row) as c:yield c
             with patch.object(db,'connect',target),patch.object(db,'bootstrap'):
                 migrations=db.MIGRATIONS
-                with patch.object(db,'MIGRATIONS',migrations[:-1]):db.migrate()
+                with patch.object(db,'MIGRATIONS',migrations[:118]):db.migrate()
                 with target() as c:
-                    self.assertEqual(c.execute('SELECT max(version) v FROM schema_version').fetchone()['v'],len(migrations)-1)
+                    self.assertEqual(c.execute('SELECT max(version) v FROM schema_version').fetchone()['v'],118)
                     fixtures=[]
-                    for mode in ['consented','unused_sources_off','revoked','unknown_sources']:
+                    for mode in ['consented','unused_sources_off','revoked','unknown_sources','garmin_revoked']:
                         uid=c.execute("INSERT INTO users(login,name) VALUES(%s,'Fictional Historian') RETURNING id",
                           ('zz_test_upgrade_'+mode,)).fetchone()['id']
                         granted=mode!='revoked'
                         c.execute('INSERT INTO profile(user_id,ai_ok,health_ai_ok,health_weight_ai_ok,garmin_ai_ok,health_weight_read) VALUES(%s,true,%s,%s,%s,%s)',
                           (uid,granted,mode=='consented',mode=='consented',mode=='consented'))
                         if mode!='unknown_sources':
-                            c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'run','healthkit','Fictional run',now())",(uid,))
+                            c.execute("INSERT INTO activities(user_id,sport,source,name,start_time) VALUES(%s,'run',%s,'Fictional run',now())",
+                              (uid,'garmin_connect' if mode=='garmin_revoked' else 'healthkit'))
                         generation,visit=uuid.uuid4(),uuid.uuid4()
                         c.execute('INSERT INTO kit_conversations(user_id,generation) VALUES(%s,%s)',(uid,generation))
                         c.execute('INSERT INTO kit_visits(id,user_id) VALUES(%s,%s)',(visit,uid))
                         for answer in [{'interpretation':'Sensitive old answer','health_included':True},
                                        {'interpretation':'Unknown old answer'},
-                                       {'interpretation':'Non-sensitive old answer','health_included':False}]:
+                                       {'interpretation':'Non-sensitive old answer','health_included':False},
+                                       {'interpretation':'Garmin old answer','health_included':False,'garmin_included':True}]:
                             c.execute("""INSERT INTO kit_turns(user_id,client_id,generation,visit_id,question,state,answer)
                               VALUES(%s,%s,%s,%s,'Fictional old question','answered',%s)""",
                               (uid,uuid.uuid4(),generation,visit,json.dumps(answer)))
@@ -52,26 +54,35 @@ class HistoryUpgrade(unittest.TestCase):
                           (uid,uuid.uuid4(),generation,visit,visit))
                         c.execute("INSERT INTO kit_memories(user_id,text,health_included) VALUES(%s,'I prefer morning runs.',true),(%s,'I prefer short replies.',false)",(uid,uid))
                         fixtures.append((uid,generation,visit,mode))
+                # Apply the exact merged119 first, then upgrade that existing database
+                # with120. This catches corrections accidentally left inside119.
+                with patch.object(db,'MIGRATIONS',migrations[:119]):db.migrate()
+                with target() as c:
+                    self.assertEqual(c.execute('SELECT max(version) v FROM schema_version').fetchone()['v'],119)
+                    uid=next(uid for uid,_,_,mode in fixtures if mode=='garmin_revoked')
+                    row=c.execute("SELECT answer FROM kit_turns WHERE user_id=%s AND answer->>'interpretation'='Garmin old answer'",(uid,)).fetchone()
+                    self.assertIsNotNone(row,'merged119 retains Garmin-only JSON;120 must correct it')
                 db.migrate()
                 with target() as c:
                     self.assertEqual(c.execute('SELECT max(version) v FROM schema_version').fetchone()['v'],len(migrations))
                     for uid,generation,visit,mode in fixtures:
                         with self.subTest(mode=mode):
                             rows=c.execute('SELECT * FROM kit_turns WHERE user_id=%s ORDER BY id',(uid,)).fetchall()
-                            self.assertEqual(len(rows),4)
-                            for row,text in zip(rows,['Sensitive old answer','Unknown old answer','Non-sensitive old answer']):
+                            revoked=mode in {'revoked','garmin_revoked'}
+                            self.assertEqual(len(rows),5)
+                            for row,text in zip(rows,['Sensitive old answer','Unknown old answer','Non-sensitive old answer','Garmin old answer']):
                                 self.assertEqual(row['question'],'Fictional old question');self.assertEqual(row['visit_id'],visit)
-                                if mode=='revoked' and text!='Non-sensitive old answer':
+                                if revoked and text!='Non-sensitive old answer':
                                     self.assertIsNone(row['answer']);self.assertIsNotNone(row['invalidated_at'])
                                 else:
                                     self.assertEqual(row['answer']['interpretation'],text);self.assertIsNone(row['invalidated_at'])
                                 self.assertEqual(row['replay_blocked_at'] is not None,text!='Non-sensitive old answer')
-                            pending=rows[3]
-                            self.assertEqual(pending['state'],'answered' if mode=='revoked' else 'running')
-                            self.assertEqual(pending['lease'],None if mode=='revoked' else visit)
+                            pending=rows[4]
+                            self.assertEqual(pending['state'],'answered' if revoked else 'running')
+                            self.assertEqual(pending['lease'],None if revoked else visit)
                             self.assertIsNone(pending['replay_blocked_at'])
                             memories=c.execute('SELECT text FROM kit_memories WHERE user_id=%s ORDER BY id',(uid,)).fetchall()
-                            self.assertEqual([r['text'] for r in memories],['I prefer short replies.'] if mode=='revoked'
+                            self.assertEqual([r['text'] for r in memories],['I prefer short replies.'] if revoked
                               else ['I prefer morning runs.','I prefer short replies.'])
                             self.assertEqual(c.execute('SELECT generation FROM kit_conversations WHERE user_id=%s',(uid,)).fetchone()['generation'],generation)
 

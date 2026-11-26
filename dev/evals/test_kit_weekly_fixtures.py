@@ -102,6 +102,13 @@ def check_health_consent_refusal_is_a_pass_without_provider_use():
         'weekly-health-consent-off',variant='candidate',answer=None,
         error='ValueError: '+refusal,provider_requests=0,refusal_message=refusal)
     assert accepted
+    assert is_expected_health_consent_refusal(
+        'weekly-health-consent-off',variant='baseline',answer=None,
+        error='ValueError: '+refusal,provider_requests=0,refusal_message=refusal)
+    assert evaluation_case_passed('weekly-health-consent-off',variant='baseline',answer=None,
+                                  error=None,expected_refusal=True)
+    assert not evaluation_case_passed('weekly-health-consent-off',variant='baseline',
+                                      answer={'verdict':'Unexpected answer'},error=None)
     assert evaluation_case_passed('weekly-health-consent-off',variant='candidate',answer=None,
                                   error=None,expected_refusal=accepted)
     assert not evaluation_case_passed('weekly-health-consent-off',variant='candidate',
@@ -110,7 +117,7 @@ def check_health_consent_refusal_is_a_pass_without_provider_use():
         {'error':'ValueError: different refusal'},
         {'answer':{'verdict':'I reviewed your health data.'}},
         {'provider_requests':1},
-        {'variant':'baseline'},
+        {'variant':'unknown'},
         {'case_id':'weekly-sparse'},
     ]:
         values={'case_id':'weekly-health-consent-off','variant':'candidate','answer':None,
@@ -188,3 +195,27 @@ check_weekly_answer_uses_provider_and_returns_result()
 check_health_consent_refusal_is_a_pass_without_provider_use()
 check_weekly_seeds()
 print('Kit weekly evaluator: exact request, stubbed weekly answer/provider count, and ten fictional fixture seeds pass; no live provider called.')
+
+# A conversational tool-selected refusal may spend one selection call, never send denied records.
+assert is_expected_health_consent_refusal('recall-health-consent-off',variant='candidate',answer=None,
+    error='ValueError: consent',provider_requests=1,refusal_message='consent')
+for count in (2,True):
+    assert not is_expected_health_consent_refusal('recall-health-consent-off',variant='candidate',answer=None,
+        error='ValueError: consent',provider_requests=count,refusal_message='consent')
+assert not evaluation_case_passed('recall-health-consent-off',variant='candidate',answer={'interpretation':'Invented data'},error=None)
+
+# Only the complete exact app envelope can bypass a weekly provider request.
+import copy
+refusal='Review sharing first.'
+answer={'interpretation':refusal,'answer_blocks':[{'kind':'paragraph','text':refusal}],
+        'facts':[],'actions':[],'follow_ups':[],'selection':None,'health_included':False,'consent_refused':True}
+def accepts(value,count=0):
+    return is_expected_health_consent_refusal('weekly-health-consent-off',variant='candidate',answer=value,
+        error=None,provider_requests=count,refusal_message=refusal)
+assert accepts(answer)
+for key,value in [('facts',[{'value':100}]),('actions',[{'kind':'write'}]),('follow_ups',['Health details']),
+                  ('answer_blocks',[{'kind':'paragraph','text':'Your private record'}]),('health_included',True),
+                  ('extra_health_data',100),('selection',{'id':1}),('interpretation','Different refusal')]:
+    bad=copy.deepcopy(answer);bad[key]=value;assert not accepts(bad),key
+for count in (1,True,-1):assert not accepts(answer,count)
+print('Exact zero-provider weekly refusal envelope and no-health mutations PASS')
