@@ -130,27 +130,20 @@ async function pushCard(box, r, message='') {
   if (!Native.on) {
     render('<p class="small muted">Managed in the iPhone app.</p>');return;
   }
-  if (!Native.pushSupported) {
-    render('<p class="small muted">Update Kinetta in TestFlight to enable phone alerts.</p>');return;
-  }
-  let status;
-  try { status=await Native.pushStatus(); }
-  catch (error) {
-    if(valid()){
-      render(`<p class="err" role="alert">${esc(error.message)}</p><div class="notification-phone-action"><button class="ghost sm" id="np-retry">Retry</button></div>`);
-      $('#np-retry',box).onclick=()=>{if(valid())pushCard(box,r);};
-    }
-    return;
-  }
+  let status, statusError='';
+  if(!Native.pushSupported)statusError='Update Kinetta in TestFlight to enable phone alerts.';
+  else try { status=await Native.pushStatus(); } catch(error) { statusError=error.message||'iPhone notification status is unavailable.'; }
   if(!valid())return;
-  const kinds=status.enabled?alertTypes():'';
+  // Saved notification types do not depend on this phone's permission or registration.
   render(`${!r.push_ready?'<p class="small muted">Server notification setup is not complete; the bell still works.</p>':''}
-    ${status.enabled?'<p class="small muted">Alerts are on for this iPhone.</p><div class="notification-phone-action"><button class="ghost sm" id="np-off">Turn off on this iPhone</button></div>'
+    ${statusError?`<p class="err" role="alert">${esc(statusError)}</p>${Native.pushSupported?'<div class="notification-phone-action"><button class="ghost sm" id="np-retry">Retry</button></div>':''}`
+      :status.enabled?'<p class="small muted">Manage alerts for this iPhone in Settings.</p><div class="notification-phone-action"><button type="button" class="ghost sm" id="np-settings">Open iPhone Settings</button></div>'
       :status.denied?'<p class="small muted">Allow Kinetta notifications in iPhone Settings.</p><div class="notification-phone-action"><button type="button" class="primary sm" id="np-settings">Open iPhone Settings</button></div>'
       :'<p class="small muted">Get alerts for the notification types you choose.</p><div class="notification-phone-action"><button class="primary sm" id="np-on">Turn on iPhone notifications</button></div>'}
-    <p class="err" role="alert" id="np-error">${esc(message)}</p>`,kinds);
-  const error=$('#np-error',box),on=$('#np-on',box),off=$('#np-off',box),settings=$('#np-settings',box);
-  if(settings)settings.onclick=async()=>{if(!valid()||settings.disabled)return;settings.disabled=true;try{await Native.openPushSettings({enable:true});}catch(x){if(valid())error.textContent=x.message;}finally{if(valid())settings.disabled=false;}};
+    <p class="err" role="alert" id="np-error">${esc(message)}</p>`,alertTypes());
+  const error=$('#np-error',box),on=$('#np-on',box),settings=$('#np-settings',box),retry=$('#np-retry',box);
+  if(retry)retry.onclick=()=>{if(valid())pushCard(box,r);};
+  if(settings)settings.onclick=async()=>{if(!valid()||settings.disabled)return;settings.disabled=true;try{await Native.openPushSettings({enable:!!status.denied});}catch(x){if(valid())error.textContent=x.message;}finally{if(valid())settings.disabled=false;}};
   const phoneAction=(button,run)=>{
     if(!button)return;button.onclick=async()=>{
       if(!valid()||button.disabled)return;button.disabled=true;error.textContent='';
@@ -158,7 +151,7 @@ async function pushCard(box, r, message='') {
       catch(x){if(valid()){error.textContent=x.message;button.disabled=false;}}
     };
   };
-  phoneAction(on,()=>Native.enablePush());phoneAction(off,()=>Native.disconnectPush({forget:true}));
+  phoneAction(on,()=>Native.enablePush());
   const controls=$('#np-kinds',box);
   if(controls)controls.onchange=async event=>{
     const input=event.target,k=input.name,v=input.checked;
@@ -197,7 +190,7 @@ async function personalNotificationCard(box,message='',pushPreferences=null){
       <div class="notification-choices"><div class="personal-notice-choice"><label class="switch-row"><span>Planned workouts<small>Only when a workout is still due.</small></span><input type="checkbox" role="switch" data-personal="plan"${state.plan?' checked':''}${unavailable&&!state.plan?' disabled':''}></label>
       ${state.plan?`<label class="personal-notice-time">Reminder time<select data-personal="plan_time">${times.map(([k,v])=>`<option value="${k}"${state.plan_time===k?' selected':''}>${v}</option>`).join('')}</select></label>`:''}</div>
       <div class="personal-notice-choice"><label class="switch-row"><span>Weekly summary<small>Monday at 9 am.</small></span><input type="checkbox" role="switch" data-personal="weekly"${state.weekly?' checked':''}${unavailable&&!state.weekly?' disabled':''}></label></div>
-      <div class="personal-notice-choice"><label class="switch-row"><span>Monthly summary<small>On the first of the month at 9 am.</small></span><input type="checkbox" role="switch" data-monthly-summary${monthlySummary?' checked':''}${unavailable&&!monthlySummary?' disabled':''}></label></div>
+      <div class="personal-notice-choice"><label class="switch-row"><span>Monthly summary<small>On the first of the month at 9 am.</small></span><input type="checkbox" role="switch" data-monthly-summary${monthlySummary?' checked':''}${web&&unavailable&&!monthlySummary?' disabled':''}></label></div>
       ${web?`</div>${phoneSetup}<h2>Bell reminder</h2><p class="small muted">Available on the web and iPhone.</p><div class="notification-choices">`:''}<div class="personal-notice-choice"><label class="switch-row"><span>Streak reminder<small>Friday at 6 pm · only if you have not logged a workout this week.</small></span><input type="checkbox" role="switch" data-personal="streak"${state.streak?' checked':''}></label></div></div>
       ${web?'':phoneSetup}
       ${state.plan||state.weekly||state.streak?'<p class="settings-footnote">Weekly summaries need a recent activity or food log. iPhone alerts may be delayed.</p>':''}
