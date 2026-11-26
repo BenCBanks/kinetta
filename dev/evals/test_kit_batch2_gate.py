@@ -6,8 +6,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from kit_batch2_cases import BATCH2_CASES, EXTRA
-from kit_batch2_pin import LIVE, verify
+from kit_batch2_cases import BATCH2_CASES, EXTRA, chart_records, required_shape
+from kit_batch2_pin import LIVE, verify, verify_candidate, CANDIDATE_TEXT
 from kit_gate_resume import identity
 from test_kit_gate import KitGatePreflight
 
@@ -20,10 +20,11 @@ class Batch2Gate(KitGatePreflight):
         self.assertEqual(report['selected_case_ids'],[c[0] for c in BATCH2_CASES])
         self.assertEqual(len(set(report['selected_case_ids'])),40)
         self.assertEqual(sum(c[0].startswith('weekly-') for c in BATCH2_CASES),10)
-        self.assertEqual(len(EXTRA),8)
+        self.assertEqual(len(EXTRA),9)
         self.assertLessEqual(report['budget_preflight']['estimated_remaining_usd']+
                              report['budget_preflight']['reservation_headroom_usd'],2.50)
-        self.assertEqual(report['feature_coverage']['charts'],'unsupported; separate Draft excluded')
+        self.assertIn('supported distance chart',report['feature_coverage']['charts'])
+        self.assertIn('explicit memory override',report['feature_coverage']['contextual_coaching'])
         self.assertEqual(report['provider_calls'],0)
 
     def test_fixture_source_is_bound_to_resume(self):
@@ -38,6 +39,24 @@ class Batch2Gate(KitGatePreflight):
         report=self.directory/'report.json';report.write_text('{"reviewed":false}')
         with self.assertRaisesRegex(ValueError,'pinned installed'):
             verify(self.directory,report)
+
+    def test_supported_chart_requires_actual_seeded_records_and_card(self):
+        import datetime as dt
+        records=chart_records(dt.date(2026,11,26))
+        self.assertEqual([r['distance_m'] for r in records],[3000,5000,7000])
+        chart={'metric':'distance','sport':'run','group_by':'workout','points':[{'value':r['distance_m']} for r in records]}
+        self.assertIsNone(required_shape('batch2-chart-distance','candidate',{'chart':chart}))
+        self.assertIsNotNone(required_shape('batch2-chart-distance','candidate',{'interpretation':'No chart'}))
+        self.assertIsNone(required_shape('batch2-chart-distance','baseline',{'interpretation':'No chart'}))
+        chart['points'][1]['value']=99999
+        self.assertIsNotNone(required_shape('batch2-chart-distance','candidate',{'chart':chart}))
+
+    def test_candidate_pin_checks_final_source_and_rejects_app_delta(self):
+        from unittest.mock import patch
+        root=Path(__file__).resolve().parents[2]
+        self.assertEqual(verify_candidate(root)['ai_text'],CANDIDATE_TEXT)
+        with patch('kit_batch2_pin.subprocess.run',return_value=type('Diff',(),{'returncode':1})()):
+            with self.assertRaisesRegex(ValueError,'final combined freeze'):verify_candidate(root)
 
 
 if __name__=='__main__':unittest.main()

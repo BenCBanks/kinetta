@@ -71,8 +71,9 @@ if args.batch2:
  metadata.update(batch2=True,baseline_report_sha256=os.environ.get('KINETTA_KIT_BASELINE_REPORT_SHA256'),
    baseline_source_tree=os.environ.get('KINETTA_KIT_BASELINE_COMMIT'),
    feature_coverage={'history':'real saved-thread resume','memory':'real memory context',
-    'goals':'preview only; confirmation tested offline','streaming':'offline transport tests',
-    'charts':'unsupported; separate Draft excluded','contextual_coaching':'separate Draft excluded'})
+   'goals':'preview only; confirmation tested offline','streaming':'offline transport tests',
+    'charts':'supported distance chart from own fictional records; baseline may decline',
+    'contextual_coaching':'included; saved/current context and explicit memory override'})
 reused=[]
 if args.gate and not args.setting_smoke:
  metadata.update(gate_resume_version=1,input_digest=gate_identity(root,selected_cases,args.baseline_commit,
