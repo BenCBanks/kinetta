@@ -241,9 +241,12 @@ for device in preferred:
     if stage.startswith('groups-'):
      groups=metrics['groups'];fields=groups['fields'];date=groups['date'];name=groups['name'];grid=groups['grid']
      assert fields and fields['scrollWidth']<=fields['clientWidth']+1,metrics
-     assert date and name and abs(date['width']-name['width'])<=1,metrics
-     assert date['x']>=fields['x']-.5 and date['right']<=fields['right']+.5,metrics
-     assert grid and grid['x']>=fields['x']-.5 and grid['right']<=fields['right']+.5,metrics
+     assert date is None and grid is None,'Group creation is name-only; goals/dates belong to challenges'
+     assert name and name['x']>=fields['x']-.5 and name['right']<=fields['right']+.5,metrics
+     assert groups['hint']=='Name' and groups['value']=='' and len(groups['labels'])==1,metrics
+     footer=groups['footer'];submit=groups['submit']
+     assert footer and submit and submit['height']>=44 and submit['width']>=44,metrics
+     assert footer['y']>=name['bottom'] and footer['right']<=metrics['viewport']['width']+.5,metrics
      assert all(r and r['x']>=fields['x']-.5 and r['right']<=fields['right']+.5 for r in groups['labels']),metrics
     if stage.startswith('activity'):
      detail=metrics['activity'];assert a.homepage or detail['social']['hidden'],metrics
