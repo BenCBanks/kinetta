@@ -260,6 +260,7 @@ Object.assign(KitChat, (() => {
     return `<section class="kit-workout-comparison" aria-label="Workout comparison">${summary?`<p class="kit-workout-summary">${esc(summary)}</p>`:''}<p class="kit-workout-baseline">vs your last ${count} ${sport[count===1?0:1]} of similar distance</p>${count<2?'<p class="kit-workout-empty">Not enough similar runs yet to compare.</p>':rows.length?`<dl class="kit-workout-rows">${rows.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`:''}${notable?`<p class="kit-workout-notable">${esc(notable)}</p>`:''}</section>`;
   }
   function reviewLatestWorkout(c){return send(c,'Review my latest workout',0);}
+  function chartX(index,count,first,last){return first+index*(last-first)/Math.max(count-1,1);}
   function chartHtml(chart){
     const points=chart.points||[],known=points.filter(p=>p.plot_value!=null&&p.n>p.missing),
       nouns={all:'Workouts',run:'Runs',ride:'Rides',walk:'Walks',hike:'Hikes',swim:'Swims',strength:'Strength workouts'},
@@ -272,8 +273,16 @@ Object.assign(KitChat, (() => {
     if(known.length<2)return `<section class="kit-chart">${header}${known.length?`<dl class="kit-facts"><div><dt>${esc(date(known[0].start))}</dt><dd>${esc(known[0].display_value)}</dd></div></dl>`:''}${notes}</section>`;
     const values=known.map(p=>p.plot_value),line=chart.group_by==='workout'||['pace','avg_hr'].includes(chart.metric),
       max=Math.max(...values,1),min=line?Math.min(...values)*.9:0,range=Math.max(max-min,1),
-      x=i=>18+i*284/Math.max(points.length-1,1),y=v=>chart.metric==='pace'?20+(v-min)*110/range:130-(v-min)*110/range,
+      y=v=>chart.metric==='pace'?20+(v-min)*110/range:130-(v-min)*110/range,
       step=points.length>12?4:points.length>6?2:1;
+    const tick=value=>chart.metric==='pace'?`${Math.floor(Math.round(value)/60)}:${String(Math.round(value)%60).padStart(2,'0')}${chart.axis_unit}`:
+      `${new Intl.NumberFormat(undefined,{maximumFractionDigits:1,notation:max>=10000?'compact':'standard'}).format(value)} ${chart.axis_unit}`;
+    const labels=[0,1,2].map(i=>tick(chart.metric==='pace'?min+i*range/2:max-i*range/2)),
+      left=Math.max(54,Math.min(112,Math.max(...labels.map(t=>t.length))*7+8)),first=left+24,last=286,
+      x=i=>chartX(i,points.length,first,last);
+    const ticks=[20,75,130].map((py,i)=>{
+      return `<line class="kit-chart-grid" x1="${left}" x2="310" y1="${py}" y2="${py}"/><text class="kit-chart-tick" x="${left-8}" y="${py+4}" text-anchor="end">${esc(labels[i])}</text>`;
+    }).join('');
     let connected=false,path='';
     const marks=points.map((p,i)=>{
       if(p.plot_value==null){connected=false;return '';}
@@ -282,17 +291,17 @@ Object.assign(KitChat, (() => {
       return line?`<circle data-point="${i}" cx="${px}" cy="${py}" r="3"><title>${esc(label)}</title></circle>`:
         `<rect data-point="${i}" x="${px-Math.min(20,100/points.length)/2}" y="${py}" width="${Math.min(20,100/points.length)}" height="${Math.max(1,130-py)}" rx="2"><title>${esc(label)}</title></rect>`;
     }).join('');
-    return `<section class="kit-chart" data-kit-chart>${header}<div class="kit-chart-selection" aria-live="polite"><span></span></div><div class="kit-chart-plot" role="slider" tabindex="0" aria-label="${esc(title)}" aria-valuemin="0" aria-valuemax="${points.length-1}" aria-valuenow="${points.length-1}"><span class="kit-chart-unit">${esc(chart.axis_unit)}</span><svg viewBox="0 0 320 158" aria-hidden="true">${[20,75,130].map(y=>`<line class="kit-chart-grid" x1="10" x2="310" y1="${y}" y2="${y}"/>`).join('')}${line?`<path class="kit-chart-line" d="${path}"/>`:''}${marks}${points.map((p,i)=>i%step===0||i===points.length-1?`<text x="${x(i)}" y="153" text-anchor="${i===0?'start':i===points.length-1?'end':'middle'}">${esc(date(p.start))}</text>`:'').join('')}</svg></div>${notes}</section>`;
+    return `<section class="kit-chart" data-kit-chart>${header}<div class="kit-chart-selection" aria-live="polite"><span></span></div><div class="kit-chart-plot" data-first="${first}" data-last="${last}" role="slider" tabindex="0" aria-label="${esc(title)}" aria-valuemin="0" aria-valuemax="${points.length-1}" aria-valuenow="${points.length-1}"><svg viewBox="0 0 320 158" aria-hidden="true">${ticks}${line?`<path class="kit-chart-line" d="${path}"/>`:''}${marks}${points.map((p,i)=>i%step===0||i===points.length-1?`<text class="kit-chart-date" x="${x(i)}" y="153" text-anchor="middle">${esc(date(p.start))}</text>`:'').join('')}</svg></div>${notes}</section>`;
   }
   function bindChart(host,chart){
     const plot=$('.kit-chart-plot',host);if(!plot)return;
     let index=chart.points.findLastIndex(p=>p.plot_value!=null);
     const select=i=>{
       index=Math.max(0,Math.min(chart.points.length-1,i));const p=chart.points[index],date=new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',timeZone:chart.timezone}).format(new Date(p.start.length===10?p.start+'T12:00:00Z':p.start)),text=`${date} · ${p.display_value}${p.in_progress?' so far':''}`;
-      const value=$('.kit-chart-selection span',host),percent=(18+index*284/Math.max(chart.points.length-1,1))/3.2;value.textContent=text;value.style.left=percent+'%';value.style.transform=`translateX(-${percent}%)`; plot.setAttribute('aria-valuenow',String(index));plot.setAttribute('aria-valuetext',`${text}, ${p.n} recorded workouts`);
+      const value=$('.kit-chart-selection span',host);value.textContent=text;plot.setAttribute('aria-valuenow',String(index));plot.setAttribute('aria-valuetext',`${text}, ${p.n} recorded workouts`);
       $$('[data-point]',host).forEach(el=>el.classList.toggle('selected',Number(el.dataset.point)===index));
     };
-    const pointer=e=>{const r=plot.getBoundingClientRect();select(Math.round(((e.clientX-r.left)/r.width*320-18)/284*(chart.points.length-1)));};
+    const pointer=e=>{const r=plot.getBoundingClientRect(),first=Number(plot.dataset.first),last=Number(plot.dataset.last);select(Math.round(((e.clientX-r.left)/r.width*320-first)/(last-first)*(chart.points.length-1)));};
     plot.onpointerdown=e=>{plot.setPointerCapture(e.pointerId);pointer(e);};plot.onpointermove=e=>{if(plot.hasPointerCapture(e.pointerId))pointer(e);};
     plot.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();select(e.key==='Home'?0:e.key==='End'?chart.points.length-1:index+(e.key==='ArrowLeft'?-1:1));}};
     select(index);

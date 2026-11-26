@@ -2349,13 +2349,13 @@ body .social-sheet .comment .c-comment-options { margin-left:auto; }
 .kit-chart h3{font-size:16px;font-weight:600;line-height:1.35;margin:0 0 4px}
 .kit-chart-subtitle,.kit-chart-note{font-size:13px!important;line-height:1.4;color:var(--tx3);margin:4px 0 8px!important}
 .kit-chart-subtitle{font-weight:500}
-.kit-chart-selection{font-size:15px;font-weight:600;min-height:24px;position:relative}
-.kit-chart-selection span{position:absolute;white-space:nowrap;max-width:100%}
+.kit-chart-selection{font-size:15px;font-weight:600;min-height:24px;margin:0 0 4px;text-align:left}
+.kit-chart-selection span{display:block;max-width:100%}
 .kit-chart-plot{position:relative;touch-action:pan-y;outline-offset:3px}
 .kit-chart-plot svg{display:block;width:100%;height:auto;overflow:visible}
-.kit-chart-unit{font-size:13px;color:var(--tx3)}
 .kit-chart-grid{stroke:var(--line);stroke-width:1}
 .kit-chart-plot rect,.kit-chart-plot circle{fill:var(--accent);opacity:.4}
 .kit-chart-plot .selected{opacity:1}
 .kit-chart-line{fill:none;stroke:var(--accent);stroke-width:2}
 .kit-chart-plot text{font-size:13px;fill:var(--tx3)}
+.kit-chart-plot .kit-chart-tick{font-size:12px}
