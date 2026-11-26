@@ -17,7 +17,26 @@ const collectVisualOverlaps=()=>{
   visible=el=>{const r=el.getBoundingClientRect();if(r.width<=0||r.height<=0||el.closest('.vh:not(.subpage-header .vh)'))return false;const ring=el.closest('.calorie-ring-wrap');if(ring&&ring!==el)return false;for(let n=el;n&&n!==document.documentElement;n=n.parentElement){const s=getComputedStyle(n);if(n.hidden||s.display==='none'||s.visibility==='hidden'||Number(s.opacity)===0)return false;}return true;},
   isVisual=el=>{const name=typeof el.className==='string'?el.className:el.className?.baseVal||'';return /(?:^|[\s_-])(?:badge|medal|medallion|ring|avatar)(?:$|[\s_-])/i.test(name)||el.classList.contains('av');},
   overlap=(a,b)=>({x:Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x),y:Math.min(a.y+a.height,b.y+b.height)-Math.max(a.y,b.y)}),
-  candidates=[...document.querySelectorAll('body *')].filter(el=>visible(el)&&isVisual(el)),out=new Map(),add=(a,b,ar,br)=>{const d=overlap(ar,br);if(d.x<=1||d.y<=1)return;const key=[selector(a),selector(b)].sort().join('|');out.set(key,{metric:'badge-overlap',element:selector(a),neighbour:selector(b),actual:{horizontal:d.x,vertical:d.y},expected:'no intersection over 1px',box:ar,neighbourBox:br});};
+  clearRingCorner=(ring,tools)=>{
+   // A 44px transparent control can use the ring's empty corner. Check its
+   // painted icon against the actual outer circle and calorie text, not the
+   // two transparent wrapper rectangles. Missing geometry keeps the strict check.
+   if(!ring.matches('.calorie-ring-wrap')||!tools.matches('.nutrition-summary-tools')||ring.closest('.nutrition-day-summary')!==tools.closest('.nutrition-day-summary'))return false;
+   const circle=ring.querySelector('.calorie-ring-track'),icon=tools.querySelector('#fd-goal > svg');
+   if(!circle||!icon||tools.querySelectorAll('a,button').length!==1)return false;
+   const matrix=circle.getScreenCTM(),stroke=parseFloat(getComputedStyle(circle).strokeWidth);
+   if(!matrix||!Number.isFinite(stroke)||matrix.b||matrix.c||Math.abs(matrix.a-matrix.d)>.001)return false;
+   const center=new DOMPoint(circle.cx.baseVal.value,circle.cy.baseVal.value).matrixTransform(matrix),radius=(circle.r.baseVal.value+stroke/2)*Math.abs(matrix.a),glyph=icon.getBoundingClientRect();
+   const dx=Math.max(glyph.left-center.x,0,center.x-glyph.right),dy=Math.max(glyph.top-center.y,0,center.y-glyph.bottom);
+   if(Math.hypot(dx,dy)<=radius+1)return false;
+   const walker=document.createTreeWalker(ring.querySelector('.calorie-ring-label')||ring,NodeFilter.SHOW_TEXT);
+   for(let node=walker.nextNode();node;node=walker.nextNode()){
+    if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);
+    for(const line of range.getClientRects()){const d=overlap({x:glyph.x,y:glyph.y,width:glyph.width,height:glyph.height},{x:line.x,y:line.y,width:line.width,height:line.height});if(d.x>1&&d.y>1)return false;}
+   }
+   return true;
+  },
+  candidates=[...document.querySelectorAll('body *')].filter(el=>visible(el)&&isVisual(el)),out=new Map(),add=(a,b,ar,br)=>{const d=overlap(ar,br);if(d.x<=1||d.y<=1||clearRingCorner(a,b))return;const key=[selector(a),selector(b)].sort().join('|');out.set(key,{metric:'badge-overlap',element:selector(a),neighbour:selector(b),actual:{horizontal:d.x,vertical:d.y},expected:'no intersection over 1px',box:ar,neighbourBox:br});};
  for(const el of candidates){
   const own=rect(el),boundary=el.closest('.profile-achievement-list,.profile-achievement-sport-cards,.me-featured-achievements,.achievement-share-badges,.achievement-share-track-grid,.achievement-share-all-rows,.achievement-share-card,.profile-achievement-history-head,.post-hd,.me-card,.card')||el.parentElement;
   let branch=el;
@@ -40,6 +59,14 @@ async function verifyVisualOverlapCollector(browser){
  try{
   await page.setContent(`<style>body{margin:0}.profile-achievement-list{position:absolute;width:60px;height:30px}.profile-achievement{position:absolute;inset:0}.profile-achievement-medallion,.profile-achievement-name{position:absolute;top:0;height:20px}.profile-achievement-medallion{left:0;width:20px}.profile-achievement-name{font:12px/20px sans-serif;white-space:nowrap}.overlap .profile-achievement-name{left:18px}.one-pixel .profile-achievement-name{left:19px}.calorie-ring-wrap{position:absolute;left:0;top:60px;width:40px;height:40px}.calorie-ring{width:40px;height:40px}.calorie-ring-label{position:absolute;inset:0}.test-overlap .external-label{position:absolute;left:38px;top:70px;width:20px;height:20px}.test-clear .external-label{position:absolute;left:41px;top:70px;width:20px;height:20px}</style><div class="profile-achievement-list overlap"><div class="profile-achievement"><span class="profile-achievement-medallion"></span><span class="profile-achievement-name">Run</span></div></div><div class="profile-achievement-list one-pixel" style="left:100px"><div class="profile-achievement"><span class="profile-achievement-medallion"></span><span class="profile-achievement-name">Run</span></div></div><div class="test-overlap"><div class="calorie-ring-wrap"><svg class="calorie-ring"></svg><div class="calorie-ring-label">1,210 kcal</div></div><span class="vh">Accessible label</span><span class="external-label">Run</span></div><div class="test-clear" style="top:120px"><div class="calorie-ring-wrap"><svg class="calorie-ring"></svg><div class="calorie-ring-label">1,210 kcal</div></div><span class="vh">Accessible label</span><span class="external-label">Run</span></div>`);
   const overlaps=await page.evaluate(collectVisualOverlaps);assert.equal(overlaps.length,2,'visual overlap collector flags >1px while ignoring a 1px touch and intentional ring internals');assert(overlaps.some(v=>v.element.includes('profile-achievement-medallion')&&v.neighbour.includes('profile-achievement-name')),'the synthetic badge-label overlap exceeds the threshold');assert(overlaps.some(v=>v.element.includes('calorie-ring-wrap')&&v.neighbour.includes('external-label')),'the ring wrapper still detects an overlapping external label');
+  await page.setContent(`<style>body{margin:0}.nutrition-day-summary{position:relative;width:180px;height:150px}.calorie-ring-wrap{position:absolute;left:16px;top:16px;width:112px;height:112px}.calorie-ring{width:112px;height:112px}.calorie-ring-label{position:absolute;inset:0;display:grid;place-items:center}.nutrition-summary-tools{position:absolute;left:0;top:0;width:44px;height:44px}#fd-goal{display:grid;place-items:center;width:44px;height:44px}#fd-goal svg{width:20px;height:20px}</style><div class="nutrition-day-summary card"><div class="nutrition-summary-tools"><a id="fd-goal" href="#"><svg viewBox="0 0 20 20"><path d="M0 0h20v20H0z"/></svg></a></div><div class="calorie-ring-wrap"><svg class="calorie-ring" viewBox="0 0 128 128"><circle class="calorie-ring-track" cx="64" cy="64" r="54" fill="none" stroke="black" stroke-width="8"/></svg><div class="calorie-ring-label"><span>1,735</span></div></div></div>`);
+  assert.equal((await page.evaluate(collectVisualOverlaps)).length,0,'transparent corner hit area clears the painted ring and text');
+  await page.locator('.nutrition-summary-tools').evaluate(n=>{n.style.left='34px';n.style.top='12px';});
+  assert((await page.evaluate(collectVisualOverlaps)).length>0,'moving the painted gear onto the ring still fails');
+  await page.locator('.nutrition-summary-tools').evaluate(n=>{n.style.left='0';n.style.top='0';});
+  await page.locator('.calorie-ring-label').evaluate(n=>{n.style.left='-72px';n.style.top='-72px';});
+  assert((await page.evaluate(collectVisualOverlaps)).length>0,'corner placement still fails when calorie text overlaps it');
+
  }finally{await page.close();}
 }
 async function waitForRouteStyles(p){
