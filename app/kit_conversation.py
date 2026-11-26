@@ -211,7 +211,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
     blocks = []
     source_texts=[]
     for block in answer.blocks:
-        texts = [natural_measurements(text,facts) for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
+        texts = [kit_claims.nutrition_wording(natural_measurements(text,facts),facts,evidence) for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
         source_texts.extend(texts)
         limit = 1600 if isinstance(block, Paragraph) else 600
         rendered = []

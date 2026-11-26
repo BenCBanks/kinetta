@@ -117,7 +117,14 @@ The app-owned low-intake safety reply replaces the captured unsafe model answer 
 and its paid requests/cost. This is a deterministic safety replacement, not model acceptance.
 The supported weekly comparisons/target absence and corrected nutrient/weight formatting can
 be replayed without new paid calls. No prompt, tool schema or model setting changed. Changes
-such as new goal or memory tools cannot use this validator-only cache proof.
+such as new goal or memory tools cannot use this validator-only cache proof. A single food-entry value
+cannot stand in for a range total. Equal-entry wording is repaired only with a complete returned
+page, a verified count and equal known values; ambiguous/false totals otherwise reject.
+Missing-nutrient reasons require actual unknown-item counts/null flags in the relevant tool
+result. Generic limitations do not establish that a nutrient is missing. The captured adequacy
+clause drops that reason only when all day-level calorie/protein unknown counts are explicitly
+zero and actual unlogged dates remain. These are safe rendering/validation changes; no new
+model response is required for the two corrected captured cases.
 
 `--retry-case` is candidate-only, explicit, and refuses previously successful, unpaid, unknown
 or interrupted rows. It saves the original paid failure in `superseded_results`; prior spending

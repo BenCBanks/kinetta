@@ -117,7 +117,8 @@ def prepare_cache(root,report,cases,files):
         before,after=read(name),(root/name).read_text()
         if name=='app/kit_claims.py':
             before,after=(stable(s,{'NUMBER_WORD','METRICS','DIRECTIONS','bound_logged_days','validate','advice_quantities',
-                'eating_safety_answer','successful','proof','food_count_phrase','claim_clauses','claim_evidence'}) for s in (before,after))
+                'eating_safety_answer','successful','proof','food_count_phrase','claim_clauses','claim_evidence','NUTRIENT_NAMES','COUNT_WORDS',
+                'food_source','equal_known_entries','nutrition_wording','food_scopes','missing_nutrient_evidence'}) for s in (before,after))
         elif name=='app/kit_conversation.py':
             before,after=(stable(s,{'checked_answer','natural_measurements'}) for s in (before,after))
         elif name=='app/coach_chat.py':

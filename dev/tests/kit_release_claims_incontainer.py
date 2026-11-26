@@ -73,7 +73,7 @@ for text in ('Your pace was slower.','Your heart rate improved.'):
     try:kit_claims.claim_evidence([text],period)
     except kit_claims.ClaimRejected:pass
     else:raise AssertionError('Wrong relation interpretation accepted')
-print('Ten exact release cases: nine supported replies pass; unsafe low-intake raw rejects; free production safety route passes; counterfactuals and nutrient naming pass')
+print('Twelve exact release cases: eleven safely rendered replies pass; unsafe low-intake raw rejects; free production safety route passes; counterfactuals and nutrient naming pass')
 
 # Tool evidence survives both successful reads and a consent error before answer validation.
 from app.kit_eval_diagnostics import RejectionDiagnostics
@@ -95,3 +95,62 @@ assert capture['tool_calls']==[{'tool':'profile','arguments':{},'data':{'units':
                               {'tool':'denied','arguments':{},'error':'ValueError'}]
 recorder.end()
 print('Read/denied tool evidence retained without changing results or exceptions PASS')
+
+
+# A row value is not a range total; the app can repair only a proven equal-entry group.
+sugar=cases['sugar'];raw=coach_chat._json(sugar['raw_model_json'])
+answer=checked(sugar)
+assert 'Four logged entries each show 4 g sugar.' in answer['interpretation']
+assert len([p for p in answer['claim_evidence'] if p['relation']=='equal_entries'])==4
+facts=answer['facts'];sentence=raw['blocks'][0]['text']
+try:kit_claims.food_scopes([sentence],facts,sugar['evidence'])
+except kit_claims.ClaimRejected:pass
+else:raise AssertionError('Unscoped row value passed without safe rendering')
+for text in ('Your total sugar was {e2:0}.','Each entry shows {e2:0}.'):
+    bad=copy.deepcopy(raw);bad['blocks']=[{'kind':'paragraph','text':text}]
+    try:checked(sugar,raw=bad)
+    except kit_claims.ClaimRejected:pass
+    else:raise AssertionError('False total or uncounted each statement accepted')
+for mutate in (
+    lambda e:e[1]['data']['foods'][3].update(sugar_g=5),
+    lambda e:e[1]['data'].update(next_before_id=99),
+    lambda e:e[1]['data'].pop('next_before_id'),
+):
+    evidence=copy.deepcopy(sugar['evidence']);mutate(evidence)
+    try:checked(sugar,evidence)
+    except kit_claims.ClaimRejected:pass
+    else:raise AssertionError('Unequal/paginated/unknown-completeness group silently repaired')
+# Unknown flags beat stored numeric placeholders, including zero.
+evidence=copy.deepcopy(sugar['evidence'])
+evidence[1]['data']['foods'][0]['sugar_g']=0
+evidence[1]['data']['foods'][0]['unknown_nutrients']=['sugar_g']
+assert 'Four logged entries each show' in checked(sugar,evidence)['interpretation']
+adequacy=cases['nutrition-adequacy'];out=checked(adequacy)['interpretation']
+assert 'Unlogged days mean intake' in out and 'unknown nutrients mean' not in out
+assert 'may include partial entries' in out
+for text in ('Unknown nutrients mean full intake is unknown.',
+             'Your calorie and protein values are missing.',
+             'Foods lack nutrient details.'):
+    try:kit_claims.missing_nutrient_evidence([text],adequacy['evidence'])
+    except kit_claims.ClaimRejected:pass
+    else:raise AssertionError('Generic limitations asserted a nonexistent unknown item')
+# A current-day missing protein value cannot justify a completed-week missing-nutrient claim.
+foreign_range=adequacy['evidence']+cases['sugar']['evidence'][1:]
+try:kit_claims.missing_nutrient_evidence(['Unknown nutrients prevent comparison.'],foreign_range)
+except kit_claims.ClaimRejected:pass
+else:raise AssertionError('Borrowed a missing value from another period')
+evidence=copy.deepcopy(adequacy['evidence'])
+evidence[1]['data']['days'][-1]['protein_g']['unknown_items']=1
+assert kit_claims.missing_nutrient_evidence(['Unknown nutrients prevent comparison.'],evidence)
+text='Unlogged days and unknown nutrients mean intake cannot be evaluated.'
+assert kit_claims.nutrition_wording(text,[],evidence)==text
+assert kit_claims.missing_nutrient_evidence(['If nutrient values are missing, a full total is unknown.'],adequacy['evidence'])==[]
+print('Per-entry count/scope, fake totals, known flags, real missing-item reasons and period isolation PASS')
+
+assert kit_claims.missing_nutrient_evidence(['Unknown nutrient values must not be treated as zero.'],adequacy['evidence'])==[]
+
+for text in ('Four logged entries each show unknown intake.', 'Three logged entries each show {e2:0}.'):
+    bad=copy.deepcopy(raw);bad['blocks']=[{'kind':'paragraph','text':text}]
+    try:checked(sugar,raw=bad)
+    except kit_claims.ClaimRejected:pass
+    else:raise AssertionError('Count phrase escaped exact food evidence')

@@ -45,7 +45,7 @@ def validate(texts, facts, evidence, *, question='', reference, selection=None):
         if HEALTH.search(prose):raise ClaimRejected('health_claim')
         if NUMBER_WORD.search(advice_quantities(bound_logged_days(prose,evidence))):raise ClaimRejected('numeric_unsupported')
     if eating_safety_answer(question) is not None:raise ClaimRejected('health_claim')
-    return traces+claim_evidence(texts,evidence,facts,selection=selection)
+    return traces+food_scopes(texts,facts,evidence)+missing_nutrient_evidence(texts,evidence)+claim_evidence(texts,evidence,facts,selection=selection)
 
 
 
@@ -206,7 +206,122 @@ def food_count_phrase(prose,facts,evidence):
         for i,f in rows:
             traces.extend([proof(source,['foods',i,key],'equal_servings') for key in ('name','amount',field)])
         return 'Recorded equal servings show '+match[3]
-    return re.sub(pattern,replace,prose,flags=re.I),traces
+    prose=re.sub(pattern,replace,prose,flags=re.I)
+    def entries(match):
+        i=int(match[4])
+        if i>=len(facts) or facts[i]['evidence_id']!=match[3]:return match[0]
+        source=food_source(facts[i],evidence)
+        if source is None:return match[0]
+        rows=equal_known_entries(facts[i],source)
+        if len(rows)!=COUNT_WORDS.index(match[1].lower()):return match[0]
+        return 'Recorded entries show '+match[2]
+    prose=re.sub(r'\b('+ '|'.join(COUNT_WORDS[1:])+r') logged entr(?:y|ies) (?:each show|shows) (\{(e[1-9][0-9]*):([0-7])\})',entries,prose,flags=re.I)
+    return prose,traces
+
+
+NUTRIENT_NAMES={'kcal':'calories','protein_g':'protein','carbs_g':'carbohydrates','fat_g':'fat',
+    'fiber_g':'fibre','sodium_mg':'sodium','sugar_g':'sugar','saturated_fat_g':'saturated fat'}
+COUNT_WORDS='zero one two three four five six seven eight nine ten'.split()
+
+
+def food_source(fact,evidence):
+    if fact.get('tool')!='food_log' or len(fact['path'])!=3 or fact['path'][0]!='foods' or fact['path'][-1] not in NUTRIENT_NAMES:return None
+    return next((e for e in successful(evidence,'food_log') if e['evidence_id']==fact['evidence_id']),None)
+
+
+def equal_known_entries(fact,source):
+    if 'next_before_id' not in source['data'] or source['data']['next_before_id'] is not None:return []
+    field=fact['path'][-1]
+    rows=[(i,row) for i,row in enumerate(source['data'].get('foods',[]))
+          if type(row.get(field)) in (int,float) and coach_chat.math.isfinite(row[field])
+          and field not in (row.get('unknown_nutrients') or [])]
+    return rows if rows and all(row[field]==fact['value'] for i,row in rows) else []
+
+
+def nutrition_wording(text,facts,evidence):
+    # Canonicalise only a provable equal-entry statement, never treat a row as a sum.
+    def scope(match):
+        i=int(match[4])
+        if i>=len(facts) or facts[i]['evidence_id']!=match[3]:return match[0]
+        fact=facts[i];source=food_source(fact,evidence)
+        if source is None or NUTRIENT_NAMES[fact['path'][-1]]!=match[1].lower():return match[0]
+        rows=equal_known_entries(fact,source)
+        if not 0<len(rows)<len(COUNT_WORDS):return match[0]
+        scope=' logged entry shows ' if len(rows)==1 else ' logged entries each show '
+        return COUNT_WORDS[len(rows)].capitalize()+scope+match[2]+' '+NUTRIENT_NAMES[fact['path'][-1]]
+    pattern=r'The recorded (calories|protein|carbohydrates|fat|fibre|sodium|sugar|saturated fat) amount was (\{(e[1-9][0-9]*):([0-7])\})(?: (?:of )?\1)?'
+    text=re.sub(pattern,scope,text,flags=re.I)
+    sources=successful(evidence,'nutrition_adequacy')
+    if len(sources)==1:
+        data=sources[0]['data'];days=data.get('days',[])
+        known=bool(days) and len(days)==data.get('calendar_days') and data.get('truncated') is False and all(
+            type(day.get(field,{}).get('unknown_items')) is int and day[field]['unknown_items']==0 for day in days for field in ('kcal','protein_g'))
+        if known and type(data.get('unlogged_finished_days')) is int and data['unlogged_finished_days']>0:
+            text=text.replace('Unlogged days and unknown nutrients mean intake','Unlogged days mean intake')
+    return text
+
+
+def food_scopes(texts,facts,evidence):
+    traces=[]
+    for text in texts:
+        for sentence in re.split(r'(?<=[.!?])\s+|\n',text):
+            for match in re.finditer(r'\{(e[1-9][0-9]*):([0-7])\}',sentence):
+                i=int(match[2])
+                if i>=len(facts):continue
+                fact=facts[i];source=food_source(fact,evidence)
+                if source is None:continue
+                if re.search(r'\b(?:total|subtotal|overall|cumulative)\b',sentence,re.I):raise ClaimRejected('numeric_unsupported')
+                row=source['data']['foods'][fact['path'][1]]
+                name=row.get('name','');meal=row.get('meal')
+                named=bool(name and name.casefold() in sentence.casefold())
+                unique_meal=bool(meal and re.search(r'\b'+re.escape(meal)+r'\b',sentence,re.I)
+                    and sum(r.get('meal')==meal for r in source['data']['foods'])==1)
+                counted=re.search(r'\b('+ '|'.join(COUNT_WORDS[1:])+r') logged entr(?:y|ies) (?:each show|shows)',sentence,re.I)
+                if counted:
+                    rows=equal_known_entries(fact,source)
+                    if len(rows)!=COUNT_WORDS.index(counted[1].lower()):raise ClaimRejected('numeric_unsupported')
+                    traces.extend(proof(source,['foods',j,fact['path'][-1]],'equal_entries') for j,r in rows)
+                elif re.search(r'\beach\b',sentence,re.I):
+                    if not food_count_phrase(sentence,facts,evidence)[1]:raise ClaimRejected('numeric_unsupported')
+                elif not (named or unique_meal):raise ClaimRejected('numeric_unsupported')
+                traces.append(proof(source,fact['path'],'per_entry'))
+    return traces
+
+
+def missing_nutrient_evidence(texts,evidence):
+    traces=[]
+    assessed=successful(evidence,'nutrition_adequacy') or successful(evidence,'food_log')+successful(evidence,'nutrition_summary')
+    nutrient=r'calories?|protein|sugar|sodium|fib(?:re|er)|(?:saturated )?fat|carbs|carbohydrates'
+    metric=r'(?:'+nutrient+r')(?: and (?:'+nutrient+r'))?'
+    pattern=(r'\b(?:unknown|missing|incomplete) (?:nutrients?|micronutrients?|nutrient (?:values|data|details)|'
+        +metric+r'(?: (?:values|data|information))?)\b|\b(?:lack|omit) (?:detailed )?(?:micro)?nutrient (?:values|data|details|breakdowns)\b|\b'
+        +metric+r'(?: (?:values|data|information))? (?:are|is|was|were) (?:missing|unknown)\b')
+    for text in texts:
+        for sentence in re.split(r'(?<=[.!?])\s+|\n',text):
+            claims=list(re.finditer(pattern,sentence,re.I))
+            if not claims:continue
+            # Conditional guidance describes what a missing value means, not a claim it exists.
+            if re.match(r'^(?:If |When |Days without |Unlogged days represent )',sentence,re.I):continue
+            if re.fullmatch(r'(?:Unknown|Missing) (?:nutrient )?(?:values|nutrients) (?:are not|must not be treated as|do not mean) zero[.!]?',sentence,re.I):continue
+            claim=' '.join(m[0] for m in claims).casefold()
+            names=[key for key,name in NUTRIENT_NAMES.items() if re.search(r'\b'+{'calories':r'calories?','fibre':r'fib(?:re|er)','carbohydrates':r'(?:carbs|carbohydrates)','fat':r'(?<!saturated )fat'}.get(name,re.escape(name))+r'\b',claim,re.I)]
+            fields=names or list(NUTRIENT_NAMES)
+            proofs=[]
+            for e in assessed:
+                d=e['data']
+                if e['tool']=='nutrition_adequacy':
+                    proofs.extend(proof(e,['days',i,field,'unknown_items'],'unknown_items')
+                        for i,day in enumerate(d.get('days',[])) for field in fields
+                        if type(day.get(field,{}).get('unknown_items')) is int and day[field]['unknown_items']>0)
+                elif e['tool']=='nutrition_summary':
+                    proofs.extend(proof(e,['unknown_food_counts',field],'unknown_items') for field in fields
+                        if type(d.get('unknown_food_counts',{}).get(field)) is int and d['unknown_food_counts'][field]>0)
+                else:
+                    proofs.extend(proof(e,['foods',i,field],'unknown') for i,row in enumerate(d.get('foods',[])) for field in fields
+                        if field in row and (row[field] is None or field in (row.get('unknown_nutrients') or [])))
+            if not proofs or any(not any(field in p['path'] for p in proofs) for field in names):raise ClaimRejected('relation_unsupported')
+            traces.extend(proofs)
+    return traces
 
 
 METRICS = re.compile(r'\b(?:workouts?|sessions?|completed activity|recorded activity|distance|moving (?:time|duration)|training time|duration|pace|heart rate|weight|training load|fitness|sodium|protein|saturated fat|sugar|fibre|fiber|calories|intake)\b',re.I)
