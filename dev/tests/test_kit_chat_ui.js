@@ -132,7 +132,7 @@ async function testFoodThreadBridge(){
  await loader.refresh(resumed);assert.equal(resumed.job,null);assert.equal(field.value,'');assert(removed.includes('pending')&&removed.includes('draft'));
  // Reorder the actual answer handler across Clear and account changes.
  let finish,draws=0,active=true,refreshes=0;
- const answerer={kitChatOn:()=>true,active:()=>active,controls(){},api:()=>new Promise(resolve=>finish=resolve),json:(m,b)=>b,draw:()=>draws++,later(){},refresh:async()=>refreshes++,status(){}};vm.createContext(answerer);vm.runInContext(pick('  async function answer(c,id){','  async function deliver(c){'),answerer);
+ const answerer={clearTimeout(){},kitChatOn:()=>true,active:()=>active,controls(){},api:()=>new Promise(resolve=>finish=resolve),json:(m,b)=>b,draw:()=>draws++,later(){},refresh:async()=>refreshes++,status(){}};vm.createContext(answerer);vm.runInContext(pick('  async function answer(c,id){','  async function deliver(c){'),answerer);
  const chat={ready:true,generation:'old',messages:[{client_id:'same',state:'pending'}],sending:false};const task=answerer.answer(chat,'same');chat.generation='new';chat.messages=[];chat.sending=false;finish({client_id:'same',state:'answered',answer:{interpretation:'late'}});await task;assert.equal(chat.messages.length,0);assert.equal(draws,0);assert.equal(chat.sending,false);assert.equal(refreshes,0,'a cleared result cannot refresh over the new chat');
  chat.generation='current';chat.visit_id='first-visit';chat.messages=[{client_id:'same',state:'pending'}];const ended=answerer.answer(chat,'same');chat.visit_id='next-visit';chat.messages=[];finish({client_id:'same',state:'answered'});await ended;assert.equal(draws,0,'a late answer from an ended visit cannot enter a fresh visit');
  chat.generation='current';chat.messages=[{client_id:'same',state:'pending'}];const next=answerer.answer(chat,'same');active=false;finish({client_id:'same',state:'answered'});await next;assert.equal(chat.messages[0].state,'pending');assert.equal(draws,0,'another session never renders the old answer');
@@ -267,7 +267,7 @@ require('./test_email_confirmation.js');
  for(const mode of ['removed','removed-before-response','new-thread','retained','newer-draft','offline','account-change']){
   const field={value:mode==='newer-draft'?'A newer unsent question':'',dispatchEvent(){}},saved=[];
   let owner='one';const ctx={owner:'one',historyEnabled:true,ready:true,sending:false,generation:'g',visit_id:'v',el:{},messages:[{client_id:'m',state:'pending',question:'Review my latest workout'}]};
-  const h={active:c=>c.owner===owner,kitChatOn:()=>true,controls(){},draw(){},later(){},Event:class{},status(c,text){h.notice=text;},$:()=>field,save:(c,k,v)=>saved.push([k,v]),store:{del(){}},chatKey:()=>'',json:(method,body)=>({method,body}),api:async()=>{if(mode==='account-change')owner='two';if(mode==='removed-before-response')ctx.messages=[];throw Object.assign(Error('Daily limit reached'),{status:429});},refresh:async c=>{if(mode==='offline')throw Error('Offline');if(mode!=='retained')c.messages=[];if(mode==='new-thread')c.visit_id='fresh-visit';}};
+  const h={clearTimeout(){},active:c=>c.owner===owner,kitChatOn:()=>true,controls(){},draw(){},later(){},Event:class{},status(c,text){h.notice=text;},$:()=>field,save:(c,k,v)=>saved.push([k,v]),store:{del(){}},chatKey:()=>'',json:(method,body)=>({method,body}),api:async()=>{if(mode==='account-change')owner='two';if(mode==='removed-before-response')ctx.messages=[];throw Object.assign(Error('Daily limit reached'),{status:429});},refresh:async c=>{if(mode==='offline')throw Error('Offline');if(mode!=='retained')c.messages=[];if(mode==='new-thread')c.visit_id='fresh-visit';}};
   vm.createContext(h);vm.runInContext(code+'\nglobalThis.answer=answer;',h);await h.answer(ctx,'m');
   assert.equal(field.value,mode==='newer-draft'?'A newer unsent question':['retained','account-change'].includes(mode)?'':'Review my latest workout',mode+' preserves only the appropriate draft');
   if(mode==='account-change')assert.equal(saved.length,0,'late account rejection cannot save a former question');
@@ -275,3 +275,5 @@ require('./test_email_confirmation.js');
  }
  console.log('Kit history quota rejection: removed turn, empty-thread recovery, retained pending turn, newer draft, offline and account fences PASS');
 })().catch(e=>{console.error(e);process.exit(1)});
+
+require('./test_kit_stream_ui.js');
