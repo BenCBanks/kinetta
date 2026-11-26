@@ -292,7 +292,9 @@ async function closeCaptureContext(context) {
   for (const scheme of SCHEMES) {
     // Keep the browser's calendar day aligned with the screenshot fixture used for staging.
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: SCALE, colorScheme: scheme,
-      timezoneId: SCREENSHOT_CLOCK.timezone});
+      // Keep all CSS and fixture requests interceptable: an installed worker can
+      // serve unmodified cached CSS, bypassing the simulated safe-area rewrite.
+      timezoneId: SCREENSHOT_CLOCK.timezone, serviceWorkers: 'block'});
     let foodChatCtx = null, foodChatPage = null, foodRepeatCtx = null, foodRepeatPage = null;
     if(NEEDS_MAP){
       const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
