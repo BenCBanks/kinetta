@@ -192,9 +192,13 @@ def _open(c, token, kind, *, lock_user=False):
     r = c.execute("""SELECT t.token_hash, t.user_id, t.email, u.login::text AS login, u.name, u.first_name, u.email AS current,
                             u.email_verified_at IS NOT NULL AS email_confirmed, u.needs_email_confirm, u.signup_guard
                      FROM account_tokens t JOIN users u ON u.id = t.user_id
-                     WHERE t.token_hash = %s AND t.kind = %s AND t.used_at IS NULL AND t.expires > now() FOR UPDATE OF t""",
+                     WHERE t.token_hash = %s AND t.kind = %s AND t.used_at IS NULL AND t.expires > now()
+                       AND u.suspended_at IS NULL FOR UPDATE OF t""",
                   (auth.token_hash(token or ''), kind)).fetchone()
     if not r: raise HTTPException(404, 'This link has expired. Request a new one from the sign-in page.')
+    if kind == 'reset_password' and not r['email_confirmed'] and r['needs_email_confirm']:
+        if not _pending_reset_allowed(c, r['user_id']):
+            raise HTTPException(404, 'This link has expired. Request a new one from the sign-in page.')
     return r
 
 
@@ -556,7 +560,7 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
         if limited(c, 'forgot-ip:' + auth.client_ip(request), 10, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         reservation_lock(c)
         lookup = 'lower(COALESCE(u.email::text, pending.email::text)) = lower(%s)' if '@' in who else 'u.login = %s'
-        u = c.execute(f'''SELECT u.id, u.first_name, u.login::text AS login,
+        matches = c.execute(f'''SELECT u.id, u.first_name, u.login::text AS login,
                                  COALESCE(u.email::text, pending.email::text) AS email,
                                  u.email_verified_at IS NOT NULL AS email_confirmed, u.needs_email_confirm
                           FROM users u LEFT JOIN LATERAL (
@@ -565,13 +569,51 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
                               AND u.needs_email_confirm AND u.email IS NULL
                             ORDER BY t.created DESC LIMIT 1
                           ) pending ON true
-                          WHERE {lookup} AND u.suspended_at IS NULL FOR UPDATE OF u''', (who,)).fetchone()
-        # Resend and reset share at most three links an hour per account; the answer never says why nothing arrived.
-        can_reset = u and u['email'] and (u['email_confirmed'] or u['needs_email_confirm'])
-        if can_reset and not email_recovery_limited(c, u['id']) and email_available:
-            send_reset(background, c, u, pending=not u['email_confirmed'])
+                          WHERE {lookup} AND u.suspended_at IS NULL ORDER BY u.id FOR UPDATE OF u''', (who,)).fetchall()
+        # Legacy pending addresses can match several accounts: never pick one arbitrarily.
+        # Every message names its account; reset/resend still share the per-account budget.
+        for u in matches:
+            can_reset = u['email'] and (u['email_confirmed'] or
+                (u['needs_email_confirm'] and _pending_reset_allowed(c, u['id'])))
+            if can_reset and not email_recovery_limited(c, u['id']) and email_available:
+                send_reset(background, c, u, pending=not u['email_confirmed'])
     return {'ok': True, 'email_available': email_available,
             'message': SENT if email_available else RECOVERY_UNAVAILABLE}
+
+
+# Pending-email ownership has never been established. A reset must not expose an existing
+# person's records to a mistyped-address recipient (the email itself reveals @username).
+# Keep this broader than logs: drafts, measurements and connected imports are private too.
+_PENDING_RESET_RECORDS = (
+    'activities', 'activity_streams', 'best_efforts', 'activity_photos', 'profile_photos',
+    'weights', 'health_resting', 'day_energy', 'health_nutrition_days',
+    'health_weight_samples', 'health_weight_exclusions', 'food_entries', 'food_chat_messages',
+    'food_chat_aliases', 'food_chat_jobs', 'food_chat_entries', 'custom_foods', 'saved_meals',
+    'dishes', 'pans', 'recipe_link_drafts', 'nutrition_checkins', 'day_goals', 'goals',
+    'training_plans', 'plan_marks', 'routes', 'planned_routes', 'planned_route_versions',
+    'route_drafts', 'gear', 'imports', 'connections', 'coach_notes', 'kit_memories',
+    'kit_conversations', 'kit_threads', 'kit_turns', 'comments', 'lift_sets', 'exercises',
+)
+
+
+def _pending_reset_allowed(c, uid):
+    """Only empty, unconfirmed accounts can recover through their unverified address.
+
+    Call with the user locked when issuing/redeeming: FK inserts take a conflicting user
+    key lock, so a concurrent first record cannot slip between this check and redemption.
+    """
+    # The profile already exists on new signups; lock it too before reading measurements.
+    c.execute('SELECT user_id FROM profile WHERE user_id=%s FOR UPDATE', (uid,))
+    records = ' UNION ALL '.join(f'SELECT 1 FROM {table} WHERE user_id=%s' for table in _PENDING_RESET_RECORDS)
+    if c.execute(f'SELECT EXISTS ({records}) AS present', (uid,) * len(_PENDING_RESET_RECORDS)).fetchone()['present']:
+        return False
+    return not c.execute("""SELECT 1 FROM profile WHERE user_id=%s AND
+        (max_hr IS NOT NULL OR rest_hr IS NOT NULL OR sex IS NOT NULL OR birth_year IS NOT NULL
+         OR weight_kg IS NOT NULL OR height_cm IS NOT NULL OR kcal_target IS NOT NULL
+         OR protein_target IS NOT NULL OR carbs_target IS NOT NULL OR fat_target IS NOT NULL
+         OR fiber_target IS NOT NULL OR sodium_target_mg IS NOT NULL OR nutrition_goal IS NOT NULL
+         OR deficit_start IS NOT NULL OR training_target_average IS NOT NULL
+         OR training_target_kcal IS NOT NULL OR bio <> '')""", (uid,)).fetchone()
 
 
 def send_reset(background, c, u, by_admin=False, pending=False):
@@ -608,7 +650,7 @@ def reset_info_legacy(token: str, request: Request):
     """
     token_limit(request, 'reset-ip:', 30)
     with db.connect() as c:
-        r = _open(c, token, 'reset_password')
+        r = _open(c, token, 'reset_password', lock_user=True)
     return {'login': r['login']}
 
 
@@ -617,7 +659,7 @@ def reset_info(body: ResetCheckIn, request: Request):
     """Check a reset token without putting it in a URL or access log."""
     token_limit(request, 'reset-ip:', 30)
     with db.connect() as c:
-        r = _open(c, body.token, 'reset_password')
+        r = _open(c, body.token, 'reset_password', lock_user=True)
     return {'login': r['login']}
 
 
