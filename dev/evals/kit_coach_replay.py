@@ -2,11 +2,12 @@
 import math
 import json
 from kit_coach_cases import RUBRIC, cases
+from kit_coach_batch2 import EVENTS, grade
 
 # App-owned fictional evidence; unknown protein is deliberately not zero.
 EVIDENCE = {'run.distance_m': (5000, 'health'), 'food.kcal': (420, 'food'),
             'food.protein_g': (None, 'food'), 'weight.kg': (72, 'weight'), 'fraction': (.1, 'food')}
-CONTROLS = {'user', 'visibility', 'network', 'consent', 'memory', 'forget', 'confirm', 'revision', 'cancel'}
+CONTROLS = {'user', 'visibility', 'network', 'consent', 'memory', 'forget', 'confirm', 'revision', 'generation', 'cancel'}
 
 
 def replay(case, observation):
@@ -75,9 +76,10 @@ def replay(case, observation):
                     known = EVIDENCE.get(path)
                     if not known or type(number) not in (int, float) or not math.isfinite(number) or known[0] is None or number != known[0]: bad('unsupported_fact')
                     elif not consent.get(known[1], False): bad('source_consent')
-        else: bad('unknown_event')
+        elif kind not in EVENTS: bad('unknown_event')
     if controls != case['script'] or answers != 2: bad('incomplete_journey')
     if writes != case['required_writes'] or receipts != case['required_receipts']: bad('action_effect_mismatch')
+    if not failures: failures.extend(grade(case, observation))
     ratings = observation.get('ratings', {})
     human = isinstance(ratings, dict) and set(ratings) == set(RUBRIC) and all(type(v) is int and 0 <= v <= 2 for v in ratings.values())
     quality = human and min(ratings.values()) >= 1 and sum(ratings.values()) >= 9 and ratings['privacy_and_safety'] == ratings['evidence_and_units'] == 2
@@ -96,7 +98,13 @@ def evaluate(observations):
         raise ValueError('Every fictional journey needs exactly one observation')
     by_id = {o['id']: o for o in observations}
     rows = [replay(case, by_id[case['id']]) for case in manifest]
+    behaviours = {}
+    for group in ('streaming', 'memory', 'actions', 'charts'):
+        selected = [row for case, row in zip(manifest, rows) if case['group'] == group]
+        behaviours[group] = {'contract_passed': all(not row['failures'] for row in selected),
+                             'quality_passed': all(row['quality_passed'] for row in selected)}
     return {'fictional': True, 'reviewed': False, 'release_evidence': False, 'case_count': len(rows),
+            'batch2_behaviours': behaviours,
             'contract_passed': all(not r['failures'] for r in rows),
             'human_review_complete': all(r['human_complete'] for r in rows),
             'quality_passed': all(r['quality_passed'] for r in rows), 'results': rows}
