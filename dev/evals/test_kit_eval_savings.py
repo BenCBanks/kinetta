@@ -53,6 +53,26 @@ class Savings(unittest.TestCase):
         with patch('kit_eval_savings.receipt',return_value={'head':'new','fixture_date':FIXTURE_DATE}):
             with self.assertRaises(ValueError):require_receipt(self.path,Path('.'))
 
+    def test_case_keys_bind_source_case_and_clock_but_not_wall_date_or_head(self):
+        root=Path(__file__).resolve().parents[2]
+        sources={'live':'old provider','candidate':'new provider'}
+        def git(command,**kwargs):
+            if 'ls-tree' in command:return 'app/coach_chat.py\n'
+            revision=command[-1].split(':')[0]
+            return sources[revision].encode()
+        cases=[('meal','Question A',set()),('food','Question B',set())]
+        with patch('kit_eval_savings.subprocess.check_output',side_effect=git):
+            keys=case_keys(root,cases,'live','candidate')
+            other=case_keys(root,[cases[0],('food','changed',set())],'live','candidate')
+            self.assertEqual(keys['candidate']['meal'],other['candidate']['meal'])
+            self.assertNotEqual(keys['candidate']['food'],other['candidate']['food'])
+            sources['candidate']='changed prompt'
+            changed=case_keys(root,cases,'live','candidate')
+            self.assertEqual(keys['baseline'],changed['baseline'])
+            self.assertNotEqual(keys['candidate'],changed['candidate'])
+            sources['live']='new live code'
+            self.assertNotEqual(keys['baseline'],case_keys(root,cases,'live','candidate')['baseline'])
+
     def test_clock_guard_python_dates_and_price_deadline(self):
         import types,datetime as dt
         from kit_fixture_clock import patch_module

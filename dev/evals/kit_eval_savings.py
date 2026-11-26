@@ -57,7 +57,9 @@ def reuse(reports,keys,selected):
 
 def plan(rows,total,budget,spent=0):
     if not math.isfinite(budget) or not 0<budget<=.80: raise ValueError('Economy run hard cap must be at most $0.80')
-    remaining=total-len(rows); expected=round(remaining*PER_RESPONSE_USD,3)
+    remaining=total-len(rows)
+    if not 0<=remaining<=80:raise ValueError('Invalid response count')
+    expected=round(remaining*PER_RESPONSE_USD,3)
     if not math.isfinite(spent) or spent<0 or expected+.08+spent>budget+1e-9: raise ValueError('Expected cost exceeds cap; bootstrap/reuse the pinned live baseline first')
     return {'responses_remaining':remaining,'reused_responses':len(rows),'expected_cost_usd':expected,
             'prior_spend_usd':spent,'reservation_headroom_usd':.08,'hard_stop_usd':budget,'estimate_only':True,'fixture_date':FIXTURE_DATE}
@@ -94,13 +96,14 @@ if __name__=='__main__':
         paid_runs={}
         for path in args.cache:
             old=json.loads(Path(path).read_text())
-            if old.get('candidate_commit')==current: paid_runs.update(old.get('economy_paid_runs',{}))
+            if (old.get('candidate_commit')==current and (old.get('economy_stage')=='baseline')==(args.stage=='baseline')):
+                paid_runs.update(old.get('economy_paid_runs',{}))
         estimate=plan(rows,len(variants)*len(selected),args.budget_usd,sum(paid_runs.values()))
         if args.stage=='full':
             smoke=reuse(args.cache,keys,SMOKE_IDS)
             if {r['case'] for r in smoke if r['variant']=='candidate' and r.get('passed')} != set(SMOKE_IDS):
                 raise ValueError('Full run requires a passing ten-case smoke on these inputs first')
-        data={'variants':variants,'paid_runs':paid_runs,'keys':keys,'results':rows,'selected':selected,'fixture_date':FIXTURE_DATE,
+        data={'stage':args.stage,'variants':variants,'paid_runs':paid_runs,'keys':keys,'results':rows,'selected':selected,'fixture_date':FIXTURE_DATE,
               'candidate_commit':current,'budget_preflight':estimate}
         write_private(args.prepare,data);print(json.dumps(estimate),flush=True)
     elif args.write:write_private(args.receipt,receipt(root))
