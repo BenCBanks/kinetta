@@ -2411,7 +2411,7 @@ function aiError(btn, msg) {
 // ---------- AI consent (2026-10-11): coach notes, weekly reviews and food photos send data to the AI service ----------
 const aiExplain = () => `<p>Kit is Kinetta’s AI assistant for training, nutrition and progress. Ask questions, review your records, estimate food, or prepare a plan or meal proposal that you review before confirming.</p>
   <p class="small muted">Your question, current chat, saved Kit memories and the relevant food, workout, strength, goal, recipe or body records are sent to ${esc(App.me.ai_provider || 'the configured AI provider')}. Kit reads selected records through private account tools; it does not receive your whole database or login credentials. Health app sharing follows your separate connection permissions.</p>
-  <p class="small muted">Kit starts a fresh chat when you leave. It can remember useful statements you share about preferences, goals and routines. View, remove or turn off memory in Kit’s chat settings. Your food, workouts and goals stay saved. You can turn Kit off in Me and download or delete your account data under Your data.</p>`;
+  <p class="small muted">Your chat stays while you switch apps. You can start a new chat any time. It can remember useful statements you share about preferences, goals and routines. View, remove or turn off memory in Kit’s chat settings. Your food, workouts and goals stay saved. You can turn Kit off in Me and download or delete your account data under Your data.</p>`;
 // Kit is for people 18 or older (28 October 2026; the AI provider's terms), though Kinetta itself is 16+: turning it on
 // asks for that separately, and the server refuses AI calls without it.
 const aiAdultBox = () => `<label class="check ai-adult"><input type="checkbox" name="ai_adult" required><span>I'm 18 or older</span></label>`;
@@ -2890,7 +2890,7 @@ function showForgot(prefill = '') {
       const r = await api('/api/password/forgot', json('POST', {login}));
       const emailAvailable = r.email_available !== false;
       root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${emailAvailable ? 'Check your email' : 'Email recovery unavailable'}</h1><p>${esc(r.message)}</p>
-        ${emailAvailable ? '<p class="small muted">The link works for an hour. If it doesn’t arrive, check your spam folder or try Resend confirmation from the login screen.</p>' : ''}
+        ${emailAvailable ? '<p class="small muted">The link works for an hour. If it doesn’t arrive, check your spam folder or request a new password reset link.</p>' : ''}
         <a class="primary wide" href="/" id="f-done">Back to log in</a></div></div>`;
       $('#f-done', root).onclick = (ev) => { ev.preventDefault(); backToLogin(); };
     } catch (x) { err.textContent = x.message; b.disabled = false; }
