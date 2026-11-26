@@ -104,13 +104,31 @@ async function sectionReturnJourneys(p,base){
  const detailPath=await p.locator('.post').first().getAttribute('data-href');assert.match(detailPath,/^\/activity\/\d+$/,'Home fixture provides an Activity detail route');
  await p.evaluate(path=>go(path),detailPath);await p.waitForURL(base+detailPath);await ready(p);
  await p.evaluate(()=>{const hit=App.cache.get('feed:home');if(hit)hit.at=0;});
- let refreshesPending=0;const delayHomeReads=async route=>{if(route.request().method()==='GET'&&route.request().url().includes('/api/')){refreshesPending++;try{await new Promise(resolve=>setTimeout(resolve,450));if(!route.isHandled?.())await route.continue();}finally{refreshesPending--;}return;}if(!route.isHandled?.())await route.continue();};
- await p.route('**/api/**',delayHomeReads);
- await p.evaluate(()=>{const started=performance.now();globalThis.homeWarmTiming=new Promise(resolve=>{let paintMs=null;const check=()=>{if(location.pathname==='/activity'){if(paintMs===null&&document.querySelector('#page #ff-list .post'))paintMs=performance.now()-started;if(App.pageReady)resolve({paintMs,readyMs:performance.now()-started});}requestAnimationFrame(check);};requestAnimationFrame(check);});});
- await p.locator('[data-back]:visible').first().click();await p.waitForURL(base+'/activity');
- const homeWarm=await p.evaluate(()=>homeWarmTiming);assert(homeWarm.paintMs!==null&&homeWarm.paintMs<250,'Cached Home feed paints before its refresh: '+JSON.stringify(homeWarm));assert(homeWarm.readyMs<250,'Cached Home is ready without waiting for feed/challenge refresh: '+JSON.stringify(homeWarm));
- for(let n=0;n<10&&refreshesPending===0;n++)await p.waitForTimeout(10);assert(refreshesPending>0,'Home becomes ready while its read-only refresh requests remain in flight');
- await p.waitForTimeout(500);for(let n=0;refreshesPending&&n<100;n++)await p.waitForTimeout(20);assert.equal(refreshesPending,0,'Home refresh interceptors drain before route cleanup');await p.unroute('**/api/**',delayHomeReads);await ready(p);
+ // Hold responses until both cached paint and readiness are observed. Wall-clock
+ // thresholds also measure runner scheduling and cannot prove this ordering.
+ let releaseRefreshes,refreshesPending=0,refreshesCompleted=0;
+ const refreshPaths=[],refreshGate=new Promise(resolve=>releaseRefreshes=resolve);
+ const holdHomeReads=async route=>{
+  if(route.request().method()!=='GET')return route.continue();
+  refreshPaths.push(new URL(route.request().url()).pathname);refreshesPending++;
+  try{await refreshGate;await route.continue();refreshesCompleted++;}
+  finally{refreshesPending--;}
+ };
+ await p.route('**/api/**',holdHomeReads);
+ try{
+  const feedRefresh=p.waitForRequest(r=>r.method()==='GET'&&new URL(r.url()).pathname==='/api/feed/friends');
+  await p.locator('[data-back]:visible').first().click();await p.waitForURL(base+'/activity');
+  await feedRefresh;
+  await p.locator('#page #ff-list .post').first().waitFor();await ready(p);
+  await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  assert(refreshPaths.includes('/api/feed/friends'),'the stale cached feed actually starts its refresh');
+  assert(refreshesPending>0,'cached Home paints and is ready while refresh requests are held');
+  assert.equal(refreshesCompleted,0,'no refresh response was released before cached paint and readiness');
+ }finally{
+  releaseRefreshes();
+  await p.unrouteAll({behavior:'wait'});
+ }
+ assert.equal(refreshesPending,0,'Home refresh handlers drain before route cleanup');await ready(p);
  assert(Math.abs(await p.evaluate(()=>scrollY)-homeY)<5,'Back from an Activity detail restores the feed position');
  await tab('activity').click();await until(p,()=>scrollY<3,'active Home tab resets to top');
  await p.evaluate(()=>scrollTo(0,280));
