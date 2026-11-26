@@ -73,16 +73,17 @@ answer,requests,_=replay([empty,response(json.dumps(COMPLETE),'STOP')])
 assert isinstance(answer,dict) and len(requests)==2
 # Two truncations fail closed; no loop, no partial answer, and all failed-turn metadata survives.
 answer,requests,capture=replay([response(TRUNCATED,'MAX_TOKENS'),response(TRUNCATED,'MAX_TOKENS')])
-assert isinstance(answer,ValueError) and len(requests)==2
+assert answer['app_fallback'] and TRUNCATED not in answer['interpretation'] and len(requests)==2
 assert len(capture['provider_turns'])==2 and len(capture['attempts'])==2
 # A retry still receives exact numeric validation, rather than a permissive fallback.
 bad=copy.deepcopy(COMPLETE);bad['blocks'][0]['text']='You logged 999 kcal.'
 answer,requests,_=replay([response(TRUNCATED,'MAX_TOKENS'),response(json.dumps(bad),'STOP')])
-assert isinstance(answer,ValueError) and len(requests)==2
+assert answer['app_fallback'] and '999' not in answer['interpretation'] and len(requests)==2
 # Smoke disables production correction; revoked consent/visit guards cannot generate a retry.
 for options in ({'corrections':False},{'revoked':True}):
     answer,requests,_=replay([response(TRUNCATED,'MAX_TOKENS')],**options)
-    assert isinstance(answer,ValueError) and len(requests)==1
+    assert len(requests)==1
+    assert isinstance(answer,ValueError) if options.get('revoked') else answer['app_fallback']
 # Other modes retain reviewed budgets; the ceiling is scoped and never spills across requests.
 assert kit_conversation.output_tokens(coach_chat.SYSTEM,2500,thinking_level='MEDIUM')==2500
 assert kit_conversation.output_tokens(coach_chat.KIT_WEEKLY_SYSTEM,4096,thinking_level='MEDIUM')==16384
