@@ -46,8 +46,8 @@ const ChallengeRoutes=(()=>{
     return ShareArt.challengePicture({kind:q.kind,start:q.start,end:q.end,target:number(q.target,q.unit),unit:q.unit,sports:q.sports||[],value:number(own.value,q.unit),finished:own.finished===true,identity,handle:App.me.login||'',photo:App.me.photo||null,sources:finish?own.garmin_sources||[]:[],manual:finish&&own.manual===true,finish,storyFullBleed});
   }
   function confirmation(title,copy,action,onDone){
-    const owner=readOwner();sheet(title,`<p>${esc(copy)}</p><p class="err" role="status"></p><div class="btncol"><button type="button" class="primary wide" id="challenge-confirm">${esc(action.label)}</button><button type="button" class="ghost wide" id="challenge-keep">Cancel</button></div>`,(b,close)=>{
-      guardFoodSheet(b,close,owner);$('#challenge-keep',b).onclick=close;$('#challenge-confirm',b).onclick=async e=>{e.currentTarget.disabled=true;try{await action.run();if(owner!==readOwner()||!b.isConnected)return;close();onDone?.();}catch(error){if(b.isConnected&&owner===readOwner()){$('.err',b).textContent=error.message;e.target.disabled=false;}}};
+    const owner=readOwner();sheet(title,`<p>${esc(copy)}</p><p class="err" role="status"></p><div class="btncol"><button type="button" class="primary wide" id="challenge-confirm">${esc(action.label)}</button></div>`,(b,close)=>{
+      guardFoodSheet(b,close,owner);$('#challenge-confirm',b).onclick=async e=>{e.currentTarget.disabled=true;try{await action.run();if(owner!==readOwner()||!b.isConnected)return;close();onDone?.();}catch(error){if(b.isConnected&&owner===readOwner()){$('.err',b).textContent=error.message;e.target.disabled=false;}}};
     });
   }
   async function share(initial,finish=false,origin=null){

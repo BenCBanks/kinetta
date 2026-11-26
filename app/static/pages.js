@@ -1321,7 +1321,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
       wireMediaMapFull(box, () => view, [r.line], false);
     }).catch(() => {}));
     $('#r-edit', el).onclick = () => sheet('Rename route', `<form class="form"><label>Name<input name="name" value="${esc(r.name)}" maxlength="120" enterkeyhint="done"></label>
-      <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`, (b, close) => {
+      <div class="actions"><button class="primary">Save</button></div></form>`, (b, close) => {
       $('form', b).onsubmit = async (ev) => { ev.preventDefault(); try { await api(`/api/routes/${id}`, json('PATCH', {name: $('input', b).value})); invalidate('/api/'); close(); render(); } catch (x) { toast(x.message); } };
     });
   });
@@ -2244,7 +2244,7 @@ route(/^\/me\/gear$/, 'me', async (el) => {
       <label>Already used (${U.du()})<input name="start" inputmode="decimal" value="${g && g.start_distance_m ? U.dist(g.start_distance_m, 0) : ''}"></label></div>
       <label class="check"><input type="checkbox" name="is_default"${g && g.is_default ? ' checked' : ''}> Use for new activities of this type</label>
       <label class="check"><input type="checkbox" name="retired"${g && g.retired ? ' checked' : ''}> Retired</label>
-      ${g ? '<button type="button" class="linkbtn danger" id="g-del">Delete gear</button>' : ''}<div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary wide">Save</button></div></form>`, (b, close) => {
+      ${g ? '<button type="button" class="linkbtn danger" id="g-del">Delete gear</button>' : ''}<div class="actions"><button class="primary wide">Save</button></div></form>`, (b, close) => {
     const f = $('form', b), toM = (v) => (v.trim() ? Number(v) * (imp() ? MI : 1000) : null);
     f.onsubmit = async (e) => {
       e.preventDefault();
@@ -2276,7 +2276,7 @@ route(/^\/me\/goals$/, 'me', async (el) => {
     <label>Every<select name="period"><option value="day">Day</option><option value="week" selected>Week</option><option value="month">Month</option><option value="year">Year</option></select></label></div>
     <div class="two"><label>Measure<select name="metric"><option value="distance">Distance (${U.du()})</option><option value="time">Time (hours)</option><option value="calories">Calories burned (kcal)</option><option value="elevation">Climb (${U.eu()})</option><option value="count">Activities</option></select></label>
     <label>Target<input name="target" inputmode="decimal" required></label></div>
-    <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Add goal</button></div></form>`, (b, close) => {
+    <div class="actions"><button class="primary">Add goal</button></div></form>`, (b, close) => {
     const f = $('form', b);
     for(const [key,value] of Object.entries(preset))f.elements.namedItem(key).value=String(value);
     f.onsubmit = async (e) => {

@@ -75,7 +75,7 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
 }
 function chooseYesterday(day) {
   const owner=readOwner();
-  sheet("Copy yesterday's food",`<p>Choose what to copy. You’ll review the foods before adding them.</p><div class="card list">${[['','All meals'],...Object.entries(MEAL_NAMES)].map(([key,label])=>`<button type="button" class="row-link" data-copy-meal="${key}"><span class="grow">${label}</span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>`,(b,close)=>{
+  sheet("Copy yesterday's food",`<div class="card list">${[['','All meals'],...Object.entries(MEAL_NAMES)].map(([key,label])=>`<button type="button" class="row-link" data-copy-meal="${key}"><span class="grow">${label}</span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>`,(b,close)=>{
     guardFoodSheet(b,close,owner);$$('[data-copy-meal]',b).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;const meal=button.dataset.copyMeal||null;close();yesterdayMeal(day,meal);});
   });
 }
@@ -504,7 +504,7 @@ function mealActionsSheet(D, meal) {
 function mealMenu(D, meal) {
   const list = D.entries.filter(e => e.meal === meal && !e.pending);
   const totals = Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g'].map(k => [k, list.reduce((n, e) => n + (e[k] || 0), 0)]));
-  sheet(`Edit ${MEAL_NAMES[meal].toLowerCase()}`, `<p class="small muted">${esc(dayLabel(D.day))} · ${list.length} food${list.length === 1 ? '' : 's'}. Edit an item’s amount or nutrition, or remove it below.</p>
+  sheet(`Edit ${MEAL_NAMES[meal].toLowerCase()}`, `<p class="small muted">${esc(dayLabel(D.day))} · ${list.length} food${list.length === 1 ? '' : 's'}</p>
     ${nutGrid(totals)}<div class="card list mm-list">${list.map(e => `<div class="logged-food"><button class="fe" data-me="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[meal]}"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))} · Edit</small></div>
       <div class="r meal-calories"><b class="num">${r0(e.kcal)}</b> <small class="muted">kcal</small></div></button><button class="linkbtn danger remove-food" data-remove-food="${e.id}" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[meal]}">${svg('trash')}Remove</button></div>`).join('')}</div>
     <div class="btncol"><button class="ghost" id="mm-yesterday">Copy yesterday’s ${MEAL_NAMES[meal].toLowerCase()}</button><button class="primary" id="mm-add">${svg('plus')}Add food to ${MEAL_NAMES[meal]}</button>
