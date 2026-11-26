@@ -1883,4 +1883,236 @@ class GroupChallengeUpgrade(unittest.TestCase):
                     c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s)',(q,gid,uid))
 
 
+class GroupChallengeAPI(unittest.TestCase):
+    setUpClass = classmethod(Groups.setUpClass.__func__)
+    tearDown,make,accept,activity,friend = Groups.tearDown,Groups.make,Groups.accept,Groups.activity,Groups.friend
+
+    def setUp(self):
+        Groups.setUp(self)
+        self.now=dt.datetime(2030,3,10,16,tzinfo=dt.timezone.utc)
+        clock=patch('app.groups._now',return_value=self.now);clock.start();self.addCleanup(clock.stop)
+        self.group,self.token=self.make();self.gid=self.group['id']
+        self.assertEqual(self.clients[0].post('/api/groups/'+self.gid+'/sharing',json={'level':'total_shared'}).status_code,200)
+        for who in (1,2):
+            self.assertEqual(self.clients[who].post('/api/group-invites/'+self.token+'/accept',json={'share_total':True}).status_code,200)
+        self.root='/api/groups/'+self.gid+'/challenges'
+        self.body={'id':str(uuid.uuid4()),'title':'Fictional trail sessions','goal_type':'sessions',
+                   'goal_target':3,'goal_unit':'sessions','goal_sports':['run'],
+                   'goal_start_date':'2030-03-01','event_date':'2030-03-20','time_zone':'America/New_York'}
+
+    def create(self,who=1,**changes):
+        response=self.clients[who].post(self.root,json=dict(self.body,**changes))
+        self.assertEqual(response.status_code,200,response.text)
+        return response.json()
+
+    def test_member_create_retries_share_defaults_notice_and_old_new_adapters(self):
+        q=self.create();self.create()
+        self.assertTrue(q['share_total']);self.assertNotIn('total',q,'master OFF overrides challenge ON')
+        self.assertTrue(all('value' not in m for m in q['members']))
+        path=self.root+'/'+q['id']
+        self.assertEqual(self.clients[0].post(path+'/sharing',json={'share_total':False}).status_code,200)
+        self.create()  # retry never resets an independently changed choice or sends a second notice
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_updates WHERE group_id=%s',(self.gid,)).fetchone()['n'],1)
+            updates=c.execute('SELECT text FROM group_updates WHERE group_id=%s',(self.gid,)).fetchone()['text']
+            self.assertIn('Sharing is on unless you turned it off for this group',updates)
+            self.assertEqual(c.execute('SELECT user_id FROM notifications WHERE group_id=%s ORDER BY user_id',
+                                      (self.gid,)).fetchall(),[{'user_id':self.ids[i]} for i in (0,2)])
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)',(self.ids,))
+        self.assertEqual(self.clients[0].post('/api/groups/'+self.gid+'/sharing',json={'level':'total_shared'}).status_code,200)
+        self.assertFalse(self.clients[0].get(path).json()['share_total'],'old switch affects seeded goal only')
+        seed=next(r for r in self.clients[0].get(self.root).json() if r['id']!=q['id'])
+        seedpath=self.root+'/'+seed['id']
+        self.assertEqual(self.clients[0].post(seedpath+'/sharing',json={'share_total':False}).status_code,200)
+        self.assertEqual(self.clients[0].get('/api/groups/'+self.gid).json()['sharing_level'],'just_in')
+        edit={k:v for k,v in self.body.items() if k!='id'};edit['goal_target']=4
+        self.assertEqual(self.clients[0].put(seedpath,json=edit).status_code,200)
+        self.assertEqual(self.clients[0].get('/api/groups/'+self.gid).json()['goal_target'],4)
+        self.assertEqual(self.accept(self.token,3).status_code,200)
+        self.assertFalse(self.clients[3].get(path).json()['share_total'],'explicit join OFF applies to newly created independent challenge memberships')
+
+    def test_creator_or_current_organizer_manages_but_not_another_member(self):
+        q=self.create();path=self.root+'/'+q['id'];edit={k:v for k,v in self.body.items() if k!='id'}
+        self.assertEqual(self.clients[2].put(path,json=edit).status_code,404)
+        self.assertEqual(self.clients[2].post(path+'/end').status_code,404)
+        self.assertEqual(self.clients[0].put(path,json=edit).status_code,200)
+        login=self.clients[2].get('/api/me').json()['login']
+        self.assertEqual(self.clients[0].post('/api/groups/'+self.gid+'/transfer',json={'username':login}).status_code,200)
+        self.assertEqual(self.clients[0].put(path,json=edit).status_code,404)
+        self.assertEqual(self.clients[1].put(path,json=edit).status_code,200)
+        self.assertEqual(self.clients[2].post(path+'/end').status_code,200)
+        ended=self.clients[1].get(path).json()['ended_at']
+        self.assertEqual(self.clients[1].post(path+'/end').status_code,200)
+        self.assertEqual(self.clients[1].get(path).json()['ended_at'],ended)
+        self.assertEqual(self.clients[1].put(path,json=edit).status_code,409)
+        self.assertFalse(self.clients[1].get('/api/groups/'+self.gid).json()['closed'])
+
+    def test_new_challenge_keeps_join_off_and_notifies_members_who_share(self):
+        self.assertEqual(self.accept(self.token,3).status_code,200)  # Explicit OFF, with no existing independent choice.
+        q=self.create();path=self.root+'/'+q['id']
+        self.assertFalse(self.clients[3].get(path).json()['share_total'])
+        with db.connect() as c:
+            rows=c.execute('SELECT user_id,share_total FROM group_challenge_members WHERE challenge_id=%s',(q['id'],)).fetchall()
+            self.assertEqual({r['user_id']:r['share_total'] for r in rows},{uid:i!=3 for i,uid in enumerate(self.ids)})
+            notices=c.execute("SELECT user_id FROM notifications WHERE group_id=%s AND kind='group_update'",(self.gid,)).fetchall()
+            self.assertTrue({self.ids[0],self.ids[2]} <= {r['user_id'] for r in notices})
+            text=c.execute('SELECT text FROM group_updates WHERE group_id=%s',(self.gid,)).fetchone()['text']
+            self.assertIn('unless you turned it off for this group',text)
+
+    def test_new_challenge_keeps_legacy_and_seeded_off_without_changing_existing_choices(self):
+        existing=self.create(id=str(uuid.uuid4()))
+        seed=next(q for q in self.clients[0].get(self.root).json() if q['legacy_goal'])
+        self.assertEqual(self.clients[0].post('/api/groups/'+self.gid+'/sharing',json={'level':'just_in'}).status_code,200)
+        self.assertEqual(self.clients[2].post(self.root+'/'+seed['id']+'/sharing',json={'share_total':False}).status_code,200)
+        with db.connect() as c:
+            # A stale legacy ON cannot override the independently saved seeded OFF.
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",(self.gid,self.ids[2]))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)',(self.ids,))
+        for who in (0,1,2):self.activity(who,self.now-dt.timedelta(hours=1),sport='run')
+        q=self.create();path=self.root+'/'+q['id']
+        for who in (0,2):
+            self.assertFalse(self.clients[who].get(path).json()['share_total'])
+            self.assertTrue(self.clients[who].get(self.root+'/'+existing['id']).json()['share_total'])
+        self.assertTrue(q['share_total']);self.assertEqual(q['total'],1,'both opt-outs exclude totals despite master ON')
+        self.assertEqual(self.clients[0].post('/api/groups/'+self.gid+'/sharing',json={'level':'total_shared'}).status_code,200)
+        self.create()  # Later group changes and retries cannot reset this challenge's choice.
+        self.assertFalse(self.clients[0].get(path).json()['share_total'])
+
+    def test_outsiders_other_group_left_removed_unconfirmed_suspended_and_blocks(self):
+        q=self.create();path=self.root+'/'+q['id']
+        for method,route,body in [('get',path,None),('post',path+'/sharing',{'share_total':True}),
+                                  ('post',self.root,self.body),('post',path+'/end',None)]:
+            kwargs={} if body is None else {'json':body}
+            self.assertEqual(getattr(self.clients[3],method)(route,**kwargs).status_code,404)
+        other,_=self.make(who=3)
+        self.assertEqual(self.clients[3].get('/api/groups/'+other['id']+'/challenges/'+q['id']).status_code,404)
+        for uid in (self.ids[1],self.ids[2]):
+            for column,value in [('suspended_at',self.now),('needs_email_confirm',True),('password_change_expires',self.now)]:
+                with db.connect() as c:c.execute(sql.SQL('UPDATE users SET {}=%s WHERE id=%s').format(sql.Identifier(column)),(value,uid))
+                self.assertNotEqual(self.clients[2].get(path).status_code,200)
+                self.assertNotEqual(self.clients[2].post(path+'/sharing',json={'share_total':True}).status_code,200)
+                with db.connect() as c:c.execute(sql.SQL('UPDATE users SET {}=%s WHERE id=%s').format(sql.Identifier(column)),(False if column=='needs_email_confirm' else None,uid))
+        for first,second in [(1,2),(2,1)]:
+            with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.ids[first],self.ids[second]))
+            self.assertEqual(self.clients[2].get(path).status_code,404)
+            self.assertNotIn(q['id'],[r['id'] for r in self.clients[2].get(self.root).json()])
+            with db.connect() as c:c.execute('DELETE FROM blocks WHERE user_id=%s',(self.ids[first],))
+        for status in ('left','removed'):
+            with db.connect() as c:c.execute('UPDATE group_members SET status=%s,removed_invite_generation=%s WHERE group_id=%s AND user_id=%s',
+                (status,1 if status=='removed' else None,self.gid,self.ids[2]))
+            self.assertEqual(self.clients[2].get(path).status_code,404)
+
+    def test_totals_respect_independent_master_and_private_gates_and_end_time(self):
+        q=self.create();path=self.root+'/'+q['id']
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET joined_at='2030-03-01T05:00Z' WHERE group_id=%s",(self.gid,))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)',(self.ids[:2],))
+        for who in (0,1,2):self.activity(who,self.now-dt.timedelta(hours=1),sport='run',name='PRIVATE SOURCE SENTINEL')
+        self.activity(0,self.now-dt.timedelta(hours=2),sport='run',visibility='me')
+        view=self.clients[0].get(path).json();self.assertEqual(view['total'],2)
+        self.assertNotIn('PRIVATE SOURCE SENTINEL',json.dumps(view))
+        self.assertEqual(self.clients[0].post(path+'/sharing',json={'share_total':False}).status_code,200)
+        view=self.clients[0].get(path).json();self.assertEqual(view['total'],1);self.assertEqual(view['your_total'],1)
+        self.assertEqual(self.clients[1].post(path+'/end').status_code,200)
+        self.activity(1,self.now+dt.timedelta(hours=1),sport='run')
+        with patch('app.groups._now',return_value=self.now+dt.timedelta(days=1)):
+            self.assertEqual(self.clients[1].get(path).json()['total'],1)
+
+    def test_both_dst_days_inclusive_endpoints_rejoin_and_fractional_serialization(self):
+        for day,lo,hi in [('2030-03-10','2030-03-10T05:00Z','2030-03-11T04:00Z'),
+                          ('2030-11-03','2030-11-03T04:00Z','2030-11-04T05:00Z')]:
+            a,z=dt.datetime.fromisoformat(lo),dt.datetime.fromisoformat(hi)
+            with patch('app.groups._now',return_value=a):
+                q=self.create(id=str(uuid.uuid4()),goal_type='distance',goal_target=0.1,goal_unit='km',
+                              goal_start_date=day,event_date=day)
+            with db.connect() as c:
+                c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',(a,self.gid))
+                c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s',(self.ids[0],))
+            for at in (a-dt.timedelta(seconds=1),a,z-dt.timedelta(seconds=1),z):
+                self.activity(0,at,sport='run',distance=100)
+            with patch('app.groups._now',return_value=z+dt.timedelta(hours=1)):
+                view=self.clients[0].get(self.root+'/'+q['id']).json()
+                self.assertEqual(view['total'],0.2);self.assertEqual(view['target'],0.1)
+                with db.connect() as c:c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s AND user_id=%s',
+                                                (z-dt.timedelta(seconds=1),self.gid,self.ids[0]))
+                self.assertEqual(self.clients[0].get(self.root+'/'+q['id']).json()['total'],0.1)
+
+    def test_duplicate_key_validation_mute_and_concurrent_retry(self):
+        with db.connect() as c:c.execute('UPDATE group_members SET notifications_muted=true WHERE group_id=%s AND user_id=%s',(self.gid,self.ids[2]))
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses=list(pool.map(lambda _:self.clients[1].post(self.root,json=self.body),range(2)))
+        self.assertEqual([r.status_code for r in responses],[200,200])
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_updates WHERE group_id=%s',(self.gid,)).fetchone()['n'],1)
+            self.assertEqual(c.execute('SELECT user_id FROM notifications WHERE group_id=%s',(self.gid,)).fetchall(),[{'user_id':self.ids[0]}])
+        self.assertEqual(self.clients[1].post(self.root,json=dict(self.body,title='Reused key')).status_code,409)
+        for changes in [{'goal_target':0},{'goal_target':1.2},{'goal_unit':'km'},{'goal_sports':['bad']},
+                        {'goal_start_date':'2030-03-21'},{'event_date':'2030-03-09'},{'title':' '},{'user_id':self.ids[0]}]:
+            self.assertIn(self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4()),**changes)).status_code,(400,422))
+        self.assertEqual(self.clients[1].post(self.root+'/'+self.body['id']+'/sharing',json={'share_total':'true'}).status_code,422)
+
+    def test_closed_group_still_allows_privacy_revocation_but_not_more_challenges(self):
+        q=self.create();path=self.root+'/'+q['id']
+        self.assertEqual(self.clients[0].post('/api/groups/'+self.gid+'/close').status_code,200)
+        self.assertEqual(self.clients[1].post(path+'/sharing',json={'share_total':False}).status_code,200)
+        self.assertFalse(self.clients[1].get(path).json()['share_total'])
+        self.assertEqual(self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4()))).status_code,409)
+        self.assertEqual(self.clients[1].put(path,json={k:v for k,v in self.body.items() if k!='id'}).status_code,409)
+
+    def test_creation_limits_and_cross_group_key_collision_are_atomic(self):
+        self.create();other,_=self.make(who=3)
+        self.assertEqual(self.clients[3].post('/api/groups/'+other['id']+'/challenges',json=self.body).status_code,409)
+        with db.connect() as c:
+            c.execute('UPDATE users SET signup_confirmed_at=now() WHERE id=%s',(self.ids[1],))
+            for _ in range(20):self.assertFalse(groups.account_email.limited(c,f'new-social:comment:{self.ids[1]}',20,1440))
+        response=self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4())))
+        self.assertEqual(response.status_code,429)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_challenges WHERE group_id=%s',(self.gid,)).fetchone()['n'],2)
+            c.execute('UPDATE users SET signup_confirmed_at=NULL WHERE id=%s',(self.ids[1],))
+            c.execute('''INSERT INTO group_challenges(group_id,creator_id,title,metric,target,unit,sports,start_date,time_zone)
+                SELECT %s,%s,'Fictional bounded goal','sessions',3,'sessions',ARRAY['run'],'2030-03-01','UTC'
+                FROM generate_series(1,98)''',(self.gid,self.ids[1]))
+        self.assertEqual(self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4()))).status_code,409)
+        self.create()  # An existing retry still works at the limit.
+
+    def test_name_only_group_stays_without_challenges_through_both_join_paths(self):
+        response=self.clients[0].post('/api/groups/people',json={'title':'Fictional people crew','time_zone':'UTC'})
+        self.assertEqual(response.status_code,200,response.text)
+        group=response.json();root='/api/groups/'+group['id'];token=group['invite_url'].rsplit('/',1)[1]
+        self.assertEqual(self.clients[0].get(root+'/challenges').json(),[])
+        self.assertNotEqual(self.clients[0].get('/api/groups/activity-strip').json().get('next',{}).get('id'),group['id'])
+        self.assertEqual(self.clients[0].post('/api/groups/people',json={'title':' ','time_zone':'UTC'}).status_code,422)
+        self.assertEqual(self.accept(token,1).status_code,200)
+        self.friend(0,2)
+        username=self.clients[2].get('/api/me').json()['login']
+        self.assertEqual(self.clients[0].post(root+'/friend-invites',json={'username':username}).status_code,200)
+        with db.connect() as c:
+            iid=c.execute("UPDATE group_friend_invites SET expires_at='2030-04-09T16:00Z' WHERE group_id=%s RETURNING id",(group['id'],)).fetchone()['id']
+        self.assertEqual(self.clients[2].post(f'/api/group-friend-invites/{iid}/accept',json={'share_total':True}).status_code,200)
+        self.assertEqual(self.clients[2].get(root+'/challenges').json(),[])
+        created=self.clients[2].post(root+'/challenges',json=self.body)
+        self.assertEqual(created.status_code,200)
+        for who,expected in [(0,True),(1,False),(2,True)]:
+            self.assertEqual(self.clients[who].get(root+'/challenges/'+created.json()['id']).json()['share_total'],expected)
+        self.assertNotEqual(self.clients[2].get('/api/groups/activity-strip').json().get('next',{}).get('id'),group['id'])
+
+    def test_ending_seeded_goal_freezes_old_client_without_closing_group(self):
+        seed=next(q for q in self.clients[0].get(self.root).json() if q['legacy_goal'])
+        path=self.root+'/'+seed['id']
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET joined_at='2030-03-01T05:00Z' WHERE group_id=%s",(self.gid,))
+        self.activity(0,self.now-dt.timedelta(hours=1),sport='run')
+        before=self.clients[0].get('/api/groups/'+self.gid).json()['your_total']
+        self.assertEqual(self.clients[0].post(path+'/end').status_code,200)
+        self.activity(0,self.now+dt.timedelta(hours=1),sport='run')
+        with patch('app.groups._now',return_value=self.now+dt.timedelta(days=1)):
+            old=self.clients[0].get('/api/groups/'+self.gid).json()
+            self.assertEqual(old['your_total'],before)
+            self.assertEqual(old['event_state'],'complete');self.assertFalse(old['closed'])
+            self.assertEqual(self.clients[0].get(path).json()['your_total'],before)
+            self.assertFalse(self.clients[0].get('/api/groups/activity-strip').json()['has_upcoming'])
+
+
 unittest.main()

@@ -472,8 +472,10 @@ def _answer(c, group, uid):
     visible.sort(key=lambda member: (member['user_id'] != uid, member['username'].casefold(), member['user_id']))
     sharing = [member for member in visible if member['share_total']]
     now = _now()
-    contributions = _contributions(c, group, sharing, now)
-    local_day, weekly = _weekly_contributions(c, group, sharing, now)
+    legacy = c.execute('SELECT ended_at FROM group_challenges WHERE legacy_group_id=%s',(group['id'],)).fetchone()
+    cutoff = min(now,legacy['ended_at']) if legacy and legacy['ended_at'] else now
+    contributions = _contributions(c, group, sharing, cutoff)
+    local_day, weekly = _weekly_contributions(c, group, sharing, cutoff)
     total = round(sum(contributions.values()), 3)
     member_count = len(visible)
     sharing_member_count = len(sharing)
@@ -487,10 +489,10 @@ def _answer(c, group, uid):
     local_now = now.astimezone(zone)
     recap_available = local_now.weekday() != 0 or local_now.timetz().replace(tzinfo=None) >= dt.time(9, 0)
     previous_monday = monday - dt.timedelta(days=7) if recap_available else None
-    recap_week = (_period_contributions(c, group, sharing, now, previous_monday)[1]
+    recap_week = (_period_contributions(c, group, sharing, cutoff, previous_monday)[1]
                   if previous_monday is not None and member_count >= 3 else {})
-    own_total = contributions.get(uid, 0) if me['share_total'] else _contributions(c, group, [me], now).get(uid, 0)
-    own_week = weekly.get(uid, 0) if me['share_total'] else _weekly_contributions(c, group, [me], now)[1].get(uid, 0)
+    own_total = contributions.get(uid, 0) if me['share_total'] else _contributions(c, group, [me], cutoff).get(uid, 0)
+    own_week = weekly.get(uid, 0) if me['share_total'] else _weekly_contributions(c, group, [me], cutoff)[1].get(uid, 0)
     has_shared_totals = bool(sharing)
     visible_total = total if has_shared_totals else own_total
     weeks_to_event = (days_to_event + 6) // 7 if days_to_event is not None else None
@@ -513,7 +515,7 @@ def _answer(c, group, uid):
                          if previous_monday is not None and member_count >= 3 else None),
         'days_to_event': days_to_event,
         'weeks_to_event': weeks_to_event,
-        'event_state': ('ongoing' if event_date is None else
+        'event_state': ('complete' if legacy and legacy['ended_at'] else 'ongoing' if event_date is None else
                         'upcoming' if today < event_date else 'today' if today == event_date else 'complete'),
         'sharing_level': me['sharing_level'],
         'members': [{'username': m['username'], 'photo': m['photo'] or False,
@@ -580,6 +582,8 @@ def _weekly_reaction_rows(c, group, uid, week_start):
 def _group_recap(c, group, uid, answer, now):
     if group['event_date'] is None:
         return None
+    legacy = c.execute('SELECT ended_at FROM group_challenges WHERE legacy_group_id=%s',(group['id'],)).fetchone()
+    if legacy and legacy['ended_at']: now = min(now,legacy['ended_at'])
     today = now.astimezone(_zone(group['time_zone'])).date()
     if today <= group['event_date']:
         return None
@@ -679,8 +683,7 @@ def _group_detail(c, group, uid, answer):
     return result
 
 
-@router.post('/api/groups')
-def create_group(body: GroupCreate, request: Request, user=Depends(current_user)):
+def _create_group(body, request, user, *, legacy_goal=True):
     _valid_goal(body)
     _validate_event_date(body.event_date, body.time_zone)
     start_date = body.goal_start_date or _now().astimezone(_zone(body.time_zone)).date()
@@ -697,10 +700,16 @@ def create_group(body: GroupCreate, request: Request, user=Depends(current_user)
                              VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
                           (user['id'], body.title, body.event_date, body.time_zone, body.note, body.goal_type,
                            body.goal_target, body.goal_unit, body.goal_sports, start_date, body.training_for)).fetchone()
-        c.execute("INSERT INTO group_members(group_id,user_id) VALUES(%s,%s)", (group['id'], user['id']))
+        c.execute("INSERT INTO group_members(group_id,user_id,sharing_level) VALUES(%s,%s,%s)",
+                  (group['id'], user['id'], 'just_in' if legacy_goal else 'total_shared'))
         invite_url = _new_invite(c, group, request)
-        group_challenges.seed_legacy(c, group['id'])
+        if legacy_goal: group_challenges.seed_legacy(c, group['id'])
         return {**_answer(c, group, user['id']), 'invite_url': invite_url}
+
+
+@router.post('/api/groups')
+def create_group(body: GroupCreate, request: Request, user=Depends(current_user)):
+    return _create_group(body, request, user)
 
 
 @router.get('/api/groups')
@@ -718,7 +727,9 @@ def group_activity_strip(user=Depends(current_user)):
         preference = c.execute('SELECT group_strip_muted FROM profile WHERE user_id=%s', (user['id'],)).fetchone()
         muted = bool(preference and preference['group_strip_muted'])
         rows = c.execute('''SELECT g.* FROM event_groups g JOIN group_members m ON m.group_id=g.id
-                            WHERE m.user_id=%s AND m.status='active' AND g.event_date IS NOT NULL ORDER BY g.event_date ASC NULLS LAST,g.created''',
+                            WHERE m.user_id=%s AND m.status='active' AND g.event_date IS NOT NULL
+                              AND EXISTS(SELECT 1 FROM group_challenges q WHERE q.legacy_group_id=g.id AND q.ended_at IS NULL)
+                            ORDER BY g.event_date ASC NULLS LAST,g.created''',
                          (user['id'],)).fetchall()
         now = _now()
         upcoming = [row for row in rows if row['event_date'] >= now.astimezone(_zone(row['time_zone'])).date()]
@@ -1301,3 +1312,7 @@ def report_group(group_id: str, body: GroupReport, user=Depends(current_user)):
         for admin in c.execute('SELECT id FROM users WHERE is_admin AND id<>%s', (user['id'],)).fetchall():
             notify.add(c, admin['id'], 'report', user['id'])
     return {'ok': True, 'id': rid}
+
+
+from .group_challenge_api import router as challenge_router
+router.include_router(challenge_router)
