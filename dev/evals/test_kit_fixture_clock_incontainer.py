@@ -18,7 +18,7 @@ try:
         assert c.execute('SELECT created FROM users WHERE id=%s',(uid,)).fetchone()['created']==INSTANT
         c.execute("INSERT INTO kit_memories(user_id,text,kind,source) VALUES(%s,'I prefer mornings.','routine','user')",(uid,))
         assert c.execute('SELECT updated FROM kit_memories WHERE user_id=%s',(uid,)).fetchone()['updated']==INSTANT
-    assert kit_tools.KitTools(uid).call('profile',{})['today']==INSTANT.date().isoformat()
+    assert kit_tools.KitTools(uid).call('profile',{})['today']==INSTANT.date()
     with db.coach_connect(uid) as c:assert c.execute('SELECT now() AS n').fetchone()['n']==INSTANT
 finally:
     if uid:
