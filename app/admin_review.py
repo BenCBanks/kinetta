@@ -10,13 +10,13 @@ from .admin_auth import admin_user, audit
 from .admin_actions import ActionIn, replay, complete
 
 router = APIRouter(prefix='/api/admin')
-LABELS = {'unshare_dish': 'Stop sharing this recipe', 'remove_challenge': 'Remove this challenge', 'dismiss': 'Dismiss report', 'remove_comment': 'Remove this comment', 'hide_activity': 'Hide this activity',
+LABELS = {'remove_group': 'Remove this group', 'unshare_dish': 'Stop sharing this recipe', 'remove_challenge': 'Remove this challenge', 'dismiss': 'Dismiss report', 'remove_comment': 'Remove this comment', 'hide_activity': 'Hide this activity',
           'remove_activity_photo': 'Remove an attached photo', 'remove_photo': 'Remove profile photo', 'clear_bio': 'Clear profile bio', 'clear_profile': 'Remove profile photo and bio'}
 
 
 def material(c, rid, lock=False):
     if lock:
-        seed = c.execute('SELECT person,kind,comment_id,activity_id,dish_id,challenge_id FROM reports WHERE id=%s', (rid,)).fetchone()
+        seed = c.execute('SELECT person,kind,comment_id,activity_id,dish_id,challenge_id,group_id FROM reports WHERE id=%s', (rid,)).fetchone()
         if seed:
             # Lock the target before its report: deleting a comment updates the report's FK in this order too.
             c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (seed['person'],))
@@ -24,6 +24,7 @@ def material(c, rid, lock=False):
             if seed['kind'] == 'activity' and seed['activity_id']: c.execute('SELECT id FROM activities WHERE id=%s FOR UPDATE', (seed['activity_id'],))
             if seed['dish_id']: c.execute('SELECT id FROM dishes WHERE id=%s FOR UPDATE', (seed['dish_id'],))
             if seed['challenge_id']: c.execute('SELECT id FROM challenges WHERE id=%s FOR UPDATE', (seed['challenge_id'],))
+            if seed['group_id']: c.execute('SELECT id FROM event_groups WHERE id=%s FOR UPDATE', (seed['group_id'],))
             if seed['kind'] == 'person': c.execute('SELECT user_id FROM profile WHERE user_id=%s FOR UPDATE', (seed['person'],))
     r = c.execute('''SELECT r.*,u.login::text AS login,u.name,u.photo_v,p.bio,rp.name AS reporter_name FROM reports r
          JOIN users u ON u.id=r.person LEFT JOIN profile p ON p.user_id=u.id LEFT JOIN users rp ON rp.id=r.reporter
@@ -51,6 +52,14 @@ def material(c, rid, lock=False):
             from .challenges import title
             item = {'name': title(row)}
             allowed += ['remove_challenge']
+    elif r['kind'] == 'group':
+        # Legacy update reports have no update ID: never guess a target from their submitted text.
+        item = {'text': r['what'], 'scope': 'Submitted report only; no current target is available.'}
+        if r['group_id'] and r['what'].startswith('Group: '):
+            row = c.execute('SELECT title FROM event_groups WHERE id=%s AND organizer_id=%s', (r['group_id'], r['person'])).fetchone()
+            if row:
+                item = {'name': row['title'], 'scope': 'Reported group name only; members, totals and updates are not shown.'}
+                allowed += ['remove_group']
     elif r['kind'] == 'person':
         if lock: c.execute('SELECT user_id FROM profile WHERE user_id=%s FOR UPDATE', (r['person'],))
         item = {'bio': r['bio'] or '', 'has_photo': bool(r['photo_v']), 'photo_version': r['photo_v'],
@@ -104,7 +113,7 @@ def activity_photo(rid: int, pid: int, version: str, user=Depends(admin_user)):
 
 
 class DecisionIn(ActionIn):
-    action: Literal['unshare_dish', 'remove_challenge', 'dismiss', 'remove_comment', 'hide_activity', 'remove_photo', 'clear_bio', 'clear_profile', 'remove_activity_photo']
+    action: Literal['remove_group', 'unshare_dish', 'remove_challenge', 'dismiss', 'remove_comment', 'hide_activity', 'remove_photo', 'clear_bio', 'clear_profile', 'remove_activity_photo']
     version: str = Field(min_length=64, max_length=64)
     confirm: str = Field(max_length=30)
     photo_id: int | None = Field(None, gt=0)
@@ -123,6 +132,7 @@ def decide(rid: int, body: DecisionIn, user=Depends(admin_user)):
         if body.action == 'remove_activity_photo':
             if body.photo_id not in {p['id'] for p in value['photos']}: raise HTTPException(409, 'That photo is not part of this reported activity.')
             c.execute('DELETE FROM activity_photos WHERE id=%s AND activity_id=%s AND user_id=%s',(body.photo_id,r['activity_id'],r['person']))
+        if body.action == 'remove_group': c.execute('DELETE FROM event_groups WHERE id=%s AND organizer_id=%s', (r['group_id'], r['person']))
         if body.action == 'unshare_dish': c.execute('DELETE FROM dish_shares WHERE dish_id=%s', (r['dish_id'],))
         if body.action == 'remove_challenge': c.execute('DELETE FROM challenges WHERE id=%s AND user_id=%s', (r['challenge_id'],r['person']))
         if body.action == 'remove_comment': c.execute('DELETE FROM comments WHERE id=%s AND user_id=%s', (r['comment_id'], r['person']))

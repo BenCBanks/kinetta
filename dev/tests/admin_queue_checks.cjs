@@ -1,11 +1,11 @@
 'use strict';
 // Fictional portal replies only: every matched write is intercepted, never sent or emailed.
-const assert=require('node:assert/strict');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 module.exports=async function queueChecks(page,base){
  const stamp='2026-11-24T12:00:00Z',person={id:8101,name:'Zoe Stone',login:'zz_test_queue_zoe'},calls=[];
  let reported=true;
- const report={id:8201,what:'Comment: Fictional reported comment',reason:'abuse',note:'Fictional complaint',created:stamp,name:person.name,login:person.login};
- const review={report:{id:8201,kind:'comment',reason:'abuse',note:'Fictional complaint',created:stamp,reporter:'Nathan Demo'},person,item:{text:'Fictional reported comment'},photos:[],actions:[{value:'dismiss',label:'Dismiss report'},{value:'remove_comment',label:'Remove this comment'}],history:[],version:'fictional-item-version'};
+ let report={id:8201,what:'Comment: Fictional reported comment',reason:'abuse',note:'Fictional complaint',created:stamp,name:person.name,login:person.login};
+ let review={report:{id:8201,kind:'comment',reason:'abuse',note:'Fictional complaint',created:stamp,reporter:'Nathan Demo'},person,item:{text:'Fictional reported comment'},photos:[],actions:[{value:'dismiss',label:'Dismiss report'},{value:'remove_comment',label:'Remove this comment'}],history:[],version:'fictional-item-version'};
  const request={id:'d2216b79-30d9-421f-8958-dd4cb2856fe1',user_id:person.id,kind:'export',status:'received',received:stamp,name:person.name,login:person.login,recorded_by:'Fictional administrator'};
  const beta={id:8301,name:'Ava Green',email:'ava@example.test',phone:'iphone',note:'Fictional applicant',status:'new',created:stamp};
  const pattern='**/api/admin/**',handler=async route=>{
@@ -33,6 +33,21 @@ module.exports=async function queueChecks(page,base){
   await page.locator('[data-decision=remove_comment]').click();
   await page.locator('#tool-form input[name=confirm]').fill('@'+person.login);await page.locator('#tool-form button[type=submit]').click();await page.locator('#dialog').waitFor({state:'hidden'});await page.waitForFunction(()=>current==='reports'&&document.querySelector('#content').textContent.includes('No open reports.'));
   const removed=calls.find(c=>c.path==='/review/8201').body;assert.equal(removed.version,review.version);assert.equal(removed.confirm,person.login);assert.equal(removed.action,'remove_comment');assert(removed.request_key&&removed.requested_at);
+  // Report-bound group moderation uses the same confirmation, with explicit cascade wording.
+  reported=true;report={...report,what:'Group: Weekend runners'};
+  review={...review,report:{...review.report,kind:'group'},item:{name:'Weekend runners',scope:'Reported group name only; members, totals and updates are not shown.'},actions:[{value:'dismiss',label:'Dismiss report'},{value:'remove_group',label:'Remove this group'}]};
+  await page.reload();await go('reports','[data-review]');await page.locator('[data-review]').click();await page.locator('[data-decision=remove_group]').waitFor();
+  assert.equal(await page.locator('.reported-item').innerText(),'Weekend runners\n\n'+review.item.scope);
+  const shot=async state=>{if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SHOT_DIR,`group-report-${state}-${page.viewportSize().width}-${await page.evaluate(()=>matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}.png`),animations:'disabled'});}};
+  await shot('review');const beforeGroup=calls.length;
+  await page.locator('[data-decision=remove_group]').click();await page.locator('#tool-form').waitFor();
+  assert.match(await page.locator('#dialog-body').innerText(),/People keep their workouts/);assert.equal(calls.length,beforeGroup,'opening confirmation never removes');
+  await shot('confirm');await page.locator('#close').click();assert.equal(calls.length,beforeGroup,'cancel never removes');
+  await go('reports','[data-review]');await page.locator('[data-review]').click();await page.locator('[data-decision=remove_group]').click();
+  await page.locator('#tool-form input[name=confirm]').fill('@'+person.login);await page.locator('#tool-form button[type=submit]').click();await page.locator('#dialog').waitFor({state:'hidden'});
+  // Closing precedes its asynchronous queue refresh; let that finish before changing tabs.
+  await page.waitForFunction(()=>current==='reports'&&document.querySelector('#content').textContent.includes('No open reports.'));
+  const groupDecision=calls.at(-1).body;assert.equal(groupDecision.action,'remove_group');assert.equal(groupDecision.confirm,person.login);assert.equal(groupDecision.version,review.version);assert(groupDecision.request_key&&groupDecision.requested_at);
   await go('requests','[data-action=respond]');await page.locator('[data-action=respond]').first().click();await page.locator('#response button').click();await page.locator('#preview:not([hidden])').waitFor();
   assert((await page.locator('#preview').innerText()).includes('Fictional complete preview.'));assert(!calls.some(c=>c.path.endsWith('/send')),'preview never sends email');
   const sentRevision=await page.evaluate(()=>revision);await page.locator('#send').click();await page.waitForFunction(r=>revision>r&&current==='beta'&&document.querySelector('#requests [data-action=respond]'),sentRevision);
@@ -40,6 +55,6 @@ module.exports=async function queueChecks(page,base){
   await go('requests/invitations','[data-action=revoke]');await page.locator('[data-action=revoke]').first().click();assert.equal(calls.some(c=>c.path==='/invites/8401'),false,'opening revoke never deletes');await page.locator('#close').click();
   await go('requests/data','[data-state=verified]');await page.locator('[data-state=verified]').first().click();await page.locator('#tool-form input[name=confirmed]').check();await page.locator('#tool-form button[type=submit]').click();await page.locator('#dialog').waitFor({state:'hidden'});
   const verified=calls.find(c=>c.path==='/data-requests/'+request.id).body;assert.equal(verified.status,'verified');assert.equal(verified.method,'signed_in');assert.equal(verified.confirmed,true);assert(verified.request_key&&verified.requested_at);
-  assert(!calls.some(c=>/export|remove/.test(c.path)),'register never exports or removes an account');return 8;
+  assert(!calls.some(c=>/export|remove/.test(c.path)),'register never exports or removes an account');return 15;
  }finally{await page.unrouteAll({behavior:'wait'});}
 };
