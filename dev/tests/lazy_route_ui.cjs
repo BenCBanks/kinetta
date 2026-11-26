@@ -188,6 +188,21 @@ async function savedNotificationPreferences(page){
   assert.equal(await saved.locator('[data-saved-personal]').count(),4,'web retains all Training saved values');
   assert.deepEqual(await saved.locator('input,select').evaluateAll(nodes=>nodes.map(n=>n.dataset.personal)),['streak'],'only the web bell reminder remains editable');
 }
+async function notificationStaleOwnerCase(browser){
+  const staleOwner=await notificationFixture(browser,user,{hold:true,recordOwner:true});
+  try{
+    await staleOwner.page.goto(base+'/me/notifications',{waitUntil:'domcontentloaded'});await staleOwner.page.locator('.lazy-route-loading').waitFor();
+    await login(staleOwner.context,'zz_test_explore_typical');
+    const meResponse=await staleOwner.context.request.get(base+'/api/me');assert.equal(meResponse.status(),200);
+    const me=await meResponse.json();await staleOwner.page.evaluate(profile=>refreshMe(profile),me);
+    await until(staleOwner.page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new account owns the pending notification shell');
+    staleOwner.routes.release();await staleOwner.routes.done;await savedNotificationPreferences(staleOwner.page);assert.equal(await staleOwner.page.locator('[data-meal-reminders],.meal-reminders').count(),0,'late route load never mounts a meal reminder card');
+    assert.deepEqual(await staleOwner.page.evaluate(()=>window.__notificationRouteOwners),['zz_test_explore_typical'],'the deferred settings route mounts only for the current fictional owner');
+    assert(staleOwner.routes.apiOwners.length>=1&&staleOwner.routes.apiOwners.every(id=>id===String(me.id)),'notification data is requested for the current owner only');
+    assert.deepEqual(staleOwner.errors,[]);assert.deepEqual(staleOwner.routes.writes,[]);
+  }finally{staleOwner.routes.release();await staleOwner.context.close();}
+  console.log('Notifications lazy account change: late leaf mounts saved preferences for the current owner only PASS');
+}
 async function notificationLeafCase(browser){
   const normal=await notificationFixture(browser);
   try{
@@ -209,6 +224,7 @@ async function notificationLeafCase(browser){
     assert.equal(direct.routes.scriptRequests.length,1,'the /me/notifications route loads the same leaf once');
     assert.deepEqual(direct.errors,[]);assert.deepEqual(direct.routes.writes,[]);
   }finally{await direct.context.close();}
+  await notificationStaleOwnerCase(browser);
   console.log('Notifications lazy leaf: eager unread badge, /notifications and /me/notifications demand load PASS');
 }
 async function routeCssCase(browser){
@@ -1255,18 +1271,7 @@ async function foodWarmupCase(browser){
     assert.deepEqual(stalePath.errors,[]);
   }finally{stalePath.routes.release();await stalePath.context.close();}
 
-  const staleOwner=await notificationFixture(browser,user,{hold:true,recordOwner:true});
-  try{
-    await staleOwner.page.goto(base+'/me/notifications',{waitUntil:'domcontentloaded'});await staleOwner.page.locator('.lazy-route-loading').waitFor();
-    await login(staleOwner.context,'zz_test_explore_typical');
-    const meResponse=await staleOwner.context.request.get(base+'/api/me');assert.equal(meResponse.status(),200);
-    const me=await meResponse.json();await staleOwner.page.evaluate(profile=>refreshMe(profile),me);
-    await until(staleOwner.page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new account owns the pending notification shell');
-    staleOwner.routes.release();await staleOwner.routes.done;await staleOwner.page.locator('.notification-alerts').waitFor();assert.equal(await staleOwner.page.locator('[data-meal-reminders],.meal-reminders').count(),0,'late route load never mounts a meal reminder card');
-    assert.deepEqual(await staleOwner.page.evaluate(()=>window.__notificationRouteOwners),['zz_test_explore_typical'],'the deferred settings route mounts only for the current fictional owner');
-    assert(staleOwner.routes.apiOwners.length>=1&&staleOwner.routes.apiOwners.every(id=>id===String(me.id)),'notification data is requested for the current owner only');
-    assert.deepEqual(staleOwner.errors,[]);assert.deepEqual(staleOwner.routes.writes,[]);
-  }finally{staleOwner.routes.release();await staleOwner.context.close();}
+  await notificationStaleOwnerCase(browser);
 
   const welcomeInitial=await welcomeFixture(browser);
   try{
