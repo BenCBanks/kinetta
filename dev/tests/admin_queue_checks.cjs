@@ -45,6 +45,8 @@ module.exports=async function queueChecks(page,base){
   await shot('confirm');await page.locator('#close').click();assert.equal(calls.length,beforeGroup,'cancel never removes');
   await go('reports','[data-review]');await page.locator('[data-review]').click();await page.locator('[data-decision=remove_group]').click();
   await page.locator('#tool-form input[name=confirm]').fill('@'+person.login);await page.locator('#tool-form button[type=submit]').click();await page.locator('#dialog').waitFor({state:'hidden'});
+  // Closing precedes its asynchronous queue refresh; let that finish before changing tabs.
+  await page.waitForFunction(()=>current==='reports'&&document.querySelector('#content').textContent.includes('No open reports.'));
   const groupDecision=calls.at(-1).body;assert.equal(groupDecision.action,'remove_group');assert.equal(groupDecision.confirm,person.login);assert.equal(groupDecision.version,review.version);assert(groupDecision.request_key&&groupDecision.requested_at);
   await go('requests','[data-action=respond]');await page.locator('[data-action=respond]').first().click();await page.locator('#response button').click();await page.locator('#preview:not([hidden])').waitFor();
   assert((await page.locator('#preview').innerText()).includes('Fictional complete preview.'));assert(!calls.some(c=>c.path.endsWith('/send')),'preview never sends email');
