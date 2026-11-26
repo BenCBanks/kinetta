@@ -34,6 +34,7 @@ function compactWorkoutPace(w,paces,plan){
   return Array.isArray(value)?`${value[0].split('/')[0]}–${value[1]}`:value||'';
 }
 function compactWorkoutRow(w,U,paces,plan){
+  if(w.distance_m!=null)w={...w,dist:Math.round(w.dist*100)/100};
   const day=pday(w.day,{weekday:'short',day:'numeric'}),tone=workoutTone(w.type);
   if(w.type==='rest')return `<div class="pw compact-workout plan-rest" data-workout-kind="rest"><time class="pw-date">${esc(day)}</time><span class="plan-day-sport" aria-hidden="true"></span><span class="pw-main"><b>Rest</b></span></div>`;
   const pace=compactWorkoutPace(w,paces,plan),done=w.status==='done',result=done?(w.activity_id&&!w.by_hand&&w.actual!=null?`${w.actual} ${U}`:'Done'):w.short?`${w.actual} / ${w.dist} ${U}`:w.status==='missed'?'Missed':w.status==='today'?'Today':'';
@@ -63,6 +64,7 @@ function wireWorkouts(box, d, {canMark = true} = {}) {
 // Ticks (2026-10-12): a run that day of at least the planned distance ticks it off by itself; any workout, past or
 // future, can be ticked off or unticked by hand (a treadmill run, a watch left at home, a run that didn't count)
 function workoutSheet(w, U, {canMark = true} = {}) {
+  if(w.distance_m!=null)w={...w,dist:Math.round(w.dist*100)/100};
   const done = w.status === 'done', ran = w.activity_id ? `You ran ${w.actual} ${U} that day.` : '';
   const auto = w.duration_s ? `Record at least ${w.minutes} minutes that day to mark attendance` : w.dist ? `Run at least ${w.dist} ${U} that day to mark attendance` : 'Record a run that day to mark attendance';
   const note = !canMark ? 'Save this plan before tracking completion.' : done ? (w.by_hand ? `Done - ticked off by hand. ${ran}` : `Done - you ran ${w.actual} ${U}.`)
@@ -292,7 +294,7 @@ async function planSetup(box, existing, requestedRaceDay = '') {
       if (my !== seq || !pv.isConnected) return;
       const s = r.summary;
       pv.innerHTML = `${step(6, 'Your plan')}<p><b>${esc(race().name)} · ${esc(level().name)} · ${s.weeks} weeks</b><br><span class="muted">${esc(pday(r.start_day))} → target run ${esc(pday(r.race_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}</span></p>
-        ${S.level === 'first' ? '' : `<div class="stats3 big">${stat('Week 1', s.first_week, UN)}${stat('Biggest week', s.peak_week, UN)}${stat('Longest run', s.longest, UN)}</div>`}
+        ${S.level === 'first' ? '' : `<div class="stats3 big">${stat('Week 1', s.first_week, UN)}${stat('Biggest week', s.peak_week, UN)}${stat('Longest run', Math.round(s.longest*100)/100, UN)}</div>`}
         ${r.warning ? `<div class="callout warn">${esc(r.warning)}</div>` : ''}
         <h3 class="ghead">Week 1</h3>${r.weeks[0].workouts.map((w) => workoutRow(w, UN)).join('')}`;
       wireWorkouts(pv, {plan: {unit: UN}, weeks: r.weeks}, {canMark: false});
