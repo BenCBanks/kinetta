@@ -28,7 +28,8 @@ PROFILE_PX = 512                           # profile photos: a square this size
 FULL_PX, THUMB_PX = 1600, 480              # activity photos: longest side
 PER_ACTIVITY, PER_PERSON = 10, 2000
 UPLOADS_PER_MINUTE = 30
-CACHE = {'Cache-Control': 'private, max-age=31536000, immutable'}   # a photo's address changes when the photo does
+# Access can change without the photo URL changing (blocking, unsharing or removal).
+CACHE = {'Cache-Control': 'private, no-cache'}
 
 
 class PhotoIn(BaseModel):
