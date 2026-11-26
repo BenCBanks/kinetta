@@ -127,7 +127,6 @@ Object.assign(KitChat, (() => {
   }
   function context(){const q=new URLSearchParams(location.search),screen=Object.hasOwn(screens,q.get('from'))?q.get('from'):q.get('review')==='plan'?'plan':'me';const id=Number(q.get('activity'));return {screen,activity_id:Number.isSafeInteger(id)&&id>0?id:null};}
   const providerName=()=>App.me?.ai_provider||"Google's Gemini";
-  const shortProvider=()=>providerName().replace(/^Google's Gemini$/,'Gemini').replace(/^Anthropic's Claude$/,'Claude');
   function controls(c){
     const busy=c.sending||c.messages.some(m=>['pending','running'].includes(m.state));
     $('#kit-send',c.el).disabled=!c.loaded||!c.ready||busy||!kitChatOn()||!$('#kit-text',c.el).value.trim();
@@ -284,7 +283,6 @@ Object.assign(KitChat, (() => {
     pruneLongSuggestions(list);
     $('#kit-starters',c.el).hidden=!!has;
     $('#kit-intro',c.el).hidden=!!has;
-    $('#kit-fine',c.el).hidden=!!has;
     $('#kit-older',c.el).hidden=!c.before;
     $$('[data-kit-retry]',list).forEach(b=>b.onclick=()=>answer(c,b.closest('[data-kit-id]').dataset.kitId));
     $$('[data-kit-workout-retry]',list).forEach(b=>b.onclick=()=>reviewLatestWorkout(c));
@@ -575,7 +573,7 @@ Object.assign(KitChat, (() => {
     if(typeof FoodThread==='undefined')await loadClassicScript(THREAD_ROUTE_ASSET);
     const ctx=context(),back=screens[ctx.screen],c={el,context:ctx,owner:owner(),session:readOwner(),messages:[],localMessages:[],loaded:false,sending:false,awaitingFood:false,foodStarted:false};current=c;
     el.classList.add('food-thread','kit-chat');
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}" aria-label="Back">${svg('back')}</a><h1>Ask Kit</h1><div class="kit-chat-actions"><button type="button" class="icon-btn" id="kit-saved" aria-label="Earlier Kit reviews" title="Earlier Kit reviews">${svg('list')}</button><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></div></header><p id="kit-status" role="status" aria-live="polite"></p><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="kit-messages" aria-live="off"></div><section id="kit-intro"><button class="ghost wide" id="kit-load-retry" hidden>Try loading again</button></section><form id="kit-composer" class="thread-composer"><div class="kit-starters chat-suggestions" id="kit-starters" role="group" aria-label="Suggestions">${starters[ctx.screen].map((label,i)=>`<button type="button" data-kit-start="${i}">${svg(starterIcons[ctx.screen][i])}<span>${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}</span></button>`).join('')}</div><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div><p class="kit-fine" id="kit-fine">${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button></p></form>`;
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}" aria-label="Back">${svg('back')}</a><h1>Ask Kit</h1><div class="kit-chat-actions"><button type="button" class="icon-btn" id="kit-saved" aria-label="Earlier Kit reviews" title="Earlier Kit reviews">${svg('list')}</button><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></div></header><p id="kit-status" role="status" aria-live="polite"></p><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="kit-messages" aria-live="off"></div><section id="kit-intro"><button class="ghost wide" id="kit-load-retry" hidden>Try loading again</button></section><form id="kit-composer" class="thread-composer"><div class="kit-starters chat-suggestions" id="kit-starters" role="group" aria-label="Suggestions">${starters[ctx.screen].map((label,i)=>`<button type="button" data-kit-start="${i}">${svg(starterIcons[ctx.screen][i])}<span>${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}</span></button>`).join('')}</div><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div></form>`;
     const field=$('#kit-text',el),oldJob=store.get(key(c.owner,'pending'));
     field.value=store.get(key(c.owner,'draft'))||(entryDraft?.owner===c.owner?entryDraft.question:null)||oldJob?.question||new URLSearchParams(location.search).get('question')?.slice(0,1500)||'';el.classList.toggle('has-draft',!!field.value.trim());$('#kit-starters',el).inert=!!field.value.trim();
     entryDraft=null;store.del(chatKey(c,'pending'));
@@ -584,10 +582,9 @@ Object.assign(KitChat, (() => {
     field.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send(c);}};
     $('#kit-composer',el).onsubmit=e=>{e.preventDefault();send(c);};
     $$('[data-kit-start]',el).forEach(b=>b.onclick=()=>sendStarter(c,b));
-    $('#kit-footer-memory',el).onclick=memorySettings;
     $('#kit-older',el).onclick=async()=>{const list=$('#kit-messages',el),h=list.scrollHeight,y=list.scrollTop;try{await refresh(c,c.before);list.scrollTop=y+list.scrollHeight-h;}catch(e){status(c,e.message);}};
     $('#kit-saved',el).onclick=()=>c.historyEnabled?threadHistory(c):savedReviews();
-    $('#kit-settings',el).onclick=()=>sheet('Kit chat',`<button type="button" class="linkbtn wide" id="kit-about-open">About Kit</button><button type="button" class="linkbtn wide" id="kit-memory-open">What Kit remembers</button><a class="linkbtn wide" href="/me/settings#ai" data-close>Kit & data permissions</a><button type="button" class="ghost wide" id="kit-clear">Start a new chat</button><p class="small muted">Your food, workouts, plans, goals and saved memories stay available.</p>`,(body,close)=>{
+    $('#kit-settings',el).onclick=()=>sheet('Kit chat',`<div class="kit-chat-menu"><button type="button" class="linkbtn wide" id="kit-about-open">About Kit</button><button type="button" class="linkbtn wide" id="kit-memory-open">Memory</button><a class="linkbtn wide" href="/me/settings#ai" data-close>Kit & data permissions</a></div><button type="button" class="ghost wide" id="kit-clear">Start a new chat</button><p class="small muted">Your food, workouts, plans, goals and saved memories stay available.</p>`,(body,close)=>{
       $('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',`<p>${c.historyEnabled?'Your chats stay until you delete them. Start a new one anytime.':'Your chat stays while you switch apps. Start a new one anytime.'}</p><p>Uses ${esc(providerName())}.</p><p>Kit checks your own records when needed and can keep useful details you share.</p>`);};
       $('#kit-memory-open',body).onclick=()=>{close();memorySettings();};
       $('#kit-clear',body).onclick=async e=>{
