@@ -17,10 +17,11 @@ for text in steps:
   assert result['interpretation'].count('meal')==1,(text,result)
   assert block==original,'No stored input mutation'
 # Description of past logging is not a next-step invitation.
-result=coach_chat.checked_answer(dict(blocks=[dict(kind='paragraph',text='Your food log has gaps.')],facts=[]),
-                                  evidence,kit=True,weekly_review=True)
-assert len(result['answer_blocks'])==2
-assert 'You could log your next meal' in result['interpretation']
+for text in ('Your food log has gaps.','You were logging your regular meals.'):
+ result=coach_chat.checked_answer(dict(blocks=[dict(kind='paragraph',text=text)],facts=[]),
+                                   evidence,kit=True,weekly_review=True)
+ assert len(result['answer_blocks'])==2,text
+ assert 'You could log your next meal' in result['interpretation']
 # Warm substitutions occur only AFTER raw values and claims verify.
 records=[profile,dict(evidence_id='e2',tool='period_compare',data=dict(current=dict(totals=dict(workouts=3))))]
 raw=dict(blocks=[dict(kind='paragraph',text='Training volume was {e2:0} workouts during this review period.')],

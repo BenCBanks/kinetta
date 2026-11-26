@@ -313,7 +313,11 @@ def coaching_wording(blocks, facts, evidence, *, weekly_review=False):
     copy_text=' '.join(b['text'] if b['kind']=='paragraph' else ' '.join(b['items']) for b in result)
     meal_step=r'\b(?:log|logging) (?:your |the |a |all )?(?:(?:next|typical|regular|routine|full|complete) )*(?:meals?|food|drinks|sessions)\b'
     meal_step+=r'|\b(?:next|regular|routine) meal\b[^.!?]{0,80}\b(?:log it|logging it)\b'
-    concrete=re.search(meal_step,copy_text,re.I) or re.search(r'\b(?:'
+    meal_invitation=any(re.search(meal_step,sentence,re.I) and (
+        re.match(r'^\s*Log\b',sentence,re.I) or
+        re.search(r'\b(?:could|can|try|start|focus|next step|starting point)\b',sentence,re.I))
+        for sentence in re.split(r'(?<=[.!?])\s+',copy_text))
+    concrete=meal_invitation or re.search(r'\b(?:'
                        r'(?:schedule|choose|pick|plan) (?:an? |the |your )?(?:easy |next |rest )?(?:day|session|workout)|'
                        r'(?:keep|make) (?:your |the )?next (?:session|workout) easy|'
                        r'(?:open|review) your (?:training plan|daily food logs)|add a note)\b',copy_text,re.I)
