@@ -10,6 +10,7 @@ from kit_fixture_clock import FIXTURE_DATE
 
 # Observed full gate: $1.43 / 80 responses. Estimates are not guarantees.
 PER_RESPONSE_USD = .018
+MAX_RELEASE_USD = 1.60
 SMOKE_IDS = ('food-today','meal','strength','nutrition-adequacy','low-intake',
              'recall-health-consent-off','weekly-steady-prior','weekly-no-plan',
              'batch2-saved-history','batch2-next-step')
@@ -61,19 +62,46 @@ def reuse(reports,keys,selected):
     return list(rows.values())
 
 
+def release_spending(root,reports,keys):
+    """Count each historical reservation once across dev-only commit changes.
+
+    Exact whole-app bytes plus matching case inputs are required. Source commit
+    alone is insufficient; never clear spending simply because tooling changed.
+    """
+    paid={}
+    for path in reports:
+        old=json.loads(Path(path).read_text())
+        revision=old.get('candidate_commit','')
+        if len(revision)!=40 or any(c not in '0123456789abcdef' for c in revision):
+            raise ValueError('Invalid cached candidate commit')
+        same_app=subprocess.run(['git','-C',str(root),'diff','--quiet',revision,'HEAD','--','app'],
+                                stderr=subprocess.DEVNULL).returncode==0
+        if not same_app:continue
+        matching=any(row.get('case_input_digest')==keys.get(row.get('variant'),{}).get(row.get('case'))
+                     and row.get('case_input_digest') for row in old.get('results',[]))
+        if old.get('fixture_date')!=FIXTURE_DATE or not matching:continue
+        for run,cost in old.get('economy_paid_runs',{}).items():
+            if type(cost) not in (int,float) or not math.isfinite(cost) or cost<0:
+                raise ValueError('Invalid cached paid reservation')
+            if run in paid and paid[run]!=cost:raise ValueError('Conflicting cached reservation totals')
+            paid[run]=cost
+    return paid
+
+
 def require_baseline(rows,selected):
     if {r['case'] for r in rows if r['variant']=='baseline'}!=set(selected):
         raise ValueError('Bootstrap/reuse the pinned live baseline before paid candidate testing')
 
 
 def plan(rows,total,budget,spent=0):
-    if not math.isfinite(budget) or not 0<budget<=.80: raise ValueError('Economy run hard cap must be at most $0.80')
+    if not math.isfinite(budget) or not 0<budget<=MAX_RELEASE_USD: raise ValueError('Release hard cap must be at most $1.60')
     remaining=total-len(rows)
     if not 0<=remaining<=80:raise ValueError('Invalid response count')
     expected=round(remaining*PER_RESPONSE_USD,3)
     if not math.isfinite(spent) or spent<0 or expected+.08+spent>budget+1e-9: raise ValueError('Expected cost exceeds cap; bootstrap/reuse the pinned live baseline first')
     return {'responses_remaining':remaining,'reused_responses':len(rows),'expected_cost_usd':expected,
-            'prior_spend_usd':spent,'reservation_headroom_usd':.08,'hard_stop_usd':budget,'estimate_only':True,'fixture_date':FIXTURE_DATE}
+            'prior_spend_usd':spent,'expected_release_cost_usd':round(spent+expected,6),
+            'remaining_allowance_usd':round(budget-spent,6),'reservation_headroom_usd':.08,'hard_stop_usd':budget,'estimate_only':True,'fixture_date':FIXTURE_DATE}
 
 
 def receipt(root):
@@ -111,11 +139,7 @@ if __name__=='__main__':
         variants=['baseline'] if args.stage=='baseline' else ['baseline','candidate']
         rows=[r for r in reuse(args.cache,keys,selected) if r['variant'] in variants]
         if args.require_baseline and args.stage!='baseline':require_baseline(rows,selected)
-        paid_runs={}
-        for path in args.cache:
-            old=json.loads(Path(path).read_text())
-            if (old.get('candidate_commit')==current and (old.get('economy_stage')=='baseline')==(args.stage=='baseline')):
-                paid_runs.update(old.get('economy_paid_runs',{}))
+        paid_runs=release_spending(root,args.cache,keys)
         estimate=plan(rows,len(variants)*len(selected),args.budget_usd,sum(paid_runs.values()))
         if args.stage=='full':
             smoke=reuse(args.cache,keys,SMOKE_IDS)

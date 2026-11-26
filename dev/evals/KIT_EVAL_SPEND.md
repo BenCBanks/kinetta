@@ -47,13 +47,28 @@ HEAD requires offline replay again, even when paid rows can safely be reused.
 
 Based on the observed $1.43/80-response gate, plan **$0.18 smoke + $0.54 remaining
 candidate = $0.72** per release with a reusable baseline (about **50% saved**).
-The first baseline costs about $0.72 extra, once per live source/fixture contract.
+The first baseline costs about $0.72 once per live source/fixture contract.
+An explicitly approved cold release can use `--budget-usd 1.60`; the default
+remains $0.80. The cap covers baseline + smoke + remaining candidate calls,
+including cached spending. With the observed $0.582174 baseline + $0.208383
+smoke, thirty remaining candidates estimate $0.54, or $1.330557 total.
 Repeat failed cases cost roughly $0.018 each. Estimates vary with provider usage;
 preflight reserves $0.08 planning headroom and the ledger retains its padded
-request reservations. A shared $0.80 allowance counts prior same-head spend and
+request reservations. A shared allowance counts prior spend across commits with identical whole-app
+bytes and matching case inputs (including tooling-only changes) and
 halts safely if it cannot fit the next reservation; no automatic budget increase.
-A cold 80-response run is refused. Cached baseline costs are historical, not
+An uncached run exceeding the selected allowance is refused. Each historical
+reservation ID is counted once, even when later captures carry it forward. Cached baseline costs are historical, not
 charged again. The wrapper automatically checks matching economy captures in its private output
 directory, including partial/failed runs so prior spending is retained. Use repeated
 `--cache` for captures moved elsewhere. Baseline bootstrap can exit nonzero for
 existing live rejections; its captured outcomes remain reusable historical rows.
+After any new commit, run `--replay` again for an exact-head receipt. Changing
+only spend tooling preserves case keys; every app byte must match the captures.
+
+```sh
+# Approved batch continuation: cache paths may be repeated; matching private
+# captures are also discovered automatically. Dry-run adds no provider calls.
+dev/evals/run_kit_release_eval.sh --installed-report "$REPORT" --full \
+  --budget-usd 1.60 --cache "$BASELINE" --cache "$SMOKE" --dry-run
+```
