@@ -320,11 +320,11 @@ def _settings(c, uid, b: PlanIn):
     tz, unit, today = _ctx(c, uid)
     L = LEVELS[b.race][b.level]
     weeks = 9 if b.level == 'first' else b.weeks
-    if b.weeks not in ([9] if b.level=='first' else RACES[b.race]['weeks']):
+    if b.level != 'first' and b.weeks not in RACES[b.race]['weeks']:
         raise HTTPException(400, 'Choose one of the supported plan lengths. Plans are never shortened to fit a race date.')
-    if not L['runs'][0]<=b.runs<=L['runs'][1]:
-        raise HTTPException(400, 'Choose a supported number of runs for this level.')
-    runs = b.runs
+    # Older clients retain a prior race/level choice. Normalize the harmless
+    # run/walk length and clamp frequency before applying all readiness/load checks.
+    runs = max(L['runs'][0], min(b.runs, L['runs'][1]))
     if b.race_day:
         if b.race_day <= today: raise HTTPException(400, 'Pick a race date in the future')
         start = _monday(b.race_day) - dt.timedelta(weeks=weeks - 1)

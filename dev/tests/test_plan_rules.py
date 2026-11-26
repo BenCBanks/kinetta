@@ -76,12 +76,27 @@ class RulesTest(unittest.TestCase):
             for level,L in G['LEVELS'][race].items():
                 for W,runs in itertools.product(range(4,25),range(3,7)):
                     b=types.SimpleNamespace(race=race,level=level,weeks=W,runs=runs,long_day=6,race_day=None,goal_s=None)
-                    valid=W in ([9] if level=='first' else R['weeks']) and L['runs'][0]<=runs<=L['runs'][1]
-                    if valid:self.assertEqual(G['_settings'](None,1,b)['weeks'],W)
+                    valid=level=='first' or W in R['weeks']
+                    if valid:
+                        p=G['_settings'](None,1,b)
+                        self.assertEqual(p['weeks'],9 if level=='first' else W)
+                        self.assertEqual(p['runs'],max(L['runs'][0],min(runs,L['runs'][1])))
                     else:
                         with self.assertRaises(Rejected):G['_settings'](None,1,b)
         b=types.SimpleNamespace(race='marathon',level='beginner',weeks=18,runs=4,long_day=6,race_day=BASE+dt.timedelta(weeks=5),goal_s=None)
         with self.assertRaises(Rejected):G['_settings'](None,1,b)
+
+    def test_old_client_choices_normalize_before_safety_checks(self):
+        G['_ctx']=lambda c,u:('UTC','mi',BASE);G['recent_weekly']=lambda *a:0
+        b=types.SimpleNamespace(race='5k',level='first',weeks=8,runs=6,long_day=6,race_day=None,goal_s=None)
+        p=G['_settings'](None,1,b)
+        self.assertEqual((p['weeks'],p['runs']),(9,3))
+        self.assertEqual(len(make(p)['weeks']),9)
+        # An old eight-week selection never shortens the actual nine-week progression.
+        b.race_day=BASE+dt.timedelta(weeks=7,days=6)
+        with self.assertRaises(Rejected) as caught:G['_settings'](None,1,b)
+        self.assertEqual(caught.exception.status_code,400)
+        self.assertIn('too soon for the full plan',caught.exception.detail)
 
     def test_first_plan_date_allows_time_to_reach_the_milestone(self):
         G['_ctx']=lambda c,u:('UTC','mi',BASE);G['recent_weekly']=lambda *a:0

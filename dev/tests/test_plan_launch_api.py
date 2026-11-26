@@ -21,6 +21,11 @@ for i in range(1,29):
         distance=12000 if i%7==1 else 13000
         code,row=a.post('/api/activities/manual',{'sport':'run','name':'Fictional base run','start':str(today-dt.timedelta(days=i))+'T08:00:00Z','duration_s':distance/2.5,'distance_m':distance})
         assert code==200,(code,row)
+# Current shipped clients can carry the last level's run count into a new choice.
+for level,runs,expected in [('beginner',6,4),('advanced',3,5)]:
+    code,preview=a.post('/api/plans/preview',{'race':'5k','level':level,'weeks':8,'runs':runs,'long_day':6})
+    assert code==200,(code,preview)
+    assert preview['summary']['runs']==expected,preview
 assert a.post('/api/plans',{**body,'break_days':14})[0]==400
 status,row=a.post('/api/plans',body);assert status==200,(status,row)
 pid=row['id'];cur=a.get('/api/plans/current')[1];assert cur['prescription_version']==2
@@ -33,8 +38,11 @@ now=a.get('/api/plans/current')[1];assert [w['workouts'][0]['title'] if w['worko
 assert a.post('/api/plans',body)[0]==400
 assert a.get('/api/plans/current')[1]['plan']['id']==pid,'failed replacement leaves active plan alone'
 # Timed completion: one tiny run cannot complete the session; sufficient moving time can.
-first={'race':'5k','level':'first','weeks':9,'runs':3,'long_day':6,'race_day':str(monday+dt.timedelta(weeks=8,days=6))}
+first={'race':'5k','level':'first','weeks':8,'runs':6,'long_day':6,'race_day':str(monday+dt.timedelta(weeks=8,days=6))}
+code,preview=a.post('/api/plans/preview',first);assert code==200,(code,preview)
+assert (preview['summary']['weeks'],preview['summary']['runs'])==(9,3)
 status,row=a.post('/api/plans',first);assert status==200,(status,row)
+normalized=a.get('/api/plans/current')[1];assert (normalized['plan']['weeks'],normalized['plan']['runs'])==(9,3)
 uid=a.get('/api/me')[1]['id'];pid=row['id']
 # Shift the frozen schedule, not just its settings. Preserve legacy date-mutation tests separately.
 script='''from app import db
