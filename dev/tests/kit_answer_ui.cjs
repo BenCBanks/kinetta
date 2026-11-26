@@ -277,9 +277,16 @@ async function main(){
    });
    await p.goto(base+'/me/kit?from=activity');await p.locator('#kit-text').fill(theme==='light'?'Review my latest workout':'Check my records');await p.locator('#kit-send').click();
    await p.locator('.kit-waiting-bubble .thread-typing').waitFor({state:'visible'});
-   await p.waitForFunction(()=>{const el=document.querySelector('.kit-waiting-bubble'),rect=el?.getBoundingClientRect();return rect?.width>0&&rect?.height>0;},null,{timeout:2000});
    assert.equal(question,theme==='light'?'Review my latest workout':'Check my records');
-   const typingBox=await p.locator('.kit-waiting-bubble').evaluate(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el),typing=el.querySelector('.thread-typing'),tr=typing?.getBoundingClientRect();return{width:r.width,height:r.height,x:r.x,radius:s.borderTopLeftRadius,border:s.borderTopWidth,display:s.display,cls:el.className,typingBox:tr&&{width:tr.width,height:tr.height}};});
+   // Poll and measure the current bubble atomically: the answer response redraws
+   // it, so a locator resolved just before that redraw can point at a detached node.
+   const typingMetrics=await p.waitForFunction(()=>{
+    const el=document.querySelector('.kit-waiting-bubble'),r=el?.getBoundingClientRect();
+    if(!el?.isConnected||!r?.width||!r?.height)return false;
+    const s=getComputedStyle(el),tr=el.querySelector('.thread-typing')?.getBoundingClientRect();
+    return{width:r.width,height:r.height,x:r.x,radius:s.borderTopLeftRadius,border:s.borderTopWidth,display:s.display,cls:el.className,typingBox:tr&&{width:tr.width,height:tr.height}};
+   },null,{timeout:2000});
+   const typingBox=await typingMetrics.jsonValue();await typingMetrics.dispose();
    assert.equal(typingBox.width,48,`${width}px ${theme}: typing pill is 48px wide: ${JSON.stringify(typingBox)}`);
    assert.equal(typingBox.height,28,`${width}px ${theme}: typing pill is 28px high: ${JSON.stringify(typingBox)}`);
    assert(typingBox.x<=24&&typingBox.radius==='14px'&&typingBox.border==='0px',`${width}px ${theme}: typing pill is rounded and left aligned: ${JSON.stringify(typingBox)}`);
