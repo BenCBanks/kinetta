@@ -102,7 +102,7 @@ if economy:
  from kit_fixture_clock import FIXTURE_DATE
  if economy['candidate_commit']!=args.candidate_commit or economy['fixture_date']!=FIXTURE_DATE:p.error('Economy plan/source mismatch')
  reused=economy['results']
- metadata.update(fixture_date=FIXTURE_DATE,economy=True,budget_preflight=economy['budget_preflight'],
+ metadata.update(fixture_date=FIXTURE_DATE,economy=True,economy_stage=economy['stage'],budget_preflight=economy['budget_preflight'],
    prior_spend_usd=economy['budget_preflight']['prior_spend_usd'],economy_paid_runs=economy['paid_runs'])
  print(json.dumps({'budget_preflight':metadata['budget_preflight']}),flush=True)
 settings={'baseline':'LOW'} if args.smoke_thinking=='LOW' else {'baseline':'LOW','candidate':'MEDIUM'}
