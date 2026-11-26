@@ -41,12 +41,13 @@ def validate(texts, facts, evidence, *, question='', reference, selection=None, 
     traces=[]
     for text in texts:
         counted,checks=food_count_phrase(text,facts,evidence);traces.extend(checks)
-        prose,chart_counts = kit_charts.counted_records(reference.sub('',counted),evidence)
-        traces.extend(chart_counts)
+        prose = reference.sub('',counted)
         if weekly_review:
             from . import kit_weekly
             prose=kit_weekly.bind_counts(prose,evidence)
             traces.extend(kit_weekly.check_directions(text,facts,evidence))
+        prose,chart_counts = kit_charts.counted_records(prose,evidence)
+        traces.extend(chart_counts)
         if HEALTH.search(prose):raise ClaimRejected('health_claim')
         if NUMBER_WORD.search(advice_quantities(bound_logged_days(prose,evidence))):raise ClaimRejected('numeric_unsupported')
     if eating_safety_answer(question) is not None:raise ClaimRejected('health_claim')

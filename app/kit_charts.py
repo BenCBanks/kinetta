@@ -18,6 +18,7 @@ when supported by summary.direction. Fewer than three measured points cannot est
 For an unfinished period say 'so far'; for empty or sparse data say what can be shown without inventing
 measurements or trends. Do not infer feelings, fitness, causes or recovery from the chart.
 Use charts only on demand inside Kit answers; never request one for the weekly-review starter.
+The app may independently attach a training-review visual; do not request a tool for that automatic card.
 """
 
 

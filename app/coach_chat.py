@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
 
-from . import coach, db, ai_budget, kit_charts, kit_goal_contract, kit_weekly, kit_recovery
+from . import coach, db, ai_budget, kit_charts, kit_goal_contract, kit_weekly, kit_recovery, kit_training_review
 from .coach_tools import AccountTools, FoodTools, Empty, specifications
 from .kit_answer_format import has_ambiguous_mass_unit
 
@@ -697,6 +697,7 @@ def _claude_turn(messages, definitions, *, system=SYSTEM):
                          'totalTokenCount': response.usage.input_tokens + response.usage.output_tokens}
 
 
+@kit_training_review.attach
 @kit_recovery.safe
 @kit_weekly.safe
 def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None, weekly_review=False,

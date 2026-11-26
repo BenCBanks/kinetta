@@ -34,7 +34,7 @@ def topic(question):
 
 
 STEPS = {
-    'food': 'Open your food log and review the recorded portions and any missing nutrient details.',
+    'food': 'Open your food log and review the recorded portions and what you chose to log.',
     'weight': 'Open Progress to review your weight entries over time.',
     'plan': 'Open your training plan and review the next unfinished session before considering a change.',
     'activity': 'Open your activity history and choose the workout you want to review next.',
@@ -58,6 +58,7 @@ def fallback(uid, question, state, active, reason):
     if sensitive:
         with db.coach_connect(uid) as c:
             if not coach.health_ok(c, uid):return kit_conversation.consent_answer()
+    question = kit_conversation.user_question(question)
     kind = topic(question)
     facts, paragraphs = [], []
     def source(name):
@@ -108,6 +109,15 @@ def fallback(uid, question, state, active, reason):
     generic = dict(blocks=[dict(kind='paragraph',text='I will stick to your recorded details rather than guess.'),
                           dict(kind='paragraph',text=STEPS[kind])], facts=[])
     raw = dict(blocks=[dict(kind='paragraph',text=p) for p in paragraphs+[STEPS[kind]]], facts=facts) if paragraphs else generic
+    charts = kit_claims.successful(evidence, 'chart_series')
+    if (len(charts) == 1 and re.search(r'\b(?:chart|graph|plot)\b',question,re.I)
+            and not re.search(r"\b(?:no|without|do not|don't) (?:a |the )?(?:chart|graph|plot)\b",question,re.I)):
+        # The rejected model cannot choose points or prose. Reuse the one checked
+        # app result with neutral wording, retaining the requested card and source flags.
+        generic = dict(blocks=[dict(kind='paragraph',text='Your recorded workout measurements are shown so far.'),
+                               dict(kind='paragraph',text=STEPS[kind])],facts=[],
+                       chart=dict(evidence_id=charts[0]['evidence_id']))
+        raw = generic
     try:checked = kit_conversation.checked_answer(raw, evidence, question=question)
     except ValueError:
         # Unsupported/ambiguous/missing units or an unusable fact stays excluded.
@@ -115,7 +125,7 @@ def fallback(uid, question, state, active, reason):
     permitted()
     return dict(checked, app_fallback=True, fallback_reason=reason, usage=dict(state['usage']),
                 latency_ms=round((time.monotonic()-state['began'])*1000),
-                health_included=sensitive and bool(checked['facts']),
+                health_included=sensitive and bool(checked['facts'] or checked.get('chart')),
                 tools_used=[e['tool'] for e in evidence], prompt_version='kit-numbers-4')
 
 
