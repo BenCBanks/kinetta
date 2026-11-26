@@ -9,13 +9,21 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
-from . import ai_access, ai_release, coach, db, workout_compare
+from . import ai_access, ai_release, coach, db, kit_history, workout_compare
 from .auth import current_user
 
 _stop = ContextVar('kit_stream_stop', default=None)
 POLL_SECONDS = 1
 HEARTBEAT_SECONDS = 10
 TIMEOUT_SECONDS = 300
+
+
+def capabilities():
+    return {'stream_supported':True}
+
+
+def cancelled_reply():
+    return {'cancelled':True}
 
 
 def cancelled():
@@ -33,18 +41,23 @@ def cancellation(flag):
 def current(uid, client_id, body):
     """Only an owned, current, still-readable answer may leave the server."""
     with db.connect() as c:
-        row = c.execute('''SELECT t.* FROM kit_turns t
-          JOIN kit_conversations q ON q.user_id=t.user_id AND q.generation=t.generation
-          LEFT JOIN kit_visits v ON v.id=t.visit_id AND v.user_id=t.user_id
-          WHERE t.user_id=%s AND t.client_id=%s AND t.generation=%s
-          AND t.visit_id IS NOT DISTINCT FROM %s::uuid
-          AND (t.visit_id IS NULL OR (v.ended IS NULL AND v.created>now()-interval '24 hours'))''',
-          (uid, client_id, body.generation, body.visit_id)).fetchone()
+        from . import kit_thread
+        kit_thread.locked(c, uid, body.generation, body.visit_id)
+        conversation_id = kit_history.conversation(c, uid, body.visit_id)
+        row = c.execute('''SELECT * FROM kit_turns WHERE user_id=%s AND client_id=%s
+          AND replay_blocked_at IS NULL AND invalidated_at IS NULL
+          AND (conversation_id=%s OR (conversation_id IS NULL AND generation=%s
+            AND visit_id IS NOT DISTINCT FROM %s::uuid))''',
+          (uid, client_id, conversation_id, body.generation, body.visit_id)).fetchone()
         if not row:raise HTTPException(409, 'This Kit conversation is no longer available.')
+        if conversation_id and not kit_history.enabled():
+            raise HTTPException(403, 'Kit access changed.')
         ai_access.require(uid, 'coach', c)
         if not coach.allowed(uid, connection=c) or not ai_release.enabled('kit'):
             raise HTTPException(403, 'Kit access changed.')
         answer = row.get('answer') or {}
+        if not kit_history.permitted_history(answer, kit_history.consents(c, uid)):
+            raise HTTPException(403, 'Kit data sharing changed.')
         if answer.get('health_included') and not coach.health_ok(c, uid):
             raise HTTPException(403, 'Kit data sharing changed.')
     if answer.get('garmin_included') and not workout_compare.review_consents_still_valid(
@@ -66,12 +79,12 @@ def checked_blocks(answer):
     for block in blocks:
         if not isinstance(block,dict):raise ValueError('Invalid saved block')
         if block.get('kind')=='paragraph' and set(block)=={'kind','text'}:
-            if not isinstance(block['text'],str) or not 1 <= len(block['text']) <= 1600:
+            if not isinstance(block['text'],str) or not block['text'].strip() or not 1 <= len(block['text']) <= 1600:
                 raise ValueError('Invalid saved paragraph')
         elif block.get('kind')=='list' and set(block)=={'kind','items'}:
             items = block['items']
             if not isinstance(items,list) or not 1 <= len(items) <= 6 or any(
-                    not isinstance(item,str) or not 1 <= len(item) <= 600 for item in items):
+                    not isinstance(item,str) or not item.strip() or not 1 <= len(item) <= 600 for item in items):
                 raise ValueError('Invalid saved list')
         else:raise ValueError('Invalid saved block kind')
     return blocks
@@ -104,6 +117,7 @@ async def events(uid, client_id, body, request):
                     yield frame('block', {'index':index, 'block':block})
                 if await request.is_disconnected():return
                 row = await asyncio.to_thread(current, uid, client_id, body)
+                if row['state']!='answered':raise HTTPException(409, 'Kit answer changed.')
                 yield frame('complete', {'message':kit_thread.public(row)})
                 return
             if row['state']=='failed' and worker.done():
@@ -112,7 +126,7 @@ async def events(uid, client_id, body, request):
             if worker.done():
                 # Surface infrastructure failures only as a closed public code, never exception text.
                 result = worker.result()
-                if result.get('cancelled'):
+                if not isinstance(result, dict) or result.get('cancelled'):
                     yield frame('error', {'code':'conversation_changed'})
                     return
             now = time.monotonic()

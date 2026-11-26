@@ -132,7 +132,7 @@ async function testFoodThreadBridge(){
  await loader.refresh(resumed);assert.equal(resumed.job,null);assert.equal(field.value,'');assert(removed.includes('pending')&&removed.includes('draft'));
  // Reorder the actual answer handler across Clear and account changes.
  let finish,draws=0,active=true,refreshes=0;
- const answerer={kitChatOn:()=>true,active:()=>active,controls(){},api:()=>new Promise(resolve=>finish=resolve),json:(m,b)=>b,draw:()=>draws++,later(){},refresh:async()=>refreshes++,status(){}};vm.createContext(answerer);vm.runInContext(pick('  async function answer(c,id){','  async function deliver(c){'),answerer);
+ const answerer={clearTimeout(){},kitChatOn:()=>true,active:()=>active,controls(){},api:()=>new Promise(resolve=>finish=resolve),json:(m,b)=>b,draw:()=>draws++,later(){},refresh:async()=>refreshes++,status(){}};vm.createContext(answerer);vm.runInContext(pick('  async function answer(c,id){','  async function deliver(c){'),answerer);
  const chat={ready:true,generation:'old',messages:[{client_id:'same',state:'pending'}],sending:false};const task=answerer.answer(chat,'same');chat.generation='new';chat.messages=[];chat.sending=false;finish({client_id:'same',state:'answered',answer:{interpretation:'late'}});await task;assert.equal(chat.messages.length,0);assert.equal(draws,0);assert.equal(chat.sending,false);assert.equal(refreshes,0,'a cleared result cannot refresh over the new chat');
  chat.generation='current';chat.visit_id='first-visit';chat.messages=[{client_id:'same',state:'pending'}];const ended=answerer.answer(chat,'same');chat.visit_id='next-visit';chat.messages=[];finish({client_id:'same',state:'answered'});await ended;assert.equal(draws,0,'a late answer from an ended visit cannot enter a fresh visit');
  chat.generation='current';chat.messages=[{client_id:'same',state:'pending'}];const next=answerer.answer(chat,'same');active=false;finish({client_id:'same',state:'answered'});await next;assert.equal(chat.messages[0].state,'pending');assert.equal(draws,0,'another session never renders the old answer');
@@ -249,3 +249,5 @@ assert.equal((qualityHtml.match(/data-kit-followup/g)||[]).length,1,'non-first-p
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
 
 require('./test_email_confirmation.js');
+
+require('./test_kit_stream_ui.js');
