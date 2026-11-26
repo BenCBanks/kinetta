@@ -21,9 +21,20 @@ const chart={metric:'ascent',aggregate:'average',group_by:'week',sport:'run',per
   const load=async()=>{await p.goto(base+'/me/kit?from=progress');await p.locator('.kit-chart').waitFor();await p.waitForFunction(()=>document.fonts.status==='loaded');};
   const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${name}-${width}-${theme}.png`),animations:'disabled'});}};
   await load();assert.equal(await p.locator('.kit-chart rect').count(),3);assert.equal(await p.locator('.kit-answer>.kit-facts').count(),0);
+  const geometry=await p.locator('.kit-chart').evaluate(host=>{
+   const grid=host.querySelector('.kit-chart-grid'),left=Number(grid.getAttribute('x1')),right=Number(grid.getAttribute('x2'));
+   const bars=[...host.querySelectorAll('rect')],dates=[...host.querySelectorAll('.kit-chart-date')];
+   return {left,right,bars:bars.map((bar,i)=>{const b=bar.getBBox(),label=dates[i].getBBox();return {left:b.x,right:b.x+b.width,centre:b.x+b.width/2,labelCentre:label.x+label.width/2,labelLeft:label.x,labelRight:label.x+label.width};}),
+    ticks:[...host.querySelectorAll('.kit-chart-tick')].map(t=>({text:t.textContent,left:t.getBBox().x,right:t.getBBox().x+t.getBBox().width}))};
+  });
+  for(const bar of geometry.bars){assert(Math.abs(bar.centre-bar.labelCentre)<.5,'each bar is centred over its rendered date');assert(bar.left>geometry.left&&bar.right<geometry.right,'edge bars have side padding inside the plot');assert(bar.labelLeft>=geometry.left&&bar.labelRight<=geometry.right,'date labels remain inside the plot');}
+  assert.deepEqual(geometry.ticks.map(t=>t.text),['200 ft','100 ft','0 ft']);assert(geometry.ticks.every(t=>t.left>=0&&t.right<geometry.left),'axis values and units fit beside the plot');
+  assert.equal(await p.locator('.kit-chart-unit').count(),0,'no detached unit label');
+  const readout=await p.locator('.kit-chart-selection span').boundingBox(),subtitle=await p.locator('.kit-chart-subtitle').boundingBox();assert(Math.abs(readout.x-subtitle.x)<1&&readout.y>=subtitle.y+subtitle.height,'selected readout is left-aligned under the subtitle');
   const slider=p.getByRole('slider');await slider.focus();await p.keyboard.press('ArrowLeft');assert.equal(await slider.getAttribute('aria-valuenow'),'1');assert.match(await slider.getAttribute('aria-valuetext'),/171 ft/);
-  await p.keyboard.press('Home');assert.equal(await slider.getAttribute('aria-valuenow'),'0');await p.keyboard.press('End');assert.match(await slider.getAttribute('aria-valuetext'),/so far/);
+  await p.keyboard.press('Home');assert.equal(await slider.getAttribute('aria-valuenow'),'0');assert(Math.abs((await p.locator('.kit-chart-selection span').boundingBox()).x-readout.x)<1,'readout stays left-aligned as selection changes');await p.keyboard.press('End');assert.match(await slider.getAttribute('aria-valuetext'),/so far/);
   const rect=await slider.boundingBox();await p.mouse.click(rect.x+rect.width/2,rect.y+rect.height/2);assert.equal(await slider.getAttribute('aria-valuenow'),'1');
+  for(const index of [0,2]){const bar=await p.locator(`.kit-chart rect[data-point="${index}"]`).boundingBox();await p.mouse.click(bar.x+bar.width/2,bar.y+bar.height/2);assert.equal(await slider.getAttribute('aria-valuenow'),String(index),'tap selection follows padded bar centres');}
   await p.keyboard.press('End');await slider.blur();assert.equal(await p.locator('.kit-chart-grid').count(),3);
   assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no horizontal clipping');await shot('bars');
   selected={...structuredClone(chart),metric:'pace',axis_unit:'/mi',points:chart.points.map((v,i)=>({...v,plot_value:600-i*30,display_value:['10:00/mi','9:30/mi','9:00/mi'][i]}))};
