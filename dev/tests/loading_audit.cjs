@@ -61,7 +61,7 @@ async function captureFrame(page,file){
 async function coldFixturePage(browser,base,scene,sessions,theme){
  const auth=sessions.get(scene.login+(scene.native?':native':''));
  assert(auth&& (scene.login==='alex'||scene.login.startsWith('zz_test_')),'Fictional fixture session exists');
- const size={width,height:844,root:16},context=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:'UTC'}),writes=[],pageErrors=[],failed=[];
+ const size={width,height:844,root:16},context=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:'UTC'}),writes=[],pageErrors=[],failed=[],readEvents=[];
  try{
   const liftData=scene.lift?await(await context.request.get(base+'/api/activities/'+scene.lift+'/lifts')).json():null;
   await context.addInitScript(initialize,{root:size.root,native:!!scene.native,base,token:auth.token,id:auth.id,lift:scene.lift,liftData});
@@ -80,13 +80,17 @@ async function coldFixturePage(browser,base,scene,sessions,theme){
    return route.continue();
   });
   const page=await context.newPage();page.on('pageerror',error=>pageErrors.push(error.message));page.on('requestfailed',request=>{const pathname=new URL(request.url()).pathname,error=request.failure()?.errorText||'failed';if(!(pathname.startsWith('/__loading_tiles/')&&error==='net::ERR_ABORTED'))failed.push(`${request.method()} ${pathname}: ${error}`);});
+  if(scene.name==='Me'){
+   const record=(kind,request)=>{const url=new URL(request.url());if(url.pathname.startsWith('/api/'))readEvents.push({kind,path:url.pathname,query:url.search});};
+   page.on('request',request=>record('request',request));page.on('response',response=>record('response',response.request()));
+  }
   await page.clock.setFixedTime(screenshotClock);
   await page.addInitScript(()=>{
    window.__loadingAuditStart=performance.now();window.__loadingAudit={cls:0,shifts:[],postPaintCls:0,postPaintSectionMutations:0,postPaintMutations:[]};
    document.addEventListener('kinetta:screen-painted',event=>{const root=event.target,sections={progress:'#p-combined-week,#p-home-totals,#p-explore',home:'#weekly-recap,#feed-tools,#ff-list,#activity-groups-strip',nutrition:'#fd-sum,#fd-meals',me:'#me-overview'}[event.detail.screen]||'';window.__loadingAudit.paint={screen:event.detail.screen,waitedMs:event.detail.waitedMs};window.__loadingAudit.postPaintAt=performance.now();const observer=new MutationObserver(records=>{for(const record of records)if(record.type==='childList'){const target=record.target.nodeType===1?record.target:record.target.parentElement,added=[...record.addedNodes].filter(node=>node.nodeType===1),removed=[...record.removedNodes].filter(node=>node.nodeType===1);/* Leaflet fills the already-painted map frame asynchronously; don't count tile internals as late screen sections. */if(!target?.closest('.fmap')&&(target===root||target?.closest(sections))&&(added.length||removed.length)){window.__loadingAudit.postPaintSectionMutations++;const path=[];for(let node=target;node&&node!==root;node=node.parentElement)path.push(node.id||String(node.className||node.tagName||''));window.__loadingAudit.postPaintMutations.push({target:target?.id||String(target?.className||target?.tagName||''),path,added:added.length,removed:removed.length});}}});observer.observe(root,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),1800);});
    try{new PerformanceObserver(list=>{for(const entry of list.getEntries())if(!entry.hadRecentInput){window.__loadingAudit.cls+=entry.value;if(window.__loadingAudit.postPaintAt&&entry.startTime>window.__loadingAudit.postPaintAt)window.__loadingAudit.postPaintCls+=entry.value;window.__loadingAudit.shifts.push({at:Math.round(entry.startTime),value:entry.value,sources:(entry.sources||[]).slice(0,4).map(source=>({tag:source.node?.tagName||'',id:source.node?.id||'',className:String(source.node?.className||'').slice(0,80)}))});}}).observe({type:'layout-shift',buffered:true});}catch{}
   });
-  return {context,page,auth,writes,pageErrors,failed};
+  return {context,page,auth,writes,pageErrors,failed,readEvents};
  }catch(error){await context.close();throw error;}
 }
 
@@ -128,6 +132,13 @@ async function main(){
      await p.waitForFunction(name=>window.__loadingAudit?.paint?.screen===name,screen,{timeout:5000});
      await p.waitForTimeout(1900);
      const calm=await state(p);
+     if(scene.name==='Me'){
+      const events=opened.readEvents,profileResponse=events.findIndex(e=>e.kind==='response'&&e.path.endsWith('/profile')&&e.query.includes('preview=friend'));
+      for(const path of ['/api/achievements/showcase','/api/achievements']){
+       const request=events.findIndex(e=>e.kind==='request'&&e.path===path&&!e.query);
+       assert(request>=0&&request<profileResponse,'Me starts '+path+' before its profile response, avoiding late featured rows');
+      }
+     }
      assert(calm.calmPaint&&calm.calmPaint.waitedMs<=1500,`${scene.name} paints once after its first reads or the 1.5s cap: ${JSON.stringify(calm.calmPaint)}`);
      assert(calm.postPaintCls<=0.02,`${scene.name} has no visible post-paint layout shift: ${calm.postPaintCls}`);
      assert.equal(calm.postPaintSectionMutations,0,`${scene.name} has no screen section inserted after first paint`);

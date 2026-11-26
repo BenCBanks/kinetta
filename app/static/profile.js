@@ -897,7 +897,12 @@ const ProfileLayout=(()=>{
     const dispose=()=>{if(disposed)return;disposed=true;clearPress();clearTimeout(suppressTimer);document.removeEventListener('click',onClick,true);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onUp,true);box.removeEventListener('pointerdown',onDown);box.removeEventListener('contextmenu',onContext);box.removeEventListener('keydown',onKey);};
     addAchievementCleanup(box,dispose);
   }
-  async function mountShowcase(root,r,{shared,featured=false}={}){
+  // Start optional owner reads alongside the profile, not one network round-trip later.
+  // Settle failures immediately: a profile failure may mean nobody consumes this promise.
+  function prepareFeatured(){
+    return Promise.all([api('/api/achievements/showcase'),loadAchievementCatalog(),api('/api/achievements')]).catch(()=>null);
+  }
+  async function mountShowcase(root,r,{shared,featured=false,prepared=null}={}){
     if(featured){
       const featureSlot=root?.querySelector?.('[data-me-featured]'),streakSlot=root?.querySelector?.('[data-me-showcase-streak]');
       if(!featureSlot&&!streakSlot)return;
@@ -912,7 +917,9 @@ const ProfileLayout=(()=>{
         if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{ownerFeatured:true});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';}
       };
       try{
-        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
+        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', values=await (!sharedProfile&&prepared?prepared:Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]));
+        if(!values){if(featureSlot)featureSlot.dataset.loading='';return;}
+        const [data,_catalog,achievements]=values;
         if(!root.isConnected||owner!==readOwner()||path!==location.pathname+location.search||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
         paint(data,achievements);
         if(!sharedProfile&&achievements.pending&&featureSlot)watchOwnerPending(featureSlot,owner,path,async()=>{
@@ -1020,7 +1027,7 @@ const ProfileLayout=(()=>{
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
     mountShowcase(box,r,{shared,featured});feedMaps(box);wireCheers(box);
   }
-  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage,earnedBadgeShareItem,achievementShareCard,openAchievementShare};
+  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,prepareFeatured,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage,earnedBadgeShareItem,achievementShareCard,openAchievementShare};
 })();
 if(typeof window!=='undefined'){window.openAchievementShare=options=>ProfileLayout.openAchievementShare(options||{});window.ProfileShare={open:options=>window.openAchievementShare(options||{})};}
 
@@ -1228,7 +1235,7 @@ const MeCard=(()=>{
     if(!['week','all-time'].includes(cardPeriod))throw new TypeError(`Unknown profile card period: ${cardPeriod}`);
     const ownerView=viewer==='owner';
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
-    let data=given?viewerData(given,viewer):null,editing=false,editRevision=0,chartCleanup=()=>{},initialLoad=Promise.resolve();
+    let data=given?viewerData(given,viewer):null,editing=false,editRevision=0,chartCleanup=()=>{},initialLoad=Promise.resolve(),featuredRead=null;
     const chartPositions=new Map();
     const fitProfileName=()=>{
       const heading=$('.me-card-name h2',card);if(!heading)return;
@@ -1290,11 +1297,12 @@ const MeCard=(()=>{
       const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);wrap.removeEventListener('click',onClick);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);document.removeEventListener('click',outside,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);
     };
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
-    const draw=()=>{if(!live()||editing||!data)return Promise.resolve();chartCleanup();const view=profileView(data,{viewer,period:cardPeriod,preview});box.setAttribute('aria-busy','false');box.innerHTML=view.html;requestAnimationFrame(fitProfileName);bars();if(view.period==='week'){weeklyTaps();return ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}weekTaps();periods();return Promise.resolve();};
+    const draw=()=>{if(!live()||editing||!data)return Promise.resolve();chartCleanup();const view=profileView(data,{viewer,period:cardPeriod,preview});box.setAttribute('aria-busy','false');box.innerHTML=view.html;requestAnimationFrame(fitProfileName);bars();if(view.period==='week'){weeklyTaps();return ProfileLayout.mountShowcase(root,data,{featured:true,shared:false,prepared:featuredRead});}weekTaps();periods();return Promise.resolve();};
     const loadCard=async()=>{
       try{
         if(!ownerView)throw new TypeError('A shared profile view requires its filtered profile payload.');
         let profile=null,stats=null;
+        featuredRead=cardPeriod==='week'?ProfileLayout.prepareFeatured():null;
         const profilePath='/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1';
         const cachedProfile=typeof screenHit==='function'?screenHit(profilePath)?.data||null:App.cache.get(profilePath)?.data||null;
         store.del('fit.c:'+profilePath); // Remove a persisted pre-hardening friend-preview copy, if present.
