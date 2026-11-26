@@ -8,7 +8,7 @@ while (($#)); do
   case "$1" in
     --installed-report) REPORT="$2"; shift 2 ;;
     --dry-run|--offline-smoke) OPTIONS+=("$1"); shift ;;
-    --resume|--retry-case|--budget-usd) OPTIONS+=("$1" "$2"); shift 2 ;;
+    --resume|--retry-case|--budget-usd|--economy-stage|--cache|--offline-receipt) OPTIONS+=("$1" "$2"); shift 2 ;;
     *) echo 'Use --installed-report FILE [--dry-run|--offline-smoke] [--resume FILE] [--retry-case ID] [--budget-usd USD]' >&2; exit 2 ;;
   esac
 done
