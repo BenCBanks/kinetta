@@ -13,8 +13,8 @@ while (($#)); do
   esac
 done
 [[ -f "$REPORT" ]] || { echo 'Pass the private installed live report with --installed-report.' >&2; exit 2; }
-LIVE="$(git -C "$ROOT" rev-parse ba8e9500)"
-[[ "$LIVE" == ba8e9500049f25b2cb769d09a25d99fc4cb198c1 ]] || exit 2
+LIVE="$(git -C "$ROOT" rev-parse 7a9fb03f)"
+[[ "$LIVE" == 7a9fb03f205a00e01ee3859b1aa1ab91f4469eff ]] || exit 2
 TEMP="$(mktemp -d)"
 trap 'rm -rf "$TEMP"' EXIT
 git -C "$ROOT" archive "$LIVE" app | tar -x -C "$TEMP"
