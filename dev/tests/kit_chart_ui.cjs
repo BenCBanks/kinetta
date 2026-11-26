@@ -14,20 +14,29 @@ const chart={metric:'ascent',aggregate:'average',group_by:'week',sport:'run',per
   await c.route('**/*',async route=>{const req=route.request(),u=new URL(req.url());if(u.origin!==base)return route.abort();
    if(u.pathname==='/api/me'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false}});}
    if(u.pathname==='/api/coach/conversation/visits')return route.fulfill({json:{visit_id:req.postDataJSON().visit_id,generation:'chart-fixture',ready:true}});
-   if(u.pathname==='/api/coach/conversation')return route.fulfill({json:{generation:'chart-fixture',ready:true,messages:[{id:1,client_id:'fictional-chart',question:'Show my average climb per run for the last three weeks.',state:'answered',answer:{chart:selected,answer_blocks:[{kind:'paragraph',text:interpretation}],interpretation,facts:[{label:'Should be hidden',display_value:'999 ft'}],follow_ups:['I want to compare my recent runs','I want to see my recorded pace']}}]}});
+   if(u.pathname==='/api/coach/conversation')return route.fulfill({json:{generation:'chart-fixture',ready:true,messages:[{id:1,client_id:'fictional-chart',question:`Show my ${selected.aggregate==='sum'?'total':'average'} ${{ascent:'climb',avg_hr:'heart rate',workouts:'workouts',pace:'pace'}[selected.metric]||selected.metric} for the last three weeks.`,state:'answered',answer:{chart:selected,answer_blocks:[{kind:'paragraph',text:interpretation}],interpretation,facts:[{label:'Should be hidden',display_value:'999 ft'}],follow_ups:['I want to compare my recent runs','I want to see my recorded pace']}}]}});
    if(u.pathname==='/api/challenges/signup/continue')return route.fulfill({json:{joined:null}});
    if(['POST','PUT','PATCH','DELETE'].includes(req.method())){writes.push(u.pathname);return route.fulfill({json:{}});}return route.continue();
   });
   const load=async()=>{await p.goto(base+'/me/kit?from=progress');await p.locator('.kit-chart').waitFor();await p.waitForFunction(()=>document.fonts.status==='loaded');};
   const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${name}-${width}-${theme}.png`),animations:'disabled'});}};
-  await load();assert.equal(await p.locator('.kit-chart rect').count(),3);assert.equal(await p.locator('.kit-answer>.kit-facts').count(),0);
+  await load();assert.equal(await p.locator('.kit-chart rect').count(),0,'weekly averages are a real line');assert.equal(await p.locator('.kit-chart circle').count(),3);
+  const lineGeometry=await p.locator('.kit-chart').evaluate(host=>[...host.querySelectorAll('circle')].map((point,i)=>{const label=host.querySelectorAll('.kit-chart-date')[i].getBBox();return {x:Number(point.getAttribute('cx')),labelX:label.x+label.width/2};}));assert(lineGeometry.every(p=>Math.abs(p.x-p.labelX)<.5),'trend points share date-label centres');assert.equal(await p.locator('.kit-chart-tick').count(),3,'line has labelled value+unit axis');
+  const trendPath=await p.locator('.kit-chart-line').getAttribute('d');assert.equal((trendPath.match(/L/g)||[]).length,2,'trend points are joined');
+  await p.locator('.kit-chart circle[data-point="0"]').click();assert.match(await p.getByRole('slider').getAttribute('aria-valuetext'),/125 ft/);
+  await p.getByRole('slider').press('End');await p.getByRole('slider').blur();await shot('line');
+  selected.points[1]={...selected.points[1],plot_value:null,display_value:'Unknown',n:0,missing:0};await load();
+  assert.equal((await p.locator('.kit-chart-line').getAttribute('d')).match(/M/g).length,2,'missing week breaks the average trend line');assert.equal(await p.locator('.kit-chart circle').count(),2);
+  await p.getByRole('slider').press('Home');await p.getByRole('slider').press('ArrowRight');assert.match(await p.getByRole('slider').getAttribute('aria-valuetext'),/Unknown/);await p.getByRole('slider').blur();await shot('line-gap');
+  selected={...structuredClone(chart),aggregate:'sum'};interpretation='Your total recorded climb rose across these weeks so far.';await load();assert.equal(await p.locator('.kit-chart rect').count(),3);assert.equal(await p.locator('.kit-chart-line').count(),0,'total comparisons retain bars');assert.equal(await p.locator('.kit-answer>.kit-facts').count(),0);
   const geometry=await p.locator('.kit-chart').evaluate(host=>{
    const grid=host.querySelector('.kit-chart-grid'),left=Number(grid.getAttribute('x1')),right=Number(grid.getAttribute('x2'));
    const bars=[...host.querySelectorAll('rect')],dates=[...host.querySelectorAll('.kit-chart-date')];
-   return {left,right,bars:bars.map((bar,i)=>{const b=bar.getBBox(),label=dates[i].getBBox();return {left:b.x,right:b.x+b.width,centre:b.x+b.width/2,labelCentre:label.x+label.width/2,labelLeft:label.x,labelRight:label.x+label.width};}),
+   return {left,right,bars:bars.map((bar,i)=>{const b=bar.getBBox(),label=dates[i].getBBox();return {left:b.x,right:b.x+b.width,centre:b.x+b.width/2,labelCentre:label.x+label.width/2,labelLeft:label.x,labelRight:label.x+label.width,width:b.width};}),
     ticks:[...host.querySelectorAll('.kit-chart-tick')].map(t=>({text:t.textContent,left:t.getBBox().x,right:t.getBBox().x+t.getBBox().width}))};
   });
   for(const bar of geometry.bars){assert(Math.abs(bar.centre-bar.labelCentre)<.5,'each bar is centred over its rendered date');assert(bar.left>geometry.left&&bar.right<geometry.right,'edge bars have side padding inside the plot');assert(bar.labelLeft>=geometry.left&&bar.labelRight<=geometry.right,'date labels remain inside the plot');}
+  const gaps=geometry.bars.slice(1).map((b,i)=>b.left-geometry.bars[i].right);assert(gaps.every(g=>g>0&&g<=6.1),'bars have small gaps');assert(Math.abs(gaps[0]-gaps[1])<.1,'bar gaps are even');assert(geometry.bars.every(b=>b.width>gaps[0]*4),'comparison bars are wide');
   assert.deepEqual(geometry.ticks.map(t=>t.text),['200 ft','100 ft','0 ft']);assert(geometry.ticks.every(t=>t.left>=0&&t.right<geometry.left),'axis values and units fit beside the plot');
   assert.equal(await p.locator('.kit-chart-unit').count(),0,'no detached unit label');
   const readout=await p.locator('.kit-chart-selection span').boundingBox(),subtitle=await p.locator('.kit-chart-subtitle').boundingBox();assert(Math.abs(readout.x-subtitle.x)<1&&readout.y>=subtitle.y+subtitle.height,'selected readout is left-aligned under the subtitle');
@@ -37,6 +46,8 @@ const chart={metric:'ascent',aggregate:'average',group_by:'week',sport:'run',per
   for(const index of [0,2]){const bar=await p.locator(`.kit-chart rect[data-point="${index}"]`).boundingBox();await p.mouse.click(bar.x+bar.width/2,bar.y+bar.height/2);assert.equal(await slider.getAttribute('aria-valuenow'),String(index),'tap selection follows padded bar centres');}
   await p.keyboard.press('End');await slider.blur();assert.equal(await p.locator('.kit-chart-grid').count(),3);
   assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no horizontal clipping');await shot('bars');
+  selected={...structuredClone(chart),metric:'workouts',aggregate:'sum',axis_unit:'workouts',missing:0,points:chart.points.map((p,i)=>({...p,plot_value:i+2,display_value:`${i+2} workouts`,missing:0}))};await load();assert.equal(await p.locator('.kit-chart rect').count(),3,'count comparisons retain bars');await shot('counts');
+  selected={...structuredClone(chart),metric:'avg_hr',axis_unit:'bpm',missing:0,points:chart.points.map((p,i)=>({...p,plot_value:140+i*4,display_value:`${140+i*4} bpm`,missing:0}))};await load();assert.equal(await p.locator('.kit-chart circle').count(),3,'weekly heart-rate averages are lines');assert.equal((await p.locator('.kit-chart-line').getAttribute('d')).match(/L/g).length,2);
   selected={...structuredClone(chart),metric:'pace',axis_unit:'/mi',points:chart.points.map((v,i)=>({...v,plot_value:600-i*30,display_value:['10:00/mi','9:30/mi','9:00/mi'][i]}))};
   interpretation='Your recorded pace became faster across these weeks so far.';await load();assert.equal(await p.locator('.kit-chart circle').count(),3);const ys=await p.locator('.kit-chart circle').evaluateAll(els=>els.map(e=>Number(e.getAttribute('cy'))));assert(ys[2]<ys[0],'faster pace is higher');await shot('pace');
   selected.points[1]={...selected.points[1],plot_value:null,display_value:'Unknown'};interpretation='There are too few recorded runs to compare so far.';await load();assert.equal(await p.locator('.kit-chart circle').count(),2);assert.equal((await p.locator('.kit-chart-line').getAttribute('d')).match(/M/g).length,2,'a missing value breaks the line');await shot('gap');
@@ -45,5 +56,5 @@ const chart={metric:'ascent',aggregate:'average',group_by:'week',sport:'run',per
   selected={...structuredClone(chart),group_by:'workout',start:'2026-10-28',truncated:true,workouts:30,missing:0,points:Array.from({length:30},(_,i)=>({start:new Date(Date.UTC(2026,9,28+i)).toISOString(),plot_value:100+i,display_value:`${100+i} ft`,n:1,missing:0}))};await load();assert.equal(await p.locator('.kit-chart circle').count(),30);assert.match(await p.locator('.kit-chart-note').innerText(),/Latest 30 runs/);await shot('truncated');
   assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);await c.close();
  }
- console.log('Kit chart bars/pace/gaps/empty/single: 390/330 light/dark; drag+keyboard, no clipping or writes PASS');
+ console.log('Kit chart average trends/count+total bars/pace/HR/gaps/empty/single: 390/330 light/dark; drag+keyboard, no clipping or writes PASS');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exit(1);});
