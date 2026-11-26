@@ -167,3 +167,23 @@ smoke set cannot satisfy the release gate; all captures and reports stay outside
 The [shared Kit gate runbook](KIT_GATE.md) gives the disposable baseline/candidate wrapper,
 forty-case selection, dry-run and human review fields. Use it for the existing chat/weekly
 release comparison; the workout-only runner supplements that coverage.
+
+## Fictional Kit timing and cost contract
+
+`python3 dev/evals/test_kit_measure.py` replays fake monotonic clocks and token/ledger
+values, without importing the app or contacting any provider. `kit_measure.py` accepts
+only a JSON object containing `traces` and the complete `expected` fixture-ID list.
+Each trace has `fictional: true`, a `fixture-…` case ID and numeric/enum events; its
+`FIELDS` allowlist is the event schema. Run `python3 dev/evals/kit_measure.py fixture.json`
+to print a report. Keep reports in a private directory outside the repository.
+
+First text means the first **validated visible text**, not raw tokens or typing dots.
+Times are integer monotonic milliseconds relative to request start. Every provider
+attempt, round, retry and tool call is counted. Complete usage supplies input/output/
+thinking tokens and the ledger's estimated charge in integer microdollars. Failed or
+missing-usage attempts retain their reservation; their token totals remain unknown.
+Cost figures are estimates/holds, not invoices. Partial/error/cancelled/refused runs
+cannot pass performance targets. Missing or duplicate cases fail closed. Reports
+exclude prompts, answers, account identifiers, keys and raw errors; rejected input
+is never echoed. Synthetic reports are always unreviewed and never release evidence.
+This is a collector contract, not runtime instrumentation or a measured app benchmark.
