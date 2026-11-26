@@ -16,6 +16,11 @@ for state in ('empty','future','week3','race','first','paced'):
  if state=='empty':continue
  first=state=='first';weeks=9 if first else 10
  p=ok(legacy_plan(c,{'race':'5k' if first else '10k','level':'first' if first else 'intermediate','weeks':weeks,'runs':3 if first else 4,'long_day':6,'race_day':str(next_monday+dt.timedelta(weeks=weeks-1,days=6)),**({'goal_s':2700} if state=='paced' else {})}))
+ # Replacement-preview coverage needs a real recent base; an old active plan is not proof of readiness.
+ if state=='future':
+  for i in range(1,29):
+   if i%7 in (1,2,4,6):
+    ok(c.post('/api/activities/manual',{'sport':'run','name':'Fictional recent base run','start':str(today-dt.timedelta(days=i))+'T08:00:00Z','duration_s':5200,'distance_m':13000}))
  if state=='paced':
   aid=ok(c.post('/api/activities/manual',{'sport':'run','name':'Fictional baseline pace run','start':str(today-dt.timedelta(days=1))+'T08:00:00Z','duration_s':1500,'distance_m':5000}))['id'];efforts.append((ok(c.get('/api/me'))['id'],aid))
  if state in ('week3','race'):

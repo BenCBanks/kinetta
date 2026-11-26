@@ -102,6 +102,17 @@ async function appleHealthFromNutrition(f){
      await f.p.locator(selector).first().click(position?{position}:{});
     }
     await assertDestination(f.p,test.end,{saved:f.saved,day:f.foodDay});
+    let expectedHttpErrors=[];
+    if(test.id==='progress-plan'){
+     // The fictional once-a-week runner cannot start a race build. Older clients
+     // compute the preview immediately; the readiness client asks questions first.
+     if(!await f.p.locator('[data-logs]').count()){
+      await f.p.locator('#ps-prev .err').waitFor({state:'visible'});
+      assert.match(await f.p.locator('#ps-prev .err').innerText(),/logged four-week average|consistent recent running base/);
+      expectedHttpErrors=[{path:'/api/plans/preview',status:400}];
+     }
+     assert(await f.p.locator('#ps-go').isDisabled(),'readiness blocks starting an unsupported race build');
+    }
     const capture=process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id);
     if(capture)await f.p.locator('#toast.on').waitFor({state:'hidden'});
     const endShot=capture?await f.p.screenshot():null;
@@ -111,7 +122,7 @@ async function appleHealthFromNutrition(f){
     }
     if(test.close)await closeSheets(f.p);
     assert.deepEqual(f.errors,[],'No page exception');
-    assert.deepEqual(f.httpErrors,[],'No unexpected API failure');
+    assert.deepEqual(f.httpErrors,expectedHttpErrors,'Only the verified plan-readiness refusal is expected');
     assert.deepEqual(f.blocked,[],'No unexpected navigation mutation');
     const targets=await f.p.evaluate(()=>window.journeyGoTargets||[]);results.push({id:test.id,login:test.login,passed:true,end:test.end.url,go:targets,writes:[...f.writes]});
     console.log('Journey '+test.id+': URL, title and key element PASS');
