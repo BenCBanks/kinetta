@@ -235,10 +235,14 @@ def continue_signup(user=Depends(current_user)):
     with db.connect() as c:return {'joined':consume_signup(c,user['id'])}
 
 @router.get('/api/challenges')
-def own(request:Request,user=Depends(current_user)):
+def own(request:Request,user=Depends(current_user),include_groups:bool=False):
     with db.connect() as c:
         rows=c.execute("SELECT q.*,u.login::text AS creator FROM challenge_members m JOIN challenges q ON q.id=m.challenge_id JOIN users u ON u.id=q.user_id WHERE m.user_id=%s AND (m.status='active' OR q.user_id=%s) AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND coalesce(q.ended_at,((q.end_day+1)::timestamp AT TIME ZONE 'Etc/GMT+12'))>now()-interval '90 days' ORDER BY q.end_day DESC,q.created DESC",(user['id'],user['id'])).fetchall()
-        return [{**preview(c,row,user['id'],request),'ended_on':row['ended_at'].astimezone(zone_of(c,user['id'])).date().isoformat() if row.get('ended_at') else None,'self':progress(c,row,user['id'])} for row in rows]
+        items = [{**preview(c,row,user['id'],request),'ended_on':row['ended_at'].astimezone(zone_of(c,user['id'])).date().isoformat() if row.get('ended_at') else None,'self':progress(c,row,user['id'])} for row in rows]
+        if include_groups:
+            from .group_challenge_api import own_summaries
+            items += own_summaries(c,user['id'])
+        return items
 
 @router.get('/api/challenges/{code}')
 def detail(code:str,request:Request):

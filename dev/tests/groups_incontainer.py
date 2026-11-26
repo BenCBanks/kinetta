@@ -2022,6 +2022,46 @@ class GroupChallengeAPI(unittest.TestCase):
         self.create()  # Later group changes and retries cannot reset this challenge's choice.
         self.assertFalse(self.clients[0].get(path).json()['share_total'])
 
+    def test_combined_list_is_opt_in_scoped_and_reuses_sharing(self):
+        q=self.create()
+        self.assertEqual(self.clients[0].get('/api/challenges').json(),[],'old clients keep the old response')
+        url='/api/challenges?include_groups=true'
+        def rows(who=0):return self.clients[who].get(url).json()
+        own=next(r for r in rows() if r['id']==q['id'])
+        self.assertEqual(own['group_name'],self.group['title']);self.assertIsNone(own['group_total'])
+        self.assertEqual(rows(3),[],'non-members cannot enumerate group challenges')
+        with db.connect() as c:c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)',(self.ids,))
+        self.activity(0,self.now-dt.timedelta(hours=1),sport='run')
+        self.assertEqual(next(r for r in rows() if r['id']==q['id'])['group_total'],1)
+        self.assertEqual(next(r for r in rows() if r['id']==q['id'])['self']['value'],1)
+        self.assertNotIn('members',own);self.assertNotIn('note',own)
+        # Creator block/unavailability and the viewer's own availability use the detail gates.
+        with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.ids[0],self.ids[1]))
+        self.assertFalse(any(r['id']==q['id'] for r in rows()))
+        with db.connect() as c:
+            c.execute('DELETE FROM blocks WHERE user_id=%s',(self.ids[0],))
+            c.execute('UPDATE users SET suspended_at=now() WHERE id=%s',(self.ids[1],))
+        self.assertFalse(any(r['id']==q['id'] for r in rows()))
+        with db.connect() as c:c.execute('UPDATE users SET needs_email_confirm=true WHERE id=%s',(self.ids[0],))
+        self.assertFalse(any(r.get('group_id')==self.gid for r in rows()))
+
+    def test_combined_dates_open_ended_and_ended_use_challenge_local_day(self):
+        url='/api/challenges?include_groups=true'
+        q=self.create(event_date=None)
+        row=next(r for r in self.clients[0].get(url).json() if r['id']==q['id'])
+        self.assertIsNone(row['end']);self.assertFalse(row['self']['finished']);self.assertIsNone(row['self']['days_left'])
+        with patch('app.groups._now',return_value=dt.datetime(2030,3,21,3,59,tzinfo=dt.timezone.utc)):
+            dated=self.create(id=str(uuid.uuid4()))
+            row=next(r for r in self.clients[0].get(url).json() if r['id']==dated['id'])
+            self.assertFalse(row['self']['finished']);self.assertEqual(row['self']['days_left'],0)
+        with db.connect() as c:c.execute("UPDATE event_groups SET time_zone='Asia/Tokyo' WHERE id=%s",(self.gid,))
+        with patch('app.groups._now',return_value=dt.datetime(2030,3,21,3,59,tzinfo=dt.timezone.utc)):
+            self.assertFalse(next(r for r in self.clients[0].get(url).json() if r['id']==dated['id'])['self']['finished'])
+        with patch('app.groups._now',return_value=dt.datetime(2030,3,21,4,0,tzinfo=dt.timezone.utc)):
+            self.assertTrue(next(r for r in self.clients[0].get(url).json() if r['id']==dated['id'])['self']['finished'])
+        self.clients[1].post(self.root+'/'+q['id']+'/end')
+        self.assertTrue(next(r for r in self.clients[0].get(url).json() if r['id']==q['id'])['self']['finished'])
+
     def test_outsiders_other_group_left_removed_unconfirmed_suspended_and_blocks(self):
         q=self.create();path=self.root+'/'+q['id']
         for method,route,body in [('get',path,None),('post',path+'/sharing',{'share_total':True}),

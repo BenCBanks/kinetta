@@ -89,6 +89,27 @@ def _definition(body):
                            start,body.event_date,body.time_zone,body.note,body.training_for)))
 
 
+def own_summaries(c, uid):
+    """The combined list reuses the detail route's availability and aggregate gates."""
+    if not G._invite_accounts_ready(c,uid): return []
+    groups = c.execute('''SELECT g.* FROM event_groups g JOIN group_members m ON m.group_id=g.id
+        WHERE m.user_id=%s AND m.status='active' ''',(uid,)).fetchall()
+    items = []
+    for group in groups:
+        for q in _rows(c,group['id'],uid):
+            today = G._now().astimezone(G._zone(q['time_zone'])).date()
+            view = _view(c,group,q,uid)
+            finished = bool(q['ended_at'] or (q['end_date'] and q['end_date']<today))
+            items.append({'id':view['id'],'group_id':str(group['id']),'group_name':group['title'],
+                'title':q['title'],'kind':q['metric'],'unit':q['unit'],'target':q['target'],
+                'start':q['start_date'],'end':q['end_date'],'member':True,'joining_closed':finished,
+                'group_total':view.get('total'),'ended_on':q['ended_at'].astimezone(G._zone(q['time_zone'])).date() if q['ended_at'] else None,
+                'self':{'value':view['your_total'],'finished':finished,
+                    'complete':view.get('total') is not None and view['total']>=q['target'],
+                    'days_left':max(0,(q['end_date']-today).days) if q['end_date'] else None}})
+    return items
+
+
 @router.get('/api/groups/{group_id}/challenges')
 def list_challenges(group_id: UUID, user=Depends(current_user)):
     with db.connect() as c:
