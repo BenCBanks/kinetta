@@ -122,6 +122,8 @@ save_report({**metadata,'results':reused,'reserved_or_estimated_usd':metadata.ge
              'requests':metadata.get('prior_requests',0)})
 today=dt.datetime.now(dt.timezone.utc).date();uids=[];results=[]
 diagnostics=RejectionDiagnostics(coach_chat)
+from app.kit_tools import KitTools
+diagnostics.observe_tools(KitTools)
 diagnostics.attach(baseline)
 weekly_case_ids={case[0] for case in selected_cases
                  if len(case)>3 and isinstance(case[3],dict) and case[3].get('weekly_review')}
@@ -272,6 +274,8 @@ try:
        'answer':answer,'error':error,'cap_reason':boundary,'provider_requests':provider_requests,
        'provider_turns':rejection.get('provider_turns',[]),
        'answer_evidence':rejection.get('answer_evidence'),
+       'tool_evidence':rejection.get('answer_evidence') or rejection.get('tool_calls') or [],
+       'tool_calls':rejection.get('tool_calls') or [],'claim_evidence':(answer or {}).get('claim_evidence',[]),
        'expected_refusal':expected_refusal,'passed':passed,
        'rejection':rejection if rejection and 'validation_error' in rejection else None,
        'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}

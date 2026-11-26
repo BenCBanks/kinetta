@@ -706,6 +706,10 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         return kit_workout_review.answer(uid, question, workout_evidence, turn=turn, active=active)
     if weekly_review and not kit: raise ValueError('Weekly reviews are only available through Kit')
     if not coach.allowed(uid): raise ValueError(coach.off())
+    if kit and not weekly_review:
+        from . import kit_claims
+        safety=kit_claims.eating_safety_answer(question)
+        if safety is not None:return safety
     if not food_only and not kit:
         with db.coach_connect(uid) as c:
             if not coach.health_ok(c, uid): raise ValueError(coach.HEALTH_NO)

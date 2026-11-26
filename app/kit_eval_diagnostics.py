@@ -49,6 +49,23 @@ class RejectionDiagnostics:
         """Capture a frozen baseline through the same worker-local context as its helpers."""
         self._install(module)
 
+    def observe_tools(self, tool_class):
+        """Evaluator-only: retain actual results even when consent stops before validation."""
+        original=tool_class.call
+        def call(tools,name,arguments,**kwargs):
+            capture=getattr(self._state,'capture',None)
+            record={'tool':name,'arguments':arguments}
+            try:result=original(tools,name,arguments,**kwargs)
+            except Exception as error:
+                record['error']=type(error).__name__
+                raise
+            else:
+                record['data']=result
+                return result
+            finally:
+                if capture is not None:capture.setdefault('tool_calls',[]).append(record)
+        tool_class.call=call
+
     def _record(self, error, raw=None, evidence=None):
         capture = getattr(self._state, 'capture', None)
         if capture is None:return

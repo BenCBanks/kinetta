@@ -94,7 +94,7 @@ paid attempt is safe to resume. Captured answers and paid requests are never sil
 For a scoped validator-only correction, the wrapper can prepare a new private resume cache
 from an archived capture. It proves the archived revision/date/input digest against Git,
 requires unchanged model/tool/prompt and database sources, and permits only the count-binding
-validator and exact refusal classification changes. Candidate raw JSON is rechecked offline;
+validator, nutrient naming/weight-uncertainty formatting, exact refusal classification and the exact app-owned eating-safety guard changes. Candidate raw JSON is rechecked offline;
 baseline answers and baseline failures remain the historical measurements. Original rows,
 rejection diagnostics, source SHA and prior requests/spend remain available. This resets human
 review and does not turn an offline replay into a new provider evaluation.
@@ -108,6 +108,16 @@ dev/evals/run_kit_eval.sh --baseline "$BASELINE" --baseline-commit "$BASELINE_CO
   --candidate-commit "$(git rev-parse HEAD)" --budget-usd 2.50 --resume "$CAPTURE" \
   --retry-case weekly-rest-heavy
 ```
+
+Release-claim replay also retains `tool_evidence` (actual tool results) and `claim_evidence`
+(evidence ID, path and checked relation). Future runs observe successful/denied tool calls even
+when consent stops before answer validation. Previously uncaptured results are never invented.
+The app-owned low-intake safety reply replaces the captured unsafe model answer explicitly as
+`app_owned_replacement: true`, with zero replay calls; `source_row` preserves the original text
+and its paid requests/cost. This is a deterministic safety replacement, not model acceptance.
+The supported weekly comparisons/target absence and corrected nutrient/weight formatting can
+be replayed without new paid calls. No prompt, tool schema or model setting changed. Changes
+such as new goal or memory tools cannot use this validator-only cache proof.
 
 `--retry-case` is candidate-only, explicit, and refuses previously successful, unpaid, unknown
 or interrupted rows. It saves the original paid failure in `superseded_results`; prior spending

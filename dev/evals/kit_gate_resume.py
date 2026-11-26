@@ -67,7 +67,8 @@ def refusal_replay(row,message):
     if error=='Weekly answer returned without an AI provider request.':error=None
     if is_expected_health_consent_refusal(row['case'],variant=row['variant'],answer=row.get('answer'),
             error=error,provider_requests=row.get('provider_requests',0),refusal_message=message):
-        return {'error':None,'expected_refusal':True,'passed':True,'revalidated':True}
+        return {'error':None,'expected_refusal':True,'passed':True,'revalidated':True,
+                'tool_evidence':row.get('tool_evidence') or row.get('answer_evidence') or [],'claim_evidence':[]}
 
 
 def replay_gate_row(row,message,parse,check):
@@ -75,15 +76,23 @@ def replay_gate_row(row,message,parse,check):
     if refusal is not None:return refusal
     # The baseline remains a historical measurement, including its failures.
     if row['variant']=='baseline' or row.get('interrupted'):return {}
+    from app import kit_claims
+    if row['case']=='low-intake':
+        safe=kit_claims.eating_safety_answer(row.get('question'))
+        if safe is not None:
+            return {'answer':safe,'error':None,'passed':True,'revalidated':True,
+                    'app_owned_replacement':True,'replay_provider_calls':0,'tool_evidence':[],'claim_evidence':[]}
     from kit_setting_smoke import replay_row
     updated=replay_row(row,parse,check)
     if updated and updated.get('answer'):
         updated['answer']={**(row.get('answer') or {}),**updated['answer']}
+        updated['tool_evidence']=row.get('tool_evidence') or row.get('answer_evidence') or []
+        updated['claim_evidence']=updated['answer'].get('claim_evidence',[])
     return updated
 
 
 def prepare_cache(root,report,cases,files):
-    """Host-only proof: same provider inputs, only the scoped count validator may differ."""
+    """Host-only proof: same provider inputs, only scoped claim validation/formatting may differ."""
     revision=report.get('candidate_commit','')
     if len(revision)!=40 or any(c not in '0123456789abcdef' for c in revision):
         raise ValueError('Invalid archived gate revision')
@@ -93,16 +102,26 @@ def prepare_cache(root,report,cases,files):
     args=(cases,report['baseline_commit'],revision,report['baseline_sha256'])
     if report.get('input_digest')!=identity(root,*args,read=read):
         raise ValueError('Archived source, inputs or UTC/local dates changed')
-    def stable(source,names):
+    def stable(source,names,*,coach_guard=False):
         tree=ast.parse(source)
         tree.body=[n for n in tree.body if not (
             isinstance(n,ast.FunctionDef) and n.name in names or
             isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id in names for t in n.targets))]
+        if coach_guard:
+            guard=ast.parse('if kit and not weekly_review:\n from . import kit_claims\n safety=kit_claims.eating_safety_answer(question)\n if safety is not None:return safety').body[0]
+            for node in tree.body:
+                if isinstance(node,ast.FunctionDef) and node.name=='answer':
+                    node.body=[child for child in node.body if ast.dump(child,include_attributes=False)!=ast.dump(guard,include_attributes=False)]
         return ast.dump(tree,include_attributes=False)
-    for name in ['app/'+n for n in files]+['app/db.py','app/kit_eval_diagnostics.py']:
+    for name in ['app/'+n for n in files]+['app/db.py']:
         before,after=read(name),(root/name).read_text()
         if name=='app/kit_claims.py':
-            before,after=(stable(s,{'NUMBER_WORD','bound_logged_days'}) for s in (before,after))
+            before,after=(stable(s,{'NUMBER_WORD','METRICS','DIRECTIONS','bound_logged_days','validate','advice_quantities',
+                'eating_safety_answer','successful','proof','food_count_phrase','claim_clauses','claim_evidence'}) for s in (before,after))
+        elif name=='app/kit_conversation.py':
+            before,after=(stable(s,{'checked_answer','natural_measurements'}) for s in (before,after))
+        elif name=='app/coach_chat.py':
+            before,after=(stable(s,set(),coach_guard=True) for s in (before,after))
         if before!=after:raise ValueError('Provider inputs/source changed: '+name)
     name='dev/evals/kit_weekly_fixtures.py'
     if stable(read(name),{'is_expected_health_consent_refusal'})!=stable((root/name).read_text(),{'is_expected_health_consent_refusal'}):
@@ -151,8 +170,9 @@ if __name__=='__main__':
     spec=importlib.util.spec_from_file_location('release_only',root/'app/ai_release.py')
     release=importlib.util.module_from_spec(spec);spec.loader.exec_module(release)
     data=Path(args.prepare_cache).read_bytes();report=json.loads(data)
+    current=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
     if report.get('input_digest')!=identity(root,[c for c in CASES if c[0] in GATE_CASE_IDS],
-            report['baseline_commit'],report['candidate_commit'],report['baseline_sha256']):
+            report['baseline_commit'],current,report['baseline_sha256']):
         report=prepare_cache(root,report,[c for c in CASES if c[0] in GATE_CASE_IDS],release.FILES['kit'])
         report['source_report_sha256']=hashlib.sha256(data).hexdigest()
     with os.fdopen(os.open(args.output,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as stream:json.dump(report,stream)

@@ -209,8 +209,10 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         checked = checked or batch
     from . import kit_claims
     blocks = []
+    source_texts=[]
     for block in answer.blocks:
         texts = [natural_measurements(text,facts) for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
+        source_texts.extend(texts)
         limit = 1600 if isinstance(block, Paragraph) else 600
         rendered = []
         for text in texts:
@@ -225,7 +227,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         blocks.append({'kind':'paragraph','text':rendered[0]} if isinstance(block, Paragraph)
                       else {'kind':'list','items':rendered})
     texts = [text for block in answer.blocks for text in ([block.text] if isinstance(block, Paragraph) else block.items)]
-    kit_claims.validate(texts, facts, evidence, question=user_question(question), reference=REFERENCE)
+    checks=kit_claims.validate(source_texts, facts, evidence, question=user_question(question), reference=REFERENCE, selection=checked['selection'])
     interpretation = '\n\n'.join(block['text'] if block['kind']=='paragraph'
                                  else '\n'.join('• '+item for item in block['items']) for block in blocks)
     summary=meal_summary(checked['selection'],facts,texts)
@@ -235,7 +237,7 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         interpretation+='\n\n'+summary
     if len(interpretation.split()) > 600:
         raise ValueError('Conversation exceeds requested length')
-    return dict(answer_blocks=blocks, interpretation=interpretation, facts=facts,
+    return dict(answer_blocks=blocks, interpretation=interpretation, facts=facts, claim_evidence=checks,
                 selection=checked['selection'], actions=checked['actions'], follow_ups=checked['follow_ups'])
 
 
@@ -260,6 +262,22 @@ def natural_measurements(text,facts):
     def field(slot):
         match=REFERENCE.fullmatch(slot);i=int(match[2])
         return facts[i]['path'][-1] if i<len(facts) and facts[i]['evidence_id']==match[1] else None
+    # A gram quantity needs its nutrient, unless prose already names it beside the slot.
+    nutrients={'protein_g':'protein','carbs_g':'carbohydrates','fat_g':'fat','fiber_g':'fibre',
+               'sodium_mg':'sodium','sugar_g':'sugar','saturated_fat_g':'saturated fat'}
+    def name_nutrient(match):
+        i=int(match[2])
+        if i>=len(facts) or facts[i]['evidence_id']!=match[1]:return match[0]
+        names=[nutrients[k] for k in facts[i]['path'] if isinstance(k,str) and k in nutrients]
+        if not names:return match[0]
+        name=names[-1]
+        pattern={'fibre':r'fib(?:re|er)','carbohydrates':r'(?:carbs|carbohydrates)'}.get(name,re.escape(name))
+        before=re.split(r'[,;]|\band\b|\{e[1-9][0-9]*:[0-7]\}',text[:match.start()],flags=re.I)[-1]
+        after=text[match.end():]
+        if re.search(r'\b'+pattern+r'\b',before,re.I) or re.match(r'\s+(?:of )?'+pattern+r'\b',after,re.I):return match[0]
+        return match[0]+' '+name
+    text=REFERENCE.sub(name_nutrient,text)
+    text=re.sub(r'\b(endpoint differences) reflect (natural day-to-day fluctuations)\b',r'\1 may reflect \2',text,flags=re.I)
     slot=r'(\{e[1-9][0-9]*:[0-7]\})'
     text=re.sub(slot+r' in moving time\b',lambda m:m[1]+' of moving time'
                 if field(m[1]) in {'duration_s','moving_s'} else m[0],text)

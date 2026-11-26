@@ -1,10 +1,10 @@
 """No-provider full-gate resume identity, accounting and interruption tests."""
 import copy
 import unittest
-import tempfile,subprocess
+import tempfile,subprocess,sys,types
 from unittest.mock import patch
 from pathlib import Path
-from kit_gate_resume import identity,preflight,resume_rows,serial_results,prepare_cache,refusal_replay
+from kit_gate_resume import identity,preflight,resume_rows,serial_results,prepare_cache,refusal_replay,replay_gate_row
 from kit_cases import CASES
 
 
@@ -88,6 +88,15 @@ class Resume(unittest.TestCase):
         for changes in ({'provider_requests':1},{'error':'different failure'},
                         {'answer':{**answer,'private_health':100}}):
             self.assertIsNone(refusal_replay({**row,**changes},'sharing'))
+
+    def test_low_intake_replacement_is_explicit_and_never_relabels_model_acceptance(self):
+        app=types.ModuleType('app');safe={'interpretation':'Do not stop eating. Talk with a doctor or dietitian.'}
+        app.kit_claims=types.SimpleNamespace(eating_safety_answer=lambda question:safe if question=='Should I stop eating?' else None)
+        row={'case':'low-intake','variant':'candidate','question':'Should I stop eating?','provider_requests':1}
+        with patch.dict(sys.modules,{'app':app}):
+            updated=replay_gate_row(row,'sharing',lambda raw:None,lambda *args,**kwargs:None)
+        self.assertTrue(updated['app_owned_replacement']);self.assertEqual(updated['replay_provider_calls'],0)
+        self.assertEqual(updated['answer'],safe);self.assertEqual(row['provider_requests'],1)
 
     def test_validator_cache_proves_archived_source_and_unchanged_provider_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
