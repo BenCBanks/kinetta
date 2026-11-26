@@ -34,12 +34,12 @@ def topic(question):
 
 
 STEPS = {
-    'food': 'Open your food log and review the recorded portions and what you chose to log.',
-    'weight': 'Open Progress to review your weight entries over time.',
-    'plan': 'Open your training plan and review the next unfinished session before considering a change.',
-    'activity': 'Open your activity history and choose the workout you want to review next.',
-    'goal': 'Open your saved goals and choose the goal you want to work on next.',
-    'records': 'Open the relevant record and choose the detail you want to review next.',
+    'food': 'You could open your food log and check the portions you entered.',
+    'weight': 'You could open Progress and look at your weight entries together.',
+    'plan': 'You could check the next unfinished session in your plan before changing anything.',
+    'activity': 'You could open your activity history and choose a workout to look at together.',
+    'goal': 'You could open Goals and pick the target you want to work on.',
+    'records': 'You could open the record you want to discuss and ask about a specific detail.',
 }
 
 
@@ -78,8 +78,8 @@ def fallback(uid, question, state, active, reason):
     if kind == 'food':
         summary = source('nutrition_summary')
         if summary and type(summary['data'].get('logged_days')) is int and summary['data']['logged_days'] > 0:
-            for field, sentence in (('kcal','Your known logged energy in the queried period was {}.'),
-                                    ('protein_g','Your known logged protein in that period was {} protein.')):
+            for field, sentence in (('kcal','Your food log shows {} for the dates you asked about.'),
+                                    ('protein_g','Your entries include {} protein.')):
                 known = summary['data'].get('known_totals',{}).get(field)
                 if known == 0 and summary['data'].get('totals',{}).get(field) is None:continue
                 add(summary, ['known_totals',field], sentence)
@@ -97,29 +97,28 @@ def fallback(uid, question, state, active, reason):
                             add(entries, fact['path'], 'The recorded '+noun+' amount was {}.')
                             break
                     break
-        if facts:paragraphs.append('Logged entries may cover only part of your intake; unlogged food is unknown.')
+        if facts:paragraphs.append('These entries may cover only part of what you ate; anything unlogged is still unknown.')
     elif kind == 'weight':
         entry = source('weight_trend')
         if entry and entry['data'].get('samples'):
-            add(entry, ['samples',len(entry['data']['samples'])-1,'kg'], 'A returned weight entry was {}.')
-            if facts:paragraphs.append('Short-term weight changes may reflect normal fluctuation.')
+            add(entry, ['samples',len(entry['data']['samples'])-1,'kg'], 'You logged a weight of {}.')
+            if facts:paragraphs.append('Short-term weight changes may be normal fluctuations.')
     elif kind == 'activity':
         runs = source('recent_runs')
-        add(runs, ['totals','count'], 'The returned running records include {} workouts.')
-        add(runs, ['totals','distance_m'], 'Their recorded distance was {}.')
+        add(runs, ['totals','count'], 'Your running log includes {} workouts in this range.')
+        add(runs, ['totals','distance_m'], 'Those runs covered {}.')
         if not facts:
             activities=source('activities')
             if activities is not None:
                 for i,sport in enumerate(activities['data'].get('totals_by_sport',[])):
                     noun={'run':'running','ride':'cycling','walk':'walking','swim':'swimming'}.get(sport.get('sport'))
-                    if noun:add(activities,['totals_by_sport',i,'distance_m'],'Your recorded '+noun+' covered {}.')
+                    if noun:add(activities,['totals_by_sport',i,'distance_m'],'You logged {} of '+noun+'.')
                 if any(a.get('distance_m') is None for a in activities['data'].get('activities',[])):
-                    paragraphs.append('Some workout distances are unknown, so these are recorded subtotals.')
-    step=('You could keep your next session easy, or take a rest day if you feel tired.'
+                    paragraphs.append('Some workouts have no recorded distance, so these figures cover only the distances in your log.')
+    step=('You could keep your next session easy, or rest if you feel tired.'
           if kind=='activity' and re.search(r'\b(?:recovery|recovering|load)\b',question,re.I) else STEPS[kind])
     if len(facts)>1 and kind=='activity':paragraphs=[' '.join(paragraphs)]
-    generic = dict(blocks=[dict(kind='paragraph',text='Let’s start with a practical next step.'),
-                          dict(kind='paragraph',text=step)], facts=[])
+    generic = dict(blocks=[dict(kind='paragraph',text=step)], facts=[])
     if context_reply:
         generic=dict(blocks=[dict(kind='paragraph',text=context_reply[1])],facts=[])
     raw = dict(blocks=[dict(kind='paragraph',text=p) for p in paragraphs+[step]], facts=facts) if paragraphs else generic
@@ -128,7 +127,7 @@ def fallback(uid, question, state, active, reason):
             and not re.search(r"\b(?:no|without|do not|don't) (?:a |the )?(?:chart|graph|plot)\b",question,re.I)):
         # The rejected model cannot choose points or prose. Reuse the one checked
         # app result with neutral wording, retaining the requested card and source flags.
-        generic = dict(blocks=[dict(kind='paragraph',text='Your recorded workout measurements are shown so far.'),
+        generic = dict(blocks=[dict(kind='paragraph',text='Here are the workout details available so far.'),
                                dict(kind='paragraph',text=STEPS[kind])],facts=[],
                        chart=dict(evidence_id=charts[0]['evidence_id']))
         raw = generic

@@ -10,7 +10,7 @@ raw={'blocks':[{'kind':'paragraph','text':'Your estimated fatigue score is {e2:0
 def check(value=raw,evidence=ev,question='Help with recovery',weekly=False):
  return coach_chat.checked_answer(value,evidence,kit=True,conversation_question=question,weekly_review=weekly)
 answer=check();assert '26.4' not in answer['interpretation'] and 'fatigue' not in answer['interpretation'].lower()
-assert 'Make your next session easy' in answer['interpretation']
+assert 'You could keep your next session easy' in answer['interpretation']
 assert not answer['facts'],'internal scores cannot return as client detail rows'
 # Removing the score from display must NEVER license an unsupported raw number.
 wrong=deepcopy(raw);wrong['facts'][0]['value']=99
@@ -22,7 +22,7 @@ assert '26.4' in check(question='Explain this recorded measurement')['interpreta
 step={'blocks':[{'kind':'paragraph','text':'Schedule an easy day before your next hard effort.'}],
       'facts':[],'selection':None,'actions':[],'follow_ups':[]}
 assert len(check(step)['answer_blocks'])==1,'an existing concrete action is not duplicated'
-for weekly,missing,expected in [(True,2,'Log your next meal'),(True,0,'Choose a day'),(False,0,'Make your next session easy')]:
+for weekly,missing,expected in [(True,2,'You could log your next meal'),(True,0,'You could choose a day'),(False,0,'You could keep your next session easy')]:
  evidence=[profile,{'evidence_id':'e2','tool':'nutrition_adequacy','data':{'unlogged_finished_days':missing}}]
  example={**step,'blocks':[{'kind':'paragraph','text':'A practical next step is to build a sustainable routine.'}]}
  result=check(example,evidence,weekly=weekly)
