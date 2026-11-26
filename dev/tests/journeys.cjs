@@ -3,7 +3,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createHash}=require('node:crypto');
 const {journeys}=require('./journey_scenes.cjs');
-const {boundary,context,fixtureSessions,ready,assertDestination,until,closeSheets}=require('./journey_browser.cjs');
+const {planPreviewErrors,boundary,context,fixtureSessions,ready,assertDestination,until,closeSheets}=require('./journey_browser.cjs');
 const base=process.env.KINETTA_URL,project=process.env.KINETTA_PROJECT;
 const fixturesFile=process.env.KINETTA_JOURNEY_FIXTURES||'/tmp/'+project+'-journeys.json';
 async function recording(f,uncertain){
@@ -102,17 +102,7 @@ async function appleHealthFromNutrition(f){
      await f.p.locator(selector).first().click(position?{position}:{});
     }
     await assertDestination(f.p,test.end,{saved:f.saved,day:f.foodDay});
-    let expectedHttpErrors=[];
-    if(test.id==='progress-plan'){
-     // The fictional once-a-week runner cannot start a race build. Older clients
-     // compute the preview immediately; the readiness client asks questions first.
-     if(!await f.p.locator('[data-logs]').count()){
-      await f.p.locator('#ps-prev .err').waitFor({state:'visible'});
-      assert.match(await f.p.locator('#ps-prev .err').innerText(),/logged four-week average|consistent recent running base/);
-      expectedHttpErrors=[{path:'/api/plans/preview',status:400}];
-     }
-     assert(await f.p.locator('#ps-go').isDisabled(),'readiness blocks starting an unsupported race build');
-    }
+    const expectedHttpErrors=test.id==='progress-plan'?await planPreviewErrors(f):[];
     const capture=process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id);
     if(capture)await f.p.locator('#toast.on').waitFor({state:'hidden'});
     const endShot=capture?await f.p.screenshot():null;
