@@ -50,6 +50,7 @@ with db.connect() as c:
     goal_a=c.execute("INSERT INTO goals(user_id,sport,period,metric,target) VALUES(%s,'run','week','count',3) RETURNING id",(a,)).fetchone()['id']
 
 catalog = {
+    'chart_series': {'metric':'distance','aggregate':'sum','group_by':'day','period_unit':'days','period_count':2,'sport':'run'},
     'goal_change_options': {'goal_id': goal_a, 'value': 4, 'unit': 'activities'},
     'profile': {},
     'nutrition_summary': RANGE,

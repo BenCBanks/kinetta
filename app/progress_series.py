@@ -53,7 +53,7 @@ def read_series(c, user_id, request, *, now=None):
     """Authenticated identity and read-only RLS scope also apply to internal callers."""
     with db.coach_scope(c, user_id):
         if not coach.health_ok(c, user_id): raise HTTPException(403, coach.HEALTH_NO)
-        profile = c.execute('SELECT tz FROM profile WHERE user_id=%s', (user_id,)).fetchone() or {}
+        profile = c.execute('SELECT tz,health_ai_ok,garmin_ai_ok FROM profile WHERE user_id=%s', (user_id,)).fetchone() or {}
         tz = ZoneInfo(db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ)
         now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(tz)
         today = now.date()
@@ -76,21 +76,25 @@ def read_series(c, user_id, request, *, now=None):
         pace_max = request.metric == 'pace' and request.aggregate == 'max'
         value_sql = 'min(value)' if pace_max else AGGREGATES[request.aggregate]
         rows = c.execute(f'''WITH scoped AS (
-            SELECT id,start_time,(start_time AT TIME ZONE %(tz)s)::date AS local_day,
+            SELECT id,start_time,source,(start_time AT TIME ZONE %(tz)s)::date AS local_day,
                 ({expression})::double precision AS measurement,({weight})::double precision AS weight
             FROM activities WHERE user_id=%(uid)s AND NOT lift_open
               AND start_time>=%(start)s AND start_time<=%(now)s
               AND (%(sport)s='all' OR sport=%(sport)s)
+              AND (NOT (source='healthkit' OR healthkit_id IS NOT NULL) OR %(health)s)
+              AND (source<>'garmin_connect' OR %(garmin)s)
         ), measured AS (
             SELECT *,CASE WHEN measurement>=0 AND measurement<'Infinity'::float8
                 AND weight>0 AND weight<'Infinity'::float8 THEN measurement END AS value FROM scoped
         ) SELECT {selected_group},count(*) AS n,count(*) FILTER(WHERE value IS NULL) AS missing,
+            bool_or(source='garmin_connect') AS garmin_included,
             {value_sql} AS value,sum(value*weight) AS weighted_sum,
             sum(weight) FILTER(WHERE value IS NOT NULL) AS weight_sum,sum(value) AS total
           FROM measured GROUP BY {group} ORDER BY {order}
           {'LIMIT 31' if request.group_by == 'workout' else ''}''',
             {'tz': str(tz), 'uid': user_id, 'start': dt.datetime.combine(start,dt.time.min,tz),
-             'now': now, 'sport': request.sport}).fetchall()
+             'now': now, 'sport': request.sport, 'health':bool(profile.get('health_ai_ok')),
+             'garmin':bool(profile.get('garmin_ai_ok'))}).fetchall()
     truncated = request.group_by == 'workout' and len(rows) > 30
     rows = list(reversed(rows[:30] if request.group_by == 'workout' else rows))
     empty_value = 0 if request.aggregate == 'sum' else None
@@ -118,7 +122,7 @@ def read_series(c, user_id, request, *, now=None):
     if request.metric == 'pace' and direction in ('up', 'down'):
         direction = 'slower' if direction == 'up' else 'faster'
     return {**request.model_dump(), 'timezone': str(tz), 'start': start.isoformat(), 'end': today.isoformat(), 'unit': unit,
-            'points': points, 'truncated': truncated, 'summary': {'overall': overall, 'first': first, 'last': last,
+            'points': points, 'truncated': truncated, 'garmin_included':any(row['garmin_included'] for row in rows), 'summary': {'overall': overall, 'first': first, 'last': last,
             'highest': max(values) if values else None, 'lowest': min(values) if values else None,
             'change': change, 'direction': direction}, 'workouts': sum(row['n'] for row in rows),
             'missing': sum(row['missing'] for row in rows)}

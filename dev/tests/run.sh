@@ -142,6 +142,7 @@ node dev/tests/test_share_photo.js
 node dev/tests/test_push_invitation.js
 node dev/tests/test_kit_chat_ui.js
 node --check dev/tests/kit_answer_ui.cjs
+node --check dev/tests/kit_chart_ui.cjs
 node --check dev/tests/kit_followups_voice_ui.cjs
 node dev/tests/test_kit_memory_ui.js
 node dev/tests/test_activity_sync_ui.js
@@ -271,6 +272,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/route_following_incontai
 docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_incontainer.py
 cat dev/tests/coach_incontainer.py dev/tests/workout_review_fixtures.py | docker compose -p "$P" exec -T app python -
 docker compose -p "$P" exec -T app python - < dev/tests/kit_conversation_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_charts_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_coaching_quality_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-release-claims.json app:/tmp/kit-release-claims.json

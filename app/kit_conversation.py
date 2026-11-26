@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from contextlib import contextmanager
 from typing import Literal
 from pydantic import Field, StrictStr
-from . import coach_chat
+from . import coach_chat, kit_charts
 from .coach_chat import Empty, Fact, Selection
 from .kit_goal_contract import GoalSelection, PROMPT, checked_selection
 
@@ -121,6 +121,7 @@ class ShortList(Empty):
 
 
 class ConversationAnswer(Empty):
+    chart: kit_charts.ChartReference | None = None
     blocks: list[Paragraph | ShortList] = Field(min_length=1, max_length=10)
     facts: list[Fact] = Field(default_factory=list, max_length=8)
     selection: Selection | GoalSelection | None = None
@@ -174,7 +175,7 @@ Do not promise unsupported readers/actions. Do not request unconsented data or i
 '''
 
 
-SYSTEM += PROMPT
+SYSTEM += PROMPT + kit_charts.CHART_SYSTEM
 
 
 def has_blocks(raw):
@@ -251,8 +252,10 @@ def checked_answer(raw, evidence, *, question=None, weekly_review=False):
         interpretation+='\n\n'+summary
     if len(interpretation.split()) > 600:
         raise ValueError('Conversation exceeds requested length')
-    return dict(answer_blocks=blocks, interpretation=interpretation, facts=facts, claim_evidence=checks,
+    result=dict(answer_blocks=blocks, interpretation=interpretation, facts=facts, claim_evidence=checks,
                 selection=checked['selection'], actions=checked['actions'], follow_ups=checked['follow_ups'])
+    result.update(kit_charts.checked_chart(answer,evidence,result,weekly_review=weekly_review))
+    return result
 
 
 

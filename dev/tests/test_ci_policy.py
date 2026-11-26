@@ -252,7 +252,7 @@ notification_edit_ui.cjs media_routes_ui.cjs lift_compact_ui.cjs lift_ui.cjs lif
 back_navigation_ui.cjs personal_notifications_ui.cjs notification_settings_ui.cjs recaps_ui.cjs public_card_ui.cjs
 insights_fixture.py insights_ui.cjs goals_ui.cjs weight_progress_fixture.py weight_progress_ui.cjs
 weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs
-inline_reactions_fixture.py inline_reactions_ui.cjs inline_reactions_actions.cjs comments_sheet_states_ui.cjs shell_ui.cjs
+inline_reactions_fixture.py inline_reactions_ui.cjs inline_reactions_actions.cjs comments_sheet_states_ui.cjs shell_ui.cjs kit_chart_ui.cjs
 password_visibility_ui.cjs signup_uniqueness_fixture.py signup_uniqueness_ui.cjs first_run_welcome_ui.cjs welcome_polish_ui.cjs
 community_ui.cjs admin_features_fixture.py admin_features_ui.cjs feature_collection_fixture.py
 feature_collection_ui.cjs groups_ui.cjs journeys_prepare.py journeys.cjs journeys.cjs links.cjs'''.split()

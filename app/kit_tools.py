@@ -3,6 +3,7 @@ import datetime as dt
 from typing import Literal
 from pydantic import Field, model_validator
 from . import db, coach, energy
+from .progress_series import SeriesRequest, read_series
 from .kit_goal_contract import GoalChange, DESCRIPTION
 from .coach_tools import AccountTools, Empty, Range, Activity, TOOLS
 
@@ -29,6 +30,7 @@ class GoalRange(Empty):
 
 
 EXTRA = {
+    'chart_series': (SeriesRequest, 'Own recorded workout chart: bounded consent-checked aggregates, enums only, at most thirty points, missing measurements remain unknown. Cite numeric summary fields only.'),
     'goal_change_options': (GoalChange, DESCRIPTION),
     'stored_foods': (Stored, 'Own saved recipes, custom foods or saved meal combinations, including incomplete nutrients. Lists are paginated; pass record_id for ingredient details of one own record. Missing/other-account IDs are not found. Read only; never invent missing nutrition.'),
     'activities': (Page, 'Own workouts of every sport in inclusive local dates, newest first. Up to 50 rows; use next_before_id for older rows. Includes exact totals and explicit missing-data limits.'),
@@ -58,6 +60,11 @@ class KitTools(AccountTools):
             if name not in {'profile','nutrition_summary','nutrition_adequacy','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','goal_change_options','app_features'} and not coach.health_ok(c, self._uid):
                 raise ValueError(coach.HEALTH_NO)
             return getattr(self, '_' + name)(c, parsed)
+
+    def _chart_series(self,c,r):
+        from fastapi import HTTPException
+        try:return read_series(c,self._uid,r)
+        except HTTPException as error:raise ValueError(error.detail) from None
 
     def _profile(self, c, _):
         return c.execute('''SELECT tz,units,kcal_target,protein_target,carbs_target,fat_target,fiber_target,

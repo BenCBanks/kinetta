@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import Field, field_validator
-from . import db, coach, coach_chat, ai_release, ai_access, ai_budget, kit_memory, health_copy, kit_history, kit_workout_review, workout_compare
+from . import kit_charts, db, coach, coach_chat, ai_release, ai_access, ai_budget, kit_memory, health_copy, kit_history, kit_workout_review, workout_compare
 from .auth import current_user
 from .coach_tools import Empty
 from .food_photo import brake
@@ -210,7 +210,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
             if (not health and old_answer.get('health_included')) or (not garmin_history_ok and old_answer.get('garmin_included')):continue
             if conversation_id and not kit_history.permitted_history(old_answer,source_consents):continue
             health_context=health_context or bool(old_answer.get('health_included'))
-            history_answer={k:v for k,v in old_answer.items() if k not in {'workout_comparison','history_consents'}}
+            history_answer={k:v for k,v in old_answer.items() if k not in {'workout_comparison','chart','history_consents'}}
             history.extend([{'role':'user','text':old['question']},{'role':'assistant','text':json.dumps(history_answer,default=str)[:2500]}])
     answer=None;error=None;workout_review_evidence=None;workout_requirements=None;failure=None;attempted=False
     def reserved(_):
@@ -292,6 +292,8 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
             if row['conversation_id'] and (answer.get('health_included') or answer.get('garmin_included')):answer['history_consents']=source_consents
         # Consent can change while the last provider call is in flight. Do not save Health output after revocation.
         if answer and answer.get('health_included') and not coach.health_ok(c,uid):
+            answer=None;error=health_copy.user_message(coach.HEALTH_NO)
+        if answer and not kit_charts.consent_still_valid(c,uid,answer):
             answer=None;error=health_copy.user_message(coach.HEALTH_NO)
         memory_settings=c.execute('SELECT memory_enabled,memory_version FROM kit_conversations WHERE user_id=%s',(uid,)).fetchone()
         if answer and not workout_review and memory_settings['memory_enabled'] and memory_settings['memory_version']==memory_version:

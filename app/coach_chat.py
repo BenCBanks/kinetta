@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
 
-from . import coach, db, ai_budget, kit_goal_contract
+from . import coach, db, ai_budget, kit_charts, kit_goal_contract
 from .coach_tools import AccountTools, FoodTools, Empty, specifications
 from .kit_answer_format import has_ambiguous_mass_unit
 
@@ -253,6 +253,7 @@ def _compact_number(value, digits=1):
 
 def _kit_fact(tool, data, path, value, units, *, weekly=False):
     """Format verified measurements with short labels and the person's units."""
+    if tool==kit_charts.CHART_TOOL:return kit_charts.chart_fact(data,path,value,units)
     field=(path[-2] if tool=='period_compare' and path[:1]==['change'] and len(path)>1
            else path[-1] if path and isinstance(path[-1],str) else '')
     from . import kit_claims
@@ -840,6 +841,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             if weekly_review:
                 checked['weekly_period']={'start':period['start'].isoformat(),'end':period['end'].isoformat(),
                                          'label':period['label']}
+            if kit:checked.update(kit_charts.source_markers(evidence))
             return {**checked, 'prompt_version': 'kit-numbers-4' if kit else PROMPT_VERSION, 'usage': usage,
                     'latency_ms': round((time.monotonic() - began) * 1000),
                     'health_included':kit and any(e['tool'] not in ({'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} | kit_goal_contract.NON_HEALTH_TOOLS) and 'data' in e for e in evidence),
