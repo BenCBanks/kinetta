@@ -45,3 +45,13 @@ function fixture(pending=0,accept=true){
  async function off(changeOwner=false){const f=fixture();f.c.App.me.ai_ok=true;const buttons=[{dataset:{ai:'1'}},{dataset:{ai:'0'}}],box={isConnected:true};f.c.$$=sel=>sel==='[data-ai]'?buttons:[];f.c.sheet=(title,html,wire)=>wire(box,()=>{});let finish,kept=0;f.c.api=()=>new Promise(r=>finish=r);f.c.keep=()=>kept++;f.c.invalidate=()=>{};await f.run();f.nodes.get('#m-kit').onclick();const task=buttons[1].onclick();box.isConnected=false;if(changeOwner){f.c.App.me={id:2,ai_ok:true};f.c.session++;}finish({});await task;assert.equal(f.c.App.me.ai_ok,changeOwner,'Off acknowledges only the captured account after dismissal');assert.equal(kept,changeOwner?0:1);}
  await off();await off(true);console.log('Kit consent UI: adult confirmation, stale owner/read/error fences, dismissed same-owner On/Off acknowledgement and own cache PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
+
+// Consent describes chat retention accurately without changing model-facing text.
+{
+ const app=fs.readFileSync('app/static/app.js','utf8'),start=app.indexOf('const aiExplain ='),end=app.indexOf('// Kit is for people',start);
+ const context={App:{me:{ai_provider:'Fictional Provider'}},esc:String};vm.createContext(context);
+ vm.runInContext(app.slice(start,end)+';globalThis.consent=aiExplain();',context);
+ assert.match(context.consent,/Your chat stays while you switch apps\. You can start a new chat any time\./);
+ assert.doesNotMatch(context.consent,/fresh chat when you leave/);
+ assert.match(context.consent,/Fictional Provider/);assert.match(context.consent,/remove or turn off memory/);
+}
