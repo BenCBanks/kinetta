@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 from kit_coach_cases import RUBRIC, cases
 from kit_coach_replay import evaluate, replay
+from kit_coach_batch2 import SERIES, TARGET
 
 
 def answer(*, status='ok', memory=None):
@@ -20,22 +21,43 @@ def reference(case):
     cid = case['id'].removeprefix('fixture-');script = case['script'];initial_refusal = not case['initial']['kit']
     events = [script[0], answer(status='refused' if initial_refusal else 'ok',
                                memory={'preference': 1} if case['group'] == 'memory' else {})]
-    if case['group'] == 'actions': events.append(('proposal', {'owner': 'a', 'revision': 1}))
+    if case['group'] == 'actions':
+        events += [('proposal', {'owner': 'a', 'revision': 1}), ('goal_preview', dict(TARGET))]
     for control in script[1:-1]:
         events.append(copy.deepcopy(control))
         if control[0] == 'confirm' and cid in ('actions-confirm', 'actions-retry'):
-            if not any(e[0] == 'write' for e in events): events.append(('write', {'owner': 'a', 'revision': 1}))
+            if not any(e[0] == 'write' for e in events):
+                events += [('write', {'owner': 'a', 'revision': 1}), ('goal_saved', dict(TARGET))]
             events.append(('receipt', {'owner': 'a', 'revision': 1}))
     refs = {'preference': 2} if case['group'] == 'memory' else {}
     if cid in ('memory-forget', 'memory-off'): refs = {}
     status = 'refused' if initial_refusal or cid in ('consent-kit-revoke', 'app-switch-logout') else 'ok'
-    if cid in ('app-switch-cancel', 'actions-cancel'): status = 'cancelled'
+    if cid in ('app-switch-cancel', 'actions-cancel', 'streaming-cancel'): status = 'cancelled'
+    if cid == 'streaming-revoke': status = 'refused'
     events += [script[-1], answer(status=status, memory=refs)]
+    if case['group'] in ('streaming', 'charts'):
+        observed, turn, generation = [], 0, 1
+        for event in events:
+            kind, value = event
+            if kind == 'user': turn += 1
+            if kind == 'generation': generation = value
+            if kind == 'answer' and value['status'] == 'ok':
+                if case['group'] == 'streaming':
+                    block = ('stream_block', {'owner':'a', 'generation':generation, 'turn':turn, 'index':0,
+                             'text':value['text'], 'checked':True, 'saved':True})
+                    observed += [block] * (2 if cid == 'streaming-replay' else 1)
+                else:
+                    metric = 'logged_kcal' if cid in ('charts-food', 'charts-foreign') else 'distance_m'
+                    if cid != 'charts-empty' and not (cid == 'charts-revoke' and turn == 2):
+                        points, unit, _ = SERIES[metric]
+                        observed.append(('chart', {'owner':'a', 'scope':'answer', 'metric':metric, 'values':points[:], 'unit':unit}))
+            observed.append(event)
+        events = observed
     return {'id': case['id'], 'fictional': True, 'events': events, 'ratings': {key: 2 for key in RUBRIC}}
 
 
 def run():
-    manifest = cases();assert len(manifest) == len({c['id'] for c in manifest}) == 48
+    manifest = cases();assert len(manifest) == len({c['id'] for c in manifest}) == 60
     from kit_measure import case_id
     assert all(case_id(c['id']) == c['id'] for c in manifest)
     assert len({c['script'][0][1] for c in manifest}) >= 40
@@ -71,6 +93,21 @@ def run():
     mutate('actions-confirm', lambda o: o.update(events=[e for e in o['events'] if e[0] != 'write']), 'action_effect_mismatch')
     mutate('app-switch-background', lambda o: o.update(events=[e for e in o['events'] if e[0] != 'visibility']), 'incomplete_journey')
     mutate('consent-kit-revoke', lambda o: o['events'].insert(2, o['events'].pop()), 'answer_turn_order')
+    def observed(o, kind): return next(e[1] for e in reversed(o['events']) if e[0] == kind)
+    for field, value, failure in (('checked', False, 'unchecked_stream'), ('saved', False, 'unchecked_stream'),
+                                  ('owner', 'b', 'stream_scope'), ('generation', 1, 'stream_scope')):
+        mutate('streaming-generation', lambda o: observed(o, 'stream_block').update({field:value}), failure)
+    mutate('streaming-checked', lambda o: final(o).update(text='Different complete text'), 'stream_complete_mismatch')
+    mutate('streaming-replay', lambda o: o['events'].insert(-1, ('stream_block', {**observed(o,'stream_block'), 'text':'Changed replay'})), 'stream_replay_changed')
+    for cid in ('streaming-cancel', 'streaming-revoke'):
+        mutate(cid, lambda o: o['events'].insert(-1, ('stream_block', {**observed(o,'stream_block'), 'turn':2})), 'stream_scope')
+    for field, value, failure in (('values',[5000,0],'chart_values_or_units'), ('unit','km','chart_values_or_units'),
+                                  ('owner','b','chart_scope'), ('scope','dashboard','chart_scope')):
+        mutate('charts-distance', lambda o: observed(o,'chart').update({field:value}), failure)
+    mutate('charts-revoke', lambda o: o['events'].insert(-1, ('chart', copy.deepcopy(observed(o,'chart')))), 'chart_consent_or_metric')
+    mutate('charts-distance', lambda o: o.update(events=[e for e in o['events'] if e[0] != 'chart']), 'missing_or_unexpected_chart')
+    mutate('actions-confirm', lambda o: observed(o,'goal_saved').update(target=7000), 'goal_target_mismatch')
+    mutate('actions-confirm', lambda o: observed(o,'goal_saved').update(owner='b'), 'goal_target_mismatch')
     for ratings in ({}, {key: True for key in RUBRIC}, {key: 1 for key in RUBRIC}):
         unreviewed = copy.deepcopy(observations);unreviewed[0]['ratings'] = ratings
         assert not evaluate(unreviewed)['quality_passed']
@@ -85,7 +122,7 @@ def run():
         command = [sys.executable, str(Path(__file__).with_name('kit_coach_replay.py')), str(path)]
         result = subprocess.run(command, capture_output=True, text=True)
         assert result.returncode == 2 and 'PRIVATE_SENTINEL' not in result.stdout + result.stderr
-    print('Kit coach replay: 48 fictional journeys; safety/consent/memory/action mutations and pending human rubric PASS; no provider calls.')
+    print('Kit coach replay: 60 fictional journeys; checked-stream/memory/goal/chart safety mutations and pending human rubric PASS; no provider calls.')
 
 
 if __name__ == '__main__':
