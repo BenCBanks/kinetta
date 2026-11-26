@@ -21,8 +21,8 @@ EXTRA = [
   {'memory': 'My available days are Tuesday and Saturday.', 'memory_off': True}),
  ('batch2-goal-preview', 'Change my weekly running distance goal to 25 km.', {'goals', 'goal_change_options'}, {}),
  ('batch2-goal-clarify', 'Change my running goal. Ask me what you need before offering a change.', {'goals', 'app_features'}, {}),
- ('batch2-next-step', 'Given my saved goal and routine, suggest one specific next step. Ask one question if something essential is missing.', {'goals'},
-  {'memory': 'I prefer walking and my available days are Tuesday and Saturday.'}),
+ ('batch2-next-step', 'Review my training. Given my saved goal and routine, suggest one specific next step. Ask one question only if something essential is missing.', {'goals'},
+  {'memory': 'I prefer walking and my available days are Tuesday and Saturday.', 'training_records': True}),
  ('batch2-current-overrides-memory', 'I prefer cycling now, and I can train on Sunday only. Suggest one next step using my current preference and saved goal; do not change a goal automatically.', {'goals'},
   {'memory': 'I prefer running and my available days are Tuesday and Saturday.',
    'prior': 'I prefer running on Tuesday and Saturday.', 'resume': True}),
@@ -38,7 +38,23 @@ def chart_records(today):
             for days,distance,seconds in [(6,3000,900),(4,5000,1500),(2,7000,2100)]]
 
 
+def training_records(today):
+    # Three distinct measured weeks inside the six-week review, independent of weekday.
+    return [{**record,'name':'Fictional training review run',
+             'start_time':dt.datetime.combine(today-dt.timedelta(days=days),dt.time(12),dt.timezone.utc).isoformat()}
+            for record,days in zip(chart_records(today),(6,20,34))]
+
+
 def required_shape(case_id, variant, answer):
+    if case_id=='batch2-next-step' and variant=='candidate' and answer:
+        chart=answer.get('chart') or {}
+        if (chart.get('presentation')!='weekly_totals' or chart.get('metric')!='distance'
+                or chart.get('aggregate')!='sum' or chart.get('group_by')!='week' or chart.get('sport')!='all'):
+            return 'Required app-owned six-week training distance totals are missing.'
+        points=chart.get('points',[])
+        if (len(points)!=6 or sorted(p['value'] for p in points if p.get('value') is not None)!=[3000,5000,7000]
+                or chart.get('summary',{}).get('overall')!=15000):
+            return 'Training chart does not match the three measured own-account weeks.'
     if case_id=='batch2-chart-distance' and variant=='candidate' and answer:
         chart=answer.get('chart') or {}
         if chart.get('metric')!='distance' or chart.get('sport')!='run' or chart.get('group_by')!='workout':
@@ -56,7 +72,8 @@ def run_case(case, variant, answer_fn, uids):
     """
     from app import db, kit_thread, kit_history_api, ai_release, coach_chat, ai_budget
     cid, question, _, options = case
-    user = {'id': None};records=chart_records(dt.datetime.now(dt.timezone.utc).date()) if options.get('chart_records') else []
+    user = {'id': None};today=dt.datetime.now(dt.timezone.utc).date()
+    records=training_records(today) if options.get('training_records') else chart_records(today) if options.get('chart_records') else []
     with db.connect() as c:
         user['id'] = c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',
             ('zz_test_batch2_'+uuid.uuid4().hex, 'Fictional coach journey')).fetchone()['id']
