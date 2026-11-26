@@ -6,7 +6,7 @@ function kitGoalReview(selection, options={}) {
   sheet('Review goal change',`<p>${esc(label)}</p>
     <div class="kv"><span>Current target</span><b>${esc(candidate.before)}</b></div>
     <div class="kv"><span>New target</span><b>${esc(candidate.after)}</b></div>
-    <p class="small muted">Nothing changes until you confirm.</p><p class="err" role="alert"></p>
+    <p class="err" role="alert"></p>
     <button type="button" class="primary wide" id="kit-goal-confirm">Confirm goal change</button>`,(body,close)=>{
     const button=$('#kit-goal-confirm',body),error=$('.err',body);let busy=false;
     button.onclick=async()=>{
