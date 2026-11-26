@@ -18,7 +18,7 @@ LIVE="$(git -C "$ROOT" rev-parse ba8e9500)"
 TEMP="$(mktemp -d)"
 trap 'rm -rf "$TEMP"' EXIT
 git -C "$ROOT" archive "$LIVE" app | tar -x -C "$TEMP"
-python3 "$ROOT/dev/evals/kit_batch2_pin.py" "$TEMP/app" "$REPORT" > "$TEMP/pin.json"
+python3 "$ROOT/dev/evals/kit_batch2_pin.py" "$TEMP/app" "$REPORT" "$ROOT" > "$TEMP/pin.json"
 export KINETTA_KIT_BASELINE_TREE="$TEMP/app"
 export KINETTA_KIT_BASELINE_PIN="$TEMP/pin.json"
 export KINETTA_KIT_BASELINE_COMMIT="$LIVE"
