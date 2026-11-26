@@ -463,12 +463,14 @@ def _period_contributions(c, group, members, now, monday=None):
 def _answer(c, group, uid):
     members = c.execute(f'''SELECT m.user_id,m.joined_at,m.recap_consent,m.notifications_muted,m.monday_recap_enabled,m.sharing_level,
                                    u.login::text AS username,u.photo_v AS photo,
-                                   {_GROUP_TOTAL_SHARING_SQL} AS share_total
+                                   {_GROUP_TOTAL_SHARING_SQL} AS share_total,
+                                   EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=%s AND b.blocked=m.user_id)
+                                          OR (b.user_id=m.user_id AND b.blocked=%s)) AS blocked_from_viewer
                             FROM group_members m JOIN users u ON u.id=m.user_id
                             LEFT JOIN profile p ON p.user_id=u.id
                             WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm
-                              AND u.suspended_at IS NULL ORDER BY m.joined_at,m.user_id''', (group['id'],)).fetchall()
-    visible = [member for member in members if not _blocked(c, uid, member['user_id'])]
+                              AND u.suspended_at IS NULL ORDER BY m.joined_at,m.user_id''', (uid, uid, group['id'])).fetchall()
+    visible = [member for member in members if not member['blocked_from_viewer']]
     visible.sort(key=lambda member: (member['user_id'] != uid, member['username'].casefold(), member['user_id']))
     sharing = [member for member in visible if member['share_total']]
     now = _now()
