@@ -123,12 +123,12 @@ async function pushCard(box, r, message='') {
     box.innerHTML=`<section class="card"><h2>iPhone notifications</h2>${content}</section>${kinds}`;
   };
   const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.'};
-  const alertTypes=(disabled=false)=>{
-    const rows=keys=>keys.map(k=>`<label class="switch-row"><span>${esc(k==='milestones'?'Milestones':PUSH_NAMES[k])}<small>${esc(hints[k])}</small></span><input type="checkbox" role="switch" name="${k}"${r.push?.[k]?' checked':''}${disabled?' disabled':''}></label>`).join('');
-    return `<section class="card notification-alerts"><h2>Alerts</h2>${disabled?'<p class="small muted">Choose these in the Kinetta iPhone app.</p>':''}<div id="np-kinds"><h3>Social</h3><div class="notification-choices">${rows(['friends','cheers','comments','dishes'])}</div><h3>Reminders</h3><div class="notification-choices">${rows(['activities','milestones','challenge_joins','challenge_reminders','challenge_finished'])}</div></div></section>`;
+  const alertTypes=()=>{
+    const rows=keys=>keys.map(k=>`<label class="switch-row"><span>${esc(k==='milestones'?'Milestones':PUSH_NAMES[k])}<small>${esc(hints[k])}</small></span><input type="checkbox" role="switch" name="${k}"${r.push?.[k]?' checked':''}></label>`).join('');
+    return `<section class="card notification-alerts"><h2>Alerts</h2><div id="np-kinds"><h3>Social</h3><div class="notification-choices">${rows(['friends','cheers','comments','dishes'])}</div><h3>Reminders</h3><div class="notification-choices">${rows(['activities','milestones','challenge_joins','challenge_reminders','challenge_finished'])}</div></div></section>`;
   };
   if (!Native.on) {
-    render('<p class="small muted">Phone alerts are managed in the Kinetta iPhone app.</p>',alertTypes(true));return;
+    render('<p class="small muted">Managed in the iPhone app.</p>');return;
   }
   if (!Native.pushSupported) {
     render('<p class="small muted">Update Kinetta in TestFlight to enable phone alerts.</p>');return;
@@ -190,7 +190,8 @@ async function personalNotificationCard(box,message='',pushPreferences=null){
     if(!valid())return;
     const unavailable=!state.push_ready||!state.device_ready;
     const monthlySummary=box.personalPush.monthly_summary!==false;
-    box.innerHTML=`<section class="card personal-notifications"><h2>Training & progress</h2><p class="small muted">Planned workouts, weekly summaries and streak reminders are off by default · ${esc(state.tz)}</p>
+    const web=!Native.on,expanded=(box.querySelector?.('details.personal-notifications')?.open??box.personalExpanded)===true;
+    box.innerHTML=`<${web?'details':'section'} class="card personal-notifications${web?' chev-row':''}"${web&&expanded?' open':''}>${web?'<summary>Saved alert preferences</summary>':''}<h2>Training & progress</h2><p class="small muted">${web?'Saved choices for iPhone alerts':'Planned workouts, weekly summaries and streak reminders are off by default'} · ${esc(state.tz)}</p>
       <div class="notification-choices"><div class="personal-notice-choice"><label class="switch-row"><span>Planned workouts<small>Only when a workout is still due.</small></span><input type="checkbox" role="switch" data-personal="plan"${state.plan?' checked':''}${unavailable&&!state.plan?' disabled':''}></label>
       ${state.plan?`<label class="personal-notice-time">Reminder time<select data-personal="plan_time">${times.map(([k,v])=>`<option value="${k}"${state.plan_time===k?' selected':''}>${v}</option>`).join('')}</select></label>`:''}</div>
       <div class="personal-notice-choice"><label class="switch-row"><span>Weekly summary<small>Monday at 9 am.</small></span><input type="checkbox" role="switch" data-personal="weekly"${state.weekly?' checked':''}${unavailable&&!state.weekly?' disabled':''}></label></div>
@@ -198,7 +199,9 @@ async function personalNotificationCard(box,message='',pushPreferences=null){
       <div class="personal-notice-choice"><label class="switch-row"><span>Streak reminder<small>Friday at 6 pm · only if you have not logged a workout this week.</small></span><input type="checkbox" role="switch" data-personal="streak"${state.streak?' checked':''}></label></div></div>
       ${unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':Native.on?'Turn on iPhone notifications above.':'Turn on notifications in the Kinetta iPhone app first.'}</p>`:''}
       ${state.plan||state.weekly||state.streak?'<p class="settings-footnote">Weekly summaries need a recent activity or food log. iPhone alerts may be delayed.</p>':''}
-      <p class="small${error?' err':''}" role="status" data-personal-status>${esc(error)}</p></section>`;
+      <p class="small${error?' err':''}" role="status" data-personal-status>${esc(error)}</p></${web?'details':'section'}>`;
+    const disclosure=box.querySelector?.('details.personal-notifications');
+    if(disclosure)disclosure.ontoggle=()=>{if(valid()&&disclosure.isConnected)box.personalExpanded=disclosure.open;};
     $$('[data-personal]',box).forEach(input=>input.onchange=async()=>{
       if(!valid()||input.disabled)return;
       const key=input.dataset.personal,value=input.type==='checkbox'?input.checked:input.value;
