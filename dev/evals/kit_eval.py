@@ -29,7 +29,12 @@ p.add_argument('--dry-run',action='store_true',help='Validate inputs and write p
 p.add_argument('--setting-smoke',action='store_true',help='Ten same-code Flash cases, not a release gate')
 p.add_argument('--smoke-thinking',choices=('LOW','COMPARE'),default='LOW',help='LOW only by default; explicit COMPARE adds MEDIUM')
 p.add_argument('--gate',action='store_true',help='Use the forty-case chat/weekly release set and require both variants')
+p.add_argument('--batch2',action='store_true',help='Fixed forty-case batch2 set plus real saved-history/memory/proposal path')
 args=p.parse_args()
+if args.batch2:
+ if not args.gate or args.setting_smoke:p.error('--batch2 requires a full gate')
+ from kit_batch2_cases import BATCH2_CASES
+ CASES=BATCH2_CASES;GATE_CASE_IDS=tuple(c[0] for c in CASES)
 if not valid_budget(args.budget_usd):p.error('Budget must be positive and at most $2.50 per run')
 if not args.dry_run and not args.accept_paid_calls:p.error('Explicit --accept-paid-calls required')
 if not args.dry_run and (os.environ.get('KINETTA_KIT_EVAL_ISOLATED')!='1' or not os.environ.get('GEMINI_API_KEY')):
@@ -60,6 +65,14 @@ metadata={'reviewed':False,'complete':False,'dry_run':args.dry_run,
  'baseline_sha256':hashlib.sha256(baseline_path.read_bytes()).hexdigest(),
  'case_count':len(selected_cases),'selected_case_ids':[case[0] for case in selected_cases],
  'budget_usd':args.budget_usd,'provider_calls':0 if args.dry_run else None}
+if args.batch2:
+ pin_path=Path('/tmp/kit-live-pin.json')
+ if pin_path.is_file():metadata['baseline_pin']=json.loads(pin_path.read_text())
+ metadata.update(batch2=True,baseline_report_sha256=os.environ.get('KINETTA_KIT_BASELINE_REPORT_SHA256'),
+   baseline_source_tree=os.environ.get('KINETTA_KIT_BASELINE_COMMIT'),
+   feature_coverage={'history':'real saved-thread resume','memory':'real memory context',
+    'goals':'preview only; confirmation tested offline','streaming':'offline transport tests',
+    'charts':'unsupported; separate Draft excluded','contextual_coaching':'separate Draft excluded'})
 reused=[]
 if args.gate and not args.setting_smoke:
  metadata.update(gate_resume_version=1,input_digest=gate_identity(root,selected_cases,args.baseline_commit,
@@ -125,6 +138,9 @@ diagnostics=RejectionDiagnostics(coach_chat)
 from app.kit_tools import KitTools
 diagnostics.observe_tools(KitTools)
 diagnostics.attach(baseline)
+if args.batch2:
+ import importlib
+ diagnostics.observe_tools(importlib.import_module('app._kit_live.kit_tools').KitTools)
 weekly_case_ids={case[0] for case in selected_cases
                  if len(case)>3 and isinstance(case[3],dict) and case[3].get('weekly_review')}
 weekly_accounts={};weekly_manifests={}
@@ -217,9 +233,15 @@ try:
   transport=None
   boundary=None
   provider_requests=0
+  observed_context=None
+  requests_before=ledger_totals()['requests'] if args.batch2 and cid.startswith('batch2-') else None
   request_id=uuid.uuid4()
   try:
-   if weekly and (variant=='candidate' or args.gate):
+   if args.batch2 and cid.startswith('batch2-'):
+    from kit_batch2_cases import run_case
+    answer,error,provider_requests,observed_context=run_case(case,variant,
+      coach_chat.answer if variant=='candidate' else baseline.answer,uids)
+   elif weekly and (variant=='candidate' or args.gate):
     # Run the same answer function used by kit_thread.generate with the exact client POST body.
     from app import ai_access, kit_thread
     client_id,generation,visit_id=uuid.uuid4(),uuid.uuid4(),uuid.uuid4()
@@ -259,7 +281,8 @@ try:
    if capped(error):boundary=cap_reason(ai_budget,case_uid)
   finally:
    diagnostics.end()
-   if not weekly:provider_requests=provider_requests_for(case_uid,request_id)
+   if requests_before is not None:provider_requests=ledger_totals()['requests']-requests_before
+   if not weekly and not (args.batch2 and cid.startswith('batch2-')):provider_requests=provider_requests_for(case_uid,request_id)
   expected_refusal=is_expected_health_consent_refusal(
    cid,variant=variant,answer=answer,error=error,provider_requests=provider_requests,
    refusal_message=coach.HEALTH_NO)
@@ -269,6 +292,7 @@ try:
   passed=evaluation_case_passed(cid,variant=variant,answer=answer,error=error,
                                 expected_refusal=expected_refusal)
   row={'case':cid,'variant':variant,'question':'Review my week' if weekly else question,'history':history,
+       'observed_context':observed_context,
        'fixture':weekly_manifests.get(cid),'weekly_request':transport,'weekly_review':weekly,
        'evaluation_account':'health-consent-off' if weekly and cid=='weekly-health-consent-off' else 'primary',
        'answer':answer,'error':error,'cap_reason':boundary,'provider_requests':provider_requests,
