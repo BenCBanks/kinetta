@@ -4,6 +4,9 @@ from app import coach_chat,kit_claims,kit_record_counts
 rows=json.load(open('/tmp/kit-training-review-replay.json'))
 assert len(rows)==40 and len({r['case'] for r in rows})==40
 accepted=0;rejected=[]
+# These archived captures predate the reviewed sport-scope safety correction.
+# Keep their original inputs intact and require the newly rejected claim's reason.
+reviewed_rejections={'recovery':'relation_unsupported'}
 for row in rows:
     if not row['raws']:
         assert row['case'] in ('low-intake','recall-health-consent-off','weekly-health-consent-off')
@@ -12,17 +15,20 @@ for row in rows:
         try:
             answer=coach_chat.checked_answer(coach_chat._json(raw),row['evidence'],kit=True,
                 weekly_review=row['weekly_review'],conversation_question=row['question'])
-        except ValueError:continue
-        assert row['expected']=='pass',row['case']
+        except ValueError as error:
+            if row['case'] in reviewed_rejections:
+                assert str(error)==reviewed_rejections[row['case']],(row['case'],str(error))
+            continue
+        assert row['expected']=='pass' and row['case'] not in reviewed_rejections,row['case']
         accepted+=1
         if row['case']=='weekly-rest-heavy':
             assert '3 fewer workouts' in answer['interpretation'] and '-3 fewer' not in answer['interpretation']
             assert 'less time' in answer['interpretation'] and 'fell by 9.3 mi' in answer['interpretation']
         break
     else:
-        assert row['expected']=='reject',row['case']
+        assert row['expected']=='reject' or row['case'] in reviewed_rejections,row['case']
         rejected.append(row['case'])
-assert accepted==38 and rejected==['sugar','nutrition-adequacy']
+assert accepted==37 and rejected==['sugar','nutrition-adequacy','recovery']
 
 weekly=next(r for r in rows if r['case']=='weekly-diet-request')['evidence']
 phrase='You recorded entries on three days.'
@@ -88,4 +94,4 @@ for value in (1,True,float('nan'),float('inf'),None):
     try:kit_claims.claim_evidence(['Your weight entries show a downward shift.'],evidence)
     except ValueError:pass
     else:raise AssertionError('Invalid/reversed weight direction accepted')
-print('40 captured candidates: 38 accepted / 2 ambiguous outputs safely reject; count/date/completeness/direction counterfactuals PASS; zero provider calls')
+print('40 captured candidates: 37 accepted / 2 ambiguous outputs + 1 unsupported sport-scope claim safely reject; count/date/completeness/direction counterfactuals PASS; zero provider calls')
