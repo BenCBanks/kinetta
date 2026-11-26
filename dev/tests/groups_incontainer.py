@@ -1,9 +1,12 @@
 """Fictional Groups: private rows, hashed invites, lifecycle, blocks and aggregate-only activity progress."""
 import datetime as dt
 import hashlib
+import io
+import json
 import re
 import uuid
 import unittest
+import zipfile
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -1434,6 +1437,260 @@ class Groups(unittest.TestCase):
         with patch.object(groups,'_now',return_value=tokyo_monday):
             self.assertEqual(self.clients[0].get('/api/groups/'+group['id']).json()['monday_recap'],
                              {'week_start':'2026-11-09','total':1.0})
+
+
+
+class GroupChallengeUpgrade(unittest.TestCase):
+    """Additive upgrade and account-lifecycle fixtures; group UI still uses legacy tables."""
+    migration = next(m for m in db.MIGRATIONS if 'additive people-first Groups foundation' in m)
+    @classmethod
+    def setUpClass(cls):
+        cls.password = auth.hash_pw('fictional group testing phrase')
+
+    def setUp(self):
+        self.ids = []
+        with db.connect() as c:
+            for _ in range(4):
+                self.ids.append(c.execute("""INSERT INTO users(login,name,pw_hash)
+                    VALUES(%s,'Fictional schema member',%s) RETURNING id""",
+                    ('zz_test_gcs_'+uuid.uuid4().hex[:12],self.password)).fetchone()['id'])
+                c.execute('INSERT INTO profile(user_id,share_achievements) VALUES(%s,false)', (self.ids[-1],))
+
+    def tearDown(self):
+        with db.connect() as c:
+            c.execute('DELETE FROM users WHERE id=ANY(%s)', (self.ids,))
+
+    def seed(self, c, who=0, metric='distance', unit='km', start='2026-11-01', end='2026-11-01'):
+        g = c.execute("""INSERT INTO event_groups(organizer_id,title,time_zone,note,training_for,
+            goal_type,goal_target,goal_unit,goal_sports,goal_start_date,event_date,created)
+            VALUES(%s,'Fictional November crew','America/New_York','Retain this note','Trail day',
+            %s,100,%s,ARRAY['run'],%s,%s,'2026-01-01T12:00:00Z') RETURNING *""",
+            (self.ids[who],metric,unit,start,end)).fetchone()
+        for i, uid in enumerate(self.ids[:3]):
+            c.execute("""INSERT INTO group_members(group_id,user_id,sharing_level,joined_at)
+                VALUES(%s,%s,%s,'2026-01-01T12:00:00Z')""",
+                (g['id'],uid,'just_in' if i==2 else 'total_shared'))
+        return g
+
+    def backfill(self, c):
+        migration = self.migration
+        c.execute(migration[migration.index('INSERT INTO group_challenges('):])
+
+    def upgrade(self, c):
+        c.execute('DROP TABLE group_challenge_members,group_challenges')
+        c.execute('DROP FUNCTION fit_group_challenge_access(uuid,bigint)')
+        c.execute(self.migration)
+
+    def challenge(self, c, gid, who, title):
+        return c.execute("""INSERT INTO group_challenges(group_id,creator_id,title,metric,target,unit,
+            sports,start_date,time_zone) VALUES(%s,%s,%s,'sessions',3,'sessions',ARRAY['run'],
+            '2026-11-02','UTC') RETURNING id""",(gid,self.ids[who],title)).fetchone()['id']
+
+    def client(self, who):
+        with db.connect() as c:token=auth.new_session(c,self.ids[who],'fictional schema test')
+        client=TestClient(app);client.headers['Origin']='http://testserver'
+        client.cookies.set(auth.COOKIE,token)
+        return client
+
+    def test_account_export_includes_only_own_challenges_and_sharing(self):
+        with db.connect() as c:
+            a=self.seed(c);b=self.seed(c,who=1);self.backfill(c)
+            mine=self.challenge(c,a['id'],2,'MY CREATED CHALLENGE')
+            theirs=self.challenge(c,a['id'],1,'OTHER ACCOUNT SENTINEL')
+            c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s)',
+                      (mine,a['id'],self.ids[2]))
+            expected=c.execute('SELECT challenge_id,share_total FROM group_challenge_members WHERE user_id=%s',
+                               (self.ids[2],)).fetchall()
+        client=self.client(2)
+        try:
+            response=client.get('/api/account/export');self.assertEqual(response.status_code,200)
+            with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+                created=[json.loads(s) for s in z.read('data/group_challenges_created.jsonl').splitlines()]
+                shares=[json.loads(s) for s in z.read('data/group_challenge_members.jsonl').splitlines()]
+            self.assertEqual([q['id'] for q in created],[str(mine)])
+            self.assertNotIn('OTHER ACCOUNT SENTINEL',json.dumps(created))
+            self.assertNotIn(str(theirs),json.dumps(created))
+            self.assertTrue(all('creator_id' not in q for q in created))
+            self.assertEqual({r['challenge_id']:r['share_total'] for r in shares},
+                             {str(r['challenge_id']):r['share_total'] for r in expected})
+            self.assertEqual(len(shares),3,'both prior private choices and new default-on choice exported')
+            self.assertTrue(all('user_id' not in r for r in shares))
+        finally:client.close()
+
+    def test_full_account_deletion_removes_authored_challenges_but_not_others_group(self):
+        with db.connect() as c:
+            g=self.seed(c);self.backfill(c)
+            mine=self.challenge(c,g['id'],2,'DELETE MY AUTHORED TEXT')
+            for uid in self.ids[:3]:
+                c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s)',
+                          (mine,g['id'],uid))
+            kept=c.execute('SELECT * FROM group_challenges WHERE legacy_group_id=%s',(g['id'],)).fetchone()
+        client=self.client(2)
+        try:
+            response=client.post('/api/account/delete',json={'password':'fictional group testing phrase'})
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(client.get('/api/me').status_code,401)
+        finally:client.close()
+        with db.connect() as c:
+            self.assertIsNone(c.execute('SELECT id FROM users WHERE id=%s',(self.ids[2],)).fetchone())
+            self.assertEqual(c.execute('SELECT * FROM group_challenges WHERE group_id=%s',(g['id'],)).fetchall(),[kept])
+            self.assertEqual(c.execute('SELECT * FROM event_groups WHERE id=%s',(g['id'],)).fetchone(),g)
+            self.assertEqual(c.execute('SELECT user_id FROM group_members WHERE group_id=%s ORDER BY user_id',
+                                      (g['id'],)).fetchall(),[{'user_id':u} for u in self.ids[:2]])
+            self.assertEqual(c.execute('SELECT user_id FROM group_challenge_members WHERE group_id=%s ORDER BY user_id',
+                                      (g['id'],)).fetchall(),[{'user_id':u} for u in self.ids[:2]])
+        owner=self.client(0)
+        try:self.assertEqual(owner.get('/api/groups/'+str(g['id'])).status_code,200)
+        finally:owner.close()
+
+    def test_organizer_deletion_cascades_only_their_groups_and_authored_challenges(self):
+        with db.connect() as c:
+            a=self.seed(c);b=self.seed(c,who=1);self.backfill(c)
+            self.challenge(c,b['id'],0,'DELETED CREATOR IN ANOTHER GROUP')
+            kept=c.execute('SELECT * FROM group_challenges WHERE legacy_group_id=%s',(b['id'],)).fetchone()
+        client=self.client(0)
+        try:
+            response=client.post('/api/account/delete',json={'password':'fictional group testing phrase'})
+            self.assertEqual(response.status_code,200,response.text)
+        finally:client.close()
+        with db.connect() as c:
+            self.assertIsNone(c.execute('SELECT id FROM event_groups WHERE id=%s',(a['id'],)).fetchone())
+            self.assertEqual(c.execute('SELECT * FROM group_challenges WHERE group_id=ANY(%s)',([a['id'],b['id']],)).fetchall(),[kept])
+            self.assertEqual(c.execute('SELECT user_id FROM group_challenge_members WHERE group_id=%s ORDER BY user_id',
+                                      (b['id'],)).fetchall(),[{'user_id':u} for u in self.ids[1:3]])
+
+    def test_upgrade_preserves_every_goal_and_related_record(self):
+        with db.connect() as c, c.transaction(force_rollback=True):
+            gs = [self.seed(c,metric=m,unit=u,end=None if m=='sessions' else '2026-11-01')
+                  for m,u in [('distance','mi'),('elevation','ft'),('long_outings','outings'),('sessions','sessions')]]
+            gid=gs[0]['id']
+            c.execute("UPDATE event_groups SET closed_at='2026-11-02T12:00Z',joining_closed=true WHERE id=%s", (gid,))
+            c.execute("UPDATE group_members SET status='left',monday_recap_enabled=true WHERE group_id=%s AND user_id=%s",(gid,self.ids[1]))
+            update=c.execute("INSERT INTO group_updates(group_id,user_id,text) VALUES(%s,%s,'Fictional update') RETURNING id",(gid,self.ids[0])).fetchone()['id']
+            c.execute("INSERT INTO group_update_reactions(update_id,user_id,kind) VALUES(%s,%s,'thumbsup')",(update,self.ids[1]))
+            c.execute("INSERT INTO group_monday_recaps(group_id,week_start) VALUES(%s,'2026-10-26')",(gid,))
+            c.execute("INSERT INTO group_invites(group_id,generation,token_hash,expires_at) VALUES(%s,1,%s,'2030-01-01')",(gid,b'x'*32))
+            tables=['event_groups','group_members','group_updates','group_update_reactions','group_monday_recaps','group_invites','profile','users','notifications','activities']
+            snapshot=lambda: {t:c.execute(sql.SQL('SELECT to_jsonb(t) AS row FROM {} t ORDER BY to_jsonb(t)::text').format(sql.Identifier(t))).fetchall() for t in tables}
+            before=snapshot();self.upgrade(c);self.assertEqual(snapshot(),before,'no existing record changes')
+            rows=c.execute('SELECT * FROM group_challenges WHERE group_id=ANY(%s)',([g['id'] for g in gs],)).fetchall()
+            self.assertEqual(len(rows),4)
+            for q in rows:
+                g=c.execute('SELECT * FROM event_groups WHERE id=%s',(q['group_id'],)).fetchone()
+                for new,old in [('legacy_group_id','id'),('creator_id','organizer_id'),('metric','goal_type'),('target','goal_target'),('unit','goal_unit'),('sports','goal_sports'),('start_date','goal_start_date'),('end_date','event_date'),('ended_at','closed_at'),('created','created'),('title','title'),('note','note'),('training_for','training_for'),('time_zone','time_zone')]:
+                    self.assertEqual(q[new],g[old],new)
+            shares=c.execute('SELECT user_id,share_total,joined_at FROM group_challenge_members WHERE group_id=%s ORDER BY user_id',(gid,)).fetchall()
+            self.assertEqual([r['share_total'] for r in shares],[True,True,False],'left/private choices retained; master sharing is not enabled')
+            self.assertTrue(all(r['joined_at']==dt.datetime(2026,1,1,12,tzinfo=dt.timezone.utc) for r in shares))
+            self.assertFalse(c.execute('SELECT share_achievements FROM profile WHERE user_id=%s',(self.ids[0],)).fetchone()['share_achievements'])
+
+    def test_date_and_total_parity_across_spring_and_fall_dst(self):
+        for day,first,last in [('2026-03-08','2026-03-08T05:00Z','2026-03-09T04:00Z'),
+                               ('2026-11-01','2026-11-01T04:00Z','2026-11-02T05:00Z')]:
+            with self.subTest(day=day), db.connect() as c, c.transaction(force_rollback=True):
+                g=self.seed(c,start=day,end=day)
+                a=dt.datetime.fromisoformat(first);z=dt.datetime.fromisoformat(last)
+                for at in [a-dt.timedelta(seconds=1),a,a+dt.timedelta(hours=3),z-dt.timedelta(seconds=1),z]:
+                    c.execute("""INSERT INTO activities(user_id,sport,name,start_time,distance_m,ascent_m,moving_s,elapsed_s,source,visibility)
+                        VALUES(%s,'run','Fictional DST activity',%s,1000,20,3600,3600,'manual','friends')""",(self.ids[0],at))
+                self.upgrade(c)
+                q=c.execute('''SELECT metric AS goal_type,target AS goal_target,unit AS goal_unit,sports AS goal_sports,
+                    start_date AS goal_start_date,end_date AS event_date,time_zone FROM group_challenges WHERE group_id=%s''',(g['id'],)).fetchone()
+                q['id']=g['id'];members=[{'user_id':self.ids[0]}]
+                now=z+dt.timedelta(days=1)
+                self.assertEqual(groups._contributions(c,g,members,now),{self.ids[0]:3.0})
+                self.assertEqual(groups._contributions(c,q,members,now),groups._contributions(c,g,members,now))
+
+    def test_ongoing_and_inverted_legacy_dates_are_not_rewritten(self):
+        with db.connect() as c, c.transaction(force_rollback=True):
+            ongoing=self.seed(c,end=None)
+            inverted=self.seed(c,start='2026-11-02',end='2026-11-01')
+            self.upgrade(c)
+            self.assertIsNone(c.execute('SELECT end_date FROM group_challenges WHERE group_id=%s',(ongoing['id'],)).fetchone()['end_date'])
+            q=c.execute('SELECT start_date,end_date FROM group_challenges WHERE group_id=%s',(inverted['id'],)).fetchone()
+            self.assertEqual(q,{'start_date':dt.date(2026,11,2),'end_date':dt.date(2026,11,1)})
+            with self.assertRaises(psycopg.errors.CheckViolation), c.transaction():
+                c.execute("""INSERT INTO group_challenges(group_id,title,metric,target,unit,sports,start_date,end_date,time_zone)
+                    VALUES(%s,'New invalid dates','distance',1,'km',ARRAY['run'],'2026-11-02','2026-11-01','UTC')""",(ongoing['id'],))
+
+    def test_backfill_and_migration_runner_are_idempotent(self):
+        with db.connect() as c:
+            g=self.seed(c);self.backfill(c)
+            q=c.execute('SELECT * FROM group_challenges WHERE group_id=%s',(g['id'],)).fetchone()
+            c.execute('UPDATE group_challenge_members SET share_total=false WHERE challenge_id=%s',(q['id'],))
+            self.backfill(c);self.backfill(c)
+            self.assertEqual(c.execute('SELECT * FROM group_challenges WHERE group_id=%s',(g['id'],)).fetchall(),[q])
+            self.assertFalse(c.execute('SELECT bool_or(share_total) AS v FROM group_challenge_members WHERE challenge_id=%s',(q['id'],)).fetchone()['v'])
+        db.migrate();db.migrate()
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT id FROM group_challenges WHERE group_id=%s',(g['id'],)).fetchall(),[{'id':q['id']}])
+            c.execute("""INSERT INTO group_challenges(group_id,creator_id,title,metric,target,unit,sports,start_date,time_zone)
+                VALUES(%s,%s,'Member-created later','sessions',3,'sessions',ARRAY['run'],'2026-11-02','UTC')""",(g['id'],self.ids[2]))
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_challenges WHERE group_id=%s',(g['id'],)).fetchone()['n'],2)
+
+    def test_sql_readers_are_member_scoped_own_sharing_only_and_cannot_write(self):
+        role='zz_test_gcs_reader_'+uuid.uuid4().hex[:8];password='fictional isolated SQL reader'
+        with db.connect() as c:
+            a=self.seed(c);b=self.seed(c,who=1)
+            c.execute('DELETE FROM group_members WHERE group_id=%s AND user_id=%s',(b['id'],self.ids[2]))
+            self.backfill(c)
+            c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role),sql.Literal(password)))
+            c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)))
+            c.execute('UPDATE users SET sql_role=%s WHERE id=%s',(role,self.ids[2]))
+            for table in ['group_challenges','group_challenge_members']:
+                self.assertTrue(c.execute('SELECT relrowsecurity AS v FROM pg_class WHERE relname=%s',(table,)).fetchone()['v'])
+                for restricted in ['fit_coach']:
+                    self.assertFalse(c.execute('SELECT has_table_privilege(%s,%s,\'SELECT\') AS v',(restricted,table)).fetchone()['v'])
+                self.assertEqual(c.execute("SELECT count(*) AS n FROM pg_policies WHERE tablename=%s AND 'fit_all_readers'=ANY(roles)",(table,)).fetchone()['n'],0)
+        try:
+            with psycopg.connect(db._conninfo(role,password),row_factory=dict_row,autocommit=True) as reader:
+                self.assertEqual(reader.execute('SELECT group_id FROM group_challenges').fetchall(),[{'group_id':a['id']}])
+                self.assertEqual(reader.execute('SELECT user_id,share_total FROM group_challenge_members').fetchall(),[{'user_id':self.ids[2],'share_total':False}])
+                with db.connect() as c:c.execute(sql.SQL('GRANT fit_all_readers TO {}').format(sql.Identifier(role)))
+                self.assertEqual(reader.execute('SELECT group_id FROM group_challenges').fetchall(),[{'group_id':a['id']}],'read-all membership never bypasses group RLS')
+                for uid in (self.ids[0],self.ids[2]):
+                    for column,value in [('suspended_at',dt.datetime(2026,11,26,tzinfo=dt.timezone.utc)),
+                                         ('needs_email_confirm',True),
+                                         ('password_change_expires',dt.datetime(2030,1,1,tzinfo=dt.timezone.utc))]:
+                        with self.subTest(account=uid,column=column):
+                            with db.connect() as c:
+                                c.execute(sql.SQL('UPDATE users SET {}=%s WHERE id=%s').format(sql.Identifier(column)),(value,uid))
+                            self.assertEqual(reader.execute('SELECT id FROM group_challenges').fetchall(),[])
+                            self.assertEqual(reader.execute('SELECT user_id FROM group_challenge_members').fetchall(),[])
+                            with db.connect() as c:
+                                c.execute(sql.SQL('UPDATE users SET {}=%s WHERE id=%s').format(sql.Identifier(column)),
+                                          (False if column=='needs_email_confirm' else None,uid))
+                            self.assertEqual(reader.execute('SELECT group_id FROM group_challenges').fetchall(),[{'group_id':a['id']}])
+                for statement in ['UPDATE group_challenge_members SET share_total=true','DELETE FROM group_challenges']:
+                    with self.assertRaises(psycopg.errors.InsufficientPrivilege):reader.execute(statement)
+                with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.ids[0],self.ids[2]))
+                self.assertEqual(reader.execute('SELECT id FROM group_challenges').fetchall(),[])
+                self.assertEqual(reader.execute('SELECT user_id FROM group_challenge_members').fetchall(),[])
+                with db.connect() as c:
+                    c.execute('DELETE FROM blocks WHERE user_id=%s',(self.ids[0],))
+                    c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.ids[2],self.ids[0]))
+                self.assertEqual(reader.execute('SELECT id FROM group_challenges').fetchall(),[])
+                self.assertEqual(reader.execute('SELECT user_id FROM group_challenge_members').fetchall(),[])
+                with db.connect() as c:
+                    c.execute('DELETE FROM blocks WHERE user_id=%s',(self.ids[2],))
+                    c.execute("UPDATE group_members SET status='left' WHERE group_id=%s AND user_id=%s",(a['id'],self.ids[2]))
+                self.assertEqual(reader.execute('SELECT id FROM group_challenges').fetchall(),[])
+        finally:
+            with db.connect() as c:
+                c.execute('UPDATE users SET sql_role=NULL WHERE id=%s',(self.ids[2],))
+                c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
+
+    def test_sharing_defaults_on_but_cross_group_and_nonmember_links_fail(self):
+        with db.connect() as c, c.transaction(force_rollback=True):
+            a=self.seed(c);b=self.seed(c,who=1);self.backfill(c)
+            q=c.execute('SELECT id FROM group_challenges WHERE group_id=%s',(a['id'],)).fetchone()['id']
+            c.execute('DELETE FROM group_challenge_members WHERE challenge_id=%s AND user_id=%s',(q,self.ids[2]))
+            row=c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s) RETURNING share_total',(q,a['id'],self.ids[2])).fetchone()
+            self.assertTrue(row['share_total'])
+            c.execute('DELETE FROM group_challenge_members WHERE challenge_id=%s AND user_id=%s',(q,self.ids[2]))
+            for gid,uid in [(b['id'],self.ids[2]),(a['id'],self.ids[3])]:
+                with self.assertRaises(psycopg.errors.ForeignKeyViolation), c.transaction():
+                    c.execute('INSERT INTO group_challenge_members(challenge_id,group_id,user_id) VALUES(%s,%s,%s)',(q,gid,uid))
 
 
 unittest.main()
