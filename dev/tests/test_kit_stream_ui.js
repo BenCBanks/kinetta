@@ -17,5 +17,9 @@ const source=fs.readFileSync('app/static/kit.js','utf8'),extract=(a,b)=>source.s
   start();frames=[broken];await assert.rejects(context.streamAnswer(c,'c',{},()=>valid));
  }
  start();frames=[b,()=>{valid=false;return {value:new TextEncoder().encode(done)}}];assert((await context.streamAnswer(c,'c',{},()=>valid)).cancelled);assert.equal(draws.length,1,'changed owner/visit has no later paint');
+ for(const status of [429,503]){
+  start();frames=[event('error',{code:status===429?'rate_limited':'unavailable',status,restore_draft:true,detail:'private provider text'})];
+  await assert.rejects(context.streamAnswer(c,'c',{},()=>valid),error=>error.status===status&&error.restoreDraft===true&&!error.message.includes('private'));
+ }
  assert.equal(c.streamController,null);console.log('Kit stream client: fragmented frames, first checked paint, no early actions, closed errors, truncation and owner/visit fence PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
