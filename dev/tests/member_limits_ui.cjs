@@ -29,6 +29,21 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
    await page.route('**/api/member-limit-fixture',route=>route.fulfill({status:429,headers:{'Retry-After':'19'},json:{detail:'Too many requests.'}}));
    const feedback=await page.evaluate(async()=>{try{await api('/api/member-limit-fixture');}catch(e){return {status:e.status,delay:e.retryAfter,message:e.message,read:loadErrorCopy(e)};}});
    assert.deepEqual(feedback,{status:429,delay:19,message:'Too many requests. Try again in 19 seconds.',read:'Too many requests. Try again in 19 seconds.'});assert.deepEqual(errors,[]);
+   // A failed reaction keeps its UUID; a successful new choice gets another one.
+   await page.keyboard.press('Escape');
+   const card=page.locator('article.post').filter({hasText:'Fictional empty run'}),reaction=card.locator('[data-reaction-group]'),reactionAttempts=[];
+   await page.route('**/api/activities/*/reaction',route=>{
+    if(route.request().method()!=='POST')return route.continue();
+    const body=route.request().postDataJSON();reactionAttempts.push(body);
+    return route.fulfill(reactionAttempts.length===1?{status:503,json:{detail:'Fictional save failed'}}:{json:{my_reaction:body.kind,reactions:{[body.kind]:1},reaction_order:[body.kind],comments:[]}});
+   });
+   const choose=async kind=>{await reaction.locator('.reaction-more').click();await page.locator(`.reaction-picker:not([hidden]) [data-react="${kind}"]`).click();await page.waitForFunction(()=>document.querySelector('article.post [data-reaction-group]')?.getAttribute('aria-busy')==='false');};
+   await choose('fire');assert.equal(await reaction.getAttribute('data-mine'),'');
+   await choose('fire');assert.equal(await reaction.getAttribute('data-mine'),'fire');
+   assert.match(reactionAttempts[0].client_id,/^[a-f0-9-]{36}$/);
+   assert.equal(reactionAttempts[1].client_id,reactionAttempts[0].client_id,'failed intention keeps its retry key');
+   await choose('clap');assert.equal(await reaction.getAttribute('data-mine'),'clap');
+   assert.notEqual(reactionAttempts[2].client_id,reactionAttempts[1].client_id,'new intention gets a new key');
    // Discovery has specialized error rows; they must not hide quota wait times.
    let searchLimited=false;
    await page.route('**/api/people/search?*',route=>route.fulfill(searchLimited?{status:429,headers:{'Retry-After':'19'},json:{detail:'Too many requests.'}}:{json:[{login:'zz_test_limit_peer',name:'Fictional Member',status:null}]}));

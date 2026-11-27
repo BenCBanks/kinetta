@@ -384,7 +384,9 @@ def friend_decline(login: str, user=Depends(current_user)):
     """Say no to a request. The other person isn't told; their request just goes away."""
     with db.connect() as c:
         t = _person(c, login)
-        member_limits.lock(c,t['id'])
+        # Match request/FK lock order without taking the sender's admission lock.
+        c.execute('SELECT id FROM users WHERE id=ANY(%s) ORDER BY id FOR KEY SHARE',
+                  (sorted({user['id'],t['id']}),)).fetchall()
         if c.execute("DELETE FROM friendships WHERE requester = %s AND addressee = %s AND status = 'pending' RETURNING 1", (t['id'], user['id'])).fetchone():
             member_limits.cooldown(c,t['id'],user['id'],7*86400)
         notify.drop(c, user['id'], 'friend_request', t['id'])
@@ -797,7 +799,10 @@ def react_to_achievement_moment(owner_login: str, week_start: dt.date, body: Rea
     with db.connect() as c:
         member_limits.lock(c, user['id'])
         moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
-        counted=member_limits.claim(c,user['id'],'reaction',f'moment:{owner_login}:{week_start}',payload=body.kind,request_key=body.client_id)
+        current=c.execute('SELECT kind FROM achievement_moment_reactions WHERE owner_id=%s AND week_start=%s AND user_id=%s FOR UPDATE',
+                          (moment['_owner_id'],moment['_week_start'],user['id'])).fetchone()
+        counted=member_limits.claim(c,user['id'],'reaction',f'moment:{owner_login}:{week_start}',payload=body.kind,request_key=body.client_id,
+                                    unchanged=bool(current and current['kind']==body.kind))
         if counted['replayed']: return _moment_reaction_result(moment)
         member_limits.finish(c,counted,f'{owner_login}:{week_start}')
         c.execute('''INSERT INTO achievement_moment_reactions(owner_id,week_start,user_id,kind)
@@ -811,11 +816,9 @@ def react_to_achievement_moment(owner_login: str, week_start: dt.date, body: Rea
 @router.delete('/achievement-moments/{owner_login}/{week_start}/reaction')
 def remove_achievement_moment_reaction(owner_login: str, week_start: dt.date, user=Depends(current_user)):
     with db.connect() as c:
-        member_limits.lock(c, user['id'])
         moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
-        removed=c.execute('DELETE FROM achievement_moment_reactions WHERE owner_id=%s AND week_start=%s AND user_id=%s RETURNING 1',
-                  (moment['_owner_id'], moment['_week_start'], user['id'])).fetchone()
-        if removed: member_limits.claim(c,user['id'],'reaction',f'moment:{owner_login}:{week_start}:remove')
+        c.execute('DELETE FROM achievement_moment_reactions WHERE owner_id=%s AND week_start=%s AND user_id=%s',
+                  (moment['_owner_id'], moment['_week_start'], user['id']))
         moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
         return _moment_reaction_result(moment)
 
@@ -825,7 +828,9 @@ def _react(aid,kind,user,client_id=None):
         member_limits.lock(c, user['id'])
         confirmed(c,user['id'])
         owner=can_see(c,user['id'],aid)
-        counted=member_limits.claim(c,user['id'],'reaction',f'activity:{aid}',payload=kind,request_key=client_id)
+        current=c.execute('SELECT kind FROM cheers WHERE activity_id=%s AND user_id=%s FOR UPDATE',(aid,user['id'])).fetchone()
+        counted=member_limits.claim(c,user['id'],'reaction',f'activity:{aid}',payload=kind,request_key=client_id,
+                                    unchanged=bool(current and current['kind']==kind))
         if counted['replayed']: return _social(c,aid,user['id'],owner)
         changed=c.execute("""INSERT INTO cheers(activity_id,user_id,kind) VALUES(%s,%s,%s)
           ON CONFLICT(activity_id,user_id) DO UPDATE SET kind=excluded.kind
@@ -850,9 +855,7 @@ def cheer(aid:int,user=Depends(current_user)):
 @router.delete('/activities/{aid}/cheer')
 def uncheer(aid:int,user=Depends(current_user)):
     with db.connect() as c:
-        member_limits.lock(c, user['id'])
-        removed=c.execute('DELETE FROM cheers WHERE activity_id=%s AND user_id=%s RETURNING 1',(aid,user['id'])).fetchone()
-        if removed: member_limits.claim(c,user['id'],'reaction',f'activity:{aid}:remove')
+        c.execute('DELETE FROM cheers WHERE activity_id=%s AND user_id=%s',(aid,user['id']))
         c.execute("UPDATE notifications SET cancelled=true WHERE kind='cheer' AND activity_id=%s AND actor_id=%s",(aid,user['id']))
         try:owner=can_see(c,user['id'],aid)
         except HTTPException as error:

@@ -867,7 +867,9 @@ def react_to_group_update(group_id: str, update_id: int, body: GroupReaction, us
         if group['closed_at']:
             raise HTTPException(409, 'This group is closed')
         update = _visible_update(c, group, user['id'], update_id)
-        counted=member_limits.claim(c,user['id'],'reaction',f'group-update:{update_id}',payload=body.kind,request_key=body.client_id)
+        current=c.execute('SELECT kind FROM group_update_reactions WHERE update_id=%s AND user_id=%s FOR UPDATE',(update_id,user['id'])).fetchone()
+        counted=member_limits.claim(c,user['id'],'reaction',f'group-update:{update_id}',payload=body.kind,request_key=body.client_id,
+                                    unchanged=bool(current and current['kind']==body.kind))
         if counted['replayed']: return _reaction_summary(_update_reaction_rows(c,group,user['id'],update_id),user['id'])
         member_limits.finish(c,counted,update_id)
         changed = c.execute('''INSERT INTO group_update_reactions(update_id,user_id,kind) VALUES(%s,%s,%s)
@@ -882,11 +884,9 @@ def react_to_group_update(group_id: str, update_id: int, body: GroupReaction, us
 @router.delete('/api/groups/{group_id}/updates/{update_id}/reaction')
 def remove_group_update_reaction(group_id: str, update_id: int, user=Depends(current_user)):
     with db.connect() as c:
-        member_limits.lock(c,user['id'])
         group = _group(c, group_id, user['id'])
         _visible_update(c, group, user['id'], update_id)
-        removed=c.execute('DELETE FROM group_update_reactions WHERE update_id=%s AND user_id=%s RETURNING 1', (update_id, user['id'])).fetchone()
-        if removed: member_limits.claim(c,user['id'],'reaction',f'group-update:{update_id}:remove')
+        c.execute('DELETE FROM group_update_reactions WHERE update_id=%s AND user_id=%s', (update_id, user['id']))
         return _reaction_summary(_update_reaction_rows(c, group, user['id'], update_id), user['id'])
 
 
@@ -913,7 +913,10 @@ def react_to_group_week(group_id: str, body: GroupReaction, user=Depends(current
         if group['closed_at']:
             raise HTTPException(409, 'This group is closed')
         week_start = _current_group_week(group, _now())
-        counted=member_limits.claim(c,user['id'],'reaction',f'group-week:{group_id}:{week_start}',payload=body.kind,request_key=body.client_id)
+        current=c.execute('SELECT kind FROM group_weekly_reactions WHERE group_id=%s AND week_start=%s AND user_id=%s FOR UPDATE',
+                          (group['id'],week_start,user['id'])).fetchone()
+        counted=member_limits.claim(c,user['id'],'reaction',f'group-week:{group_id}:{week_start}',payload=body.kind,request_key=body.client_id,
+                                    unchanged=bool(current and current['kind']==body.kind))
         if counted['replayed']: return _reaction_summary(_weekly_reaction_rows(c,group,user['id'],week_start),user['id'])
         member_limits.finish(c,counted,str(week_start))
         changed = c.execute('''INSERT INTO group_weekly_reactions(group_id,week_start,user_id,kind)
@@ -928,12 +931,10 @@ def react_to_group_week(group_id: str, body: GroupReaction, user=Depends(current
 @router.delete('/api/groups/{group_id}/weekly-reaction')
 def remove_group_week_reaction(group_id: str, user=Depends(current_user)):
     with db.connect() as c:
-        member_limits.lock(c,user['id'])
         group = _group(c, group_id, user['id'])
         week_start = _current_group_week(group, _now())
-        removed=c.execute('DELETE FROM group_weekly_reactions WHERE group_id=%s AND week_start=%s AND user_id=%s RETURNING 1',
-                  (group['id'], week_start, user['id'])).fetchone()
-        if removed: member_limits.claim(c,user['id'],'reaction',f'group-week:{group_id}:{week_start}:remove')
+        c.execute('DELETE FROM group_weekly_reactions WHERE group_id=%s AND week_start=%s AND user_id=%s',
+                  (group['id'], week_start, user['id']))
         return _reaction_summary(_weekly_reaction_rows(c, group, user['id'], week_start), user['id'])
 
 

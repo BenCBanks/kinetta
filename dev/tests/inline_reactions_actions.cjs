@@ -31,13 +31,9 @@ async function assertCardActions(card,{share,width,label}){
  }
 }
 (async()=>{
- const browser=await chromium.launch();let cases=0,themeStarted=0;
+ const browser=await chromium.launch();let cases=0;
  try{
-  for(const theme of ['light','dark']){
-   // Reused actors must not turn the UI matrix into a >60/min reaction burst.
-   if(cases)await new Promise(resolve=>setTimeout(resolve,Math.max(0,60250-(Date.now()-themeStarted))));
-   themeStarted=Date.now();
-   for(const size of [{width:390,root:16},{width:330,root:16}])for(const surface of ['friends','profile','own','history']){
+  for(const theme of ['light','dark'])for(const size of [{width:390,root:16},{width:330,root:16}])for(const surface of ['friends','profile','own','history']){
    if(process.env.KINETTA_REACTION_CASE&&!process.env.KINETTA_REACTION_CASE.split(',').includes(`${surface}-${size.width}-${theme}`))continue;
    const actor=surface==='own'||surface==='history'?'owner':'viewer',c=await browser.newContext({viewport:{width:size.width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
    try{
@@ -96,7 +92,6 @@ async function assertCardActions(card,{share,width,label}){
     }
     assert.deepEqual(errors,[]);cases++;console.log(`Inline reactions ${surface} ${size.width}/${size.root}px ${theme}: emoji choices, switch/clear, zero counts, busy/rollback, accessible people and feed→detail PASS`);
    }finally{await c.close();}
-   }
   }
  }finally{await browser.close();}
  console.log(`Inline reaction actions: ${cases} rendered private-account paths PASS`);

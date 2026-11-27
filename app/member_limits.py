@@ -62,11 +62,13 @@ def _wait(c, uid, kind, cap, seconds, recipient=None):
     return float(row['wait']) if row['n'] >= cap else 0
 
 
-def claim(c, uid, kind, target='', *, recipient=None, payload=None, request_key=None, quiet=False):
+def claim(c, uid, kind, target='', *, recipient=None, payload=None, request_key=None, quiet=False, unchanged=False):
     """Reserve once, or return a matching committed receipt/quiet duplicate.
 
     All limits, receipt and action writes roll back together. Replays must be
     authorized by the caller again and must render current data, never a snapshot.
+    For unchanged reactions, the caller holds the existing reaction row lock;
+    keep any retry receipt but do not reserve a write budget/event.
     """
     lock(c, uid)
     fingerprint = digest([kind, target, payload])
@@ -83,7 +85,7 @@ def claim(c, uid, kind, target='', *, recipient=None, payload=None, request_key=
         duplicate = c.execute('''SELECT result FROM member_action_events WHERE user_id=%s AND kind=%s
             AND target_hash=%s AND payload_hash=%s AND created>now()-interval '60 seconds'
             ORDER BY id DESC LIMIT 1''', (uid, kind, target_hash, digest(payload))).fetchone()
-    if not duplicate:
+    if not duplicate and not unchanged:
         waits = [_wait(c, uid, kind, cap, seconds,
                        recipient if kind == 'reaction_notice' else None)
                  for cap, seconds in BUDGETS[kind]]
@@ -98,6 +100,8 @@ def claim(c, uid, kind, target='', *, recipient=None, payload=None, request_key=
             VALUES(%s,%s,%s,%s)''', (uid, request_key, fingerprint, duplicate['result'] if duplicate else None))
     if duplicate:
         return {'replayed': True, 'result': duplicate['result']}
+    if unchanged:
+        return {'replayed': False, 'id': None, 'user_id': uid, 'request_key': request_key}
     event = c.execute('''INSERT INTO member_action_events(user_id,kind,target_hash,payload_hash,recipient_id)
         VALUES(%s,%s,%s,%s,%s) RETURNING id''', (uid, kind, target_hash, digest(payload), recipient)).fetchone()
     return {'replayed': False, 'id': event['id'], 'user_id': uid, 'request_key': request_key}
@@ -106,8 +110,9 @@ def claim(c, uid, kind, target='', *, recipient=None, payload=None, request_key=
 def finish(c, claim, result):
     if claim['replayed']: return
     value = str(result)
-    c.execute('UPDATE member_action_events SET result=%s WHERE id=%s AND user_id=%s',
-              (value, claim['id'], claim['user_id']))
+    if claim['id'] is not None:
+        c.execute('UPDATE member_action_events SET result=%s WHERE id=%s AND user_id=%s',
+                  (value, claim['id'], claim['user_id']))
     if claim['request_key'] is not None:
         c.execute('UPDATE member_action_receipts SET result=%s WHERE user_id=%s AND client_id=%s',
                   (value, claim['user_id'], claim['request_key']))
@@ -125,13 +130,14 @@ def comment_recipients(c, uid, recipients):
 
 
 def cooldown(c, uid, recipient, seconds=None):
-    lock(c, uid)
+    # The pair upsert serializes writers; a decline must not take the sender's admission lock.
     if seconds is not None:
         c.execute('''INSERT INTO member_pair_cooldowns(user_id,recipient_id,expires)
             VALUES(%s,%s,now()+make_interval(secs=>%s)) ON CONFLICT(user_id,recipient_id)
             DO UPDATE SET expires=greatest(member_pair_cooldowns.expires,EXCLUDED.expires)''',
                   (uid, recipient, seconds))
     else:
+        lock(c, uid)
         row = c.execute('''SELECT extract(epoch FROM expires-now()) AS wait FROM member_pair_cooldowns
             WHERE user_id=%s AND recipient_id=%s AND expires>now()''', (uid, recipient)).fetchone()
         if row: refused(row['wait'])

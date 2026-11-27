@@ -71,6 +71,7 @@ function wireReactionGroup(group,aid,changed){
   const showPeople=()=>{close();const removeMine=()=>choose(null);if(isMoment)achievementMomentCheers(momentOwner,momentWeek,removeMine);else if(isGroup)groupReactionCheers(groupId,groupUpdateId||null,removeMine);else activityCheers(aid,removeMine);};
   const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
   const more=$('.reaction-more',group),main=more,summary=$('.reaction-summary',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
+  let pendingReaction=null;
   let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS().map(([k])=>[k,+group.getAttribute('data-count-'+k)||0])),reaction_order:(group.dataset.reactionOrder||'').split(',').filter(Boolean)};
   let hoverTimer=null,leaveTimer=null,heldOpen=false,highlighted=null,anchorRect=null;
   const highlight=(button,buzz=true)=>{if(!active()||!button||button===highlighted)return;highlighted?.classList.remove('is-highlighted');highlighted=button;button.classList.add('is-highlighted');if(buzz&&typeof Haptics!=='undefined')Haptics.tick();};
@@ -121,13 +122,16 @@ function wireReactionGroup(group,aid,changed){
   const choose=async(next)=>{
     const focused=document.activeElement,restoreFocus=group.contains(focused)||picker.contains(focused),host=group.parentElement;
     close();if(busy||!active()||state.my_reaction===next)return;
+    if(next&&(!pendingReaction||pendingReaction.kind!==next))pendingReaction={kind:next,client_id:crypto.randomUUID()};
+    if(!next)pendingReaction=null;
     busy=true;const was=state,counts={...state.reactions};
     const order=reactionOrder(state);if(state.my_reaction){counts[state.my_reaction]=Math.max(0,(counts[state.my_reaction]||0)-1);if(!counts[state.my_reaction])order.splice(order.indexOf(state.my_reaction),1);}if(next){if(!counts[next])order.push(next);counts[next]=(counts[next]||0)+1;}
     state={my_reaction:next,reactions:counts,reaction_order:order};draw();if(typeof Haptics!=='undefined')Haptics.react();if(!next){main.classList.add('is-removing');setTimeout(()=>main.classList.remove('is-removing'),140);}
     try{
       const path=isMoment?`/api/achievement-moments/${encodeURIComponent(momentOwner)}/${momentWeek}/reaction`:isGroup?(groupUpdateId?`/api/groups/${encodeURIComponent(groupId)}/updates/${encodeURIComponent(groupUpdateId)}/reaction`:`/api/groups/${encodeURIComponent(groupId)}/weekly-reaction`):`/api/activities/${aid}/reaction`;
-      let fresh=await api(path,next?json('POST',{kind:next}):{method:'DELETE'});if(readOwner()!==owner)return;
+      let fresh=await api(path,next?json('POST',pendingReaction):{method:'DELETE'});if(readOwner()!==owner)return;
       if(!isMoment&&!isGroup&&!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);if(readOwner()!==owner)return;
+      pendingReaction=null;
       if(!isMoment&&!isGroup){SocialData.remember(aid,fresh);socialChanged(aid);}if(active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh),reaction_order:reactionOrder(fresh)};changed?.(fresh);}return fresh;
     }catch(x){if(!isMoment&&!isGroup&&readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}return null;}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?main:host?.querySelector('.reaction-more');if(button?.isConnected)button.focus({preventScroll:true});}}
   };
