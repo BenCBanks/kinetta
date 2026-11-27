@@ -51,26 +51,34 @@ try:
   status, result = a.post('/api/food/history/preview', {'text': text})
   assert status == 200 and result['rows'] == [{'day': day, 'eaten': 1000.0, 'protein_g': 50.0,
           'food_logged_here': False, 'weight_replaces': False}], result
- # Empty group columns and a shared parent do not make distinct meals overlap.
- for breakfast, dinner in (('Breakfast Total,', 'Dinner,'),
-                            (',Breakfast Total', ',Dinner'),
-                            ('Meals,Breakfast Total', 'Meals,Dinner'),
-                            ('Breakfast Total,Meals', 'Dinner,Meals')):
-  for rows in ((breakfast, dinner), (dinner, breakfast)):
-   text = 'Date,Group,Diary Group,Calories\n' + '\n'.join(
-       f'2024-02-10,{labels},{400 if "Breakfast" in labels else 600}' for labels in rows)
+ # Resolve only clear meal/day scopes; ambiguous metadata keeps legacy acceptance.
+ scope_cases = [  # Group, Diary Group, calories; expected sum (None means overlap).
+  (("Breakfast,Subtotal,400", "Dinner,Subtotal,600"), 1000),
+  (("Subtotal,Breakfast,400", "Subtotal,Dinner,600"), 1000),
+  (("Breakfast,Total,400", "Dinner,Total,600"), 1000),
+  (("Breakfast Total,,400", "Dinner,,600"), 1000),
+  ((",Breakfast Total,400", ",Dinner,600"), 1000),
+  (("Meals,Breakfast Total,400", "Meals,Dinner,600"), 1000),
+  (("Breakfast Total,Meals,400", "Dinner,Meals,600"), 1000),
+  (("Snack,,100", "Snack Total,,100"), None),
+  (("Meals,Snacks,100", "Meals,Snack Subtotal,100"), None),
+  (("Breakfast,,400", "Breakfast,Subtotal,400"), None),
+  (("Breakfast,Total,400", "Breakfast,,400"), None),
+  ((",,100", "Daily Total,,100"), None),
+  (("Day Total,,1000", "Breakfast,,400"), None),
+  (("Grand Total,,1000", "Dinner,,600"), None),
+  (("Daily Total,,1000", "Daily Total,,1000"), None),
+  (("Total,,400", "Subtotal,,600"), 1000),
+  (("Meals,Subtotal,400", "Meals,Dinner,600"), 1000),
+  (("Breakfast,Dinner,400", "Breakfast,Subtotal,600"), 1000),
+ ]
+ for records, expected in scope_cases:
+  for ordered in (records, records[::-1]):
+   text = 'Date,Group,Diary Group,Calories\n' + '\n'.join(f'{day},{row}' for row in ordered)
    status, result = a.post('/api/food/history/preview', {'text': text})
-   assert status == 200 and result['rows'][0]['eaten'] == 1000 and not result['problems'], (text, result)
- # Singular/plural snack names are the same meal; subtotal + detail double counts.
- for meal in ('Snack', 'Snacks'):
-  for total in ('Snack Total', 'Snacks Total', 'Snack Subtotal', 'Snacks Subtotal'):
-   for rows in ((meal, total), (total, meal)):
-    text = 'Date,Group,Diary Group,Calories\n' + '\n'.join(f'2024-02-10,Meals,{label},100' for label in rows)
-    assert a.post('/api/food/history/preview', {'text': text})[0] == 400, text
- # An unlabelled value still overlaps a daily total, in either order.
- for rows in (('', 'Daily Total'), ('Daily Total', '')):
-  text = 'Date,Group,Calories\n' + '\n'.join(f'2024-02-10,{label},100' for label in rows)
-  assert a.post('/api/food/history/preview', {'text': text})[0] == 400, text
+   assert status == (400 if expected is None else 200), (text, status, result)
+   if expected is not None:
+    assert result['rows'][0]['eaten'] == expected and not result['problems'], (text, result)
  # Previously supported actual headers still work; targets/trends beside them are metadata.
  for header in ('Calories', 'Calories Eaten', 'Calories In', 'Food Calories', 'Energy (kcal)'):
   text = f'Date,{header},Calories Target,Weight Trend\n2024-02-10,1000,2000,70'
