@@ -12,4 +12,4 @@ Official evidence, checked 27 November 2026:
 - Hevy: https://help.hevyapp.com/hc/en-us/articles/43708290987415-Exporting-Your-Data-from-Hevy — Profile → Settings → Export & Import Data → Export Data → workouts/measurements. Spreadsheet/CSV, no headers.
 - Hevy’s Strong import guide: https://help.hevyapp.com/hc/en-us/articles/35687878672663-Importing-Strong-Data-into-Hevy — direct English Strong export; their support supplies its sample on request. This does not verify an assumed Strong schema.
 
-The tests establish conservative behavior for these shapes only: repeat saves replace an imported day, app-logged food wins, accounts remain isolated, and lifting loads/grouped totals are rejected. They do not reconstruct meals or exercise sets. Kinetta accepts pasted CSV text here, not ZIP/XLSX containers.
+The tests establish conservative behavior for these shapes only: repeat saves replace an imported day, app-logged food wins, accounts remain isolated, and lifting loads and overlapping totals are rejected; separate meal groups still sum. They do not reconstruct meals or exercise sets. Kinetta accepts pasted CSV text here, not ZIP/XLSX containers.

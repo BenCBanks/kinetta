@@ -45,6 +45,34 @@ try:
   assert result['problems'] == [], result
   if name.startswith('macrofactor'):
    assert result['rows'][0]['weight_kg'] == 70 and result['rows'][0]['burned'] == 2400
+ # A Group column is ordinary metadata when each row is a separate meal.
+ for header in ('Group', 'Diary Group', 'Diary Group Rows'):
+  text = f'Date,{header},Calories,Protein\n2024-02-10,Breakfast,400,20\n2024-02-10,Dinner,600,30'
+  status, result = a.post('/api/food/history/preview', {'text': text})
+  assert status == 200 and result['rows'] == [{'day': day, 'eaten': 1000.0, 'protein_g': 50.0,
+          'food_logged_here': False, 'weight_replaces': False}], result
+ # Previously supported actual headers still work; targets/trends beside them are metadata.
+ for header in ('Calories', 'Calories Eaten', 'Calories In', 'Food Calories', 'Energy (kcal)'):
+  text = f'Date,{header},Calories Target,Weight Trend\n2024-02-10,1000,2000,70'
+  status, result = a.post('/api/food/history/preview', {'text': text})
+  assert status == 200 and result['rows'][0]['eaten'] == 1000 and 'weight_kg' not in result['rows'][0], result
+ for header, value in (('Weight (kg)', 70), ('Weight (lb)', 70), ('Weight (lbs)', 70)):
+  status, result = a.post('/api/food/history/preview', {'text': f'Date,{header}\n2024-02-10,{value}'})
+  assert status == 200 and result['rows'][0]['weight_kg'] == (70 if 'kg' in header else 31.75), result
+ # A total-only day, a meal-only day, or disjoint measurements do not overlap.
+ for text in ('Date,Group,Calories\n2024-02-10,Breakfast Total,400\n2024-02-10,Dinner Total,600',
+              'Date,Group,Calories\n2024-02-10,Breakfast Total,400\n2024-02-10,Dinner,600',
+              'Date,Group,Calories\n2024-02-10,Daily Total,1000',
+              'Date,Group,Calories\n2024-02-10,Daily Total,1000\n2024-02-11,Breakfast,400',
+              'Date,Group,Calories,Protein\n2024-02-10,Daily Total,1000,\n2024-02-10,Breakfast,,20',
+              'Date,Calories,Workout Name,Exercise Name,Reps\n2024-02-10,1000,Fictional run,Fictional movement,5',
+              'Date,Weight (kg),Workout Name\n2024-02-10,70,Fictional run'):
+  status, result = a.post('/api/food/history/preview', {'text': text})
+  assert status == 200 and result['rows'] and not result['problems'], (text, result)
+ for text in ('Date,Group,Calories\n2024-02-10,Daily Total,1000\n2024-02-10,Breakfast,400',
+              'Date,Group,Calories\n2024-02-10,Daily Total,1000\n2024-02-10,Daily Total,1000',
+              'Date,Group,Protein\n2024-02-10,Breakfast Total,20\n2024-02-10,Breakfast,20'):
+  assert a.post('/api/food/history/preview', {'text': text})[0] == 400
  status, result = preview('mfp-weight-unverified')
  assert status == 200 and result['rows'][0]['weight_kg'] == 70
  status, result = preview('generic-daily')
