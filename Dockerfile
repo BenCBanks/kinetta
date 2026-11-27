@@ -1,4 +1,4 @@
-FROM node:22.22.1-slim AS js-minifier
+FROM node:22.22.3-slim AS js-minifier
 ARG TARGETARCH
 WORKDIR /minifier
 COPY mobile/package.json mobile/package-lock.json ./
@@ -7,7 +7,7 @@ RUN case "$TARGETARCH" in amd64) platform=x64 ;; arm64) platform=arm64 ;; *) ech
  && mkdir -p /out \
  && cp "/minifier/node_modules/@esbuild/linux-${platform}/bin/esbuild" /out/esbuild
 
-FROM python:3.12-slim
+FROM python:3.12.16-slim
 ARG TARGETARCH
 WORKDIR /srv
 COPY requirements.txt .
