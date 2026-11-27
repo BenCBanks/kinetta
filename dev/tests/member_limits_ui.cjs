@@ -29,6 +29,15 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
    await page.route('**/api/member-limit-fixture',route=>route.fulfill({status:429,headers:{'Retry-After':'19'},json:{detail:'Too many requests.'}}));
    const feedback=await page.evaluate(async()=>{try{await api('/api/member-limit-fixture');}catch(e){return {status:e.status,delay:e.retryAfter,message:e.message,read:loadErrorCopy(e)};}});
    assert.deepEqual(feedback,{status:429,delay:19,message:'Too many requests. Try again in 19 seconds.',read:'Too many requests. Try again in 19 seconds.'});assert.deepEqual(errors,[]);
+   // Discovery has specialized error rows; they must not hide quota wait times.
+   let searchLimited=false;
+   await page.route('**/api/people/search?*',route=>route.fulfill(searchLimited?{status:429,headers:{'Retry-After':'19'},json:{detail:'Too many requests.'}}:{json:[{login:'zz_test_limit_peer',name:'Fictional Member',status:null}]}));
+   await page.route('**/api/friends',route=>route.request().method()==='POST'?route.fulfill({status:429,headers:{'Retry-After':'37'},json:{detail:'Too many requests.'}}):route.continue());
+   await page.goto(base+'/me/friends?find=1');await page.locator('#fr-find input').fill('Fictional');
+   const add=page.locator('#fr-found [data-add]');await add.click();await page.getByText('Too many requests. Try again in 37 seconds.',{exact:true}).waitFor();assert(await add.isEnabled());
+   if(out)await page.screenshot({path:path.join(out,`${native?'bridge':'web'}-friend-limited-${theme}.png`),animations:'disabled'});
+   searchLimited=true;await page.locator('#fr-find input').fill('Another fictional');await page.getByText('Too many requests. Try again in 19 seconds.',{exact:true}).waitFor();assert.equal(await page.locator('#fr-find input').inputValue(),'Another fictional');
+   searchLimited=false;await page.locator('#fr-found [data-retry]').click();await add.waitFor();assert.deepEqual(errors,[]);
    console.log(`Member limits + busy retry, retained text/request key ${native?'bridge':'web'} 390 ${theme}: PASS`);
   }finally{await context.close();}
  }}finally{await browser.close();}
