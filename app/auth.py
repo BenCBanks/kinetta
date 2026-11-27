@@ -1,5 +1,6 @@
 """Passwords (argon2), login sessions (random token in an HttpOnly cookie, only its hash stored)."""
-import hashlib, os, secrets, time, re
+import hashlib, os, secrets, time, re, threading
+from contextlib import contextmanager
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from fastapi import Request, HTTPException
@@ -10,13 +11,37 @@ COOKIE = 'fit_session'
 SESSION_DAYS = 180          # phones stay logged in; logging out ends it
 # failed sign-in attempts are counted in the database (auth_attempts), so the limits survive restarts (2026-10-24)
 
-def hash_pw(pw): return ph.hash(pw)
+# Argon2 keeps its default cost. Bound the work instead: two hashes and at most
+# eight waiting requests per process, rather than a password burst filling RAM.
+_PASSWORD_ACTIVE = threading.BoundedSemaphore(2)
+_PASSWORD_JOBS = threading.BoundedSemaphore(10)
+_PASSWORD_WAIT = 5
 
-_DUMMY = ph.hash('not-a-real-password')
+
+def _password_busy():
+    raise HTTPException(503, 'Kinetta is busy. Please try again in a few seconds.', headers={'Retry-After': '2'})
+
+
+@contextmanager
+def _password_slot():
+    if not _PASSWORD_JOBS.acquire(blocking=False): _password_busy()
+    try:
+        if not _PASSWORD_ACTIVE.acquire(timeout=_PASSWORD_WAIT): _password_busy()
+        try: yield
+        finally: _PASSWORD_ACTIVE.release()
+    finally:
+        _PASSWORD_JOBS.release()
+
+
+def hash_pw(pw):
+    with _password_slot(): return ph.hash(pw)
+
+_DUMMY = hash_pw('not-a-real-password')
 
 def check_pw(stored, pw):
     """Always does one full hash check, so a wrong name and a wrong password take the same time."""
-    try: return ph.verify(stored or _DUMMY, pw) and bool(stored)
+    try:
+        with _password_slot(): return ph.verify(stored or _DUMMY, pw) and bool(stored)
     except (VerifyMismatchError, InvalidHashError): return False
 
 def token_hash(token):
