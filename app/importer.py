@@ -49,12 +49,12 @@ def cancel(job, why):
     _update(job, status='failed', message=f'upload stopped: {why}', finished=dt.datetime.now(dt.timezone.utc))
 
 
-def submit(job, user_id, paths):
+def submit(job, user_id, paths, capacity):
     """paths: files already saved on disk (uploads); deleted after import unless they live in the inbox."""
-    _pool.submit(_run, job, user_id, paths)
+    return _pool.submit(_run, job, user_id, paths, capacity)
 
 
-def _run(job, user_id, paths):
+def _run(job, user_id, paths, capacity=None):
     with _lock:
         try:
             _update(job, status='running')
@@ -62,7 +62,7 @@ def _run(job, user_id, paths):
             for p in paths:
                 if p.lower().endswith('.zip'): items += _zip_items(p, user_id)
                 elif os.path.isdir(p): items += _dir_items(p)
-                else: items.append((os.path.basename(p), (lambda p=p: open(p, 'rb').read()), {}))
+                else: items.append((os.path.basename(p), (lambda p=p: _file_read(p)), {}))
             _update(job, total=len(items))
             added_ids = []
             for name, load, meta in items:
@@ -70,6 +70,7 @@ def _run(job, user_id, paths):
                     if load is None:      # manual Strava entry: no file
                         res, aid = _manual(user_id, meta)
                     else:
+                        if capacity: capacity.check(parsers.MAX_FILE)
                         raw = load()
                         parsed = parsers.read(name, raw)
                         ext = '.' + '.'.join(name.lower().rsplit('/', 1)[-1].split('.')[1:])
@@ -92,15 +93,22 @@ def _run(job, user_id, paths):
                 except OSError: pass
 
 
+def _file_read(path):
+    # Match the existing archive-entry/decompression cap for bare files too.
+    with open(path, 'rb') as source: raw = source.read(parsers.MAX_FILE + 1)
+    if len(raw) > parsers.MAX_FILE: raise parsers.ParseError('Workout file exceeds 256 MiB')
+    return raw
+
+
 def _dir_items(d):
     out = []
     for root, _, files in os.walk(d):
         if 'activities.csv' in files:
-            return _strava_items(lambda n, root=root: open(os.path.join(root, n), 'rb').read(),
-                                 lambda: open(os.path.join(root, 'activities.csv'), 'rb').read(), None)
+            return _strava_items(lambda n, root=root: _file_read(os.path.join(root, n)),
+                                 lambda: _file_read(os.path.join(root, 'activities.csv')), None)
         for f in sorted(files):
             if f.lower().endswith(EXTS):
-                p = os.path.join(root, f); out.append((f, (lambda p=p: open(p, 'rb').read()), {}))
+                p = os.path.join(root, f); out.append((f, (lambda p=p: _file_read(p)), {}))
     return out
 
 
