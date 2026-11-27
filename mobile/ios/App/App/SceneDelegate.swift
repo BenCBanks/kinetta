@@ -17,6 +17,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             try? NativeFoodEntryCenter.shared.add(text:nil,source:.quickAction)
         }
 
+        NativeStravaImportCenter.shared.prepareInbox(keeping:connectionOptions.urlContexts.first(where: { $0.url.isFileURL })?.url)
         for context in connectionOptions.urlContexts where context.url.isFileURL { NativeStravaImportCenter.shared.receive(context.url) }
         if !connectionOptions.urlContexts.contains(where: { $0.url.isFileURL }) {
             SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)

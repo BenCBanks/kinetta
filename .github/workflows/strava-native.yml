@@ -1,7 +1,7 @@
 name: Strava native foundation
 on:
   pull_request:
-    paths: ["mobile/ios/App/App/*Strava*.swift", "mobile/ios/App/App/StravaImport*.swift", "mobile/tests/strava/**", "mobile/tests/strava-store/**", ".github/workflows/strava-native.yml"]
+    paths: ["mobile/ios/App/App/*Strava*.swift", "mobile/ios/App/App/StravaImport*.swift", "mobile/tests/strava/**", "mobile/tests/strava-store/**", "mobile/tests/strava-transfer/**", "mobile/tests/strava-redirect/**", ".github/workflows/strava-native.yml"]
 permissions:
   contents: read
 concurrency:
@@ -33,6 +33,13 @@ jobs:
           "$RUNNER_TEMP/strava-state-tests"
           swiftc ios/App/App/StravaImportState.swift ios/App/App/StravaImportStore.swift tests/strava-store/main.swift -o "$RUNNER_TEMP/strava-store-tests"
           "$RUNNER_TEMP/strava-store-tests"
+      - name: Test native transition races and real redirect refusal
+        working-directory: mobile
+        run: |
+          swiftc ios/App/App/StravaImportState.swift ios/App/App/StravaImportStore.swift ios/App/App/NativeStravaTransfer.swift tests/strava-transfer/main.swift -o "$RUNNER_TEMP/strava-transfer-tests"
+          "$RUNNER_TEMP/strava-transfer-tests"
+          swiftc ios/App/App/StravaImportState.swift tests/strava-redirect/main.swift -o "$RUNNER_TEMP/strava-redirect-tests"
+          python3 tests/strava-redirect/run.py "$RUNNER_TEMP/strava-redirect-tests"
       - name: Build unsigned native foundation
         working-directory: mobile
         run: |

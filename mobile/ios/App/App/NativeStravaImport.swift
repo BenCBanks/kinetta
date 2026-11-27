@@ -7,6 +7,7 @@ final class NativeStravaImportCenter: NSObject,UIDocumentPickerDelegate {
     static let shared = NativeStravaImportCenter()
     weak var plugin: KinettaStravaImportPlugin?
     private var bound: StravaImportSession?
+    private let inbox = StravaImportInbox()
     private var label = ""
     private var pending: URL?
     private var version = UUID()
@@ -14,7 +15,7 @@ final class NativeStravaImportCenter: NSObject,UIDocumentPickerDelegate {
     private weak var importController: UIViewController?
     private var presenter: UIViewController? { plugin?.bridge?.viewController }
     func bind(_ session: StravaImportSession,label: String,done: @escaping (Error?) -> Void) {
-        let stamp = version
+        version = UUID();let stamp = version
         NativeStravaTransfer.shared.bind(session) { error in DispatchQueue.main.async {
             guard self.version == stamp else { done(StravaImportFailure.account);return }
             if error == nil { self.bound = session;self.label = String(label.prefix(80));self.deliver() };done(error)
@@ -22,18 +23,16 @@ final class NativeStravaImportCenter: NSObject,UIDocumentPickerDelegate {
     }
     func stop(done: @escaping (Error?) -> Void) {
         DispatchQueue.main.async {
-            self.version = UUID();self.bound = nil;if let url = self.pending { self.discardInbox(url) };self.pending = nil
+            self.version = UUID();self.bound = nil;if let url = self.pending { self.discardInbox(url) };self.pending = nil;try? self.inbox.sweep()
             if self.showing { self.importController?.dismiss(animated:false);self.showing = false }
             NativeStravaTransfer.shared.stop(done:done)
         }
     }
     func receive(_ url: URL) {
-        guard url.isFileURL,url.pathExtension.lowercased() == "zip" else { return }
-        if isInbox(url) {
-            try? FileManager.default.setAttributes([.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],ofItemAtPath:url.path)
-            var local = url,values = URLResourceValues();values.isExcludedFromBackup = true;try? local.setResourceValues(values)
-        }
-        if let old = pending { discardInbox(old) };pending = url
+        guard url.isFileURL else { return }
+        do { try inbox.sweep(keeping:url) } catch { discardInbox(url);message("This archive could not be protected. Choose it again.");return }
+        guard url.pathExtension.lowercased() == "zip" else { discardInbox(url);return }
+        if let old = pending,old != url { discardInbox(old) };pending = url
         if bound != nil { deliver();return }
         // Cold-open waits briefly for the WebView's verified active account. No
         // unowned archive bytes are copied or saved while waiting for sign-in.
@@ -43,12 +42,11 @@ final class NativeStravaImportCenter: NSObject,UIDocumentPickerDelegate {
             if let url = self.pending { self.discardInbox(url) };self.pending = nil;self.message("Sign in to Kinetta, then open this ZIP again.")
         }
     }
-    private func isInbox(_ url: URL) -> Bool {
-        guard let documents = FileManager.default.urls(for:.documentDirectory,in:.userDomainMask).first else { return false }
-        return url.isFileURL && url.standardizedFileURL.path.hasPrefix(documents.appendingPathComponent("Inbox",isDirectory:true).standardizedFileURL.path+"/")
-    }
-    private func discardInbox(_ url: URL) { if isInbox(url) { try? FileManager.default.removeItem(at:url) } }
-    func resume() { if let who = bound { NativeStravaTransfer.shared.bind(who) { _ in } };deliver() }
+    // Scene startup supplies the incoming copy before orphan cleanup, including
+    // cold Files/Mail opens. A normal launch sweeps all crash leftovers.
+    func prepareInbox(keeping url: URL?) { try? inbox.sweep(keeping:url) }
+    private func discardInbox(_ url: URL) { inbox.discard(url) }
+    func resume() { try? inbox.sweep(keeping:pending);if let who = bound { NativeStravaTransfer.shared.bind(who) { _ in } };deliver() }
     func pick() throws {
         guard bound != nil,!showing,let presenter = presenter,presenter.presentedViewController == nil else { throw StravaImportFailure.account }
         let picker = UIDocumentPickerViewController(forOpeningContentTypes:[.zip],asCopy:false)

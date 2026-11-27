@@ -48,7 +48,8 @@ struct StravaImportStore {
     }
     func clear() throws { if FileManager.default.fileExists(atPath:root.path) { try FileManager.default.removeItem(at:root) } }
     // Security scope is released even for failed/oversized/iCloud copies. No extraction occurs on the device.
-    func stage(_ source: URL,owner: String) throws -> StravaImportRecord {
+    func stage(_ source: URL,owner: String,cancellation: StravaImportCancellation = StravaImportCancellation(),afterChunk: () -> Void = {}) throws -> StravaImportRecord {
+        try cancellation.check()
         guard source.isFileURL,source.pathExtension.lowercased() == "zip" else { throw StravaImportFailure.invalid }
         let access = source.startAccessingSecurityScopedResource();defer { if access { source.stopAccessingSecurityScopedResource() } }
         var coordinationError: NSError?,outcome: Result<StravaImportRecord,Error>?
@@ -56,7 +57,7 @@ struct StravaImportStore {
             outcome = Result {
                 let values = try url.resourceValues(forKeys:[.isRegularFileKey,.isSymbolicLinkKey,.fileSizeKey])
                 guard values.isRegularFile == true,values.isSymbolicLink != true,let length = values.fileSize,length > 0,Int64(length) <= StravaImportRecord.maximum else { throw StravaImportFailure.invalid }
-                try prepare()
+                try cancellation.check();try prepare()
                 let available = try root.resourceValues(forKeys:[.volumeAvailableCapacityForImportantUsageKey,.volumeTotalCapacityKey])
                 guard let free = available.volumeAvailableCapacityForImportantUsage,let total = available.volumeTotalCapacity,
                       free-Int64(length)-Int64(StravaImportRecord.pieceBytes) >= max(Int64(total)/4,1024*1024*1024) else { throw StravaImportFailure.storage }
@@ -67,13 +68,15 @@ struct StravaImportStore {
                 defer { try? input.close();try? output.close() }
                 var hash = SHA256(),copied: Int64 = 0
                 while let bytes = try input.read(upToCount:1024*1024),!bytes.isEmpty {
+                    try cancellation.check()
                     if copied == 0 { guard bytes.starts(with:[0x50,0x4b,0x03,0x04]) || bytes.starts(with:[0x50,0x4b,0x05,0x06]) else { throw StravaImportFailure.invalid } }
                     copied += Int64(bytes.count);guard copied <= Int64(length) else { throw StravaImportFailure.invalid }
-                    hash.update(data:bytes);try output.write(contentsOf:bytes)
+                    hash.update(data:bytes);try output.write(contentsOf:bytes);afterChunk();try cancellation.check()
                 }
                 guard copied == Int64(length) else { throw StravaImportFailure.invalid }
-                try output.synchronize()
+                try cancellation.check();try output.synchronize()
                 let row = try StravaImportRecord(owner:owner,size:copied,sha256:hash.finalize().map { String(format:"%02x",$0) }.joined())
+                try cancellation.check()
                 try FileManager.default.moveItem(at:temporary,to:archive);try save(row);return row
             }
         }
@@ -88,8 +91,44 @@ struct StravaImportStore {
     }
 }
 
+// Own only this app's Inbox copies, never original Files/provider documents.
+struct StravaImportInbox {
+    let root: URL
+    init(root: URL = FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("Inbox",isDirectory:true)) { self.root = root }
+    func contains(_ url: URL) -> Bool { url.isFileURL && url.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path+"/") }
+    func protect() throws {
+        #if os(iOS)
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true,attributes:[.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication])
+        #else
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
+        #endif
+        guard try root.resourceValues(forKeys:[.isSymbolicLinkKey]).isSymbolicLink != true else { throw StravaImportFailure.invalid }
+        let urls = [root]+(try FileManager.default.contentsOfDirectory(at:root,includingPropertiesForKeys:nil))
+        for var url in urls {
+            if try url.resourceValues(forKeys:[.isSymbolicLinkKey]).isSymbolicLink == true { continue }
+            #if os(iOS)
+            try FileManager.default.setAttributes([.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],ofItemAtPath:url.path)
+            #endif
+            var values = URLResourceValues();values.isExcludedFromBackup = true;try url.setResourceValues(values)
+        }
+    }
+    func discard(_ url: URL) { if contains(url) { try? FileManager.default.removeItem(at:url) } }
+    func sweep(keeping: URL? = nil) throws {
+        try protect()
+        for url in try FileManager.default.contentsOfDirectory(at:root,includingPropertiesForKeys:nil) {
+            if url.standardizedFileURL != keeping?.standardizedFileURL { try FileManager.default.removeItem(at:url) }
+        }
+    }
+}
+
+protocol StravaImportCredentials {
+    func read() throws -> StravaImportSession?
+    func write(_ value: StravaImportSession) throws
+    func clear() throws
+}
+
 // App-only Keychain item: no App Group/access group/signing capability required.
-struct StravaImportKeychain {
+struct StravaImportKeychain: StravaImportCredentials {
     private let query: [String:Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:"com.kinetta.strava-import",kSecAttrAccount as String:"active",kSecAttrSynchronizable as String:false]
     func read() throws -> StravaImportSession? {
         var q = query;q[kSecReturnData as String] = true;q[kSecMatchLimit as String] = kSecMatchLimitOne

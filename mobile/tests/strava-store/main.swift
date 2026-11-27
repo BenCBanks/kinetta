@@ -28,3 +28,25 @@ assert(session.server == "https://example.test")
 fails { _ = try StravaImportSession(server:"http://example.test",userID:12,token:String(repeating:"z",count:32)) }
 fails { _ = try StravaImportSession(server:"https://user@example.test",userID:12,token:String(repeating:"z",count:32)) }
 print("Strava storage: streaming copy/hash, durable confirmed journal, bounded piece, original preserved, cleanup and secure session PASS")
+
+// Mid-copy cancellation leaves no published journal/archive and releases the
+// security scope; the state engine removes the partial directory on stop.
+try store.clear()
+let cancellation = StravaImportCancellation();var chunks = 0
+fails { _ = try store.stage(source,owner:owner,cancellation:cancellation,afterChunk:{ chunks += 1;cancellation.cancel() }) }
+let absent = try store.read();assert(chunks == 1 && absent == nil)
+assert(!FileManager.default.fileExists(atPath:store.archive.path))
+try store.clear()
+let documents = temporary.appendingPathComponent("Documents"),inboxRoot = documents.appendingPathComponent("Inbox")
+try FileManager.default.createDirectory(at:inboxRoot,withIntermediateDirectories:true)
+let inbox = StravaImportInbox(root:inboxRoot),incoming = inboxRoot.appendingPathComponent("incoming.zip")
+let orphan = inboxRoot.appendingPathComponent("crashed.zip"),nonZip = inboxRoot.appendingPathComponent("other.txt")
+for url in [incoming,orphan,nonZip] { try Data([1,2,3]).write(to:url) }
+try inbox.sweep(keeping:incoming)
+assert(FileManager.default.fileExists(atPath:incoming.path))
+assert(!FileManager.default.fileExists(atPath:orphan.path) && !FileManager.default.fileExists(atPath:nonZip.path))
+let inboxValues = try inboxRoot.resourceValues(forKeys:[.isExcludedFromBackupKey]);assert(inboxValues.isExcludedFromBackup == true)
+inbox.discard(source);assert(FileManager.default.fileExists(atPath:source.path))
+inbox.discard(incoming);assert(!FileManager.default.fileExists(atPath:incoming.path))
+try Data([1]).write(to:orphan);try inbox.sweep();let leftovers = try FileManager.default.contentsOfDirectory(atPath:inboxRoot.path);assert(leftovers.isEmpty)
+print("Storage review: chunk cancellation, no publish, cold/warm Inbox sweep, protected backup exclusion, originals preserved PASS")

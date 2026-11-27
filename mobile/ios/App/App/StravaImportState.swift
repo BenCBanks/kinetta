@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // No credentials, original filename or outside URL is persisted with an archive.
 struct StravaImportRecord: Codable, Equatable {
@@ -12,6 +15,7 @@ struct StravaImportRecord: Codable, Equatable {
     var confirmed = false
     var received: Int64 = 0
     var phase = "staged"
+    var terminal: Bool { ["done","cancelled","failed"].contains(phase) }
     var expires: Bool { Date().timeIntervalSince(created) >= 7 * 86400 }
     init(owner: String, size: Int64, sha256: String, now: Date = Date()) throws {
         guard Self.digest(owner), Self.digest(sha256), size > 0, size <= Self.maximum else { throw StravaImportFailure.invalid }
@@ -50,4 +54,27 @@ enum StravaImportFailure: LocalizedError {
         case .auth:return "Sign in again to resume your archive upload."
         }
     }
+}
+
+// State-queue transition ticket: a later external bind/stop invalidates every
+// continuation of an earlier cancellation, including a delayed bind retry.
+struct StravaImportTransitions {
+    private(set) var current = UUID()
+    mutating func begin() -> UUID { current = UUID();return current }
+    func accepts(_ stamp: UUID) -> Bool { stamp == current }
+}
+
+// Copy/hash runs off the state queue. Cancellation is visible between 1 MiB
+// chunks, while the state queue can revoke credentials immediately.
+final class StravaImportCancellation {
+    private let lock = NSLock()
+    private var cancelled = false
+    func cancel() { lock.lock();cancelled = true;lock.unlock() }
+    func check() throws { lock.lock();let stopped = cancelled;lock.unlock();if stopped { throw StravaImportFailure.account } }
+}
+
+// Background URLSession ignores redirect delegation, so it must NEVER carry
+// archive bytes. Both active sessions are ephemeral and inherit this refusal.
+class StravaRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    final func urlSession(_ session: URLSession,task: URLSessionTask,willPerformHTTPRedirection response: HTTPURLResponse,newRequest request: URLRequest,completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }
