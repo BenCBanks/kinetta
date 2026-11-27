@@ -243,6 +243,8 @@ def note(user_id, aid):
     with db.coach_connect(user_id) as c:
         ctx = _context(c, user_id, aid)
     if not ctx: raise ValueError('Activity not found')
+    from . import coach_limits
+    coach_limits.note(user_id, DAILY_LIMIT)
     with ai_budget.scope(user_id):
         text = _gemini(ctx) if provider() == 'gemini' else _claude(ctx)
     if not text: raise ValueError('Kit returned an empty note.')

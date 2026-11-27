@@ -156,4 +156,52 @@ class Service(unittest.TestCase):
   B.renew_lease(rid)
   with db.connect() as c:self.assertFalse(c.execute('SELECT lease_until>now() AS live FROM ai_food_attempts WHERE id=%s',(rid,)).fetchone()['live'])
 
+ def note_fixture(self,uid):
+  with db.connect() as c:
+   c.execute('DELETE FROM auth_attempts WHERE key=%s',('coach-note:'+str(uid),))
+   return c.execute("INSERT INTO activities(user_id,source,sport,name,start_time,elapsed_s,moving_s) VALUES(%s,'manual','run','Fictional note cap',now(),1200,1200) RETURNING id",(uid,)).fetchone()['id']
+
+ def clear_note_fixture(self,uid,aid):
+  with db.connect() as c:
+   c.execute('DELETE FROM activities WHERE user_id=%s AND id=%s',(uid,aid))
+   c.execute('DELETE FROM auth_attempts WHERE key=%s',('coach-note:'+str(uid),))
+
+ def test_12_note_regeneration_uses_committed_rolling_cap(self):
+  uid=self.uids[0];aid=self.note_fixture(uid)
+  try:
+   with patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',return_value='Fictional note') as provider:
+    for _ in range(30):self.assertEqual(coach.note(uid,aid),'Fictional note')
+    with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    self.assertEqual(provider.call_count,30)
+    with db.connect() as c:
+     self.assertEqual(c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key=%s',('coach-note:'+str(uid),)).fetchone()['n'],31)
+     c.execute("UPDATE auth_attempts SET created=now()-interval '1 day 1 second' WHERE key=%s",('coach-note:'+str(uid),))
+    self.assertEqual(coach.note(uid,aid),'Fictional note','rolling-window expiry allows a new request')
+  finally:self.clear_note_fixture(uid,aid)
+
+ def test_13_parallel_notes_share_the_same_brake(self):
+  from concurrent.futures import ThreadPoolExecutor
+  uid=self.uids[1];aid=self.note_fixture(uid)
+  try:
+   def attempt(_):
+    try:coach.note(uid,aid);return True
+    except ValueError as exc:self.assertIn('Daily limit',str(exc));return False
+   with patch.object(coach,'DAILY_LIMIT',3),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',return_value='Fictional note') as provider:
+    with ThreadPoolExecutor(max_workers=6) as pool:self.assertEqual(sum(pool.map(attempt,range(12))),3)
+    self.assertEqual(provider.call_count,3)
+  finally:self.clear_note_fixture(uid,aid)
+
+ def test_14_note_failure_keeps_slot_but_missing_activity_does_not_charge(self):
+  uid=self.uids[2];aid=self.note_fixture(uid)
+  try:
+   with patch.object(coach,'_context',return_value=None),patch.object(coach,'_gemini') as provider:
+    with self.assertRaisesRegex(ValueError,'Activity not found'):coach.note(uid,aid)
+    provider.assert_not_called()
+   with db.connect() as c:self.assertFalse(c.execute('SELECT 1 FROM auth_attempts WHERE key=%s',('coach-note:'+str(uid),)).fetchone())
+   with patch.object(coach,'DAILY_LIMIT',1),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=ValueError('Uncertain stand-in failure')) as provider:
+    with self.assertRaisesRegex(ValueError,'Uncertain'):coach.note(uid,aid)
+    with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    self.assertEqual(provider.call_count,1)
+  finally:self.clear_note_fixture(uid,aid)
+
 unittest.main()
