@@ -138,7 +138,9 @@ try:
             for bad in ('', 'zz', 'zz' * 19 + 'zy'):
                 try: asyncio.run(G.push(bad, Req())); assert False, 'push accepted without the secret'
                 except HTTPException as e: assert e.status_code == 404
-            assert asyncio.run(G.push('zz' * 20, Req())) == {'ok': True}
+            with patch.object(G._notices, 'submit', return_value=True) as queued:
+                assert asyncio.run(G.push('zz' * 20, Req())) == {'ok': True}
+                queued.assert_called_once_with({'activityDetails': pushed}, True)
         with patch.dict(os.environ, GARMIN_PUSH_SECRET='short'):
             try: asyncio.run(G.push('short', Req())); assert False, 'a short secret is not accepted'
             except HTTPException as e: assert e.status_code == 404
@@ -198,3 +200,163 @@ try:
 finally:
     with db.connect() as c:
         for uid in ids: c.execute('DELETE FROM users WHERE id = %s', (uid,))
+
+# Fixed, best-effort worker admission; no provider, retry scheduler or durable state.
+import asyncio
+import threading
+import unittest
+from app.garmin_queue import NoticeQueue
+
+
+class NoticeQueueTests(unittest.TestCase):
+    def body(self, *items):
+        return {'activityDetails': [{'userId': 'zz-queue', 'n': n} for n in items]}
+
+    def idle(self, queue):
+        with queue._condition:
+            self.assertTrue(queue._condition.wait_for(lambda: not queue._pending, timeout=3))
+
+    def test_two_workers_accept_backlog_and_only_full_queue_refuses(self):
+        release, both = threading.Event(), threading.Event()
+        guard = threading.Lock()
+        active, peak, seen = 0, 0, []
+        def handle(body, pushed):
+            nonlocal active, peak
+            with guard:
+                active += 1; peak = max(peak, active)
+                if active == 2: both.set()
+            try:
+                self.assertTrue(release.wait(3))
+                seen.extend(item['n'] for item in body['activityDetails'])
+            finally:
+                with guard: active -= 1
+        q = NoticeQueue(handle, max_items=4)
+        try:
+            self.assertTrue(q.submit(self.body(1), False))
+            self.assertTrue(q.submit(self.body(2), False))
+            self.assertTrue(both.wait(1))
+            self.assertTrue(q.submit(self.body(3, 4), False))  # workers busy; still accepted
+            self.assertTrue(q.submit(self.body(3, 4), False))  # full but duplicate
+            self.assertFalse(q.submit(self.body(3, 5), False))  # no partial enqueue
+            release.set(); self.idle(q)
+            self.assertEqual(sorted(seen), [1, 2, 3, 4])
+            self.assertEqual(peak, 2)
+            self.assertEqual(len(q._workers), 2)
+            self.assertTrue(q.submit(self.body(5), False))
+            self.idle(q)
+            self.assertEqual(sorted(seen), [1, 2, 3, 4, 5])
+        finally: release.set(); q.close()
+
+    def test_utf8_byte_cap_and_release_on_completion(self):
+        release, entered = threading.Event(), threading.Event()
+        def handle(*args): entered.set(); self.assertTrue(release.wait(3))
+        q = NoticeQueue(handle, max_items=10, max_bytes=80)
+        body = {'activityDetails': [{'userId': 'zz', 'text': 'é'*20}]}
+        other = {'activityDetails': [{'userId': 'zz', 'text': 'ü'*20}]}
+        try:
+            self.assertTrue(q.submit(body, True)); self.assertTrue(entered.wait(1))
+            self.assertTrue(q.submit(body, True))
+            self.assertFalse(q.submit(other, True))  # only the byte limit is reached
+            self.assertFalse(q.submit({'activityDetails': [{'text': 'é'*80}]}, True))
+            release.set(); self.idle(q)
+            self.assertTrue(q.submit(other, True)); self.idle(q)
+        finally: release.set(); q.close()
+
+    def test_canonical_dedup_keeps_push_separate_and_preserves_batching(self):
+        release, entered = threading.Event(), threading.Event()
+        seen = []
+        def handle(body, pushed):
+            entered.set(); self.assertTrue(release.wait(3)); seen.append((body, pushed))
+        q = NoticeQueue(handle)
+        original = {'activityDetails': [{'userId': 'zz', 'n': 1}, {'userId': 'zz', 'n': 2}]}
+        reversed_keys = {'activityDetails': [{'n': 1, 'userId': 'zz'}, {'n': 2, 'userId': 'zz'}]}
+        try:
+            self.assertTrue(q.submit(original, False)); self.assertTrue(entered.wait(1))
+            self.assertTrue(q.submit(reversed_keys, False))
+            self.assertTrue(q.submit(original, True))
+            release.set(); self.idle(q)
+            self.assertEqual(len(seen), 2)
+            self.assertEqual({pushed for _, pushed in seen}, {False, True})
+            self.assertTrue(all(body == original for body, _ in seen))
+        finally: release.set(); q.close()
+
+    def test_failure_does_not_retry_or_stop_later_work_and_logs_no_payload(self):
+        seen = []
+        def handle(body, pushed):
+            n = body['activityDetails'][0]['n']; seen.append(n)
+            if n == 1: raise ValueError('PRIVATE_CALLBACK_TOKEN')
+        q = NoticeQueue(handle)
+        try:
+            with patch('builtins.print') as output:
+                self.assertTrue(q.submit(self.body(1), False)); self.idle(q)
+                output.assert_called_once_with('garmin queued notice failed', 'ValueError', flush=True)
+            self.assertTrue(q.submit(self.body(2), False)); self.idle(q)
+            self.assertEqual(seen, [1, 2])
+            with patch('builtins.print', side_effect=ValueError('closed output')):
+                self.assertTrue(q.submit(self.body(1), False)); self.idle(q)
+            self.assertTrue(q.submit(self.body(3), False)); self.idle(q)
+            self.assertEqual(seen, [1, 2, 1, 3])
+        finally: q.close()
+
+    def test_concurrent_identical_notices_admit_only_one_pending_copy(self):
+        from concurrent.futures import ThreadPoolExecutor
+        release, entered = threading.Event(), threading.Event()
+        seen = []
+        def handle(body, pushed):
+            entered.set(); self.assertTrue(release.wait(3)); seen.append(body)
+        q = NoticeQueue(handle, max_items=1)
+        try:
+            with ThreadPoolExecutor(8) as callers:
+                results = list(callers.map(lambda _: q.submit(self.body(1), True), range(16)))
+            self.assertTrue(all(results)); self.assertTrue(entered.wait(1))
+            release.set(); self.idle(q)
+            self.assertEqual(seen, [self.body(1)])
+        finally: release.set(); q.close()
+
+    def test_failed_owner_lookup_does_not_skip_good_sibling(self):
+        bad = {'userId': 'bad', 'callbackURL': G.API+'/activityDetails?bad'}
+        good = {'userId': 'good', 'callbackURL': G.API+'/activityDetails?good'}
+        def owner(gid):
+            if gid == 'bad': raise RuntimeError('stand-in DB failure')
+            return 99
+        with patch.object(G, '_owner', side_effect=owner), patch.object(G, 'fetch_details') as fetch, patch('builtins.print'):
+            G.handle({'activityDetails': [bad, good]})
+            fetch.assert_called_once_with(99, good['callbackURL'])
+
+    def test_bad_activity_keeps_good_sibling_and_main_after_import_batch(self):
+        with patch.object(G, '_owner', return_value=99), patch.object(G, 'activity', side_effect=[ValueError('bad item'), ({}, {})]), patch.object(G.activities, 'store', return_value=('added', 123)) as store, patch.object(G, '_set_status'), patch.object(coach, 'after_import') as after, patch('builtins.print'):
+            body = self.body(1, 2)
+            for item in body['activityDetails']: item['summary'] = {}
+            G.handle(body, True)
+            self.assertEqual(store.call_count, 1)
+            after.assert_called_once_with(99, [123])
+
+    def test_routes_acknowledge_queue_and_full_only_after_secret_check(self):
+        from starlette.requests import Request
+        release, entered = threading.Event(), threading.Event()
+        def handle(*args): entered.set(); self.assertTrue(release.wait(3))
+        q = NoticeQueue(handle, max_items=2)
+        reads = []
+        def request(body):
+            async def receive():
+                reads.append(1)
+                return {'type': 'http.request', 'body': json.dumps(body).encode(), 'more_body': False}
+            return Request({'type': 'http', 'method': 'POST', 'path': '/', 'headers': []}, receive)
+        try:
+            with patch.object(G, '_notices', q), patch.dict(os.environ, GARMIN_PUSH_SECRET='z'*40):
+                self.assertEqual(asyncio.run(G.notify(request(self.body(1)))), {'ok': True})
+                self.assertTrue(entered.wait(1))
+                self.assertEqual(asyncio.run(G.push('z'*40, request(self.body(2)))), {'ok': True})
+                self.assertEqual(asyncio.run(G.notify(request(self.body(1)))), {'ok': True})
+                for route in (lambda: G.notify(request(self.body(3))), lambda: G.push('z'*40, request(self.body(3)))):
+                    with self.assertRaises(HTTPException) as caught: asyncio.run(route())
+                    self.assertEqual(caught.exception.status_code, 503)
+                before = len(reads)
+                with self.assertRaises(HTTPException) as caught: asyncio.run(G.push('wrong', request(self.body(3))))
+                self.assertEqual(caught.exception.status_code, 404)
+                self.assertEqual(len(reads), before)
+        finally: release.set(); q.close()
+
+
+result = unittest.main(argv=['garmin-queue'], exit=False).result
+assert result.wasSuccessful(), 'Garmin memory queue regressions failed'

@@ -35,6 +35,7 @@ from pydantic import BaseModel
 
 from . import activities, coach, db, parsers
 from .auth import current_user
+from .garmin_queue import NoticeQueue
 
 router = APIRouter(prefix='/api')
 
@@ -45,6 +46,7 @@ FIRST_DAYS = 30             # best-effort backfill where Garmin access permits h
 STATE_TTL = 600             # seconds to finish signing in at Garmin
 PING_MAX = 2 * 1024 ** 2    # a ping is a short list of links
 DATA_MAX = 64 * 1024 ** 2   # one fetched batch of activity details with samples
+_notices = NoticeQueue(lambda body, pushed: handle(body, pushed))
 _pending, _pending_guard = {}, threading.Lock()   # state -> (user id, PKCE verifier, expiry); one server process
 _locks, _locks_guard = {}, threading.Lock()
 
@@ -251,7 +253,7 @@ async def _read(request, cap):
 async def notify(request: Request):
     """Ping mode: notices with links only, so it needs no secret. Answer fast; work in the background."""
     body = await _read(request, PING_MAX)
-    threading.Thread(target=handle, args=(body, False), daemon=True).start()
+    if not _notices.submit(body, False): raise HTTPException(503, 'Garmin queue is full.', headers={'Retry-After': '5'})
     return {'ok': True}
 
 
@@ -262,7 +264,7 @@ async def push(secret: str, request: Request):
     want = push_secret()
     if len(want) < 32 or not secrets.compare_digest(secret.encode(), want.encode()): raise HTTPException(404, 'Not found')
     body = await _read(request, DATA_MAX)
-    threading.Thread(target=handle, args=(body, True), daemon=True).start()
+    if not _notices.submit(body, True): raise HTTPException(503, 'Garmin queue is full.', headers={'Retry-After': '5'})
     return {'ok': True}
 
 
@@ -271,9 +273,9 @@ def handle(body, pushed=False):
     for kind, items in body.items():
         for item in items if isinstance(items, list) else []:
             if not isinstance(item, dict): continue
-            uid = _owner(item.get('userId'))
-            if not uid: continue
             try:
+                uid = _owner(item.get('userId'))
+                if not uid: continue
                 if kind == 'deregistrations': check_still_connected(uid)
                 elif kind == 'userPermissionsChange': refresh_permissions(uid)
                 elif kind == 'activityDetails' and _garmin_url(item.get('callbackURL')): fetch_details(uid, item['callbackURL'])
