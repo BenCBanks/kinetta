@@ -673,8 +673,8 @@
 
 .me-editor-head [data-card-status] { grid-column:1/-1; margin:0; padding:0 8px 4px; font-size:.75rem; }
 
-/* Reserve the floating navigation clearance inside the editor, after its privacy note. */
-.me-card.editing .me-card-body { padding-bottom:calc(18px + var(--tab-h) + env(safe-area-inset-bottom,0px)); }
+/* The page shell reserves navigation clearance; keep the editor inset compact. */
+.me-card.editing .me-card-body { padding-bottom:18px; }
 
 .me-insight-link + .me-insight-link { margin-top:8px; }
 
