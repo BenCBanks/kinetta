@@ -22,7 +22,7 @@ module.exports=async(browser,base,out='')=>{
   if(mode==='bridge'){const {token}=await login.json();await c.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});}
   const p=await c.newPage();p.setDefaultTimeout(8000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
   let spec,armed=false,member=false,declined=false,unreadable=false,fault='',writes=0;
-  await c.route('**/*',async r=>{
+  await c.route('**/*',async r=>{if(await require('./privacy_ticket_fixture.cjs')(r))return;
    const req=r.request(),u=new URL(req.url()),method=req.method();if(u.origin!==base)return r.abort();
    if(u.pathname==='/_test/public-invite')return r.fulfill({contentType:'text/html',body:'<button id="challenge-public-join" data-code="'+code+'" data-account="fictional-owner">Join challenge</button><p id="challenge-public-status"></p><script src="/static/challenge-public.js"></script>'});
    if(armed&&spec.name==='public'&&u.pathname.startsWith('/api/challenges/'))assert.equal(req.headers()['x-kinetta-account'],'fictional-owner');

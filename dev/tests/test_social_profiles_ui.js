@@ -32,7 +32,7 @@ const source=fs.readFileSync('app/static/social.js','utf8'),tick=()=>new Promise
  const search={value:''},results={innerHTML:'',setAttribute(){}},share={disabled:false};
  c.sheet=(title,html,mount)=>{groupMarkup=html;groupBox={isConnected:true,closest:()=>({classList:{add:name=>groupClasses.add(name)}}),nodes:{'#group-friend-search':search,'.group-friend-results':results,'[data-group-share]':share}};mount(groupBox,()=>{});};
  c.$=(selector,box)=>box?.nodes?.[selector]||null;c.$$=()=>[];
- c.api=async path=>{groupReads.push(path);return{friends:[],can_invite:true};};
+ c.api=async path=>{groupReads.push(path);return{friends:[],can_invite:true};};c.json=(method,body)=>({method,body});require('./confirmed_setting_fixture.cjs')(c);
  vm.runInContext(source.slice(source.indexOf('function groupInviteSheet('),source.indexOf('function groupCreateSheet('))+'\nglobalThis.groupInviteSheetTest=groupInviteSheet;',c);
  c.groupInviteSheetTest({id:'fictional-group',title:'Fictional Trail Group'},'https://example.test/group-invite/fictional-token');await tick();
  assert(groupClasses.has('group-friend-sheet'));assert(groupMarkup.includes('Search friends'));assert(!groupMarkup.includes('data-group-copy'),'raw link/copy controls are replaced by the picker');
