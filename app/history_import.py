@@ -37,6 +37,15 @@ DATE_FORMATS = ('%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y', '%Y/%m/%d', '%b %d, %Y', '%B
 def _key(h): return re.sub(r'[^a-z]', '', (h or '').lower())
 
 
+def _header_matches(field, header):
+    # Exact names plus explicit units; never consume targets or trends
+    # as actual intake/scale weight. These are generic columns, not vendor adapters.
+    suffixes = {'weight': ('kg', 'lb', 'lbs'), 'eaten': ('kcal', 'kj'),
+                'burned': ('kcal',), 'deficit': ('kcal',)}
+    suffixes = suffixes.get(field, ('g',) if field.endswith('_g') else ())
+    return header in COLS[field] or any(header == name + unit for name in COLS[field] for unit in suffixes)
+
+
 def _date(v):
     v = (v or '').strip().split('T')[0].split(' ')[0] if re.match(r'^\d{4}-\d\d-\d\d', (v or '').strip()) else (v or '').strip()
     for f in DATE_FORMATS:
@@ -57,12 +66,19 @@ def parse(text, units):
     delim = '\t' if '\t' in first else ';' if first.count(';') > first.count(',') else ','
     rows = list(csv.reader(io.StringIO(text), delimiter=delim))
     head = [_key(h) for h in rows[0]]
+    # These exports cannot safely be interpreted as daily intake/body weight.
+    # Grouped nutrition exports can contain both subtotals and a daily total;
+    # lifting Weight is the load on the bar, not the person's body weight.
+    if set(head) & {'group', 'diarygroup', 'diarygrouprows'}:
+        raise HTTPException(400, 'Export daily nutrition totals without diary group rows')
+    if set(head) & {'reps', 'setorder', 'setindex', 'exercisename', 'exercisetitle', 'workoutname'}:
+        raise HTTPException(400, 'Workout sets are not food or body weight. Choose a nutrition or body-weight export.')
     col = {}
-    for field, names in COLS.items():
-        for i, h in enumerate(head):
-            if i in col.values(): continue
-            if h in names or (field == 'weight' and h.startswith('weight')) or (field == 'eaten' and h.startswith('calories') and 'burn' not in h and 'out' not in h):
-                col[field] = i; break
+    for field in COLS:
+        matches = [i for i, h in enumerate(head) if _header_matches(field, h)]
+        if len(matches) > 1:
+            raise HTTPException(400, 'More than one column describes the same value. Keep one column for each value.')
+        if matches: col[field] = matches[0]
     if 'date' not in col:
         raise HTTPException(400, 'The first row must be column names, with a Date column (e.g. Date, Weight, Calories, Protein, Carbs, Fat, Burned)')
     if len(col) < 2: raise HTTPException(400, 'Found a Date column but none of: Weight, Calories, Protein, Carbs, Fat, Fiber, Burned, Deficit')
@@ -92,7 +108,7 @@ def parse(text, units):
         if o.get('eaten') is None and o.get('burned') is not None and o.get('deficit') is not None: o['eaten'] = o['burned'] - o['deficit']
         o.pop('deficit', None)
         for k, hi in (('weight_kg', 400), ('eaten', 15000), ('burned', 15000)):
-            if o.get(k) is not None and not (0 < o[k] <= hi):
+            if o.get(k) is not None and not ((0 < o[k] if k != 'eaten' else 0 <= o[k]) and o[k] <= hi):
                 problems.append(f"{d}: {k.replace('_kg', '')} {o[k]:g} looks wrong - left out"); o.pop(k)
         if len(o) > 1: out.append(o)
     if len(out) > 3000: raise HTTPException(400, 'That is more than 3,000 days - split it into smaller pieces')
