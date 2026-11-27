@@ -336,6 +336,7 @@ echo "== admin launch tools (fictional accounts, stand-in mail)"
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_launch.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_kit.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_request_log.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_request_log_bounds.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_devices.py
 docker compose -p "$P" exec -T app python - < dev/tests/admin_usage_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/admin_features_incontainer.py
