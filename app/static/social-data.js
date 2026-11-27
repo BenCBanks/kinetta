@@ -36,7 +36,7 @@ const SocialData=(()=>{
   function draft(id,text){scope();if(arguments.length>1){text?drafts.set(key(id),text):drafts.delete(key(id));}return drafts.get(key(id))||'';}
   // Only an expiry timestamp persists: no reservation can strand ordinary reads.
   // 15s phone wait + 8s admitted server request + 2s margin. Upstream delays are not ordered.
-  const RECOVERY_MS=25000,viewsByOwner=new Map(),generations=new Map();
+  const RECOVERY_MS=25000,viewsByOwner=new Map(),generations=new Map(),settingsByRoot=new WeakMap();
   const fenceKey=()=>JSON.stringify([typeof Native==='undefined'?'':Native.base,typeof App==='undefined'?readOwner():App.me?.id]);
   const storageKey=()=> 'kinetta.privacy-until:'+fenceKey();
   const generation=()=>generations.get(fenceKey())||0;
@@ -48,11 +48,12 @@ const SocialData=(()=>{
   function setUntil(until,required=false){try{until?localStorage.setItem(storageKey(),String(until)):localStorage.removeItem(storageKey());}catch(error){if(required)throw Error('Saved setting cannot be confirmed on this device.');}}
   // A failed write may already be saved. Only this control delays readback until a possibly outstanding write is bounded.
   function confirmSetting(root,{path,read:fetchSaved,paint,cache:saveCache=()=>{},mask=()=>[...root.querySelectorAll('input,select,textarea,button:not(.back):not([data-close]),.vis-note,.card-preview,#card-counts')],uncertain=()=>{},after=()=>{},unknownText='Not confirmed.'}){
-    const account=readOwner(),key=fenceKey(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
+    const view={},account=readOwner(),key=fenceKey(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
     note.className='setting-recovery small';note.setAttribute('role','status');note.dataset.sharingState='confirmed';note.hidden=true;
     retry.type='button';retry.className='linkbtn';retry.textContent='Retry';retry.hidden=true;
     note.append(text,retry);root.prepend(note);
-    const live=()=>root.isConnected&&account===readOwner();let busy=false,known=true,lastError=null,waiting=null,affected=null;
+    settingsByRoot.get(root)?.retire?.();settingsByRoot.set(root,view);
+    const live=()=>root.isConnected&&account===readOwner()&&settingsByRoot.get(root)===view;let busy=false,known=true,lastError=null,waiting=null,affected=null;
     const held=new Map(),controlSelector='button,input,select,textarea,[role="radio"],[role="switch"]';
     // aria-disabled plus event guards keeps keyboard focus on the original control.
     // Clear selection indicators, not rows: an uncertain value must not look private/off.
@@ -84,6 +85,7 @@ const SocialData=(()=>{
       }
       held.clear();
     }
+    view.retire=()=>{restore();note.hidden=true;note.remove?.();if(waiting)clearTimeout(waiting);};
     const block=event=>{if([...held.keys()].some(node=>node===event.target||node.contains(event.target))){event.preventDefault();event.stopImmediatePropagation();}};
     for(const type of ['click','pointerdown','change','submit'])root.addEventListener(type,block,true);
     root.addEventListener('keydown',event=>{if([' ','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(event.key))block(event);},true);
@@ -103,6 +105,8 @@ const SocialData=(()=>{
     }
     async function run(writePath,options){
       if(busy||!live())return null;
+      // A repainted list must reconcile uncertainty before accepting another write.
+      if(writePath&&!known){await run();return null;}
       if(waiting){clearTimeout(waiting);waiting=null;}
       busy=true;lastError=null;
       if(writePath&&known)affected=mask(writePath,options);
@@ -127,6 +131,7 @@ const SocialData=(()=>{
         const data=await (fetchSaved?fetchSaved():apiRequest(path,{cache:'no-store'}));
         if(account!==readOwner()||expected!==generation())return null;
         if(pendingUntil()){state(false);return null;}
+        if(settingsByRoot.get(root)!==view)return null;
         await saveCache(data);if(!live()||expected!==generation())return {data,failure};
         // Keep uncertain summaries neutral until asynchronous saved-state paints finish.
         // Keep scroll and the equivalent focused control through a saved-state repaint.

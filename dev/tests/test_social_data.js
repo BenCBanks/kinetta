@@ -83,6 +83,15 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  const laterRoot=new Node();laterRoot.append(new Node());let latestPaint=false;
  const later=data.confirmSetting(laterRoot,{path:'/saved',paint:()=>latestPaint=true});await later.save('/save',{method:'PUT'});
  releaseRead({visibility:'everyone'});await firstRead;assert(latestPaint);assert(!stalePaint);
+ owner='unknown-repaint-session';let retryWrites=0;ctx.api=async()=>{retryWrites++;throw Error('lost reply');};ctx.apiRequest=async()=>({visibility:'everyone'});
+ const uncertainRoot=new Node();uncertainRoot.append(new Node());const uncertainSetting=data.confirmSetting(uncertainRoot,{path:'/saved',paint:()=>{}});
+ await uncertainSetting.save('/save',{method:'POST'});now+=25001;await uncertainSetting.save('/save',{method:'POST'});
+ assert.equal(retryWrites,1,'an expired deadline permits readback, never a new write from an uncertain repainted control');assert(uncertainSetting.known);
+ owner='replacement-session';ctx.api=async()=>{};ctx.apiRequest=async()=>({visibility:'everyone'});
+ const sameRoot=new Node(),sameField=new Node();sameRoot.append(sameField);
+ data.confirmSetting(sameRoot,{path:'/saved',paint:()=>{}});
+ const replacement=data.confirmSetting(sameRoot,{path:'/saved',paint:()=>{}});await replacement.save('/save',{method:'PUT'});
+ assert(replacement.known);assert.equal(sameField.getAttribute('aria-disabled'),null,'a retired helper cannot leave replacement controls locked');
  owner='storage-unavailable-session';const blockedRoot=new Node();blockedRoot.append(new Node());let blockedWrites=0;
  ctx.localStorage.setItem=()=>{throw Error('Storage blocked');};ctx.api=async()=>blockedWrites++;
  const blocked=data.confirmSetting(blockedRoot,{path:'/saved',paint:()=>{}});await blocked.save('/save',{method:'PUT'});
