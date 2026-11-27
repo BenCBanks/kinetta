@@ -273,14 +273,18 @@ class Launch(unittest.TestCase):
 
     def test_group_update_reference_upgrade_does_not_guess_legacy_target(self):
         from app import admin_review
-        rid,_,_,_ = self.group_report(update=True)
+        rid,_,update_id,_ = self.group_report(update=True)
         with db.connect() as c:
             c.execute('SAVEPOINT update_report_upgrade')
             try:
                 c.execute('ALTER TABLE reports DROP COLUMN group_update_id')
-                c.execute(db.MIGRATIONS[128])
+                c.execute(db.MIGRATIONS[128]);c.execute(db.MIGRATIONS[128])
                 self.assertIsNone(c.execute('SELECT group_update_id FROM reports WHERE id=%s',(rid,)).fetchone()['group_update_id'])
                 self.assertEqual([a['value'] for a in admin_review.material(c,rid)[1]['actions']],['dismiss'])
+                c.execute('UPDATE reports SET group_update_id=%s WHERE id=%s',(update_id,rid))
+                c.execute(db.MIGRATIONS[128])
+                self.assertEqual(c.execute('SELECT group_update_id FROM reports WHERE id=%s',(rid,)).fetchone()['group_update_id'],update_id)
+                self.assertEqual([a['value'] for a in admin_review.material(c,rid)[1]['actions']],['dismiss','remove_group_update'])
             finally:c.execute('ROLLBACK TO SAVEPOINT update_report_upgrade')
 
     def test_group_update_moderation_preserves_reader_rls(self):
