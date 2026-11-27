@@ -515,6 +515,17 @@ def join_by_link(c, uid, code):
     return {'status': 'friends', 'name': o['name'], 'login': o['login'], 'new': True}
 
 
+@router.get('/friend-links/{code}/state')
+def friend_link_state(code: str, user=Depends(current_user)):
+    """Only the signed-in person's relationship; public previews stay unchanged."""
+    with db.connect() as c:
+        confirmed(c, user['id'])
+        person = _link_owner(c, code, user['id'])
+        relation = _pair(c, user['id'], person['id'])
+        return {'member': bool(relation and relation['status'] == 'accepted'),
+                'name': '@' + person['login'], 'login': person['login']}
+
+
 @router.post('/friend-links/{code}')
 def friend_link_use(code: str, user=Depends(current_user)):
     with db.connect() as c:

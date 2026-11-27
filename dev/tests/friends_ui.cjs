@@ -41,6 +41,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  async function settle(p){await p.evaluate(async()=>{await document.fonts.ready;const animations=[...document.querySelectorAll('.scrim,.sheet')].flatMap(el=>el.getAnimations());await Promise.all(animations.map(a=>a.finished.catch(()=>{})));});}
  async function capture(p,name){if(!out)return;await settle(p);fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,name+'.png'),fullPage:!/^(?:friends-|my-friends-)/.test(name)});}
  try{
+  if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='recovery')await require('./invitation_recovery_ui.cjs')(browser,base,out);
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='new-list')for(const width of [390,330])for(const theme of ['light','dark'])for(const state of ['empty','typical','heavy']){
    const {c,p,errors,writes}=await open(state,theme,{width,height:844},'/me/friends',state==='heavy'?{alphabetical:true}:{});
    const friends={empty:0,typical:1,heavy:40}[state];await until(p,n=>document.querySelectorAll('#fr-own-list .fr-friend').length===n,'Friends list rows',friends);
@@ -278,9 +279,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const theme of ['light','dark'])for(const width of [390,330]){
     const {c,p,errors}=await openInvite(theme,width);let accepted=0;
-    await p.route('**/api/friend-links/invite-ui-test',route=>{
+    await p.route('**/api/friend-links/invite-ui-test{,/state}',route=>{
      if(route.request().method()==='POST'){accepted++;return route.fulfill({json:{status:'friends',name:'Fictional Sender',login:'zz_test_fc_sender',new:true}});}
-     return route.fulfill({json:{name:'@river'}});
+     return route.fulfill({json:{member:accepted>0,name:'@river',login:'zz_test_fc_sender'}});
     });
     await p.goto(base+'/add/invite-ui-test');await p.locator('#af-yes').waitFor();
     assert.equal(await p.locator('.friend-invite-screen h1').innerText(),'River');assert.equal(await p.locator('.friend-invite-handle').innerText(),'@river');
@@ -292,7 +293,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const theme of ['light','dark'])for(const width of [390,330]){
     const {c,p,errors}=await openInvite(theme,width);
-    await p.route('**/api/friend-links/invite-expired',route=>route.fulfill({status:404,json:{detail:'This invite link has expired or was replaced. Ask for a new one.'}}));
+    await p.route('**/api/friend-links/invite-expired{,/state}',route=>route.fulfill({status:404,json:{detail:'This invite link has expired or was replaced. Ask for a new one.'}}));
     await p.goto(base+'/add/invite-expired');await p.locator('.friend-invite-unavailable').waitFor();const text=await p.locator('.friend-invite-unavailable').innerText();
     assert.equal(text.replace(/\n+/g,'\n'),'This invite isn’t available\nGo home','invalid link has one generic line and a home action');assert(!text.includes('expired')&&!text.includes('replaced'),'invalid state does not reveal token status');await capture(p,`friend-invite-invalid-${width}-${theme}`);assert.deepEqual(errors,[]);await close(c);
    }

@@ -45,6 +45,24 @@ class FriendLinks(unittest.TestCase):
 
     def friends(self, c): return {p['login'] for p in c.get('/api/friends').json()['friends']}
 
+    def test_invitation_state_is_own_relationship_and_retry_does_not_duplicate(self):
+        ann, bo, cy = self.person('zz_test_fl_ann'), self.person('zz_test_fl_bo'), self.person('zz_test_fl_cy')
+        code = ann.get('/api/friends/link').json()['url'].rsplit('/', 1)[1]
+        path = '/api/friend-links/' + code
+        self.assertEqual(client().get(path+'/state').status_code, 401)
+        self.assertFalse(bo.get(path+'/state').json()['member'])
+        self.assertEqual(bo.post(path,json={}).status_code, 200)
+        self.assertTrue(bo.get(path+'/state').json()['member'])
+        self.assertFalse(cy.get(path+'/state').json()['member'])
+        self.assertEqual(bo.post(path,json={}).status_code, 200)
+        with db.connect() as c:
+            ids = [r['id'] for r in c.execute("SELECT id FROM users WHERE login IN ('zz_test_fl_ann','zz_test_fl_bo')").fetchall()]
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM friendships WHERE requester=ANY(%s) AND addressee=ANY(%s)', (ids, ids)).fetchone()['n'], 1)
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM notifications WHERE kind='friend_accepted' AND user_id=ANY(%s) AND actor_id=ANY(%s)", (ids, ids)).fetchone()['n'], 1)
+            c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', tuple(ids))
+        self.assertEqual(bo.get(path+'/state').status_code, 404)
+        self.assertEqual(set(client().get(path).json()), {'name'}, 'public preview unchanged')
+
     def test_invite_link(self):
         ann, bo, cy = self.person('zz_test_fl_ann'), self.person('zz_test_fl_bo'), self.person('zz_test_fl_cy')
         link = ann.get('/api/friends/link').json(); code = link['url'].rsplit('/', 1)[1]

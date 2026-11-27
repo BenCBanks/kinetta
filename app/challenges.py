@@ -284,7 +284,7 @@ def public_page(code:str,request:Request):
     sports=', '.join(sport_names[s] for s in data.get('sports',[]) if s in sport_names)
     dates=esc(public_date_range(data['start'],data['end']))
     if viewer:
-        action=f'<a class="primary wide" href="/me/challenges/{esc(code)}">Open challenge</a>' if data['member'] else '<p>This challenge has finished.</p>' if data['joining_closed'] else f'<button class="primary wide" id="challenge-public-join" data-code="{esc(code)}">Join challenge</button>'
+        action=f'<a class="primary wide" href="/me/challenges/{esc(code)}">Open challenge</a>' if data['member'] else '<p>This challenge has finished.</p>' if data['joining_closed'] else f'<button class="primary wide" id="challenge-public-join" data-code="{esc(code)}" data-account="{uid}">Join challenge</button>'
     else:
         from . import api_beta
         if data['joining_closed']:action='<p>This challenge has finished.</p>'

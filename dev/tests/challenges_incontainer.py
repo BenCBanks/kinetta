@@ -198,7 +198,9 @@ class Challenges(unittest.TestCase):
  def test_notifications_are_opt_in_once_only_and_never_include_private_names(self):
   q,_=self.make();code=q['code'];self.join(code)
   with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM notifications WHERE challenge_id=(SELECT id FROM challenges WHERE code=%s)',(code,)).fetchone()['n'],0)
-  self.clients[0].put('/api/notifications/settings',json={'challenge_joins':True,'challenge_reminders':True,'challenge_finished':True});self.join(code,2)
+  self.clients[0].put('/api/notifications/settings',json={'challenge_joins':True,'challenge_reminders':True,'challenge_finished':True});self.join(code,2);self.join(code,2)
+  self.assertTrue(self.clients[2].get('/api/challenges/'+code).json()['member'])
+  with db.connect() as c:self.assertEqual(c.execute("SELECT count(*) AS n FROM challenge_members WHERE challenge_id=(SELECT id FROM challenges WHERE code=%s) AND user_id=%s",(code,self.ids[2])).fetchone()['n'],1)
   with patch('app.notify._push_later'):
    with db.connect() as c:
     row=C.accessible(c,code);c.execute('UPDATE challenges SET end_day=%s WHERE id=%s',(self.now.astimezone(C.ZoneInfo('America/New_York')).date()+dt.timedelta(days=3),row['id']));C.process(c,row['id'],self.now);C.process(c,row['id'],self.now)
