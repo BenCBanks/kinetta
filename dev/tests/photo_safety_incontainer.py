@@ -1,6 +1,8 @@
 """Fictional upload safety: actual SQL budgets, decode boundaries and hidden profile reads. No provider calls."""
 import base64
 import io
+import struct
+import zlib
 import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -51,6 +53,15 @@ try:
             assert client.put('/api/me/photo', json={'image': image(size=(10, 10))}).status_code == 200
             assert client.put('/api/me/photo', json={'image': image(size=(11, 10))}).status_code == 400
             assert client.put('/api/me/photo', json={'image': image(size=(21, 10))}).status_code == 400
+        # Real configured Pillow pixel ceiling, without allocating a huge image:
+        # amend only a valid PNG IHDR and its CRC. Reject before pixel decoding.
+        large = bytearray(base64.b64decode(image('PNG', (1, 1))))
+        large[16:24] = struct.pack('>II', 10_000, 5_001)
+        large[29:33] = struct.pack('>I', zlib.crc32(large[12:29]) & 0xffffffff)
+        with patch.object(P.Image.Image, 'load', side_effect=AssertionError('oversized image must not decode')), warnings.catch_warnings():
+            warnings.simplefilter('ignore', Image.DecompressionBombWarning)
+            rejected = client.put('/api/me/photo', json={'image': base64.b64encode(large).decode()})
+        assert rejected.status_code == 400 and rejected.json()['detail'] == "That photo couldn't be opened. Try a JPEG or PNG."
         assert client.put('/api/me/photo', json={'image': base64.b64encode(b'<svg>fictional</svg>').decode()}).status_code == 400
         # Direct URLs hide suspended/unconfirmed owners too, while permitting their own existing photo.
         with db.connect() as c:
