@@ -29,12 +29,13 @@ const source=fs.readFileSync('app/static/social.js','utf8'),tick=()=>new Promise
  c.api=async()=>({url:'/add/fictional-invitation'});await c.inviteFriends();assert.equal(shareSheet.title,'Invite friends');assert.equal(shareSheet.mode,'story');assert.equal(shareSheet.items[0].label,'Friend invitation');assert.equal(shareSheet.items[0].link,'https://example.test/add/fictional-invitation');assert.equal(shareSheet.items[0].copyText,'Connect with me on Kinetta, the workout and food app. This invitation lasts 30 days: https://example.test/add/fictional-invitation');assert.equal(shareSheet.actions[0].label,'Make a new link');assert(await shareSheet.items[0].build(),'friend invitation exposes its no-identity Story artwork');
  // Group invites open the friend picker; sharing reuses the current link and has a clipboard fallback.
  const groupClasses=new Set(),groupReads=[];let groupBox,groupMarkup;
- const search={value:''},results={innerHTML:'',setAttribute(){}},share={disabled:false};
- c.sheet=(title,html,mount)=>{groupMarkup=html;groupBox={isConnected:true,closest:()=>({classList:{add:name=>groupClasses.add(name)}}),nodes:{'#group-friend-search':search,'.group-friend-results':results,'[data-group-share]':share}};mount(groupBox,()=>{});};
+ const search={value:''},results={innerHTML:'',setAttribute(){}},share={disabled:false},picker={isConnected:true};
+ c.sheet=(title,html,mount)=>{groupMarkup=html;groupBox={children:[],isConnected:true,closest:()=>({classList:{add:name=>groupClasses.add(name)}}),nodes:{'.group-friend-picker':picker,'#group-friend-search':search,'.group-friend-results':results,'[data-group-share]':share}};mount(groupBox,()=>{});};
  c.$=(selector,box)=>box?.nodes?.[selector]||null;c.$$=()=>[];
  c.api=async path=>{groupReads.push(path);return{friends:[],can_invite:true};};c.json=(method,body)=>({method,body});require('./confirmed_setting_fixture.cjs')(c);
  vm.runInContext(source.slice(source.indexOf('function groupInviteSheet('),source.indexOf('function groupCreateSheet('))+'\nglobalThis.groupInviteSheetTest=groupInviteSheet;',c);
  c.groupInviteSheetTest({id:'fictional-group',title:'Fictional Trail Group'},'https://example.test/group-invite/fictional-token');await tick();
+ assert.equal(picker.children.find(node=>node.dataset?.sharingState)?.parentElement,picker,'recovery belongs inside the vertical picker, not beside it');assert.equal(groupBox.children.length,0,'recovery cannot squeeze the picker as a horizontal sibling');
  assert(groupClasses.has('group-friend-sheet'));assert(groupMarkup.includes('Search friends'));assert(!groupMarkup.includes('data-group-copy'),'raw link/copy controls are replaced by the picker');
  assert.deepEqual(groupReads,['/api/groups/fictional-group/friends'],'opening Invite reads friends without creating or rotating a link');
  await share.onclick();assert.equal(shared.text,"You’re invited to ‘Fictional Trail Group’ on Kinetta, the workout and food app: https://example.test/group-invite/fictional-token");assert.equal(shared.url,undefined);
