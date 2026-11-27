@@ -44,8 +44,10 @@ that two independently recorded activities are the same.
 Conservative initial limits: 2 GiB/archive, two active uploads and 4 GiB reserved/account,
 16 active uploads and 12 GiB globally; ten upload reservations/account/day and 100/day
 across the server. Reservations are serialized in SQL, survive restarts and include
-expired bytes until cleanup. Pieces have length and SHA checks. Two receiving bodies
-per application process bound transient memory. Every write retains at least 25% free
+expired bytes until cleanup. Pieces have length and SHA checks. At most two receiving bodies
+per application process, and one per account in that process, bound transient memory.
+Body reception has a 15-second idle and 60-second total deadline; 408 releases both slots
+and leaves the saved offset unchanged. Every write retains at least 25% free
 disk and 1 GiB headroom, also reserving expected pending bytes on admission.
 
 Archives allow 20,000 entries, 10,000 workouts and 8 GiB declared uncompressed content;
@@ -54,11 +56,19 @@ size is checked before allocation. Path traversal, links, encryption, duplicate 
 unsupported compression and expansion ratios over 200 are rejected. Nothing is extracted
 by archive path. Individual recording parsers run in bounded child processes (512 MiB
 address space, 15 CPU seconds, 25 wall seconds). Preview has a ten-minute bound; import
-passes yield after about one minute and resume from the saved cursor. One SQL-backed
-worker lock serializes parsing across application processes.
+passes yield after about one minute and start directly at the saved cursor, without
+reading completed items. Corrupt gzip/recordings count as unreadable; unexpected archive
+processing failures are terminal, allowing the queue to advance. SQL/session failures
+and lack of disk space remain resumable. One SQL-backed worker lock serializes parsing
+across application processes. Worker writes use the same connection holding that lock;
+session loss stops writes and rolls back uncommitted work. The cursor is rechecked under
+the account/job write locks before adding a workout or updating its receipt.
 
 Staged bytes expire after seven days, including interrupted work. Terminal archives are
-removed; stage/reminder metadata expires after 90 days. Account deletion cascades both
+removed; an expired upload's SQL receipt remains until directory removal succeeds,
+including partial removal errors. Later passes retry; account-deletion orphans are
+reconciled only under canonical Strava staging paths, leaving other uploads alone.
+Stage/reminder metadata expires after 90 days. Account deletion cascades both
 personal tables and uses the existing account uploads-directory erasure. A cancelled
 or expired import does not roll back workouts already committed. SQL readers see only
 their own rows; ordinary/public SQL roles cannot modify either table.
@@ -81,4 +91,6 @@ An attempt is durably claimed **before** sending through the existing mail sende
 A provider timeout/crash after that claim is never retried, preventing duplicate emails;
 consequently a reminder can be lost on an uncertain send. The account retains at most
 one reminder attempt while its stage record exists, even after toggling opt-in again.
-Tests use stand-ins only and never send actual mail.
+Tests require mail to be unconfigured in the disposable server, replace the mail sender,
+and block its HTTP transport as a second guard. Reminder coverage uses stand-ins only;
+tests never send actual mail.

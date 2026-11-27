@@ -11,6 +11,9 @@ from . import db,strava_upload as uploads,strava_stage
 
 router=APIRouter(prefix='/api/strava-import')
 _piece_slots=asyncio.Semaphore(2)
+_piece_accounts=set()
+PIECE_RECEIVE_SECONDS=60
+PIECE_IDLE_SECONDS=15
 
 
 class StageIn(BaseModel):
@@ -68,13 +71,23 @@ async def piece(identity:UUID,offset:int,request:Request,user=Depends(current_us
     if not re.fullmatch('[0-9a-f]{64}',digest):raise HTTPException(422,'Piece checksum is required')
     # Reject other-account IDs before reading a potentially large body.
     await run_in_threadpool(upload_status,identity,user)
-    if _piece_slots.locked():raise HTTPException(429,'Uploads are busy. Retry this piece.')
+    uid=user['id']
+    if uid in _piece_accounts or _piece_slots.locked():raise HTTPException(429,'Uploads are busy. Retry this piece.')
     async with _piece_slots:
-        data=bytearray()
-        async for chunk in request.stream():
-            if len(data)+len(chunk)>uploads.CHUNK:raise HTTPException(413,'Send at most 8 MiB in one piece')
-            data.extend(chunk)
-        return await run_in_threadpool(uploads.append,user['id'],identity,offset,bytes(data),digest)
+        _piece_accounts.add(uid)
+        try:
+            data=bytearray();stream=request.stream().__aiter__()
+            try:
+                async with asyncio.timeout(PIECE_RECEIVE_SECONDS):
+                    while True:
+                        try:chunk=await asyncio.wait_for(anext(stream),PIECE_IDLE_SECONDS)
+                        except StopAsyncIteration:break
+                        if len(data)+len(chunk)>uploads.CHUNK:raise HTTPException(413,'Send at most 8 MiB in one piece')
+                        data.extend(chunk)
+            except TimeoutError:raise HTTPException(408,'Upload timed out. Retry this piece.') from None
+            return await run_in_threadpool(uploads.append,uid,identity,offset,bytes(data),digest)
+        finally:
+            _piece_accounts.discard(uid)
 
 
 @router.post('/uploads/{identity}/finalize')

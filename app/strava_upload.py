@@ -1,7 +1,9 @@
 """Account-bound resumable archives and durable, provider-free import work."""
 import datetime as dt
+from contextlib import contextmanager
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -10,7 +12,8 @@ import uuid
 import time
 import zipfile
 import subprocess
-from psycopg import DataError
+import zlib
+from psycopg import DataError,Error as DatabaseError
 from fastapi import HTTPException
 from . import activities, db, strava_archive as archive
 
@@ -20,6 +23,34 @@ USER_BYTES, GLOBAL_BYTES = 4*1024**3, 12*1024**3
 USER_JOBS, GLOBAL_JOBS = 2, 16
 ACTIVE = ('uploading','preview_queued','review','importing')
 DATA = Path(os.environ.get('FIT_DATA','/data'))
+
+
+@contextmanager
+def write_connection(lease=None):
+    # Worker writes use the very session holding the lock, never a reconnect. Losing
+    # that session rolls back its writes; another worker can then resume the cursor.
+    if lease is None:
+        with db.connect() as c:yield c
+    else:
+        with lease.transaction():yield lease
+
+
+def check_lease(lease):
+    if lease is not None:
+        with lease.transaction():lease.execute('SELECT 1')
+
+
+def remove_archive(uid,identity):
+    directory=path(uid,identity).parent
+    try:shutil.rmtree(directory)
+    except FileNotFoundError:
+        if not directory.exists():return True
+        logging.getLogger(__name__).warning('Strava staging cleanup deferred')
+        return False
+    except OSError:
+        logging.getLogger(__name__).warning('Strava staging cleanup deferred')
+        return False
+    return True
 
 
 def path(uid,identity):
@@ -134,7 +165,7 @@ def cancel(uid,identity):
         account(c,uid);owned(c,uid,identity,True)
         c.execute("UPDATE strava_uploads SET state=CASE WHEN state='done' THEN state ELSE 'cancelled' END,updated=now() WHERE user_id=%s AND id=%s",(uid,identity))
         c.execute("UPDATE strava_import_stage SET state='cancelled',reminder_opt_in=false,reminder_due=NULL,stop_hash=NULL,updated=now() WHERE user_id=%s AND upload_id=%s",(uid,identity))
-    shutil.rmtree(path(uid,identity).parent,ignore_errors=True)
+    remove_archive(uid,identity) # Terminal row remains for cleanup retries.
     return {'ok':True}
 
 
@@ -153,10 +184,11 @@ def duplicate(c,uid,parsed,meta,raw,point=None):
     return bool(activities.find_duplicate(c,uid,source='strava',**(point or candidate(c,uid,parsed,meta))))
 
 
-def preview(uid,identity,z,items):
+def preview(uid,identity,z,items,lease=None):
     deadline=time.monotonic()+600
     counts={'added':0,'already_here':0,'unreadable':0};seen=set();candidates={}
     for name,load,meta in items:
+        check_lease(lease)
         if time.monotonic()>deadline:raise archive.ArchiveError('processing_limit')
         try:
             parsed,raw=archive.parse_item(name,load,meta)
@@ -177,8 +209,8 @@ def preview(uid,identity,z,items):
             if found or any(k in seen for k in keys) or same:counts['already_here']+=1
             else:counts['added']+=1;candidates.setdefault((point['sport'],bucket),[]).append(point)
             seen.update(keys)
-        except (archive.ArchiveError,ValueError,OSError,KeyError,TypeError,DataError,zipfile.BadZipFile,EOFError,TimeoutError, subprocess.TimeoutExpired):counts['unreadable']+=1
-    with db.connect() as c:
+        except (archive.ArchiveError,ValueError,OSError,KeyError,TypeError,DataError,zipfile.BadZipFile,EOFError,zlib.error,TimeoutError, subprocess.TimeoutExpired):counts['unreadable']+=1
+    with write_connection(lease) as c:
         account(c,uid)
         c.execute("UPDATE strava_uploads SET state='review',preview=%s,updated=now() WHERE user_id=%s AND id=%s AND state='preview_queued' AND expires>now()",(json.dumps(counts),uid,identity))
 
@@ -191,20 +223,23 @@ def discard_unreferenced(c,uid,raw,name):
         (DATA/'files'/str(uid)/(digest+''.join(Path(name).suffixes)[-20:])).unlink(missing_ok=True)
 
 
-def import_items(uid,identity,items,stop):
+def import_items(uid,identity,items,stop,lease=None):
+    with db.connect() as c:
+        r=owned(c,uid,identity)
+        if r['state']!='importing':return
+        cursor=r['cursor']
     deadline=time.monotonic()+60
-    for index,(name,load,meta) in enumerate(items):
+    # Read the saved cursor once; completed items do not consume the next pass's budget.
+    for index in range(cursor,len(items)):
         if stop.is_set() or time.monotonic()>deadline:return
-        with db.connect() as c:
-            r=owned(c,uid,identity)
-            if r['state']!='importing':return
-            if index<r['cursor']:continue
+        check_lease(lease)
+        name,load,meta=items[index]
         parsed=raw=None
         try:parsed,raw=archive.parse_item(name,load,meta)
-        except (archive.ArchiveError,ValueError,OSError,KeyError,TypeError,DataError,zipfile.BadZipFile,EOFError,TimeoutError,subprocess.TimeoutExpired):pass
-        with db.connect() as c:
+        except (archive.ArchiveError,ValueError,OSError,KeyError,TypeError,DataError,zipfile.BadZipFile,EOFError,zlib.error,TimeoutError,subprocess.TimeoutExpired):pass
+        with write_connection(lease) as c:
             account(c,uid);r=owned(c,uid,identity,True)
-            if r['state']!='importing' or r['expires']<=dt.datetime.now(dt.timezone.utc):return
+            if r['state']!='importing' or r['cursor']!=index or r['expires']<=dt.datetime.now(dt.timezone.utc):return
             result=dict(r['result'])
             if parsed is None:outcome='unreadable'
             else:
@@ -223,36 +258,63 @@ def import_items(uid,identity,items,stop):
             result[outcome]+=1
             # Workout and cursor commit together. Restart cannot duplicate a committed item or lose its receipt.
             c.execute('UPDATE strava_uploads SET cursor=%s,result=%s,error_code=NULL,updated=now() WHERE user_id=%s AND id=%s',(index+1,json.dumps(result),uid,identity))
-    with db.connect() as c:
-        account(c,uid)
-        c.execute("UPDATE strava_uploads SET state='done',updated=now() WHERE user_id=%s AND id=%s AND state='importing'",(uid,identity))
+    with write_connection(lease) as c:
+        account(c,uid);r=owned(c,uid,identity,True)
+        if r['state']!='importing' or r['cursor']!=len(items):return
+        c.execute("UPDATE strava_uploads SET state='done',updated=now() WHERE user_id=%s AND id=%s",(uid,identity))
         c.execute("UPDATE strava_import_stage SET state='done',updated=now() WHERE user_id=%s AND upload_id=%s",(uid,identity))
-    shutil.rmtree(path(uid,identity).parent,ignore_errors=True)
+    remove_archive(uid,identity)
 
 
-def cleanup():
-    with db.connect() as c:
+def cleanup(lease=None):
+    with write_connection(lease) as c:
         rows=c.execute("""UPDATE strava_uploads SET state='cancelled',error_code='expired'
           WHERE expires<=now() AND state=ANY(%s) RETURNING user_id,id""",(list(ACTIVE),)).fetchall()
         rows+=c.execute("SELECT user_id,id FROM strava_uploads WHERE state IN ('done','failed','cancelled')").fetchall()
-        c.execute('DELETE FROM strava_uploads WHERE expires<now() AND state NOT IN (\'importing\',\'preview_queued\')')
         c.execute('DELETE FROM strava_import_stage WHERE expires<now()')
-    for r in rows:shutil.rmtree(path(r['user_id'],r['id']).parent,ignore_errors=True)
+    for row in rows:
+        with write_connection(lease) as c:
+            # Serialize deletion against an in-flight append/import and preserve the
+            # receipt until removal succeeds. Missing directories are already clean.
+            uid,identity=row['user_id'],row['id']
+            if not c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,)).fetchone():continue
+            r=c.execute('SELECT * FROM strava_uploads WHERE user_id=%s AND id=%s FOR UPDATE',(uid,identity)).fetchone()
+            if not r or r['state'] not in ('done','failed','cancelled'):continue
+            if remove_archive(uid,identity) and r['expires']<dt.datetime.now(dt.timezone.utc):
+                c.execute('DELETE FROM strava_uploads WHERE user_id=%s AND id=%s',(uid,identity))
+    # Account deletion cascades SQL first. Retry only our canonical staging paths
+    # if the existing account-file eraser was interrupted or could not remove them.
+    root=DATA/'uploads'
+    for user_dir in root.iterdir() if root.exists() else ():
+        if (user_dir.is_symlink() or not user_dir.is_dir() or not user_dir.name.isdecimal()
+                or len(user_dir.name)>18 or str(int(user_dir.name))!=user_dir.name):continue
+        with db.connect() as c:
+            if c.execute('SELECT 1 FROM users WHERE id=%s',(int(user_dir.name),)).fetchone():continue
+        for directory in user_dir.glob('strava-*'):
+            try:identity=uuid.UUID(directory.name.removeprefix('strava-'))
+            except ValueError:continue
+            if directory.name!='strava-'+str(identity):continue
+            check_lease(lease)
+            remove_archive(int(user_dir.name),identity)
 
 
-def process(r,stop):
+def process(r,stop,lease=None):
     try:
+        check_lease(lease)
         with archive.open_archive(path(r['user_id'],r['id'])) as z:
             entries=archive.items(z)
-            if r['state']=='preview_queued':preview(r['user_id'],r['id'],z,entries)
-            else:import_items(r['user_id'],r['id'],entries,stop)
+            if r['state']=='preview_queued':preview(r['user_id'],r['id'],z,entries,lease)
+            else:import_items(r['user_id'],r['id'],entries,stop,lease)
     except HTTPException as e:
-        if e.status_code!=507:raise
-        with db.connect() as c:
-            c.execute("UPDATE strava_uploads SET error_code='storage_full',updated=now() WHERE user_id=%s AND id=%s AND state='importing'",(r['user_id'],r['id']))
-    except (archive.ArchiveError,zipfile.BadZipFile,OSError) as e:
-        with db.connect() as c:
-            code=str(e) if isinstance(e,archive.ArchiveError) else 'archive_unavailable'
+        with write_connection(lease) as c:
+            if e.status_code==507:
+                c.execute("UPDATE strava_uploads SET error_code='storage_full',updated=now() WHERE user_id=%s AND id=%s AND state='importing'",(r['user_id'],r['id']))
+            else:
+                c.execute("UPDATE strava_uploads SET state='failed',error_code='processing_failed',updated=now() WHERE user_id=%s AND id=%s AND state IN ('preview_queued','importing')",(r['user_id'],r['id']))
+    except DatabaseError:raise # Transient SQL/lease loss must stop this worker, not mark corrupt input.
+    except Exception as e:
+        with write_connection(lease) as c:
+            code=str(e) if isinstance(e,archive.ArchiveError) else 'processing_failed'
             c.execute("UPDATE strava_uploads SET state='failed',error_code=%s,updated=now() WHERE user_id=%s AND id=%s AND state IN ('preview_queued','importing')",(code,r['user_id'],r['id']))
 
 
@@ -263,13 +325,14 @@ def run_one(stop=None):
         if not lease.execute("SELECT pg_try_advisory_lock(hashtextextended('strava-worker',0)) AS ok").fetchone()['ok']:return False
         lease.commit()
         try:
-            cleanup()
+            cleanup(lease)
             r=lease.execute("SELECT user_id,id,state FROM strava_uploads WHERE state IN ('preview_queued','importing') AND expires>now() ORDER BY updated LIMIT 1").fetchone();lease.commit()
             if not r:return False
-            process(r,stop)
+            process(r,stop,lease)
             return True
         finally:
-            lease.rollback();lease.execute("SELECT pg_advisory_unlock(hashtextextended('strava-worker',0))");lease.commit()
+            if not lease.closed:
+                lease.rollback();lease.execute("SELECT pg_advisory_unlock(hashtextextended('strava-worker',0))");lease.commit()
 
 
 def worker(stop):

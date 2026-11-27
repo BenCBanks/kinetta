@@ -100,7 +100,9 @@ def parse_item(name, load, meta):
     raw = load()
     # Bound gzip before the existing parser's larger legacy limit.
     if name.lower().endswith('.gz'):
-        with gzip.GzipFile(fileobj=io.BytesIO(raw)) as g: unpacked=g.read(MAX_FILE+1)
+        try:
+            with gzip.GzipFile(fileobj=io.BytesIO(raw)) as g: unpacked=g.read(MAX_FILE+1)
+        except (OSError,EOFError,zlib.error):raise ArchiveError('unreadable') from None
         if len(unpacked)>MAX_FILE: raise ArchiveError('entry_limit')
     # Parse in a separate process: adversarial XML/FIT cannot exhaust the web worker.
     proc = subprocess.run([sys.executable,'-m','app.strava_archive',name],input=raw,

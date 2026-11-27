@@ -36,8 +36,7 @@ def cancel(uid):
         ids=[r['id'] for r in c.execute('SELECT id FROM strava_uploads WHERE user_id=%s AND state=ANY(%s) FOR UPDATE',(uid,list(uploads.ACTIVE))).fetchall()]
         c.execute("UPDATE strava_uploads SET state='cancelled',updated=now() WHERE user_id=%s AND state=ANY(%s)",(uid,list(uploads.ACTIVE)))
         c.execute("UPDATE strava_import_stage SET state='cancelled',reminder_opt_in=false,reminder_due=NULL,stop_hash=NULL,updated=now() WHERE user_id=%s",(uid,))
-    import shutil
-    for identity in ids:shutil.rmtree(uploads.path(uid,identity).parent,ignore_errors=True)
+    for identity in ids:uploads.remove_archive(uid,identity) # Rows retain failed removals for retry.
     return {'ok':True}
 
 

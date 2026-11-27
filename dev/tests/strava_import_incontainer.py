@@ -1,5 +1,8 @@
 """Fictional, local-only import contract, privacy and crash regressions. No outbound sends."""
 import datetime as dt
+import asyncio
+import gzip
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -14,11 +17,13 @@ import threading
 import unittest
 import uuid
 import zipfile
+import zlib
 from unittest.mock import patch
 import psycopg
 from psycopg import sql
 from fastapi.testclient import TestClient
-from app import db,auth,coach,account_email,strava_upload as U,strava_stage as S,strava_archive as A
+from fastapi import HTTPException
+from app import db,auth,coach,account_email,strava_upload as U,strava_stage as S,strava_archive as A,api_strava_import as API
 from app.main import app
 
 PW='fictional import test passphrase'
@@ -45,15 +50,17 @@ def bundle(extra=None):
 class Import(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if account_email.mail_ready():raise AssertionError('Use a disposable fixture with mail disabled')
         # Exclude the running HTTP application's background worker for deterministic crash cuts.
         cls.lease=db.pool().getconn()
         cls.lease.execute("SELECT pg_advisory_lock(hashtextextended('strava-worker',0))");cls.lease.commit()
         cls.coach=patch.object(coach,'after_import',side_effect=AssertionError('No AI permitted'));cls.coach.start()
         cls.mail=patch.object(account_email,'send',side_effect=AssertionError('Real email prohibited'));cls.mail.start()
+        cls.transport=patch.object(account_email.httpx,'post',side_effect=AssertionError('Outbound mail transport prohibited'));cls.transport.start()
 
     @classmethod
     def tearDownClass(cls):
-        cls.coach.stop();cls.mail.stop()
+        cls.coach.stop();cls.mail.stop();cls.transport.stop()
         cls.lease.execute("SELECT pg_advisory_unlock(hashtextextended('strava-worker',0))");cls.lease.commit();db.pool().putconn(cls.lease)
 
     def setUp(self):
@@ -92,6 +99,18 @@ class Import(unittest.TestCase):
     def process(self,identity):
         with db.connect() as c:r=dict(U.owned(c,self.me,identity))
         U.process(r,threading.Event())
+
+    def worker_once(self):
+        # Reenter our test session's worker lock once, keeping the unrelated HTTP
+        # process excluded; all nested reads still borrow their ordinary sessions.
+        original=db.connect;first=[True]
+        @contextmanager
+        def connect():
+            if first:
+                first.clear();yield type(self).lease
+            else:
+                with original() as c:yield c
+        with patch.object(db,'connect',connect):return U.run_one()
 
     def ready(self):
         identity,raw=self.create();self.assertEqual(self.piece(identity,raw).status_code,200)
@@ -171,10 +190,10 @@ class Import(unittest.TestCase):
         with db.connect() as c:c.execute("UPDATE profile SET share_default='everyone' WHERE user_id=%s",(self.me,))
         real=U.activities.store;calls=[]
         def die_after_one(*a,**k):
-            if calls:raise RuntimeError('simulated process exit')
+            if calls:raise SystemExit('simulated process exit')
             calls.append(True);return real(*a,**k)
         with patch.object(U.activities,'store',side_effect=die_after_one):
-            with self.assertRaises(RuntimeError):self.process(identity)
+            with self.assertRaises(SystemExit):self.process(identity)
         self.assertEqual(self.status(identity)['result']['added'],1)
         self.assertEqual(self.status(identity)['state'],'importing')
         restart="from app import db,strava_upload as U;import threading;uid,identity="+repr((self.me,identity))+";\nwith db.connect() as c:r=dict(U.owned(c,uid,identity))\nU.process(r,threading.Event())"
@@ -249,20 +268,155 @@ class Import(unittest.TestCase):
                     if name=='activities.csv':content=content.replace(b'Fictional easy run,5,1800',b'Fictional easy run,5,1e308')
                     after.writestr(name,content)
         identity,raw=self.create(out.getvalue());self.piece(identity,raw)
-        self.a.post(f'/api/strava-import/uploads/{identity}/finalize',json={});self.process(identity)
+        self.a.post(f'/api/strava-import/uploads/{identity}/finalize',json={});self.worker_once()
         self.assertEqual(self.status(identity)['preview'],{'added':2,'already_here':0,'unreadable':2})
-        U.confirm(self.me,identity,'friends');self.process(identity)
+        U.confirm(self.me,identity,'friends');self.worker_once()
         self.assertEqual(self.status(identity)['state'],'done')
         self.assertEqual(self.status(identity)['result'],{'added':2,'already_here':0,'unreadable':2})
+
+    def test_corrupt_gzip_is_unreadable_and_next_job_runs(self):
+        # Valid gzip header, invalid deflate block (BTYPE=3): specifically zlib.error.
+        corrupt=gzip.compress(b'fictional')[:10]+b'\x07'+b'\0'*8
+        with self.assertRaises(zlib.error):gzip.decompress(corrupt)
+        raw=bundle({'activities/bad.fit.gz':corrupt})
+        with zipfile.ZipFile(io.BytesIO(raw)) as before:
+            out=io.BytesIO()
+            with zipfile.ZipFile(out,'w') as after:
+                for name in before.namelist():
+                    value=before.read(name)
+                    if name=='activities.csv':value=value.replace(b'activities/bad.fit,',b'activities/bad.fit.gz,')
+                    after.writestr(name,value)
+        identity,raw=self.create(out.getvalue());self.piece(identity,raw)
+        self.a.post(f'/api/strava-import/uploads/{identity}/finalize',json={});self.worker_once()
+        self.assertEqual(self.status(identity)['preview'],{'added':3,'already_here':0,'unreadable':1})
+        U.confirm(self.me,identity,'friends');self.worker_once()
+        self.assertEqual(self.status(identity)['state'],'done')
+        self.assertEqual(self.status(identity)['result'],{'added':3,'already_here':0,'unreadable':1})
+        # Unexpected item/outer failures are terminal too; only transient SQL is retried.
+        poison,raw=self.create();self.piece(poison,raw)
+        self.a.post(f'/api/strava-import/uploads/{poison}/finalize',json={})
+        with patch.object(A,'items',side_effect=zlib.error('fictional poison')):self.assertTrue(self.worker_once())
+        self.assertEqual(self.status(poison)['state'],'failed')
+        self.assertEqual(self.status(poison)['error_code'],'processing_failed')
+        healthy,raw=self.create();self.piece(healthy,raw)
+        self.a.post(f'/api/strava-import/uploads/{healthy}/finalize',json={})
+        self.assertTrue(self.worker_once())
+        self.assertEqual(self.status(healthy)['state'],'review','a later healthy queued job progresses')
+
+    def test_cleanup_keeps_receipt_until_removal_and_reconciles_deleted_account(self):
+        identity,raw=self.create();self.piece(identity,raw);directory=U.path(self.me,identity).parent
+        with db.connect() as c:c.execute("UPDATE strava_uploads SET expires=now()-interval '1 second' WHERE id=%s",(identity,))
+        for error in (PermissionError,FileNotFoundError):
+            with patch.object(U.shutil,'rmtree',side_effect=error('fictional filesystem failure')):U.cleanup()
+            self.assertTrue(directory.exists())
+            self.assertEqual(self.status(identity)['state'],'cancelled','failed cleanup retains its retry record')
+        U.cleanup();self.assertFalse(directory.exists())
+        with db.connect() as c:self.assertIsNone(c.execute('SELECT 1 FROM strava_uploads WHERE id=%s',(identity,)).fetchone())
+        identity,raw=self.create();self.piece(identity,raw);directory=U.path(self.me,identity).parent
+        unrelated=directory.parent/'legacy-upload';unrelated.mkdir()
+        from app import api_account
+        with patch.object(api_account.shutil,'rmtree',side_effect=PermissionError('fictional delayed erasure')):
+            # Simulate process interruption after the existing SQL cascade, before file erasure.
+            with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(self.me,))
+            U.cleanup()
+        self.assertTrue(directory.exists())
+        U.cleanup();self.assertFalse(directory.exists());self.assertTrue(unrelated.exists())
+
+    def test_resume_starts_at_cursor_without_scanning_completed_items(self):
+        identity=self.ready();U.confirm(self.me,identity,'friends')
+        with db.connect() as c:c.execute("UPDATE strava_uploads SET cursor=9999,result='{}'::jsonb||%s::jsonb WHERE id=%s",(json.dumps({'added':9999,'already_here':0,'unreadable':0}),identity))
+        # A valid final manual entry; no prefix enumeration or per-prefix SQL read is allowed.
+        with A.open_archive(U.path(self.me,identity)) as z:tail=A.items(z)[0]
+        class Entries:
+            def __len__(self):return 10000
+            def __getitem__(self,index):
+                if index!=9999:raise AssertionError('Completed items must not be visited')
+                return tail
+        real=U.owned;reads=[]
+        def counted(*args,**kw):reads.append(True);return real(*args,**kw)
+        with patch.object(U,'owned',side_effect=counted):U.import_items(self.me,identity,Entries(),threading.Event())
+        self.assertEqual(len(reads),3,'one cursor read, one locked item read, one completion read')
+        self.assertEqual(self.status(identity)['state'],'done')
+        self.assertEqual(self.status(identity)['result']['added'],10000)
+
+    def test_stale_cursor_is_rechecked_under_write_lock(self):
+        identity=self.ready();U.confirm(self.me,identity,'friends');real=A.parse_item
+        def advanced(*args):
+            value=real(*args)
+            with db.connect() as c:c.execute("UPDATE strava_uploads SET cursor=1,result=%s WHERE id=%s",(json.dumps({'added':1,'already_here':0,'unreadable':0}),identity))
+            return value
+        with patch.object(A,'parse_item',side_effect=advanced),patch.object(U.activities,'store',side_effect=AssertionError('Stale worker must not store')):
+            self.process(identity)
+        with db.connect() as c:self.assertEqual(U.owned(c,self.me,identity)['cursor'],1)
+        self.assertEqual(self.status(identity)['result']['added'],1)
+        self.assertEqual(self.status(identity)['state'],'importing')
+
+    def test_lost_worker_session_cannot_commit_then_successor_resumes(self):
+        identity=self.ready();U.confirm(self.me,identity,'friends')
+        # Separate disposable SQL session: kill it after a parse and after an insert.
+        for phase in ('parsed','inserted'):
+            with self.subTest(phase=phase):
+                lease=psycopg.connect(db.CONNINFO,row_factory=psycopg.rows.dict_row)
+                key='zz_test_strava_lease_'+secrets.token_hex(8)
+                lease.execute('SELECT pg_advisory_lock(hashtextextended(%s,0))',(key,));lease.commit()
+                pid=lease.info.backend_pid
+                def terminate():
+                    with psycopg.connect(db._conninfo('postgres',db.secret('POSTGRES_PASSWORD')),autocommit=True) as admin:
+                        self.assertTrue(admin.execute('SELECT pg_terminate_backend(%s)',(pid,)).fetchone()[0])
+                target=A if phase=='parsed' else U.activities;method='parse_item' if phase=='parsed' else 'store';real=getattr(target,method)
+                def killed(*args,**kw):
+                    value=real(*args,**kw);terminate();return value
+                with db.connect() as c:r=dict(U.owned(c,self.me,identity))
+                try:
+                    with patch.object(target,method,side_effect=killed),self.assertRaises(psycopg.Error):
+                        U.process(r,threading.Event(),lease)
+                finally:lease.close()
+                with db.connect() as c:
+                    self.assertEqual(U.owned(c,self.me,identity)['cursor'],0)
+                    self.assertEqual(c.execute('SELECT count(*) AS n FROM activities WHERE user_id=%s',(self.me,)).fetchone()['n'],0)
+                    self.assertTrue(c.execute('SELECT pg_try_advisory_xact_lock(hashtextextended(%s,0)) AS ok',(key,)).fetchone()['ok'])
+        self.process(identity)
+        self.assertEqual(self.status(identity)['result'],{'added':3,'already_here':0,'unreadable':1})
+
+    def test_receive_deadlines_and_per_account_slot_release(self):
+        identity,raw=self.create();other,other_raw=self.create(raw,client=self.b)
+        async def exercise():
+            started=asyncio.Event()
+            class Body:
+                headers={'x-content-sha256':hashlib.sha256(raw).hexdigest()}
+                def __init__(self,kind):self.kind=kind
+                async def stream(self):
+                    if self.kind=='idle':
+                        started.set();yield raw[:1];await asyncio.Event().wait()
+                    elif self.kind=='drip':
+                        while True:
+                            yield b'x';await asyncio.sleep(.03)
+                    else:yield raw
+            with patch.object(API,'_piece_slots',asyncio.Semaphore(2)),patch.object(API,'_piece_accounts',set()),patch.object(API,'PIECE_IDLE_SECONDS',.1),patch.object(API,'PIECE_RECEIVE_SECONDS',.4):
+                stalled=asyncio.create_task(API.piece(uuid.UUID(identity),0,Body('idle'),{'id':self.me}))
+                await asyncio.wait_for(started.wait(),1)
+                with self.assertRaises(HTTPException) as busy:await API.piece(uuid.UUID(identity),0,Body('normal'),{'id':self.me})
+                self.assertEqual(busy.exception.status_code,429)
+                self.assertEqual((await API.piece(uuid.UUID(other),0,Body('normal'),{'id':self.other}))['received'],len(other_raw))
+                with self.assertRaises(HTTPException) as idle:await stalled
+                self.assertEqual(idle.exception.status_code,408)
+                self.assertFalse(API._piece_accounts);self.assertEqual(API._piece_slots._value,2)
+                with patch.object(API,'PIECE_RECEIVE_SECONDS',.15):
+                    with self.assertRaises(HTTPException) as total:await API.piece(uuid.UUID(identity),0,Body('drip'),{'id':self.me})
+                self.assertEqual(total.exception.status_code,408)
+                self.assertEqual(self.status(identity)['received'],0,'timed-out bodies never append partial bytes')
+                self.assertEqual((await API.piece(uuid.UUID(identity),0,Body('normal'),{'id':self.me}))['received'],len(raw))
+                self.assertFalse(API._piece_accounts);self.assertEqual(API._piece_slots._value,2)
+        asyncio.run(exercise())
 
     def test_crash_inside_workout_transaction_rolls_back_cursor_and_activity(self):
         identity=self.ready();U.confirm(self.me,identity,'friends')
         real=U.activities.store
         def crash(*args,**kw):
             real(*args,**kw)
-            raise RuntimeError('simulated exit before cursor commit')
+            raise SystemExit('simulated exit before cursor commit')
         with patch.object(U.activities,'store',side_effect=crash):
-            with self.assertRaises(RuntimeError):self.process(identity)
+            with self.assertRaises(SystemExit):self.process(identity)
         with db.connect() as c:
             self.assertEqual(U.owned(c,self.me,identity)['cursor'],0)
             self.assertEqual(c.execute('SELECT count(*) AS n FROM activities WHERE user_id=%s',(self.me,)).fetchone()['n'],0)
