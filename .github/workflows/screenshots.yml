@@ -9,7 +9,7 @@ on:
     branches: [main]
     paths: ["app/static/**", "dev/demo/**", "dev/screenshots/**", "dev/tests/map_feedback_ui.cjs"]
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled]
     paths: ["dev/screenshots/**", "dev/tests/map_feedback_ui.cjs", ".github/workflows/screenshots.yml"]
   workflow_dispatch:
 permissions:
@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   homepage-simulator:
-    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event_name != 'pull_request' || ((github.event.pull_request.draft == false || contains(github.event.pull_request.labels.*.name, 'homepage-capture')) && github.event.pull_request.head.repo.full_name == github.repository)
     # Match the native-ui runner: the Apple Silicon image can stall in iOS first-boot migration.
     runs-on: macos-26-intel
     timeout-minutes: 35
@@ -72,7 +72,7 @@ jobs:
   shots:
     needs: homepage-simulator
     # a pull request from someone else's fork can't push here
-    if: github.event_name != 'pull_request' || (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event_name != 'pull_request' || ((github.event.pull_request.draft == false || contains(github.event.pull_request.labels.*.name, 'homepage-capture')) && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -126,11 +126,20 @@ jobs:
           mkdir -p /tmp/png
           npm ci --prefix dev/tests/browser
           dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Check delayed map capture synchronization
+        run: |
+          node dev/screenshots/archive-cache.test.cjs
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node dev/screenshots/map-capture.test.cjs
       - name: Check app boot
         env:
           KINETTA_PROJECT: shots
         run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/boot_ui.cjs"
+      - name: Prepare bounded approved archive ranges for capture
+        run: |
+          # Fresh job-local real bytes only; cold timings remain in this step's log.
+          node dev/screenshots/archive-cache.cjs "$RUNNER_TEMP/homepage-map-ranges"
+          echo "KINETTA_CAPTURE_ARCHIVE_CACHE=$RUNNER_TEMP/homepage-map-ranges" >> "$GITHUB_ENV"
       - name: Capture website screenshots
         env:
           KINETTA_PROJECT: shots
@@ -245,4 +254,13 @@ jobs:
         run: gh workflow run pages.yml --ref main
       - name: Stop it
         if: always()
-        run: docker compose -p shots down -v
+        run: |
+          docker compose -p shots down -v
+          python3 - <<'PY'
+          import os, shutil
+          from pathlib import Path
+          cache = Path(os.environ['RUNNER_TEMP']) / 'homepage-map-ranges'
+          if cache.exists():
+              assert not cache.is_symlink()
+              shutil.rmtree(cache)
+          PY
