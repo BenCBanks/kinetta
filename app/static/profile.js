@@ -863,10 +863,10 @@ const ProfileLayout=(()=>{
       const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=FEATURED_ACHIEVEMENT_LIMIT;
       sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
         const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
-        const recovery=document.createElement('p');recovery.className='small muted';recovery.setAttribute('role','status');
+        const recovery=document.createElement('p');recovery.className='setting-recovery small';recovery.setAttribute('role','status');
         const saved=SocialData.confirmSetting(body,{path:'/api/achievements/showcase',uncertain:()=>{
           invalidate('/api/achievements/showcase');invalidate('/api/people/');MeCard.clearPreviewCache?.();
-          recovery.innerHTML='Not confirmed. <button type="button" class="linkbtn">Retry</button>';box.before(recovery);$('button',recovery).onclick=()=>render();
+          recovery.innerHTML='Not confirmed. <button type="button" class="linkbtn">Retry</button>';if(!body.isConnected)box.before(recovery);$('button',recovery).onclick=()=>render();
         },mask:()=>[...body.children,box],cache:result=>{
             if(!Array.isArray(result?.pinned))throw Error();
             pinnedCodes.clear();for(const item of result.pinned)pinnedCodes.add(String(item));
@@ -879,7 +879,7 @@ const ProfileLayout=(()=>{
         },paint:()=>{button.disabled=false;
         },after:()=>close()});
         button.onclick=async()=>{
-          onInteraction('save-start');button.disabled=true;
+          onInteraction('save-start');
           await saved.save('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
         };
       },{onClose:()=>onInteraction('close')});
@@ -1417,7 +1417,7 @@ const MeCard=(()=>{
         const [me,showcase]=await Promise.all([apiRequest('/api/me',{cache:'no-store'}),apiRequest('/api/achievements/showcase',{cache:'no-store'})]);return {me,showcase};
       },cache:({me,showcase})=>{if(!me.profile_layout||!Array.isArray(showcase?.pinned))throw Error();refreshMe(me);},mask:()=>[...form.children].filter(node=>node!==$('.me-editor-head',form)),uncertain:()=>{
         App.me.profile_layout=null;keep('/api/me',App.me);invalidate('/api/me');invalidate('/api/people/');invalidate('/api/achievements/showcase');clearPreviewCache();data=null;
-        cancel.disabled=true;save.disabled=true;
+        
       },paint:({me,showcase})=>{
         start.name=me.name;start.bio=me.bio||'';start.layout=ProfileLayout.singlePeriod(me.profile_layout);start.featuredPins=[...showcase.pinned];
         Object.assign(value,structuredClone(start.layout));name.value=start.name;bio.value=start.bio;
@@ -1431,7 +1431,7 @@ const MeCard=(()=>{
         const trimmed=name.value.trim();if(!trimmed||trimmed.length>60){nameError.textContent='Enter a name between 1 and 60 characters.';name.setAttribute('aria-invalid','true');name.focus();return;}
         const body={name:trimmed,bio:bio.value.trim(),profile_layout:ProfileLayout.singlePeriod(value)};
         const pins=[...featuredPins],savePins=JSON.stringify(pins)!==JSON.stringify(start.featuredPins);
-        busy=true;featuredBusy=savePins;cancel.disabled=true;save.disabled=true;save.textContent='Saving…';status.textContent='';renderFeatured();
+        busy=true;featuredBusy=savePins;save.textContent='Saving…';status.textContent='';
         if(name.value!==start.name||bio.value!==start.bio||JSON.stringify(value)!==JSON.stringify(start.layout)){
           const result=await saved.save('/api/account',json('PUT',body));if(!result||result.failure||!valid())return;
         }

@@ -55,7 +55,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     const owner=readOwner();
     sheet('Kit',`<div id="kit-settings-panel"><p class="small muted">Kit can suggest training notes and estimate food. You can always log everything yourself.</p>${me.ai_paused?'<p class="small muted">Kit is paused. Manual logging still works.</p>':me.ai_access&&(!me.ai_access.food?.entitled||!me.ai_access.food?.available||!me.ai_access.coach?.entitled||!me.ai_access.coach?.available)?`<p class="small muted">Food estimates: ${me.ai_access.food?.entitled&&me.ai_access.food?.available?'available':'not available'} · Coaching: ${me.ai_access.coach?.entitled&&me.ai_access.coach?.available?'available':'not available'}.${me.ai_access.coach?.reason?' '+esc(me.ai_access.coach.reason):''}</p>`:!me.coach?'<p class="small muted">Kit is unavailable right now. Manual logging still works.</p>':''}<button type="button" class="linkbtn" id="m-ai-info">What gets shared?</button><div class="seg wide" role="group" aria-label="AI features"><button type="button" data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button type="button" data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div><div class="card list">${row('button','type="button" id="m-kit-memory"','sparkle','What Kit remembers')}${row('button','type="button" id="m-kit-history"','clock','Earlier Kit reviews')}</div><p class="err" role="alert"></p></div>`,(box,close)=>{
       const valid=()=>box.isConnected&&el.isConnected&&owner===readOwner();let saving=false;
-      const saved=SocialData.confirmSetting($('#kit-settings-panel',box),{path:'/api/me',cache:data=>{if(typeof data.ai_ok!=='boolean')throw Error();me.ai_ok=data.ai_ok;refreshMe(data);invalidate('/api/coach');},paint:data=>{
+      const saved=SocialData.confirmSetting($('#kit-settings-panel',box),{path:'/api/me',mask:()=>$$('[data-ai]',box),cache:data=>{if(typeof data.ai_ok!=='boolean')throw Error();me.ai_ok=data.ai_ok;refreshMe(data);invalidate('/api/coach');},paint:data=>{
         $$('[data-ai]',box).forEach(button=>{button.disabled=false;button.setAttribute('aria-pressed',String((button.dataset.ai==='1')===data.ai_ok));});
         $('#m-kit .inset-value',el).textContent=data.ai_ok?'On':'Off';
       },uncertain:()=>{App.me.ai_ok=me.ai_ok=null;keep('/api/me',App.me);invalidate('/api/me');$('#m-kit .inset-value',el).textContent='Not confirmed';}});
@@ -66,7 +66,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       $$('[data-ai]',box).forEach(button=>button.onclick=async()=>{
         if(!valid()||saving)return;const on=button.dataset.ai==='1';if(on===!!App.me.ai_ok)return;
         if(on){close();aiSheet(()=>{if(owner===readOwner())render();});return;}
-        saving=true;button.disabled=true;
+        saving=true;
         await saved.save('/api/profile',json('PUT',{ai_ok:false}));
         if(valid()){saving=false;button.disabled=false;}
       });

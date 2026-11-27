@@ -22,9 +22,9 @@ route(/^\/welcome$/, 'me', async (el) => {
   };
   // Saves, then moves on; a failure keeps the step and what was typed.
   const step = (save, then) => async () => {
-    const id=currentStep,controls=$$('.welcome-actions button',el);controls.forEach(button=>button.disabled=true); $('#wc-err', el).textContent = '';
+    const id=currentStep,controls=$$('.welcome-actions button',el);if(controls.some(button=>button.getAttribute('aria-disabled')==='true'))return;controls.forEach(button=>button.setAttribute('aria-disabled','true')); $('#wc-err', el).textContent = '';
     try { await save(); if (here(id)) then(); }
-    catch (x) { if (here(id)) { $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown]') ? '' : x.message;controls.forEach(button=>button.disabled=false); } }
+    catch (x) { if (here(id)) { $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown]') ? '' : x.message;controls.forEach(button=>button.removeAttribute('aria-disabled')); } }
   };
   function profile() {
     const me = App.me,draft=store.get(profileDraftKey),draftName=typeof draft?.name==='string'?draft.name:me.name,draftBio=typeof draft?.bio==='string'?draft.bio:(me.bio||'');
@@ -97,7 +97,6 @@ route(/^\/welcome$/, 'me', async (el) => {
         savedPhone=settings.phone_e164||null;input.value=savedPhone||'';input.disabled=false;next.disabled=false;
         next.onclick=step(async()=>{
           const value=input.value.trim();if(value===(savedPhone||''))return;
-          input.disabled=true;
           try{
             if(!await saved.save('/api/contacts/settings',json('PUT',{phone_e164:value||null})))throw Error('Saved number not confirmed.');
             if(value.replace(/[\s().-]/g,'')!==(savedPhone||''))throw Error('Saved number shown. Check it before continuing.');

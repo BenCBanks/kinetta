@@ -653,16 +653,15 @@ Object.assign(KitChat, (() => {
       const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
       menu.setAttribute('aria-label','Memory options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
       const saved=SocialData.confirmSetting(box,{path:'/api/coach/conversation/memory',mask:()=>[...box.children],
-        uncertain:()=>{menu.hidden=true;},
+        uncertain:()=>{menu.setAttribute('aria-disabled','true');},
         paint:next=>{if(typeof next.enabled!=='boolean'||!Array.isArray(next.memories))throw Error();},
-        after:next=>draw(next)});
+        after:next=>{menu.removeAttribute('aria-disabled');draw(next);}});
       const remove=async(id,button)=>{
         if(!valid())return;
-        button.disabled=true;
         await saved.save('/api/coach/conversation/memory'+(id?'/'+id:''),{method:'DELETE'});
       };
       menu.onclick=()=>{
-        if(!valid())return;
+        if(!valid()||!saved.known)return;
         sheet('Memory options','<button type="button" class="linkbtn wide danger kit-history-action" id="kit-forget-all">Forget all memories</button>',(b,done)=>{
           $('#kit-forget-all',b).onclick=async event=>{
             if(!valid())return;
@@ -714,7 +713,6 @@ Object.assign(KitChat, (() => {
             if(!valid())return;
             const toggle=e.target,enabled=toggle.checked;
             if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Kit will forget your saved details.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
-            toggle.disabled=true;
             await saved.save('/api/coach/conversation/memory',json('PUT',{enabled}));
           };
         }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=()=>draw();}
