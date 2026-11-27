@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-11-26T22:19:35.127502+00:00",
-  "revision": "fdf1b1fccf924256aeaffe0ef8f75f31fe43cae3",
+  "generated_at": "2026-11-27T02:12:06.440854+00:00",
+  "revision": "89d46fead7b37ff6fa5ccd2cccf801263efd5203",
   "simulator_captures": {
-    "source_revision": "fdf1b1fccf924256aeaffe0ef8f75f31fe43cae3",
+    "source_revision": "89d46fead7b37ff6fa5ccd2cccf801263efd5203",
     "device": "iPhone 16",
     "runtime": "iOS 26.5",
     "sdk": "26.5",
@@ -17,7 +17,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "8e7bf7eb6d84f0c481ecb6eac0f06518485ecf0aec2888679d5d165fad2e7ea2",
+        "source_sha256": "543e08dbd63459d35d4b44d9941a25aa8f0637cd8631f8a358275954464f9319",
         "two_x": "dark-achievements.webp",
         "one_x": "dark-achievements-1x.webp"
       },
@@ -41,7 +41,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "de9b051a1cbfbfdf1ef98491478b1f4422be91a3715b5623609a8e4c9380a491",
+        "source_sha256": "725069032e74ef27a1de22d4fac368b9fb8640997ccd8bdcd61e001b9cfc7318",
         "two_x": "dark-activity-detail.webp",
         "one_x": "dark-activity-detail-1x.webp"
       },
@@ -53,7 +53,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "933533da408665e37f04c2a74677ebdf34dd34cf63aed942093aa936f8325562",
+        "source_sha256": "0a7ba72e9bd3af9feb997881033d29f8f7e08b28a1868dcba6e84f788078c8db",
         "two_x": "light-activity-detail.webp",
         "one_x": "light-activity-detail-1x.webp"
       },
@@ -77,7 +77,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "9142e004c0580c19230be2e353e4a1fcc72f838d6f18950855882121b7ed57a9",
+        "source_sha256": "d1d6394d370a6665cb895bfdeacdf0345555fe659a294d47cf75ecda8f1236aa",
         "two_x": "1319-profile-light.webp",
         "one_x": "1319-profile-light-1x.webp"
       }
