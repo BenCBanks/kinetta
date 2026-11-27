@@ -79,3 +79,19 @@ catalog.effort_metric_label='time';
  assert.equal(await c.layout.prepareFeatured(),null,'optional failures settle even if profile failure prevents a mount');
  console.log('Featured owner reads: parallel requests, reuse, account/disconnect fences, filtered sharing and optional failure PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+// Render the real weekly card: its distance formatter already includes the unit.
+const weeklySource=source.slice(source.indexOf('  function weekMetrics('),source.indexOf('  function sections(',source.indexOf('  function weekMetrics(')));
+for(const [unit,metres] of [['mi',1609.344],['km',1000]]){
+ const weekly={esc:String,fdate:()=> 'Nov 22',U:{dist:(n,d)=>(n/metres).toFixed(d),du:()=>unit,time:n=>Math.round(n/60)+'m'}};
+ vm.createContext(weekly);vm.runInContext(weeklySource,weekly);
+ const weeks=[{d:'2026-11-15',distance_m:0,activities:0,time_s:0},{d:'2026-11-22',distance_m:1.5*metres,activities:1,time_s:600,today:true}];
+ const rendered=weekly.weeklyCard({overview:{activities:1},mileage:{weeks}});
+ const names=[...rendered.matchAll(/class="me-week[^>]*aria-label="([^"]+)"/g)].map(m=>m[1]);
+ assert.equal(names.length,2);
+ assert.match(names[0],new RegExp(': 0 '+unit+', 0 workouts, 0m$'));
+ assert.equal(names[1],`This week: 1.5 ${unit}, 1 workout, 10m`);
+ assert(names.every(name=>(name.match(new RegExp('\\b'+unit+'\\b','g'))||[]).length===1),'each period names the distance unit once');
+ assert(rendered.includes(`data-week-value="distance">1.5 ${unit}</b>`),'visible distance remains unchanged');
+}
+console.log('Me weekly chart names: miles/kilometres, zero/nonzero, workout count and time; one distance unit PASS');
