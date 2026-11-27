@@ -2594,6 +2594,14 @@ MIGRATIONS = [
             AND NOT a.needs_email_confirm AND a.suspended_at IS NULL AND a.password_change_expires IS NULL
             AND NOT public.fit_group_blocked(a.id)))) $$;""",
 
+    """
+    -- 127: freeze new training prescriptions; existing schedules intentionally stay legacy.
+    ALTER TABLE training_plans ADD COLUMN IF NOT EXISTS prescription jsonb
+      CHECK(prescription IS NULL OR coalesce((jsonb_typeof(prescription)='object'
+        AND prescription->>'version'='2' AND jsonb_typeof(prescription->'weeks')='array'
+        AND jsonb_typeof(prescription->'paces')='object' AND jsonb_typeof(prescription->'history')='object'),false));
+    """,
+
 ]
 
 

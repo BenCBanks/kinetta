@@ -1,4 +1,5 @@
 """A fictional Me account whose planned workout is always scheduled for today."""
+from legacy_plan_fixture import legacy_plan
 import datetime as dt
 import json
 import os
@@ -28,7 +29,7 @@ c = person(login)
 assert c.post('/api/account/delete', {'password': PW})[0] == 200
 c = person(login, 'River Today')
 assert c.put('/api/profile', {'tz': account_timezone, 'ai_ok': False})[0] == 200
-result = c.post('/api/plans', {
+result = legacy_plan(c, {
     'race': '5k', 'level': 'advanced', 'weeks': 6, 'runs': 6,
     'long_day': long_day, 'race_day': race_day.isoformat(),
 })

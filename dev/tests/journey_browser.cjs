@@ -69,6 +69,17 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
  p.on('response',response=>{const u=new URL(response.url());if(u.pathname.startsWith('/api/')&&response.status()>=400&&!(current.action==='uncertainSave'&&u.pathname==='/api/activities/track'&&response.status()===503))httpErrors.push({path:u.pathname,status:response.status()});});
  return {c,p,auth,errors,httpErrors,writes,blocked,get saved(){return saved;},test(value){current=value;errors.length=0;httpErrors.length=0;writes.length=0;blocked.length=0;toolsReads=0;}};
 }
+async function planPreviewErrors(f){
+ const p=f.p;
+ if(new URL(p.url()).pathname!=='/plan'||!await p.locator('#ps-f').count()||await p.locator('[data-logs]').count())return [];
+ // Legacy clients preview on entry. A handled readiness refusal is a valid destination;
+ // wait for its rendered result and verify the reason before accepting exactly one 400.
+ await until(p,()=>!!document.querySelector('#ps-prev .err,#ps-prev .pw'),'Plan preview result');
+ const error=p.locator('#ps-prev .err');if(!await error.count())return [];
+ assert.match(await error.innerText(),/logged four-week average|consistent recent running base|After time off|first long run is above your recent longest run/);
+ assert(await p.locator('#ps-go').isDisabled(),'readiness blocks starting an unsupported race build');
+ return [{path:'/api/plans/preview',status:400}];
+}
 async function ready(p){await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!document.querySelector('#page[data-home-loading]'),'Journey page ready');}
 async function visibleTitles(p,selector='#page h1,.profile-page-title,.me-card-editor h2,.scrim:not([inert]) .sheet h2'){return p.locator(selector).filter({visible:true}).allTextContents();}
 async function closeSheets(p){
@@ -86,4 +97,4 @@ async function assertDestination(p,expected,values={}){
  if(expected.text)assert.equal(await p.locator(expected.ready).first().innerText(),expected.text,'The intended original activity is present');
  assert(await p.evaluate(()=>App.pages.some(page=>page.re.test(location.pathname))),'Destination must be registered, never the unknown-route fallback');
 }
-module.exports={boundary,context,fixtureSessions,ready,assertDestination,visibleTitles,closeSheets,until,settle};
+module.exports={planPreviewErrors,boundary,context,fixtureSessions,ready,assertDestination,visibleTitles,closeSheets,until,settle};

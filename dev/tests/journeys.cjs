@@ -3,7 +3,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createHash}=require('node:crypto');
 const {journeys}=require('./journey_scenes.cjs');
-const {boundary,context,fixtureSessions,ready,assertDestination,until,closeSheets}=require('./journey_browser.cjs');
+const {planPreviewErrors,boundary,context,fixtureSessions,ready,assertDestination,until,closeSheets}=require('./journey_browser.cjs');
 const base=process.env.KINETTA_URL,project=process.env.KINETTA_PROJECT;
 const fixturesFile=process.env.KINETTA_JOURNEY_FIXTURES||'/tmp/'+project+'-journeys.json';
 async function recording(f,uncertain){
@@ -102,6 +102,7 @@ async function appleHealthFromNutrition(f){
      await f.p.locator(selector).first().click(position?{position}:{});
     }
     await assertDestination(f.p,test.end,{saved:f.saved,day:f.foodDay});
+    const expectedHttpErrors=test.id==='progress-plan'?await planPreviewErrors(f):[];
     const capture=process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id);
     if(capture)await f.p.locator('#toast.on').waitFor({state:'hidden'});
     const endShot=capture?await f.p.screenshot():null;
@@ -111,7 +112,7 @@ async function appleHealthFromNutrition(f){
     }
     if(test.close)await closeSheets(f.p);
     assert.deepEqual(f.errors,[],'No page exception');
-    assert.deepEqual(f.httpErrors,[],'No unexpected API failure');
+    assert.deepEqual(f.httpErrors,expectedHttpErrors,'Only the verified plan-readiness refusal is expected');
     assert.deepEqual(f.blocked,[],'No unexpected navigation mutation');
     const targets=await f.p.evaluate(()=>window.journeyGoTargets||[]);results.push({id:test.id,login:test.login,passed:true,end:test.end.url,go:targets,writes:[...f.writes]});
     console.log('Journey '+test.id+': URL, title and key element PASS');

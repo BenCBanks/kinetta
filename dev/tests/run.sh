@@ -39,6 +39,7 @@ python3 dev/tests/test_ui_inventory.py
 python3 dev/design/build_content.py
 python3 dev/tests/test_website_content.py
 python3 dev/tests/ai_fingerprints.py
+python3 dev/tests/test_plan_rules.py
 python3 dev/evals/test_food_memory_score.py
 python3 dev/evals/test_workout_review_report.py
 python3 dev/evals/test_kit_gate.py
@@ -234,7 +235,7 @@ if [[ "$MODE" == --quick ]]; then
   # Authentication/ownership plus the main activity, food and notification contracts.
   api_tests="test_expected_account test_social test_search test_share test_notify test_block test_unified_food test_account test_track test_health_details test_onboarding"
 else
-  api_tests="test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_layout test_profile_progress test_progress_overview test_chart_weeks test_track test_track_review test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit"
+  api_tests="test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_plan_launch_api test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_layout test_profile_progress test_progress_overview test_chart_weeks test_track test_track_review test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit"
 fi
 for t in $api_tests; do python3 "$t.py"; done
 cd ../..
@@ -244,6 +245,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/contacts_blocks_incontai
 
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_store_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_upgrade_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/plan_upgrade_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_api_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_goal_actions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_history_limits_incontainer.py

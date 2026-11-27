@@ -1,5 +1,6 @@
 """Training plans tick off a run of the planned distance that day (not other days), and by hand on any day; calorie-burn goals (daily too); race predictions slow down
 for longer races (2026-10-12)."""
+from legacy_plan_fixture import legacy_plan
 import datetime as dt
 import os
 import subprocess
@@ -29,7 +30,7 @@ p.delete('/api/plans/current')
 # One captured local date drives the plan and its current-day workout for the full script.
 today = dt.date.fromisoformat(p.get('/api/plans/options')[1]['today'])
 monday = today - dt.timedelta(days=today.weekday())
-s, r = p.post('/api/plans', {'race': '10k', 'level': 'beginner', 'weeks': 10, 'runs': 3, 'long_day': 6,
+s, r = legacy_plan(p, {'race': '10k', 'level': 'beginner', 'weeks': 10, 'runs': 3, 'long_day': 6,
                              'race_day': (monday + dt.timedelta(weeks=9, days=6)).isoformat()})
 check('plan made', s == 200, r)
 D = p.get('/api/plans/current')[1]
@@ -108,7 +109,7 @@ if P: check('predictions carry best reference and year', all('best_s' in x and '
 for a in p.get('/api/activities?limit=20')[1]:
     if a['name'] == 'zz plan run': p.delete(f"/api/activities/{a['id']}")
 # Deterministic run/walk metadata is a recorder prefill, not parsed workout prose or changed plan maths.
-s,r=p.post('/api/plans',{'race':'5k','level':'first','weeks':9,'runs':3,'long_day':5,'race_day':(monday+dt.timedelta(weeks=8,days=5)).isoformat()})
+s,r=legacy_plan(p,{'race':'5k','level':'first','weeks':9,'runs':3,'long_day':5,'race_day':(monday+dt.timedelta(weeks=8,days=5)).isoformat()})
 check('run/walk plan made',s==200,r)
 walk_plan=p.get('/api/plans/current')[1]
 first_walk=walk_plan['weeks'][0]['workouts'][0]

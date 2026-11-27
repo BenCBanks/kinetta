@@ -4,7 +4,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
 const {createHash}=require('node:crypto');
 const {scenes,journeys}=require('./journey_scenes.cjs'),{intention,literalTargets,fetchDocument}=require('./link_contract.cjs');
 const {fixturePage}=require('./ui_fixture_browser.cjs');
-const {boundary,context,fixtureSessions,ready,visibleTitles,closeSheets}=require('./journey_browser.cjs');
+const {planPreviewErrors,boundary,context,fixtureSessions,ready,visibleTitles,closeSheets}=require('./journey_browser.cjs');
 const base=process.env.KINETTA_URL,project=process.env.KINETTA_PROJECT,partial=process.argv.includes('--rendered-only');
 let checking='collecting initial scenes';
 function collectRenderedLinks(mutation){
@@ -109,7 +109,7 @@ const collect=p=>p.evaluate(collectRenderedLinks);
     if(result.heading)assert(titles.some(title=>title.toLowerCase().includes(result.heading.toLowerCase())),`${link.href}: expected ${result.heading}, saw ${titles.join(' / ')}`);
     assert(!titles.some(title=>/^(?:Not available|Not found)$/.test(title.trim())),'Missing record destination: '+link.href);
     assert.deepEqual(f.errors,[],'No destination page exception');
-    assert.deepEqual(f.httpErrors,[],'No destination API failure');
+    assert.deepEqual(f.httpErrors,await planPreviewErrors(f),'Only a verified plan-readiness refusal is expected');
     assert.deepEqual(f.blocked,[],'No unexpected destination mutation');
     if(recursive.has(login))for(const next of await collect(f.p))add(next,login);
     for(const href of await f.p.evaluate(()=>window.journeyGoTargets||[]))add({href,label:'',source:link.href+' observed go()'},login);

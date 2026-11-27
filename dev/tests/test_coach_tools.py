@@ -1,4 +1,5 @@
 """Actual SQL/RLS tools and confirmation flows on throwaway accounts, no AI requests."""
+from legacy_plan_fixture import legacy_plan
 import datetime as dt
 import json
 import os
@@ -84,7 +85,7 @@ try:
     check(len(a.get(f'/api/food/day?d={day}')[1]['entries']) == count, 'replay adds nothing')
     check(a.post('/api/coach/proposals', {'kind': 'food', 'day': day, 'candidate_id': 'invented', 'kcal': 5})[0] == 422, 'model macros rejected')
     # Plan history is backdated only on the isolated test database, to exercise missed sessions.
-    check(a.post('/api/plans', {'race': 'marathon', 'level': 'beginner', 'weeks': 18, 'runs': 4, 'long_day': 6})[0] == 200, 'plan created')
+    check(legacy_plan(a, {'race': 'marathon', 'level': 'beginner', 'weeks': 18, 'runs': 4, 'long_day': 6})[0] == 200, 'plan created')
     sql("from app import db\nwith db.connect() as c:\n c.execute(\"UPDATE training_plans SET start_day = start_day - 14, race_day = race_day - 14, created = created - interval '14 days' WHERE user_id = (SELECT id FROM users WHERE login='zz_test_coach_a') AND active\")")
     plan = a.get('/api/plans/current')[1]
     options = tool(a, 'plan_options')
