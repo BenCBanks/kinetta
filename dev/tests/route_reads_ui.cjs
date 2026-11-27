@@ -49,7 +49,14 @@ module.exports=async function routeReadSafety(browser,base){
   return {context,page,requests,errors,token,meGate,cssGate,readsGate,meRequests:()=>meRequests,cssRequests:()=>cssRequests,
    close:async()=>{meGate.release();cssGate.release();readsGate.release();await context.close();}};
  }
- async function started(f){await f.page.waitForFunction(()=>earlyRouteReads.size===2);assert.equal(f.requests.length,2);}
+ async function started(f,expected=2){
+  await f.page.waitForFunction(()=>earlyRouteReads.size===2);
+  // Map entries are created before Playwright dispatches their network callbacks.
+  // Observe both actual requests before checking count and owner headers.
+  const until=Date.now()+5000;
+  while(f.requests.length<expected&&Date.now()<until)await f.page.waitForTimeout(20);
+  assert.equal(f.requests.length,expected,'both early reads reach the routing fixture');
+ }
  async function empty(f){await f.page.waitForFunction(()=>earlyRouteReads.size===0&&routeReadJobs.size===0);}
 
  // No GET before the fresh server identity returns, on web and native bearer auth.
@@ -110,8 +117,7 @@ module.exports=async function routeReadSafety(browser,base){
     assert.notEqual(await f.page.evaluate(()=>readOwner()),oldOwner);
     const before=f.requests.length;
     await f.page.evaluate(()=>startRouteReads('/activity',readOwner(),()=>true));
-    await f.page.waitForFunction(()=>earlyRouteReads.size===2);
-    assert.equal(f.requests.length,before+2,'new owner makes its own two requests');
+    await started(f,before+2);
     assert.equal(f.requests.at(-1).headers['x-kinetta-account'],await f.page.evaluate(()=>String(App.me.id)));
    }
    assert.deepEqual(f.errors,[],`${boundary}: no unhandled errors`);
