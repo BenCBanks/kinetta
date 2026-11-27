@@ -52,7 +52,7 @@
         'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes(cfg.store.homepage?'1,200':'915')&&document.querySelector(`.calorie-ring[role="progressbar"][aria-valuenow="${cfg.store.homepage?1200:915}"]`),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('#p-explore[aria-busy="false"]')&&document.querySelector('[data-progress-fitness]')?.textContent.trim(),
-        'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&storeMapTilesLoaded()&&paintedMap(document.querySelector('#ff-list'))&&!document.querySelector('.map-unavailable:not([hidden])');},
+        'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&storeMapsPainted()&&!document.querySelector('.map-unavailable:not([hidden])');},
         'food-review':()=>document.querySelectorAll('.thread-food').length===2&&!!document.querySelector('#thread-review:not([hidden])'),
         'kit-chart':()=>document.querySelectorAll('.kit-chart circle').length===3,
         'kit-history':()=>document.querySelectorAll('.kit-history-row').length===8,
@@ -67,42 +67,68 @@
     const selector=cfg.tour?.map||{activity:'#d-map.leaflet-container','header-track':'#track-ready-map.leaflet-container','header-activity':'#ff-list .post[data-href="/activity/friends/2"] .leaflet-container'}[cfg.stage];
     return selector?document.querySelector(selector):null;
   }
-  function storeMapTilesLoaded(){
-    // Home has both an own card and a friend card in view. Waiting only for
-    // the friend map can freeze the own map halfway through its tile fade.
+  function storeMapElements(){
     const maps=cfg.stage==='header-activity'
-      ?[...document.querySelectorAll('#ff-list .leaflet-container')].filter(map=>{
-        const r=map.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;
-      }):[storeMapElement()].filter(Boolean);
+      ?[...document.querySelectorAll('#ff-list .leaflet-container')]:[storeMapElement()].filter(Boolean);
+    return maps.filter(map=>{
+      const s=getComputedStyle(map),r=map.getBoundingClientRect();
+      return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;
+    });
+  }
+  function storeVisibleTiles(map){
+    const m=map.getBoundingClientRect(),left=Math.max(0,m.left),top=Math.max(0,m.top),right=Math.min(innerWidth,m.right),bottom=Math.min(innerHeight,m.bottom);
+    return [...map.querySelectorAll('canvas.leaflet-tile')].filter(c=>{
+      const s=getComputedStyle(c),r=c.getBoundingClientRect();
+      return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&r.right>left&&r.bottom>top&&r.left<right&&r.top<bottom;
+    });
+  }
+  function storeMapTilesLoaded(){
+    const maps=storeMapElements();
     return maps.length>0&&maps.every(map=>{
-      const mapStyle=getComputedStyle(map),m=map.getBoundingClientRect();
-      if(mapStyle.display==='none'||mapStyle.visibility==='hidden'||m.width<=0||m.height<=0||m.right<=0||m.bottom<=0||m.left>=innerWidth||m.top>=innerHeight)return false;
-      const left=Math.max(0,m.left),top=Math.max(0,m.top),right=Math.min(innerWidth,m.right),bottom=Math.min(innerHeight,m.bottom);
-      const visible=[...map.querySelectorAll('canvas.leaflet-tile')].filter(c=>{
-        const s=getComputedStyle(c),r=c.getBoundingClientRect();
-        return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&r.right>left&&r.bottom>top&&r.left<right&&r.top<bottom;
-      });
-      return visible.length>0&&visible.every(c=>c.classList.contains('leaflet-tile-loaded'));
+      const tiles=storeVisibleTiles(map);return tiles.length>0&&tiles.every(c=>c.classList.contains('leaflet-tile-loaded'));
+    });
+  }
+  function storeMapsPainted(){
+    const maps=storeMapElements();
+    return storeMapTilesLoaded()&&maps.every(map=>{
+      if(!paintedMap(map))return false;
+      const m=map.getBoundingClientRect(),left=Math.max(0,m.left),top=Math.max(0,m.top),right=Math.min(innerWidth,m.right),bottom=Math.min(innerHeight,m.bottom);
+      // Loaded-class alone accepts transparent tiles. Require opaque canvas coverage
+      // over every visible part of EACH map, even when another map has painted.
+      const boxes=storeVisibleTiles(map).filter(c=>{
+        let opacity=1;for(let e=c;e;e=e.parentElement){const s=getComputedStyle(e);if(s.display==='none'||s.visibility==='hidden')return false;opacity*=Number(s.opacity);}
+        return opacity>=.999;
+      }).map(c=>{const r=c.getBoundingClientRect();return {left:Math.max(left,r.left),right:Math.min(right,r.right),top:Math.max(top,r.top),bottom:Math.min(bottom,r.bottom)};});
+      const xs=[...new Set([left,right,...boxes.flatMap(r=>[r.left,r.right])])].sort((a,b)=>a-b);
+      for(let i=1;i<xs.length;i++){
+        if(xs[i]-xs[i-1]<=.01)continue;
+        const strips=boxes.filter(r=>r.left<=xs[i-1]+.01&&r.right>=xs[i]-.01).sort((a,b)=>a.top-b.top);
+        let covered=top;for(const r of strips){if(r.top>covered+.01)return false;covered=Math.max(covered,r.bottom);}
+        if(covered<bottom-.01)return false;
+      }
+      return boxes.length>0;
     });
   }
   async function waitForStorePaint(){
     const mapStage=cfg.tour?.map||['activity','header-track','header-activity'].includes(cfg.stage);
-    let previousTiles=[],stable=0;
+    const advanced=new WeakSet();let previousTiles=[],stable=0;
     for(let n=0;n<200;n++){
-      let ready=storeReady();
-      // Tour routes can pass on one tile while other tile fades are held by the fictional clock.
-      if((!ready||cfg.tour?.map)&&mapStage&&!cfg.fixtureClockAdvanceAttempted&&(cfg.stage!=='activity'||document.querySelector('[data-dt="charts"][aria-selected="true"]'))&&storeMapTilesLoaded()){
-        cfg.fixtureClockAdvanceAttempted=true;cfg.fixtureClockAdvanceApplied=cfg.advanceFixtureClock?.(250)===true;
-        ready=storeReady();
+      const tiles=mapStage?storeMapElements().flatMap(storeVisibleTiles):[];
+      // A map can replace tiles after another map's fade completed. Advance the
+      // frozen fixture clock once per newly loaded tile group, never app styles.
+      const loaded=tiles.filter(tile=>tile.classList.contains('leaflet-tile-loaded')&&!advanced.has(tile));
+      if(loaded.length&&cfg.advanceFixtureClock){
+        cfg.fixtureClockAdvanceAttempted=true;
+        if(cfg.advanceFixtureClock(250))for(const tile of loaded)advanced.add(tile);
       }
-      const tiles=mapStage?[...(storeMapElement()?.querySelectorAll('canvas.leaflet-tile')||[])]:[];
+      const ready=storeReady()&&(!mapStage||storeMapsPainted());
       const sameTiles=tiles.length===previousTiles.length&&tiles.every((tile,i)=>tile===previousTiles[i]);
       stable=ready?(sameTiles?stable+1:1):0;previousTiles=tiles;
       if(stable>=3)return;
       await new Promise(ok=>setTimeout(ok,100));
       await new Promise(ok=>requestAnimationFrame(ok));
     }
-    throw Error('Store scene did not finish painting: '+cfg.stage);
+    throw Error('Store scene did not finish painting (tiles must be loaded, opaque and cover every visible map): '+cfg.stage);
   }
   async function waitForStoreCrop(selector){
     for(let n=0;n<100;n++){
@@ -306,6 +332,7 @@
     if(cfg.store&&cfg.stage==='notifications')result.storeNotifications=document.querySelectorAll('.note').length;
     if(cfg.store){
       result.sceneReady=storeReady();
+      if(['activity','header-track','header-activity'].includes(cfg.stage))result.storeMapReady=storeMapsPainted();
       if(!result.sceneReady)result.storeDiagnostics=storeActivityDiagnostics();
     }
     globalThis.KinettaUIResult=result;

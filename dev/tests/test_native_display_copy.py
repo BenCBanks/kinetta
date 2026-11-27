@@ -94,7 +94,7 @@ for(const stage of ['kit-chart','kit-history','kit-memory','notifications','food
     def test_store_home_waits_for_both_visible_maps(self):
         node=r"""const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync(process.argv[1],'utf8');
-const helper=source.slice(source.indexOf('  function storeMapTilesLoaded(){'),source.indexOf('  async function waitForStorePaint(){'));
+const helper=source.slice(source.indexOf('  function storeMapElements(){'),source.indexOf('  async function waitForStorePaint(){'));
 const bounds={left:0,top:200,right:440,bottom:500,width:440,height:300};
 let ownLoaded=false;
 const tile=loaded=>({getBoundingClientRect:()=>bounds,classList:{contains:()=>loaded()}});
@@ -108,6 +108,48 @@ ownLoaded=true;
 assert.equal(vm.runInContext('storeMapTilesLoaded()',context),true,'both visible maps are ready; offscreen maps do not block capture');
 """
         result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/late.js')],cwd=ROOT,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_store_map_coverage_fades_replacement_and_failure(self):
+        node=r"""const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync(process.argv[1],'utf8');
+const helpers=source.slice(source.indexOf('  function storeMapElements(){'),source.indexOf('  async function waitForStoreCrop('));
+const bounds={left:0,top:0,right:200,bottom:100,width:200,height:100};
+const tile=(left,right,opacity=1)=>({style:{display:'block',visibility:'visible',opacity},loaded:true,getBoundingClientRect:()=>({...bounds,left,right,width:right-left}),classList:{contains(){return this.tile.loaded;}}});
+function makeTile(...args){const t=tile(...args);t.classList.tile=t;return t;}
+let ownTiles=[makeTile(0,100),makeTile(100,200,0)],friendTiles=[makeTile(0,200)],ticks=0,advances=0,replaced=false,mode='repair';
+const own={getBoundingClientRect:()=>bounds,querySelectorAll:()=>ownTiles},friend={getBoundingClientRect:()=>bounds,querySelectorAll:()=>friendTiles};
+const cfg={stage:'header-activity',advanceFixtureClock(ms){assert.equal(ms,250);advances++;if(mode==='repair')for(const t of [...ownTiles,...friendTiles])if(t.loaded)t.style.opacity=1;return true;}};
+const context=vm.createContext({cfg,WeakSet,document:{querySelectorAll:()=>[own,friend]},innerWidth:200,innerHeight:100,getComputedStyle:e=>e.style||{display:'block',visibility:'visible',opacity:'1'},paintedMap:()=>true,storeReady:()=>true,storeMapElement:()=>friend,setTimeout(ok){ticks++;if(mode==='repair'&&ticks===1){ownTiles=[makeTile(0,100),makeTile(100,200,0)];ownTiles[1].loaded=false;replaced=true;}if(mode==='repair'&&ticks===2)ownTiles[1].loaded=true;ok();},requestAnimationFrame:ok=>ok()});
+vm.runInContext(helpers,context);
+const painted=()=>vm.runInContext('storeMapsPainted()',context);
+assert.equal(vm.runInContext('storeMapTilesLoaded()',context),true);
+assert.equal(painted(),false,'loaded transparent own tile cannot pass because friend painted');
+ownTiles[1].style.opacity=1;assert.equal(painted(),true);
+ownTiles.pop();assert.equal(painted(),false,'missing tile leaves uncovered map area');
+ownTiles.push(makeTile(100,200));ownTiles[1].parentElement={style:{display:'block',visibility:'visible',opacity:0}};
+assert.equal(painted(),false,'ancestor opacity counts');delete ownTiles[1].parentElement;
+(async()=>{
+ await vm.runInContext('waitForStorePaint()',context);
+ assert(replaced);assert.equal(advances,3,'initial, replacement and later loaded groups each finish their fade');assert(painted());
+ mode='stuck';ticks=0;ownTiles[1].style.opacity=0;
+ await assert.rejects(vm.runInContext('waitForStorePaint()',context),/tiles must be loaded, opaque and cover every visible map/);
+ assert.equal(ticks,200,'unfinished tiles fail within the existing capture bound');
+})().catch(e=>{console.error(e);process.exitCode=1;});"""
+        result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/late.js')],cwd=ROOT,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_store_fade_clock_is_repeatable_bounded_and_stays_on_fixture_day(self):
+        node=r"""const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync(process.argv[1],'utf8'),clock=source.slice(source.indexOf('  if(Number.isFinite(cfg.fixtureNow)){'),source.indexOf('  localStorage.clear();'));
+function setup(instant){const cfg={fixtureNow:Date.parse(instant),stage:'header-activity',store:{}};const c=vm.createContext({cfg});vm.runInContext(clock,c);return {cfg,c};}
+const {cfg,c}=setup('2026-11-02T12:00:00Z');
+for(let n=0;n<80;n++)assert.equal(cfg.advanceFixtureClock(250),true);
+assert.equal(cfg.advanceFixtureClock(250),false);assert.equal(vm.runInContext('Date.now()',c),cfg.fixtureNow+20000);
+assert.equal(cfg.advanceFixtureClock(100000),false);
+const midnight=setup('2026-11-02T23:59:59.900Z');assert.equal(midnight.cfg.advanceFixtureClock(250),false);
+"""
+        result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/early.js')],cwd=ROOT,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_original_and_update_keep_fixture_isolation(self):

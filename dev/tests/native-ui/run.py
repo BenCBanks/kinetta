@@ -166,6 +166,8 @@ for device in preferred:
     assert 'error' not in metrics,metrics
     assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
+    if store_fixture and stage in ('activity','header-track','header-activity'):
+     assert metrics.get('storeMapReady') is True, 'Every visible Store map needs opaque complete tiles: '+json.dumps(metrics,sort_keys=True)
     assert metrics['requests'].count('/api/me')==1,metrics
     assert metrics['mePreloadCount']==0,metrics
     nav=metrics['navigation']
