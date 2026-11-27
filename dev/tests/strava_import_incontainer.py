@@ -513,10 +513,11 @@ class Import(unittest.TestCase):
     def test_rls_and_actual_migration_replay(self):
         first,_=self.create();second,_=self.create(client=self.b)
         from app import db as D
-        # Actual preceding migrations remain unchanged; rerunning this migration preserves identities/data.
+        # Replay this migration, not whichever unrelated DDL was appended later.
+        migration = next(m for m in D.MIGRATIONS if 'CREATE TABLE IF NOT EXISTS strava_uploads' in m)
         with db.connect() as c:
             before=c.execute('SELECT id,user_id FROM strava_uploads ORDER BY id').fetchall()
-            c.execute(D.MIGRATIONS[-1]);c.execute(D.MIGRATIONS[-1])
+            c.execute(migration);c.execute(migration)
             self.assertEqual(c.execute('SELECT id,user_id FROM strava_uploads ORDER BY id').fetchall(),before)
             with self.assertRaises(psycopg.errors.ForeignKeyViolation):
                 with c.transaction():c.execute('UPDATE strava_import_stage SET upload_id=%s WHERE user_id=%s',(second,self.me))

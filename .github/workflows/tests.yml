@@ -247,7 +247,9 @@ jobs:
 
   tests:
     name: tests
-    if: ${{ always() }}
+    # Superseded runs stay cancelled; their incomplete dependencies are not test
+    # failures. Completed runs still require every applicable result below.
+    if: ${{ always() && !cancelled() }}
     needs: [quick, changed-screen-map, backend, browser_shards, reviewer_integration, spacing]
     runs-on: ubuntu-latest
     steps:

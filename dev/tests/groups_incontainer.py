@@ -1691,7 +1691,10 @@ class GroupChallengeCompatibility(unittest.TestCase):
                       (group['id'], self.ids[1]))
             c.execute('UPDATE group_challenge_members SET share_total=true WHERE group_id=%s AND user_id=%s',
                       (group['id'], self.ids[0]))
-            # Later migrations must be replayable too: the runner resumes after the highest version.
+            # This rollback fixture already contains later schema changes. Rewind
+            # only the reconciliation runner; replaying later DDL against its
+            # already-applied schema is not a real upgrade (e.g. ADD COLUMN).
+            patches.enter_context(patch.object(db, 'MIGRATIONS', db.MIGRATIONS[:version]))
             c.execute('DELETE FROM schema_version WHERE version>=%s', (version,))
             patches.enter_context(patch.object(db, 'connect', side_effect=lambda: nullcontext(c)))
             patches.enter_context(patch.object(db, 'bootstrap'))

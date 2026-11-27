@@ -147,6 +147,33 @@ run_ui loading_audit.cjs
         self.assertIn('success|skipped', gate)
         self.assertIn('test "$result" = success', gate)
 
+    def test_cancelled_workflows_do_not_create_a_false_aggregate_failure(self):
+        gate = WORKFLOW.split("\n  tests:\n", 1)[1].split("\n  spacing:\n", 1)[0]
+        self.assertIn('if: ${{ always() && !cancelled() }}', gate)
+        script = gate.split('        run: |\n', 1)[1]
+        script = '\n'.join(line[10:] for line in script.splitlines())
+        required = ['CHANGED_SCREEN_MAP_RESULT', 'BACKEND_RESULT', 'SPACING_RESULT']
+        for draft in (True, False):
+            expected_skips = (['BROWSER_SHARDS_RESULT', 'REVIEWER_INTEGRATION_RESULT']
+                              if draft else ['QUICK_RESULT'])
+            base = dict.fromkeys(required + ['QUICK_RESULT', 'BROWSER_SHARDS_RESULT',
+                                            'REVIEWER_INTEGRATION_RESULT'], 'success')
+            base.update(IS_DRAFT=str(draft).lower())
+            for key in expected_skips:
+                base[key] = 'skipped'
+            result = subprocess.run(['bash', '-ec', 'set -u\n' + script], env={**os.environ, **base})
+            self.assertEqual(result.returncode, 0)
+            # Cancellation can never masquerade as a passing dependency, even
+            # on a workflow that has not itself received a cancel signal.
+            for key in (k for k in base if k != 'IS_DRAFT'):
+                for outcome in ('failure', 'cancelled', 'skipped'):
+                    if outcome == 'skipped' and key in expected_skips:
+                        continue
+                    with self.subTest(draft=draft, dependency=key, outcome=outcome):
+                        result = subprocess.run(['bash', '-ec', 'set -u\n' + script],
+                                                env={**os.environ, **base, key: outcome})
+                        self.assertNotEqual(result.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
