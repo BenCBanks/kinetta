@@ -743,7 +743,7 @@ function activityChartStack(box,x,rows,{xfmt,xtickfmt=xfmt,onIndex}={}) {
     const flush=()=>{if(!segment.length)return;const line=segment.map(([i,v],j)=>`${j?'L':'M'}${px(i).toFixed(1)},${y(v).toFixed(1)}`).join('');lineParts.push(line);areaParts.push(`${line}L${px(segment.at(-1)[0]).toFixed(1)},${bottom}L${px(segment[0][0]).toFixed(1)},${bottom}Z`);segment=[];};
     vals.forEach((v,i)=>{if(v==null)flush();else segment.push([i,v]);});flush();
     const avg=r.avg!=null?r.avg:valid.reduce((sum,v)=>sum+v,0)/valid.length;
-    const initial=r.summaryLabel==='Gain'?`Gain <b>${esc(r.fmt(avg))}</b> ${esc(r.unit||'')}`:`Avg <b>${esc(r.fmt(avg))}</b> ${esc(r.unit||'')}`;
+    const initial=`${r.summaryLabel || 'Avg'} <b>${esc(r.fmt(avg))}</b> ${esc(r.unit||'')}`;
     const chart=document.createElement('div');chart.className='chartbox';chart.dataset.chartIndex=String(index);
     if(index>0)chart.classList.add('activity-chart-separated');
     chart.innerHTML=`<div class="lbl"><span>${esc(r.name)}</span><span data-chart-value>${initial}</span></div><svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" tabindex="0" aria-label="${esc(r.name)} chart in ${esc(r.unit||'recorded units')}; use arrow keys to inspect">
@@ -796,7 +796,7 @@ function wireActivityTabs(el, onShow = () => {}) {
 
 function drawDetail(el, a) {
   const r = rate(a);
-  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Elapsed time', activityElapsedText(a)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
+  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Elapsed time', activityElapsedText(a)) + (a.distance_m && r.label!=='Time' ? stat(r.label === 'Pace' ? 'Pace (elapsed)' : r.label, r.v, r.u) : '');
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a,true);
@@ -889,7 +889,7 @@ function drawDetail(el, a) {
     const c = a.chart, x = c.d && (c.d[c.d.length - 1] > 100 || !c.t) ? c.d : c.t, byDist = x === c.d;
     const rows = [];
     const sp = c.speed && FOOT.includes(a.sport) && a.sport !== 'swim', sportColor = col(`--${a.sport}`);
-    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: smoothActivityPace(c.speed,x,byDist), fmt: (v) => U.pace(v), unit: U.pu(), color: sportColor, invert: true, clip: true}
+    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: smoothActivityPace(c.speed,x,byDist), fmt: (v) => U.pace(v), unit: U.pu(), color: sportColor, invert: true, clip: true, summaryLabel: 'Sample avg'}
                               : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: sportColor, clip: true});
     if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s1'), avg: a.avg_hr});
     if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--other'), avg:a.ascent_m, summaryLabel:'Gain'});

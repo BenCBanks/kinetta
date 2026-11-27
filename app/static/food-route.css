@@ -464,7 +464,8 @@ a.ntile { color: inherit; text-decoration: none; }
 .wform { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; } .wform > * { min-height: 44px; }
 .wcard .wfield { position: relative; display: block; } .wcard .wfield input { width: 100%; padding-right: 44px; font-size: 18px; }
 .wcard .wfield span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--tx3); font-weight: 600; pointer-events: none; }
-.wdone { display: flex; align-items: center; gap: 6px; color: var(--good); margin: 0 0 10px; } .wdone svg { width: 18px; height: 18px; } .wdone b { color: var(--tx); }
+.wcard > p.small.muted { margin: 2px 0 4px; line-height: 1.2; }
+.wdone { display: flex; align-items: center; gap: 6px; color: var(--good); margin: 0 0 6px; } .wdone svg { width: 18px; height: 18px; } .wdone b { color: var(--tx); }
 .wfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .wfoot .daypick { display: inline-flex; align-items: center; gap: 6px; padding: 0; }
 .weight-heading { display:flex; flex-wrap:wrap; gap:8px; }

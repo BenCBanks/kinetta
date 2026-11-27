@@ -1490,6 +1490,9 @@ function compactRootHeader(el){
   rootHeaderCleanups.set(el,cleanup);
 }
 function refreshCompactRootHeader(el){rootHeaderCleanups.get(el)?.update?.();}
+function homePageFallback() {
+  return App.pages.find((p) => p.re.test('/activity')) || App.pages[0];
+}
 function render(options) {
   if (!App.me) return;
   // Capture live disclosure choices before a same-route rerender replaces #page.
@@ -1518,7 +1521,11 @@ function render(options) {
   const renderOptions = scrollAnchorBefore === null ? options : {...options,scrollAnchorBefore};
   const path = location.pathname.replace(/\/+$/, '') || '/activity';
   document.title = path === '/activity' ? 'Home · Kinetta' : 'Kinetta';
-  const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
+  // Unknown deep links use Home as their safe landing page. Load Home's lazy
+  // bundle first so the fallback can render even when the route itself has no bundle.
+  const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path))
+    || (!App.pages.some((page) => page.re.test(path))
+      ? lazyRouteBundles.find((candidate) => candidate.re.test('/activity')) : null);
   if (!routeStylesLoaded.has(ROUTE_SCREENS_STYLE)) {
     const owner=readOwner(),generation=++lazyRouteGeneration;
     const current=()=>generation===lazyRouteGeneration&&owner===readOwner()&&key===location.pathname+location.search&&!!App.me;
@@ -1549,11 +1556,6 @@ function render(options) {
     startRouteReads(path, owner, current);
     loadRouteStyles(bundle.styles).then(() => loadClassicScripts(bundle.scripts)).then(() => {
       if (!current()) return;
-      if (!App.pages.some((page) => page.re.test(path))) {
-        showError(el, {status: 503}, {retry: () => location.reload()});
-        App.pageReady = true;
-        return;
-      }
       const rendered=render({...renderOptions,globalSyncDone: true,routePosition:nextPosition});
       return rendered;
     }).catch(error => {
@@ -1564,7 +1566,7 @@ function render(options) {
     return;
   }
   lazyRouteGeneration++;
-  const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
+  const page = App.pages.find((p) => p.re.test(path)) || homePageFallback();
   const m = path.match(page.re) || [], activeTab = typeof page.tab === 'function' ? page.tab(...m.slice(1)) : page.tab;
   // The tab bar stays put between screens (2026-10-16): only the page is replaced, so a tap never waits for the bar to be
   // rebuilt and its badges don't blink. The first render (or after logging in again) builds it.

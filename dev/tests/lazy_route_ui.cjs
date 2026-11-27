@@ -471,7 +471,15 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitne
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
  });
- return {context,page,assets,assetUrls,fitnessReads,recordsReads,errors,writes,previews,held,release:()=>releaseHeld()};
+ const close=async()=>{
+  // A stale render can settle before the instrumented script fetch does.
+  // Release held routes and drain their handlers before disposing request storage;
+  // route failures still surface instead of being hidden during teardown.
+  releaseHeld();
+  await page.unrouteAll({behavior:'wait'});
+  await context.close();
+ };
+ return {context,page,assets,assetUrls,fitnessReads,recordsReads,errors,writes,previews,held,release:()=>releaseHeld(),close};
 }
 // Observe the real deferred renderer while keeping all Fitness records fictional and writes blocked.
 async function fitnessRouteCase(browser){
@@ -501,7 +509,7 @@ async function fitnessRouteCase(browser){
   assert.equal(await cold.page.evaluate(()=>window.__fitnessRenders.length),2,'returning renders the new destination once');
   assert(cold.fitnessReads.length>0,'the real renderer reads the fictional detailed Fitness response');
   assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
- }finally{await cold.context.close();}
+ }finally{await cold.close();}
  const retry=await progressFixture(browser,{fitnessProbe:true,fail:asset});
  try{
   await retry.page.goto(base+fitness);await retry.page.locator('.load-error #retry').waitFor();
@@ -511,7 +519,7 @@ async function fitnessRouteCase(browser){
   assert.equal(retry.assets.filter(path=>path===asset).length,2,'Try again retries only the failed bundle');
   assert.equal(await retry.page.evaluate(()=>window.__fitnessRenders.length),1,'retry invokes the renderer once');
   assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
- }finally{await retry.context.close();}
+ }finally{await retry.close();}
  for(const change of ['owner','path','query','destination'])for(const failHeld of [false,true]){
   const stale=await progressFixture(browser,{fitnessProbe:true,hold:asset,failHeld});
   try{
@@ -530,9 +538,15 @@ async function fitnessRouteCase(browser){
    assert.deepEqual(stale.fitnessReads,[],`${change} change suppresses stale detailed API reads`);
    assert.equal(await stale.page.locator('.load-error').count(),0,`${change} change suppresses stale ${failHeld?'failure':'success'} UI`);
    assert.deepEqual(stale.errors,[]);assert.deepEqual(stale.writes,[]);
-  }finally{stale.release();await stale.context.close();}
+  }finally{stale.release();await stale.close();}
  }
- console.log('Fitness lazy details: cold Me/Progress summaries, direct/reuse, failed-load Retry and stale owner/path/query/detached success/failure PASS');
+ const teardown=await progressFixture(browser,{fitnessProbe:true,hold:asset});
+ try{
+  await teardown.page.goto(base+fitness,{waitUntil:'domcontentloaded'});await teardown.held;
+  assert.equal(teardown.assets.filter(path=>path===asset).length,1,'teardown starts with a held instrumented fetch');
+ }finally{await teardown.close();}
+ assert.deepEqual(teardown.errors,[],'closing with a held script drains its callback before disposing the context');
+ console.log('Fitness lazy details: cold Me/Progress summaries, direct/reuse, failed-load Retry, stale owner/path/query/detached success/failure and held-fetch teardown PASS');
 }
 // Exercise the real Records renderers with fictional responses and blocked writes.
 async function recordsRouteCase(browser){
@@ -567,7 +581,7 @@ async function recordsRouteCase(browser){
   await cold.page.evaluate(()=>go('/progress?view=records&sport=walk'));await readyRecords(cold.page,list);
   assert.match(await cold.page.locator('#r-body').innerText(),/No walk records yet/i,'Records retains its empty state');
   assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
- }finally{await cold.context.close();}
+ }finally{await cold.close();}
  for(const path of [list,history]){
   const retry=await progressFixture(browser,{recordsProbe:true,fail:asset});
   try{
@@ -578,7 +592,7 @@ async function recordsRouteCase(browser){
    assert.equal(retry.assets.filter(file=>file===asset).length,2,'Retry reloads only the failed bundle');
    assert.deepEqual(await retry.page.evaluate(()=>window.__recordsRenders),[path===history?'history':'list'],'Retry invokes the real renderer once');
    assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
-  }finally{await retry.context.close();}
+  }finally{await retry.close();}
   for(const change of ['owner','path','query','destination'])for(const failHeld of [false,true]){
    const stale=await progressFixture(browser,{recordsProbe:true,hold:asset,failHeld});
    try{
@@ -597,7 +611,7 @@ async function recordsRouteCase(browser){
     assert.deepEqual(stale.recordsReads,[],`${path}: ${change} suppresses stale API reads`);
     assert.equal(await stale.page.locator('.load-error').count(),0,`${path}: ${change} suppresses stale ${failHeld?'failure':'success'} UI`);
     assert.deepEqual(stale.errors,[]);assert.deepEqual(stale.writes,[]);
-   }finally{stale.release();await stale.context.close();}
+   }finally{stale.release();await stale.close();}
   }
  }
  console.log('Records lazy details: cold summaries, list/history/reuse, retained UX, Retry and stale owner/path/query/detached success/failure PASS');
