@@ -1,0 +1,362 @@
+"""Fictional PostgreSQL/HTTP member limits. No provider, email or phone delivery."""
+import concurrent.futures
+import datetime as dt
+import importlib
+import threading
+import unittest
+import uuid
+from unittest.mock import patch
+import psycopg
+from psycopg import sql
+from psycopg.rows import dict_row
+from psycopg.conninfo import make_conninfo
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from app import auth, db, member_limits as M, notify, api_mydata
+from app.main import app
+
+
+class MemberLimits(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.password = auth.hash_pw('fictional member limits password')
+
+    def setUp(self):
+        self.ids = []
+        self.addCleanup(self.clean)
+        # A noop, rather than an outbound client, lets the normal scheduling call run.
+        self.push = patch.object(notify, '_push_later', return_value=None)
+        self.push.start(); self.addCleanup(self.push.stop)
+        self.clients = []
+        self.actor, self.uid = self.member('actor')
+        self.owner, self.oid = self.member('owner')
+        self.other, self.tid = self.member('other')
+        with db.connect() as c:
+            self.aid = c.execute("""INSERT INTO activities(user_id,sport,name,start_time,source,visibility)
+                VALUES(%s,'running','Fictional run',now()-interval '1 day','manual','everyone') RETURNING id""", (self.oid,)).fetchone()['id']
+
+    def clean(self):
+        for client in self.clients: client.close()
+        with db.connect() as c: c.execute('DELETE FROM users WHERE id=ANY(%s)', (self.ids,))
+
+    def member(self, label):
+        login = 'zz_test_limits_' + label + '_' + uuid.uuid4().hex[:8]
+        with db.connect() as c:
+            uid = c.execute('''INSERT INTO users(login,name,pw_hash,email,email_verified_at)
+                VALUES(%s,'Fictional Member',%s,%s,now()) RETURNING id''',
+                            (login, self.password, login + '@example.test')).fetchone()['id']
+            self.ids.append(uid)
+            c.execute('INSERT INTO profile(user_id) VALUES(%s)', (uid,))
+            token = auth.new_session(c, uid, 'fictional member limits fixture')
+        client = TestClient(app); client.headers.update({'Origin':'http://testserver','Content-Type':'application/json'})
+        client.cookies.set(auth.COOKIE, token); self.clients.append(client)
+        return client, uid
+
+    def events(self, kind):
+        with db.connect() as c:
+            return c.execute('SELECT * FROM member_action_events WHERE user_id=%s AND kind=%s ORDER BY id', (self.uid, kind)).fetchall()
+
+    def seed(self, kind, count, *, age=0, recipient=None):
+        with db.connect() as c:
+            c.execute('''INSERT INTO member_action_events(user_id,kind,target_hash,payload_hash,recipient_id,created)
+                SELECT %s,%s,%s,%s,%s,now()-make_interval(secs=>%s) FROM generate_series(1,%s)''',
+                      (self.uid, kind, M.digest('fixture'), M.digest(None), recipient, age, count))
+
+    def comment(self, text, key=None):
+        return self.actor.post(f'/api/activities/{self.aid}/comments', json={'text': text, **({'client_id': str(key)} if key else {})})
+
+    def group(self):
+        with db.connect() as c:
+            gid=c.execute('''INSERT INTO event_groups(organizer_id,title,time_zone,goal_type,goal_target,goal_unit,goal_sports,goal_start_date)
+                VALUES(%s,'Fictional crew','UTC','distance',10,'km',ARRAY['run'],current_date) RETURNING id''',(self.uid,)).fetchone()['id']
+            for uid in (self.uid,self.oid):
+                c.execute('INSERT INTO group_members(group_id,user_id,sharing_level) VALUES(%s,%s,\'total_shared\')',(gid,uid))
+        return str(gid)
+
+    def test_group_creation_replay_day_budget_and_active_cap(self):
+        body={'id':str(uuid.uuid4()),'title':'Fictional crew','time_zone':'UTC'}
+        one=self.actor.post('/api/groups/people',json=body)
+        self.assertEqual(one.status_code,200,one.text)
+        self.assertEqual(self.actor.post('/api/groups/people',json=body).json()['id'],one.json()['id'])
+        self.assertEqual(len(self.events('group')),1)
+        for _ in range(4):self.assertEqual(self.actor.post('/api/groups/people',json={**body,'id':str(uuid.uuid4())}).status_code,200)
+        self.assertEqual(self.actor.post('/api/groups/people',json={**body,'id':str(uuid.uuid4())}).status_code,429)
+        with db.connect() as c:c.execute("UPDATE member_action_events SET created=now()-interval '2 days' WHERE user_id=%s",(self.uid,))
+        for _ in range(15):self.group()
+        r=self.actor.post('/api/groups/people',json={**body,'id':str(uuid.uuid4())})
+        self.assertEqual(r.status_code,429);self.assertIn('20 active groups',r.text)
+        self.assertEqual(self.actor.post('/api/groups/people',json=body).status_code,200,'existing create receipt precedes caps')
+
+    def test_group_update_retry_and_shared_comment_budget(self):
+        gid=self.group();base=f'/api/groups/{gid}/updates';body={'text':'A fictional update','client_id':str(uuid.uuid4())}
+        one=self.actor.post(base,json=body);self.assertEqual(one.status_code,200,one.text)
+        self.assertEqual(self.actor.post(base,json=body).json()['id'],one.json()['id'])
+        self.assertEqual(len(self.events('comment')),1)
+        for i in range(5):self.assertEqual(self.comment('Cross-surface encouragement '+str(i),uuid.uuid4()).status_code,200)
+        self.assertEqual(self.actor.post(base,json={'text':'Another update','client_id':str(uuid.uuid4())}).status_code,429)
+        self.assertEqual(self.actor.post(base,json=body).status_code,200,'a lost-reply retry is not budgeted twice')
+
+    def test_directed_invitation_pair_and_total_cap_and_quiet_retry(self):
+        gids=[self.group() for _ in range(4)]
+        with db.connect() as c:
+            login=c.execute('SELECT login FROM users WHERE id=%s',(self.tid,)).fetchone()['login']
+            c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(self.uid,self.tid))
+        for gid in gids[:3]:
+            r=self.actor.post(f'/api/groups/{gid}/friend-invites',json={'username':login});self.assertEqual(r.status_code,200,r.text)
+        r=self.actor.post(f'/api/groups/{gids[3]}/friend-invites',json={'username':login})
+        self.assertEqual(r.status_code,429);self.assertEqual(len(self.events('invite')),3)
+        self.assertEqual(self.actor.post(f'/api/groups/{gids[0]}/friend-invites',json={'username':login}).status_code,200)
+        extra,eid=self.member('invite_peer')
+        with db.connect() as c:
+            peer=c.execute('SELECT login FROM users WHERE id=%s',(eid,)).fetchone()['login']
+            c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(self.uid,eid))
+        self.seed('invite',27)
+        self.assertEqual(self.actor.post(f'/api/groups/{gids[3]}/friend-invites',json={'username':peer}).status_code,429)
+
+    def test_group_challenge_budget_and_receipt(self):
+        gid=self.group();today=dt.date.today()
+        body={'id':str(uuid.uuid4()),'title':'Fictional weekly distance','time_zone':'UTC','goal_type':'distance',
+              'goal_target':10,'goal_unit':'km','goal_sports':['run'],'goal_start_date':str(today),'event_date':str(today+dt.timedelta(days=28))}
+        path=f'/api/groups/{gid}/challenges'
+        one=self.actor.post(path,json=body);self.assertEqual(one.status_code,200,one.text)
+        self.assertEqual(self.actor.post(path,json=body).json()['id'],one.json()['id'])
+        self.seed('group_challenge',9)
+        self.assertEqual(self.actor.post(path,json={**body,'id':str(uuid.uuid4())}).status_code,429)
+        self.assertEqual(self.actor.post(path,json=body).status_code,200)
+
+    def test_group_and_activity_reactions_share_budget_and_notice_quietness(self):
+        gid=self.group();update=self.owner.post(f'/api/groups/{gid}/updates',json={'text':'Fictional meetup'});self.assertEqual(update.status_code,200,update.text)
+        update_id=update.json()['id'];key=str(uuid.uuid4())
+        path=f'/api/groups/{gid}/updates/{update_id}/reaction'
+        self.assertEqual(self.actor.post(path,json={'kind':'clap','client_id':key}).status_code,200)
+        self.assertEqual(self.actor.post(path,json={'kind':'clap','client_id':key}).status_code,200)
+        self.assertEqual(len(self.events('reaction')),1)
+        self.assertEqual(self.actor.post(f'/api/activities/{self.aid}/reaction',json={'kind':'fire'}).status_code,200)
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM notifications WHERE actor_id=%s AND user_id=%s AND kind IN ('cheer','group_cheer')",(self.uid,self.oid)).fetchone()['n'],1)
+        self.seed('reaction',58)
+        self.assertEqual(self.actor.post(f'/api/groups/{gid}/weekly-reaction',json={'kind':'clap'}).status_code,429)
+        self.assertEqual(self.actor.post(path,json={'kind':'clap','client_id':key}).status_code,200)
+
+    def test_native_origin_can_read_retry_after_without_widening_cors(self):
+        self.seed('search',30)
+        response=self.actor.get('/api/people/search?q=Fictional',headers={'Origin':'capacitor://localhost'})
+        self.assertEqual(response.status_code,429)
+        self.assertEqual(response.headers['Access-Control-Allow-Origin'],'capacitor://localhost')
+        self.assertIn('retry-after',response.headers['Access-Control-Expose-Headers'].lower())
+        self.assertGreater(int(response.headers['Retry-After']),0)
+        foreign=self.actor.get('/api/people/search?q=Fictional',headers={'Origin':'https://fictional.example.test'})
+        self.assertNotIn('Access-Control-Allow-Origin',foreign.headers)
+
+    def test_every_approved_rolling_boundary_and_expiry(self):
+        for kind, windows in M.BUDGETS.items():
+            if kind == 'reaction_notice': continue
+            for cap, seconds in windows:
+                with self.subTest(kind=kind, cap=cap, seconds=seconds):
+                    with db.connect() as c: c.execute('DELETE FROM member_action_events WHERE user_id=%s', (self.uid,))
+                    # A daily cap is tested outside the shorter burst window.
+                    age = 120 if seconds > 60 else 0
+                    if kind == 'report' and seconds == 86400: age = 4000
+                    self.seed(kind, cap-1, age=age)
+                    with db.connect() as c: M.claim(c, self.uid, kind)
+                    with self.assertRaises(HTTPException) as error:
+                        with db.connect() as c: M.claim(c, self.uid, kind)
+                    self.assertEqual(error.exception.status_code, 429)
+                    self.assertGreater(int(error.exception.headers['Retry-After']), 0)
+                    with db.connect() as c:
+                        c.execute("UPDATE member_action_events SET created=now()-interval '2 days' WHERE user_id=%s", (self.uid,))
+                        M.claim(c, self.uid, kind)
+
+    def test_comment_retry_duplicate_delete_and_block_do_not_refund_or_reveal(self):
+        key = uuid.uuid4()
+        self.assertEqual(self.comment('Nice fictional run', key).status_code, 200)
+        self.assertEqual(self.comment('Nice fictional run', key).status_code, 200)
+        self.assertEqual(self.comment('Nice fictional run', uuid.uuid4()).status_code, 200)
+        self.assertEqual(len(self.events('comment')), 1)
+        self.assertEqual(self.comment('Different words', key).status_code, 409)
+        with db.connect() as c:
+            cid = c.execute('SELECT id FROM comments WHERE user_id=%s', (self.uid,)).fetchone()['id']
+        self.assertEqual(self.actor.delete(f'/api/comments/{cid}').status_code, 200)
+        self.assertEqual(self.comment('Nice fictional run', key).status_code, 200)
+        with db.connect() as c: self.assertEqual(c.execute('SELECT count(*) AS n FROM comments WHERE user_id=%s', (self.uid,)).fetchone()['n'], 0)
+        for i in range(5): self.assertEqual(self.comment('Fictional encouragement ' + str(i), uuid.uuid4()).status_code, 200)
+        denied = self.comment('One too many', uuid.uuid4())
+        self.assertEqual(denied.status_code, 429, denied.text)
+        self.assertIn(denied.headers['Retry-After'] + ' seconds', denied.json()['detail'])
+        # Protection is available even while the actor's comment/search budgets are full.
+        with db.connect() as c: login = c.execute('SELECT login FROM users WHERE id=%s', (self.oid,)).fetchone()['login']
+        self.assertEqual(self.actor.post(f'/api/people/{login}/block', json={}).status_code, 200)
+        self.assertEqual(self.comment('Nice fictional run', key).status_code, 404)
+        self.assertEqual(self.comment('New blocked text', uuid.uuid4()).status_code, 404)
+
+    def test_pair_comment_cap_crosses_targets_and_group_updates(self):
+        self.seed('comment', 9, age=120, recipient=self.oid)
+        with db.connect() as c:
+            M.comment_recipients(c, self.uid, [self.oid, self.tid])
+        self.assertEqual(self.comment('Across activities', uuid.uuid4()).status_code, 429)
+        with db.connect() as c: M.claim(c, self.uid, 'comment', 'other-target', recipient=self.tid)
+
+    def test_rollback_and_persisted_retry_after_module_reload(self):
+        key = uuid.uuid4()
+        with self.assertRaises(RuntimeError):
+            with db.connect() as c:
+                claim = M.claim(c, self.uid, 'friend', self.oid, request_key=key)
+                M.finish(c, claim, self.oid)
+                raise RuntimeError('Fictional write failed')
+        self.assertEqual(self.events('friend'), [])
+        with db.connect() as c:
+            claim = M.claim(c, self.uid, 'friend', self.oid, request_key=key); M.finish(c, claim, self.oid)
+        importlib.reload(M)
+        with db.connect() as c:
+            saved = M.claim(c, self.uid, 'friend', self.oid, request_key=key)
+            self.assertTrue(saved['replayed']); self.assertEqual(saved['result'], str(self.oid))
+        self.assertEqual(len(self.events('friend')), 1)
+        with self.assertRaises(HTTPException) as error:
+            with db.connect() as c: M.claim(c, self.uid, 'reaction', self.oid, request_key=key)
+        self.assertEqual(error.exception.status_code, 409)
+
+    def test_concurrent_last_slot_never_overshoots_and_busy_has_no_write(self):
+        self.seed('comment', 5)
+        barrier = threading.Barrier(8)
+        def attempt(i):
+            barrier.wait()
+            try:
+                with db.connect() as c: M.claim(c, self.uid, 'comment', str(i))
+                return 200
+            except HTTPException as error: return error.status_code
+        with concurrent.futures.ThreadPoolExecutor(8) as pool: replies = list(pool.map(attempt, range(8)))
+        self.assertTrue(all(x in (200, 429, 503) for x in replies), replies)
+        self.assertLessEqual(replies.count(200), 1)
+        self.assertLessEqual(len(self.events('comment')), 6)
+        with db.connect() as held:
+            M.lock(held, self.uid)
+            with concurrent.futures.ThreadPoolExecutor(1) as pool:
+                self.assertEqual(pool.submit(lambda: self.comment('held source', uuid.uuid4()).status_code).result(2), 503)
+
+    def test_public_card_requests_share_friend_budget_and_cooldown(self):
+        from app import cards
+        with db.connect() as c:
+            code=cards.own(c,self.oid)['code']
+            login=c.execute('SELECT login FROM users WHERE id=%s',(self.oid,)).fetchone()['login']
+        path='/api/cards/'+code+'/request'
+        self.assertEqual(self.actor.post(path,json={}).status_code,200)
+        self.assertEqual(self.actor.post(path,json={}).status_code,200)
+        self.assertEqual(len(self.events('friend')),1)
+        self.assertEqual(self.actor.delete('/api/friends/'+login).status_code,200)
+        self.assertEqual(self.actor.post(path,json={}).status_code,429)
+        with db.connect() as c:c.execute("UPDATE member_pair_cooldowns SET expires=now()-interval '1 second' WHERE user_id=%s",(self.uid,))
+        self.seed('friend',4)
+        self.assertEqual(self.actor.post(path,json={}).status_code,429)
+        with db.connect() as c:self.assertFalse(c.execute('SELECT 1 FROM friendships WHERE requester=%s AND addressee=%s',(self.uid,self.oid)).fetchone())
+
+    def test_friend_cancel_and_decline_cooldowns_survive_row_deletion(self):
+        def login(uid):
+            with db.connect() as c: return c.execute('SELECT login FROM users WHERE id=%s', (uid,)).fetchone()['login']
+        target, actor = login(self.oid), login(self.uid)
+        key = str(uuid.uuid4())
+        self.assertEqual(self.actor.post('/api/friends', json={'login': target, 'client_id': key}).status_code, 200)
+        self.assertEqual(self.actor.post('/api/friends', json={'login': target, 'client_id': key}).status_code, 200)
+        self.assertEqual(len(self.events('friend')), 1)
+        self.assertEqual(self.actor.delete('/api/friends/' + target).status_code, 200)
+        r = self.actor.post('/api/friends', json={'login': target})
+        self.assertEqual(r.status_code, 429, r.text); self.assertGreater(int(r.headers['Retry-After']), 86000)
+        with db.connect() as c: c.execute("UPDATE member_pair_cooldowns SET expires=now()-interval '1 second' WHERE user_id=%s", (self.uid,))
+        self.assertEqual(self.actor.post('/api/friends', json={'login': target}).status_code, 200)
+        self.assertEqual(self.owner.post('/api/friends/' + actor + '/decline', json={}).status_code, 200)
+        r = self.actor.post('/api/friends', json={'login': target})
+        self.assertEqual(r.status_code, 429); self.assertGreater(int(r.headers['Retry-After']), 604000)
+        self.assertEqual(len(self.events('friend')), 2)
+
+    def test_reaction_rate_is_shared_and_notices_are_cross_target_quiet(self):
+        with db.connect() as c:
+            second = c.execute("""INSERT INTO activities(user_id,sport,name,start_time,source,visibility)
+                VALUES(%s,'running','Another fictional run',now()-interval '2 days','manual','everyone') RETURNING id""", (self.oid,)).fetchone()['id']
+        for aid in (self.aid, second):
+            r = self.actor.post(f'/api/activities/{aid}/reaction', json={'kind': 'clap', 'client_id': str(uuid.uuid4())})
+            self.assertEqual(r.status_code, 200, r.text)
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM notifications WHERE actor_id=%s AND user_id=%s AND kind='cheer'", (self.uid, self.oid)).fetchone()['n'], 1)
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM cheers WHERE user_id=%s', (self.uid,)).fetchone()['n'], 2)
+        self.seed('reaction', 58)
+        r = self.actor.delete(f'/api/activities/{self.aid}/reaction')
+        self.assertEqual(r.status_code, 429)
+        with db.connect() as c: self.assertTrue(c.execute('SELECT 1 FROM cheers WHERE activity_id=%s AND user_id=%s', (self.aid,self.uid)).fetchone())
+
+    def test_search_does_not_store_text_and_report_dedup_returns_original_receipt(self):
+        self.assertEqual(self.actor.get('/api/people/search?q=unusualfictionalsearch').status_code, 200)
+        self.assertNotIn('unusualfictionalsearch', str(self.events('search')))
+        with db.connect() as c: owner = c.execute('SELECT login FROM users WHERE id=%s', (self.oid,)).fetchone()['login']
+        key = str(uuid.uuid4()); body = {'login': owner, 'reason': 'spam', 'client_id': key}
+        one = self.actor.post('/api/reports', json=body); two = self.actor.post('/api/reports', json={**body,'client_id':str(uuid.uuid4()),'reason':'abuse'})
+        self.assertEqual(one.status_code, 200, one.text); self.assertEqual(two.json()['id'], one.json()['id'])
+        self.assertEqual(len(self.events('report')), 1)
+        with db.connect() as c: c.execute("UPDATE reports SET status='done' WHERE id=%s", (one.json()['id'],))
+        self.assertEqual(self.actor.post('/api/reports', json=body).json()['id'], one.json()['id'])
+        self.assertEqual(len(self.events('report')), 1)
+
+    def test_account_export_explicit_fields_rls_and_erasure(self):
+        with db.connect() as c:
+            claim = M.claim(c, self.uid, 'friend', self.oid, request_key=uuid.uuid4()); M.finish(c, claim, self.oid)
+            M.cooldown(c, self.uid, self.oid, 86400)
+            peer_claim=M.claim(c, self.tid, 'friend', self.uid, request_key=uuid.uuid4());M.finish(c,peer_claim,self.uid)
+            M.cooldown(c,self.tid,self.uid,86400)
+        for table in ('member_action_events','member_action_receipts','member_pair_cooldowns'):
+            with db.connect() as c:
+                rows = c.execute(api_mydata.TABLES[table], (self.uid,)).fetchall()
+                self.assertEqual(len(rows), 1)
+                self.assertNotIn('user_id', next(iter(rows[0].values())))
+        role = 'zz_test_ml_' + uuid.uuid4().hex[:12]
+        root = db._conninfo('postgres', db.secret('POSTGRES_PASSWORD'))
+        try:
+            with psycopg.connect(root, autocommit=True) as c:
+                c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role),sql.Literal('fictional reader password')))
+                c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)))
+            with db.connect() as c: c.execute('UPDATE users SET sql_role=%s WHERE id=%s', (role, self.uid))
+            with psycopg.connect(db._conninfo(role, 'fictional reader password'),row_factory=dict_row) as reader:
+                for table in ('member_action_events','member_action_receipts','member_pair_cooldowns'):
+                    rows = reader.execute(sql.SQL('SELECT user_id FROM {}').format(sql.Identifier(table))).fetchall()
+                    self.assertEqual(rows, [{'user_id':self.uid}], table)
+                with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                    reader.execute("DELETE FROM member_action_events")
+            with db.connect() as c:
+                c.execute('DELETE FROM users WHERE id=%s', (self.uid,))
+                for table in ('member_action_events','member_action_receipts','member_pair_cooldowns'):
+                    self.assertEqual(c.execute(sql.SQL('SELECT count(*) AS n FROM {} WHERE user_id=%s').format(sql.Identifier(table)), (self.uid,)).fetchone()['n'], 0)
+                self.assertEqual(c.execute('SELECT count(*) AS n FROM member_action_events WHERE user_id=%s', (self.tid,)).fetchone()['n'], 1)
+        finally:
+            with psycopg.connect(root, autocommit=True) as c: c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
+
+    def test_cleanup_and_actual_133_upgrade_are_replay_safe(self):
+        database='zz_test_member_upgrade_'+uuid.uuid4().hex[:12]
+        root=db._conninfo('postgres',db.secret('POSTGRES_PASSWORD'))
+        with psycopg.connect(root,autocommit=True) as admin:
+            try:
+                admin.execute(sql.SQL('CREATE DATABASE {} OWNER fit_app').format(sql.Identifier(database)))
+                with psycopg.connect(make_conninfo(root,dbname=database),autocommit=True) as setup:
+                    setup.execute('ALTER SCHEMA public OWNER TO fit_app')
+                    setup.execute('GRANT USAGE ON SCHEMA public TO fit_readers')
+                    setup.execute('CREATE EXTENSION postgis');setup.execute('CREATE EXTENSION citext')
+                with psycopg.connect(make_conninfo(db.CONNINFO,dbname=database),row_factory=dict_row) as c:
+                    self.assertGreaterEqual(len(db.MIGRATIONS),134)
+                    for migration in db.MIGRATIONS[:133]:c.execute(migration)
+                    uid=c.execute("INSERT INTO users(login,name) VALUES('zz_test_upgrade_member','Fictional Before') RETURNING id").fetchone()['id']
+                    self.assertIsNone(c.execute("SELECT to_regclass('public.member_action_events') AS t").fetchone()['t'])
+                with psycopg.connect(make_conninfo(db.CONNINFO,dbname=database),row_factory=dict_row) as c:
+                    c.execute(db.MIGRATIONS[133]);c.execute(db.MIGRATIONS[133])
+                    self.assertEqual(c.execute('SELECT name FROM users WHERE id=%s',(uid,)).fetchone()['name'],'Fictional Before')
+                    self.assertEqual(c.execute('SELECT count(*) AS n FROM member_action_events').fetchone()['n'],0)
+            finally:
+                admin.execute(sql.SQL('DROP DATABASE IF EXISTS {} WITH (FORCE)').format(sql.Identifier(database)))
+        with db.connect() as c:
+            for table in ('member_action_events','member_action_receipts','member_pair_cooldowns'):
+                c.execute(sql.SQL('SELECT 1 FROM {} LIMIT 0').format(sql.Identifier(table)))
+            c.execute(db.MIGRATIONS[133]); c.execute(db.MIGRATIONS[133])
+            c.execute("INSERT INTO member_pair_cooldowns VALUES(%s,%s,now()-interval '1 day')", (self.uid,self.oid))
+        self.seed('search', 1, age=9*86400)
+        M.cleanup()
+        self.assertEqual(self.events('search'), [])
+        with db.connect() as c: self.assertFalse(c.execute('SELECT 1 FROM member_pair_cooldowns WHERE user_id=%s', (self.uid,)).fetchone())
+
+
+if __name__ == '__main__':
+    unittest.main()

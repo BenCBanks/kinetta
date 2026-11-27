@@ -195,6 +195,8 @@ def preview(code:str,request:Request):
 
 def request_friend(c,uid,code,joined=False):
     from .api_social import confirmed,_pair,MAX_PENDING
+    from . import member_limits
+    member_limits.lock(c,uid)
     confirmed(c,uid);candidate=active(c,code,uid);owner=candidate['user_id']
     # Account erasure uses account-before-personal-row order; card requests do too.
     c.execute('SELECT id FROM users WHERE id=ANY(%s) ORDER BY id FOR UPDATE',(sorted({uid,owner}),)).fetchall()
@@ -204,6 +206,8 @@ def request_friend(c,uid,code,joined=False):
     if not row['allow_requests']:raise HTTPException(409,'Friend requests from this card are turned off')
     pair=_pair(c,uid,owner,lock=True)
     if pair:return {'status':'friends' if pair['status']=='accepted' else 'request_sent' if pair['requester']==uid else 'incoming'}
+    member_limits.cooldown(c,uid,owner)
+    counted=member_limits.claim(c,uid,'friend',owner)
     if account_email.limited(c,'card-viewer:'+str(uid),10,60):raise HTTPException(429,'Too many card requests. Try again later.')
     waiting=c.execute("SELECT count(*) AS n FROM card_connections k JOIN friendships f ON f.requester=k.member_id AND f.addressee=k.user_id AND f.status='pending' WHERE k.user_id=%s",(owner,)).fetchone()['n']
     pending=c.execute("SELECT count(*) AS n FROM friendships WHERE requester=%s AND status='pending'",(uid,)).fetchone()['n']
@@ -211,6 +215,7 @@ def request_friend(c,uid,code,joined=False):
     from .signup import social_action
     social_action(c,uid,'request')
     c.execute('INSERT INTO friendships(requester,addressee) VALUES(%s,%s)',(uid,owner))
+    member_limits.finish(c,counted,owner)
     c.execute('INSERT INTO card_connections(user_id,member_id,joined) VALUES(%s,%s,%s) ON CONFLICT(user_id,member_id) DO UPDATE SET joined=card_connections.joined OR excluded.joined',(owner,uid,joined))
     notify.add(c,owner,'friend_request',uid)
     return {'status':'request_sent'}

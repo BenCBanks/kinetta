@@ -842,7 +842,7 @@ function commentsSheet(aid, s, onChange) {
         SocialData.remember(aid,fresh);socialChanged(aid);
         if(f.text.value===raw){f.text.value='';if(SocialData.draft(aid)===raw)SocialData.draft(aid,'');}
         if(current())update(fresh,{posted:true});
-      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current()){status.classList.remove('is-posting');if(!denied){button.dataset.failed='1';status.innerHTML='<span>Save not confirmed.</span> <button type="button" class="linkbtn comment-retry">Retry</button>';$('.comment-retry',status).onclick=()=>{if(current())f.requestSubmit();};}else status.textContent='You can’t comment on this activity.';}}
+      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current()){status.classList.remove('is-posting');if(!denied){button.dataset.failed='1';status.innerHTML=`<span>${esc(error.status===429||error.retryAfter?error.message:'Save not confirmed.')}</span> <button type="button" class="linkbtn comment-retry">Retry</button>`;$('.comment-retry',status).onclick=()=>{if(current())f.requestSubmit();};}else status.textContent='You can’t comment on this activity.';}}
       finally{if(current()){status.classList.remove('is-posting');if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
     };
     refresh();
@@ -1548,13 +1548,13 @@ function groupPage(el,group,unused='members',keepExpanded=false){
     const form=$('.group-update-form',el);
     if(form){
       const field=form.elements.text,button=$('button[type=submit]',form),status=$('.group-update-status',form);
-      let posting=false;
+      let posting=false,pendingUpdate=null;
       const fit=()=>{field.style.height='46px';field.style.height=Math.min(134,field.scrollHeight+2)+'px';button.disabled=posting||!field.value.trim();};
       field.oninput=()=>{status.textContent='';fit();};
       form.onsubmit=async event=>{
         event.preventDefault();const text=field.value.trim();if(!text||posting)return;
         posting=true;button.disabled=true;field.readOnly=true;status.textContent='Posting…';
-        try{await api(base+'/updates',json('POST',{text}));}
+        try{if(!pendingUpdate||pendingUpdate.text!==text)pendingUpdate={text,client_id:crypto.randomUUID()};await api(base+'/updates',json('POST',pendingUpdate));pendingUpdate=null;}
         catch(error){if(form.isConnected&&owner===readOwner()){status.textContent=error.message;posting=false;field.readOnly=false;fit();}return;}
         if(!form.isConnected||owner!==readOwner())return;
         field.value='';fit();status.textContent='Comment posted.';

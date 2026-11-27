@@ -1355,7 +1355,9 @@ class Groups(unittest.TestCase):
             owner_notice = c.execute("SELECT kind,group_week_start FROM notifications WHERE user_id=%s AND group_id=%s AND kind IN ('group_update','group_cheer')",
                                      (self.ids[0], group['id'])).fetchone()
             self.assertEqual(owner_notice['kind'], 'group_cheer')
-            self.assertIsNotNone(owner_notice['group_week_start'])
+            self.assertIsNone(owner_notice['group_week_start'],
+                             'the earlier update reaction remains the one hourly actor-recipient notice')
+            self.assertEqual(weekly.json()['my_reaction'],'clap','the suppressed notice still stores the weekly reaction')
 
         muted = self.clients[2].post(root + '/notifications', json={'muted': True})
         self.assertEqual(muted.json(), {'muted': True})
@@ -2222,6 +2224,11 @@ class GroupChallengeAPI(unittest.TestCase):
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=2) as pool:
             responses=list(pool.map(lambda _:self.clients[1].post(self.root,json=self.body),range(2)))
+        for index,response in enumerate(responses):
+            if response.status_code==503:
+                self.assertEqual(response.json()['detail'],'Kinetta is busy. Please try again shortly.')
+                self.assertEqual(response.headers['Retry-After'],'2')
+                responses[index]=self.clients[1].post(self.root,json=self.body)
         self.assertEqual([r.status_code for r in responses],[200,200])
         with db.connect() as c:
             self.assertEqual(c.execute('SELECT count(*) AS n FROM group_updates WHERE group_id=%s',(self.gid,)).fetchone()['n'],1)
@@ -2286,6 +2293,11 @@ class GroupChallengeAPI(unittest.TestCase):
         path='/api/groups/people'
         with ThreadPoolExecutor(max_workers=2) as pool:
             replies=list(pool.map(lambda _:self.clients[0].post(path,json=body),range(2)))
+        for index,response in enumerate(replies):
+            if response.status_code==503:
+                self.assertEqual(response.json()['detail'],'Kinetta is busy. Please try again shortly.')
+                self.assertEqual(response.headers['Retry-After'],'2')
+                replies[index]=self.clients[0].post(path,json=body)
         self.assertEqual([r.status_code for r in replies],[200,200])
         self.assertEqual({r.json()['id'] for r in replies},{body['id']})
         legacy={k:v for k,v in body.items() if k!='id'}

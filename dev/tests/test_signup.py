@@ -822,9 +822,24 @@ class Signup(unittest.TestCase):
     def test_new_social_budgets_survive_cancel_delete_and_concurrency(self):
         from app import cards
         actor,uid=self.actor();target,tid=self.member('recipient');_,other=self.member('recipient2')
+        def earlier_actions():
+            # Isolate the pre-existing first-week daily cap from the new burst,
+            # duplicate and resend windows. Their live boundaries have their own tests.
+            with db.connect() as c:
+                c.execute("UPDATE member_action_events SET created=now()-interval '2 days' WHERE user_id=%s",(uid,))
+                c.execute('DELETE FROM member_pair_cooldowns WHERE user_id=%s',(uid,))
+        def admitted(calls):
+            replies=self.race(*calls)
+            for index,response in enumerate(replies):
+                if response.status_code==503:
+                    self.assertEqual(response.json()['detail'],'Kinetta is busy. Please try again shortly.')
+                    self.assertEqual(response.headers['Retry-After'],'2');replies[index]=calls[index]()
+            return replies
         for _ in range(9):
+            earlier_actions()
             self.assertEqual(actor.post('/api/friends',json={'login':'zz_test_su_recipient'}).status_code,200)
             self.assertEqual(actor.delete('/api/friends/zz_test_su_recipient').status_code,200)
+        earlier_actions()
         with db.connect()as c:code=cards.own(c,tid)['code']
         self.assertEqual(actor.post('/api/cards/'+code+'/request').status_code,200)
         self.assertEqual(actor.post('/api/friends',json={'login':'zz_test_su_recipient'}).status_code,200,'existing request does not consume budget')
@@ -834,11 +849,13 @@ class Signup(unittest.TestCase):
         key=f'new-social:request:{uid}'
         with db.connect()as c:
             c.execute('DELETE FROM auth_attempts WHERE key=%s',(key,));c.execute('INSERT INTO auth_attempts(key)SELECT %s FROM generate_series(1,9)',(key,))
-        replies=self.race(lambda:actor.post('/api/cards/'+code+'/request'),lambda:actor.post('/api/friends',json={'login':'zz_test_su_recipient2'}))
+        earlier_actions()
+        replies=admitted([lambda:actor.post('/api/cards/'+code+'/request'),lambda:actor.post('/api/friends',json={'login':'zz_test_su_recipient2'})])
         self.assertEqual(sorted(r.status_code for r in replies),[200,429],[r.text for r in replies])
         aid=target.post('/api/activities/manual',json={'sport':'walk','start':'2026-10-01T08:00:00Z','duration_s':60,'distance_m':100}).json()['id']
         target.put(f'/api/activities/{aid}/sharing',json={'visibility':'everyone'})
         for _ in range(20):
+            earlier_actions()
             self.assertEqual(actor.post(f'/api/activities/{aid}/comments',json={'text':'Fixture comment'}).status_code,200)
             with db.connect()as c:cid=c.execute('SELECT id FROM comments WHERE user_id=%s',(uid,)).fetchone()['id']
             self.assertEqual(actor.delete(f'/api/comments/{cid}').status_code,200)
@@ -846,7 +863,8 @@ class Signup(unittest.TestCase):
         key=f'new-social:comment:{uid}'
         with db.connect()as c:
             c.execute('DELETE FROM auth_attempts WHERE key=%s',(key,));c.execute('INSERT INTO auth_attempts(key)SELECT %s FROM generate_series(1,19)',(key,))
-        replies=self.race(*[lambda:actor.post(f'/api/activities/{aid}/comments',json={'text':'Concurrent comment'})for _ in range(2)])
+        earlier_actions()
+        replies=admitted([lambda index=index:actor.post(f'/api/activities/{aid}/comments',json={'text':'Concurrent comment '+str(index)})for index in range(2)])
         self.assertEqual(sorted(r.status_code for r in replies),[200,429])
         with db.connect()as c:c.execute("UPDATE auth_attempts SET created=now()-interval '25 hours' WHERE key=%s",(key,))
         self.assertEqual(actor.post(f'/api/activities/{aid}/comments',json={'text':'Next rolling day'}).status_code,200)

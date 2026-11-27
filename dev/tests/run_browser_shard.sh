@@ -28,6 +28,7 @@ case "$1" in
     PHASE=after node dev/tests/inline_reactions_ui.cjs
     node dev/tests/inline_reactions_actions.cjs
     node dev/tests/comments_sheet_states_ui.cjs
+    node dev/tests/member_limits_ui.cjs
     ;;
   2)
     node dev/tests/top_chips_ui.cjs

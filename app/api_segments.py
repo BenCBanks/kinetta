@@ -12,6 +12,7 @@
 - Reports and appeals go to admins (#286). A report never removes a time by itself; an admin decides, with a reason, and
   every decision is in the audit history.
 """
+from uuid import UUID
 import datetime as dt
 import json
 import time
@@ -484,6 +485,7 @@ def leaderboard(sid: int, after: str | None = Query(None, max_length=80), user=D
 
 # ---------- reports and appeals (#286) ----------
 class ReportIn(BaseModel):
+    client_id: UUID | None = None
     reason: Literal['gps', 'wrong_sport', 'duplicate', 'unsafe', 'abusive', 'privacy', 'creator_request']
     login: str | None = Field(None, max_length=60)        # a person's result on this board, or None for the segment itself
     note: str | None = Field(None, max_length=500)
@@ -505,14 +507,16 @@ def report(sid: int, body: ReportIn, user=Depends(current_user)):
             person = t['id']
         elif body.reason == 'creator_request' and s['creator_id'] != user['id']:
             raise HTTPException(400, 'Only the person who created a segment can ask for it to be retired')
-        if c.execute("SELECT count(*) AS n FROM segment_reports WHERE reporter = %s AND status = 'open'", (user['id'],)).fetchone()['n'] >= 20:
-            raise HTTPException(429, 'You have a lot of reports waiting. The admins will get to them.')
+        from . import member_limits
+        previous=member_limits.report(c,user['id'],'segment_reports','segment_id=%s AND person IS NOT DISTINCT FROM %s',(sid,person),body.client_id)
+        if previous is not None: return {'ok':True,'id':previous,'already':True}
         try:
             with c.transaction():
                 rid = c.execute("""INSERT INTO segment_reports (reporter, segment_id, person, reason, note) VALUES (%s, %s, %s, %s, %s) RETURNING id""",
                                 (user['id'], sid, person, body.reason, _clean(body.note))).fetchone()['id']
         except errors.UniqueViolation:
-            return {'ok': True, 'already': True}
+            raise HTTPException(409,'The report changed. Refresh and try again.')
+        member_limits.report_saved(c,user['id'],body.client_id,rid)
         for a in c.execute('SELECT id FROM users WHERE is_admin AND id <> %s', (user['id'],)).fetchall():
             notify.add(c, a['id'], 'report', user['id'])
     return {'ok': True, 'id': rid}

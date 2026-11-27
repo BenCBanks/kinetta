@@ -3,6 +3,7 @@
 Publication is a snapshot: editing the private source cannot widen it. A later increase in endpoint protection
 can only shorten that snapshot. No private notes, original extents, source activity or provider requests leave here.
 """
+from uuid import UUID
 import datetime as dt
 import hashlib
 import json
@@ -354,24 +355,24 @@ def download(key:str):
 
 
 class ReportIn(BaseModel):
+    client_id: UUID | None = None
     reason:Literal['unsafe','privacy','inaccurate','abusive']
     note:str=Field('',max_length=500)
 
 
 @router.post('/shared-routes/{rid}/report')
 def report(rid:int,body:ReportIn,user=Depends(auth.current_user)):
-    rate('report',user['id'],20,300)
     with db.connect() as c:
         confirmed(c,user['id']);d=visible(c,user['id'],rid)
-        if c.execute("SELECT 1 FROM route_reports WHERE reporter=%s AND route_id=%s AND status='open'",(user['id'],rid)).fetchone():
-            return {'ok':True,'duplicate':True}
-        if c.execute("SELECT count(*) AS n FROM route_reports WHERE reporter=%s AND status='open'",(user['id'],)).fetchone()['n']>=20:
-            raise HTTPException(429,'Your earlier reports are waiting for review.')
+        from . import member_limits
+        previous=member_limits.report(c,user['id'],'route_reports','route_id=%s',(rid,),body.client_id)
+        if previous is not None: return {'ok':True,'id':previous,'duplicate':True}
         try:
             with c.transaction():
                 row=c.execute('INSERT INTO route_reports(reporter,route_id,reason,note) VALUES(%s,%s,%s,%s) RETURNING id',
                               (user['id'],rid,body.reason,plans._clean(body.note))).fetchone()
-        except errors.UniqueViolation:return {'ok':True,'duplicate':True}
+        except errors.UniqueViolation:raise HTTPException(409,'The report changed. Refresh and try again.')
+        member_limits.report_saved(c,user['id'],body.client_id,row['id'])
         return {'ok':True,'id':row['id'],'duplicate':False}
 
 

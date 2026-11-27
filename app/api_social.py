@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
 from pydantic import BaseModel, Field, field_validator
 
-from . import api_achievements, db, notify, reactions, names
+from . import api_achievements, db, notify, reactions, names, member_limits
 from .api_account import _admin
 from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline, SPEED_AVAILABLE_SQL
 from .auth import current_user
@@ -161,6 +161,7 @@ def _params(viewer, tol, **kw):
 
 # ---------- friends ----------
 class FriendIn(BaseModel):
+    client_id: UUID | None = None
     login: str = Field(min_length=1, max_length=60)
 
 
@@ -219,6 +220,7 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
     q = q.strip().removeprefix('@').strip()
     like = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
     with db.connect() as c:
+        member_limits.claim(c,user['id'],'search')
         rows = c.execute(f"""SELECT u.login::text AS login, {names.display_name_sql('u', '%(me)s')} AS name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent
             FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
             LEFT JOIN profile p ON p.user_id = u.id
@@ -333,6 +335,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
 def friend_request(body: FriendIn, user=Depends(current_user)):
     """Ask someone to be friends, by their exact username. If they already asked you, you're friends now."""
     with db.connect() as c:
+        member_limits.lock(c, user['id'])
         confirmed(c, user['id'])
         t = _person(c, body.login)
         people = c.execute('SELECT id FROM users WHERE id=ANY(%s) ORDER BY id FOR UPDATE', (sorted({user['id'],t['id']}),)).fetchall()
@@ -348,6 +351,9 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
             notify.drop(c, user['id'], 'friend_request', t['id']); notify.add(c, t['id'], 'friend_accepted', user['id'])
             return {'status': 'friends', 'name': t['name']}
         if not f:
+            member_limits.cooldown(c,user['id'],t['id'])
+            sent=member_limits.claim(c,user['id'],'friend',t['id'],request_key=body.client_id)
+            if sent['replayed']: return {'status':'sent','name':t['name']}
             n = c.execute("SELECT count(*) AS n FROM friendships WHERE requester = %s AND status = 'pending'", (user['id'],)).fetchone()['n']
             if n >= MAX_PENDING: raise HTTPException(429, 'You have a lot of requests waiting - cancel some first')
             try:
@@ -355,9 +361,10 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
                     from .signup import social_action
                     social_action(c, user['id'], 'request')
                     c.execute('INSERT INTO friendships (requester, addressee) VALUES (%s, %s)', (user['id'], t['id']))
+                member_limits.finish(c,sent,t['id'])
                 notify.add(c, t['id'], 'friend_request', user['id'])
             except errors.UniqueViolation:
-                pass    # they asked at the same moment; their request stands
+                raise HTTPException(409,'The request changed. Refresh and try again.')
     return {'status': 'sent', 'name': t['name']}
 
 
@@ -377,7 +384,9 @@ def friend_decline(login: str, user=Depends(current_user)):
     """Say no to a request. The other person isn't told; their request just goes away."""
     with db.connect() as c:
         t = _person(c, login)
-        c.execute("DELETE FROM friendships WHERE requester = %s AND addressee = %s AND status = 'pending'", (t['id'], user['id']))
+        member_limits.lock(c,t['id'])
+        if c.execute("DELETE FROM friendships WHERE requester = %s AND addressee = %s AND status = 'pending' RETURNING 1", (t['id'], user['id'])).fetchone():
+            member_limits.cooldown(c,t['id'],user['id'],7*86400)
         notify.drop(c, user['id'], 'friend_request', t['id'])
         return {'ok': True, 'waiting': waiting(c, user['id'])}
 
@@ -386,11 +395,14 @@ def friend_decline(login: str, user=Depends(current_user)):
 def friend_remove(login: str, user=Depends(current_user)):
     """Cancel a request you sent, or stop being friends (either of you can)."""
     with db.connect() as c:
+        member_limits.lock(c, user['id'])
         t = _person(c, login)
+        pending=c.execute("SELECT 1 FROM friendships WHERE requester=%s AND addressee=%s AND status='pending'",(user['id'],t['id'])).fetchone()
         from . import challenges, groups
         from .route_sharing import access_lock
         access_lock(c, user['id'], t['id'])
         challenges.account_locks(c, [user['id'], t['id']])
+        if pending: member_limits.cooldown(c,user['id'],t['id'],86400)
         groups._revoke_friend_invites_between(c, user['id'], t['id'])
         c.execute("""DELETE FROM friendships WHERE (requester = %(me)s AND addressee = %(them)s)
                        OR (requester = %(them)s AND addressee = %(me)s AND status = 'accepted')""", {'me': user['id'], 'them': t['id']})
@@ -747,6 +759,7 @@ def social(aid: int, user=Depends(current_user)):
 
 
 class ReactionIn(BaseModel):
+    client_id: UUID | None = None
     kind:str=Field('clap',max_length=32)
 
     @field_validator('kind')
@@ -782,7 +795,11 @@ def achievement_moment_reactions(owner_login: str, week_start: dt.date, user=Dep
 @router.post('/achievement-moments/{owner_login}/{week_start}/reaction')
 def react_to_achievement_moment(owner_login: str, week_start: dt.date, body: ReactionIn, user=Depends(current_user)):
     with db.connect() as c:
+        member_limits.lock(c, user['id'])
         moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
+        counted=member_limits.claim(c,user['id'],'reaction',f'moment:{owner_login}:{week_start}',payload=body.kind,request_key=body.client_id)
+        if counted['replayed']: return _moment_reaction_result(moment)
+        member_limits.finish(c,counted,f'{owner_login}:{week_start}')
         c.execute('''INSERT INTO achievement_moment_reactions(owner_id,week_start,user_id,kind)
                      VALUES(%s,%s,%s,%s) ON CONFLICT(owner_id,week_start,user_id)
                      DO UPDATE SET kind=excluded.kind WHERE achievement_moment_reactions.kind<>excluded.kind''',
@@ -794,27 +811,33 @@ def react_to_achievement_moment(owner_login: str, week_start: dt.date, body: Rea
 @router.delete('/achievement-moments/{owner_login}/{week_start}/reaction')
 def remove_achievement_moment_reaction(owner_login: str, week_start: dt.date, user=Depends(current_user)):
     with db.connect() as c:
+        member_limits.lock(c, user['id'])
         moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
-        c.execute('DELETE FROM achievement_moment_reactions WHERE owner_id=%s AND week_start=%s AND user_id=%s',
-                  (moment['_owner_id'], moment['_week_start'], user['id']))
+        removed=c.execute('DELETE FROM achievement_moment_reactions WHERE owner_id=%s AND week_start=%s AND user_id=%s RETURNING 1',
+                  (moment['_owner_id'], moment['_week_start'], user['id'])).fetchone()
+        if removed: member_limits.claim(c,user['id'],'reaction',f'moment:{owner_login}:{week_start}:remove')
         moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
         return _moment_reaction_result(moment)
 
 
-def _react(aid,kind,user):
+def _react(aid,kind,user,client_id=None):
     with db.connect() as c:
+        member_limits.lock(c, user['id'])
         confirmed(c,user['id'])
         owner=can_see(c,user['id'],aid)
+        counted=member_limits.claim(c,user['id'],'reaction',f'activity:{aid}',payload=kind,request_key=client_id)
+        if counted['replayed']: return _social(c,aid,user['id'],owner)
         changed=c.execute("""INSERT INTO cheers(activity_id,user_id,kind) VALUES(%s,%s,%s)
           ON CONFLICT(activity_id,user_id) DO UPDATE SET kind=excluded.kind
           WHERE cheers.kind<>excluded.kind RETURNING kind""",(aid,user['id'],kind)).fetchone()
+        member_limits.finish(c,counted,aid)
         if changed and owner!=user['id']:notify.add(c,owner,'cheer',user['id'],activity_id=aid,reaction_kind=kind)
         return _social(c,aid,user['id'],owner)
 
 
 @router.post('/activities/{aid}/reaction')
 def react(aid:int,body:ReactionIn,user=Depends(current_user)):
-    return _react(aid,body.kind,user)
+    return _react(aid,body.kind,user,body.client_id)
 
 
 @router.post('/activities/{aid}/cheer')
@@ -827,7 +850,9 @@ def cheer(aid:int,user=Depends(current_user)):
 @router.delete('/activities/{aid}/cheer')
 def uncheer(aid:int,user=Depends(current_user)):
     with db.connect() as c:
-        c.execute('DELETE FROM cheers WHERE activity_id=%s AND user_id=%s',(aid,user['id']))
+        member_limits.lock(c, user['id'])
+        removed=c.execute('DELETE FROM cheers WHERE activity_id=%s AND user_id=%s RETURNING 1',(aid,user['id'])).fetchone()
+        if removed: member_limits.claim(c,user['id'],'reaction',f'activity:{aid}:remove')
         c.execute("UPDATE notifications SET cancelled=true WHERE kind='cheer' AND activity_id=%s AND actor_id=%s",(aid,user['id']))
         try:owner=can_see(c,user['id'],aid)
         except HTTPException as error:
@@ -846,6 +871,7 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
     text = body.text.strip()
     if not text: raise HTTPException(400, 'Write something first')
     with db.connect() as c:
+        member_limits.lock(c, user['id'])
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (user['id'],)).fetchone()
         confirmed(c, user['id'])
         owner = can_see(c, user['id'], aid)
@@ -867,11 +893,14 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
                 if previous['activity_id'] != aid or previous['text'] != text:
                     raise HTTPException(409, 'This retry belongs to a different comment. Reopen Comments and try again.')
                 return _social(c, aid, user['id'], owner)
+        counted=member_limits.claim(c,user['id'],'comment',f'activity:{aid}',recipient=owner,payload=text,request_key=body.client_id,quiet=True)
+        if counted['replayed']: return _social(c,aid,user['id'],owner)
         private = owner == user['id'] and c.execute("SELECT 1 FROM activities WHERE id=%s AND user_id=%s AND visibility='me' FOR SHARE", (aid,user['id'])).fetchone()
         if not private: community_filter.public(c, user['id'], ('comment', text))
         from .signup import social_action
         social_action(c, user['id'], 'comment')
         cid = c.execute('INSERT INTO comments (activity_id, user_id, text, client_id) VALUES (%s, %s, %s, %s) RETURNING id', (aid, user['id'], text, body.client_id)).fetchone()['id']
+        member_limits.finish(c,counted,cid)
         if body.client_id is not None:
             c.execute('INSERT INTO comment_receipts(user_id,client_id,activity_id,text_hash) VALUES(%s,%s,%s,%s)',
                       (user['id'],body.client_id,aid,text_hash))
@@ -933,6 +962,7 @@ MAX_OPEN_REPORTS = 20      # per person reporting, so the admins' list can't be 
 
 
 class ReportIn(BaseModel):
+    client_id: UUID | None = None
     login: str = Field(min_length=1, max_length=60)
     activity_id: int | None = None
     comment_id: int | None = Field(None, gt=0)
@@ -977,12 +1007,15 @@ def report(body: ReportIn, user=Depends(current_user)):
             if not a: raise HTTPException(404, 'Not found')
             description = a['description'] if details_of(a['usual_details'],a['share_details'])['description'] else None
             what = f"Activity: {a['name']}" + (f" - {description}" if description else '')
-        n = c.execute("SELECT count(*) AS n FROM reports WHERE reporter = %s AND status = 'open'", (user['id'],)).fetchone()['n']
-        if n >= MAX_OPEN_REPORTS: raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
+        previous=member_limits.report(c,user['id'],'reports',
+            'kind=%s AND person=%s AND activity_id IS NOT DISTINCT FROM %s AND comment_id IS NOT DISTINCT FROM %s AND dish_id IS NOT DISTINCT FROM %s AND challenge_id IS NOT DISTINCT FROM %s',
+            (kind,t['id'],body.activity_id,body.comment_id,body.dish_id,challenge_id),body.client_id)
+        if previous is not None: return {'ok':True,'id':previous}
         rid = c.execute("""INSERT INTO reports (reporter, person, activity_id, comment_id, kind, what, reason, note, dish_id, challenge_id)
                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                         (user['id'], t['id'], body.activity_id, body.comment_id, kind, what[:1000], body.reason,
                          (body.note or '').strip() or None, body.dish_id, challenge_id)).fetchone()['id']
+        member_limits.report_saved(c,user['id'],body.client_id,rid)
         for a in c.execute('SELECT id FROM users WHERE is_admin AND id <> %s', (user['id'],)).fetchall():
             notify.add(c, a['id'], 'report', user['id'])
     return {'ok': True, 'id': rid}

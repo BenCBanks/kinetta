@@ -69,11 +69,15 @@ r = alex.q('POST', '/api/friends/zz_test_friend/accept'); check(r['waiting'] == 
 fl = alex.q('GET', '/api/friends')
 check('zz_test_friend' in [f['login'] for f in fl['friends']] and 'zz_test_pending' in [f['login'] for f in fl['incoming']], 'friend lists')
 fr.q('POST', '/api/friends', {'login': 'alex'}, want=409)
-# stranger asks and cancels; then asks again and alex declines
+# Cancellation starts the approved resend cooldown; a separate request tests decline.
 st.q('POST', '/api/friends', {'login': 'alex'}); st.q('DELETE', '/api/friends/alex')
 check(alex.q('GET', '/api/friends/waiting')['n'] == before + 1, 'cancel removes request')
-st.q('POST', '/api/friends', {'login': 'alex'}); alex.q('POST', '/api/friends/zz_test_stranger/decline')
-check(st.q('GET', '/api/friends')['outgoing'] == [], 'declined request is gone')
+st.q('POST', '/api/friends', {'login': 'alex'}, want=429)
+check(st.q('GET', '/api/friends')['outgoing'] == [], 'cancelled request stays gone during cooldown')
+decliner=S(person('zz_test_social_decline'));decliner.q('POST','/api/friends',{'login':'alex'})
+alex.q('POST','/api/friends/zz_test_social_decline/decline')
+check(decliner.q('GET','/api/friends')['outgoing']==[], 'declined request is gone')
+decliner.q('POST','/api/friends',{'login':'alex'},want=429)
 
 # --- sharing ---
 sh = alex.q('GET', '/api/sharing')

@@ -129,6 +129,8 @@ def detail(group_id: UUID, challenge_id: UUID, user=Depends(current_user)):
 @router.post('/api/groups/{group_id}/challenges')
 def create(group_id: UUID, body: ChallengeCreate, user=Depends(current_user)):
     with db.connect() as c:
+        from . import member_limits
+        member_limits.lock(c,user['id'])
         group = _context(c,group_id,user['id'],True);definition = _definition(body)
         old = c.execute('SELECT * FROM group_challenges WHERE id=%s',(body.id,)).fetchone()
         if old:
@@ -137,12 +139,15 @@ def create(group_id: UUID, body: ChallengeCreate, user=Depends(current_user)):
             return _view(c,group,old,user['id'])
         if c.execute('SELECT count(*) AS n FROM group_challenges WHERE group_id=%s',(group_id,)).fetchone()['n']>=100:
             raise HTTPException(409,'This group has reached its challenge limit')
+        counted=member_limits.claim(c,user['id'],'group_challenge',str(body.id),payload=body.model_dump(mode='json'),request_key=body.id)
+        if counted['replayed']: raise HTTPException(409,'This challenge was already created. Refresh the group.')
         from .signup import social_action
         social_action(c,user['id'],'comment')
         q = c.execute('''INSERT INTO group_challenges(id,group_id,creator_id,title,metric,target,unit,sports,
             start_date,end_date,time_zone,note,training_for) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT(id) DO NOTHING RETURNING *''',(body.id,group_id,user['id'],*definition.values())).fetchone()
         if not q: raise HTTPException(409,'Use a new challenge request')
+        member_limits.finish(c,counted,q['id'])
         # A new challenge must not enable sharing over either saved group/seeded opt-out.
         c.execute('''INSERT INTO group_challenge_members(challenge_id,group_id,user_id,share_total,joined_at)
             SELECT %s,m.group_id,m.user_id,m.sharing_level='total_shared' AND coalesce(s.share_total,true),m.joined_at

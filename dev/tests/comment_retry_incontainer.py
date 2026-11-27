@@ -75,9 +75,20 @@ try:
         assert set(own[0])=={'id','activity_id','text','created','client_id'}
         assert own[0]['id']==cid and own[0]['client_id']==key
         assert peer[0]['id']!=cid and peer[0]['client_id']==key
+
+    def retry_admitted(responses, body):
+        # Nonwaiting same-actor admission may reject a racer before it writes.
+        # Retry once only after competitors drain, retaining all exact assertions.
+        for index,response in enumerate(responses):
+            if response.status_code==503:
+                assert response.json()['detail']=='Kinetta is busy. Please try again shortly.'
+                assert response.headers['Retry-After']=='2'
+                responses[index]=writer.post(path,json=body)
+        return responses
     concurrent = {**payload,'client_id':str(uuid.uuid4()),'text':'Fictional concurrent retry'}
     with ThreadPoolExecutor(max_workers=4) as pool:
         replies = list(pool.map(lambda _:writer.post(path,json=concurrent),range(4)))
+    replies=retry_admitted(replies,concurrent)
     assert all(r.status_code == 200 for r in replies),[r.text for r in replies]
     with db.connect() as c:
         assert c.execute('SELECT count(*) AS n FROM comments WHERE user_id=%s AND client_id=%s',(people[1][0],concurrent['client_id'])).fetchone()['n'] == 1
@@ -97,8 +108,8 @@ try:
     with db.connect() as c:
         c.execute('UPDATE users SET needs_email_confirm=false,suspended_at=NULL WHERE id=%s',(people[1][0],))
     # Deletion by either author or activity owner keeps the receipt, never resurrects or re-notifies.
-    for actor in (writer,owner):
-        tombstone_key=str(uuid.uuid4());body={'text':'Fictional removable comment','client_id':tombstone_key}
+    for index,actor in enumerate((writer,owner)):
+        tombstone_key=str(uuid.uuid4());body={'text':'Fictional removable comment '+str(index),'client_id':tombstone_key}
         posted=writer.post(path,json=body);assert posted.status_code==200,posted.text
         removed=next(row['id'] for row in posted.json()['comments'] if row['text']==body['text'])
         deletion=actor.delete(f'/api/comments/{removed}',headers={'Content-Type':'application/json'});assert deletion.status_code==200,(deletion.status_code,deletion.text)
@@ -107,6 +118,7 @@ try:
             budget=c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key=%s',(f'new-social:comment:{people[1][0]}',)).fetchone()['n']
         with ThreadPoolExecutor(max_workers=3) as pool:
             retried=list(pool.map(lambda _:writer.post(path,json=body),range(3)))
+        retried=retry_admitted(retried,body)
         assert all(r.status_code==200 and all(row['id']!=removed for row in r.json()['comments']) for r in retried)
         assert writer.post(path,json={**body,'text':'Different body after deletion'}).status_code==409
         with db.connect() as c:

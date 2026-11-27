@@ -472,8 +472,15 @@ async function apiRequest(path, opts = {}) {
     const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
     const serverFailure=r.status>=500;
     const passwordBusy = r.status===503 && d==='Kinetta is busy. Please try again in a few seconds.';
-    const e = new Error(serverFailure && !passwordBusy ? 'Kinetta is having trouble right now. Please try again.' : typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
+    const limiterBusy=r.status===503&&d==='Kinetta is busy. Please try again shortly.';
+    const e = new Error(serverFailure && !passwordBusy && !limiterBusy ? 'Kinetta is having trouble right now. Please try again.' : typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
     e.status = r.status;
+    const retryAfter=Number(r.headers?.get?.('Retry-After'));
+    if((r.status===429||limiterBusy)&&Number.isFinite(retryAfter)&&retryAfter>0){
+      e.retryAfter=Math.min(604800,Math.ceil(retryAfter));
+      if(limiterBusy)e.message='Kinetta is busy.';
+      if(!/try again in \d+ seconds/i.test(e.message))e.message+=` Try again in ${e.retryAfter} seconds.`;
+    }
     if(!serverFailure){e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;}
     if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { (Native.pauseSession||Native.pauseHealth)?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { forgetKept(); App.me = null; showLogin('Please log in again.'); } }
     throw e;
@@ -1660,7 +1667,7 @@ function loadErrorCopy(e) {
   if(e?.code==='privacy_save_pending')return 'Sharing not confirmed. Try again to check the saved setting.';
   if (e && e.status === 403) return "This item isn't available to you.";
   if (e && e.status === 404) return 'This item may have been removed or is not shared with you.';
-  if (e && e.status === 429) return 'Too many requests. Wait a moment, then try again.';
+  if (e && e.status === 429) return e.retryAfter ? e.message : 'Too many requests. Wait a moment, then try again.';
   return "Couldn't load this. Check your connection and try again.";
 }
 function showError(el, e, {retry} = {}) {

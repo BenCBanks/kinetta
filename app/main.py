@@ -14,7 +14,7 @@ from . import db, auth, api_activities, api_food, api_connections, api_account, 
 import threading
 from .auth import current_user
 from . import api_strava_import,strava_upload,enrollment_requests
-from . import request_log, account_files, rate_limits, privacy_save
+from . import request_log, account_files, rate_limits, privacy_save, member_limits
 from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread, kit_history_api, workout_compare
 from . import api_routes_plan, api_segments, segments, route_sharing, map_config, api_contacts
 
@@ -36,9 +36,11 @@ async def lifespan(app):
     files_stop,files_worker=account_files.start_cleanup()
     enrollment_stop,enrollment_worker=enrollment_requests.start_cleanup()
     rate_stop,rate_worker=rate_limits.start_cleanup()
+    member_stop,member_worker=member_limits.start_cleanup()
     photos_stop,photos_worker=api_photos.start_receipt_cleanup()
     try:yield
     finally:
+        member_stop.set();member_worker.join(timeout=1)
         rate_stop.set();rate_worker.join(timeout=1)
         enrollment_stop.set();enrollment_worker.join(timeout=3)
         photos_stop.set();photos_worker.join(timeout=3)
@@ -190,7 +192,7 @@ app.add_middleware(_gzip.GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 # Only the iPhone app may read answers across sites, and never with cookies (it sends its token in a header).
 app.add_middleware(CORSMiddleware, allow_origins=list(APP_ORIGINS), allow_credentials=False, allow_methods=['*'],
-                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account', 'X-Kinetta-Version', 'X-Content-Sha256'], max_age=3600)
+                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account', 'X-Kinetta-Version', 'X-Content-Sha256'], expose_headers=['Retry-After'], max_age=3600)
 
 
 class Login(BaseModel):

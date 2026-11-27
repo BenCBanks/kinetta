@@ -25,6 +25,7 @@ class Reactions(unittest.TestCase):
   self.owner,self.actor,self.other=self.clients;self.path=f'/api/activities/{self.aid}'
   self.push=patch('app.notify._push_later',return_value=None);self.push.start();self.addCleanup(self.push.stop)
   with db.connect() as c:
+   c.execute('DELETE FROM member_action_events WHERE user_id=ANY(%s)',(self.ids,)) # Independent scenarios get fresh actor budgets.
    c.execute('DELETE FROM cheers WHERE activity_id=%s',(self.aid,));c.execute('DELETE FROM notifications WHERE activity_id=%s',(self.aid,));c.execute('DELETE FROM blocks WHERE user_id=ANY(%s)',(self.ids,));c.execute("UPDATE activities SET visibility='everyone' WHERE id=%s",(self.aid,));c.execute("UPDATE profile SET notify='{}' WHERE user_id=ANY(%s)",(self.ids,))
  def notes(self):
   with db.connect() as c:return c.execute('SELECT id,reaction_kind,cancelled FROM notifications WHERE activity_id=%s ORDER BY id',(self.aid,)).fetchall()
@@ -146,8 +147,16 @@ class Reactions(unittest.TestCase):
    self.owner.cookies.clear();self.owner.cookies.set(auth.COOKIE,token)
  def test_concurrent_replacement_is_one_row_and_one_notice(self):
   def change(kind):
-   client=TestClient(app);client.headers['Content-Type']='application/json';client.cookies.set(auth.COOKIE,self.tokens[1]);return client.post(self.path+'/reaction',json={'kind':kind}).status_code
-  with ThreadPoolExecutor(max_workers=4) as pool:self.assertEqual(list(pool.map(change,['cheer','strong','applause','strong'])),[200]*4)
+   client=TestClient(app);client.headers['Content-Type']='application/json';client.cookies.set(auth.COOKIE,self.tokens[1]);return client.post(self.path+'/reaction',json={'kind':kind})
+  kinds=['cheer','strong','applause','strong']
+  with ThreadPoolExecutor(max_workers=4) as pool:responses=list(pool.map(change,kinds))
+  # Admission never waits behind a competing same-actor write. Retry only the
+  # exact transient limiter response, after all competitors have drained.
+  for kind,response in zip(kinds,responses):
+   if response.status_code==503:
+    self.assertEqual(response.json()['detail'],'Kinetta is busy. Please try again shortly.')
+    self.assertEqual(response.headers['Retry-After'],'2');response=change(kind)
+   self.assertEqual(response.status_code,200,response.text)
   state=self.owner.get(self.path+'/social').json();self.assertEqual(len(state['cheers']),1);self.assertEqual(sum(state['reactions'].values()),1);self.assertEqual(len(self.notes()),1)
 
  def test_atomic_rollback(self):
