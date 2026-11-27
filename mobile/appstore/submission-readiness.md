@@ -1,6 +1,6 @@
-# Submission readiness — 26 November 2026, owner-review Draft
+# Submission readiness — 27 November 2026, owner-review Draft
 
-Source baseline: `fffd877fb3956ef0957f2c53a2faa6e9a009f15e` (main). This includes Track #1587, Notifications #1592 and Kit batch #1564. Source inclusion is not proof of deployment, a processed signed build or enabled reviewer-server features. No App Store Connect entry, upload, submission, provider call or real-account access is part of this preparation.
+Source baseline: `46bbe8c1b3ed49e9e6a4815f438b0f16dd6a7ee8` (current main). This includes Track #1587, Notifications #1592, Kit batch #1564, Groups/challenge cutover, training-plan checks, approved screen fixes, and the server/web resumable import. Native guided Strava import remains an unmerged Draft and is excluded. Source inclusion is not proof of deployment, a processed signed build or enabled reviewer-server features. No App Store Connect entry, upload, submission, provider call or real-account access is part of this preparation.
 
 ## What is ready for review
 
@@ -13,9 +13,16 @@ Source baseline: `fffd877fb3956ef0957f2c53a2faa6e9a009f15e` (main). This include
 
 #415's original missing listing/email/privacy preparation has been implemented. Its remaining work is exact-build acceptance and owner decisions, not merely pasting old screenshots. #1330's listing mentions the older weekly review and its eight native scenes predate the new Track, Notifications and saved Kit experience. Do not label those earlier images current solely because their dimensions pass. Keep #1330's workflow work and old artifact provenance intact; this Draft replaces only its proposed listing copy and adds a refreshed capture/privacy brief. Neither issue/PR is closed here.
 
-Source checks: `app/static/track.js`, `track-native.js`, `social-notifications.js`, `kit.js`, `kit_history*.py`, `kit_memory.py`, `kit_charts.py`, `kit_goal_actions.py`, `admin_features.py`, `app/api_mydata.py`, `site/content/privacy.md`, native `PrivacyInfo.xcprivacy`; existing `docs/activity-tracking.md` and `docs/admin-features.md`.
+Source checks (complete map in source-review.md): `app/static/track.js`, `track-native.js`, `social-notifications.js`, `kit.js`, `kit_history*.py`, `kit_memory.py`, `kit_charts.py`, `kit_goal_actions.py`, `admin_features.py`, `app/api_mydata.py`, `site/content/privacy.md`, native `PrivacyInfo.xcprivacy`; existing `docs/activity-tracking.md` and `docs/admin-features.md`.
 
-Groups are a separate release gate. Main includes date/legacy-write preservation work (#1590/#1591), not proof that the pending new Groups/challenge UI and cutover have shipped together. The description retains existing friends/challenges only. Do not promise the new group member/challenge-sharing flow or use pending screenshots. After the complete Groups release, review its audience defaults, sharing text, review account and privacy policy; then propose a replacement screenshot/copy in a small follow-up. No “coming soon” claim belongs in the submitted screenshots.
+The [source review](source-review.md) maps listing claims, privacy answers and all ten proposed captions to current code. Groups and per-challenge sharing are now merged, so earlier “pending Groups” exclusions are obsolete. Actual sharing/default/recap rules are in the privacy inventory. Main's native history-import entry opens a browser explanation; no native ZIP receipt, guided picker or background-import capability is advertised.
+
+## Owner decisions — separate from source verification
+
+- **Release identity and assets:** choose the exact version/build, copyright, category, availability, EULA, reviewer service and final screenshot selection/order. Main source alone is not the selected signed build; old tester images are not automatically current.
+- **Privacy/configuration:** confirm actual AI partners/tiers, retention/training terms, permissions and Health-derived analytics eligibility/withdrawal; the current operator-wide metrics switch is not a per-person consent control. Confirm Contacts hash/social graph classification and final Connect entries against the manifest.
+- **Policy alignment:** the current website policy still assigns the three-member threshold to all group totals and omits the name-display distinction. Code applies that threshold to recap paths, not ordinary shared totals; sharing can default on and current controls are per challenge. Approve a separate accurate policy update before submission. Name inventory here includes required first/last names; ordinary non-friends receive first name. Also resolve whether the policy's simplified six-month memory wording should state 180-day filtering/access cleanup.
+- **Content/device acceptance:** confirm age-rating questionnaire/Apple result, accessibility claims and enabled AI behavior. Do not claim Larger Text, VoiceOver, uninterrupted background recording/upload or real push/Health delivery from source or fictional Simulator captures. Physical acceptance remains outstanding unless the release record supplies it.
 
 ## Owner checklist before uploading
 

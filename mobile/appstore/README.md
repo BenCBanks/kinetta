@@ -1,87 +1,45 @@
-# App Store preparation — owner review required
+# App Store preparation — Draft, owner review required
 
-Nothing here uploads, signs or submits an app. `listing-en-US.json` holds plain-text field values; JSON escapes become normal newlines when copied. The owner reviews the exact submitted build, configuration and partner practices before entering anything in App Store Connect.
+Source-reviewed 27 November 2026 against main `46bbe8c1`. Start with [submission-readiness.md](submission-readiness.md), then [source-review.md](source-review.md), [listing-en-US.json](listing-en-US.json), [screenshots-plan.md](screenshots-plan.md) and [privacy-label-changes.md](privacy-label-changes.md). The full inventory is [privacy-audit.md](privacy-audit.md); [age-rating.md](age-rating.md) and [review-notes.md](review-notes.md) remain owner-review worksheets.
 
-| JSON field | App Store Connect field/limit |
+This directory prepares proposed metadata, captions and answers. It does not upload assets, enter Connect answers, submit an app, certify a signed build or verify physical-device behavior. Copyright, release version/build and private review credentials intentionally remain placeholders. Source inclusion does not prove deployment or enabled server gates.
+
+## Proposed metadata fields
+
+| JSON key | App Store Connect field / limit |
 | --- | --- |
-| `name` | App information → Name,30 characters |
-| `subtitle` | Subtitle,30 |
-| `promotional_text` | Version → Promotional text,170 |
-| `description` | Description,4000 |
-| `keywords` | Keywords,100 including commas |
-| `support_url` | Support URL; the About page provides the contact email |
+| `name` | App name, 30 characters |
+| `subtitle` | Subtitle, 30 |
+| `promotional_text` | Promotional text, 170 |
+| `description` | Description, 4000 |
+| `keywords` | Keywords, 100 including commas |
+| `support_url` | Support URL; the About page provides contact details |
 | `marketing_url` | Marketing URL |
-| `privacy_url` | App Privacy → Privacy policy URL |
-| `eula_url` | Terms reference for the owner's custom License Agreement entry; review actual agreement text |
-| `whats_new` | What's new,4000; replace release placeholders |
-| `copyright` | Copyright; owner supplies legal holder/year |
+| `privacy_url` | Privacy policy URL |
+| `eula_url` | Terms reference; owner reviews the actual custom License Agreement |
+| `whats_new` | What's new, 4000; replace the release placeholder |
+| `copyright` | Owner-supplied legal holder/year |
 
-Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-rating.md` and `review-notes.md` together. Unfilled placeholders deliberately block a submission-ready claim. The guarded reviewer CLI is implemented and passed its marked disposable integration. This preparation alone creates no production reviewer account; choosing a separate fictional review server and providing private credentials remain owner gates.
+Validate offline with `python3 mobile/scripts/test_listing.py`. Passing character limits and disclosure contracts is not submission approval. The guarded reviewer-account tooling does not itself create a production reviewer account. Owner-selected isolated fictional review service and credentials remain release gates.
 
-## Current submission refresh (26 November 2026)
+## Screenshot status
 
-Start with [submission-readiness.md](submission-readiness.md), the proposed [ten-scene screenshot plan](screenshots-plan.md) and [privacy-label changes](privacy-label-changes.md). They cover current Track, Notifications and Kit saved chats/memory/charts on main, while holding pending Groups claims. New Store scenes still need fixture/runner work and exact-bundle capture; no new screenshots or upload are claimed by the plan. The older eight-shot set below remains historical capture guidance, not evidence that its frames match today's app. The new plan takes priority for choosing the next set; Ben must approve the final order and assets.
+The proposed story has ten scenes, not a newly approved artifact. Main's `dev/tests/native-ui/run.py` still defines eight older `STORE_STAGES`: Home, activity detail, Track, Nutrition, Add food, Progress, Me and `friends-typical`. Separate Draft #1607 implements the current ten-scene capture work; use its exact final bundle and capture receipts only after its dependencies and assets are approved. Do not combine generations or call an old eight-frame artifact current because its dimensions pass. See the screenshot brief for captions and source checks.
 
-## Native screenshot artifacts
+Historic #415/#1330/#1511 material remains provenance, not the current upload instruction. In particular `friends-typical` is a stage name, not proof of a friends-only feed; label the actual view. Historical browser fallback files with simulated status/home bars are browser evidence, not UIKit or physical-iPhone captures. Never upscale website crops or invent permission prompts.
 
-The current native runner defines this eight-shot, light-mode story in `dev/tests/native-ui/run.py` (`STORE_STAGES`): Home feed (`header-activity`), Activity detail (`activity`), Track ready (`header-track`), Nutrition day (`header-food`), Add food chat (`food`), Progress (`header-progress`), Me with three earned featured medals (`header-me`), and Friends feed (`friends-typical`). The Nutrition fixture shows 915 of 1,800 kcal across two fictional meals; Me's medals meet their catalog thresholds. When the native job finishes, review and attach the `appstore-6.9-fictional` artifact from that exact app bundle. The files remain workflow artifacts, not Git assets.
+Prepare raw whole-screen, fictional-data captures at 1320 × 2868 for the accepted large portrait slot; confirm Apple's current slot/dimensions at submission. Record source/bundle hash, image hashes, Simulator model/OS, fixed fictional clock, readiness checks and safe areas. Keep artifacts out of git. Check visible map attribution, matching units/dates/totals, complete controls and no error/unavailable banners. Optional caption treatment and final order need Ben's preview. Captions follow `docs/design.md`: few words, one short sentence at most, with the adjacent screen proving it.
 
-Capture from the exact source revision intended for review using the unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Screenshot mode hides map labels; Track uses a supplied point from the fictional park route, with no GPS permission or real position read. The runner verifies the public basemap contract without account credentials and emits eight native light-mode JPEGs at 1320 × 2868, plus source revision, image hashes and readiness metrics. Inspect the raw native artifact against the current app before choosing an optional Sky Blue caption treatment.
+Groups and per-challenge sharing are merged; an optional Groups replacement still needs Ben's selection. Native Strava Open in/Share, picker, guided/background upload and other unmerged Drafts are excluded. Browser import/API implementation is not evidence of those native features. No screenshot proves background recording, APNs delivery, Health permissions or keyboard behavior on a real device.
 
-### Browser fallback for #415
+## Submission gates
 
-If the macOS Simulator capture times out, capture the same fictional browser scenes directly at a 440 × 956 CSS-pixel viewport and device scale factor 3. This produces 1320 × 2868 PNGs without resizing the website's 393 × 852 captures. The app's simulated status bar, Dynamic Island and home indicator are browser overlays; these are **browser captures, not native iPhone or UIKit screenshots**. Attach them with filenames and captions that say `browser capture`. They are a listing fallback for Ben to review, not proof of physical-device behavior.
+Owner decisions are listed separately in [submission-readiness.md](submission-readiness.md). Resolve current website-policy discrepancies (group totals/defaults and name display), Health-derived analytics eligibility, provider terms, contact-hash classification, exact build/configuration, rating/accessibility and physical acceptance before any submission-ready claim. The manifest and App Store Connect answers are separate declarations; neither changes when these docs change.
 
-Before final submission, still review the exact signed build on a real 6.9-inch iPhone: confirm its native status bar, Dynamic Island, safe areas and bottom home indicator; check the eight scenes for clipping, typography, colors and map-label privacy; and verify the app's actual navigation and system permission flows. Confirm that the submitted screenshots accurately represent the selected build. Keep screenshot artifacts out of git.
-
-The Activity map/charts scene uses the `activity` stage, separate from the Home feed’s `header-activity` stage. Generate both from the same current app bundle; do not reuse an older artifact when either layout has changed.
-
-## 6.9-inch screenshot upload checklist
-
-Prefer the `appstore-6.9-fictional` artifact from the exact green `iPhone app` workflow run for the submitted source revision. Its eight files are native Simulator JPEGs; upload the `.jpg` files only. The `.json` files are evidence for review, not App Store Connect uploads. Each image must be 1320 × 2868, light mode, and show fictional demo data.
-
-Upload the images to the iOS version’s **6.9-inch Display** screenshot slot in this order. Drag them one at a time if App Store Connect sorts a multi-file selection by filename:
-
-| Order | Store scene | Capture filename |
-| ---: | --- | --- |
-| 1 | Home activity feed | `iPhone-16-Pro-Max-light-header-activity-16.jpg` |
-| 2 | Activity detail map and charts | `iPhone-16-Pro-Max-light-activity-16.jpg` |
-| 3 | Track ready | `iPhone-16-Pro-Max-light-header-track-16.jpg` |
-| 4 | Nutrition day | `iPhone-16-Pro-Max-light-header-food-16.jpg` |
-| 5 | Add food chat | `iPhone-16-Pro-Max-light-food-16.jpg` |
-| 6 | Progress | `iPhone-16-Pro-Max-light-header-progress-16.jpg` |
-| 7 | Me | `iPhone-16-Pro-Max-light-header-me-16.jpg` |
-| 8 | Friends feed | `iPhone-16-Pro-Max-light-friends-typical-16.jpg` |
-
-The device prefix is the Simulator model reported by the runner; if Apple’s runner uses a different exact 6.9-inch model, keep the same `light-<stage>-16.jpg` suffixes and use that prefix. Do not upload browser crops, dark-mode images, metric JSON, `public-map.json`, or screenshots from an older workflow run. Review each thumbnail after upload for a complete safe-area header, full bottom navigation and no clipped row.
-
-For this #415 timeout fallback, the PR attaches direct browser captures at 440 × 956 @3x, in this order. They are full-size PNGs and are labeled `browser capture`; they are not native app evidence. Ben must review the representation before using them in App Store Connect. The last browser scene is the Friends list, not the native runner's Friends feed, so retain that native scene as a real-device recapture gap.
-
-| Order | Browser scene | Attached file |
-| ---: | --- | --- |
-| 1 | Home activity feed | `browser-6.9-01-home-feed.png` |
-| 2 | Activity detail | `browser-6.9-02-activity-detail.png` |
-| 3 | Track ready | `browser-6.9-03-track.png` |
-| 4 | Nutrition day | `browser-6.9-04-nutrition-day.png` |
-| 5 | Kit food chat | `browser-6.9-05-kit-food-chat.png` |
-| 6 | Progress | `browser-6.9-06-progress.png` |
-| 7 | Me with featured achievements | `browser-6.9-07-me-achievements.png` |
-| 8 | Friends list (not the native Friends feed scene) | `browser-6.9-08-friends-list.png` |
-
-### App Store Connect order
-
-1. **App and version:** open the Kinetta app record in App Store Connect, choose the iOS platform and create or open the version being submitted.
-2. **Build:** wait for the signed build from the green release workflow to finish processing in TestFlight. Select that exact processed build for the version; a Simulator artifact cannot be submitted as a build.
-3. **Screenshots:** upload the eight JPEGs above under 6.9-inch Display, in the listed order. Check the generated smaller-device previews if App Store Connect creates them.
-4. **Listing:** copy the reviewed values from `listing-en-US.json` into the name, subtitle, promotional text, description, keywords, support/marketing URLs, privacy URL, EULA reference, What's New and copyright fields.
-5. **App information:** confirm the primary language, category, age rating answers from `age-rating.md`, and copyright before leaving the version page.
-6. **Privacy and review:** complete App Privacy from `privacy-audit.md`; fill Review Information from `review-notes.md` with a dedicated fictional reviewer account and server, supplied privately in App Store Connect.
-7. **Final checks:** confirm the privacy URL, support URL, screenshots, processed build, export compliance and pricing/availability. Save the version, then use **Add for Review** and submit only after the owner has reviewed the exact build and account exposure.
-
-The capture runner accepts repeatable `--store-stage <stage>` arguments for future whole-screen scenes. Extra stages are previews only until their order, copy and fictional data have been reviewed; they do not change this eight-image upload set.
+After Ben approves the final assets and exact processed signed build, the owner can enter approved metadata/privacy/review information in Connect and choose submission. This task performs none of those steps. Private credentials belong only in Connect, never in source, screenshots or PRs.
 
 ## Existing push protection
 
-`NativePush.swift` selects sandbox only for DEBUG and production otherwise. `ios.yml` archives Release; `mobile/scripts/check-export.py` inspects the actual exported IPA signature for `aps-environment=production` and a distribution profile before upload. This PR retains those assertions. An unsigned Simulator check cannot prove the final exported entitlement or real push delivery; signing/export and physical testing remain release steps.
+`NativePush.swift` selects sandbox only for DEBUG and production otherwise. `ios.yml` archives Release; `mobile/scripts/check-export.py` inspects the actual exported IPA signature for `aps-environment=production` and a distribution profile before upload. These protections are unchanged. Unsigned Simulator checks do not prove exported entitlements or actual push delivery; see [production-push-checklist.md](production-push-checklist.md).
 
-Primary references checked2 November2026: [metadata](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information/), [screenshots](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/), [privacy](https://developer.apple.com/app-store/app-privacy-details/), and the age worksheet's linked Apple questionnaire. Apple supports multiple6.9-inch sizes; this issue specifically requires1320×2868.
+Apple references last read 26 November 2026 (not freshly certified by this source audit): [metadata](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information/), [screenshots](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/), [privacy](https://developer.apple.com/app-store/app-privacy-details/) and [review guidelines](https://developer.apple.com/app-store/review/guidelines/). Recheck the current forms and requirements at submission.
