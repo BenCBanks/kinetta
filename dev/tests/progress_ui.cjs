@@ -105,6 +105,21 @@ function assertPlotStayed(before,after,label){
  await onPage.goto(base+'/me/sharing');await onReady();assert.equal(await onPage.locator('#sh-segments').count(),1,'enabled Segment leaderboards return to Sharing & privacy');
  await onPage.goto(base+'/me/explore');await onReady();assert.equal(await onPage.locator('.guide-hint').count(),3,'Explore hints stay unchanged when optional Progress features are enabled');assert.deepEqual(onErrors,[]);await onContext.close();
  }
+ if(!process.env.KINETTA_PROGRESS_CASE||process.env.KINETTA_PROGRESS_CASE==='fitness-expanded')for(const width of [1280,390])for(const theme of ['light','dark']){
+  const c=await b.newContext({viewport:{width,height:900},colorScheme:theme,serviceWorkers:'block',isMobile:width<768,hasTouch:width<768,reducedMotion:'reduce'});
+  try{
+   const signed=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_runner',password:'green teapot on the hill'}});assert.equal(signed.status(),200);
+   await c.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
+   const p=await c.newPage();await p.goto(base+'/progress?view=fitness');await p.locator('#p-load .fitness-load-line').waitFor();
+   const styles=scope=>scope.locator('.fitness-load-line,.fitness-fatigue-line').evaluateAll(ns=>ns.map(n=>{const s=getComputedStyle(n);return{fill:s.fill,stroke:s.stroke,width:s.strokeWidth};}));
+   const compact=await styles(p.locator('#p-load'));await p.locator('#p-load .chart-expand').click();await p.locator('[data-full-chart] .fitness-load-line').waitFor();
+   const expanded=await styles(p.locator('[data-full-chart]'));assert.deepEqual(expanded,compact,'expanded Fitness keeps the same visible line styles as the compact chart');
+   assert.equal(expanded.length,2);assert(expanded.every(s=>s.fill==='none'&&s.stroke!=='none'),'Fitness/Fatigue are stroked lines, never solid black shapes');assert.notEqual(expanded[0].stroke,expanded[1].stroke,'Fitness and Fatigue remain visually distinct');
+   const chart=p.locator('[data-full-chart] .chartbox > svg');await chart.focus();await p.keyboard.press('End');const last=await chart.getAttribute('aria-label');await p.keyboard.press('ArrowLeft');assert.notEqual(await chart.getAttribute('aria-label'),last,'expanded chart still inspects dates with the keyboard');
+   await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'hidden'});
+   console.log(`Expanded Fitness ${width}-${theme}: styled lines and keyboard inspection PASS`);
+  }finally{await c.close();}
+ }
  for(const who of ['empty','runner','food']){
   if(process.env.KINETTA_PROGRESS_CASE&&!process.env.KINETTA_PROGRESS_CASE.startsWith(`${who}-`))continue;
   const login=await b.newContext();const signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_'+who,password:'green teapot on the hill'}});assert.equal(signed.status(),200,'fixture login: '+await signed.text());cleanup.push(login);

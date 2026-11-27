@@ -245,7 +245,7 @@ function fitnessChart(box, title, draw, compactHeight=170) {
     if(!$('svg',plot))return;
     const owner = readOwner();
     const selected = chartViews.get(plot)?.state();
-    sheet(title, '<div class="fitness-inspect"><p class="small muted">Pinch or scroll to zoom. Drag to move through dates. Tap or hover for exact values.</p><div data-full-chart></div></div>', (body, close) => {
+    sheet(title, '<div class="fitness-inspect"><p class="small muted">Pinch or scroll to zoom. Drag to move through dates. Tap or hover for exact values.</p><div class="fitness-load-chart" data-full-chart></div></div>', (body, close) => {
       closeFull = close;
       body.closest('.sheet')?.querySelector('[data-close]')?.focus({preventScroll:true});
       const mount = $('[data-full-chart]', body);
