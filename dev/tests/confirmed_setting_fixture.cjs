@@ -8,9 +8,9 @@ class Node {
  prepend(node){this.children=this.children.filter(n=>n!==node);this.children.unshift(node);node.parentElement=this;}
 }
 module.exports=c=>{
- c.apiRequest=(path)=>c.api(path);
+ c.apiRequest=(path)=>path==='/api/privacy-save'?Promise.resolve({ticket:'fictional-ticket'}):path.startsWith('/api/privacy-save?')?Promise.resolve({settled:true}):c.api(path);
  c.refreshMe??=(me)=>{c.App.me=me;};
- const helper={readOwner:()=>c.readOwner(),api:(...args)=>c.api(...args),apiRequest:(...args)=>c.apiRequest(...args),
+ const helper={localStorage:{getItem:()=>null,setItem(){},removeItem(){}},json:c.json,readOwner:()=>c.readOwner(),api:(...args)=>c.api(...args),apiRequest:(...args)=>c.apiRequest(...args),
   document:{createElement:()=>new Node()},AbortController,setTimeout,clearTimeout};
  vm.createContext(helper);vm.runInContext(fs.readFileSync('app/static/social-data.js','utf8')+'\nthis.confirm=SocialData.confirmSetting;',helper);
  c.SocialData={confirmSetting:(root,config)=>{

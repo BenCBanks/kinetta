@@ -33,7 +33,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   const earnedFixture=['journey','workouts','lifted','sport:run','climbing','consistency'].map(code=>({code,rank:1}));
   p.on('pageerror',e=>errors.push(e.message));
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
-  await c.route('**/api/**',async r=>{
+  await c.route('**/api/**',async r=>{if(await require('./privacy_ticket_fixture.cjs')(r))return;
    const q=r.request(),u=new URL(q.url());
    if(q.method()==='PUT'&&u.pathname==='/api/achievements/showcase/pins'){
     const body=q.postDataJSON();if(failFeatureSave){failFeatureSave=false;return r.fulfill({status:503,json:{detail:'Fictional save failure'}});}

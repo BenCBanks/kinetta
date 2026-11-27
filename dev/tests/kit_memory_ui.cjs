@@ -11,7 +11,7 @@ module.exports=async(browser,state,base,out)=>{
    const errors=[],writes=[],unexpected=[];p.on('pageerror',e=>errors.push(e.message));
    const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`kit-memory-${name}-${width}-${theme}.png`),animations:'disabled'});}};
    try{
-    await c.route('**/*',async route=>{
+    await c.route('**/*',async route=>{if(await require('./privacy_ticket_fixture.cjs')(route))return;
      const req=route.request(),u=new URL(req.url()),method=req.method();if(u.origin!==base)return route.abort();
      if(u.pathname==='/api/me'&&method==='GET'){const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,ai_ok:true,coach:true,kit_chat:true,ai_paused:false}});}
      const root='/api/coach/conversation/memory';

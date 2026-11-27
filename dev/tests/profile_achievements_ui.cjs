@@ -302,7 +302,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
   await context.addInitScript(()=>{window.__achievementVibrations=0;const original=navigator.vibrate?.bind(navigator);navigator.vibrate=(...args)=>{window.__achievementVibrations++;return original?original(...args):false;};});
-  await page.route('**/*',async route=>{
+  await page.route('**/*',async route=>{if(await require('./privacy_ticket_fixture.cjs')(route))return;
    const request=route.request(),url=new URL(request.url());
    if(url.origin!==base)return route.abort();
    if(request.method()==='GET'&&url.pathname.endsWith('/profile.css')){const response=await route.fetch();return route.fulfill({response,body:(await response.text())+'\n'+stripCss});}

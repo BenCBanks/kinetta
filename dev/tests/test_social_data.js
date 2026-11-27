@@ -193,7 +193,7 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  const detachedRoot=new Node();detachedRoot.append(new Node());let settle,cacheValue=null,detachedPaint=false;
  ctx.api=()=>new Promise(resolve=>settle=resolve);ctx.apiRequest=async()=>({enabled:true});
  const detached=data.confirmSetting(detachedRoot,{path:'/saved',cache:fresh=>cacheValue=fresh.enabled,paint:()=>detachedPaint=true});
- const detaching=detached.save('/save',{method:'PUT'});detachedRoot.isConnected=false;settle();await detaching;
+ const detaching=detached.save('/save',{method:'PUT'});await new Promise(setImmediate);detachedRoot.isConnected=false;settle();await detaching;
  assert.equal(cacheValue,true,'same-account saved consent reconciles even after dismissal');assert(!detachedPaint,'dismissed UI is never painted');
  const root=new Node(),field=new Node();root.append(field);let release,painted=false;
  ctx.api=async()=>{};ctx.apiRequest=()=>new Promise(resolve=>release=resolve);

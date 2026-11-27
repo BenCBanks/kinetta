@@ -100,7 +100,7 @@ route(/^\/welcome$/, 'me', async (el) => {
           input.disabled=true;
           try{
             if(!await saved.save('/api/contacts/settings',json('PUT',{phone_e164:value||null})))throw Error('Saved number not confirmed.');
-            if(value!==(savedPhone||''))throw Error('Saved number shown. Check it before continuing.');
+            if(value.replace(/[\s().-]/g,'')!==(savedPhone||''))throw Error('Saved number shown. Check it before continuing.');
           }finally{if(here('phone'))input.disabled=false;}
         },workouts);
       }catch(x){
