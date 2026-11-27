@@ -28,7 +28,7 @@ class CITieringTests(unittest.TestCase):
         quick = WORKFLOW.split("\n  quick:\n", 1)[1].split("\n  backend:\n", 1)[0]
         self.assertIn("shard: [1, 2, 3]", quick)
         self.assertIn("fail-fast: false", quick)
-        self.assertIn("timeout-minutes: 15", quick)
+        self.assertIn("timeout-minutes: 25", quick)
         self.assertIn("CHANGED_UI_SHARD: ${{ matrix.shard }}/3", quick)
         self.assertIn("KINETTA_CHANGED_SPACING: '0'", quick)
         self.assertIn("docker compose -p kinettatest up -d", quick)

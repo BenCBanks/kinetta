@@ -371,7 +371,10 @@ class Cards(unittest.TestCase):
    return b'fictional-png'
   with patch('app.cards.image',side_effect=render) as renderer:
    with ThreadPoolExecutor(max_workers=8) as pool:answers=list(pool.map(lambda _:TestClient(app).get(path),range(8)))
-   self.assertTrue(all(x.status_code==200 for x in answers));self.assertLessEqual(peak,2);self.assertLessEqual(renderer.call_count,2)
+   self.assertTrue(any(x.status_code==200 for x in answers));self.assertTrue(all(x.status_code in (200,429,503) for x in answers));self.assertEqual(peak,1);self.assertEqual(renderer.call_count,1)
+   for answer in answers:
+    if answer.status_code!=200:self.assertIn(answer.headers['retry-after'],('1','2'))
+   self.assertEqual(self.guest.get(path).status_code,200,'busy requests can retry the cached picture')
   with patch('app.cards.PICTURE_LIMIT',2),patch('app.cards.image',return_value=b'fictional-png'):
    for _ in range(3):
     new=self.clients[0].post('/api/card/new').json()['url'];self.assertEqual(self.guest.get('/card/'+new.rsplit('/',1)[-1]+'/image.png').status_code,200)

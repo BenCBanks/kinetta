@@ -938,22 +938,40 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null, def
   $$('[data-ph]', box).forEach((b) => b.onclick = () => photoViewer(view, +b.dataset.ph, mine, redraw, {draft}));
   const add = $('[data-phadd]', box), file = $('[data-phfile]', box);
   if (!add) return;
-  add.onclick = () => {if(!globalThis.EmailConfirmation?.lock(true))file.click();};
-  file.onchange = async () => {
-    const files = [...file.files].slice(0, PHOTO_MAX - ph.length); if (!files.length) return;
-    add.disabled = true;
-    let done = 0;
-    for (const f of files) {
-      $('span', add).textContent = files.length > 1 ? `Adding ${done + 1} of ${files.length}…` : 'Adding…';
-      try {
-        const image = await shrinkPhoto(f, 1600);
-        if (draft) draft.photos.push({pending:true,preview:image});
-        else a.photos = [...(a.photos || []), await api(`/api/activities/${a.id}/photos`, json('POST', {image}))];
-        done++;
-      } catch (x) { toast(x.message || "That photo couldn't be added"); break; }
+  const owner=readOwner(),live=()=>box.isConnected&&owner===readOwner();
+  let pending=[],completed=0,total=0;
+  const upload=async()=>{
+    if(!live())return;
+    add.disabled=true;
+    let changed=false;
+    while(pending.length){
+      $('span',add).textContent=total>1?`Adding ${completed+1} of ${total}…`:'Adding…';
+      try{
+        const next=pending[0];next.image ||= await shrinkPhoto(next.file,1600);
+        if(!live()){pending=[];return;}
+        if(draft)draft.photos.push({pending:true,preview:next.image});
+        else{
+          const saved=await api(`/api/activities/${a.id}/photos`,json('POST',{image:next.image}));
+          if(!live()){pending=[];return;}
+          a.photos=[...(a.photos||[]),saved];changed=true;
+        }
+        pending.shift();completed++;
+      }catch(x){
+        if(!live()){pending=[];return;}
+        toast(x.message || "That photo couldn't be added");
+        if(changed)photoChanged(a.id);
+        if(x.status===503){add.disabled=false;$('span',add).textContent='Retry photo';return;}
+        pending=[];redraw();return;
+      }
     }
-    if (done && !draft) photoChanged(a.id);
+    if(changed)photoChanged(a.id);
     redraw();
+  };
+  add.onclick=()=>{if(live()&&!globalThis.EmailConfirmation?.lock(true)){if(pending.length)upload();else file.click();}};
+  file.onchange=()=>{
+    pending=[...file.files].slice(0,PHOTO_MAX-photos().length).map(file=>({file}));
+    completed=0;total=pending.length;
+    if(pending.length)return upload();
   };
 }
 async function saveActivityPhotoDraft(a) {

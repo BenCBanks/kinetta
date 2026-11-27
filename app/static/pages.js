@@ -1856,13 +1856,28 @@ function profilePhotoSheet(done) {
     <input type="file" accept="image/*" hidden id="pp-file">
     <button type="button" class="primary wide" id="pp-pick">${svg('camera')}${me.photo ? 'Choose a new photo' : 'Choose a photo'}</button>
     ${me.photo ? '<button type="button" class="ghost wide" id="pp-rm">Remove photo</button>' : ''}</div>`, (b, close) => {
-    const file = $('#pp-file', b), pick = $('#pp-pick', b), rm = $('#pp-rm', b);
-    pick.onclick = () => {if(!globalThis.EmailConfirmation?.lock(true))file.click();};
-    file.onchange = async () => {
-      const f = file.files && file.files[0]; if (!f) return;
+    const file = $('#pp-file', b), pick = $('#pp-pick', b), rm = $('#pp-rm', b), owner = readOwner();
+    let pending = null;
+    const live = () => b.isConnected && readOwner() === owner && App.me?.id === me.id;
+    const save = async () => {
       pick.disabled = true; pick.textContent = 'Saving…';
-      try { const image = await shrinkPhoto(f, 1024); me.photo = (await api('/api/me/photo', json('PUT', {image}))).photo; syncMeTabPhoto(); close(); toast('Photo saved'); done(); }
-      catch (x) { toast(x.message || "That photo couldn't be opened"); pick.disabled = false; pick.textContent = 'Choose a photo'; }
+      try {
+        const result = await api('/api/me/photo', json('PUT', {image:pending}));
+        if (!live()) return;
+        pending = null; App.me.photo = result.photo; syncMeTabPhoto(); close(); toast('Photo saved'); done();
+      } catch (x) {
+        if (!live()) { pending = null; return; }
+        toast(x.message || "That photo couldn't be opened");
+        if (x.status !== 503) pending = null;
+        pick.disabled = false; pick.textContent = pending ? 'Retry photo' : 'Choose a photo';
+      }
+    };
+    pick.onclick = () => {if(live()&&!globalThis.EmailConfirmation?.lock(true)){if(pending)save();else file.click();}};
+    file.onchange = async () => {
+      const f = file.files && file.files[0]; if (!f || !live()) return;
+      pick.disabled = true;
+      try { pending = await shrinkPhoto(f, 1024); if(live())await save();else pending=null; }
+      catch (x) { if(live()){toast(x.message || "That photo couldn't be opened");pick.disabled=false;pick.textContent='Choose a photo';} }
     };
     if (rm) rm.onclick = async () => {
       rm.disabled = true;
@@ -2115,7 +2130,8 @@ route(/^\/track\/import$/, 'track', async (el) => {
     ${mapId?`<p class="muted">Choose the original FIT, GPX or TCX for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
     <section class="inset-section"><h2 class="inset-caption">Files</h2><div class="inset-group activity-upload">
       <label class="inset-row has-detail import-pick" id="u-drop" for="u-file"><span class="inset-icon" aria-hidden="true">${svg('upload')}</span><span class="inset-label has-detail"><span>Choose files</span><small>FIT, GPX, TCX, Strava ZIP or .gz</small></span><span class="inset-value">Browse</span></label>
-      <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
+      <!-- The lazy upload helper enables this after the change handler is installed. -->
+      <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden disabled>
       <div id="u-prog" class="activity-upload-progress" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
       <div class="inset-group upload-archive" id="u-zip" hidden></div>
     </section>

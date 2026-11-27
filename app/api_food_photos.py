@@ -1,19 +1,17 @@
 """Photo privacy at API ingress; estimators receive only freshly encoded pixels."""
 import base64
 import io
-import threading
 
 from fastapi import APIRouter, Depends, HTTPException
 from PIL import Image, ImageOps
 
-from . import account_email, ai_access, ai_budget, coach, db, food_photo
+from . import account_email, ai_access, ai_budget, coach, db, food_photo, image_work
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
 MAX_PIXELS = 16_000_000
 MAX_SIDE = 2048
 REQUESTS_PER_MINUTE = 12
-_decode_slots = threading.BoundedSemaphore(2)
 
 
 def _encode(raw, budget):
@@ -48,20 +46,19 @@ def clean(body, user):
         limited = account_email.limited(c, f'food-photo-decode:{user["id"]}', REQUESTS_PER_MINUTE, 1)
     if limited:
         raise HTTPException(429, 'Too many food photos. Wait a minute and try again.', headers={'Retry-After': '60'})
-    if not _decode_slots.acquire(blocking=False):
-        raise HTTPException(503, 'Photo processing is busy. Try again shortly.', headers={'Retry-After': '2'})
-    try:
-        raw_images = food_photo.image_batch(body.image, body.images)
-        budget = min(4_000_000, 8_000_000 // len(raw_images))
-        try:
-            images = [_encode(raw, budget) for raw in raw_images]
-        except (OSError, ValueError, Image.DecompressionBombError):
-            raise HTTPException(400, "A photo couldn't be read or is too large") from None
-    finally:
-        _decode_slots.release()
+    images = image_work.run(_batch, body)
     # Retain the existing per-image/batch byte limits after re-encoding too.
     food_photo.image_batch(None, images)
     return body.model_copy(update={'image': None, 'images': images})
+
+
+def _batch(body):
+    raw_images = food_photo.image_batch(body.image, body.images)
+    budget = min(4_000_000, 8_000_000 // len(raw_images))
+    try:
+        return [_encode(raw, budget) for raw in raw_images]
+    except (OSError, ValueError, Image.DecompressionBombError):
+        raise HTTPException(400, "A photo couldn't be read or is too large") from None
 
 
 @router.post('/photo')

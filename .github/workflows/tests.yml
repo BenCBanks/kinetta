@@ -32,7 +32,9 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-    timeout-minutes: 15
+    # Setup, unit/API checks and changed-screen browsers share this budget.
+    # Keep the job bounded without cancelling a progressing browser shard at 15m.
+    timeout-minutes: 25
     env:
       KINETTA_VERSION: ci
       CHANGED_UI_SHARD: ${{ matrix.shard }}/3

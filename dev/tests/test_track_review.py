@@ -20,6 +20,23 @@ def request(client, method, path, body=None, expected=200):
     return result
 
 
+def race_save(payload, count):
+    """Busy requests keep the exact review; an explicit retry resolves its receipt."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=count) as pool:
+        responses = list(pool.map(lambda _: owner.post('/api/activities/track', payload), range(count)))
+    saved = []
+    for status, result in responses:
+        assert status in (200, 503), (status, result)
+        if status == 200:
+            saved.append(result)
+        else:
+            assert result == {'detail': 'Photo processing is busy. Your photo is kept; try again shortly.'}, result
+    assert saved, 'at least one recording save completes under contention'
+    retried = request(owner, 'POST', '/api/activities/track', payload)
+    assert retried == {'id': saved[0]['id'], 'duplicate': True}, retried
+    return saved
+
+
 def body(**changes):
     points = [{'lat': i * .0001, 'lon': 10, 't': i * 5 + (100 if i > 40 else 0), 'segment': int(i > 40), 'accuracy': 5} for i in range(81)]
     step = 6371008.8 * math.radians(.0001)
@@ -48,13 +65,11 @@ try:
     request(other, 'GET', f'/api/shared/{aid}', expected=404)
     request(other, 'DELETE', f"/api/activity-photos/{detail['photos'][0]['id']}", expected=404)
     # Lost and concurrent acknowledgements return one activity, including exactly the confirmed pictures.
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        replies = list(pool.map(lambda _: request(owner, 'POST', '/api/activities/track', original), range(8)))
+    replies = race_save(original, 8)
     assert all(r == {'id': aid, 'duplicate': True} for r in replies)
     assert len(request(owner, 'GET', f'/api/activities/{aid}')['photos']) == 2
     fresh = body()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        replies = list(pool.map(lambda _: request(owner, 'POST', '/api/activities/track', fresh), range(6)))
+    replies = race_save(fresh, 6)
     assert len({r['id'] for r in replies}) == 1 and sum(not r['duplicate'] for r in replies) == 1
     assert len(request(owner, 'GET', f"/api/activities/{replies[0]['id']}")['photos']) == 2, 'first-save races also insert each confirmed photo once'
     # A retried payload cannot replace the already-saved audience/name/photos, even if a client edits a stale form.

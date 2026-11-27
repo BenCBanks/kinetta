@@ -131,28 +131,28 @@ class Privacy(unittest.TestCase):
         def clean(uid):
             try: P.clean(body, {'id': uid}); return 200
             except HTTPException as e: return e.status_code
-        with patch.object(P, 'REQUESTS_PER_MINUTE', 2):
+        with patch.object(P, 'REQUESTS_PER_MINUTE', 2), patch.object(P.image_work, 'run', side_effect=lambda fn, *args: fn(*args)):
             with ThreadPoolExecutor(max_workers=6) as pool:
                 self.assertEqual(sorted(pool.map(clean, [self.ids[0]] * 6)), [400, 400, 429, 429, 429, 429])
             with patch.object(P.Image, 'open', side_effect=AssertionError('Decode before limiter')):
                 self.assertEqual(clean(self.ids[0]), 429)
             self.assertEqual(clean(self.ids[1]), 400, 'Separate account retains its budget')
         body = P.food_photo.PhotoIn(image=jpeg())
-        entered, release = threading.Barrier(3), threading.Event()
+        entered, release = threading.Barrier(2), threading.Event()
         def held(*args):
             entered.wait(timeout=5); self.assertTrue(release.wait(5)); return args[0].hex()
-        with patch.object(P, '_decode_slots', threading.BoundedSemaphore(2)), patch.object(P, '_encode', side_effect=held):
+        with patch.object(P.image_work, '_slots', threading.BoundedSemaphore(1)), patch.object(P, '_encode', side_effect=held):
             with ThreadPoolExecutor(max_workers=2) as pool:
-                jobs = [pool.submit(P.clean, body, {'id': uid}) for uid in self.ids]
+                jobs = [pool.submit(P.clean, body, {'id': self.ids[0]})]
                 try:
                     entered.wait(timeout=5)
                     with patch.object(P.Image, 'open', side_effect=AssertionError('Decode despite full slots')):
                         self.assertEqual(clean(self.ids[0]), 503)
                 finally: release.set()
-                # Stand-in encodes are invalid JPEGs: failure still releases both slots.
+                # Stand-in encodes are invalid JPEGs: failure still releases the shared slot.
                 for job in jobs:
                     with self.assertRaises(HTTPException): job.result()
-            self.assertTrue(P._decode_slots.acquire(blocking=False)); P._decode_slots.release()
+            self.assertTrue(P.image_work._slots.acquire(blocking=False)); P.image_work._slots.release()
 
     def test_scaled_jpeg_draft_keeps_orientation_without_private_metadata(self):
         # Exercise the actual scaled JPEG decoder, rather than only tiny uploads
