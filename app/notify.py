@@ -351,7 +351,7 @@ def _words(r):
     if r['kind'] in {'group_update','group_cheer'}:
         who = notification_words.clean(r['name'],40)
         title = notification_words.clean(r.get('group_title') or 'your group',80)
-        action = 'posted an update' if r['kind'] == 'group_update' else 'cheered'
+        action = 'posted a comment' if r['kind'] == 'group_update' else 'cheered'
         return f'{who} {action} in {title}', f"/groups/{r['group_id']}"
     who, act = notification_words.clean(r['name'],40), notification_words.clean(r['activity'] or 'activity',90)
     if r['kind'] == 'activity_ready':

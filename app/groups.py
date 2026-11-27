@@ -129,7 +129,7 @@ class GroupUpdateCreate(BaseModel):
     def clean_text(cls, value):
         value = value.strip()
         if not value:
-            raise ValueError('Write an update first')
+            raise ValueError('Write a comment first')
         return value
 
 
@@ -671,7 +671,7 @@ def _visible_update(c, group, uid, update_id):
           AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=%s AND b.blocked=u.user_id)
             OR (b.user_id=u.user_id AND b.blocked=%s))''', (update_id, group['id'], uid, uid)).fetchone()
     if not row:
-        raise HTTPException(404, 'Group update not found')
+        raise HTTPException(404, 'Group comment not found')
     return row
 
 
@@ -800,7 +800,7 @@ def create_group_update(group_id: str, body: GroupUpdateCreate, user=Depends(cur
             raise HTTPException(409, 'This group is closed')
         from . import challenges
         challenges.confirmed_for_challenge(c, user['id'])
-        community_filter.public(c, user['id'], ('group update', body.text))
+        community_filter.public(c, user['id'], ('group comment', body.text))
         from .signup import social_action
         social_action(c, user['id'], 'comment')
         row = c.execute('''INSERT INTO group_updates(group_id,user_id,text) VALUES(%s,%s,%s) RETURNING id''',
@@ -815,7 +815,7 @@ def delete_group_update(group_id: str, update_id: int, user=Depends(current_user
         group = _group(c, group_id, user['id'], lock=True)
         row = _visible_update(c, group, user['id'], update_id)
         if row['user_id'] != user['id'] and group['organizer_id'] != user['id']:
-            raise HTTPException(404, 'Group update not found')
+            raise HTTPException(404, 'Group comment not found')
         c.execute('DELETE FROM group_updates WHERE id=%s AND group_id=%s', (update_id, group['id']))
     return {'ok': True}
 
@@ -826,10 +826,10 @@ def report_group_update(group_id: str, update_id: int, body: GroupReport, user=D
         group = _group(c, group_id, user['id'])
         update = _visible_update(c, group, user['id'], update_id)
         if update['user_id'] == user['id']:
-            raise HTTPException(400, "You can't report your own update")
+            raise HTTPException(400, "You can't report your own comment")
         if c.execute("SELECT count(*) AS n FROM reports WHERE reporter=%s AND status='open'", (user['id'],)).fetchone()['n'] >= 20:
             raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
-        what = f'Group update in {group["title"]} by @{update["username"]}: "{update["text"]}"'
+        what = f'Group comment in {group["title"]} by @{update["username"]}: "{update["text"]}"'
         rid = c.execute('''INSERT INTO reports(reporter,person,kind,what,reason,note,group_id,group_update_id)
             VALUES(%s,%s,'group',%s,%s,%s,%s,%s) RETURNING id''',
                         (user['id'], update['user_id'], what[:1000], body.reason,

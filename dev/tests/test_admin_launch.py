@@ -321,7 +321,7 @@ class Launch(unittest.TestCase):
         record = exported[0]
         self.assertEqual(dt.datetime.fromisoformat(record.pop('created')),source['created'])
         self.assertEqual(record,{'about':'zz_test_launch_plain',
-            'what':'Group update in Fictional reported group by @zz_test_launch_plain: "Unrelated update sentinel"',
+            'what':'Group comment in Fictional reported group by @zz_test_launch_plain: "Unrelated update sentinel"',
             'reason':'abuse','note':'Fictional complaint','status':'open'})
 
     def test_group_update_reports_follow_account_erasure(self):
