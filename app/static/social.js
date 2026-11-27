@@ -827,13 +827,16 @@ function commentsSheet(aid, s, onChange) {
     let loadTimer=0,loadGeneration=0;
     const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;clearTimeout(loadTimer);loadTimer=0;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
     if(cached)drawComments(box,aid,cached,onChange);
-    viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();box._denied=true;box._sync();}}));
+    const revoke=()=>{if(!box.isConnected)return;f.text.value='';box._denied=true;box._sync();};
+    globalThis.addEventListener('comment-drafts-cleared',revoke);
+    const unwatch=SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();box._denied=true;box._sync();}});
+    viewResources.set(box,()=>{unwatch();globalThis.removeEventListener('comment-drafts-cleared',revoke);});
     wireCommentActions(box,list);
     const refresh=async()=>{const generation=++loadGeneration;if(!cached){status.textContent='';list.setAttribute('aria-busy','true');list.replaceChildren();loadTimer=setTimeout(()=>{if(!current()||generation!==loadGeneration||list.getAttribute('aria-busy')!=='true')return;list.innerHTML=commentSkeletonMarkup;list.classList.add('is-fading-in');requestAnimationFrame(()=>list.classList.remove('is-fading-in'));},200);}try{const fresh=await SocialData.read(aid);update(fresh);}
       catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();box._denied=true;box._sync();}
         clearTimeout(loadTimer);loadTimer=0;list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
-      const client_id=SocialData.draftRequest(aid,raw);
+      const client_id=SocialData.draftRequest(aid,raw);if(!client_id){f.text.value='';box._denied=true;box._sync();return;}
       let denied=false;delete button.dataset.failed;button.dataset.posting='1';button.setAttribute('aria-busy','true');status.textContent='Sending…';status.classList.add('is-posting');box._sync();
       try{const fresh=await api(`/api/activities/${aid}/comments`,json('POST',{text,client_id}));if(account!==readOwner())return;
         SocialData.remember(aid,fresh);socialChanged(aid);

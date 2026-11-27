@@ -32,6 +32,47 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  data.draft(73,'Expire this draft');now+=7*86400000+1;assert.equal(data.draft(73),'','draft expires after seven days');
  localStorage.setItem('fit.comment-drafts','broken json');assert.equal(data.draft(74),'','corrupt storage does not prevent commenting');
  const original=localStorage.setItem;localStorage.setItem=()=>{throw Error('quota')};data.draft(74,'Storage unavailable');assert.equal(data.draft(74),'Storage unavailable','quota failure retains memory draft');localStorage.setItem=original;
+ // Existing storage must not roll back newer memory when quota rejects subsequent writes.
+ data.draft(75,'Old persisted intention');const oldKey=data.draftRequest(75,'Old persisted intention');
+ localStorage.setItem=()=>{throw Error('quota');};
+ const changedKey=data.draftRequest(75,'New fictional intention');assert.notEqual(changedKey,oldKey);
+ for(let i=0;i<4;i++)assert.equal(data.draftRequest(75,'New fictional intention'),changedKey,'quota retry never mints another ID');
+ data.draft(75,'');assert.equal(data.draft(75),'','failed persistence cannot resurrect a cleared in-memory draft');
+ localStorage.setItem=original;
+ // Two tabs sharing storage. Test the synchronous fence before delivering the storage event.
+ const listeners=[];
+ function tab(){const t={...ctx,addEventListener:(name,fn)=>{if(name==='storage')listeners.push(fn);}};vm.createContext(t);vm.runInContext(fs.readFileSync('app/static/social-data.js','utf8')+'\nglobalThis.data=SocialData;',t);return t;}
+ const parallelOne=tab(),parallelTwo=tab();parallelOne.data.peek(99);parallelTwo.data.peek(99);parallelOne.data.draft(99,'First tab');assert.equal(parallelTwo.data.draft(99,'Second tab'),'Second tab','opening a second tab is not a sign-out');
+ for(const reason of ['sign-out','deletion'])for(const quota of [false,true]){
+   const clearer=tab(),peer=tab();peer.data.draft(81,'Old-tab '+reason+' text');
+   const before=localStorage.getItem('fit.comment-drafts-generation');assert(before);
+   const write=localStorage.setItem;
+   if(quota)localStorage.setItem=(k,v)=>{if(k==='fit.comment-drafts-generation')throw Error('quota during clear');return write(k,v);};
+   const helper=fs.readFileSync('app/static/app.js','utf8').split('function clearCommentDrafts() {')[1].split('\nlet pendingDishEntry')[0];
+   vm.runInContext('function clearCommentDrafts() {'+helper+'\nclearCommentDrafts();',clearer);
+   localStorage.setItem=write;
+   assert.notEqual(localStorage.getItem('fit.comment-drafts-generation'),before,'clear changes or removes the fence even under quota');
+   assert.equal(peer.data.draft(81,'Must never be rewritten'),'');
+   assert.equal(peer.data.draftRequest(81,'Must never send'),null);
+   assert.equal(localStorage.getItem('fit.comment-drafts'),null,'stale tab cannot repopulate cleared disk state before event delivery');
+   listeners.forEach(fn=>fn({key:'fit.comment-drafts-generation'}));
+   assert.equal(peer.data.draft(81),'','clear event removes memory');
+   assert.equal(clearer.data.draft(81,'Still stale'),'','cleared session stays revoked');
+ }
+ // A clear/new login interleaving the write must not erase the new session's draft.
+ const racing=tab();racing.data.draft(83,'Prior session draft');const writeBeforeClear=localStorage.setItem;
+ const newer=JSON.stringify({generation:'new-session',rows:{83:{text:'Current session draft'}}});
+ localStorage.setItem=(k,v)=>{writeBeforeClear(k,v);if(k==='fit.comment-drafts'){writeBeforeClear('fit.comment-drafts-generation','new-session');writeBeforeClear(k,newer);}};
+ assert.equal(racing.data.draftRequest(83,'Prior session retry'),null);localStorage.setItem=writeBeforeClear;
+ assert.equal(localStorage.getItem('fit.comment-drafts'),newer,'stale cleanup preserves a newer session write');
+ // A first draft with a completely unavailable store remains stable in memory,
+ // and cannot later write unfenced text after another tab clears the account.
+ localStorage.removeItem('fit.comment-drafts-generation');localStorage.removeItem('fit.comment-drafts');
+ const write=localStorage.setItem;localStorage.setItem=()=>{throw Error('quota');};const memoryOnly=tab();
+ const memoryKey=memoryOnly.data.draftRequest(82,'Memory-only fictional draft');assert(memoryKey);
+ for(let i=0;i<4;i++)assert.equal(memoryOnly.data.draftRequest(82,'Memory-only fictional draft'),memoryKey);
+ localStorage.setItem=write;memoryOnly.data.draft(82,'Memory-only fictional draft');
+ assert.equal(localStorage.getItem('fit.comment-drafts'),null,'restored quota cannot persist a session without a clearing fence');
  console.log('Social reads: prefetch/in-flight dedupe, mutation ordering, retained drafts/failures, permission clearing, same-login session isolation and refresh epochs PASS');
  // Failed writes may already be saved; never restore an optimistic/previous privacy claim.
  class Node {

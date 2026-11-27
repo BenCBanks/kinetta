@@ -67,6 +67,8 @@ TABLE_REVIEW = {
     'cheers': ('export:cheers_given', 'activity_id user_id created kind'),
     'coach_notes': ('export:coach_notes', 'id user_id kind period_start text created'),
     'coach_proposals': ('export:coach_proposals', 'id user_id kind payload baseline status created expires'),
+    # Hash-only deleted-comment replay metadata; seven-day validity, pruned on next owner write; FK erasure.
+    'comment_receipts': ('export:comment_receipts', 'user_id client_id activity_id text_hash created expires'),
     # client_id is the owner's non-secret retry key; exported only with that owner's written comments.
     'comments': ('export:comments_written', 'id activity_id user_id text created client_id'),
     'connections': ('export:connections', 'user_id kind token_hash settings status last_sync last_count created'),

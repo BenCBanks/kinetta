@@ -236,6 +236,18 @@ function clearIntervalDrafts(account=App.me) {
   try { for (const key of Object.keys(localStorage)) if(key.startsWith(prefix))localStorage.removeItem(key); } catch (_) { /* local cleanup is best effort */ }
   if(App.me?.id===account.id)globalThis.Intervals?.clear();
 }
+// Revoke old tabs before clearing text, even if their storage event is still queued.
+function clearCommentDrafts() {
+  const key='fit.comment-drafts-generation',generation=newId();
+  const fence=()=>{try{localStorage.setItem(key,generation);}catch(_){
+    // Removing a previously established marker also revokes suspended tabs.
+    try{localStorage.removeItem(key);}catch(_){} }};
+  fence();
+  try { localStorage.removeItem('fit.comment-drafts'); } catch (_) { /* storage may be unavailable */ }
+  fence(); // Removing the larger draft may have freed enough quota for the small marker.
+  if(typeof SocialData!=='undefined')SocialData.revokeDrafts();
+  try{if(typeof BroadcastChannel==='function'){const channel=new BroadcastChannel('fit.comment-drafts');channel.postMessage('clear');channel.close();}}catch(_){/* The synchronous storage fence remains. */}
+}
 let pendingDishEntry = null;
 async function loadNewDish(btn, where = null) {
   if (!App.me || btn?.disabled) return pendingDishEntry;
@@ -2529,7 +2541,7 @@ function accountSupportError(error) {
 }
 function showLogin(msg = '') {
   // Unsent comments belong to this sign-in, never a later login on a shared phone.
-  try { localStorage.removeItem('fit.comment-drafts'); } catch (_) { /* storage may be unavailable */ }
+  clearCommentDrafts();
   globalThis.CommunityTerms?.reset();
   App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {});
   root.innerHTML = `<div class="login login-signin"><form novalidate>

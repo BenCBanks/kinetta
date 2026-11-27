@@ -851,6 +851,16 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
         owner = can_see(c, user['id'], aid)
         # The account lock also serializes concurrent retries. Recheck access before replay.
         if body.client_id is not None:
+            # No deleted text is retained. Expired receipts are pruned on this owner's next write;
+            # account/activity deletion cascades immediately. Legacy live rows still replay below.
+            c.execute('DELETE FROM comment_receipts WHERE user_id=%s AND expires<=now()', (user['id'],))
+            receipt = c.execute('SELECT activity_id,text_hash FROM comment_receipts WHERE user_id=%s AND client_id=%s',
+                                (user['id'],body.client_id)).fetchone()
+            text_hash = hashlib.sha256(text.encode('utf-8')).hexdigest()
+            if receipt:
+                if receipt['activity_id'] != aid or receipt['text_hash'] != text_hash:
+                    raise HTTPException(409, 'This retry belongs to a different comment. Reopen Comments and try again.')
+                return _social(c, aid, user['id'], owner)
             previous = c.execute('SELECT activity_id,text FROM comments WHERE user_id=%s AND client_id=%s',
                                  (user['id'],body.client_id)).fetchone()
             if previous:
@@ -862,6 +872,9 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
         from .signup import social_action
         social_action(c, user['id'], 'comment')
         cid = c.execute('INSERT INTO comments (activity_id, user_id, text, client_id) VALUES (%s, %s, %s, %s) RETURNING id', (aid, user['id'], text, body.client_id)).fetchone()['id']
+        if body.client_id is not None:
+            c.execute('INSERT INTO comment_receipts(user_id,client_id,activity_id,text_hash) VALUES(%s,%s,%s,%s)',
+                      (user['id'],body.client_id,aid,text_hash))
         notify.add(c, owner, 'comment', user['id'], activity_id=aid, comment_id=cid)
         return _social(c, aid, user['id'], owner)
 

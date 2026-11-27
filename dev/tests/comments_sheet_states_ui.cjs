@@ -83,7 +83,13 @@ async function retryChecks(browser){
    const open=async()=>{await page.goto(base+'/me/activities');await page.waitForFunction(()=>App.pageReady);await page.locator('article.post').filter({hasText:'Fictional empty run'}).locator('.activity-comments').click();await page.locator('.c-form textarea').waitFor();};
    const count=async text=>{const social=await(await context.request.get(base+`/api/activities/${aid}/social`,{headers:{...(native?{Authorization:'Bearer '+token}:{})}})).json();const matches=social.comments.filter(r=>r.text===text);for(const row of matches)if(!created.includes(row.id))created.push(row.id);return matches.length;};
    const shot=async(name,selector)=>{if(!out)return;fs.mkdirSync(out,{recursive:true});for(const theme of ['light','dark']){await page.emulateMedia({colorScheme:theme});await page.locator(selector).screenshot({path:path.join(out,`${native?'bridge':'web'}-${name}-${theme}.png`),animations:'disabled'});}await page.emulateMedia({colorScheme:'light'});};
-   await open();const field=page.locator('.c-form textarea'),post=page.locator('.c-send'),text='Fictional retry '+Date.now().toString(36);await field.fill(text);fault='lost';await post.click();await page.locator('.comment-retry').waitFor();assert.equal(await count(text),1);
+   await open();const field=page.locator('.c-form textarea'),post=page.locator('.c-send'),text='Fictional retry '+Date.now().toString(36);
+   await field.fill('Old fictional intention');
+   await page.evaluate(()=>{const original=Storage.prototype.setItem;window.restoreDraftStorage=()=>{Storage.prototype.setItem=original;};Storage.prototype.setItem=function(k,v){if(k==='fit.comment-drafts')throw new DOMException('Fictional quota','QuotaExceededError');return original.call(this,k,v);};});
+   await field.fill(text);fault='lost';await post.click();await page.locator('.comment-retry').waitFor();assert.equal(await count(text),1);
+   const quotaKey=attempts.at(-1).client_id;
+   for(let n=0;n<2;n++){fault='lost';await page.locator('.comment-retry').click();await page.locator('.comment-retry').waitFor();assert.equal(attempts.at(-1).client_id,quotaKey,'quota plus repeated lost replies keeps one intention');assert.equal(await count(text),1);}
+   await page.evaluate(aid=>{window.restoreDraftStorage();SocialData.draft(aid,SocialData.draft(aid));},aid);
    const key=attempts.at(-1).client_id;assert.match(key,/^[0-9a-f-]{36}$/);await shot('lost-reply','.sheet');
    await open();assert.equal(await field.inputValue(),text,'reload retains unsent text');await shot('reload','.sheet');await post.click();await page.getByText('Comment posted.',{exact:true}).waitFor();assert.equal(await count(text),1,'reload retry never duplicates');assert.equal(attempts.at(-1).client_id,key);await shot('posted','.sheet');assert.equal(await page.evaluate(()=>localStorage.getItem('fit.comment-drafts')),null);
    const held='Fictional held '+Date.now().toString(36);await field.fill(held);await page.clock.install();fault='timeout';await post.click();await page.waitForFunction(()=>document.querySelector('.c-send')?.dataset.posting==='1');await page.clock.runFor(20001);await page.locator('.comment-retry').waitFor();assert.equal(await field.inputValue(),held);assert(await post.isEnabled());await shot('comment-timeout','.sheet');release();release=null;await page.locator('.comment-retry').click();await page.getByText('Comment posted.',{exact:true}).waitFor();assert.equal(await count(held),1);await page.clock.resume();
@@ -91,9 +97,31 @@ async function retryChecks(browser){
    const login=page.locator('.login input[name=login]'),password=page.locator('.login input[name=password]'),button=page.locator('.login button[type=submit]');await login.fill('zz_test_inline_owner');await password.fill(pw);let loginCalls=0;
    await page.route('**/api/login',async route=>{loginCalls++;if(loginCalls===1){await new Promise(r=>release=r);return route.abort();}return route.continue();});
    await button.click();await button.evaluate(n=>{n.form.requestSubmit();n.form.requestSubmit();});await page.clock.runFor(20001);await page.getByText('Sign-in is temporarily unavailable. Please try again.',{exact:true}).waitFor();assert(await button.isEnabled());assert.equal(await login.inputValue(),'zz_test_inline_owner');assert.equal(await password.inputValue(),pw);await shot('login-timeout','.login form');release();release=null;await page.clock.resume();await button.click();await page.waitForFunction(()=>App.me&&App.pageReady);assert.equal(loginCalls,2);assert.deepEqual(errors,[]);
-   console.log(`Durable comments/lost-reply/reload/timeout + sign-in timeout/retry ${native?'bridge':'web'} PASS`);
+   // Clean the fictional comments while this test session is still authenticated.
+   for(const id of created)assert.equal((await context.request.delete(base+'/api/comments/'+id,{headers:{Origin:base,'Content-Type':'application/json',...(native?{Authorization:'Bearer '+token}:{})},data:{}})).status(),200);created.length=0;
+   // Two real tabs, plus a suspended-tab stand-in with all clear events blocked.
+   const peers=[];
+   try{
+    for(const sleeping of [false,true]){
+     const peer=await context.newPage();peer.on('pageerror',e=>errors.push(e.message));peers.push(peer);
+     if(sleeping)await peer.addInitScript(()=>{window.BroadcastChannel=undefined;window.addEventListener('storage',e=>e.stopImmediatePropagation(),{capture:true});});
+     await peer.goto(base+'/me/activities');await peer.waitForFunction(()=>App.pageReady);
+     await peer.locator('article.post').filter({hasText:'Fictional empty run'}).locator('.activity-comments').click();
+     await peer.locator('.c-form textarea').fill('Fictional stale tab');
+    }
+    await page.evaluate(async()=>{
+     await api('/api/logout',json('POST',{}));
+     const original=Storage.prototype.setItem;
+     Storage.prototype.setItem=function(k,v){if(k==='fit.comment-drafts-generation')throw new DOMException('Fictional quota','QuotaExceededError');return original.call(this,k,v);};
+     try{App.me=null;showLogin();}finally{Storage.prototype.setItem=original;}
+    });
+    await peers[0].waitForFunction(()=>document.querySelector('.c-form textarea')?.value==='');
+    for(const peer of peers){assert.equal(await peer.evaluate(aid=>SocialData.draftRequest(aid,'Never rewrite after logout'),aid),null);assert.equal(await peer.evaluate(()=>localStorage.getItem('fit.comment-drafts')),null);assert(await peer.locator('.c-send').isDisabled());}
+   }finally{for(const peer of peers)await peer.close();}
+   assert.deepEqual(errors,[]);
+   console.log(`Durable comments/quota/lost-reply/reload + cross-tab logout/quota fence + sign-in timeout/retry ${native?'bridge':'web'} PASS`);
   }finally{
-   release?.();for(const id of created)await context.request.delete(base+'/api/comments/'+id,{headers:{Origin:base,...(native?{Authorization:'Bearer '+token}:{})}});await context.close();
+   release?.();for(const id of created)await context.request.delete(base+'/api/comments/'+id,{headers:{Origin:base,'Content-Type':'application/json',...(native?{Authorization:'Bearer '+token}:{})},data:{}});await context.close();
   }
  }
 }
