@@ -72,7 +72,7 @@
 .compact-food .compact-food-title { grid-area:name; display:flex;align-items:center;min-width:0;min-height:22px; }
 .compact-food .compact-food-title .tf-inspect { display:flex;align-items:center;width:100%;min-width:0;min-height:22px;height:auto;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left; }
 .compact-food .compact-food-title .tf-inspect strong { font-size:.875rem;line-height:1.15;overflow-wrap:anywhere; }
-.compact-food .compact-food-meta { grid-area:quantity;display:flex;align-items:center;gap:5px;min-width:0;min-height:22px;overflow:hidden; }
+.compact-food .compact-food-meta { grid-area:quantity;display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 5px;min-width:0;min-height:22px; }
 .compact-food .thread-amount { flex:none;min-width:0;min-height:22px;height:auto;padding:0;border:0;background:transparent;color:var(--tx2);font-size:.75rem;line-height:1.2;text-align:left;white-space:nowrap; }
 .compact-food .tf-kcal { grid-area:kcal;align-self:center;margin:0;padding:0;font-size:.875rem;white-space:nowrap; }
 .compact-food .tf-kcal small { font-size:.75rem; }
@@ -83,7 +83,7 @@
 .food-thread .compact-food .thread-stepper .icon-btn::before { content:"";position:absolute;width:32px;height:32px;border:1px solid var(--line);border-radius:50%;background:transparent;box-sizing:border-box;pointer-events:none; }
 .food-thread .compact-food .thread-stepper .icon-btn:focus-visible { outline:2px solid var(--link);outline-offset:1px; }
 .food-thread .compact-food .thread-stepper .icon-btn svg { position:relative;width:14px;height:14px; }
-.compact-food .tf-source { max-width:42%;font-size:.7rem;line-height:1.15;white-space:nowrap; }
+.compact-food .tf-source { flex:1 1 100%;min-width:0;max-width:100%;font-size:.7rem;line-height:1.2;white-space:normal;overflow-wrap:anywhere; }
 .compact-food .tf-notes { grid-column:1/-1; margin-bottom:8px; }
 .am-control-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .am-control-row .am-amt { flex:1; min-width:150px; margin:0; gap:4px; }
@@ -98,7 +98,7 @@
   .compact-food .tf-kcal { font-size:.8125rem; }
   .compact-food .tf-kcal small { font-size:.6875rem; }
   .compact-food .compact-food-meta { gap:3px; }
-  .compact-food .tf-source { max-width:38%;font-size:.65rem; }
+  .compact-food .tf-source { font-size:.65rem; }
 }
 
 /* Dated titles use the accessible chevron-only fallback for the Nutrition link. */

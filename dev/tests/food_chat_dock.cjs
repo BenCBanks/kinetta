@@ -1,10 +1,11 @@
 // App-rendered fictional states with simulated iPhone safe areas and keyboard height.
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-module.exports=async function(browser,base){
+module.exports=async function(browser,base,options={}){
  const out=process.env.SHOT_DIR,measurements=[],failures=[],safeBottom=Number(process.env.KINETTA_DOCK_SAFE_BOTTOM??34);
  const day='2026-11-02',draft='00000000-0000-4000-8000-000000000099';
- for(const width of [390,330])for(const theme of ['light','dark'])for(const state of ['empty','logged','review','shared','recipe','kit','kit-answered','comments']){
+ for(const width of options.widths||[390,330,320,440])for(const theme of ['light','dark'])for(const state of options.states||['empty','logged','review','shared','recipe','kit','kit-answered','comments']){
+  if(![390,330].includes(width)&&state!=='review')continue;
   const c=await browser.newContext({viewport:{width,height:width===390?844:667},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});
   try{
    const r=require('./native-ui/appstore.cjs')(true).responses,blocked=[],errors=[];
@@ -42,7 +43,16 @@ module.exports=async function(browser,base){
    const field=kit?'#kit-composer':state==='recipe'?'#dk-add':state==='comments'?'.c-field':'.thread-compose-row';
    if(state==='comments')await p.locator('[data-ttalk]').first().click();
    await p.locator(field).waitFor();
-   if(state==='review')await p.locator('#thread-review:not([hidden])').waitFor();
+   if(state==='review'){
+    await p.locator('#thread-review:not([hidden])').waitFor();
+    const sources=await p.locator('.compact-food').evaluateAll(rows=>rows.map(row=>{
+     const source=row.querySelector('.tf-source'),meta=row.querySelector('.compact-food-meta'),kcal=row.querySelector('.tf-kcal'),range=document.createRange();range.selectNodeContents(source);
+     const text=range.getBoundingClientRect(),box=meta.getBoundingClientRect(),calories=kcal.getBoundingClientRect();
+     return{text:source.textContent,unclipped:source.scrollWidth<=source.clientWidth+1&&text.left>=box.left-1&&text.right<=box.right+1&&text.bottom<=box.bottom+1,separate:text.right<=calories.left-1,amount:row.querySelector('.thread-amount').textContent};
+    }));
+    assert.equal(sources.length,2,'both app-rendered estimated foods appear');
+    assert(sources.every(s=>s.text==='Kit’s estimate · estimated portion'&&s.unclipped&&s.separate),'full source text wraps inside its own column before calories at '+width+'/'+theme+': '+JSON.stringify(sources));
+   }
    if(state==='shared')await p.locator('[data-shared-recipe]').waitFor();
    if(state==='logged')await p.locator('.thread-logged-card').first().waitFor();
    if(kit)await p.waitForFunction(()=>!document.querySelector('#kit-send').disabled||document.querySelector('#kit-status').textContent==='');
@@ -84,5 +94,5 @@ module.exports=async function(browser,base){
  }
  if(out)fs.writeFileSync(path.join(out,'dock-measurements.json'),JSON.stringify(measurements,null,2));
  assert.deepEqual(failures,[],'Food, recipe and Ask Kit docks use max(8px, safe inset - 16px) closed, or 8px above keyboard');
- console.log('Chat dock: 390/330 light/dark, Food/recipe/Ask Kit empty and answered, keyboard, save-recipe and comments audit PASS');
+ console.log('Food sources:320–440 light/dark full estimated-portion text fits; Chat dock:390/330 light/dark, Food/recipe/Ask Kit empty and answered, keyboard, save-recipe and comments audit PASS');
 };
