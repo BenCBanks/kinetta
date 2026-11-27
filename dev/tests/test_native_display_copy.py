@@ -86,6 +86,25 @@ for(const stage of ['kit-chart','kit-history','kit-memory','notifications','food
         result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/appstore.cjs')],cwd=ROOT,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
 
+    def test_store_home_waits_for_both_visible_maps(self):
+        node=r"""const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync(process.argv[1],'utf8');
+const helper=source.slice(source.indexOf('  function storeMapTilesLoaded(){'),source.indexOf('  async function waitForStorePaint(){'));
+const bounds={left:0,top:200,right:440,bottom:500,width:440,height:300};
+let ownLoaded=false;
+const tile=loaded=>({getBoundingClientRect:()=>bounds,classList:{contains:()=>loaded()}});
+const own={getBoundingClientRect:()=>bounds,querySelectorAll:()=>[tile(()=>ownLoaded)]};
+const friend={getBoundingClientRect:()=>bounds,querySelectorAll:()=>[tile(()=>true)]};
+const offscreen={getBoundingClientRect:()=>({...bounds,top:1200,bottom:1500}),querySelectorAll:()=>[tile(()=>false)]};
+const context=vm.createContext({cfg:{stage:'header-activity'},document:{querySelectorAll:()=>[own,friend,offscreen]},innerWidth:440,innerHeight:956,getComputedStyle:()=>({display:'block',visibility:'visible'}),storeMapElement:()=>friend});
+vm.runInContext(helper,context);
+assert.equal(vm.runInContext('storeMapTilesLoaded()',context),false,'loaded friend does not hide an unpainted own map');
+ownLoaded=true;
+assert.equal(vm.runInContext('storeMapTilesLoaded()',context),true,'both visible maps are ready; offscreen maps do not block capture');
+"""
+        result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/late.js')],cwd=ROOT,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+
     def test_original_and_update_keep_fixture_isolation(self):
         with tempfile.TemporaryDirectory() as temp:
             source=Path(temp)/'Original.app';public=source/'public';static=public/'static';static.mkdir(parents=True)

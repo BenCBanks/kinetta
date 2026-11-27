@@ -52,7 +52,7 @@
         'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes(cfg.store.homepage?'1,200':'915')&&document.querySelector(`.calorie-ring[role="progressbar"][aria-valuenow="${cfg.store.homepage?1200:915}"]`),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('#p-explore[aria-busy="false"]')&&document.querySelector('[data-progress-fitness]')?.textContent.trim(),
-        'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
+        'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&storeMapTilesLoaded()&&paintedMap(document.querySelector('#ff-list'))&&!document.querySelector('.map-unavailable:not([hidden])');},
         'food-review':()=>document.querySelectorAll('.thread-food').length===2&&!!document.querySelector('#thread-review:not([hidden])'),
         'kit-chart':()=>document.querySelectorAll('.kit-chart circle').length===3,
         'kit-history':()=>document.querySelectorAll('.kit-history-row').length===8,
@@ -68,15 +68,22 @@
     return selector?document.querySelector(selector):null;
   }
   function storeMapTilesLoaded(){
-    const map=storeMapElement();if(!map)return false;
-    const mapStyle=getComputedStyle(map),m=map.getBoundingClientRect();
-    if(mapStyle.display==='none'||mapStyle.visibility==='hidden'||m.width<=0||m.height<=0||m.right<=0||m.bottom<=0||m.left>=innerWidth||m.top>=innerHeight)return false;
-    const left=Math.max(0,m.left),top=Math.max(0,m.top),right=Math.min(innerWidth,m.right),bottom=Math.min(innerHeight,m.bottom);
-    const visible=[...map.querySelectorAll('canvas.leaflet-tile')].filter(c=>{
-      const s=getComputedStyle(c),r=c.getBoundingClientRect();
-      return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&r.right>left&&r.bottom>top&&r.left<right&&r.top<bottom;
+    // Home has both an own card and a friend card in view. Waiting only for
+    // the friend map can freeze the own map halfway through its tile fade.
+    const maps=cfg.stage==='header-activity'
+      ?[...document.querySelectorAll('#ff-list .leaflet-container')].filter(map=>{
+        const r=map.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;
+      }):[storeMapElement()].filter(Boolean);
+    return maps.length>0&&maps.every(map=>{
+      const mapStyle=getComputedStyle(map),m=map.getBoundingClientRect();
+      if(mapStyle.display==='none'||mapStyle.visibility==='hidden'||m.width<=0||m.height<=0||m.right<=0||m.bottom<=0||m.left>=innerWidth||m.top>=innerHeight)return false;
+      const left=Math.max(0,m.left),top=Math.max(0,m.top),right=Math.min(innerWidth,m.right),bottom=Math.min(innerHeight,m.bottom);
+      const visible=[...map.querySelectorAll('canvas.leaflet-tile')].filter(c=>{
+        const s=getComputedStyle(c),r=c.getBoundingClientRect();
+        return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&r.right>left&&r.bottom>top&&r.left<right&&r.top<bottom;
+      });
+      return visible.length>0&&visible.every(c=>c.classList.contains('leaflet-tile-loaded'));
     });
-    return visible.length>0&&visible.every(c=>c.classList.contains('leaflet-tile-loaded'));
   }
   async function waitForStorePaint(){
     const mapStage=cfg.tour?.map||['activity','header-track','header-activity'].includes(cfg.stage);
