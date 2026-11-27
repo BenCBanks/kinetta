@@ -39,6 +39,10 @@
 		AB2100000000000000000010 /* ShareFoodState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2100000000000000000000 /* ShareFoodState.swift */; };
 		AB2100000000000000000011 /* ShareFoodStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2100000000000000000001 /* ShareFoodStore.swift */; };
 		AB2100000000000000000012 /* ShareFoodKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2100000000000000000002 /* ShareFoodKeychain.swift */; };
+		DA1617000000000000000001 /* StravaImportState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1617000000000000000000 /* StravaImportState.swift */; };
+		DA1617000000000000000011 /* StravaImportStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1617000000000000000010 /* StravaImportStore.swift */; };
+		DA1617000000000000000021 /* NativeStravaTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1617000000000000000020 /* NativeStravaTransfer.swift */; };
+		DA1617000000000000000031 /* NativeStravaImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1617000000000000000030 /* NativeStravaImport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -75,6 +79,10 @@
 		AB2100000000000000000000 /* ShareFoodState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFoodState.swift; sourceTree = "<group>"; };
 		AB2100000000000000000001 /* ShareFoodStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFoodStore.swift; sourceTree = "<group>"; };
 		AB2100000000000000000002 /* ShareFoodKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFoodKeychain.swift; sourceTree = "<group>"; };
+		DA1617000000000000000000 /* StravaImportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaImportState.swift; sourceTree = "<group>"; };
+		DA1617000000000000000010 /* StravaImportStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaImportStore.swift; sourceTree = "<group>"; };
+		DA1617000000000000000020 /* NativeStravaTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeStravaTransfer.swift; sourceTree = "<group>"; };
+		DA1617000000000000000030 /* NativeStravaImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeStravaImport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +126,10 @@
 				AB1900000000000000000000 /* HealthFoodState.swift */,
 				AB1900000000000000000001 /* HealthFood.swift */,
 				AB2000000000000000000000 /* FoodEntryState.swift */,
+				DA1617000000000000000000 /* StravaImportState.swift */,
+				DA1617000000000000000010 /* StravaImportStore.swift */,
+				DA1617000000000000000020 /* NativeStravaTransfer.swift */,
+				DA1617000000000000000030 /* NativeStravaImport.swift */,
 				AB2000000000000000000001 /* NativeFoodEntry.swift */,
 				AB2000000000000000000002 /* FoodEntryIntent.swift */,
 				AB2100000000000000000002 /* ShareFoodKeychain.swift */,
@@ -236,6 +248,10 @@
 				AB1900000000000000000010 /* HealthFoodState.swift in Sources */,
 				AB1900000000000000000011 /* HealthFood.swift in Sources */,
 				AB2000000000000000000010 /* FoodEntryState.swift in Sources */,
+				DA1617000000000000000001 /* StravaImportState.swift in Sources */,
+				DA1617000000000000000011 /* StravaImportStore.swift in Sources */,
+				DA1617000000000000000021 /* NativeStravaTransfer.swift in Sources */,
+				DA1617000000000000000031 /* NativeStravaImport.swift in Sources */,
 				AB2000000000000000000011 /* NativeFoodEntry.swift in Sources */,
 				AB2000000000000000000012 /* FoodEntryIntent.swift in Sources */,
 				AB2100000000000000000012 /* ShareFoodKeychain.swift in Sources */,

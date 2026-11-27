@@ -59,6 +59,7 @@ const Native = (() => {
   // new login token in the app's own settings.
   const signIn = async (server, path, body) => {
     discardRouteReads(true);
+    await N.stopStravaImport();
     if (typeof Track !== 'undefined' && App.me) await Track.leave();
     await N.stopActivityShare();N.clearPictures();
     N.pauseFoodEntry?.();
@@ -71,6 +72,7 @@ const Native = (() => {
     if (!r.token) throw new Error('Your account could not be created. Try again in a minute.');
     App.me = null; App.cache.clear(); forgetKept();
     N.token = r.token; N.healthPaused=false; await put('server', N.base); await put('token', N.token);
+    N.enableStravaImport();
     return r;
   };
   N.login = (server, login, password) => signIn(server, '/api/login', {login, password});
@@ -105,11 +107,49 @@ const Native = (() => {
   if(on)new MutationObserver(fill).observe(document.documentElement,{childList:true,subtree:true});
   N.forget = async ({deleted=false}={}) => {
     discardRouteReads(true);
-    N.clearPictures();const tasks=[];N.token=null;
+    // Disable binding synchronously before any cleanup yields. A native failure
+    // must never retain the web token or abort the remaining local sign-out.
+    const tasks=[N.stopStravaImport()];N.token=null;
+    try { N.clearPictures(); } catch (_) { /* Continue revoking all local state. */ }
     if(typeof Track!=='undefined'&&App.me)tasks.push(Promise.resolve().then(()=>Track.leave()));
-    if(on){tasks.push(N.stopActivityShare());tasks.push(N.stopFoodEntry({clear:true}));tasks.push(Promise.resolve().then(()=>N.disconnectPush({signedOut:true})));tasks.push(N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}));tasks.push(put('token',null));}
+    if(on){
+      for(const cleanup of [()=>N.stopActivityShare(),()=>N.stopFoodEntry({clear:true}),()=>N.disconnectPush({signedOut:true}),()=>N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}),()=>put('token',null)])tasks.push(Promise.resolve().then(cleanup));
+    }
     await Promise.allSettled(tasks.map(p=>N.healthCall(p,'Local sign-out cleanup is waiting.',1000)));
   };
+
+  // Session plumbing only: no browser UI, archive bytes or file paths enter JS.
+  const stravaImport=P.KinettaStravaImport;
+  let stravaBinding=null,stravaTask=null,stravaEpoch=0,stravaDisabled=false,stravaStopTask=null;
+  N.stopStravaImport=()=>{
+    stravaDisabled=true;stravaEpoch++;stravaBinding=null;
+    if(stravaStopTask)return stravaStopTask;
+    const task=Promise.resolve().then(()=>stravaImport?.stop());
+    return stravaStopTask=task.finally(()=>{stravaStopTask=null;});
+  };
+  // Only a completed explicit sign-in can re-enable the adapter. Auto-sync and
+  // sessionNeeded callbacks cannot reopen a binding during/after sign-out.
+  N.enableStravaImport=()=>{stravaDisabled=false;stravaEpoch++;stravaBinding=null;};
+  N.bindStravaImport=()=>{
+    if(stravaDisabled||!stravaImport||!App.me||!N.token)return Promise.resolve();
+    const scope=JSON.stringify([N.base,App.me.id,N.token]),epoch=stravaEpoch;
+    if(stravaBinding===scope)return stravaImport.resume();
+    if(stravaTask)return stravaTask;
+    const data={server:N.base,userID:App.me.id,login:App.me.login,token:N.token};
+    return stravaTask=Promise.resolve(stravaImport.bind(data)).then(async()=>{
+      if(stravaDisabled||epoch!==stravaEpoch||scope!==JSON.stringify([N.base,App.me?.id,N.token])){
+        // The transition already owns cancellation; a stale callback must not
+        // supersede its stop or cancel a newer account's successful bind.
+        if(!stravaDisabled&&epoch===stravaEpoch)await N.stopStravaImport();
+        throw new Error('The account changed.');
+      }
+      stravaBinding=scope;
+    }).finally(()=>{stravaTask=null;});
+  };
+  N.pickStravaArchive=async()=>{if(stravaDisabled)throw new Error('Sign in again before choosing an archive.');if(!stravaImport)throw new Error('Install the latest Kinetta iPhone app.');await N.bindStravaImport();return stravaImport.pick();};
+  N.reviewStravaArchive=async()=>{if(stravaDisabled)throw new Error('Sign in again before reviewing an archive.');await N.bindStravaImport();return stravaImport?.review();};
+  N.stravaImportStatus=async()=>{if(stravaDisabled)throw new Error('Sign in again before viewing an archive.');await N.bindStravaImport();return stravaImport?.status();};
+  if(stravaImport)stravaImport.addListener('sessionNeeded',()=>{stravaBinding=null;N.bindStravaImport().catch(()=>{});});
 
   // ---------- Native iPhone notifications ----------
   const push = P.KinettaPush;
@@ -583,6 +623,7 @@ const Native = (() => {
   if(foodEntry)foodEntry.addListener('foodEntryReady',()=>N.autoFoodEntry());
   // quietly, when the app opens and comes back to the front (at most every 10 minutes)
   N.autoSync = ({foreground=false}={}) => {
+    N.bindStravaImport().catch(()=>{});
     N.flushHealthOff?.().catch(()=>{});
     if(N.healthPaused)return;
     N.autoRestingEnergy();

@@ -17,7 +17,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             try? NativeFoodEntryCenter.shared.add(text:nil,source:.quickAction)
         }
 
-        SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+        NativeStravaImportCenter.shared.prepareInbox(keeping:connectionOptions.urlContexts.first(where: { $0.url.isFileURL })?.url)
+        for context in connectionOptions.urlContexts where context.url.isFileURL { NativeStravaImportCenter.shared.receive(context.url) }
+        if !connectionOptions.urlContexts.contains(where: { $0.url.isFileURL }) {
+            SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+        }
         connectionOptions.userActivities.forEach(openLink)
     }
 
@@ -46,7 +50,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         NativePushCenter.shared.markExternalEntry()
-        SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
+        for context in URLContexts where context.url.isFileURL { NativeStravaImportCenter.shared.receive(context.url) }
+        let links = Set(URLContexts.filter { !$0.url.isFileURL })
+        if !links.isEmpty { SceneDelegateProxy.shared.scene(scene, openURLContexts: links) }
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {

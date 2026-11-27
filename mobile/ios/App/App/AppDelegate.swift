@@ -7,6 +7,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        NativeStravaTransfer.shared.start()
         NativePushCenter.shared.start()
         HealthBackgroundSync.shared.registerRecovery()
         HealthBackgroundSync.shared.start()
@@ -18,6 +19,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         NativePushCenter.shared.failed(error)
+    }
+
+    func application(_ application: UIApplication,handleEventsForBackgroundURLSession identifier: String,completionHandler: @escaping () -> Void) {
+        if !NativeStravaTransfer.shared.handleEvents(identifier:identifier,completion:completionHandler) { completionHandler() }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
