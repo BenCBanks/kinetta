@@ -51,14 +51,14 @@ const SocialData=(()=>{
     const view={},account=readOwner(),key=fenceKey(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
     note.className='setting-recovery small';note.setAttribute('role','status');note.dataset.sharingState='confirmed';note.hidden=true;
     retry.type='button';retry.className='linkbtn';retry.textContent='Retry';retry.hidden=true;
-    note.append(text,retry);root.prepend(note);
+    note.append(text,retry);root.append(note);
     settingsByRoot.get(root)?.retire?.();settingsByRoot.set(root,view);
     const live=()=>root.isConnected&&account===readOwner()&&settingsByRoot.get(root)===view;let busy=false,known=true,lastError=null,waiting=null,affected=null;
     const held=new Map(),controlSelector='button,input,select,textarea,[role="radio"],[role="switch"]';
     // aria-disabled plus event guards keeps keyboard focus on the original control.
     // Clear selection indicators, not rows: an uncertain value must not look private/off.
     function conceal(){
-      if(note.parentElement!==root)root.prepend(note);
+      if(note.parentElement!==root)root.append(note);
       for(const node of (affected||mask()).filter(n=>n&&n!==note&&!note.contains(n))){
         const controls=[...(node.matches(controlSelector)?[node]:[]),...node.querySelectorAll(controlSelector)].filter(n=>!note.contains(n));
         for(const field of controls){
@@ -73,6 +73,15 @@ const SocialData=(()=>{
         // Non-control saved summaries retain their exact space without making stale claims.
         if(!controls.length&&!held.has(node)){held.set(node,{visibility:node.style.visibility});node.style.visibility='hidden';}
       }
+      // This surface has one write at a time. Lock sibling controls before any
+      // browser toggle/submit can present a second, unsaved choice as confirmed.
+      // Their saved presentation and text drafts stay in place until readback.
+      for(const field of root.querySelectorAll('input,select,textarea,button:not(.back):not([data-close]):not(.sharing-nav),[role="radio"],[role="switch"]')){
+        if(note.contains(field))continue;
+        if(!held.has(field))held.set(field,{aria:field.getAttribute('aria-disabled'),checked:field.getAttribute('aria-checked'),pressed:field.getAttribute('aria-pressed'),indeterminate:field.indeterminate,readOnly:field.readOnly});
+        field.setAttribute('aria-disabled','true');field.classList.add('setting-locked');
+        if(field.matches('input:not([type=checkbox]):not([type=radio]),textarea'))field.readOnly=true;
+      }
       uncertain();known=false;
     }
     function restore(){
@@ -81,13 +90,13 @@ const SocialData=(()=>{
         for(const [name,value] of [['aria-disabled',was.aria],['aria-checked',was.checked],['aria-pressed',was.pressed]]){if(name!=='aria-disabled'&&node.getAttribute(name)!=='mixed')continue;value===null?node.removeAttribute(name):node.setAttribute(name,value);}
         if(was.indeterminate!==undefined)node.indeterminate=was.indeterminate;
         if(was.readOnly!==undefined)node.readOnly=was.readOnly;
-        node.classList.remove('setting-unconfirmed');
+        node.classList.remove('setting-unconfirmed','setting-locked');
       }
       held.clear();
     }
     view.retire=()=>{restore();note.hidden=true;note.remove?.();if(waiting)clearTimeout(waiting);};
-    const block=event=>{if([...held.keys()].some(node=>node===event.target||node.contains(event.target))){event.preventDefault();event.stopImmediatePropagation();}};
-    for(const type of ['click','pointerdown','change','submit'])root.addEventListener(type,block,true);
+    const block=event=>{if([...held.keys()].some(node=>node===event.target||node.contains(event.target)||(event.type==='submit'&&event.target.contains(node)))){event.preventDefault();event.stopImmediatePropagation();}};
+    for(const type of ['click','pointerdown','change','beforeinput','submit'])root.addEventListener(type,block,true);
     root.addEventListener('keydown',event=>{if([' ','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(event.key))block(event);},true);
     function state(checking){note.hidden=false;note.dataset.sharingState=checking?'checking':'unknown';text.textContent=checking?'Checking… ':unknownText+' ';retry.hidden=checking;}
     const views=viewsByOwner.get(key)||new Set();viewsByOwner.set(key,views);

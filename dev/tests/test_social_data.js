@@ -43,7 +43,7 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
   const confirmation=data.confirmSetting(root,{path:'/saved',paint:fresh=>{if(!fresh.visibility)throw Error('invalid');shown=fresh.visibility;}});
   await confirmation.save('/save',{method:'PUT'});assert(!confirmation.known);assert.equal(reads,0,'no read before the maximum');now+=25001;await confirmation.read();assert.equal(shown,saved);assert.equal(field.hidden,false);assert.equal(alreadyHidden.hidden,true);assert.equal(reads,1);
   readable=false;await confirmation.save('/save',{method:'PUT'});assert.equal(field.getAttribute('aria-disabled'),'true','unavailable readback blocks uncertain controls');assert.equal(confirmation.known,false);
-  const note=root.children[0];assert.equal(note.dataset.sharingState,'unknown');assert.equal(note.children[0].textContent,'Not confirmed. ');assert.equal(note.children[1].hidden,false);
+  const note=root.children.find(n=>n.dataset.sharingState);assert.equal(note.dataset.sharingState,'unknown');assert.equal(note.children[0].textContent,'Not confirmed. ');assert.equal(note.children[1].hidden,false);
   readable=true;saved='everyone';await note.children[1].onclick();assert(!confirmation.known,'early Retry never paints old private');assert.equal(note.dataset.sharingState,'checking');await advance(25001);assert.equal(writes,2,'Retry reads without replaying a write');assert.equal(shown,'everyone');assert(confirmation.known);assert.equal(field.getAttribute('aria-disabled'),null);
  }
  now+=25001;
@@ -59,12 +59,12 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  ctx.api=async()=>{sent++;throw Error('HTTP timeout');};ctx.apiRequest=async()=>{savedReads++;return {visibility:serverValue};};
  const oldRoot=new Node();oldRoot.append(new Node());
  const timed=data.confirmSetting(oldRoot,{path:'/saved',paint:r=>serverValue=r.visibility});
- await timed.save('/save',{method:'PUT'});assert(!timed.known&&oldRoot.children[1].getAttribute('aria-disabled')==='true');assert.equal(savedReads,0);
+ await timed.save('/save',{method:'PUT'});assert(!timed.known&&oldRoot.children[0].getAttribute('aria-disabled')==='true');assert.equal(savedReads,0);
  oldRoot.isConnected=false;const newRoot=new Node(),newField=new Node();newRoot.append(newField);let shownValue=null;
  const reopened=data.confirmSetting(newRoot,{path:'/saved',paint:r=>shownValue=r.visibility});
  assert(newField.getAttribute('aria-disabled')==='true'&&!reopened.known,'navigation cannot instantiate a private claim during uncertainty');
- await newRoot.children[0].children[1].onclick();assert.equal(sent,1);assert.equal(savedReads,0,'early Retry does not read stale private');
- serverValue='everyone';now+=25001;await newRoot.children[0].children[1].onclick();
+ await newRoot.children.find(n=>n.dataset.sharingState).children[1].onclick();assert.equal(sent,1);assert.equal(savedReads,0,'early Retry does not read stale private');
+ serverValue='everyone';now+=25001;await newRoot.children.find(n=>n.dataset.sharingState).children[1].onclick();
  assert.equal(shownValue,'everyone');assert(reopened.known&&!newField.hidden);assert.equal(sent,1);
  // Full script reload, same storage: expiry alone recovers without a reservation or status endpoint.
  ctx.api=async()=>{sent++;throw Error('lost');};await reopened.save('/save',{method:'PUT'});

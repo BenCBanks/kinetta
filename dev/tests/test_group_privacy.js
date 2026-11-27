@@ -25,13 +25,13 @@ const tick=()=>new Promise(setImmediate);
   vm.runInContext(social.slice(social.indexOf('function groupMenu('),social.indexOf('function groupConfirm(')),ctx);
   ctx.groupMenu(group,async()=>{reloads++;await new Promise(resolve=>release=resolve);if(fail)throw Error('unreadable group');});
   button.onclick();await tick();assert.equal(reloads,1);assert.equal(content.style.visibility,'hidden','uncertain summary keeps its layout space while reload is pending');
-  assert.equal(root.children[0].dataset.sharingState,'checking');release();await tick();assert.equal(content.style.visibility,'');
+  assert.equal(root.children.find(n=>n.dataset.sharingState).dataset.sharingState,'checking');release();await tick();assert.equal(content.style.visibility,'');
   assert.equal(writes.length,1);assert.equal(writes[0].path,'/api/groups/fictional-group/'+(action==='sharing'?'sharing':'recap-consent'));
   assert.deepEqual(writes[0].body,action==='sharing'?{level:'just_in'}:{consent:true});
   // A reload failure is propagated to the helper; the previous private presentation stays concealed.
   ctx.groupMenu(group,async()=>{throw Error('503');});button.onclick();await tick();
-  assert.equal(content.style.visibility,'hidden');assert.equal(root.children[0].dataset.sharingState,'unknown');
-  const count=writes.length;await root.children[0].children[1].onclick();assert.equal(writes.length,count,'recovery never writes');
+  assert.equal(content.style.visibility,'hidden');assert.equal(root.children.find(n=>n.dataset.sharingState).dataset.sharingState,'unknown');
+  const count=writes.length;await root.children.find(n=>n.dataset.sharingState).children[1].onclick();assert.equal(writes.length,count,'recovery never writes');
   ctx.groupMenu(group,async()=>{});owner='fictional-two';button.onclick();await tick();assert.equal(writes.length,count,'an old menu cannot change the next account');
  }
  console.log('Group privacy: legacy sharing handler, awaited recap reload, failed reload concealment, GET-only Retry and stale owner PASS');

@@ -8,6 +8,7 @@ function decorate(node,tag='div'){
  node.querySelectorAll??=selector=>node.children.flatMap(c=>[...(decorate(c).matches(selector)?[c]:[]),...c.querySelectorAll(selector)]);
  node.addEventListener??=()=>{};node.append??=(...nodes)=>{for(const n of nodes){decorate(n);node.children.push(n);n.parentElement=node;}};
  node.prepend??=n=>{decorate(n);node.children=node.children.filter(c=>c!==n);node.children.unshift(n);n.parentElement=node;};
+ node.remove??=()=>{if(node.parentElement){node.parentElement.children=node.parentElement.children.filter(n=>n!==node);node.parentElement=null;}node.isConnected=false;};
  node.children.forEach(c=>decorate(c));return node;
 }
 module.exports=decorate;
