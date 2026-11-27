@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
-from app import db, auth, signup, admin_auth, api_account, account_email
+from app import db, auth, signup, admin_auth, api_account, account_email, enrollment_requests, password_work
 from app.main import app
 
 PW = 'test account private password'
@@ -423,7 +423,10 @@ class Signup(unittest.TestCase):
         def attempt(i):
             c = client(); go.wait(); codes.append(c.post('/api/signup', json=form(f'zz_test_su_race{i}'), headers={'CF-Connecting-IP': f'198.51.100.{i}'}).status_code)
         ts = [threading.Thread(target=attempt, args=(i,)) for i in (1, 2)]
-        [t.start() for t in ts]; [t.join() for t in ts]
+        # The two already-distinct proxy sources must reach the account-cap race,
+        # rather than contend on the new earlier same-source admission lock.
+        with patch.object(auth,'TRUST_CF',True):
+            [t.start() for t in ts]; [t.join() for t in ts]
         self.assertEqual(sorted(codes), [200, 409], 'exactly one person gets the last place')
 
     def test_bots_and_limits(self):
@@ -521,6 +524,215 @@ class Signup(unittest.TestCase):
         barrier=threading.Barrier(len(calls))
         def run(call):barrier.wait();return call()
         with ThreadPoolExecutor(max_workers=len(calls))as pool:return[f.result(timeout=20)for f in[pool.submit(run,call)for call in calls]]
+
+    def source_rows(self, source='testclient'):
+        key='enrollment-source:'+auth.token_hash(source)
+        with db.connect() as c:return c.execute('SELECT key,created FROM auth_attempts WHERE key=%s ORDER BY created',(key,)).fetchall()
+
+    def test_early_enrollment_counts_invalid_models_json_email_and_age(self):
+        self.env(KINETTA_SIGNUP='open')
+        cases=[({},422),(form('zz_test_su_early',password='x'*201),422),
+               (form('zz_test_su_early',age_ok='true'),422),
+               (form('zz_test_su_early',email='not an email'),400),
+               (form('zz_test_su_early',email='fictional@gmial.com'),400),
+               (form('zz_test_su_early',age_ok=False),400)]
+        with patch.object(auth,'TRUST_CF',False),patch.object(signup,'_create',side_effect=AssertionError('Invalid request reached creation')) as create,patch.object(auth,'hash_pw',side_effect=AssertionError('Invalid request hashed a password')):
+            for body,status in cases:
+                r=client().post('/api/signup',json=body);self.assertEqual(r.status_code,status,r.text)
+            self.assertEqual(client().post('/api/signup',content='{').status_code,422)
+            create.assert_not_called()
+        rows=self.source_rows();self.assertEqual(len(rows),len(cases)+1)
+        self.assertTrue(all(row['key']=='enrollment-source:'+auth.token_hash('testclient') for row in rows))
+        self.assertNotIn('gmial',str(rows));self.assertNotIn('password',str(rows));self.assertNotIn('not an email',str(rows))
+        self.mail.assert_not_called()
+
+    def test_early_enrollment_exhaustion_precedes_body_validation_and_has_retry_time(self):
+        self.env(KINETTA_SIGNUP='open')
+        with patch.object(auth,'TRUST_CF',False):
+            # Both routes share enrollment allowance. Alternate them so the
+            # separate 60/min public password brake is not exhausted first.
+            for i in range(enrollment_requests.BURST):
+                path='/api/signup' if i%2 else '/api/beta'
+                self.assertEqual(client().post(path,json={}).status_code,422)
+            before=self.source_rows()
+            # Main's body/password middleware may receive bounded bytes first;
+            # enrollment must still reject before framework JSON validation.
+            with patch.object(account_email,'check_new_email',side_effect=AssertionError('Throttled validation')),patch.object(signup,'_create',side_effect=AssertionError('Throttled creation')),patch.object(auth,'hash_pw',side_effect=AssertionError('Throttled hashing')):
+                r=client().post('/api/signup',content='{')
+                self.assertEqual(r.status_code,429,r.text)
+                self.assertGreater(int(r.headers['retry-after']),0);self.assertLessEqual(int(r.headers['retry-after']),300)
+                for _ in range(5):self.assertEqual(client().post('/api/signup',json={}).status_code,429)
+            self.assertEqual(self.source_rows(),before,'rejected retries neither insert nor refresh the window')
+            self.assertEqual(client().get('/api/signup').status_code,200,'GET status is unaffected')
+            self.assertEqual(client().get('/api/health').status_code,200)
+            self.assertEqual(client().post('/api/login',json={}).status_code,422,'sign-in has its own limits')
+        self.mail.assert_not_called()
+
+    def test_early_enrollment_preserves_independent_password_source_protection(self):
+        self.env(KINETTA_SIGNUP='open')
+        with patch.object(auth,'TRUST_CF',False),patch.object(password_work,'SOURCE_LIMIT',2):
+            for _ in range(2):
+                self.assertEqual(client().post('/api/signup',json={}).status_code,422)
+            # Main's public password budget intentionally includes signup/login;
+            # exhausted password admission must not be mistaken for enrollment.
+            for path in ('/api/signup','/api/login'):
+                r=client().post(path,json={})
+                self.assertEqual(r.status_code,429,r.text)
+                self.assertEqual(r.json()['detail'],'Too many tries. Wait a minute and try again.')
+                self.assertEqual(r.headers['retry-after'],'60')
+            self.assertEqual(len(self.source_rows()),2,'password rejection precedes enrollment')
+            self.assertEqual(client().post('/api/beta',json={}).status_code,422)
+            self.assertEqual(len(self.source_rows()),3,'waitlist has no password work')
+            with db.connect() as c:
+                c.execute("UPDATE auth_attempts SET created=now()-interval '61 seconds' WHERE key LIKE 'password-work:%%'")
+            self.assertEqual(client().post('/api/login',json={}).status_code,422)
+            self.assertEqual(len(self.source_rows()),3,'sign-in never spends enrollment allowance')
+            self.assertEqual(client().post('/api/signup',json={}).status_code,422)
+            self.assertEqual(len(self.source_rows()),4,'enrollment window survives password expiry')
+        self.mail.assert_not_called()
+
+    def test_early_enrollment_shared_network_typo_headroom(self):
+        self.env(KINETTA_SIGNUP='open')
+        with patch.object(auth,'TRUST_CF',False):
+            for i in range(10):
+                body=form('zz_test_su_early_nat'+str(i))
+                for bad,status in (({},422),({**body,'password':'x'*201},422),
+                                   ({**body,'email':'not an email'},400),({**body,'age_ok':False},400)):
+                    r=client().post('/api/signup',json=bad);self.assertEqual(r.status_code,status,r.text)
+                r=client().post('/api/signup',json=body);self.assertEqual(r.status_code,200,r.text)
+            self.assertEqual(len(self.source_rows()),50)
+            self.assertEqual(self.mail.call_count,10,'one confirmation per successful account, none for typos')
+
+    def test_early_enrollment_sources_follow_existing_proxy_trust_and_share_waitlist_budget(self):
+        self.env(KINETTA_SIGNUP='waitlist')
+        with patch.object(auth,'TRUST_CF',False):
+            for i in range(3):
+                self.assertEqual(client().post('/api/signup',json={},headers={'cf-connecting-ip':f'198.51.100.{i}',
+                    'x-forwarded-for':f'203.0.113.{i}'}).status_code,422)
+            self.assertEqual(len(self.source_rows()),3,'untrusted headers cannot rotate sources')
+        with patch.object(auth,'TRUST_CF',True),patch.object(enrollment_requests,'BURST',2):
+            headers={'cf-connecting-ip':'198.51.100.7'}
+            self.assertEqual(client().post('/api/signup',json={},headers=headers).status_code,422)
+            self.assertEqual(client().post('/api/beta',json={},headers=headers).status_code,422)
+            self.assertEqual(client().post('/api/signup',json={},headers=headers).status_code,429)
+            self.assertEqual(client().post('/api/beta',json={},headers=headers).status_code,429)
+            self.assertEqual(len(self.source_rows('198.51.100.7')),2)
+            self.assertEqual(client().post('/api/signup',json={},headers={'cf-connecting-ip':'198.51.100.8'}).status_code,422)
+            self.assertEqual(len(self.source_rows('198.51.100.8')),1,'unrelated source remains usable')
+
+    def test_early_enrollment_hour_cap_expiry_and_atomic_admission(self):
+        self.env(KINETTA_SIGNUP='open');key='enrollment-source:'+auth.token_hash('testclient')
+        with patch.object(auth,'TRUST_CF',False):
+            with db.connect() as c:
+                c.execute("INSERT INTO auth_attempts(key,created) SELECT %s,now()-interval '6 minutes' FROM generate_series(1,%s)",
+                          (key,enrollment_requests.HOUR))
+            r=client().post('/api/signup',json={});self.assertEqual(r.status_code,429,r.text)
+            self.assertGreater(int(r.headers['retry-after']),300)
+            self.assertLessEqual(int(r.headers['retry-after']),3600)
+            before=self.source_rows()
+            for _ in range(3):self.assertEqual(client().post('/api/signup',json={}).status_code,429)
+            self.assertEqual(self.source_rows(),before)
+            with db.connect() as c:c.execute("UPDATE auth_attempts SET created=now()-interval '1 hour 1 second' WHERE key=%s",(key,))
+            self.assertEqual(client().post('/api/signup',json={}).status_code,422,'hour expires despite denied retries')
+            self.assertEqual(len(self.source_rows()),1,'expired rows are removed per source')
+            with db.connect() as c:c.execute('DELETE FROM auth_attempts WHERE key=%s',(key,))
+            with patch.object(enrollment_requests,'BURST',3):
+                # Waitlist reaches the two enrollment workers directly; signup also
+                # has main's one-at-a-time public password admission in front.
+                replies=self.race(*[lambda:client().post('/api/beta',json={}) for _ in range(8)])
+                self.assertTrue(all(r.status_code in (422,429) for r in replies))
+                self.assertLessEqual(sum(r.status_code==422 for r in replies),3)
+                # Concurrent contention may reject early instead of waiting.
+                # Complete the remaining allowance sequentially, then refuse.
+                for _ in range(3-len(self.source_rows())):
+                    self.assertEqual(client().post('/api/signup',json={}).status_code,422)
+                self.assertEqual(client().post('/api/signup',json={}).status_code,429)
+            self.assertEqual(len(self.source_rows()),3,'workers share an atomic persisted allowance')
+            with db.connect() as c:c.execute("UPDATE auth_attempts SET created=now()-interval '5 minutes 1 second' WHERE key=%s",(key,))
+            self.assertEqual(client().post('/api/signup',json={}).status_code,422,'burst expires independently of the hour')
+        self.mail.assert_not_called()
+
+    def test_early_enrollment_locked_source_flood_leaves_database_endpoints_responsive(self):
+        self.env(KINETTA_SIGNUP='open')
+        member,_=self.member('admission_responsive')
+        key='enrollment-source:'+auth.token_hash('testclient')
+        # Hold the real source lock throughout every response, not a timed sleep.
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            with db.connect() as held:
+                held.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',(key,))
+                # Exercise enrollment contention without first flooding the
+                # independent public password queue in front of signup.
+                flood=[pool.submit(lambda:client().post('/api/beta',json={})) for _ in range(24)]
+                for future in flood:
+                    r=future.result(timeout=3)
+                    self.assertEqual(r.status_code,429,r.text)
+                    self.assertEqual(r.headers['retry-after'],'1')
+                signup_reply=client().post('/api/signup',json={})
+                self.assertEqual(signup_reply.status_code,429,signup_reply.text)
+                self.assertEqual(signup_reply.headers['retry-after'],'1')
+                # /me needs the same eight-connection pool; a health-only probe
+                # would not prove that the flood left connections available.
+                self.assertEqual(pool.submit(lambda:member.get('/api/me')).result(timeout=3).status_code,200)
+                self.assertEqual(pool.submit(lambda:client().get('/api/signup')).result(timeout=3).status_code,200)
+        self.assertEqual(self.source_rows(),[])
+        self.assertEqual(client().post('/api/signup',json={}).status_code,422)
+
+    def test_early_enrollment_worker_admission_does_not_queue_the_flood(self):
+        started=threading.Barrier(3);release=threading.Event()
+        def held_check(request):
+            started.wait(timeout=3)
+            self.assertTrue(release.wait(5))
+        with patch.object(enrollment_requests,'check',side_effect=held_check):
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                # One signup plus one waitlist can reach both enrollment workers;
+                # two signups intentionally serialize in main's password lane.
+                pending=[pool.submit(lambda path=path:client().post(path,json={}))
+                         for path in ('/api/signup','/api/beta')]
+                try:
+                    started.wait(timeout=3)
+                    # Both admitted workers are held. Excess work must finish
+                    # before release, rather than queue behind either worker.
+                    for _ in range(12):
+                        r=pool.submit(lambda:client().post('/api/beta',json={})).result(timeout=2)
+                        self.assertEqual(r.status_code,429,r.text)
+                    self.assertEqual(client().get('/api/health').status_code,200)
+                finally:release.set()
+                self.assertEqual([f.result(timeout=3).status_code for f in pending],[422,422])
+
+    def test_early_enrollment_only_public_posts_are_wrapped(self):
+        with patch.object(enrollment_requests,'check',side_effect=AssertionError('Unexpected enrollment guard')):
+            for path in ('/api/signup','/api/beta'):
+                self.assertEqual(client().get(path).status_code,200)
+            for path in ('/api/login','/api/join/fictional','/api/admin/invites',
+                         '/api/admin/people','/api/admin/beta/1/delete'):
+                self.assertNotEqual(client().post(path,json={}).status_code,429,path)
+            # Future POST routes added to a router using this route class must
+            # not silently acquire a public source brake.
+            from fastapi import FastAPI,APIRouter
+            router=APIRouter(route_class=enrollment_requests.EnrollmentRoute)
+            router.add_api_route('/api/admin/fixture',lambda:{'ok':True},methods=['POST'])
+            fixture=FastAPI();fixture.include_router(router)
+            self.assertEqual(TestClient(fixture).post('/api/admin/fixture',json={}).json(),{'ok':True})
+        self.assertEqual(self.source_rows(),[])
+
+    def test_early_enrollment_scheduled_cleanup_removes_absent_sources_using_expiry_index(self):
+        with db.connect() as c:
+            c.execute("INSERT INTO auth_attempts(key,created) VALUES('enrollment-source:never-returns',now()-interval '2 hours'),('unrelated-old-counter',now()-interval '2 hours'),('enrollment-source:still-current',now())")
+            c.execute('SET LOCAL enable_seqscan=off')
+            plan=c.execute("EXPLAIN SELECT ctid FROM auth_attempts WHERE key LIKE 'enrollment-source:%' AND created<=now()-interval '1 hour' ORDER BY created LIMIT 2000").fetchall()
+            self.assertIn('auth_attempts_enrollment_expiry',str(plan))
+        stop=threading.Event();real_cleanup=enrollment_requests.cleanup;removed=[]
+        def sweep():
+            try:removed.append(real_cleanup())
+            finally:stop.set()
+        with patch.object(enrollment_requests,'threading') as threads,patch.object(enrollment_requests,'cleanup',side_effect=sweep) as cleanup:
+            threads.Event.return_value=stop;threads.Thread.side_effect=threading.Thread
+            _,worker=enrollment_requests.start_cleanup();worker.join(timeout=3)
+            self.assertFalse(worker.is_alive());cleanup.assert_called_once();self.assertEqual(removed,[1])
+        with db.connect() as c:
+            keys={r['key'] for r in c.execute('SELECT key FROM auth_attempts').fetchall()}
+            self.assertNotIn('enrollment-source:never-returns',keys)
+            self.assertIn('unrelated-old-counter',keys);self.assertIn('enrollment-source:still-current',keys)
 
     def test_public_prefix_official_names_and_legacy_identities(self):
         self.env(KINETTA_SIGNUP='open');self.fixture_names.stop()

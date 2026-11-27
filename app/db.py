@@ -2642,6 +2642,11 @@ MIGRATIONS = [
     """ALTER TABLE reports ADD COLUMN IF NOT EXISTS group_update_id bigint REFERENCES group_updates(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS reports_group_update ON reports(group_update_id) WHERE group_update_id IS NOT NULL;""",
 
+    # 130: expire public enrollment counters across sources, without scanning unrelated limits.
+    """
+    CREATE INDEX IF NOT EXISTS auth_attempts_enrollment_expiry ON auth_attempts(created)
+      WHERE key LIKE 'enrollment-source:%';
+    """,
 ]
 
 
