@@ -41,18 +41,34 @@ module.exports=async(browser,base,out='')=>{
    if(u.pathname==='/api/people/suggested')return r.fulfill({json:[]});
    return r.continue();
   });
-  try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503',...(['group','addressed'].includes(spec.name)?['mismatch-on','mismatch-off','lost-mismatch-on','lost-mismatch-off']:[]),...(['public','friend','group','addressed','challenge'].includes(spec.name)?['lost-reload','lost-reload-unreadable','503-reload']:[])].filter(f=>!process.env.KINETTA_INVITATION_FAULT||f===process.env.KINETTA_INVITATION_FAULT)){
+  try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503',...(['group','addressed'].includes(spec.name)?['mismatch-on','mismatch-off','lost-mismatch-on','lost-mismatch-off','lost-reload-mismatch-on','lost-reload-mismatch-off']:[]),...(['public','friend','group','addressed','challenge'].includes(spec.name)?['lost-reload','lost-reload-unreadable','503-reload']:[])].filter(f=>!process.env.KINETTA_INVITATION_FAULT||f===process.env.KINETTA_INVITATION_FAULT)){
    armed=false;member=false;declined=false;unreadable=false;writes=0;reads=0;shareTotal=false;
+   if(p.url()!=='about:blank')await p.evaluate(()=>{for(const key of Object.keys(localStorage))if(key.startsWith('kinetta.group-invite-choice:'))localStorage.removeItem(key);});
    await p.goto(base+spec.route);if(spec.prepare)await spec.prepare(p);await p.locator(spec.button).first().waitFor();
    if(spec.name==='group'||spec.name==='addressed')await p.locator('[data-group-join-share]').setChecked(fault.endsWith('mismatch-off'));
    armed=true;unreadable=fault.includes('offline')||fault==='lost-503';await p.locator(spec.button).first().click();
    if(fault.includes('mismatch')){
-    if(fault.startsWith('lost-')){await p.locator('[data-sharing-state=unknown]').waitFor();await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-sharing-state=unknown] button').click();}
+    if(fault.startsWith('lost-')){
+     await p.locator('[data-sharing-state=unknown]').waitFor();
+     if(fault.includes('reload')){
+      const pending=await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('kinetta.group-invite-choice:')).map(k=>JSON.parse(localStorage.getItem(k))));
+      assert.deepEqual(pending,[{action:'accept',share_total:!shareTotal}],'pending sharing choice is durable independently of the deadline');
+      reads=0;await p.reload();await p.locator('[data-sharing-state=unknown]').waitFor();assert.equal(reads,0,'reload within the bound cannot read or redirect early');assert.equal(writes,1);
+      await require('./privacy_recovery_fixture.cjs')(p);const later=await p.evaluate(()=>Date.now());await c.addInitScript(now=>{const clock=Date.now,offset=now-clock();Date.now=()=>clock()+offset;},later);
+      unreadable=true;await p.reload();await p.locator('[data-sharing-state=unknown]').waitFor();assert.equal(new URL(p.url()).pathname,spec.route,'unreadable reload never redirects on membership');assert.equal(writes,1);
+      unreadable=false;await p.reload();
+     }else{await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-sharing-state=unknown] button').click();}
+    }
     const note=p.locator('[data-sharing-state=confirmed]');await note.waitFor({state:'visible'});
     assert.match(await note.innerText(),new RegExp('Not saved.*sharing is '+(shareTotal?'on':'off')+'.*You chose '+(shareTotal?'off':'on')));
     assert.equal(new URL(p.url()).pathname,spec.route,'membership alone cannot redirect past mismatched sharing');
     assert.equal(await p.locator('[data-group-join-share]').isChecked(),shareTotal,'the switch shows the saved sharing choice');
     assert.equal(writes,1);assert(reads>0);if(out&&mode==='web'){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`mismatch-${spec.name}-${fault}-${theme}.png`)});}
+    if(fault.includes('reload')){
+     await p.reload();await p.locator('[data-sharing-state=confirmed]').waitFor({state:'visible'});assert.equal(new URL(p.url()).pathname,spec.route,'mismatched choice stays unresolved across repeated reloads');assert.equal(writes,1);
+     shareTotal=!shareTotal;await p.reload();await p.waitForURL(base+spec.done);assert.equal(writes,1,'matching GET confirms the saved choice without another POST');
+     assert.deepEqual(await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('kinetta.group-invite-choice:'))),[],'only a matching confirmation clears the choice');
+    }
     console.log('Invitation recovery '+mode+' '+theme+' '+spec.name+' '+fault+' PASS');continue;
    }
    if(fault.includes('reload')){
@@ -67,6 +83,7 @@ module.exports=async(browser,base,out='')=>{
     }
     if(unreadable){
      if(spec.name==='public')await p.waitForFunction(()=>document.querySelector('#challenge-public-status')?.textContent.includes("Couldn't confirm whether you joined"));
+     else if(['group','addressed'].includes(spec.name)){await p.locator('[data-sharing-state=unknown]').waitFor();assert.equal(await p.locator(spec.button).getAttribute('aria-disabled'),'true','unreadable restored choice cannot offer another join');}
      else{await p.getByRole('button',{name:'Try again',exact:true}).waitFor();assert.equal(await p.locator(spec.button).count(),0,'failed initial GET cannot offer a join');}
      assert.equal(writes,1,'failed read after reload cannot repeat the write');unreadable=false;await p.reload();
      if(spec.name==='public')await p.locator(spec.button).click();

@@ -155,13 +155,13 @@ const SocialData=(()=>{
     return keys.every(k=>equal(data[k],wanted[k]));
   }
   // A failed write may already be saved. Only this control delays readback until a possibly outstanding write is bounded.
-  function confirmSetting(root,{path,read:fetchSaved,paint,cache:saveCache=()=>{},mask=()=>[...root.querySelectorAll('input,select,textarea,button:not(.back):not([data-close]),.vis-note,.card-preview,#card-counts')],uncertain=()=>{},after=()=>{},unknownText='Not confirmed.',matches=requestedSetting}){
+  function confirmSetting(root,{path,read:fetchSaved,paint,cache:saveCache=()=>{},mask=()=>[...root.querySelectorAll('input,select,textarea,button:not(.back):not([data-close]),.vis-note,.card-preview,#card-counts')],uncertain=()=>{},after=()=>{},unknownText='Not confirmed.',matches=requestedSetting,initialAttempt=null}){
     const prior=settingsByRoot.get(root),previous=prior?.account===readOwner()?prior.result:null,view={account:readOwner(),result:previous},account=readOwner(),key=fenceKey(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
     note.className='setting-recovery small';note.setAttribute('role','status');note.dataset.sharingState='confirmed';note.hidden=true;
     retry.type='button';retry.className='linkbtn';retry.textContent='Retry';retry.hidden=true;
     note.append(text,retry);root.append(note);
     settingsByRoot.get(root)?.retire?.();settingsByRoot.set(root,view);
-    const live=()=>root.isConnected&&account===readOwner()&&settingsByRoot.get(root)===view;let busy=false,known=true,lastError=null,waiting=null,affected=null,attempt=previous?.attempt||null,returnFocus=false;lastError=previous?.failure||null;
+    const live=()=>root.isConnected&&account===readOwner()&&settingsByRoot.get(root)===view;let busy=false,known=true,lastError=null,waiting=null,affected=null,attempt=previous?.attempt||initialAttempt,returnFocus=false;lastError=previous?.failure||null;
     const held=new Map(),controlSelector='button,input,select,textarea,[role="radio"],[role="switch"]';
     // aria-disabled plus event guards keeps keyboard focus on the original control.
     // Clear selection indicators, not rows: an uncertain value must not look private/off.
