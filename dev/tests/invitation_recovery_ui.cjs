@@ -21,9 +21,10 @@ module.exports=async(browser,base,out='')=>{
   const login=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run',app:mode==='bridge'}});assert(login.ok());
   if(mode==='bridge'){const {token}=await login.json();await c.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});}
   const p=await c.newPage();p.setDefaultTimeout(8000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
-  let spec,armed=false,member=false,declined=false,unreadable=false,fault='',writes=0;
+  let spec,armed=false,member=false,declined=false,unreadable=false,fault='',writes=0,reads=0;
   await c.route('**/*',async r=>{
    const req=r.request(),u=new URL(req.url()),method=req.method();if(u.origin!==base)return r.abort();
+   if(method==='GET'&&u.pathname===spec?.read)reads++;
    if(u.pathname==='/_test/public-invite')return r.fulfill({contentType:'text/html',body:'<button id="challenge-public-join" data-code="'+code+'" data-account="fictional-owner">Join challenge</button><p id="challenge-public-status"></p><script src="/static/challenge-public.js"></script>'});
    if(armed&&spec.name==='public'&&u.pathname.startsWith('/api/challenges/'))assert.equal(req.headers()['x-kinetta-account'],'fictional-owner');
    if(armed&&method==='GET'&&u.pathname===spec.read&&unreadable)return fault.includes('offline')?r.abort():r.fulfill({status:503,json:{detail:'Fictional outage'}});
@@ -40,11 +41,35 @@ module.exports=async(browser,base,out='')=>{
    if(u.pathname==='/api/people/suggested')return r.fulfill({json:[]});
    return r.continue();
   });
-  try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503']){
-   armed=false;member=false;declined=false;unreadable=false;writes=0;
+  try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503',...(['public','friend','group','addressed','challenge'].includes(spec.name)?['lost-reload','lost-reload-unreadable','503-reload']:[])]){
+   armed=false;member=false;declined=false;unreadable=false;writes=0;reads=0;
    await p.goto(base+spec.route);if(spec.prepare)await spec.prepare(p);await p.locator(spec.button).first().waitFor();
    if(spec.name==='group'||spec.name==='addressed')await p.locator('[data-group-join-share]').uncheck();
    armed=true;unreadable=fault.includes('offline')||fault==='lost-503';await p.locator(spec.button).first().click();
+   if(fault.includes('reload')){
+    await (spec.name==='public'?p.getByRole('button',{name:'Retry',exact:true}):p.locator('[data-sharing-state=unknown]')).waitFor();
+    await require('./privacy_recovery_fixture.cjs')(p);
+    // Keep the advanced clock through navigation, as a real later reload would.
+    const later=await p.evaluate(()=>Date.now());await c.addInitScript(now=>{const clock=Date.now,offset=now-clock();Date.now=()=>clock()+offset;},later);
+    unreadable=fault==='lost-reload-unreadable';reads=0;await p.reload();
+    if(spec.name==='public'){
+     assert.equal(await p.locator(spec.button).innerText(),'Retry','expired deadline keeps uncertainty on reload');
+     await p.locator(spec.button).click();
+    }
+    if(unreadable){
+     if(spec.name==='public')await p.waitForFunction(()=>document.querySelector('#challenge-public-status')?.textContent.includes('Not confirmed'));
+     else{await p.getByRole('button',{name:'Try again',exact:true}).waitFor();assert.equal(await p.locator(spec.button).count(),0,'failed initial GET cannot offer a join');}
+     assert.equal(writes,1,'failed read after reload cannot repeat the write');unreadable=false;await p.reload();
+     if(spec.name==='public')await p.locator(spec.button).click();
+    }
+    if(fault.startsWith('lost')){
+     if(spec.done)await p.waitForURL(base+spec.done);else await p.locator('#challenge-invite').waitFor();
+    }else if(spec.name==='public')await p.waitForFunction(()=>document.querySelector('#challenge-public-status')?.textContent.includes('Not joined'));
+    else await p.locator(spec.button).waitFor({state:'visible'});
+    assert(reads>0,'reload recovery checks membership');assert.equal(writes,1,'reload after deadline performs GET before any new join');
+    if(spec.name==='public')assert.equal(await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.includes(':challenge:')).length),0,'confirmed membership read clears uncertainty');
+    console.log('Invitation recovery '+mode+' '+theme+' '+spec.name+' '+fault+' PASS');continue;
+   }
    if(spec.name==='public'){await p.getByRole('button',{name:'Retry',exact:true}).waitFor();unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await p.locator(spec.button).click();}
    else if(spec.name!=='public'){const note=p.locator('[data-sharing-state=unknown]');await note.waitFor();assert(!await p.locator(spec.button).first().isVisible(),'uncertain action concealed');
     if(out&&fault==='lost-offline'&&mode==='web'&&['friend','group','challenge'].includes(spec.name)){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'invite-'+spec.name+'-'+theme+'-unknown.png')});}
@@ -55,6 +80,7 @@ module.exports=async(browser,base,out='')=>{
    else if(completed&&spec.name==='challenge')await p.locator('#challenge-invite').waitFor();
    else if(completed&&spec.name==='request')await p.locator('[data-request-accept]').waitFor({state:'detached'});
    else if(completed&&spec.name==='send')await p.getByRole('button',{name:'Invited @'+person.login,exact:true}).waitFor();
+   else if(spec.name==='public')await p.waitForFunction(()=>document.querySelector('#challenge-public-status')?.textContent.includes('Not joined'));
    else await p.locator(spec.button).first().waitFor({state:'visible'});
    assert.equal(writes,1,'read-only recovery never repeats the write');assert.equal(member,completed&&spec.name!=='decline');assert.equal(declined,completed&&spec.name==='decline');
    if(!completed)assert.equal(new URL(p.url()).pathname,spec.route.split('?')[0],'failure cannot navigate as success');
