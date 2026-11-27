@@ -96,7 +96,7 @@ class Guards(unittest.TestCase):
                 with connect() as c:
                     c.execute(migrations[index]);c.execute(migrations[index])
                     self.assertEqual(c.execute('SELECT * FROM profile WHERE user_id=%s',(uid,)).fetchone(),before)
-                    self.assertEqual(c.execute('SELECT max(version) AS v FROM schema_version').fetchone()['v'],index+1)
+                    self.assertEqual(c.execute('SELECT max(version) AS v FROM schema_version').fetchone()['v'],len(migrations))
                     for table in ('strava_uploads','strava_import_stage'):
                         self.assertTrue(c.execute('SELECT relrowsecurity FROM pg_class WHERE oid=%s::regclass',(table,)).fetchone()['relrowsecurity'])
                         self.assertFalse(c.execute('SELECT has_table_privilege(\'public\',%s,\'SELECT\') AS ok',(table,)).fetchone()['ok'])

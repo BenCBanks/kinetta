@@ -148,6 +148,46 @@ run_ui loading_audit.cjs
         self.assertIn('success|skipped', gate)
         self.assertIn('test "$result" = success', gate)
 
+    def test_aggregate_job_condition_evaluates_even_when_latest_run_is_cancelled(self):
+        gate = WORKFLOW.split("\n  tests:\n", 1)[1].split("\n  spacing:\n", 1)[0]
+        # Evaluate the actual job-level condition, before testing its shell.
+        # Skipping a required job is treated as success by GitHub; neither a
+        # manual cancellation nor a dependency failure proves supersession.
+        condition = next(line.strip()[4:] for line in gate.splitlines() if line.strip().startswith('if: '))
+        condition = condition.removeprefix('${{').removesuffix('}}').strip()
+        expression = condition.replace('&&', ' and ').replace('||', ' or ').replace('!', 'not ')
+        for cancelled in (False, True):
+            with self.subTest(cancelled=cancelled):
+                actual = eval(expression, {'__builtins__': {}},
+                              {'always': lambda: True, 'cancelled': lambda: cancelled})
+                self.assertTrue(actual, 'the aggregate must evaluate, including on a cancelled latest head')
+
+    def test_aggregate_script_rejects_cancelled_and_missing_required_results(self):
+        gate = WORKFLOW.split("\n  tests:\n", 1)[1].split("\n  spacing:\n", 1)[0]
+        script = gate.split('        run: |\n', 1)[1]
+        script = '\n'.join(line[10:] for line in script.splitlines())
+        required = ['CHANGED_SCREEN_MAP_RESULT', 'BACKEND_RESULT', 'SPACING_RESULT']
+        for draft in (True, False):
+            expected_skips = (['BROWSER_SHARDS_RESULT', 'REVIEWER_INTEGRATION_RESULT']
+                              if draft else ['QUICK_RESULT'])
+            base = dict.fromkeys(required + ['QUICK_RESULT', 'BROWSER_SHARDS_RESULT',
+                                            'REVIEWER_INTEGRATION_RESULT'], 'success')
+            base.update(IS_DRAFT=str(draft).lower())
+            for key in expected_skips:
+                base[key] = 'skipped'
+            result = subprocess.run(['bash', '-ec', 'set -u\n' + script], env={**os.environ, **base})
+            self.assertEqual(result.returncode, 0)
+            # Cancellation can never masquerade as a passing dependency, even
+            # on a workflow that has not itself received a cancel signal.
+            for key in (k for k in base if k != 'IS_DRAFT'):
+                for outcome in ('failure', 'cancelled', 'skipped'):
+                    if outcome == 'skipped' and key in expected_skips:
+                        continue
+                    with self.subTest(draft=draft, dependency=key, outcome=outcome):
+                        result = subprocess.run(['bash', '-ec', 'set -u\n' + script],
+                                                env={**os.environ, **base, key: outcome})
+                        self.assertNotEqual(result.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
