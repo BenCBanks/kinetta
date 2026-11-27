@@ -999,8 +999,15 @@ function toast(msg, undo) {
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t);
     t.onclick = (e) => { if (!e.target.closest('button')) t.classList.remove('on'); };   // a tap puts it away
   }
+  // Keep the live region in the active dialog, above its content and out of the
+  // inert page. A fixed notice still uses the viewport once the sheet settles.
+  const modal = ModalStack.top(), host = modal?.querySelector('[aria-modal="true"]') || modal || document.body;
+  if (t.parentElement !== host) host.append(t);
+  t.inert = false; t.style.bottom = '';
   const queued = Date.now() - (App.queuedAt || 0) < 2000 && !undo && !/saved on this phone|waiting to send/i.test(msg);
   t.innerHTML = Toast(msg,queued,!!undo);
+  // Short photo sheets leave room above them; do not cover their heading or retry.
+  if (host.classList.contains('sheet')) t.style.bottom = `min(${innerHeight-host.getBoundingClientRect().top+12}px, calc(100dvh - env(safe-area-inset-top, 0px) - ${t.offsetHeight+16}px))`;
   if (undo) $('button', t).onclick = () => { t.classList.remove('on'); undo(); };
   t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
 }

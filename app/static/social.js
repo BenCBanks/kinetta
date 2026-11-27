@@ -964,7 +964,7 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null, def
         if(!live()){pending=[];return;}
         toast(x.message || "That photo couldn't be added");
         if(changed)photoChanged(a.id);
-        if(x.status===503){add.disabled=false;$('span',add).textContent='Retry photo';return;}
+        if(x.status===429||x.status===503||x.offline){add.disabled=false;$('span',add).textContent='Retry photo';return;}
         pending=[];redraw();return;
       }
     }
