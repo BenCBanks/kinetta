@@ -17,7 +17,7 @@ def image(fmt='JPEG', size=(12, 10)):
     out = io.BytesIO()
     im = Image.new('RGB', size, 'green')
     exif = Image.Exif(); exif[271] = 'FictionalCameraLocationSentinel'
-    im.save(out, fmt, **({'exif': exif} if fmt in ('JPEG', 'WEBP') else {}))
+    im.save(out, fmt, **({'exif': exif} if fmt in ('JPEG', 'PNG', 'WEBP') else {}))
     return base64.b64encode(out.getvalue()).decode()
 
 
