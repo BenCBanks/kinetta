@@ -57,7 +57,12 @@ def send_reminder():
         stage=c.execute("SELECT * FROM strava_import_stage WHERE user_id=%s FOR UPDATE",(uid,)).fetchone()
         if not stage or stage['state']!='requested' or not stage['reminder_opt_in'] or stage['reminder_attempted']:return False
         token=secrets.token_urlsafe(32)
-        c.execute('UPDATE strava_import_stage SET reminder_attempted=now(),stop_hash=%s WHERE user_id=%s',(hashlib.sha256(token.encode()).hexdigest(),uid))
+        # Selection may precede a lock wait. Use the current wall clock and locked
+        # row, rather than the original candidate or transaction-start timestamp.
+        claimed=c.execute('''UPDATE strava_import_stage SET reminder_attempted=now(),stop_hash=%s
+          WHERE user_id=%s AND reminder_due<=clock_timestamp() AND expires>clock_timestamp()
+          RETURNING user_id''',(hashlib.sha256(token.encode()).hexdigest(),uid)).fetchone()
+        if not claimed:return False
     # Locks also serialize import/cancel/account deletion against the actual send. Re-read verified identity here.
     with db.connect() as c:
         uploads.account(c,uid)
@@ -65,6 +70,7 @@ def send_reminder():
         user=c.execute('SELECT email,email_verified_at,suspended_at FROM users WHERE id=%s',(uid,)).fetchone()
         if (not stage or not stage['reminder_opt_in'] or stage['state']!='requested' or not stage['stop_hash']
                 or not user['email'] or not user['email_verified_at'] or user['suspended_at']):return False
+        if not c.execute('SELECT expires>clock_timestamp() AS valid FROM strava_import_stage WHERE user_id=%s',(uid,)).fetchone()['valid']:return False
         base=account_email._base()
         text=REMINDER_TEXT.format(resume=base+'/me/connections?strava=resume',stop=base+'/api/strava-import/reminders/stop?token='+token)
         sent=account_email.send(user['email'],REMINDER_SUBJECT,text)

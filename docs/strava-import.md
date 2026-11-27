@@ -83,6 +83,8 @@ saved stage; this backend adds that deep link to reminder copy but no client han
 No reminder is scheduled by default. Explicit opt-in schedules approximately 24 hours
 later, once, for that account. Repeated requests/devices retain the original due time.
 Verified email and a pending, non-expired stage are checked again before sending.
+Due time and expiry are rechecked under the claim lock; expiry is checked again under
+the send lock using the database wall clock after any lock wait.
 Import confirmation, cancellation, account deletion and the opaque one-click stop URL
 cancel it. The message links to Connections with `?strava=resume`; it includes no Strava
 link, archive name or workout data. Copy lives in two replaceable constants.

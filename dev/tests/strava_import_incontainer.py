@@ -466,6 +466,35 @@ class Import(unittest.TestCase):
             self.assertEqual(self.b.post('/api/account/delete',json={'password':PW}).status_code,200)
             self.assertFalse(S.send_reminder())
 
+    def test_reminder_rechecks_due_and_expiry_after_selection_and_before_send(self):
+        real_account=U.account
+        with patch.object(account_email,'mail_ready',return_value=True),patch.object(account_email,'_base',return_value='https://example.test'):
+            for reason in ('claim_due','claim_no_due','claim_expired','send_expired'):
+                with self.subTest(reason=reason):
+                    with db.connect() as c:c.execute('DELETE FROM strava_import_stage WHERE user_id=%s',(self.me,))
+                    S.save(self.me,True)
+                    with db.connect() as c:c.execute("UPDATE strava_import_stage SET reminder_due=now()-interval '1 second' WHERE user_id=%s",(self.me,))
+                    locks=[];sent=[]
+                    def account(c,uid):
+                        locks.append(uid)
+                        if len(locks)==(2 if reason=='send_expired' else 1):
+                            # A concurrent stage change after candidate selection, or
+                            # between the committed claim and the actual send lock.
+                            change={
+                              'claim_due':"reminder_due=now()+interval '1 day'",
+                              'claim_no_due':'reminder_due=NULL',
+                              'claim_expired':"expires=now()-interval '1 second'",
+                              'send_expired':"expires=now()-interval '1 second'"}[reason]
+                            with db.connect() as other:other.execute('UPDATE strava_import_stage SET '+change+' WHERE user_id=%s',(uid,))
+                        real_account(c,uid)
+                    with patch.object(U,'account',side_effect=account),patch.object(account_email,'send',side_effect=lambda *args:sent.append(args) or True):
+                        self.assertFalse(S.send_reminder())
+                    self.assertEqual(sent,[])
+                    with db.connect() as c:
+                        stage=c.execute('SELECT reminder_attempted,reminder_sent FROM strava_import_stage WHERE user_id=%s',(self.me,)).fetchone()
+                    self.assertEqual(stage['reminder_attempted'] is not None,reason=='send_expired','only an eligible locked row may consume the one attempt')
+                    self.assertFalse(stage['reminder_sent'])
+
     def test_original_upload_still_imports(self):
         import time
         # Legacy endpoint and its callback retain their original contract; this stand-in cannot call a provider.
