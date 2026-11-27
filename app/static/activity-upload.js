@@ -2,7 +2,7 @@
 'use strict';
 window.ActivityZipUpload={mount(el,valid,account,choose){
   const box=document.querySelector('#u-zip',el),prefix='/api/strava-import';
-  let upload=null,file=null,fileHash='',audience,chunk=8*1024*1024,max=2*1024**3,busy=false,message='',phase='',fraction=0,timer,control,worker,xhr,disposed=false;
+  let upload=null,file=null,fileHash='',audience,chunk=8*1024*1024,max=2*1024**3,busy=false,fileWork=false,message='',phase='',fraction=0,timer,control,worker,xhr,disposed=false;
   const live=()=>!disposed&&valid(),total=p=>['added','already_here','unreadable'].reduce((n,k)=>n+(p?.[k]||0),0);
   const terminal=()=>upload&&['done','failed','cancelled'].includes(upload.state);
   const errors={expired:'This upload expired. Choose the archive to start again.',not_strava_export:'Choose the ZIP from your Strava account export.',no_workouts:'No activities were found in this archive.',storage_full:'Import paused: storage is full. Check again later.',processing_failed:'This archive could not be processed. Choose a new export.'};
@@ -18,7 +18,7 @@ window.ActivityZipUpload={mount(el,valid,account,choose){
     if(!live())return;
     document.querySelector('#u-file',el).disabled=busy;
     box.hidden=!upload&&!phase&&!message;
-    const state=upload?.state,p=upload?.preview,r=upload?.result;
+    const state=upload?.state,p=upload?.preview,r=upload?.result,displayedId=upload?.id,displayedAudience=audience;
     const title=phase||({uploading:'Upload paused',preview_queued:'Checking activities…',review:'Ready to import',importing:'Importing activities…',done:'Import complete',failed:'Import stopped',cancelled:'Upload cancelled'}[state]||'Strava history');
     let detail=state==='uploading'?`${(upload.received/1048576).toFixed(1)} of ${(upload.size/1048576).toFixed(1)} MB saved`:state==='importing'?`${total(r)} of ${total(p)} checked`:'';
     if(state==='uploading'&&!busy)detail+=' · Choose the same ZIP to resume.';
@@ -28,15 +28,15 @@ window.ActivityZipUpload={mount(el,valid,account,choose){
       ${progress!==null?`<progress max="1" value="${Math.min(1,progress)}" aria-label="${esc(title)}"></progress>`:''}${counts}
       ${state==='review'?`<div class="upload-privacy"><span>Activity privacy</span><b>${esc({me:'Only me',friends:'Friends',everyone:'Everyone'}[audience]||'')}</b></div>`:''}
       ${message||upload?.error_code?`<p class="upload-error" role="alert">${esc(message||errors[upload.error_code]||'This archive could not be read. Choose a new Strava export.')}</p>`:''}
-      <div class="upload-actions">${busy?'<button type="button" data-upload="pause" class="ghost">Pause</button>':state==='review'?'<button type="button" data-upload="confirm" class="primary">Import activities</button>':state==='uploading'?`<button type="button" data-upload="resume" class="primary">${file?'Resume upload':'Choose ZIP to resume'}</button>`:terminal()?'<button type="button" data-upload="new" class="ghost">Choose another file</button>':message&&!upload?'<button type="button" data-upload="retry" class="ghost">Retry</button>':''}
+      <div class="upload-actions">${busy?(fileWork?'<button type="button" data-upload="pause" class="ghost">Pause</button>':''):state==='review'?'<button type="button" data-upload="confirm" class="primary">Import activities</button>':state==='uploading'?`<button type="button" data-upload="resume" class="primary">${file?'Resume upload':'Choose ZIP to resume'}</button>`:terminal()?'<button type="button" data-upload="new" class="ghost">Choose another file</button>':message&&!upload?'<button type="button" data-upload="retry" class="ghost">Retry</button>':''}
       ${upload&&!terminal()?'<button type="button" data-upload="cancel" class="ghost">Cancel import</button>':''}${message&&upload&&!terminal()&&state!=='uploading'?'<button type="button" data-upload="retry" class="ghost">Retry</button>':''}</div>`;
-    box.querySelectorAll('[data-upload]').forEach(button=>button.onclick=()=>actions[button.dataset.upload]());
+    box.querySelectorAll('[data-upload]').forEach(button=>button.onclick=()=>actions[button.dataset.upload](displayedId,displayedAudience));
   }
-  function stop(){clearTimeout(timer);control?.abort();worker?.terminate();worker=null;xhr?.abort();xhr=null;busy=false;phase='';}
+  function stop(){clearTimeout(timer);control?.abort();worker?.terminate();worker=null;xhr?.abort();xhr=null;busy=false;fileWork=false;phase='';}
   async function act(fn){
     if(busy||!live())return;clearTimeout(timer);control=new AbortController();const own=control;busy=true;message='';draw();
     try{await fn();}catch(e){if(live()&&!own.signal.aborted)message=e.status===507?'Storage is full. Try again later.':e.message||'Connection interrupted. Retry to continue.';}
-    finally{if(live()&&control===own&&!own.signal.aborted){busy=false;phase='';draw();schedule();}}
+    finally{if(live()&&control===own&&!own.signal.aborted){busy=false;fileWork=false;phase='';draw();schedule();}}
   }
   async function refresh(){
     const stage=await q('/stage');upload=stage.upload;audience=stage.current_audience;chunk=Math.min(stage.chunk_size||chunk,8*1024*1024);max=stage.max_size||max;
@@ -47,8 +47,8 @@ window.ActivityZipUpload={mount(el,valid,account,choose){
   }
   function digest(source){
     return new Promise((resolve,reject)=>{
-      worker=new Worker('/static/upload-hash-worker.js?v=__ASSET_HASH__');
-      const cleanup=()=>{worker?.terminate();worker=null;};
+      worker=new Worker('/static/upload-hash-worker.js?v=__ASSET_HASH__');fileWork=true;draw();
+      const hasher=worker,cleanup=()=>{hasher.terminate();if(worker===hasher){worker=null;fileWork=false;draw();}};
       control.signal.addEventListener('abort',()=>{cleanup();reject(new Error('Stopped'));},{once:true});
       worker.onerror=()=>{cleanup();reject(new Error('Could not read this ZIP. Choose it again.'));};
       worker.onmessage=({data})=>{if(!live())return;if(data.sha256){cleanup();resolve(data.sha256);}else if(data.error){cleanup();reject(new Error(data.error));}else{fraction=data.received/source.size;paintProgress();}};
@@ -62,9 +62,10 @@ window.ActivityZipUpload={mount(el,valid,account,choose){
       control.signal.addEventListener('abort',()=>request.abort(),{once:true});
       const signal=control.signal;
       request.upload.onprogress=e=>{if(!live()||signal.aborted)return;fraction=(offset+e.loaded)/file.size;paintProgress();};
-      request.onload=()=>{let body;try{body=JSON.parse(request.responseText);}catch{}if(request.status===200&&body)resolve(body);else reject(Object.assign(new Error(typeof body?.detail==='string'?body.detail:'Upload interrupted. Retry to continue.'),{status:request.status}));};
-      request.onerror=request.ontimeout=request.onabort=()=>reject(new Error('Connection interrupted. Retry to continue.'));
-      request.send(bytes);
+      const done=()=>{if(xhr===request){fileWork=false;draw();}};
+      request.onload=()=>{done();let body;try{body=JSON.parse(request.responseText);}catch{}if(request.status===200&&body)resolve(body);else reject(Object.assign(new Error(typeof body?.detail==='string'?body.detail:'Upload interrupted. Retry to continue.'),{status:request.status}));};
+      request.onerror=request.ontimeout=request.onabort=()=>{done();reject(new Error('Connection interrupted. Retry to continue.'));};
+      fileWork=true;draw();request.send(bytes);
     });
   }
   async function transfer(){
@@ -97,15 +98,17 @@ window.ActivityZipUpload={mount(el,valid,account,choose){
     await transfer();
   });
   const actions={
-    pause:()=>{stop();draw();},
+    pause:()=>{if(fileWork){stop();draw();}},
     resume:()=>file?act(transfer):choose(),
     retry:()=>act(async()=>{await refresh();if(!upload&&file)upload=await q('/uploads',json('POST',{id:crypto.randomUUID(),size:file.size,sha256:fileHash}));if(upload?.state==='uploading'&&file)await transfer();}),
     new:()=>{file=null;fileHash='';upload=null;message='';draw();choose();},
     cancel:()=>{stop();act(async()=>{await q('/uploads/'+upload.id,{method:'DELETE'});upload=null;file=null;});},
-    confirm:()=>act(async()=>{
-      const seen=audience;await refresh();if(upload?.state!=='review')return;
-      if(audience!==seen)throw new Error('Your activity privacy changed. Check it above, then tap Import again.');
-      try{upload=await q('/uploads/'+upload.id+'/confirm',json('POST',{confirm:true,audience}));}
+    confirm:(displayedId,displayedAudience)=>act(async()=>{
+      await refresh();
+      if(upload?.id!==displayedId)throw new Error(upload?.state==='review'?'The archive changed. Review this preview, then tap Import again.':'The archive changed. Check the updated import before continuing.');
+      if(upload?.state!=='review')return;
+      if(audience!==displayedAudience)throw new Error('Your activity privacy changed. Check it above, then tap Import again.');
+      try{upload=await q('/uploads/'+displayedId+'/confirm',json('POST',{confirm:true,audience}));}
       catch(e){if(e.status===409)await refresh();throw e;}
     })
   };
