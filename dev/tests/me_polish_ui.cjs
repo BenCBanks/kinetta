@@ -5,6 +5,7 @@ const fs=require('node:fs'),path=require('node:path');
 const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label);}
 module.exports=async function({browser,storageState,base,shots}){
+ await require('./screen_polish_ui.cjs')({browser,storageState,base,shots});
  try{
  setProgressFlags(true);
  const auth=await browser.newContext({storageState}),rows=await(await auth.request.get(base+'/api/activities?limit=25')).json();await auth.close();assert(rows.length>=25);
