@@ -9,7 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path.cwd()))
 
 from fastapi.testclient import TestClient
-from app import api_contacts, request_log
+from app import api_contacts, request_log, request_bodies
 from app.main import app
 
 
@@ -78,7 +78,12 @@ class Contacts(unittest.TestCase):
         self.original_record = request_log.record
         self.log = patch('app.main.request_log.record', side_effect=lambda req, *_: self.routes.append(request_log.route(req)))
         self.log.start(); self.addCleanup(self.log.stop)
-        self.client = TestClient(app)
+        # This unit fixture already replaces route authentication. Represent its
+        # signed-in session at the pre-parser boundary too, without a real DB.
+        self.session = patch.object(request_bodies, 'session_exists', return_value=True)
+        self.session.start(); self.addCleanup(self.session.stop)
+        self.client = TestClient(app, headers={'Authorization': 'Bearer fictional-contact-session'})
+        self.addCleanup(self.client.close)
 
     def _restore_override(self):
         if self.override_before is None:

@@ -46,6 +46,8 @@ async def lifespan(app):
         recipe_stop.set();recipe_worker.join(timeout=3);segment_stop.set();segment_worker.join(timeout=3)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+from .request_bodies import BodyLimits
+app.add_middleware(BodyLimits)
 from .password_work import PasswordAdmission
 app.add_middleware(PasswordAdmission)
 from . import recaps,admin_features
