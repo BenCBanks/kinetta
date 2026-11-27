@@ -24,7 +24,7 @@ route(/^\/welcome$/, 'me', async (el) => {
   const step = (save, then) => async () => {
     const id=currentStep,controls=$$('.welcome-actions button',el);controls.forEach(button=>button.disabled=true); $('#wc-err', el).textContent = '';
     try { await save(); if (here(id)) then(); }
-    catch (x) { if (here(id)) { $('#wc-err', el).textContent = x.message;controls.forEach(button=>button.disabled=false); } }
+    catch (x) { if (here(id)) { $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown]') ? '' : x.message;controls.forEach(button=>button.disabled=false); } }
   };
   function profile() {
     const me = App.me,draft=store.get(profileDraftKey),draftName=typeof draft?.name==='string'?draft.name:me.name,draftBio=typeof draft?.bio==='string'?draft.bio:(me.bio||'');
