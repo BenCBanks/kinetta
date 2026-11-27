@@ -2351,15 +2351,18 @@ const HAND_KINDS = [
 ];
 const LIFT_KIND = '1.0';
 function addActivitySheet(day, preset) {   // preset 'workout': a lifting session logged afterwards (lift.js)
-  const now = new Date(), today = isoDay(now), d0 = day || today;
+  const now = new Date(), today = isoDay(now), recent = !day || day === today;
+  const completed = new Date(now.getTime() - 30 * 60000);
+  completed.setMinutes(Math.floor(completed.getMinutes() / 15) * 15, 0, 0);
+  const d0 = recent ? isoDay(completed) : day;
   const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(t)}</option>`;
   const sel = (name, label, opts, extra = '') => `<label>${label}<span class="selbox"><select name="${name}"${extra}>${opts}</select>${svg('chev')}</span></label>`;
   // the last five weeks by name, then "Earlier…" for a calendar
   const days = Array.from({length: 35}, (_, i) => { const d = new Date(now); d.setDate(d.getDate() - i); return isoDay(d); });
   const dayName = (iso, i) => (i === 0 ? 'Today' : i === 1 ? 'Yesterday' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: i < 7 ? 'long' : 'short', month: 'short', day: 'numeric'}));
   const early = !days.includes(d0);
-  // start time in quarter hours: now (rounded down) today, 8 AM on another day
-  const q0 = d0 === today ? Math.floor((now.getHours() * 60 + now.getMinutes()) / 15) * 15 : 480;
+  // The default 30-minute workout has already finished, even just after midnight.
+  const q0 = recent ? completed.getHours() * 60 + completed.getMinutes() : 480;
   const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   const times = Array.from({length: 96}, (_, i) => opt(hm(i * 15), new Date(2000, 0, 1, 0, i * 15).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}), i * 15 === q0)).join('');
   const kinds = HAND_KINDS.map(([g, list], gi) => `<optgroup label="${esc(g)}">${list.map(([, n], i) => opt(`${gi}.${i}`, n, preset ? `${gi}.${i}` === LIFT_KIND : gi + i === 0)).join('')}</optgroup>`).join('');
@@ -2370,6 +2373,7 @@ function addActivitySheet(day, preset) {   // preset 'workout': a lifting sessio
     <div class="manual-entry-group"><p class="manual-entry-group-title">When</p><div class="two">${sel('day', 'Day', days.map((d, i) => opt(d, dayName(d, i), d === d0)).join('') + opt('', 'Earlier…', early))}${sel('time', 'Start time', times)}</div></div>
     <label id="ma-cal"${early ? '' : ' hidden'}>Date<input type="date" name="date" value="${esc(early ? d0 : '')}" max="${today}"></label>
     <div class="manual-entry-group"><p class="manual-entry-group-title">Duration</p><div class="dur">${sel('h', 'Hours', nums(12, 0))}${sel('m', 'Minutes', nums(59, 30))}<span class="dur-s">${sel('s', 'Seconds', nums(55, 0, 5))}</span></div></div>
+    <p class="err" role="alert" id="ma-err" hidden></p>
     <label id="ma-dist">Distance (${U.du()}) <input name="dist" inputmode="decimal" placeholder="Optional"></label>
     <details class="more"><summary>More details <span class="muted">(name, calories, heart rate, notes)</span></summary><div class="form">
       <label>Name<input name="name" maxlength="200" placeholder="e.g. Spin class"></label>
@@ -2410,10 +2414,17 @@ function addActivitySheet(day, preset) {   // preset 'workout': a lifting sessio
       if (!(secs > 0)) { toast('How long was it? Pick the hours and minutes.'); f.m.focus(); return; }
       const date = f.day.value || f.date.value;
       if (!date) { toast('Pick the date'); f.date.focus(); return; }
+      const err = $('#ma-err', b), start = new Date(`${date}T${f.time.value}`);
+      err.textContent = ''; err.hidden = true;
+      if (!Number.isFinite(start.getTime()) || start.getTime() + secs * 1000 > Date.now()) {
+        err.hidden = false;
+        err.textContent = 'This workout ends in the future. Change the start time or duration so it has finished.';
+        err.scrollIntoView({block: 'nearest'}); return;
+      }
       const [sport, name, label] = kind(), lift = label === 'Strength Training';
       const n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value.replace(/,/g, '')));
       const dist = $('#ma-dist', b).hidden ? null : n(f.dist);
-      const body = {sport, sport_label: label || null, name: f.name.value.trim() || null, start: `${date}T${f.time.value}`, duration_s: secs,
+      const body = {sport, sport_label: label || null, name: f.name.value.trim() || null, start: start.toISOString(), duration_s: secs,
         distance_m: dist == null ? null : dist * (imp() ? MI : 1000), calories: n(f.kcal), avg_hr: n(f.hr), description: f.desc.value.trim() || null,
         copy_from: lift && f.copy.value ? +f.copy.value : null};
       const btn = $('#ma-go', b); btn.disabled = true;

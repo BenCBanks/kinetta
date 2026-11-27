@@ -64,6 +64,7 @@ node --check dev/tests/boot_ui.cjs # real CSP/resource-failure checks run in the
 node --check dev/tests/contacts_settings_ui.cjs
 node --check dev/tests/contacts_ui.cjs
 node dev/tests/test_enrollment_entry.js
+node dev/tests/test_first_day.js
 node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_usage.js
 node dev/tests/test_admin_tools.js
