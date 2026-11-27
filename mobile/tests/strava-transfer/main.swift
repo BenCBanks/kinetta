@@ -1,4 +1,5 @@
 import Foundation
+setbuf(stdout,nil)
 
 final class Credentials: StravaImportCredentials {
     private let lock = NSLock()
@@ -9,7 +10,17 @@ final class Credentials: StravaImportCredentials {
     func write(_ next: StravaImportSession) throws { lock.lock();value = next;lock.unlock() }
     func clear() throws { lock.lock();value = nil;lock.unlock();onClear?() }
 }
-func wait(_ semaphore: DispatchSemaphore) { precondition(semaphore.wait(timeout:.now()+15) == .success,"native test deadline") }
+func wait(_ semaphore: DispatchSemaphore,line: Int = #line) {
+    if Thread.isMainThread {
+        // Custom URLProtocol delivery uses the CLI main run loop on macOS.
+        // Keep that loop alive while waiting; do not extend the test deadline.
+        let deadline = Date().addingTimeInterval(15)
+        while semaphore.wait(timeout:.now()) != .success {
+            precondition(Date() < deadline,"native test deadline at caller line \(line)")
+            RunLoop.current.run(until:Date().addingTimeInterval(0.01))
+        }
+    } else { precondition(semaphore.wait(timeout:.now()+15) == .success,"native worker deadline at caller line \(line)") }
+}
 func stopped(_ transfer: NativeStravaTransfer) {
     let done = DispatchSemaphore(value:0);transfer.stop { error in precondition(error == nil);done.signal() };wait(done)
 }
@@ -123,7 +134,11 @@ for declared in [false,true] {
         guard case .success(let row) = result else { preconditionFailure("stage failed") }
         engine.confirm(id:row.id) { error in precondition(error == nil);staged.signal() }
     }
-    wait(staged);wait(OversizedControl.entered);wait(OversizedControl.cancelled)
+    wait(staged)
+    print("Control confirmed; awaiting protocol entry, declared=\(declared)")
+    wait(OversizedControl.entered)
+    print("Control protocol entered; awaiting early cancellation, declared=\(declared)")
+    wait(OversizedControl.cancelled)
     let current = try local.read();precondition(current?.received == 0,"oversized control cannot advance upload")
     stopped(engine)
 }
