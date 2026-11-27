@@ -13,9 +13,7 @@ from . import ai_access, ai_release, coach, db, kit_history, workout_compare
 from .auth import current_user
 
 _stop = ContextVar('kit_stream_stop', default=None)
-# The worker still validates and saves the complete answer before any block is
-# emitted. Poll more often so an already-saved first block becomes visible quickly.
-POLL_SECONDS = .1
+POLL_SECONDS = 1
 HEARTBEAT_SECONDS = 10
 TIMEOUT_SECONDS = 300
 
@@ -149,7 +147,13 @@ async def events(uid, client_id, body, request):
             if now-heartbeat >= HEARTBEAT_SECONDS:
                 yield ': keep-alive\n\n'
                 heartbeat = now
-            await asyncio.sleep(POLL_SECONDS)
+            # Completion wakes the stream immediately; pending work keeps the original
+            # one-second SQL/consent polling cadence. A lease-only reconnect whose
+            # worker already returned must sleep rather than spin on a done task.
+            if worker.done():
+                await asyncio.sleep(POLL_SECONDS)
+            else:
+                await asyncio.wait({worker}, timeout=POLL_SECONDS)
         yield frame('error', {'code':'answer_timeout'})
     except HTTPException as error:
         # discard_unstarted commits before generate returns. A read may see the

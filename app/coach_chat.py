@@ -9,6 +9,7 @@ import unicodedata
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from typing import Literal
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
@@ -861,7 +862,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             name, args = call.get('name'), call.get('args') or {}
             if kit and name==kit_charts.CHART_TOOL:
                 args=kit_charts.request_arguments(args,kit_conversation.user_question(question))
-            ev = {'evidence_id': f'e{len(evidence) + 1}', 'tool': name, 'arguments': args}
+            ev = {'evidence_id': f'e{len(evidence) + len(prepared) + 1}', 'tool': name, 'arguments': args}
             prepared.append((call,name,args,ev))
 
         consent_error = object()
@@ -879,13 +880,24 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         # them together removes serial DB wait without changing order, evidence IDs or
         # the provider contract. Food/non-Kit paths retain their original sequencing.
         if kit and len(prepared)>1:
-            with ThreadPoolExecutor(max_workers=min(4,len(prepared))) as pool:
-                fetched=list(pool.map(fetch,prepared))
+            unique,positions=[],[]
+            for item in prepared:
+                index=next((i for i,prior in enumerate(unique) if prior[1:3]==item[1:3]),None)
+                if index is None:
+                    index=len(unique)
+                    unique.append(item)
+                positions.append(index)
+            with ThreadPoolExecutor(max_workers=min(4,len(unique))) as pool:
+                futures=[pool.submit(copy_context().run,fetch,item) for item in unique]
+                completed=[future.result() for future in futures]
+            fetched=[completed[index] for index in positions]
         else:
             fetched=[fetch(item) for item in prepared]
         for (call,name,args,ev), fetched_value in zip(prepared,fetched):
             if isinstance(fetched_value,tuple) and fetched_value[0] is consent_error:return fetched_value[1]
-            ev=fetched_value
+            original=ev
+            ev=fetched_value.copy()
+            ev.update(original)
             evidence.append(ev)
             if provider == 'gemini':
                 function = {'name': name, 'response': ev}
