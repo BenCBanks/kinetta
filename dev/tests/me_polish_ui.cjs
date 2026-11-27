@@ -90,6 +90,9 @@ module.exports=async function({browser,storageState,base,shots}){
     await emailValue.evaluate((n,value)=>n.textContent=value,value);
     const row=await p.locator('#m-email').evaluate(n=>{const v=n.querySelector('.inset-value'),l=n.querySelector('.inset-label'),r=n.getBoundingClientRect(),a=v.getBoundingClientRect(),b=l.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(v);return{height:r.height,lines:range.getClientRects().length,below:a.top>=b.bottom,inside:a.right<=r.right&&a.left>=r.left,fits:v.scrollWidth<=v.clientWidth+1,clipped:getComputedStyle(v).textOverflow==='ellipsis'};});
     assert(row.height>=44&&row.inside&&row.fits&&!row.clipped,width+' email stays complete: '+JSON.stringify(row));
+    const alignment=await p.locator('#m-email').evaluate(n=>{const ref=document.querySelector('#m-login'),icon=n.querySelector('.inset-icon svg').getBoundingClientRect(),other=ref.querySelector('.inset-icon svg').getBoundingClientRect(),row=n.getBoundingClientRect(),label=n.querySelector('.inset-label').getBoundingClientRect(),value=n.querySelector('.inset-value').getBoundingClientRect(),x=ref.querySelector('.inset-label').getBoundingClientRect().x;return{label:Math.abs(label.x-x),value:Math.abs(value.x-x),iconX:Math.abs(icon.x+icon.width/2-other.x-other.width/2),iconY:Math.abs(icon.y+icon.height/2-row.y-row.height/2)};});
+    assert(alignment.label<=1&&alignment.iconX<=1&&alignment.iconY<=1,width+' email aligns with adjacent labels and icon centres: '+JSON.stringify(alignment));
+    if(width<=360)assert(alignment.value<=1,'narrow address aligns with the other row labels');
     if(width<=360){assert(row.below,'narrow email follows its label');if(value==='alex@example.test')assert.equal(row.lines,1,'short email is unbroken');}
     else assert(!row.below,'wider Settings keeps the existing side-by-side row');
    }
