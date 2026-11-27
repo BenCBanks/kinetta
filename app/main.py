@@ -14,7 +14,7 @@ from . import db, auth, api_activities, api_food, api_connections, api_account, 
 import threading
 from .auth import current_user
 from . import api_strava_import,strava_upload
-from . import request_log
+from . import request_log, account_files
 from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread, kit_history_api, workout_compare
 from . import api_routes_plan, api_segments, segments, route_sharing, map_config, api_contacts
 
@@ -33,8 +33,10 @@ async def lifespan(app):
     group_stop,group_worker=groups.start_worker()
     strava_stop,strava_worker=strava_upload.start_worker()
     feature_stop,feature_worker=admin_features.start_cleanup()
+    files_stop,files_worker=account_files.start_cleanup()
     try:yield
     finally:
+        files_stop.set();files_worker.join(timeout=3)
         strava_stop.set();strava_worker.join(timeout=3)
         feature_stop.set();feature_worker.join(timeout=3)
         personal_stop.set();personal_worker.join(timeout=3)

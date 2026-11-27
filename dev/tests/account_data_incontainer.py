@@ -448,7 +448,7 @@ class AccountData(unittest.TestCase):
             E._last_export.clear()
             with tempfile.TemporaryDirectory() as directory:
                 fd,path=tempfile.mkstemp(dir=directory)
-                with patch.object(E.tempfile,'mkstemp',return_value=(fd,path)),patch.object(E,'_write_export',side_effect=RuntimeError('fixture failure')):
+                with patch.object(E,'DATA',directory),patch.object(E.account_files.tempfile,'mkstemp',return_value=(fd,path)),patch.object(E,'_write_export',side_effect=RuntimeError('fixture failure')):
                     with self.assertRaises(RuntimeError):E._send_export(user)
                 self.assertFalse(Path(path).exists());self.assertNotIn(user['id'],E._last_export)
 

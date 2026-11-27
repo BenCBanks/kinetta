@@ -11,14 +11,13 @@ import io
 import json
 import os
 import secrets
-import tempfile
 import time
+import weakref
 import zipfile
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from starlette.background import BackgroundTask
-from . import db, auth, garmin_connect
+from . import db, auth, garmin_connect, account_files
 from .auth import current_user
 from .api_account import DATA, erase, erase_files
 
@@ -212,7 +211,8 @@ Left out on purpose: passwords, login sessions, connection keys, internal worker
 def _write_export(uid, path):
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z, db.connect() as c:
         z.writestr('README.txt', README.format(when=time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())))
-        u = c.execute('SELECT login::text AS login, name, first_name, last_name, email::text AS email, phone_e164, email_verified_at, created FROM users WHERE id = %s', (uid,)).fetchone()
+        u = c.execute('SELECT login::text AS login, name, first_name, last_name, email::text AS email, phone_e164, email_verified_at, created FROM users WHERE id = %s FOR KEY SHARE', (uid,)).fetchone()
+        if not u: raise HTTPException(404, 'This account is no longer available')
         z.writestr('data/account.json', json.dumps(u, default=str, indent=1))
         for name, q in TABLES.items():
             with z.open(f'data/{name}.jsonl', 'w') as f, c.cursor(name=f'x_{name}') as cur:   # server-side: streams big tables
@@ -232,28 +232,47 @@ def _write_export(uid, path):
             cur.itersize = 20
             cur.execute('SELECT id, activity_id, img FROM activity_photos WHERE user_id = %s ORDER BY id', (uid,))
             for r in cur: z.writestr(f"photos/activities/{r['activity_id']}-{r['id']}.jpg", bytes(r['img']))
-    base = os.path.join(DATA, 'files', str(uid))
-    if os.path.isdir(base) and not os.path.islink(base):
-        with zipfile.ZipFile(path, 'a', zipfile.ZIP_STORED) as z:     # already compressed (.fit / .gz) mostly
+        base = os.path.join(DATA, 'files', str(uid))
+        if os.path.isdir(base) and not os.path.islink(base):
             for root, _, files in os.walk(base):
                 for fn in files:
                     full = os.path.join(root, fn)
                     if os.path.islink(full) or not os.path.isfile(full):continue
                     if os.path.commonpath((os.path.realpath(base),os.path.realpath(full))) != os.path.realpath(base):continue
-                    z.write(full, 'files/' + os.path.relpath(full, base))
+                    z.write(full, 'files/' + os.path.relpath(full, base), compress_type=zipfile.ZIP_STORED)
+
+
+class ExportResponse(FileResponse):
+    def __init__(self, lease, **kwargs):
+        super().__init__(lease.path, **kwargs)
+        self.cleanup = weakref.finalize(self, lease.close)
+
+    async def __call__(self, scope, receive, send):
+        try:
+            # Keep opening/sending inside this lifetime, including on ASGI servers
+            # offering deferred pathsend (which would outlive our cleanup).
+            scope = {**scope, 'extensions': {k:v for k,v in scope.get('extensions', {}).items() if k != 'http.response.pathsend'}}
+            await super().__call__(scope, receive, send)
+        finally:
+            self.cleanup()  # BackgroundTask alone does not run after a failed send.
 
 
 def _send_export(user):
     now = time.time()
     if now - _last_export.get(user['id'], 0) < 300: raise HTTPException(429, 'You just downloaded your data - try again in 5 minutes')
     _last_export[user['id']] = now
-    fd, path = tempfile.mkstemp(prefix='kinetta-export-', suffix='.zip'); os.close(fd)
     try:
-        _write_export(user['id'], path)
-    except Exception:
-        os.unlink(path); _last_export.pop(user['id'], None); raise
-    return FileResponse(path, media_type='application/zip', filename=f"kinetta-{user['login']}-{time.strftime('%Y-%m-%d')}.zip",
-                        background=BackgroundTask(os.unlink, path), headers={'Cache-Control': 'no-store'})
+        lease = account_files.ExportFile(user['id'], DATA)
+        try:
+            _write_export(user['id'], lease.path)
+            return ExportResponse(lease, media_type='application/zip', filename=f"kinetta-{user['login']}-{time.strftime('%Y-%m-%d')}.zip",
+                                  headers={'Cache-Control': 'no-store'})
+        except BaseException:
+            lease.close()
+            raise
+    except BaseException:
+        _last_export.pop(user['id'], None)
+        raise
 
 
 @router.get('/api/account/export')
@@ -267,10 +286,18 @@ def export(user=Depends(current_user)):
 _links = {}
 
 
+def forget_exports(uid):
+    _last_export.pop(uid, None)
+    for key, (owner, _, _) in list(_links.items()):
+        if owner == uid:
+            _links.pop(key, None)
+
+
 @router.post('/api/account/export-link')
 def export_link(user=Depends(current_user)):
     now = time.time()
-    for k in [k for k, (_, _, t) in _links.items() if t < now]: del _links[k]
+    for k, (_, _, t) in list(_links.items()):
+        if t < now: _links.pop(k, None)
     key = secrets.token_urlsafe(32)
     _links[key] = (user['id'], user['login'], now + 300)
     return {'path': f'/api/account/export/{key}'}
