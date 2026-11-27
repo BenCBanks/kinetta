@@ -88,3 +88,10 @@ The operator-only `python -m app.ai_budget YYYY-MM-01` report summarizes tokens,
 estimated/held cost, active accounts and thread-linked food attribution. It has no
 HTTP route or private text; historical unlinked foods/missing usage stay unknown.
 The ledger records feature/request UUIDs and completion times for that attribution.
+
+Background AI follows the same account-state restrictions as interactive access.
+Suspended accounts, outstanding password-change restrictions (even expired ones),
+and public-signup accounts still awaiting email confirmation cannot start paid work.
+Every provider-attempt reservation rechecks these states, including retries and
+fallbacks from already queued jobs. Denial creates no attempt or budget hold.
+Existing calls already sent to a provider cannot be recalled.

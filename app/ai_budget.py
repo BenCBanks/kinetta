@@ -117,6 +117,9 @@ def reserve(model, label, payload=None):
     limit = budget_micros()
     rid = uuid4()
     with db.connect() as c:
+        # Deferred jobs and every retry must still belong to an eligible account.
+        from . import ai_account
+        ai_account.require(uid, c)
         # The service row survives account deletion. Independent workers/restarts
         # share the same short lock; no network work is done under it.
         c.execute('SELECT pg_advisory_xact_lock(122006)')

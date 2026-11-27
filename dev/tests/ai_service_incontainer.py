@@ -331,4 +331,92 @@ class Service(unittest.TestCase):
    self.clear_note_fixture(uid,aid)
    with db.connect() as c:c.execute("DELETE FROM auth_attempts WHERE key='zz_test_note_boundary_clean'")
 
+class AccountEligibility(unittest.TestCase):
+ """Paid jobs revalidate account state even without a live HTTP session."""
+ def setUp(self):
+  with db.connect() as c:
+   self.uid=c.execute("INSERT INTO users(login,name) VALUES ('zz_test_ai_account_state','Fictional Account') RETURNING id").fetchone()['id']
+   c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())',(self.uid,))
+   for feature in ('coach','food'):
+    c.execute('INSERT INTO ai_entitlements(user_id,feature) VALUES(%s,%s)',(self.uid,feature))
+  self.env=patch.dict(os.environ,{'KINETTA_AI_ENABLED':'1','GEMINI_API_KEY':'fictional','KINETTA_AI_ACCESS_MODE':'open'})
+  self.env.start();self.addCleanup(self.env.stop);self.addCleanup(self.clean)
+ def clean(self):
+  with db.connect() as c:
+   rows=c.execute('DELETE FROM ai_food_attempts WHERE user_id=%s RETURNING day,charged_micros',(self.uid,)).fetchall()
+   for row in rows:c.execute('UPDATE ai_service_budget SET charged_micros=charged_micros-%s WHERE day=%s',(row['charged_micros'],row['day']))
+   c.execute('DELETE FROM users WHERE id=%s',(self.uid,))
+ def state(self,kind):
+  import datetime as dt
+  now=dt.datetime.now(dt.timezone.utc)
+  with db.connect() as c:
+   c.execute('''UPDATE users SET suspended_at=%s,password_change_expires=%s,
+    needs_email_confirm=%s,email_verified_at=%s,is_admin=%s WHERE id=%s''',
+    (now if kind.startswith('suspended') else None,
+     now+dt.timedelta(days=-1 if kind=='reset_expired' else 1) if kind.startswith('reset') else None,
+     kind in ('unconfirmed','confirmed'),now if kind=='confirmed' else None,kind=='suspended_admin',self.uid))
+ def denied(self,fn):
+  with self.assertRaises(HTTPException) as error:fn()
+  self.assertEqual(error.exception.status_code,403)
+ def test_account_states_block_all_features_and_background_entries(self):
+  from app import ai_access,food_thread_understand as U
+  for kind in ('suspended','suspended_admin','reset','reset_expired','unconfirmed'):
+   with self.subTest(kind=kind):
+    self.state(kind)
+    for mode in ('open','entitled'):
+     with patch.dict(os.environ,{'KINETTA_AI_ACCESS_MODE':mode}),patch.object(U,'enabled',return_value=True):
+      for feature in ai_access.FEATURES:
+       self.assertFalse(ai_access.has(self.uid,feature));self.assertFalse(coach.allowed(self.uid,feature))
+       self.denied(lambda:ai_access.require(self.uid,feature))
+      with db.connect() as c:
+       self.assertFalse(U.allowed(c,self.uid))
+       self.assertFalse(coach.allowed(self.uid,connection=c))
+    with patch.object(coach,'_gemini') as gemini,patch.object(coach,'_claude') as claude,patch.object(coach.threading,'Thread') as thread:
+     self.denied(lambda:coach.week_review(self.uid));self.denied(lambda:coach.note(self.uid,999999))
+     coach.after_import(self.uid,[999999])
+     gemini.assert_not_called();claude.assert_not_called();thread.assert_not_called()
+    with B.scope(self.uid):self.denied(lambda:B.reserve('gemini-3.1-flash-lite','background'))
+    with db.connect() as c:
+     self.assertEqual(c.execute('SELECT count(*) AS n FROM ai_food_attempts WHERE user_id=%s',(self.uid,)).fetchone()['n'],0)
+  # Legacy accounts do not require public confirmation; verified public accounts pass too.
+  for kind in ('legacy','confirmed'):
+   self.state(kind)
+   self.assertTrue(coach.allowed(self.uid));self.assertTrue(coach.allowed(self.uid,'food'))
+ def test_queued_import_and_scheduler_recheck_restrictions(self):
+  with db.connect() as c:
+   aid=c.execute("INSERT INTO activities(user_id,sport,name,start_time,source) VALUES(%s,'run','Fictional run',now(),'manual') RETURNING id",(self.uid,)).fetchone()['id']
+  with patch.object(coach.threading,'Thread') as thread:
+   coach.after_import(self.uid,[aid]);thread.return_value.start.assert_called_once()
+   queued=thread.call_args.kwargs['target']
+  self.state('suspended')
+  with patch.object(coach,'_gemini') as gemini,patch.object(coach,'_claude') as claude:
+   queued()
+   review=coach.week_review;visited=[]
+   def scheduled(uid):
+    if uid==self.uid:
+     visited.append(uid);self.denied(lambda:review(uid))
+   with patch.object(coach,'week_review',side_effect=scheduled),patch('time.sleep',side_effect=[None,StopIteration]):
+    with self.assertRaises(StopIteration):coach.weekly_scheduler()
+   self.assertEqual(visited,[self.uid]);gemini.assert_not_called();claude.assert_not_called()
+  with db.connect() as c:
+   self.assertIsNone(c.execute('SELECT ai_note FROM activities WHERE id=%s',(aid,)).fetchone()['ai_note'])
+   self.assertFalse(c.execute('SELECT 1 FROM coach_notes WHERE user_id=%s',(self.uid,)).fetchone())
+ def test_each_transport_retry_rechecks_without_charging_another_hold(self):
+  import urllib.error
+  for kind in ('suspended','reset_expired','unconfirmed'):
+   with self.subTest(kind=kind):
+    self.state('legacy')
+    def first_attempt(req,timeout=None):
+     self.state(kind)
+     raise urllib.error.HTTPError(req.full_url,503,'stand-in',{},io.BytesIO())
+    with B.scope(self.uid),patch('urllib.request.urlopen',side_effect=first_attempt) as transport,patch('time.sleep'):
+     self.denied(lambda:coach._gemini({'fictional':'test'}))
+    self.assertEqual(transport.call_count,1)
+  with db.connect() as c:
+   rows=c.execute('SELECT charged_micros,state FROM ai_food_attempts WHERE user_id=%s',(self.uid,)).fetchall()
+   self.assertEqual(len(rows),3);self.assertTrue(all(r['charged_micros']==0 and r['state']=='measured' for r in rows))
+ def test_deleted_account_cannot_reserve(self):
+  with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(self.uid,))
+  with B.scope(self.uid):self.denied(lambda:B.reserve('gemini-3.1-flash-lite','queued'))
+
 unittest.main()
