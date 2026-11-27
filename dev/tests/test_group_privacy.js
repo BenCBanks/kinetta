@@ -16,7 +16,7 @@ const tick=()=>new Promise(setImmediate);
   const ctx={localStorage:{getItem:()=>null,setItem(){},removeItem(){}},readOwner:()=>owner,document:{createElement:()=>new Node(),querySelector:()=>root},AbortController,setTimeout,clearTimeout,
    json:(method,body)=>({method,body:JSON.stringify(body)}),esc:String,svg:()=>'',$$:()=>[button],
    api:async(path,options)=>writes.push({path,body:JSON.parse(options.body)}),
-   apiRequest:async path=>path==='/api/privacy-save'?{ticket:'fictional-ticket'}:path.startsWith('/api/privacy-save?')?{settled:true}:{sharing_level:'just_in',recap_consent:true},
+   apiRequest:async path=>({sharing_level:'just_in',recap_consent:true}),
    groupActionSheet:(title,html,mount)=>mount({},()=>{}),toast(){}
   };
   vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/social-data.js','utf8'),ctx);

@@ -55,7 +55,6 @@ app.add_middleware(BodyLimits)
 from .password_work import PasswordAdmission
 app.add_middleware(PasswordAdmission)
 from . import recaps,admin_features
-app.include_router(privacy_save.router)
 app.include_router(community_terms.router)
 app.include_router(admin_features.router)
 app.include_router(recaps.router)
@@ -155,7 +154,7 @@ async def guard(request: Request, call_next):
         return Response(status_code=308, headers={'Location': str(request.url.replace(scheme='https'))})
     from starlette.concurrency import run_in_threadpool
     try:
-        r = await privacy_save.guarded(request, call_next) if privacy_save.HEADER in request.headers else await call_next(request)
+        r = await privacy_save.guarded(request, call_next) if privacy_save.applies(request) else await call_next(request)
     except Exception:
         if request.url.path.startswith('/api/admin/'):
             await run_in_threadpool(admin_support.rejected, request, 500)
@@ -189,7 +188,7 @@ app.add_middleware(_gzip.GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 # Only the iPhone app may read answers across sites, and never with cookies (it sends its token in a header).
 app.add_middleware(CORSMiddleware, allow_origins=list(APP_ORIGINS), allow_credentials=False, allow_methods=['*'],
-                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account', 'X-Kinetta-Version', 'X-Content-Sha256', privacy_save.HEADER], max_age=3600)
+                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account', 'X-Kinetta-Version', 'X-Content-Sha256'], max_age=3600)
 
 
 class Login(BaseModel):

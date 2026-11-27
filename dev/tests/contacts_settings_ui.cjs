@@ -12,7 +12,7 @@ async function runTheme(browser,theme){
   let state={phone_e164:null,email_ready:true,find_by_email:true,find_by_phone:true},shareAchievements=false,shareWrites=[],sharingState={default:'everyone',findable:true,trim_m:400,trims:[0,200,400,800]},blocked=[{login:'zz_test_blocked',name:'Riley Sample',photo:null}];
   const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:theme,isMobile:true,hasTouch:true,serviceWorkers:'block',timezoneId:'UTC'});
   await context.route('**/*',async route=>{
-    if(await require('./privacy_ticket_fixture.cjs')(route))return;
+
     const request=route.request(),url=new URL(request.url());
     if(url.origin!==base)return route.abort();
     if(url.pathname==='/api/sharing'){
@@ -149,7 +149,6 @@ async function uncertainSaves(browser,mode){
  if(mode==='bridge')await context.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});
  const headers=mode==='bridge'?{Authorization:'Bearer '+token}:{};
  let saved=await(await context.request.get(base+'/api/sharing',{headers})).json(),fault=null,unreadable=false,writes=0;
- await context.route('**/api/privacy-save*',route=>require('./privacy_ticket_fixture.cjs')(route));
  await context.route('**/api/sharing',route=>{
   if(route.request().method()==='GET')return unreadable?route.abort():route.fulfill({json:saved});
   writes++;if(fault==='lost'){saved={...saved,...route.request().postDataJSON()};return route.abort();}
@@ -162,10 +161,10 @@ async function uncertainSaves(browser,mode){
   fault=kind;unreadable=kind==='offline';const before=writes;
   await page.locator('[data-vis="'+(kind==='lost'?'everyone':'me')+'"]').click();
   const note=page.locator('#sh-body > [data-sharing-state]');
-  if(unreadable){
+  {
    await note.locator('button').waitFor();assert.match(await note.innerText(),/Not confirmed.*Retry/);
    assert.equal(await page.locator('[data-vis="me"]').isVisible(),false,'no stale private selection while unreadable');
-   unreadable=false;await note.locator('button').click();
+   unreadable=false;await require('./privacy_recovery_fixture.cjs')(page);await note.locator('button').click();
   }
   await page.locator('[data-vis="everyone"][aria-checked="true"]').waitFor();
   assert.equal(await page.locator('[data-vis="me"]').getAttribute('aria-checked'),'false');
@@ -175,6 +174,7 @@ async function uncertainSaves(browser,mode){
  saved={...saved,share_achievements:false};fault=null;
  await page.goto(base+'/me/sharing');await page.locator('#sh-achievements').waitFor();fault='lost';
  await page.locator('#sh-achievements').check();
+ await page.locator('#sh-body > [data-sharing-state=unknown]').waitFor();await require('./privacy_recovery_fixture.cjs')(page);await page.locator('#sh-body > [data-sharing-state=unknown] button').click();
  await page.locator('#sh-body > [data-sharing-state="confirmed"]').waitFor({state:'attached'});
  assert.equal(await page.locator('#sh-achievements').isChecked(),true);
  console.log('Sharing recovery '+mode+': committed lost reply, 503, offline, GET-only Retry and achievements PASS');

@@ -417,7 +417,6 @@ function bootstrapMe() {
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
-  if(method==='GET'&&typeof SocialData!=='undefined')await SocialData.settled();
   if (method === 'GET' && !opts.signal) {
     const key = routeReadKey(readOwner(), path), early = earlyRouteReads.get(key);
     if (early) {
@@ -431,8 +430,7 @@ async function api(path, opts = {}) {
   return apiRequest(path, opts);
 }
 async function apiRequest(path, opts = {}) {
-  const owner = readOwner(),privacyFence=typeof SocialData==='undefined'?null:SocialData.privacyFence();
-  if((opts.method||'GET').toUpperCase()==='GET'&&!path.startsWith('/api/privacy-save')&&typeof SocialData!=='undefined'){await SocialData.settled();if(owner!==readOwner())throw Object.assign(Error('The account changed.'),{stale:true});}
+  const owner = readOwner();
   const mePath=path==='/api/me',requestPath=mePath?'/api/me?refresh=1':path;
   let r,body=null;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
@@ -445,7 +443,6 @@ async function apiRequest(path, opts = {}) {
   }
   catch (e) { throw Object.assign(new Error(timeout?.signal.aborted ? 'This is taking too long. Try refreshing again.' : "Can't reach Kinetta - check your connection."), timeout?.signal.aborted ? {status:504} : {offline:true}); }
   finally { if(timer)clearTimeout(timer); }
-  if((opts.method||'GET').toUpperCase()==='GET'&&!path.startsWith('/api/privacy-save')&&typeof SocialData!=='undefined'&&privacyFence!==SocialData.privacyFence())throw Object.assign(Error('Saved setting changed. Retry.'),{stale:true});
   if (owner !== readOwner()) throw Object.assign(new Error('The account changed while this request was running. Please try again.'), {stale: true});
   if (!r.ok) {
     const d = body && body.detail;

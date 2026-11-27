@@ -34,20 +34,19 @@ const SocialData=(()=>{
     for(const event of ['pointerenter','pointerdown','focus'])button.addEventListener(event,()=>prefetch(id),{passive:true});
   }
   function draft(id,text){scope();if(arguments.length>1){text?drafts.set(key(id),text):drafts.delete(key(id));}return drafts.get(key(id))||'';}
-  // Server tickets survive navigation/reload; they contain no setting value or personal content.
-  const fences=new Map(),fenceViews=new Map();
+  // Only an expiry timestamp persists: no reservation can strand ordinary reads.
+  // 15s phone wait + 8s admitted server request + 2s margin. Upstream delays are not ordered.
+  const RECOVERY_MS=25000,viewsByOwner=new Map(),generations=new Map();
   const fenceKey=()=>JSON.stringify([typeof Native==='undefined'?'':Native.base,typeof App==='undefined'?readOwner():App.me?.id]);
-  function fence(){const key=fenceKey();if(!fences.has(key)){let saved=null;try{saved=JSON.parse(localStorage.getItem('kinetta.privacy-pending:'+key));}catch(_){}fences.set(key,saved);}return fences.get(key);}
-  function setFence(value,required=false){const key=fenceKey();fences.set(key,value);try{value?localStorage.setItem('kinetta.privacy-pending:'+key,JSON.stringify({ticket:value.ticket,settled:!!value.settled})):localStorage.removeItem('kinetta.privacy-pending:'+key);}catch(error){if(required)throw Error('Saved setting cannot be confirmed on this device.');} }
-  async function settled(){
-    const pending=fence(),account=readOwner();if(!pending||pending.settled)return;
-    if(!pending.ticket)throw Object.assign(Error('Saved setting not confirmed. Retry.'),{code:'privacy_save_pending'});
-    const result=await (pending.check||(pending.check=apiRequest('/api/privacy-save?ticket='+encodeURIComponent(pending.ticket),{cache:'no-store'}).finally(()=>pending.check=null)));
-    if(account!==readOwner()||fence()!==pending||result?.settled!==true)throw Object.assign(Error('Saved setting not confirmed. Retry.'),{code:'privacy_save_pending'});
-    pending.settled=true;setFence(pending);
-    // The token is now consumed, superseded or expired; it cannot apply a delayed write.
+  const storageKey=()=> 'kinetta.privacy-until:'+fenceKey();
+  const generation=()=>generations.get(fenceKey())||0;
+  function pendingUntil(){
+    let until=0;try{until=Number(localStorage.getItem(storageKey()));}catch(_){}
+    if(!Number.isFinite(until)||until<=Date.now()){try{localStorage.removeItem(storageKey());}catch(_){}return 0;}
+    return until;
   }
-  // A failed write may already be saved. The status fence must settle before any fresh saved-value read.
+  function setUntil(until,required=false){try{until?localStorage.setItem(storageKey(),String(until)):localStorage.removeItem(storageKey());}catch(error){if(required)throw Error('Saved setting cannot be confirmed on this device.');}}
+  // A failed write may already be saved. Only this control delays readback until a possibly outstanding write is bounded.
   function confirmSetting(root,{path,read:fetchSaved,paint,cache:saveCache=()=>{},mask=()=>[...root.children],uncertain=()=>{},after=()=>{}}){
     const account=readOwner(),key=fenceKey(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
     note.className='small muted';note.setAttribute('role','status');note.dataset.sharingState='confirmed';note.hidden=true;
@@ -59,13 +58,15 @@ const SocialData=(()=>{
       for(const node of mask().filter(n=>n&&n!==note)){if(!hidden.has(node))hidden.set(node,node.hidden);node.hidden=true;}
       uncertain();known=false;note.hidden=false;note.dataset.sharingState='checking';text.textContent='Checking saved setting… ';retry.hidden=true;
     }
-    const views=fenceViews.get(key)||new Set();fenceViews.set(key,views);
+    const views=viewsByOwner.get(key)||new Set();viewsByOwner.set(key,views);
     views.add(()=>{if(!live())return false;conceal();if(!busy){note.dataset.sharingState='unknown';text.textContent='Not confirmed. ';retry.hidden=false;}return true;});
     async function run(writePath,options){
-      if(busy||!live())return null;busy=true;conceal();let failure=null,expected=fence(),previous=expected;
+      if(busy||!live())return null;busy=true;conceal();let failure=null,expected=generation();
       try{
         if(writePath){
-          setFence({ticket:null});expected=fence();
+          if(pendingUntil())throw Error('Setting not confirmed. Retry.');
+          setUntil(Date.now()+RECOVERY_MS,true);
+          expected=generation()+1;generations.set(key,expected);
           for(const notify of views)if(notify()===false)views.delete(notify);
           // Clear kept/cached pages before a possibly-public write; reopened screens must re-read.
           if(typeof invalidate==='function')invalidate('/api/');
@@ -73,20 +74,19 @@ const SocialData=(()=>{
           try{for(const name of Object.keys(localStorage))if(name.startsWith('fit.c:'))localStorage.removeItem(name);}catch(_){}
           const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
           try{
-            const reservation=await apiRequest('/api/privacy-save',{...json('POST',{path:writePath.split('?')[0],method:(options?.method||'POST').toUpperCase()}),signal:controller.signal});
-            if(account!==readOwner()||expected!==fence())return null;if(typeof reservation?.ticket!=='string')throw Error('Setting unavailable');
-            expected.ticket=reservation.ticket;setFence(expected,true);
-            await api(writePath,{...options,signal:controller.signal,headers:{...options?.headers,'X-Kinetta-Privacy-Ticket':reservation.ticket}});
-          }catch(error){failure=error;if(expected===fence()&&!expected.ticket){setFence(previous);expected=fence();}}finally{clearTimeout(timer);}
+            await api(writePath,{...options,signal:controller.signal});
+            if(account===readOwner()&&expected===generation())setUntil(0);
+          }catch(error){failure=error;}finally{clearTimeout(timer);}
         }
-        if(account!==readOwner()||expected!==fence())return null;
-        await settled();
+        if(account!==readOwner()||expected!==generation())return null;
+        if(pendingUntil())throw Error('Setting not confirmed. Retry.');
         const data=await (fetchSaved?fetchSaved():apiRequest(path,{cache:'no-store'}));
-        if(account!==readOwner()||expected!==fence())return null;
-        await saveCache(data);if(!live()||expected!==fence())return {data,failure};
-        await paint(data);if(!live()||expected!==fence())return null;
-        known=true;await after(data);if(!live()||expected!==fence())return null;
-        setFence(null);for(const [node,was] of hidden)node.hidden=was;hidden.clear();known=true;
+        if(account!==readOwner()||expected!==generation())return null;
+        if(pendingUntil())throw Error('Setting not confirmed. Retry.');
+        await saveCache(data);if(!live()||expected!==generation())return {data,failure};
+        await paint(data);if(!live()||expected!==generation())return null;
+        known=true;await after(data);if(!live()||expected!==generation())return null;
+        setUntil(0);for(const [node,was] of hidden)node.hidden=was;hidden.clear();known=true;
         note.dataset.sharingState='confirmed';note.hidden=!failure;text.textContent=failure?'Saved setting shown. ':'';retry.hidden=true;
         return {data,failure};
       }catch(error){
@@ -95,8 +95,8 @@ const SocialData=(()=>{
       }finally{busy=false;}
     }
     retry.onclick=()=>run();
-    if(fence()&&!fence().settled){conceal();Promise.resolve().then(()=>run());}
+    if(pendingUntil()){conceal();note.dataset.sharingState='unknown';text.textContent='Not confirmed. ';retry.hidden=false;}
     return {save:run,read:()=>run(),get known(){return known;}};
   }
-  return {remember,peek,read,forget,invalidate,prefetch,warm,draft,watch,confirmSetting,settled,privacyFence:fence};
+  return {remember,peek,read,forget,invalidate,prefetch,warm,draft,watch,confirmSetting};
 })();
