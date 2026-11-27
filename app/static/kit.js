@@ -718,7 +718,7 @@ Object.assign(KitChat, (() => {
             await saved.save('/api/coach/conversation/memory',json('PUT',{enabled}));
           };
         }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=()=>draw();}
-      };draw();
+      };saved.read();
     });
   }
   async function mount(el){

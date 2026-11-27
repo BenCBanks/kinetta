@@ -65,8 +65,10 @@ module.exports=async(browser,state,base,out)=>{
     await p.locator('[data-kit-edit="4"]').click();failSave=true;await p.locator('#kit-memory-delete').click();
     const recovery=p.locator('#kit-memory > [data-sharing-state=unknown]');await recovery.waitFor();assert.match(await recovery.innerText(),/Not confirmed.*Retry/);
     assert.equal(await p.locator('#kit-memory-form').isVisible(),false,'failed Delete conceals an unconfirmed memory state');
+    await p.keyboard.press('Escape');await p.evaluate(()=>KitChat.memorySettings());await recovery.waitFor();
+    assert.equal(await p.locator('#kit-memory-on').count(),0,'reopening cannot paint memory consent while a write may still be outstanding');
     const beforeRetry=writes.length;await recovery.getByRole('button',{name:'Retry',exact:true}).click();assert.equal(writes.length,beforeRetry,'early Retry never repeats Delete');
-    await p.clock.setFixedTime(new Date(await p.evaluate(()=>Date.now())+26000));await recovery.getByRole('button',{name:'Retry',exact:true}).click();
+    await require('./privacy_recovery_fixture.cjs')(p);await recovery.getByRole('button',{name:'Retry',exact:true}).click();
     await p.locator('[data-kit-edit="4"]').waitFor();assert.equal(memories.length,4,'after the uncertainty window, Retry rereads the saved list');assert.equal(writes.length,beforeRetry,'readback performs no write');
     failSave=false;await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-delete').click();await p.locator('[data-kit-edit="4"]').waitFor({state:'detached'});
     const row=p.locator('[data-kit-edit="2"]').locator('..').locator('..');
