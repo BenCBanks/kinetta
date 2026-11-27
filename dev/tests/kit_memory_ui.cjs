@@ -62,8 +62,8 @@ module.exports=async(browser,state,base,out)=>{
     await p.locator('#kit-memory-add').click();await p.getByRole('heading',{name:'Add a detail',exact:true}).waitFor();
     await p.locator('#kit-memory-text').fill('I prefer a short walk after lunch.');await p.locator('#kit-memory-save').click();await p.getByText('I prefer a short walk after lunch.',{exact:true}).waitFor();
     await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-cancel').click();await p.locator('[data-kit-edit="4"]').waitFor();assert.equal(memories.length,4,'Cancel does not delete or edit');
-    await p.locator('[data-kit-edit="4"]').click();failSave=true;await p.locator('#kit-memory-delete').click();await p.locator('#kit-memory-error').getByText('Kit memory changed. Reload before saving.').waitFor();assert.equal(memories.length,4,'failed Delete retains the row');
-    failSave=false;await p.locator('#kit-memory-delete').click();await p.locator('[data-kit-edit="4"]').waitFor({state:'detached'});
+    await p.locator('[data-kit-edit="4"]').click();failSave=true;await p.locator('#kit-memory-delete').click();await p.locator('[data-kit-edit="4"]').waitFor();assert.equal(memories.length,4,'failed Delete rereads the saved list');
+    failSave=false;await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-delete').click();await p.locator('[data-kit-edit="4"]').waitFor({state:'detached'});
     const row=p.locator('[data-kit-edit="2"]').locator('..').locator('..');
     await row.evaluate(el=>{const touch=(type,touches)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:touches});el.dispatchEvent(e);};touch('touchstart',[{clientX:250,clientY:150}]);touch('touchmove',[{clientX:140,clientY:151}]);touch('touchend',[]);});
     await p.waitForFunction(()=>{const n=document.querySelector('.kit-memory-row.is-revealed .kit-history-front');return n&&Math.abs(new DOMMatrix(getComputedStyle(n).transform).m41+56)<.1&&Math.abs(new DOMMatrix(getComputedStyle(n.querySelector('.kit-history-open')).transform).m41-56)<.1;});

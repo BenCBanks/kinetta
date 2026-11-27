@@ -600,16 +600,11 @@ const Native = (() => {
 const healthKitConsentOn=()=>!!App.me?.health_ai_ok&&(!(App.me?.health_weight_read||App.me?.weight_health_derived)||!!App.me?.health_weight_ai_ok);
 function bindHealthKitConsent(page,valid){
   const controls=()=>$$('[data-health-kit-consent]',page);
-  controls().forEach(input=>input.onchange=async()=>{
-    if(!valid())return;const enabled=input.checked;
-    controls().forEach(control=>{control.disabled=true;control.checked=enabled;});
-    try{
-      await api('/api/profile',json('PUT',{health_ai_ok:enabled,health_weight_ai_ok:enabled}));
-      if(!valid())return;App.me.health_ai_ok=enabled;App.me.health_weight_ai_ok=enabled;
-      toast(enabled?'Sharing health info with Kit enabled':'Sharing health info with Kit off');
-    }catch(error){if(valid())toast(error.message);}
-    finally{if(valid())controls().forEach(control=>{control.checked=healthKitConsentOn();control.disabled=false;});}
-  });
+  const saved=SocialData.confirmSetting(page,{path:'/api/me',mask:()=>controls().map(input=>input.closest('label')),
+    cache:me=>{if(['health_ai_ok','health_weight_ai_ok'].some(k=>typeof me[k]!=='boolean'))throw Error();refreshMe(me);},paint:me=>{
+      controls().forEach(control=>control.checked=healthKitConsentOn());},uncertain:()=>invalidate('/api/me')});
+  controls().forEach(input=>input.onchange=()=>{if(valid())saved.save('/api/profile',json('PUT',{health_ai_ok:input.checked,health_weight_ai_ok:input.checked}));});
+  saved.read();
 }
 const healthFromNutrition=()=>new URLSearchParams(location.search).get('from')==='nutrition';
 const healthStatus=(value)=>`<small class="health-row-status${value==='Needs permission'?' needs-permission':''}" data-status="${esc(value)}">${esc(value)}</small>`;

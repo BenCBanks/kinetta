@@ -2214,9 +2214,12 @@ function garminCard(box,C,valid){
   const off=$('#gc-off',box);if(off)off.onclick=async()=>{
     if(!await confirmSheet('Disconnect Garmin?',{body:'New activities stop arriving. Activities already here stay until you delete them.',action:'Disconnect'})||!valid())return;
     try{await api('/api/connections/garmin_connect',{method:'DELETE'});toast('Garmin disconnected');if(valid())render();}catch(x){toast(x.message);}};
-  const ai=$('#gc-ai',box);if(ai)ai.onchange=async(e)=>{const v=e.target.checked;
-    try{await api('/api/profile',json('PUT',{garmin_ai_ok:v}));App.me.garmin_ai_ok=v;toast(v?'Kit can read your Garmin activities':'Kit won’t read your Garmin activities');}
-    catch(x){e.target.checked=!v;toast(x.message);}};
+  const ai=$('#gc-ai',box);if(ai){
+    const saved=SocialData.confirmSetting(box,{path:'/api/me',mask:()=>[ai.closest('label')],
+      cache:me=>{if(typeof me.garmin_ai_ok!=='boolean')throw Error();refreshMe(me);},paint:me=>{ai.checked=me.garmin_ai_ok;},
+      uncertain:()=>invalidate('/api/me')});
+    ai.onchange=()=>{if(valid())saved.save('/api/profile',json('PUT',{garmin_ai_ok:ai.checked}));};saved.read();
+  }
 }
 
 route(/^\/(?:me\/connections|track\/connections)$/, 'me', async () => go('/me/settings/connections',{replace:true}));

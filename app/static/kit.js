@@ -649,14 +649,16 @@ Object.assign(KitChat, (() => {
       const title=$('h2',sh),labels={goal:'Goal',preference:'Preference',routine:'Routine'};
       const date=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
       let data=null,swipe=null,suppressTap=false;
+      const saved=SocialData.confirmSetting(box,{path:'/api/coach/conversation/memory',mask:()=>[...box.children,menu],
+        paint:next=>{if(typeof next.enabled!=='boolean'||!Array.isArray(next.memories))throw Error();},
+        after:next=>draw(next)});
       sh.classList.add('kit-history-sheet');
       const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
       menu.setAttribute('aria-label','Memory options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
       const remove=async(id,button)=>{
         if(!valid())return;
         button.disabled=true;
-        try{await api('/api/coach/conversation/memory'+(id?'/'+id:''),{method:'DELETE'});if(valid())await draw();}
-        catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;button.disabled=false;}}
+        await saved.save('/api/coach/conversation/memory'+(id?'/'+id:''),{method:'DELETE'});
       };
       menu.onclick=()=>{
         if(!valid())return;
@@ -695,9 +697,9 @@ Object.assign(KitChat, (() => {
           }catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;save.disabled=false;}}
         };
       };
-      const draw=async()=>{
+      const draw=async(confirmed)=>{
         try{
-          const next=await api('/api/coach/conversation/memory');if(!valid())return;data=next;
+          const next=confirmed||await apiRequest('/api/coach/conversation/memory',{cache:'no-store'});if(!valid())return;data=next;
           title.textContent='What Kit remembers';menu.hidden=!data.memories.length;
           const editable=Number.isSafeInteger(data.version)&&data.enabled;
           box.innerHTML=`${editable&&data.memories.length<12?`<button type="button" class="linkbtn kit-history-action" id="kit-memory-add">${svg('plus')}<span>Add a detail</span></button>`:''}<label class="switch-row kit-memory-switch"><span>Remember useful details</span><input type="checkbox" role="switch" id="kit-memory-on" ${data.enabled?'checked':''}></label><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<div class="kit-history-row kit-memory-row"><button type="button" class="kit-history-delete" data-kit-forget="${m.id}" aria-label="Delete" aria-hidden="true" inert>${svg('trash')}</button><div class="kit-history-front"><button type="button" class="kit-history-open" data-kit-edit="${m.id}"><span><strong>${esc(m.text)}</strong><small>${esc([labels[m.kind]||'Detail',date(m.updated)].filter(Boolean).join(' · '))}</small></span></button></div></div>`).join(''):'<p class="muted kit-memory-empty">No saved details yet.</p>'}</div><p class="err" id="kit-memory-error" role="alert"></p>`;
@@ -712,10 +714,9 @@ Object.assign(KitChat, (() => {
             const toggle=e.target,enabled=toggle.checked;
             if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Kit will forget your saved details.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
             toggle.disabled=true;
-            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}
-            catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;toggle.checked=!enabled;toggle.disabled=false;}}
+            await saved.save('/api/coach/conversation/memory',json('PUT',{enabled}));
           };
-        }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
+        }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=()=>draw();}
       };draw();
     });
   }
