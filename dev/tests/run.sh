@@ -262,6 +262,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/kit_history_limits_incon
 docker compose -p "$P" exec -T app python - < dev/tests/strava_import_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/legacy_upload_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/strava_archive_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_comparison_incontainer.py
 
 if [[ "$MODE" == --quick ]]; then echo "== quick unit/API checks passed"; exit 0; fi
 
