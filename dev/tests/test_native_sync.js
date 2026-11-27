@@ -8,12 +8,13 @@ const workout = {id: '12345678-test-workout', workoutType: 'running', startDate:
   endDate: new Date(now - 20 * DAY + 1800000).toISOString(), duration: 1800, distance: 5000, calories: 300};
 function device(background = null, push = null) {
   const saved = new Map(), queries = [], sent = [], events = {};
+  const listen=(k,fn)=>{const previous=events[k];events[k]=(...args)=>{previous?.(...args);fn(...args);};};
   const ctx = {console, Date, Map, JSON, Error, Promise, URL, Event:class {}, setTimeout, clearTimeout,
     App: {me: {id: 1}, cache: new Map()}, route() {}, forgetKept() {}, invalidate() {}, toast() {}, render() {},
-    document: {documentElement: {}, addEventListener(k, fn) { events[k] = fn; }},
+    document: {documentElement: {}, addEventListener: listen},
     MutationObserver: class { observe() {} },
     json: (method, body) => ({method, body: JSON.stringify(body)}),
-    window: {dispatchEvent(){}, addEventListener(k, fn) { events[k] = fn; }, Capacitor: {isNativePlatform: () => true, Plugins: {
+    window: {dispatchEvent(){}, addEventListener: listen, Capacitor: {isNativePlatform: () => true, Plugins: {
       Preferences: {get: async ({key}) => ({value: saved.get(key) ?? null}),
         set: async ({key, value}) => saved.set(key, value), remove: async ({key}) => saved.delete(key)},
       HealthPlugin: {isHealthAvailable: async () => ({available: true}), requestHealthPermissions: async () => {},
@@ -34,6 +35,7 @@ function device(background = null, push = null) {
   return {ctx, n: ctx.client, saved, queries, sent, events};
 }
 (async () => {
+  await require('./native_push_consent.cjs')(device);
   for(const [server,path,allowed] of [['https://example.test','/activity/42',true],['https://example.test','/activity/42?edit=1',true],['https://example.test','/activity/friends/42?edit=1',false],['https://example.test','/activity/42?edit=2',false],['https://example.test','/activity/42?edit=1&next=/me',false],['https://example.test','/activity/42?edit=1#other',false],['https://other.example.test','/activity/42?edit=1',false],['https://example.test','/routes/shared/42',false],['https://example.test','/add/fictional',true],['https://other.example.test','/routes/shared/42',false],['https://example.test','//elsewhere.test',false]]) {
     const opened=[],messages=[],linkPush={takePending:async()=>({url:path,server}),status:async()=>({allowed:false}),addListener(){}};
     const link=device(null,linkPush);await link.n.ready;link.n.base='https://example.test';link.n.token='fictional-native-session';link.ctx.go=p=>opened.push(p);link.ctx.toast=m=>messages.push(m);

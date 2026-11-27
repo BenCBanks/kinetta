@@ -22,18 +22,20 @@ async function shot(p,name){if(out){fs.mkdirSync(out,{recursive:true});await p.s
   try{
    await p.goto(base+'/me/notifications');await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#nt-push .card'),'notification page');
    assert.equal(await p.locator('[data-meal-reminders],.meal-reminders,#np-meal-reminders').count(),0,'settings contains no meal reminder controls');
-   assert.equal(await p.locator('[data-monthly-summary]').count(),1,'weekly/monthly personal notification settings remain');
-   assert.equal(requests.length,0,'opening settings makes no meal reminder request');
-   await p.evaluate(async()=>{Native.on=true;Native.pushSupported=true;Native.haptic=()=>{};Native.pushStatus=async()=>({...window.fixturePhone});Native.enablePush=async()=>{window.fixturePhone.enabled=true;};Native.disconnectPush=async()=>{window.fixturePhone.enabled=false;};window.fixturePhone={enabled:false,denied:false};window.fixturePush={push_ready:true,push:Object.fromEntries(Object.keys(PUSH_NAMES).map(k=>[k,true]))};await pushCard(document.querySelector('#nt-push'),fixturePush);});
-   await p.locator('#np-on').waitFor({state:'visible'});await p.locator('#np-on').click();await until(p,()=>!!document.querySelector('#np-off'),'phone alerts enabled');await p.locator('#np-kinds').waitFor();
-   assert.equal(await p.locator('#np-kinds input[role=switch]').count(),9,'all non-meal alert types remain available');
+   await p.locator('[data-saved-personal=monthly]').waitFor({state:'attached'});assert.equal(await p.locator('[data-saved-personal=monthly]').count(),1,'monthly preference remains visible read-only on web');assert.equal(await p.locator('[data-monthly-summary]').count(),0);
+   assert.equal(requests.length,0,'opening settings makes no meal reminder request');assert.equal(await p.locator('#nt-push [role=switch]').count(),0,'web shows a clear app-managed state without phone switches');assert.equal(await p.locator('#nt-push .card').count(),1,'web phone status stays compact');
+   await p.evaluate(async()=>{Native.on=true;Native.pushSupported=true;Native.haptic=()=>{};Native.pushStatus=async()=>({...window.fixturePhone});Native.enablePush=async()=>{window.fixturePhone.enabled=true;};Native.openPushSettings=async()=>{};window.fixturePhone={enabled:false,denied:false};window.fixturePush={push_ready:true,push:Object.fromEntries(Object.keys(PUSH_NAMES).map(k=>[k,true]))};await pushCard(document.querySelector('#nt-push'),fixturePush);});
+   await p.locator('#np-on').waitFor({state:'visible'});await p.locator('#np-on').click();await until(p,()=>!!document.querySelector('#np-settings'),'phone alerts enabled');await p.locator('#np-kinds').waitFor();
+   await p.locator('#nt-personal section.personal-notifications').waitFor();assert.equal(await p.locator('#np-kinds input[role=switch]').count(),9,'all non-meal alert types remain available');assert.equal(await p.locator('#nt-personal section.personal-notifications').count(),1,'native training preferences keep their existing layout');assert.equal(await p.locator('#nt-personal [data-saved-alert]').count(),0,'read-only saved rows are web only');
    assert.equal(await p.locator('#np-kinds input[name=challenge_reminders]').count(),1,'challenge reminders remain distinct and available');
    assert.equal(await p.locator('[data-meal-reminders],.meal-reminders,#np-meal-reminders').count(),0,'enabling phone alerts does not restore meal reminders');
    await p.locator('#np-kinds input[name=cheers]').uncheck();await until(p,()=>!!document.querySelector('#np-kinds input[name=cheers]')&&!document.querySelector('#np-kinds input[name=cheers]').disabled,'social preference save');assert(saved.some(x=>x.cheers===false));assert.equal(push.cheers,false);
    assert.equal(requests.length,0,'phone permission and other alert settings make no meal reminder request');
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[],'only the mocked notification preference endpoint receives writes');
    await shot(p,`notifications-${width}-${theme}`);
+   await require('./screen_copy_ui.cjs')(p,{width,theme});
    console.log(`Notification settings ${width} ${theme}: no meal-reminder UI/request; phone permission, social and personal alert settings PASS`);
   }finally{await c.close();}
  }
+ await require('./notification_native_ui.cjs')(browser,{base,out:process.env.KINETTA_COPY_SHOTS});
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

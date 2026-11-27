@@ -5,18 +5,17 @@ route(/^\/food\/import$/, 'food', async (el) => {
   const lb = imp(), wu = lb ? 'lb' : 'kg', today = isoDay(new Date());
   const wshow = (kg) => (kg == null ? '–' : (lb ? kg * 2.20462 : kg).toFixed(1));
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>Add past days</h1>
-    <p class="muted">Bring in weight and calories from another app.</p>
     <div class="card"><div class="actions import-file-actions"><button type="button" class="ghost" id="hi-pick">${svg('upload')}Choose a file</button><button type="button" class="ghost" id="hi-paste">Paste rows</button></div><details><summary>Format help</summary>
       <p class="small muted">First row = column names. Recognized: <b>Date</b>, <b>Weight</b> (${wu} unless the column says kg/lb), <b>Calories</b>, <b>Protein</b>, <b>Carbs</b>, <b>Fat</b>, <b>Fiber</b>, <b>Burned</b> (or Expenditure/TDEE), <b>Deficit</b>. Any order; other columns are ignored. Several rows per day (e.g. one per meal) are added up.</p>
       <pre class="eg">Date,Weight,Calories,Protein,Carbs,Fat,Deficit
 2026-03-01,152.4,1650,110,160,55,450
 2026-03-02,152.0,1720,115,170,58,380</pre><p class="small muted">Imported burned numbers replace the app’s estimate for those days.</p></details>
-      <form class="form" id="hi-f"><label>Paste rows (copy them from Excel, Google Sheets or Numbers)<textarea name="text" rows="6" placeholder="Date, Weight, Calories, ..."></textarea></label>
+      <form class="form" id="hi-f"><label>Paste rows<textarea name="text" rows="6" placeholder="Date, Weight, Calories, ..."></textarea></label>
         <input type="file" id="hi-file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden>
         <button class="primary wide">Preview</button></form>
       <div id="hi-prev"></div></div>
     <div class="card"><h2>Enter day by day</h2>
-      <p class="small muted">Type what you have for each day; leave the rest blank. Burned fills itself in from Eaten + Deficit. Clearing a box and saving removes that imported number.</p>
+      <details class="chev-row" id="hg-help"><summary>How to edit saved days</summary><p class="small muted">Leave unknown values blank. Burned = Eaten + Deficit. Clearing a saved box and saving removes that imported number. Logged food stays unchanged.</p></details>
       <div class="gridbar"><label>From<input type="date" id="hg-start" max="${today}"></label><label class="gtog"><input type="checkbox" id="hg-mac"> Show macros <span aria-hidden="true">↔</span></label></div>
       <div id="hg"></div></div>
     <div id="hi-sum"></div>`;
@@ -49,7 +48,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
       <div class="actions"><button class="primary" id="hi-go">Import ${P.rows.length} days</button></div>`;
     $('#hi-go', box).onclick = async (ev) => {
       ev.target.disabled = true; ev.target.textContent = 'Importing…';
-      try { await saveRows(P.rows.map(({food_logged_here, weight_replaces, ...r}) => r)); box.innerHTML = '<p class="small">Imported. See it under Nutrition &gt; Overview (pick a longer time range, or a start date).</p>'; f.reset(); }
+      try { await saveRows(P.rows.map(({food_logged_here, weight_replaces, ...r}) => r)); box.innerHTML = '<p class="small">Imported. Find these days in Nutrition overview.</p>'; f.reset(); }
       catch (x) { toast(x.message); ev.target.disabled = false; ev.target.textContent = `Import ${P.rows.length} days`; }
     };
   };
@@ -64,13 +63,13 @@ route(/^\/food\/import$/, 'food', async (el) => {
     gbox.innerHTML = skel(1);
     try { orig = await api(`/api/food/history/days?start=${start}&end=${end}`); } catch (x) { gbox.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
     const m = mac.checked;
-    gbox.innerHTML = `${m?'<p class="small muted">Scroll sideways for all macros. Dates stay visible.</p>':''}<div class="hgrid${m ? ' macros' : ''}" tabindex="0" role="region" aria-label="Food and weight history; scroll sideways for more columns"><div class="hrow hhead"><span>Day</span><span>Weight ${wu}</span><span>Eaten kcal</span><span>Burned kcal</span><span>Deficit kcal</span>${m ? '<span>P g</span><span>C g</span><span>F g</span>' : ''}</div>
+    gbox.innerHTML = `${m?'<p class="small muted">Swipe for macros.</p>':''}<div class="hgrid${m ? ' macros' : ''}" tabindex="0" role="region" aria-label="Food and weight history; scroll sideways for more columns"><div class="hrow hhead"><span>Day</span><span>Weight ${wu}</span><span>Eaten kcal</span><span>Burned kcal</span><span>Deficit kcal</span>${m ? '<span>P g</span><span>C g</span><span>F g</span>' : ''}</div>
       ${orig.map((r, i) => `<div class="hrow" data-i="${i}"><span class="hday"><small>${esc(new Date(r.day + 'T12:00').toLocaleDateString([], {weekday: 'short'}))}</small>${esc(new Date(r.day + 'T12:00').toLocaleDateString([], {month: 'numeric', day: 'numeric'}))}</span>
         ${cell('w', r.weight_kg == null ? null : wshow(r.weight_kg))}
         ${r.eaten_in_app != null ? cell('e', r.eaten_in_app, '', true) : cell('e', r.eaten)}
         ${cell('b', r.burned)}${cell('d', r.burned != null && (r.eaten ?? r.eaten_in_app) != null ? Math.round(r.burned - (r.eaten ?? r.eaten_in_app)) : null)}
         ${m ? cell('p', r.protein_g == null ? null : Math.round(r.protein_g), '', r.eaten_in_app != null) + cell('c', r.carbs_g == null ? null : Math.round(r.carbs_g), '', r.eaten_in_app != null) + cell('f', r.fat_g == null ? null : Math.round(r.fat_g), '', r.eaten_in_app != null) : ''}</div>`).join('')}</div>
-      ${orig.some((r) => r.eaten_in_app != null) ? '<p class="small muted">Grey calories = food logged in the app that day (kept as is).</p>' : ''}
+      ${orig.some((r) => r.eaten_in_app != null) ? '<p class="small muted">Logged food stays unchanged.</p>' : ''}
       <div class="actions"><button class="ghost" id="hg-prev">← Earlier 7 days</button><button class="ghost" id="hg-more">+ 7 more days</button><button class="primary" id="hg-save">Save</button></div>`;
     // burned <-> deficit: typing one fills the other from Eaten
     $$('.hrow[data-i]', gbox).forEach((row) => {
@@ -107,7 +106,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
   const drawSum = () => load('/api/food/history/summary', (S) => {
     const sb = $('#hi-sum', el); if (!sb) return;
     sb.innerHTML = S.first ? `<div class="card"><h2>Imported so far</h2><p class="small">${S.weights} weigh-ins, ${S.days_food} days of food, ${S.burned} days of burned calories - back to ${esc(new Date(S.first + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}))}.</p>
-      <div class="actions"><button class="ghost danger" id="hi-del">Remove imported data</button></div><p class="small muted">Removes only what came from imports. Food you logged in the app and weights you logged by hand stay.</p></div>` : '';
+      <div class="actions"><button class="ghost danger" id="hi-del">Remove imported data</button></div></div>` : '';
     const del = $('#hi-del', sb);
     if (del) del.onclick = async () => { if (!await confirmSheet('Remove imported data?', {body: 'Imported food, calorie and weight data will be removed. Food and weights you logged in Kinetta stay.', action: 'Remove'})) return;
       try { const r = await api('/api/food/history', {method: 'DELETE'}); invalidate('/api/food'); toast(`Removed ${r.weights} weigh-ins, ${r.days_food} days of food and ${r.burned} days of activity calories`); drawSum(); } catch (x) { toast(x.message); } };

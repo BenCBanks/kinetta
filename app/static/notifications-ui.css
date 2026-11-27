@@ -73,3 +73,7 @@
 /* Lift the skeleton gently off the surface in dark mode without making it glow. */
 :root[data-theme="dark"] .notification-loading .sk { background-image:linear-gradient(90deg,color-mix(in srgb,var(--card2) 72%,var(--tx3)),color-mix(in srgb,var(--card2) 48%,var(--tx3)),color-mix(in srgb,var(--card2) 72%,var(--tx3))); }
 @media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .notification-loading .sk { background-image:linear-gradient(90deg,color-mix(in srgb,var(--card2) 72%,var(--tx3)),color-mix(in srgb,var(--card2) 48%,var(--tx3)),color-mix(in srgb,var(--card2) 72%,var(--tx3))); } }
+
+/* Saved phone choices are values, never disabled switches on the web. */
+.notification-settings .saved-alert-row { min-height:44px; cursor:default; }
+.notification-settings .saved-alert-row > :last-child { flex:none; white-space:nowrap; }
