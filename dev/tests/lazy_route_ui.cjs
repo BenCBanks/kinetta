@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track','sharing','route-ready'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track','sharing','route-ready','route-reads'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -326,11 +326,13 @@ async function routeReadyCase(browser){
  }finally{releaseScripts();releaseStyles();await context.close();}
 
  const retryContext=await fixtureContext(browser);await login(retryContext);
- const retryPage=await retryContext.newPage();let cssAttempts=0;const retryErrors=[];
+ const retryPage=await retryContext.newPage();let cssAttempts=0;const retryErrors=[],retryFeeds=[],retryScripts=[];
  retryPage.on('pageerror',error=>retryErrors.push(error.message));
  await retryPage.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
   if(url.pathname==='/static/route-screens.css'&&++cssAttempts===1)return route.abort();
+  if(['/static/social.js','/static/media.js'].includes(url.pathname))retryScripts.push(url.pathname);
+  if(['/api/activities','/api/feed/friends'].includes(url.pathname)&&url.searchParams.get('limit')==='15'){retryFeeds.push(url.pathname);return route.fulfill({json:[]});}
   if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
   if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();
  });
@@ -339,6 +341,8 @@ async function routeReadyCase(browser){
   await retryPage.getByRole('button',{name:'Try again',exact:true}).click();
   await ready(retryPage,'#ff-list','Home after failed shared CSS retries');
   assert.equal(cssAttempts,2,'a failed shared stylesheet can retry with scripts already loaded');
+  assert.deepEqual(retryScripts.sort(),['/static/media.js','/static/social.js'],'CSS retry reuses both script requests');
+  assert.deepEqual(retryFeeds.sort(),['/api/activities','/api/feed/friends'],'CSS retry reuses both first-page reads exactly once');
   assert.deepEqual(retryErrors,[],'parallel Home assets have no unhandled rejection after CSS failure');
  }finally{await retryContext.close();}
 
@@ -1025,13 +1029,15 @@ async function foodWarmupCase(browser){
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
   if(selectedCase==='sharing'){await sharingRouteCase(browser);return;}
-  if(selectedCase==='route-ready'){await routeReadyCase(browser);return;}
+  if(selectedCase==='route-ready'){await routeReadyCase(browser);await require('./route_reads_ui.cjs')(browser,base);return;}
+  if(selectedCase==='route-reads'){await require('./route_reads_ui.cjs')(browser,base);return;}
   if(selectedCase==='food'){await foodWarmupCase(browser);return;}
   if(selectedCase==='route-css'){await routeCssCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
   if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}
   if(selectedCase==='records'){await recordsRouteCase(browser);return;}
   if(selectedCase==='track'){await trackLeafCase(browser);return;}
+  await routeReadyCase(browser);await require('./route_reads_ui.cjs')(browser,base);
   await fitnessRouteCase(browser);
   await recordsRouteCase(browser);
   await require('./recap_lazy_ui.cjs')(browser,base);

@@ -340,9 +340,19 @@ function scheduleKitRouteWarmup(el,path) {
 const pendingReads = new Map();
 const readEpochs = new Map();
 const readEpoch = (path) => readEpochs.get(path) || 0;
-const earlyRouteReads = new Map();
+const earlyRouteReads = new Map(), routeReadJobs = new Set();
+let confirmedRouteOwner = null;
+function discardRouteReads(unconfirm = false) {
+  if (unconfirm) confirmedRouteOwner = null;
+  earlyRouteReads.clear();
+  for (const entry of routeReadJobs) { entry.discarded = true; entry.controller.abort(); }
+  routeReadJobs.clear();
+}
 const routeReadKey = (owner, path) => JSON.stringify([owner, path]);
 function startRouteReads(path, owner, isCurrent) {
+  // Saved profile data is useful offline, but only a server-confirmed session
+  // may speculatively read. The server still enforces X-Kinetta-Account.
+  if (!App.me || owner !== confirmedRouteOwner || owner !== readOwner() || App.offline || navigator.onLine === false || !isCurrent()) return;
   const reads = path === '/activity' && new URLSearchParams(location.search).get('view') !== 'groups'
     ? ['/api/activities?limit=15', '/api/feed/friends?limit=15']
     : path === '/track' ? ['/api/connections']
@@ -355,8 +365,11 @@ function startRouteReads(path, owner, isCurrent) {
   for (const readPath of reads) {
     const key = routeReadKey(owner, readPath);
     if (earlyRouteReads.has(key)) continue;
-    const epoch = readEpoch(readPath), entry = {owner, epoch, expiresAt: 0, promise: null};
-    entry.promise = apiRequest(readPath).then(data => {
+    const epoch = readEpoch(readPath), entry = {owner, epoch, expiresAt: 0, promise: null, controller: new AbortController()};
+    routeReadJobs.add(entry);
+    const timer = setTimeout(() => { entry.timedOut = true; entry.controller.abort(); }, 20000);
+    entry.promise = apiRequest(readPath, {signal: entry.controller.signal}).then(data => {
+      if (entry.discarded || owner !== readOwner()) throw Object.assign(new Error('This early read is no longer current.'), {stale: true});
       if (!isCurrent() || owner !== readOwner() || epoch !== readEpoch(readPath)) {
         if (earlyRouteReads.get(key) === entry) earlyRouteReads.delete(key);
         return data;
@@ -364,12 +377,13 @@ function startRouteReads(path, owner, isCurrent) {
       entry.expiresAt = Date.now() + 15000;
       return data;
     }).catch(error => {
-      if (earlyRouteReads.get(key) === entry) {
-        if (isCurrent() && owner === readOwner() && epoch === readEpoch(readPath)) entry.expiresAt = Date.now() + 15000;
-        else earlyRouteReads.delete(key);
-      }
+      // A failed prefetch must not poison Retry with a cached rejection.
+      if (earlyRouteReads.get(key) === entry) earlyRouteReads.delete(key);
+      if (entry.timedOut && !entry.discarded) Object.assign(error, {message: 'This is taking too long. Try refreshing again.', status: 504, offline: false});
+      if (error.offline && !entry.discarded) discardRouteReads();
+      if (entry.discarded) throw Object.assign(error, {stale: true});
       throw error;
-    });
+    }).finally(() => { clearTimeout(timer); routeReadJobs.delete(entry); });
     // A route can be left before this optional prefetch settles.
     entry.promise.catch(() => {});
     earlyRouteReads.set(key, entry);
@@ -377,10 +391,12 @@ function startRouteReads(path, owner, isCurrent) {
 }
 // A new cookie login to the same account is still a different session.
 const readSessions = new WeakMap();
-let readSession = 0;
+let readSession = 0, lastReadOwner = null;
 const readOwner = () => {
   if (App.me && !readSessions.has(App.me)) readSessions.set(App.me, ++readSession);
-  return JSON.stringify([Native.base, Native.token, App.me && App.me.id, App.me ? readSessions.get(App.me) : 0]);
+  const owner = JSON.stringify([Native.base, Native.token, App.me && App.me.id, App.me ? readSessions.get(App.me) : 0]);
+  if (lastReadOwner !== owner) { discardRouteReads(true); lastReadOwner = owner; }
+  return owner;
 };
 function readOnce(path) {
   const key = JSON.stringify([readOwner(), path]);
@@ -518,7 +534,7 @@ function refreshMe(me) {
   const previous = App.me, same = previous && previous.id === me.id;
   if (same && readSessions.has(previous)) readSessions.set(me, readSessions.get(previous));
   if (!same) { Native.clearPictures?.();App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {}); App.cache.clear(); forgetKept(); }
-  App.me = me; keep('/api/me', me);
+  App.me = me; confirmedRouteOwner = readOwner(); keep('/api/me', me);
   globalThis.CommunityTerms?.check();
   if (!same) render();
 }
@@ -535,7 +551,7 @@ const store = {
 const serverKey = () => Native.base || location.origin;
 function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {account: App.me.id, server: serverKey(), data}); }
 function kept(path) { const v = store.get('fit.c:' + path); return App.me && v && v.account === App.me.id && (v.server === serverKey() || (!v.server && !Native.on)) ? v.data : null; }
-function forgetKept() { App.cache?.clear();globalThis.PaintGate?.clearAll?.();try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')||k.startsWith('fit.welcome.profile-draft:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
+function forgetKept() { discardRouteReads(true); App.cache?.clear();globalThis.PaintGate?.clearAll?.();try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')||k.startsWith('fit.welcome.profile-draft:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
 
 // Fold a generated note without redrawing the page, map or inputs. Remember only its fingerprint on this device.
 function coachKey(key) { return 'fit.coach.hidden:' + JSON.stringify([Native.base || location.origin, App.me.id, key]); }
@@ -655,7 +671,7 @@ async function sendOrQueue(path, method, body, label) {
   if (owner !== readOwner()) throw Object.assign(Error('The account changed. Please try again.'), {stale: true});
   netState(true); Q.add({path, method, body, label}); App.queuedAt = Date.now(); return {queued: true};
 }
-function netState(off) { if (App.offline !== off) { App.offline = off; netbar(); } }
+function netState(off) { if (off) discardRouteReads(); if (App.offline !== off) { App.offline = off; netbar(); } }
 function netbar() {
   let b = $('#netbar'); const n = Q.mine().length;
   if (!App.offline && !n) { if (b) b.remove(); return; }
@@ -3041,7 +3057,7 @@ async function start() {
     return;
   }
   try {
-    App.me = await bootstrapMe(); keep('/api/me', App.me);
+    App.me = await bootstrapMe(); confirmedRouteOwner = readOwner(); keep('/api/me', App.me);
     enter();
   } catch (x) {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }
