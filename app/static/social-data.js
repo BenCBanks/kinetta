@@ -1,8 +1,8 @@
 // Session-scoped reads; short-lived own-account comment drafts survive reload.
 'use strict';
 const SocialData=(()=>{
-  let owner=null,epoch=0,hydrated=false,revoked=false,draftGeneration=null;const cache=new Map(),pending=new Map(),versions=new Map(),drafts=new Map(),watchers=new Map();
-  const scope=()=>{const next=readOwner();if(next!==owner){owner=next;epoch++;cache.clear();pending.clear();versions.clear();drafts.clear();watchers.clear();hydrated=false;revoked=false;draftGeneration=generation();}return next;};
+  let owner=null,epoch=0,hydrated=false,revoked=false,draftGeneration=null;const cache=new Map(),pending=new Map(),versions=new Map(),drafts=new Map(),dirtyDrafts=new Set(),watchers=new Map();
+  const scope=()=>{const next=readOwner();if(next!==owner){owner=next;epoch++;cache.clear();pending.clear();versions.clear();drafts.clear();dirtyDrafts.clear();watchers.clear();hydrated=false;revoked=false;draftGeneration=generation();}return next;};
   const key=id=>String(id);
   function remember(id,data){scope();if(!Array.isArray(data?.cheers)||!Array.isArray(data?.comments))return;
     const k=key(id);data={...cache.get(k)?.data,...data};
@@ -38,11 +38,12 @@ const SocialData=(()=>{
   // Establish one shared epoch before any tab scopes its reads or drafts.
   try{if(!generation())localStorage.setItem(generationKey,newId());}catch(_){}
   function revokeDrafts(){
-    scope();if(revoked)return;revoked=true;hydrated=true;drafts.clear();
+    scope();if(revoked)return;revoked=true;hydrated=true;drafts.clear();dirtyDrafts.clear();
     globalThis.dispatchEvent?.(new Event('comment-drafts-cleared'));
   }
   globalThis.addEventListener?.('storage',event=>{if(event.key===generationKey||event.key===null)revokeDrafts();});
   try{if(typeof BroadcastChannel==='function'){const channel=new BroadcastChannel('fit.comment-drafts');channel.onmessage=revokeDrafts;}}catch(_){/* Storage checks also revoke suspended tabs. */}
+  const validDraft=row=>row&&typeof row.text==='string'&&row.text.length<=500&&/^[0-9a-f-]{36}$/i.test(row.client_id)&&Number.isFinite(row.at)&&Date.now()-row.at<draftTTL;
   function savedDrafts(){
     scope();
     // Check synchronously too: a suspended tab may write before its storage event is delivered.
@@ -55,7 +56,7 @@ const SocialData=(()=>{
     try{
       const saved=JSON.parse(localStorage.getItem(draftKey)||'null');
       if(!account||saved?.account!==account||(saved.generation??null)!==draftGeneration)localStorage.removeItem(draftKey);
-      else for(const [id,row] of Object.entries(saved.rows||{}))if(typeof row.text==='string'&&row.text.length<=500&&/^[0-9a-f-]{36}$/i.test(row.client_id)&&Number.isFinite(row.at)&&Date.now()-row.at<draftTTL)drafts.set(id,row);
+      else for(const [id,row] of Object.entries(saved.rows||{}))if(validDraft(row))drafts.set(id,row);
     }catch(_){/* A full/disabled store still allows an in-memory draft. */}
     // Establish the fence before any durable write. Without it, stay memory-only:
     // logout can revoke old tabs by changing OR removing this fixed-size marker.
@@ -65,15 +66,22 @@ const SocialData=(()=>{
   function persistDrafts(account){try{
     if(revoked||generation()!==draftGeneration){revokeDrafts();return;}
     if(!draftGeneration)return; // Quota failure must not create unfenced durable text.
-    const rows=Object.fromEntries([...drafts].filter(([,row])=>Date.now()-row.at<draftTTL).slice(-40));
-    if(account&&Object.keys(rows).length)localStorage.setItem(draftKey,JSON.stringify({account,generation:draftGeneration,rows}));else localStorage.removeItem(draftKey);
+    // Merge only this tab's pending activity changes into the latest saved map.
+    // Hydrated copies of unrelated activities may be stale or cleared by another tab.
+    let saved;try{saved=JSON.parse(localStorage.getItem(draftKey)||'null');}catch(_){}
+    const rows=saved?.account===account&&saved.generation===draftGeneration
+      ?Object.fromEntries(Object.entries(saved.rows||{}).filter(([,row])=>validDraft(row))):{};
+    for(const id of dirtyDrafts){if(validDraft(drafts.get(id)))rows[id]=drafts.get(id);else delete rows[id];}
+    const bounded=Object.fromEntries(Object.entries(rows).sort((a,b)=>a[1].at-b[1].at).slice(-40));
+    if(account&&Object.keys(bounded).length)localStorage.setItem(draftKey,JSON.stringify({account,generation:draftGeneration,rows:bounded}));else localStorage.removeItem(draftKey);
+    dirtyDrafts.clear(); // Retain pending changes when storage rejects a write.
     // A clear between the check and write cannot leave this old generation's text on disk.
     if(generation()!==draftGeneration){try{if(JSON.parse(localStorage.getItem(draftKey)||'null')?.generation===draftGeneration)localStorage.removeItem(draftKey);}finally{revokeDrafts();}}
   }catch(_){/* Saving a comment must not depend on device storage. */}}
   function draft(id,text){const account=savedDrafts(),k=key(id);if(revoked||!account)return '';if(arguments.length>1){
     const old=drafts.get(k);
     if(text){if(old?.text!==text)drafts.set(k,{text,client_id:old?.text.trim()===text.trim()?old.client_id:newId(),at:old?.text.trim()===text.trim()?old.at:Date.now()});}else drafts.delete(k);
-    persistDrafts(account);
+    dirtyDrafts.add(k);persistDrafts(account);
   }return drafts.get(k)?.text||'';}
   function draftRequest(id,text){draft(id,text);return drafts.get(key(id))?.client_id||null;}
   // Only an expiry timestamp persists: no reservation can strand ordinary reads.

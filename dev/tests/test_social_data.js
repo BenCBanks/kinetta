@@ -43,6 +43,19 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  const listeners=[];
  function tab(){const t={...ctx,addEventListener:(name,fn)=>{if(name==='storage')listeners.push(fn);}};vm.createContext(t);vm.runInContext(fs.readFileSync('app/static/social-data.js','utf8')+'\nglobalThis.data=SocialData;',t);return t;}
  const parallelOne=tab(),parallelTwo=tab();parallelOne.data.peek(99);parallelTwo.data.peek(99);parallelOne.data.draft(99,'First tab');assert.equal(parallelTwo.data.draft(99,'Second tab'),'Second tab','opening a second tab is not a sign-out');
+ // Both tabs hydrate before either types; each write must preserve the other activity.
+ const activityA=tab(),activityB=tab();activityA.data.draft(101);activityB.data.draft(102);
+ const aKey=activityA.data.draftRequest(101,'Fictional draft A'),bKey=activityB.data.draftRequest(102,'Fictional draft B');
+ let restored=tab();assert.equal(restored.data.draft(101),'Fictional draft A','typing B cannot erase A');assert.equal(restored.data.draft(102),'Fictional draft B');
+ assert.equal(restored.data.draftRequest(101,'Fictional draft A'),aKey);assert.equal(restored.data.draftRequest(102,'Fictional draft B'),bKey);
+ // A peer with an old in-memory copy must not restore a draft cleared elsewhere.
+ activityA.data.draft(101,'');restored.data.draft(102,'Fictional revised B');
+ assert.equal(tab().data.draft(101),'','writing B cannot resurrect cleared A');
+ // Pending quota failures still flush with their stable identity alongside another activity.
+ const writeDraft=localStorage.setItem;localStorage.setItem=()=>{throw Error('quota');};
+ const pendingKey=activityA.data.draftRequest(103,'Fictional pending A');localStorage.setItem=writeDraft;
+ activityB.data.draft(104,'Fictional separate B');activityA.data.draft(105,'Fictional next A');
+ restored=tab();assert.equal(restored.data.draftRequest(103,'Fictional pending A'),pendingKey);assert.equal(restored.data.draft(104),'Fictional separate B');assert.equal(restored.data.draft(105),'Fictional next A');
  for(const reason of ['sign-out','deletion'])for(const quota of [false,true]){
    const clearer=tab(),peer=tab();peer.data.draft(81,'Old-tab '+reason+' text');
    const before=localStorage.getItem('fit.comment-drafts-generation');assert(before);

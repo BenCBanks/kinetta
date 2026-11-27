@@ -13,6 +13,8 @@ const commentList=Array.from({length:16},(_,i)=>({id:9000+i,login:`fictional_${i
 (async()=>{
  const browser=await chromium.launch();
  try{
+  await crossTabDraftChecks(browser);
+  if(process.env.KINETTA_COMMENTS_DRAFTS_ONLY)return;
   if(!process.env.KINETTA_COMMENTS_RETRY_ONLY)for(const theme of ['light','dark'])for(const width of [390,330])for(const state of ['loading','error','empty','newest']){
    if(process.env.KINETTA_COMMENTS_STATE_CASE&&!process.env.KINETTA_COMMENTS_STATE_CASE.split(',').includes(`${state}-${width}-${theme}`))continue;
    const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
@@ -123,5 +125,40 @@ async function retryChecks(browser){
   }finally{
    release?.();for(const id of created)await context.request.delete(base+'/api/comments/'+id,{headers:{Origin:base,'Content-Type':'application/json',...(native?{Authorization:'Bearer '+token}:{})},data:{}});await context.close();
   }
+ }
+}
+
+// Real independent browser tabs, actual draft coordinator, fictional stand-in shell.
+// No API/provider calls: storage behaviour is identical on the web and bridge.
+async function crossTabDraftChecks(browser){
+ const source=fs.readFileSync('app/static/social-data.js','utf8');
+ const clear=fs.readFileSync('app/static/app.js','utf8').split('function clearCommentDrafts() {')[1].split('\nlet pendingDishEntry')[0];
+ for(const native of [false,true]){
+  const context=await browser.newContext({serviceWorkers:'block'});
+  try{
+   await context.route('**/*',route=>route.request().resourceType()==='document'?route.fulfill({contentType:'text/html',body:'<!doctype html><title>Fictional draft storage check</title>'}):route.abort());
+   await context.addInitScript(`window.App={me:{id:1}};window.Native={base:${JSON.stringify(native?'https://bridge.example.test':'')}};window.readOwner=()=> 'fictional-session';window.newId=()=>crypto.randomUUID();`+source+'\nwindow.SocialData=SocialData;\nfunction clearCommentDrafts() {'+clear+'\nwindow.clearCommentDrafts=clearCommentDrafts;');
+   const one=await context.newPage(),two=await context.newPage();
+   await one.goto('http://drafts.localhost/');await two.goto('http://drafts.localhost/');
+   await one.evaluate(()=>SocialData.draft(101));await two.evaluate(()=>SocialData.draft(102));
+   const a=await one.evaluate(()=>SocialData.draftRequest(101,'Fictional draft A'));
+   const b=await two.evaluate(()=>SocialData.draftRequest(102,'Fictional draft B'));
+   for(const page of [one,two]){
+    await page.reload();
+    assert.deepEqual(await page.evaluate(()=>[SocialData.draft(101),SocialData.draft(102)]),['Fictional draft A','Fictional draft B']);
+    assert.deepEqual(await page.evaluate(()=>[SocialData.draftRequest(101,'Fictional draft A'),SocialData.draftRequest(102,'Fictional draft B')]),[a,b]);
+   }
+   await one.evaluate(()=>SocialData.draft(101,''));await two.evaluate(()=>SocialData.draft(102,'Fictional revised B'));
+   await one.reload();assert.deepEqual(await one.evaluate(()=>[SocialData.draft(101),SocialData.draft(102)]),['','Fictional revised B'],'stale memory cannot restore another activity cleared elsewhere');
+   const pending=await one.evaluate(()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw Error('Fictional quota');};try{return SocialData.draftRequest(103,'Fictional pending A');}finally{Storage.prototype.setItem=set;}});
+   await two.evaluate(()=>SocialData.draft(104,'Fictional separate B'));await one.evaluate(()=>SocialData.draft(105,'Fictional next A'));
+   await two.reload();assert.deepEqual(await two.evaluate(()=>[SocialData.draftRequest(103,'Fictional pending A'),SocialData.draft(104),SocialData.draft(105)]),[pending,'Fictional separate B','Fictional next A']);
+   // Suppress clear events so the stale tab must use the synchronous generation fence.
+   await two.evaluate(()=>{window.addEventListener('storage',e=>e.stopImmediatePropagation(),{capture:true});});
+   await one.evaluate(()=>clearCommentDrafts());
+   assert.equal(await two.evaluate(()=>SocialData.draftRequest(102,'Must not restore after sign-out')),null);
+   assert.equal(await two.evaluate(()=>localStorage.getItem('fit.comment-drafts')),null);
+   console.log(`Two-tab per-activity drafts/reload/clear/quota/generation ${native?'bridge':'web'} PASS`);
+  }finally{await context.close();}
  }
 }
