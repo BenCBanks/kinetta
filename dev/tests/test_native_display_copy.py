@@ -147,7 +147,7 @@ const {cfg,c}=setup('2026-11-02T12:00:00Z');
 for(let n=0;n<80;n++)assert.equal(cfg.advanceFixtureClock(250),true);
 assert.equal(cfg.advanceFixtureClock(250),false);assert.equal(vm.runInContext('Date.now()',c),cfg.fixtureNow+20000);
 assert.equal(cfg.advanceFixtureClock(100000),false);
-const midnight=setup('2026-11-02T23:59:59.900Z');assert.equal(midnight.cfg.advanceFixtureClock(250),false);
+const midnight=setup(new Date(2026,10,2,23,59,59,900).toISOString());assert.equal(midnight.cfg.advanceFixtureClock(250),false);
 """
         result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/early.js')],cwd=ROOT,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
