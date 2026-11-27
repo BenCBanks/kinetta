@@ -622,12 +622,13 @@ async function searchFlow(el, d, set, text) {
   } catch (x) { if (live()) res.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 function typeSheet(name, grams, done, opts = {}) {
+  const {review=false,...sheetOpts}=opts;
   sheet('Manually add a food', `<form class="form" id="ty"><label>Food name<input name="name" value="${esc(name)}" maxlength="120" required></label>
     <div class="two"><label>Weight (g)<input name="grams" inputmode="decimal" value="${esc(grams)}" placeholder="Optional"></label><label>Calories<input name="kcal" inputmode="decimal" required></label></div>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal"></label></div>
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal"></label><label>Fiber (g)<input name="fiber_g" inputmode="decimal"></label></div>
     ${extraInputs()}<p class="small muted">Nutrition for the amount you are adding. Weight is optional; unknown nutrients stay blank.</p>
-    <p class="err" id="ty-error" role="alert"></p><div class="actions"><button class="primary">Add</button></div></form>`, (b, close) => {
+    <p class="err" id="ty-error" role="alert"></p><div class="actions"><button class="primary">${review?'Review food':'Add'}</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,readOwner());const f = $('#ty', b); (name.trim()?f.kcal:f.elements.name).focus();
     f.onsubmit = async (e) => {   // stays open if the server says no, so the numbers aren't lost
       e.preventDefault(); const n = (v) => (v.trim() === '' ? null : +v.replace(',', '.')), btn = $('button.primary', f);
@@ -648,7 +649,7 @@ function typeSheet(name, grams, done, opts = {}) {
         const field=f.elements[error.field];if(field){field.setAttribute('aria-invalid','true');field.setAttribute('aria-describedby','ty-error');field.oninput=()=>field.removeAttribute('aria-invalid');field.focus();}
       }
     };
-  },opts);
+  },sheetOpts);
 }
 function itemSheet(d, it, set) {
   sheet(it.name, `<form class="form" id="it"><label>Weight<span class="gfield"><input name="g" inputmode="decimal" value="${it.grams==null?'':Math.round(it.grams * 10) / 10}" required><span>g</span></span></label>

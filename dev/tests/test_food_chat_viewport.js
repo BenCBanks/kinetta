@@ -15,10 +15,10 @@ const down=new Event('pointerdown',{cancelable:true});Object.assign(down,{button
 const beforeDispose=fits;view.dispose();top=15;viewport.dispatchEvent(new Event('resize'));flush();assert.equal(top,15,'disposed view cannot move the old conversation');assert.equal(fits,beforeDispose,'disposed view cannot resize its old composer');
 assert(source.includes('enterkeyhint="send"'));assert(source.includes('!e.isComposing'));assert(source.includes('e.keyCode!==229'));assert(source.includes("!e.shiftKey"));
 const style=fs.readFileSync('app/static/style.css','utf8'),foodStyle=fs.readFileSync('app/static/food-route.css','utf8'),markup=source.slice(source.indexOf('class="kit-starters thread-quick-actions chat-suggestions"'),source.indexOf('<div id="thread-remove-notice"'));
-const foodOrder=['Scan','Photo','Usuals'].map(text=>markup.indexOf(text));assert(foodOrder.every(x=>x>=0)&&foodOrder.join(',')===[...foodOrder].sort((a,b)=>a-b).join(','),'Food suggestions keep Scan, Photo, Usuals order above the composer');
+const foodOrder=['Scan','Photo','Usuals','Manual'].map(text=>markup.indexOf(text));assert(foodOrder.every(x=>x>=0)&&foodOrder.join(',')===[...foodOrder].sort((a,b)=>a-b).join(','),'Food suggestions keep Scan, Photo, Usuals, Manual order above the composer');
 assert(source.indexOf('class="kit-starters thread-quick-actions chat-suggestions"')<source.indexOf('<div class="thread-compose-row">'),'Food suggestions are directly above the composer');
-assert(style.includes('min-height:44px;padding:0 16px;')&&foodStyle.includes('margin:0 calc(0px - var(--space-5)) 8px;'),'suggestions keep 44px rows, page-edge 16px padding and 8px composer gap');
+assert(foodStyle.includes('grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px;margin:0 0 8px;')&&foodStyle.includes('min-height:44px;padding:0;'),'Food grid keeps two columns, 44px targets and 8px composer gap');
 assert(style.includes('left:52px;height:1px;background:var(--line);content:\'\';'),'hairlines start at the text column');
-assert(foodStyle.includes('.food-thread .thread-quick-actions.chat-suggestions > button svg {width:20px;height:20px;}'),'Food suggestion glyphs stay 20px');
+assert(foodStyle.includes('.food-thread .thread-quick-actions.chat-suggestions > button svg {width:20px;height:20px;flex:none;overflow:visible;}'),'Food glyphs stay whole, 20px and cannot shrink');
 assert(foodStyle.includes('.food-thread.has-messages .thread-quick-actions { display:none; }'),'Food suggestions disappear after the first message');
 console.log('Food texting: bottom-anchored 44px suggestions, keyboard threshold and composer visibility; latest reply, history, focus and IME guards PASS');
