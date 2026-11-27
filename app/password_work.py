@@ -1,5 +1,8 @@
 """Password request admission: no database leases or worker threads while queued."""
 import asyncio
+import hashlib
+import logging
+import secrets
 import re
 import threading
 import time
@@ -13,7 +16,7 @@ PUBLIC = {'/api/login', '/api/signup', '/api/setup', '/api/join', '/api/admin/lo
 PRIVATE = {'/api/account/password', '/api/password/reset', '/api/password/temporary',
            '/api/account/delete', '/api/admin/people'}
 WAIT_SECONDS = 5
-SOURCE_LIMIT = 60  # All attempts/minute, including invalid bodies, unknown names and busy responses.
+SOURCE_LIMIT = 60  # Unsuccessful + in-flight requests/minute per source and category; successes refund only themselves.
 BUSY = 'Kinetta is busy. Please try again in a few seconds.'
 
 
@@ -25,17 +28,34 @@ def category(scope):
     if method == 'PUT' and path == '/api/account/email': return 'recovery'
 
 
+def source_prefix(request, kind):
+    # Hash the source so it cannot introduce wildcard characters into the prefix lookup.
+    source = hashlib.sha256(auth.client_ip(request).encode()).hexdigest()
+    return 'password-work:' + kind + ':' + source + ':'
+
+
 def source_attempt(request, kind):
     # Independent of usernames: congestion must not lock out a targeted account.
-    # Commit before admission so a timeout/disconnect/503 cannot refund this budget.
-    key = 'password-work:' + kind + ':' + auth.client_ip(request)
+    # Commit before admission; failures, timeouts, disconnects and 503s retain their budget.
+    prefix = source_prefix(request, kind)
+    reservation = prefix + secrets.token_hex(16)
     with db.connect() as c:
-        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (key,))
-        n = c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key=%s AND created>now()-interval '1 minute'", (key,)).fetchone()['n']
-        if n >= SOURCE_LIMIT: return False
+        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (prefix,))
+        n = c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE %s AND created>now()-interval '1 minute'", (prefix + '%',)).fetchone()['n']
+        if n >= SOURCE_LIMIT: return None
         c.execute("DELETE FROM auth_attempts WHERE created<now()-interval '1 day'")
-        c.execute('INSERT INTO auth_attempts(key) VALUES(%s)', (key,))
-    return True
+        c.execute('INSERT INTO auth_attempts(key) VALUES(%s)', (reservation,))
+    return reservation
+
+
+def source_success(reservation):
+    # Refund only this successful request, never concurrent failures from a shared network.
+    # Cleanup must not turn a committed sign-in into an error; any retained row expires in a minute.
+    try:
+        with db.connect() as c:
+            c.execute('DELETE FROM auth_attempts WHERE key=%s', (reservation,))
+    except Exception:
+        logging.getLogger(__name__).warning('Password request budget cleanup failed; expires after one minute.')
 
 
 class Admission:
@@ -94,7 +114,8 @@ class PasswordAdmission:
         watcher = asyncio.create_task(watch())
         entered = queued = False
         try:
-            if not await run_in_threadpool(source_attempt, Request(scope), kind):
+            reservation = await run_in_threadpool(source_attempt, Request(scope), kind)
+            if reservation is None:
                 return await JSONResponse({'detail': 'Too many tries. Wait a minute and try again.'}, 429,
                                           headers={'Retry-After': '60'})(scope, receive, send)
             deadline = time.monotonic() + WAIT_SECONDS
@@ -132,6 +153,8 @@ class PasswordAdmission:
 
             async def response(message):
                 nonlocal entered
+                if message['type'] == 'http.response.start' and 200 <= message['status'] < 300:
+                    await run_in_threadpool(source_success, reservation)
                 await send(message)
                 # Password work is over before the response. Device-email background
                 # delivery must not occupy admission after the person is signed in.

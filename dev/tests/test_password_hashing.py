@@ -15,6 +15,7 @@ from unittest.mock import patch
 from argon2 import PasswordHasher, extract_parameters
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 from app import auth, db, account_email, admin_auth, admin_passwords, password_work
 from app.main import app
 
@@ -224,6 +225,52 @@ class PasswordRoutes(unittest.TestCase):
             self.assertEqual(results.count(429),5,'source reservations are atomic across simultaneous requests')
             verify.assert_not_called()
 
+    def test_successful_family_signins_do_not_exhaust_shared_source_budget(self):
+        # More successful sign-ins than the production limit, alternating household members.
+        with patch.object(PasswordHasher, 'verify', return_value=True) as verify:
+            for i in range(password_work.SOURCE_LIMIT + 5):
+                login = 'zz_test_hashguard_' + ('member' if i % 2 else 'admin')
+                response = self.anon.post('/api/login', json={'login':login,'password':PW})
+                self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(verify.call_count,65)
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE 'password-work:%%'").fetchone()['n'],0)
+
+    def test_success_refunds_only_itself_and_preserves_failed_and_busy_attempts(self):
+        body = {'login':'zz_test_hashguard_member','password':PW}
+        with patch.object(password_work, 'SOURCE_LIMIT', 3):
+            self.assertEqual(self.anon.post('/api/login',json={**body,'password':'wrong'}).status_code,401)
+            with full_queue(): self.retry(self.anon.post('/api/login',json=body))
+            with db.connect() as c:
+                retained = c.execute('SELECT key FROM auth_attempts ORDER BY key').fetchall()
+            # Each success leaves room for the next, but refunds neither the wrong password nor 503.
+            for _ in range(4):
+                self.assertEqual(self.anon.post('/api/login',json=body).status_code,200)
+            with db.connect() as c:
+                self.assertEqual(c.execute('SELECT key FROM auth_attempts ORDER BY key').fetchall(),retained)
+            self.assertEqual(self.anon.post('/api/login',content='{broken',headers={'Content-Type':'application/json'}).status_code,422)
+            self.assertEqual(self.anon.post('/api/login',json=body).status_code,429)
+            # A different household/source and the recovery category have independent budgets.
+            self.assertIsNotNone(password_work.source_attempt(Request({'type':'http','headers':[], 'client':('192.0.2.99',1)}),'public'))
+            self.assertEqual(self.anon.post('/api/password/reset',json={'token':self.reset,'password':NEW}).status_code,200)
+        self.assertFalse(auth.too_many('testclient','zz_test_hashguard_member'))
+
+    def test_success_budget_cleanup_failure_does_not_fail_committed_login(self):
+        helper = password_work.source_success
+        def failing_cleanup(reservation):
+            with patch.object(db,'connect',side_effect=RuntimeError('fictional sensitive diagnostic')):
+                with self.assertLogs('app.password_work',level='WARNING') as logs: helper(reservation)
+            self.assertNotIn('sensitive',str(logs.output))
+        with patch.object(password_work,'source_success',side_effect=failing_cleanup):
+            response = self.anon.post('/api/login',json={'login':'zz_test_hashguard_member','password':PW})
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(self.anon.get('/api/me').status_code,200)
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE 'password-work:%%'").fetchone()['n'],1)
+            c.execute("UPDATE auth_attempts SET created=now()-interval '61 seconds' WHERE key LIKE 'password-work:%%'")
+        with patch.object(password_work,'SOURCE_LIMIT',1):
+            self.assertEqual(self.anon.post('/api/login',json={'login':'zz_test_hashguard_member','password':PW}).status_code,200)
+
     def test_real_queued_routes_release_database_and_keep_loop_and_recovery_responsive(self):
         async def scenario():
             started = threading.Event(); release = threading.Event(); first = True
@@ -315,7 +362,8 @@ class PasswordRoutes(unittest.TestCase):
                 self.assertEqual(password_work.admission.waiting,0)
                 self.assertFalse(any(m.get('status')==200 for m in sent))
                 with db.connect() as c:
-                    self.assertEqual(c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key=%s',('password-work:public:'+source,)).fetchone()['n'],2)
+                    prefix = password_work.source_prefix(Request(scope), 'public')
+                    self.assertEqual(c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key LIKE %s',(prefix+'%',)).fetchone()['n'],2)
             finally: password_work.admission.leave('public')
             self.assertEqual(password_work.admission.active,0)
         asyncio.run(scenario())
@@ -328,8 +376,7 @@ class PasswordRoutes(unittest.TestCase):
                         for offset in range(0,len(raw),3):
                             await asyncio.sleep(0)
                             yield raw[offset:offset+3]
-                    with patch.object(password_work,'source_attempt',return_value=True):
-                        response=await asyncio.wait_for(client.post('/api/login',content=body(),headers={'Content-Type':'application/json'}),2)
+                    response=await asyncio.wait_for(client.post('/api/login',content=body(),headers={'Content-Type':'application/json'}),2)
                     self.assertEqual(response.status_code,status,response.text)
                 self.assertEqual(password_work.admission.active,0)
         asyncio.run(scenario())
