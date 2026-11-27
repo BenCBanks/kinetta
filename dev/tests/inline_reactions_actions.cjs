@@ -31,9 +31,13 @@ async function assertCardActions(card,{share,width,label}){
  }
 }
 (async()=>{
- const browser=await chromium.launch();let cases=0;
+ const browser=await chromium.launch();let cases=0,themeStarted=0;
  try{
-  for(const theme of ['light','dark'])for(const size of [{width:390,root:16},{width:330,root:16}])for(const surface of ['friends','profile','own','history']){
+  for(const theme of ['light','dark']){
+   // Reused actors must not turn the UI matrix into a >60/min reaction burst.
+   if(cases)await new Promise(resolve=>setTimeout(resolve,Math.max(0,60250-(Date.now()-themeStarted))));
+   themeStarted=Date.now();
+   for(const size of [{width:390,root:16},{width:330,root:16}])for(const surface of ['friends','profile','own','history']){
    if(process.env.KINETTA_REACTION_CASE&&!process.env.KINETTA_REACTION_CASE.split(',').includes(`${surface}-${size.width}-${theme}`))continue;
    const actor=surface==='own'||surface==='history'?'owner':'viewer',c=await browser.newContext({viewport:{width:size.width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
    try{
@@ -77,7 +81,8 @@ async function assertCardActions(card,{share,width,label}){
      const summaryState=await(await c.request.get(base+'/api/activities/'+activityId+'/social')).json();assert.equal(summaryState.my_reaction,null);assert.equal(summaryState.reactions.fire,1);assert.equal(postCount,writesBefore,'opening and filtering the summary never writes a reaction');
     }
     if(surface==='friends'&&size.width===390){
-     await card.locator('.activity-comments').click();await p.locator('.c-form textarea').fill('Nice work!');await p.getByRole('button',{name:'Post comment',exact:true}).click();await until(p,()=>document.querySelector('.social-read-status')?.textContent==='Comment posted.','Comment saved');assert.equal(await card.locator('.activity-comments .num').innerText(),'1');assert.equal(await card.locator('.activity-comments').getAttribute('aria-label'),'1 comment');const comment=p.locator('.comments .comment');await comment.focus();await p.keyboard.press('Shift+F10');await p.locator('.comment-options-menu').getByRole('button',{name:'Delete comment',exact:true}).click();await p.getByRole('alertdialog').getByRole('button',{name:'Delete',exact:true}).click();await until(p,()=>!document.querySelector('.comments .comment'),'Comment removed');assert.equal(await card.locator('.activity-comments .num').isVisible(),false,'Last comment hides zero again');assert.equal(await card.locator('.activity-comments').getAttribute('aria-label'),'Comment');await p.keyboard.press('Escape');
+     // These are separate posts; identical text within 60s is intentionally suppressed.
+     await card.locator('.activity-comments').click();await p.locator('.c-form textarea').fill(`Nice work! (${theme} fixture)`);await p.getByRole('button',{name:'Post comment',exact:true}).click();await until(p,()=>document.querySelector('.social-read-status')?.textContent==='Comment posted.','Comment saved');assert.equal(await card.locator('.activity-comments .num').innerText(),'1');assert.equal(await card.locator('.activity-comments').getAttribute('aria-label'),'1 comment');const comment=p.locator('.comments .comment');await comment.focus();await p.keyboard.press('Shift+F10');await p.locator('.comment-options-menu').getByRole('button',{name:'Delete comment',exact:true}).click();await p.getByRole('alertdialog').getByRole('button',{name:'Delete',exact:true}).click();await until(p,()=>!document.querySelector('.comments .comment'),'Comment removed');assert.equal(await card.locator('.activity-comments .num').isVisible(),false,'Last comment hides zero again');assert.equal(await card.locator('.activity-comments').getAttribute('aria-label'),'Comment');await p.keyboard.press('Escape');
     }
     const peopleCard=p.locator('article.post').filter({hasText:'Fictional mixed run'});await peopleCard.locator('[data-reaction-group] .reaction-count').click();await until(p,()=>!!document.querySelector('.cheers-list a, .cheers-list .reaction-person'),'People loaded');assert.match(await p.locator('.cheers-list').innerText(),/You/);assert(!/@|zz_test_inline/.test(await p.locator('.cheers-list').innerText()),'the compact list omits handles');const ownRow=p.locator('.cheers-list .reaction-person').filter({hasText:'You'});assert.equal(await ownRow.count(),1,'the viewer appears once in their reaction list');assert.equal(await ownRow.evaluate(n=>n.tagName),'DIV','the viewer row is not a profile link');assert.equal(await p.locator('.reaction-sheet header h2').innerText(),'Reactions');const row=p.locator('.cheers-list .person').first();assert.equal((await row.boundingBox()).height,56);assert.equal((await row.locator('.av').boundingBox()).width,28);const filter=p.getByRole('tab',{name:'Show 1 flexed biceps reaction',exact:true});await filter.click();assert.equal(await p.locator('[data-reaction-filter=muscle]').getAttribute('aria-selected'),'true');assert.equal(await p.locator('.cheers-list .person').count(),1);await p.locator('[data-reaction-filter=""]').click();assert.equal(await p.locator('[data-reaction-filter=""]').getAttribute('aria-selected'),'true');assert.equal(await p.locator('.cheers-list').getByRole('img',{name:'Reacted with flexed biceps',exact:true}).count(),1,'reactor emoji has a reliable accessible name');await p.keyboard.press('Escape');
     await card.locator('.post-link').first().click();await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('.detail-social [data-reaction-group] .reaction-more:not([hidden])'),'Detail ready');await waitForActivityStyles(p);assert.equal(await p.locator('.detail-social [data-reaction-group] .reaction-more').getAttribute('data-kind'),'muscle','The chosen feed reaction appears in detail');assert.equal(await p.locator('.detail-social [data-reaction-group]').getAttribute('data-mine'),'muscle');
@@ -91,6 +96,7 @@ async function assertCardActions(card,{share,width,label}){
     }
     assert.deepEqual(errors,[]);cases++;console.log(`Inline reactions ${surface} ${size.width}/${size.root}px ${theme}: emoji choices, switch/clear, zero counts, busy/rollback, accessible people and feed→detail PASS`);
    }finally{await c.close();}
+   }
   }
  }finally{await browser.close();}
  console.log(`Inline reaction actions: ${cases} rendered private-account paths PASS`);
