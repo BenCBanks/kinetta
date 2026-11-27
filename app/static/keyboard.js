@@ -4,11 +4,22 @@
   // Both food conversations fit the visible viewport, rather than a document that
   // iOS can pan sideways or leave underneath the keyboard. Preserve pinch zoom.
   const viewport = window.visualViewport;
+  // These forms scroll inside the space above the keyboard, with their primary
+  // action docked below the field. Reveal again when switching fields or panning.
+  const revealFormField = () => {
+    const el = document.activeElement;
+    if (!document.documentElement.classList.contains('keyboard-open') ||
+        (viewport && Math.abs(viewport.scale - 1) > .05) ||
+        !el?.matches?.('.login-signin input, .welcome input, .welcome textarea')) return;
+    el.scrollIntoView?.({block: 'nearest'});
+  };
+  document.addEventListener('focusin', () => requestAnimationFrame(revealFormField));
   const fitChat = () => {
     if (viewport && Math.abs(viewport.scale - 1) > .05) return;
     const style = document.documentElement.style;
     style.setProperty('--chat-height', `${viewport?.height ?? innerHeight}px`);
     style.setProperty('--chat-top', `${viewport?.offsetTop ?? 0}px`);
+    requestAnimationFrame(revealFormField);
   };
   viewport?.addEventListener('resize', fitChat);
   viewport?.addEventListener('scroll', fitChat);
@@ -26,6 +37,7 @@
     window.KinettaKeyboard = {height: 0};
     const fitNative = () => { root.setProperty('--chat-height', `${innerHeight - keyboard}px`); root.setProperty('--chat-top', '0px');
       root.setProperty('--kb', `${keyboard}px`); window.KinettaKeyboard.height = keyboard;
+      requestAnimationFrame(revealFormField);
       try { dispatchEvent(new CustomEvent('kinetta:keyboard', {detail: {height: keyboard}})); } catch (e) {} };
     viewport?.removeEventListener?.('resize', fitChat); viewport?.removeEventListener?.('scroll', fitChat); window.removeEventListener?.('resize', fitChat);
     addEventListener('resize', fitNative);
