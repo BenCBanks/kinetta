@@ -62,7 +62,12 @@ module.exports=async(browser,state,base,out)=>{
     await p.locator('#kit-memory-add').click();await p.getByRole('heading',{name:'Add a detail',exact:true}).waitFor();
     await p.locator('#kit-memory-text').fill('I prefer a short walk after lunch.');await p.locator('#kit-memory-save').click();await p.getByText('I prefer a short walk after lunch.',{exact:true}).waitFor();
     await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-cancel').click();await p.locator('[data-kit-edit="4"]').waitFor();assert.equal(memories.length,4,'Cancel does not delete or edit');
-    await p.locator('[data-kit-edit="4"]').click();failSave=true;await p.locator('#kit-memory-delete').click();await p.locator('[data-kit-edit="4"]').waitFor();assert.equal(memories.length,4,'failed Delete rereads the saved list');
+    await p.locator('[data-kit-edit="4"]').click();failSave=true;await p.locator('#kit-memory-delete').click();
+    const recovery=p.locator('#kit-memory > [data-sharing-state=unknown]');await recovery.waitFor();assert.match(await recovery.innerText(),/Not confirmed.*Retry/);
+    assert.equal(await p.locator('#kit-memory-form').isVisible(),false,'failed Delete conceals an unconfirmed memory state');
+    const beforeRetry=writes.length;await recovery.getByRole('button',{name:'Retry',exact:true}).click();assert.equal(writes.length,beforeRetry,'early Retry never repeats Delete');
+    await p.clock.setFixedTime(new Date(await p.evaluate(()=>Date.now())+26000));await recovery.getByRole('button',{name:'Retry',exact:true}).click();
+    await p.locator('[data-kit-edit="4"]').waitFor();assert.equal(memories.length,4,'after the uncertainty window, Retry rereads the saved list');assert.equal(writes.length,beforeRetry,'readback performs no write');
     failSave=false;await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-delete').click();await p.locator('[data-kit-edit="4"]').waitFor({state:'detached'});
     const row=p.locator('[data-kit-edit="2"]').locator('..').locator('..');
     await row.evaluate(el=>{const touch=(type,touches)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:touches});el.dispatchEvent(e);};touch('touchstart',[{clientX:250,clientY:150}]);touch('touchmove',[{clientX:140,clientY:151}]);touch('touchend',[]);});
