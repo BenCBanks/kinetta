@@ -89,7 +89,7 @@ route(/^\/welcome$/, 'me', async (el) => {
     const input=$('input[name=phone_e164]',el),next=$('#wc-next',el),skip=$('#wc-skip',el);
     let savedPhone=null;
     const saved=SocialData.confirmSetting($('.welcome',el),{path:'/api/contacts/settings',mask:()=>[input.closest('label'),next],
-      paint:data=>{if(data.phone_e164!==null&&typeof data.phone_e164!=='string')throw Error();savedPhone=data.phone_e164;input.value=savedPhone||'';input.disabled=false;next.disabled=false;},
+      paint:data=>{if(data.phone_e164!==null&&typeof data.phone_e164!=='string')throw Error();savedPhone=data.phone_e164;input.disabled=false;next.disabled=false;},
       uncertain:()=>invalidate('/api/contacts/settings')});
     const load=async()=>{
       if(!here('phone'))return;

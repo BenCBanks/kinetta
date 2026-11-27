@@ -31,10 +31,10 @@ module.exports=async(browser,base,out='')=>{
    ready:async p=>{const anchor=p.locator('[data-achievement-pin-target="true"][data-achievement-code=workouts]').first();await anchor.waitFor();await anchor.dispatchEvent('contextmenu');await p.locator('[data-showcase-pin-action]').waitFor();},
    change:async p=>p.locator('[data-showcase-pin-action]').click(),check:async(p,s)=>assert.equal(await p.locator('[data-achievement-pin-target="true"][data-achievement-code=workouts]').first().getAttribute('data-showcase-pinned'),String(s.pinned.includes('workouts')))},
   {name:'featured',route:'/me?edit=profile',write:'/api/achievements/showcase/pins',read:'/api/achievements/showcase',target:'[data-featured-list]',
-   change:async p=>{await p.locator('[data-featured-toggle=workouts]').click();await p.locator('[data-card-save]').click();},
+   edit:async p=>p.locator('[data-featured-toggle=workouts]').click(),change:async p=>p.locator('[data-card-save]').click(),
    check:async(p,s)=>{const toggle=p.locator('[data-featured-toggle=workouts]');if(await toggle.count())assert.equal(await toggle.getAttribute('aria-pressed'),String(s.pinned.includes('workouts')));}},
   {name:'profile',route:'/me?edit=profile',write:'/api/account',read:'/api/me',target:'[data-card-sections]',
-   change:async p=>{await p.locator('[data-show=sports]').uncheck();await p.locator('[data-card-save]').click();},
+   edit:async p=>p.locator('[data-show=sports]').uncheck(),change:async p=>p.locator('[data-card-save]').click(),
    check:async(p,s)=>{if(await p.locator('[data-show=sports]').count())assert.equal(await p.locator('[data-show=sports]').isChecked(),s.profile_layout.sections.includes('sports'));}}
  ];
  for(const mode of ['web','bridge'])for(const theme of ['light','dark']){
@@ -62,10 +62,11 @@ module.exports=async(browser,base,out='')=>{
     excluded:false,pinned:['workouts'],memories:[{id:1,text:'I prefer morning walks.',kind:'routine',updated:'2026-11-25'}],profile_layout:{sections:['totals','sports','activities'],stats:['activities','distance','time'],sports:[]},...spec.initial};if(fault==='lost-on')Object.assign(state,{garmin_ai_ok:false,health_ai_ok:false,health_weight_ai_ok:false,joined:false});
    await p.goto(base+spec.route);await p.locator('nav.tabs').waitFor();if(spec.ready)await spec.ready(p);await p.locator(spec.target).waitFor();await wait(200);
    if(out&&mode==='web'&&fault==='offline'){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${spec.name}-${theme}-before.png`)});}
+   if(spec.edit)await spec.edit(p);const geometry=await p.locator(spec.target).boundingBox();
    armed=true;unreadable=!fault.startsWith('lost');
    if(spec.change)await spec.change(p);else if(spec.name==='kit')await p.locator(spec.control).click();else await p.locator(spec.control).click();
    for(let n=0;n<100&&writes===0;n++)await wait(20);assert.equal(writes,1,spec.name+' write');await wait(300);
-   {const note=p.locator('[data-sharing-state=unknown]').last();await note.waitFor();assert.match(await note.innerText(),/Not confirmed.[\s\S]*Retry/);assert(await p.locator(spec.target).isVisible(),spec.name+' keeps affected rows visible');assert(await p.locator(spec.target).evaluate(node=>node.matches('[aria-disabled=true]')||!!node.querySelector('[aria-disabled=true]')),spec.name+' prevents uncertain edits');
+   {const note=p.locator('[data-sharing-state=unknown]').last();await note.waitFor();assert.match(await note.innerText(),/Not confirmed.[\s\S]*Retry/);assert(await p.locator(spec.target).isVisible(),spec.name+' keeps affected rows visible');const next=await p.locator(spec.target).boundingBox();assert.equal(next.height,geometry.height,spec.name+' keeps the row height');assert(await p.locator(spec.target).evaluate(node=>node.matches('[aria-disabled=true]')||!!node.querySelector('[aria-disabled=true]')),spec.name+' prevents uncertain edits');
     if(out&&mode==='web')await p.screenshot({path:path.join(out,`${spec.name}-${theme}-unknown.png`)});
     unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await note.getByRole('button',{name:'Retry',exact:true}).click();await wait(250);assert.equal(writes,1,'Retry never repeats the write');}
    await spec.check(p,state);if(await p.locator(spec.target).count())assert(await p.locator(spec.target).evaluate(node=>{for(let p=node.parentElement;p;p=p.parentElement){const note=p.querySelector(':scope > [data-sharing-state]');if(note)return note.dataset.sharingState==='confirmed';}return true;}),spec.name+' affected control reconciled; other controls remain masked until their own readback');
