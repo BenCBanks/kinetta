@@ -1122,7 +1122,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
       await draw(held.data);if(active()&&held.version===revision&&document.activeElement===document.body)$('[data-card-edit]',box)?.focus({preventScroll:true});
     }});ProfileLayout.mount(box,r,{shared:!mine,featured:true});
     const act=$('[data-person-action]',box);
-    if(act){const saved=SocialData.confirmSetting(box,{path:'/api/friends',failureText:'Request checked. Try again if needed.',paint:state=>{
+    if(act){const saved=SocialData.confirmSetting(box,{path:'/api/friends',mask:()=>[act],failureText:'Request checked. Try again if needed.',paint:state=>{
       if(!['friends','incoming','outgoing'].every(key=>Array.isArray(state?.[key])))throw Error();
       invalidate('/api/friends');invalidate('/api/people/');MeCard.clearPreviewCache?.();invalidate('/api/me');invalidateFeed();return reload();
     }});act.onclick=()=>{const url='/api/friends/'+encodeURIComponent(p.login);return act.dataset.personAction==='cancel'?saved.save(url,{method:'DELETE'}):act.dataset.personAction==='accept'?saved.save(url+'/accept',json('POST',{})):saved.save('/api/friends',json('POST',{login:p.login}));};}
@@ -1361,7 +1361,7 @@ function groupInviteSheet(group,initialUrl=null){
         finally{sending.delete(username);if(live()&&inviteSaved.known)draw();}
       });
     };
-    const inviteSaved=SocialData.confirmSetting(body,{path:base+'/friends',mask:()=>[search,results,share],failureText:'Invitation checked. Try again if needed.',paint:response=>{
+    const inviteSaved=SocialData.confirmSetting(body,{path:base+'/friends',mask:()=>sending.size?[...sending].map(username=>$(`[data-invite-friend="${CSS.escape(username)}"]`,results)):[results],failureText:'Invitation checked. Try again if needed.',paint:response=>{
       if(!Array.isArray(response?.friends)||response.friends.some(f=>!['none','invited','member'].includes(f.state)))throw Error();
       friends=response.friends;canInvite=response.can_invite;loaded=true;failed=false;draw();
     }});
