@@ -16,6 +16,14 @@ function fixture(){
  const event={preventDefault(){},currentTarget:form};await form.onsubmit(event);await form.onsubmit(event);
  assert.equal(form.elements.assistance.value,'unassisted');assert.equal(form.elements.confirmed.checked,true);
  assert.equal(f.node('card').children[0].dataset.sharingState,'unknown','failed readback never claims private eligibility');assert.equal(calls.length,1,'an uncertain retry only reads; it cannot submit the declaration twice');assert.deepEqual(calls[0],{path:'/api/activities/4/segment-assistance',body:{assistance:'unassisted',revision:0,confirmed:true}});
+ const version=f.node('card')._segmentRevision,markup=f.node('card').innerHTML;
+ f.c.api=async()=>({efforts:[],excluded:true,assistance:'assisted',assistance_revision:3});
+ await form.onsubmit(event);
+ assert.equal(f.node('card')._segmentRevision,version,'failed declaration readback must not rebuild the card');
+ assert.equal(f.node('card').innerHTML,markup);assert.equal(form.elements.assistance.value,'unassisted');assert.equal(form.elements.confirmed.checked,true);
+ assert.equal(f.node('#sa-ex').checked,true,'leaderboard privacy still shows the saved value');
+ assert.equal(f.node('#sa-status').textContent,'','Saving is cleared after a rejected declaration');
+ const status=f.node('card').children.find(n=>n.dataset.sharingState);assert.match(status.children[0].textContent,/Not saved/);
  f.c.App.me={id:2};await form.onsubmit(event);assert.equal(calls.length,1,'queued old-account form cannot write');
  console.log('PASS segment assistance UI: delayed/account/navigation guards, failed review preservation and unchanged retry');
 })().catch(e=>{console.error(e);process.exitCode=1});

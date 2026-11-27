@@ -877,7 +877,7 @@ const ProfileLayout=(()=>{
             });
             onInteraction();box.hidden=false;recovery.remove();onInteraction('save-end');
         },paint:()=>{button.disabled=false;
-        },after:(_,{failure})=>{if(!failure)close();}});
+        },after:(_,{failure})=>{if(!failure){close();toast(replace?'Pinned to profile. Oldest pin replaced.':pinned?'Removed from profile.':'Pinned to profile.');}}});
         button.onclick=async()=>{
           onInteraction('save-start');
           await saved.save('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
@@ -1420,11 +1420,10 @@ const MeCard=(()=>{
 
       },paint:({me,showcase},{failure})=>{
         start.name=me.name;start.bio=me.bio||'';start.layout=ProfileLayout.singlePeriod(me.profile_layout);start.featuredPins=[...showcase.pinned];
-        Object.assign(value,structuredClone(start.layout));if(!failure){name.value=start.name;bio.value=start.bio;}
-        featuredPins=[...start.featuredPins];chosenPeriod=value.sections.includes('recent')?'recent':'totals';
-        order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))].filter(k=>k!=='recent'&&k!=='totals'||k===chosenPeriod);
-        busy=false;featuredBusy=false;cancel.disabled=false;save.textContent='Save';rows();periodChoices();renderFeatured();
-        choices('stat','stats',stats,1);choices('sport','sports',Object.fromEntries(ProfileLayout.sports.map(k=>[k,SPORT_NAMES[k]||k])),0);sizeBio();changed();
+        // Readback updates the saved baseline, never the editor's remaining draft.
+        // In particular, an account save does not submit the selected pins.
+        if(!failure&&saved.attempted?.path==='/api/account'){name.value=start.name;bio.value=start.bio;}
+        busy=false;featuredBusy=false;cancel.disabled=false;save.textContent='Save';sizeBio();changed();
       }});
       form.onsubmit=async e=>{
         e.preventDefault();if(!valid()||busy||featuredBusy||!dirty())return;

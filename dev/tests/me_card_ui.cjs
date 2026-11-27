@@ -128,9 +128,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    failFeatureSave=true;response=waitSave();await retrySave.click();assert.equal((await response).status(),503);
    await p.locator('[data-sharing-state=unknown]').waitFor();await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-sharing-state=unknown] button').click();
    await p.locator('[data-sharing-state=confirmed]').waitFor({state:'attached'});
-   assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run'],'failed Save rereads the stored pins rather than presenting draft hiding as saved');
-   assert.equal(await retrySave.isDisabled(),true,'confirmed saved choices do not repeat an uncertain write');
-   await p.locator('[data-featured-toggle="climbing"]').click(); // An explicit new edit can still be discarded.
+   assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run','climbing'],'failed Save keeps every selected pin in the editor draft');
+   assert.equal(await retrySave.isDisabled(),false,'confirmed readback permits an explicit retry of the retained draft');
+   assert.match(await p.locator('[data-sharing-state=confirmed]').innerText(),/Not saved/);
    await p.locator('[data-card-cancel]').click();await p.locator('[data-confirm-ok]').click();await p.locator('[data-card-edit]').click();await p.locator('[data-featured-list][aria-busy="false"]').waitFor();
    assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run'],'Cancel discards the failed pending selection');await p.locator('[data-card-cancel]').click();
   };

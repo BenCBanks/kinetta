@@ -326,9 +326,16 @@ const Segments = (() => {
         <label class="check-row"><input name="confirmed" type="checkbox" required><span>I confirm this describes this activity.</span></label><button class="primary wide">Save declaration</button><p id="sa-status" class="small" role="status"></p></form></details>
       <label class="switch-row"><span><b>Keep off leaderboards</b><small>Times from this activity stay private, without changing who can see the activity.</small></span><input type="checkbox" role="switch" id="sa-ex"${r.excluded ? ' checked' : ''}></label>
       <div class="list"><button class="row-link" id="sa-seg">${svg('flag')}<span class="grow">Make a segment from part of this</span>${svg('chev')}</button></div></div>`;
-    const saved=SocialData.confirmSetting(box,{path:`/api/activities/${aid}/segment-efforts`,paint:data=>{
+    const saved=SocialData.confirmSetting(box,{path:`/api/activities/${aid}/segment-efforts`,matches:(data,attempt)=>{
+      const wanted=JSON.parse(attempt.options.body);return attempt.path.endsWith('/segment-assistance')?data.assistance===wanted.assistance:data.excluded===wanted.excluded;
+    },paint:data=>{
       if(typeof data.excluded!=='boolean'||!Array.isArray(data.efforts)||!Number.isSafeInteger(data.assistance_revision))throw Error();
-    },after:data=>activityCard(box,aid,data)});
+      r=data;$('#sa-ex',box).checked=data.excluded;
+    },after:(data,{failure})=>{
+      if(!failure)return activityCard(box,aid,data);
+      // Keep the declaration, confirmation checkbox and focus for an explicit retry.
+      $('#sa-status',box).textContent='';
+    }});
     $('#sa-declare',box).onsubmit=async(e)=>{
       e.preventDefault();if(!live())return;const f=e.currentTarget,button=$('button',f),status=$('#sa-status',f);
       status.textContent='Saving declaration…'; // confirmSetting locks without dropping focused-button focus.
