@@ -66,7 +66,7 @@ const tick=()=>new Promise(setImmediate),plain=value=>JSON.parse(JSON.stringify(
  console.log('Native share bridge: share and Photos payloads, add-only permission, PNG bounds and cancellation PASS');
 
  const app=fs.readFileSync('app/static/app.js','utf8'),closeCalls=[];
- const account={App:{me:{id:1},cache:{clear(){}}},readSessions:new WeakMap(),Native:{stopActivityShare:async()=>closeCalls.push('native')},keep(){},forgetKept(){},render(){}};
+ const account={App:{me:{id:1},cache:{clear(){}}},readSessions:new WeakMap(),confirmedRouteOwner:null,readOwner:()=> 'fictional-owner',Native:{stopActivityShare:async()=>closeCalls.push('native')},keep(){},forgetKept(){},render(){}};
  account.App.mediaMapBack=()=>closeCalls.push('map');account.App.closeActivityShare=()=>closeCalls.push('picture');vm.createContext(account);
  vm.runInContext(app.slice(app.indexOf('function refreshMe('),app.indexOf('// ---------- offline:')),account);account.refreshMe({id:2});assert.equal(closeCalls.join(','),'map,picture,native');closeCalls.length=0;account.refreshMe({id:2});assert.equal(closeCalls.length,0,'same-account refresh keeps its interaction');
  console.log('Account replacement closes private map/picture/native handoffs; same-account refresh retains interaction PASS');

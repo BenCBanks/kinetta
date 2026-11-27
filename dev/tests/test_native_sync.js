@@ -10,7 +10,7 @@ function device(background = null, push = null) {
   const saved = new Map(), queries = [], sent = [], events = {};
   const listen=(k,fn)=>{const previous=events[k];events[k]=(...args)=>{previous?.(...args);fn(...args);};};
   const ctx = {console, Date, Map, JSON, Error, Promise, URL, Event:class {}, setTimeout, clearTimeout,
-    App: {me: {id: 1}, cache: new Map()}, route() {}, forgetKept() {}, invalidate() {}, toast() {}, render() {},
+    App: {me: {id: 1}, cache: new Map()}, route() {}, forgetKept() {}, discardRouteReads(unconfirm) { ctx.routeReadDiscards=(ctx.routeReadDiscards||0)+1;assert.equal(unconfirm,true); }, invalidate() {}, toast() {}, render() {},
     document: {documentElement: {}, addEventListener: listen},
     MutationObserver: class { observe() {} },
     json: (method, body) => ({method, body: JSON.stringify(body)}),
@@ -186,6 +186,7 @@ function device(background = null, push = null) {
   delete d.ctx.respond;
 
   await d.n.forget();
+  assert.ok(d.ctx.routeReadDiscards,'native sign-out discards pending early reads');
   assert.equal(d.n.healthProgress, '', 'sign-out clears visible progress as well as stored account status');
   assert.equal(d.saved.get('health.on'),'1','sign-out preserves the account opt-in');
   assert.equal(await d.n.healthOn(),false,'sign-out pauses all uploaders');
@@ -238,6 +239,7 @@ function device(background = null, push = null) {
   const cannotStop = device({disconnect: async () => { throw new Error('Unlock required'); }});
   await cannotStop.n.ready; cannotStop.n.base = 'https://example.test'; cannotStop.n.token = 'first';
   await assert.rejects(cannotStop.n.login('https://second.example.test', 'test', 'password'), /Unlock|unlock/);
+  assert.equal(cannotStop.ctx.routeReadDiscards,1,'native sign-in discards reads before even a failed disconnect');
   assert.equal(cannotStop.n.base, 'https://example.test', 'failed native disconnect prevents account/server replacement');
   assert.equal(cannotStop.n.token, 'first');
   const independent=device({disconnect:async()=>{throw Error('native stop failure');}});await independent.n.ready;

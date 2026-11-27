@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track','sharing','route-ready'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track','sharing','route-ready','route-reads'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -241,6 +241,8 @@ async function routeCssCase(browser){
     await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname===style){styleRequests++;if(!styleHeld){styleHeld=true;await held;}}if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();});
     try{
       await page.goto(base+path,{waitUntil:'domcontentloaded'});await page.locator('.lazy-route-loading').waitFor();
+      // The common stylesheet can show the loader before this leaf is requested.
+      for(let i=0;i<100&&styleRequests===0;i++)await page.waitForTimeout(50);
       assert.equal(styleRequests,1,`${path} requests its route stylesheet once (${scheme})`);
       assert.equal(await page.locator(probe).count(),0,`${path} does not paint route content before CSS (${scheme})`);
       releaseHeld();await until(page,()=>App.pageReady&&!!document.querySelector('#page'),`${path} after route CSS (${scheme})`);
@@ -289,11 +291,12 @@ async function sharingRouteCase(browser){
 }
 async function routeReadyCase(browser){
  const context=await fixtureContext(browser);await login(context);
- const page=await context.newPage(),scriptRequests=[],feedReads=[],writes=[],errors=[];let releaseScripts=()=>{};
- const scriptsGate=new Promise(resolve=>{releaseScripts=resolve;});page.on('pageerror',error=>errors.push(error.message));
+ const page=await context.newPage(),scriptRequests=[],feedReads=[],writes=[],errors=[];let releaseScripts=()=>{},releaseStyles=()=>{};
+ const scriptsGate=new Promise(resolve=>{releaseScripts=resolve;}),stylesGate=new Promise(resolve=>{releaseStyles=resolve;});page.on('pageerror',error=>errors.push(error.message));
  await page.addInitScript(()=>{window.__routeScriptExecution=[];});
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/route-screens.css'){await stylesGate;return route.continue();}
   if(['/static/social.js','/static/media.js'].includes(url.pathname)){
    scriptRequests.push(url.pathname);const response=await route.fetch(),body=await response.text();await scriptsGate;
    const name=url.pathname.split('/').at(-1).replace('.js','');return route.fulfill({response,body:`${body}\nwindow.__routeScriptExecution.push(${JSON.stringify(name)});`});
@@ -309,15 +312,39 @@ async function routeReadyCase(browser){
  try{
   await page.goto(base+'/activity',{waitUntil:'domcontentloaded'});
   for(let i=0;i<80&&(scriptRequests.length<2||feedReads.length<2);i++)await page.waitForTimeout(50);
-  assert.deepEqual([...new Set(scriptRequests)].sort(),['/static/media.js','/static/social.js'],'Home requests its independent route scripts together');
+  assert.deepEqual([...new Set(scriptRequests)].sort(),['/static/media.js','/static/social.js'],'Home requests its scripts while shared CSS is still held');
   assert.deepEqual([...new Set(feedReads.map(path=>path.split('?')[0]))].sort(),['/api/activities','/api/feed/friends'],'Home starts both feed reads while its route scripts are still held');
   assert.equal(scriptRequests.length,2,'each route script begins once before either response is released');
   assert.equal(feedReads.length,2,'both first-page reads begin once before the script gate opens');
-  releaseScripts();await ready(page,'#ff-list','Home feed after parallel route bundle and data load');
+  releaseScripts();await page.waitForFunction(()=>window.__routeScriptExecution.length===2);
+  assert.equal(await page.locator('#ff-list').count(),0,'Home content waits for CSS while script responses are released');
+  assert.equal(await page.evaluate(()=>App.pageReady),false,'Home is not marked usable before its CSS loads');
+  releaseStyles();await ready(page,'#ff-list','Home feed after parallel route CSS, scripts and data load');
   assert.deepEqual(await page.evaluate(()=>window.__routeScriptExecution),['social','media'],'independent script downloads still execute in declared dependency order');
   assert.equal(feedReads.length,2,'the renderer consumes early feed responses without duplicate GETs');
   assert.deepEqual(errors,[],'parallel route loading has no browser errors');assert.deepEqual(writes,[],'route prefetch makes no writes');
- }finally{releaseScripts();await context.close();}
+ }finally{releaseScripts();releaseStyles();await context.close();}
+
+ const retryContext=await fixtureContext(browser);await login(retryContext);
+ const retryPage=await retryContext.newPage();let cssAttempts=0;const retryErrors=[],retryFeeds=[],retryScripts=[];
+ retryPage.on('pageerror',error=>retryErrors.push(error.message));
+ await retryPage.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/route-screens.css'&&++cssAttempts===1)return route.abort();
+  if(['/static/social.js','/static/media.js'].includes(url.pathname))retryScripts.push(url.pathname);
+  if(['/api/activities','/api/feed/friends'].includes(url.pathname)&&url.searchParams.get('limit')==='15'){retryFeeds.push(url.pathname);return route.fulfill({json:[]});}
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
+  if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();
+ });
+ try{
+  await retryPage.goto(base+'/activity',{waitUntil:'domcontentloaded'});
+  await retryPage.getByRole('button',{name:'Try again',exact:true}).click();
+  await ready(retryPage,'#ff-list','Home after failed shared CSS retries');
+  assert.equal(cssAttempts,2,'a failed shared stylesheet can retry with scripts already loaded');
+  assert.deepEqual(retryScripts.sort(),['/static/media.js','/static/social.js'],'CSS retry reuses both script requests');
+  assert.deepEqual(retryFeeds.sort(),['/api/activities','/api/feed/friends'],'CSS retry reuses both first-page reads exactly once');
+  assert.deepEqual(retryErrors,[],'parallel Home assets have no unhandled rejection after CSS failure');
+ }finally{await retryContext.close();}
 
  const staleContext=await fixtureContext(browser);await login(staleContext);
  const stalePage=await staleContext.newPage();let releaseRead=()=>{},heldRead=()=>{};const readGate=new Promise(resolve=>{releaseRead=resolve;}),readStarted=new Promise(resolve=>{heldRead=resolve;});
@@ -1002,13 +1029,15 @@ async function foodWarmupCase(browser){
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
   if(selectedCase==='sharing'){await sharingRouteCase(browser);return;}
-  if(selectedCase==='route-ready'){await routeReadyCase(browser);return;}
+  if(selectedCase==='route-ready'){await routeReadyCase(browser);await require('./route_reads_ui.cjs')(browser,base);return;}
+  if(selectedCase==='route-reads'){await require('./route_reads_ui.cjs')(browser,base);return;}
   if(selectedCase==='food'){await foodWarmupCase(browser);return;}
   if(selectedCase==='route-css'){await routeCssCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
   if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}
   if(selectedCase==='records'){await recordsRouteCase(browser);return;}
   if(selectedCase==='track'){await trackLeafCase(browser);return;}
+  await routeReadyCase(browser);await require('./route_reads_ui.cjs')(browser,base);
   await fitnessRouteCase(browser);
   await recordsRouteCase(browser);
   await require('./recap_lazy_ui.cjs')(browser,base);

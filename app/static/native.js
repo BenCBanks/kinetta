@@ -58,6 +58,7 @@ const Native = (() => {
   // Logging in and creating an account (#232 E) both end the previous account's background work first, then keep the
   // new login token in the app's own settings.
   const signIn = async (server, path, body) => {
+    discardRouteReads(true);
     if (typeof Track !== 'undefined' && App.me) await Track.leave();
     await N.stopActivityShare();N.clearPictures();
     N.pauseFoodEntry?.();
@@ -103,6 +104,7 @@ const Native = (() => {
   };
   if(on)new MutationObserver(fill).observe(document.documentElement,{childList:true,subtree:true});
   N.forget = async ({deleted=false}={}) => {
+    discardRouteReads(true);
     N.clearPictures();const tasks=[];N.token=null;
     if(typeof Track!=='undefined'&&App.me)tasks.push(Promise.resolve().then(()=>Track.leave()));
     if(on){tasks.push(N.stopActivityShare());tasks.push(N.stopFoodEntry({clear:true}));tasks.push(Promise.resolve().then(()=>N.disconnectPush({signedOut:true})));tasks.push(N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}));tasks.push(put('token',null));}
