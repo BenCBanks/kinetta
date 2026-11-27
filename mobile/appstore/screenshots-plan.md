@@ -13,7 +13,7 @@ Propose ten full-screen portrait images at1320×2868, light mode, from one unsig
 | 5. Review before logging | Add food with editable, unconfirmed food/portion card and clear Add to log action | `food-review` in #1607; use deterministic stand-in, no provider call |
 | 6. Chart your recorded progress | Actual Kit average-climb line card:125/171/200ft, round100/150/200ft axis, dates, selection and missing-data note | Separate capture Draft #1607 adds this scene; validate against `dev/tests/kit_chart_ui.cjs`, not website phone framing |
 | 7. Pick up a saved chat | Actual Kit history list with8 fictional chats and dates; reopen returns the same saved answer | #1607 scene; compare `dev/tests/kit_history_ui.cjs`; no real history |
-| 8. Choose what Kit remembers | Actual What Kit remembers list: “I prefer morning runs.” and “I'm vegetarian.”, toggle and editable rows | #1607 scene; compare `dev/tests/kit_memory_ui.cjs`; show supported controls, not all sheets at once |
+| 8. Choose what Kit remembers | Actual What Kit remembers list with6 fictional details, including “I prefer morning runs.” and “I like meals I can prepare ahead.”, toggle and editable rows | #1607 scene; compare `dev/tests/kit_memory_ui.cjs`; show supported controls, not all sheets at once |
 | 9. Catch up in Notifications | Current flat inbox: fictional reaction, comment and friend request, Today/Earlier groups and clear timestamps | #1607 scene; compare `dev/tests/notifications_compact_ui.cjs`; no sent push/email |
 | 10. Follow your progress | Progress with fictional activity totals/achievements that satisfy their thresholds | Existing `header-progress`; retake exact bundle |
 
