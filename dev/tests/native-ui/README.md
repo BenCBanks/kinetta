@@ -85,5 +85,5 @@ This fixture set consolidates the earlier Draft-preview workflow and expands the
 Store frames use the app's actual sheet sizing and chart styles. Saved-chat/memory lists have fuller fictional
 content; no full-screen, tint, chart-hiding or Progress-row-hiding overrides are applied to these scenes.
 The prior f05f7aa5 owner preview used presentation overrides and is superseded, not suitable for submission.
-Fresh acceptance captures wait for the separate real-app portion-wrap/chart-fill fix to merge; no recapture
-from the unfixed app replaces the owner set. App bugs and original native crops remain recorded privately.
+The real-app portion-wrap/chart-fill fix merged in #1628. Fresh acceptance captures use current main
+with that fix and unchanged app presentation. Original native crops remain recorded privately for traceability.
