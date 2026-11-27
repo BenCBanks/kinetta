@@ -34,11 +34,18 @@ const deleteCtx={App:c.ui.App,readOwner:()=>c.ui.App.me?.id,Native:{on:false,for
 vm.createContext(deleteCtx);vm.runInContext(deletePage.slice(deleteStart,deleteEnd)+'\nglobalThis.deleteSheet=deleteSheet;',deleteCtx);deleteCtx.deleteSheet();await form.onsubmit({preventDefault(){}});assert.equal(deleteLogin,1,'successful deletion returns to login');assert.equal(c.localStorage.getItem(deleteDraftKey),null,'account deletion clears the prior owner’s onboarding profile draft');assert.equal(c.ui.App.cache.size,0,'account deletion clears in-memory payloads');for(const path of ['/api/activity-food','/api/progress/overview','me:today:2026-11-17',deleteProfilePath])assert.equal(c.localStorage.getItem('fit.c:'+path),null,`account deletion clears persisted ${path}`);
 
 // Only these POSTs are bounded: no blanket write timeout/replay policy.
-for(const path of ['/api/login','/api/activities/42/comments']){
+for(const path of ['/api/login','/api/signup','/api/activities/42/comments']){
  c=client();let expire,bound,options;c.setTimeout=(fn,ms)=>{expire=fn;bound=ms;return 1};c.clearTimeout=()=>{};
  c.fetch=(url,opts)=>{options=opts;return new Promise((ok,no)=>opts.signal.addEventListener('abort',()=>no(Error('aborted'))));};
  const request=c.ui.api(path,{method:'POST',body:JSON.stringify({text:'Fictional'})});assert.equal(bound,20000);expire();
  await assert.rejects(request,e=>e.status===504&&!e.offline&&e.message==='This is taking too long. Please try again.');assert(options.signal.aborted);
+}
+// A server can send headers and then stall in the JSON body too.
+for(const path of ['/api/login','/api/signup']){
+ c=client();let expire;c.setTimeout=fn=>{expire=fn;return 1};c.clearTimeout=()=>{};
+ c.fetch=async(url,opts)=>({ok:true,json:()=>new Promise((ok,no)=>opts.signal.addEventListener('abort',()=>no(Error('body aborted'))))});
+ const request=c.ui.api(path,{method:'POST',body:'{}'});await new Promise(setImmediate);expire();
+ await assert.rejects(request,e=>e.status===504&&!e.offline);
 }
 c=client();let writeOptions;c.fetch=async(url,opts)=>{writeOptions=opts;return {ok:true,json:async()=>({})}};await c.ui.api('/api/profile',{method:'PUT',body:'{}'});assert.equal(writeOptions.signal,undefined,'other writes keep their existing policy');
 
