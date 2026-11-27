@@ -1,5 +1,8 @@
 """Legacy multipart limits on fictional data; no providers, mail or public server."""
 import asyncio
+import errno
+import io
+import zipfile
 from concurrent.futures import Future
 import os
 from pathlib import Path
@@ -14,7 +17,7 @@ import httpx
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.requests import Request, ClientDisconnect
-from app import auth, db, coach, importer, import_upload as U, api_activities as A
+from app import auth, db, coach, activities, importer, import_upload as U, api_activities as A
 from app.main import app
 
 BOUNDARY = 'fictional-upload-boundary'
@@ -63,6 +66,27 @@ class Capacity(unittest.TestCase):
             # Pressure after admission is checked again before each spool/copy.
             with patch.object(U.shutil, 'disk_usage', return_value=usage._replace(free=2*1024**3)):
                 with self.assertRaises(HTTPException): two.check()
+
+    def test_staging_reuses_spool_budget_for_actual_files(self):
+        floor = 2*1024**3
+        usage = shutil._ntuple_diskusage(8*1024**3, 0, floor+200)
+        path = Path(self.tmp.name)/'small.gpx';path.write_bytes(b'x'*80)
+        with patch.object(U.shutil, 'disk_usage', return_value=usage):
+            lease = U.reserve(1, self.tmp.name, 100)
+            lease.written(200)
+            lease.staged([path])
+            self.assertEqual(lease.remaining, 80)
+            with patch.object(U.shutil, 'disk_usage', return_value=usage._replace(free=floor+80)):
+                lease.storing(80)  # exactly enough; no second full-file charge
+                self.assertEqual(lease.remaining, 80)
+            with patch.object(U.shutil, 'disk_usage', return_value=usage._replace(free=floor+79)):
+                with self.assertRaises(HTTPException): lease.storing(80)
+            # A compressed entry needs its actual expanded bytes, not MAX_FILE.
+            lease.storing(200)
+            self.assertEqual(lease.remaining, 200)
+            with self.assertRaises(HTTPException): lease.storing(201)
+            lease.written(200)
+            self.assertEqual(lease.remaining, 0)
 
     def test_bare_file_read_is_capped_before_parser(self):
         path = Path(self.tmp.name)/'fictional.gpx';path.write_bytes(b'x'*101)
@@ -145,6 +169,103 @@ class Routes(unittest.TestCase):
             row=c.execute('SELECT status,added,failed,label FROM imports WHERE user_id=%s AND id=%s',
                 (self.users[0],result.json()['job'])).fetchone()
             self.assertEqual((row['status'],row['added'],row['failed'],row['label']),('done',1,0,'fictional.gpx'))
+        self.empty()
+
+    def test_small_import_succeeds_at_admission_floor(self):
+        floor = 2*1024**3
+        # Real request length drives admission. Charge actual staged bytes as
+        # they appear, leaving only its admitted budget above the floor.
+        raw = GPX.replace(b'2026-10-01',b'2026-10-08')
+        length = len(PREFIX+raw+SUFFIX)
+        def usage(directory):
+            staged = sum(p.stat().st_size for p in Path(self.tmp.name).rglob('*') if p.is_file())
+            return shutil._ntuple_diskusage(8*1024**3, 0, floor+2*length-staged)
+        with patch.object(U.shutil, 'disk_usage', side_effect=usage):
+            response = self.client.post('/api/import', headers={'Content-Type':CTYPE}, content=PREFIX+raw+SUFFIX)
+            self.assertEqual(response.status_code,200,response.text)
+            drained()
+        with db.connect() as c:
+            row=c.execute('SELECT status,added,failed FROM imports WHERE id=%s',(response.json()['job'],)).fetchone()
+        self.assertEqual((row['status'],row['added'],row['failed']),('done',1,0))
+        self.empty()
+
+    def test_real_storage_write_failure_is_atomic_and_retains_staged_upload(self):
+        raw=GPX.replace(b'2026-10-01',b'2026-10-09')
+        native=activities.tempfile.NamedTemporaryFile
+        def partial(**kwargs):
+            file=native(**kwargs)
+            write=file.write
+            def full(data):
+                write(data[:12])
+                raise OSError(errno.ENOSPC,'fictional disk full')
+            file.write=full
+            return file
+        with patch.object(activities.tempfile,'NamedTemporaryFile',side_effect=partial):
+            response=self.client.post('/api/import',files={'files':('fictional.gpx',raw)})
+            self.assertEqual(response.status_code,200,response.text);drained()
+        job=response.json()['job']
+        paths=list((Path(self.tmp.name)/'uploads'/str(self.users[0])/str(job)).glob('*'))
+        self.assertEqual(len(paths),1);self.assertEqual(paths[0].read_bytes(),raw)
+        # No truncated durable file survives, and the same staged bytes import
+        # successfully once actual disk writes work again.
+        import hashlib
+        final=Path(activities.DATA)/'files'/str(self.users[0])/(hashlib.sha256(raw).hexdigest()+'.gpx')
+        self.assertFalse(final.exists())
+        self.assertFalse(list(final.parent.glob('tmp*')))
+        retry=importer.new_job(self.users[0],'retry after disk full')
+        importer._run(retry,self.users[0],[str(p) for p in paths])
+        self.assertEqual(final.read_bytes(),raw)
+        self.empty()
+
+    def test_worker_storage_pressure_keeps_complete_staging_and_can_retry(self):
+        for error in (HTTPException(507,'temporary storage'),OSError(errno.ENOSPC,'full'),OSError(errno.EDQUOT,'quota')):
+            # A storage failure after one successful activity must preserve the
+            # whole export, stop remaining work, and retain accurate progress.
+            with patch.object(importer.activities,'store',side_effect=[('added',99),error]) as store:
+                response=self.client.post('/api/import',files=[('files',('one.gpx',GPX)),('files',('two.gpx',GPX)),('files',('three.gpx',GPX))])
+                self.assertEqual(response.status_code,200,response.text);drained()
+            self.assertEqual(store.call_count,2)
+            self.assertEqual(coach.after_import.call_args.args[1],[99])
+            job=response.json()['job']
+            with db.connect() as c:
+                row=c.execute('SELECT status,done,added,failed,messages FROM imports WHERE id=%s',(job,)).fetchone()
+            self.assertEqual((row['status'],row['done'],row['added'],row['failed']),('failed',1,1,0))
+            self.assertIn('uploaded files are kept',row['messages'][-1])
+            paths=sorted((Path(self.tmp.name)/'uploads'/str(self.users[0])/str(job)).glob('*'))
+            self.assertEqual(len(paths),3)
+            self.assertTrue(all(p.read_bytes()==GPX for p in paths))
+            self.assertFalse(U._active)
+            # Operator retry uses the existing importer after freeing space.
+            retry=importer.new_job(self.users[0],'operator retry')
+            importer._run(retry,self.users[0],[str(p) for p in paths])
+            with db.connect() as c:
+                row=c.execute('SELECT status,failed FROM imports WHERE id=%s',(retry,)).fetchone()
+            self.assertEqual((row['status'],row['failed']),('done',0))
+            self.empty()
+
+    def test_zip_expansion_uses_actual_entry_size_and_retains_on_pressure(self):
+        archive=io.BytesIO()
+        with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
+            z.writestr('fictional.gpx',GPX+b' '*100000)
+        original=U.Capacity.storing;sizes=[]
+        def pressure(lease,size):
+            sizes.append(size)
+            self.assertLess(lease.remaining,size)  # expansion exceeds compressed staging
+            raise HTTPException(507,'temporary storage')
+        with patch.object(U.Capacity,'storing',pressure):
+            response=self.client.post('/api/import',files={'files':('fictional.zip',archive.getvalue())})
+            self.assertEqual(response.status_code,200,response.text);drained()
+        self.assertEqual(sizes,[len(GPX)+100000])
+        job=response.json()['job']
+        path=next((Path(self.tmp.name)/'uploads'/str(self.users[0])/str(job)).glob('*'))
+        self.assertEqual(path.read_bytes(),archive.getvalue())
+        # Successful retry consumes precisely the expanded size, then cleans up.
+        lease=U.reserve(self.users[0],str(path.parent),path.stat().st_size)
+        lease.staged([path]);retry=importer.new_job(self.users[0],'ZIP retry')
+        with patch.object(U.Capacity,'storing',autospec=True,side_effect=original) as storing:
+            try:importer._run(retry,self.users[0],[str(path)],capacity=lease)
+            finally:lease.release()
+        self.assertEqual(storing.call_args.args[1],len(GPX)+100000)
         self.empty()
 
     def test_anonymous_rejected_before_spooling_or_job(self):

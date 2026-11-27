@@ -1,7 +1,7 @@
 """Legacy multipart intake: authenticate first, bound staging and hold admission through cleanup.
 
 Admission is process-local and covers web uploads; CLI imports still execute directly.
-Disk reservations include spool + staged copy, on the same filesystem.
+Disk reservations cover spool + staging, then staging + actual workout files.
 """
 import asyncio
 import os
@@ -59,6 +59,20 @@ class Capacity:
 
     def check(self, extra=0):
         with _lock: _disk(self.directory, extra)
+
+    def staged(self, paths):
+        # Receipt spools are closed. Reuse that half of the disk budget for
+        # durable workout copies, using actual staged bytes rather than a cap.
+        size = sum(os.path.getsize(path) for path in paths)
+        with _lock: self.remaining = size
+
+    def storing(self, size):
+        # Archives can expand beyond their staged size. Reserve only this
+        # entry's actual bytes, without charging our existing budget twice.
+        with _lock:
+            extra = max(0, size - self.remaining)
+            _disk(self.directory, extra)
+            self.remaining += extra
 
     def written(self, size):
         with _lock: self.remaining = max(0, self.remaining - size)

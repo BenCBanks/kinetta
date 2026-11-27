@@ -66,6 +66,8 @@ async def upload(request: Request, user=Depends(current_user)):
         await import_upload.offload(importer._update, job, label=label[:200])
         directory = os.path.join(DATA, 'uploads', str(user['id']), str(job))
         paths = await import_upload.offload(import_upload.save, files, directory, lease, importer.EXTS)
+        parser.close()
+        await import_upload.offload(lease.staged, paths)
         future = importer.submit(job, user['id'], paths, capacity=lease)
         future.add_done_callback(lambda _: lease.release())
         handed_off = True

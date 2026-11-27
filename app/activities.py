@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import os
+import tempfile
 from zoneinfo import ZoneInfo
 
 from . import community_filter, analysis, db
@@ -93,7 +94,16 @@ def save_file(user_id, raw, ext):
     d = os.path.join(DATA, 'files', str(user_id)); os.makedirs(d, exist_ok=True)
     path = os.path.join(d, f'{sha}{ext}')
     if not os.path.exists(path):
-        with open(path, 'wb') as f: f.write(raw)
+        # A full disk must not leave a truncated hash-named file that a later
+        # retry would mistake for a complete workout.
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=d, delete=False) as f:
+                temporary = f.name
+                f.write(raw)
+            os.replace(temporary, path)
+        finally:
+            if temporary and os.path.exists(temporary): os.remove(temporary)
     return sha, os.path.relpath(path, DATA)
 
 

@@ -10,6 +10,7 @@ file in activities/; rows without a file (manual entries) become activities from
 """
 import csv
 import datetime as dt
+import errno
 import io
 import json
 import os
@@ -18,6 +19,7 @@ import threading
 import traceback
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from fastapi import HTTPException
 
 from . import activities, coach, db, parsers
 
@@ -50,12 +52,14 @@ def cancel(job, why):
 
 
 def submit(job, user_id, paths, capacity):
-    """paths: files already saved on disk (uploads); deleted after import unless they live in the inbox."""
+    """Staged uploads are removed after import, but retained on temporary storage failure."""
     return _pool.submit(_run, job, user_id, paths, capacity)
 
 
 def _run(job, user_id, paths, capacity=None):
     with _lock:
+        keep_uploads = False
+        added_ids = []
         try:
             _update(job, status='running')
             items = []      # (name, loader, meta)
@@ -64,33 +68,46 @@ def _run(job, user_id, paths, capacity=None):
                 elif os.path.isdir(p): items += _dir_items(p)
                 else: items.append((os.path.basename(p), (lambda p=p: _file_read(p)), {}))
             _update(job, total=len(items))
-            added_ids = []
             for name, load, meta in items:
                 try:
                     if load is None:      # manual Strava entry: no file
                         res, aid = _manual(user_id, meta)
                     else:
-                        if capacity: capacity.check(parsers.MAX_FILE)
                         raw = load()
+                        if capacity: capacity.storing(len(raw))
                         parsed = parsers.read(name, raw)
                         ext = '.' + '.'.join(name.lower().rsplit('/', 1)[-1].split('.')[1:])
                         res, aid = activities.store(user_id, parsed, meta, raw=raw, ext=ext,
                                                     source='strava' if meta.get('strava_id') else 'file')
+                        if capacity: capacity.written(len(raw))
                     if res == 'added': added_ids.append(aid)
                     _update(job, done=1, **({'added': 1} if res == 'added' else {'duplicates': 1}))
                 except Exception as e:   # one bad file never stops the import
+                    if _storage_shortage(e): raise
                     _update(job, done=1, failed=1, message=f'{name}: {e}')
             _update(job, status='done', finished=dt.datetime.now(dt.timezone.utc))
             coach.after_import(user_id, added_ids)      # only recent activities get an (paid) AI note
         except Exception as e:
-            traceback.print_exc()
-            _update(job, status='failed', message=f'import stopped: {e}', finished=dt.datetime.now(dt.timezone.utc))
+            keep_uploads = _storage_shortage(e)
+            if keep_uploads:
+                message = ('Storage is temporarily full. Your uploaded files are kept. '
+                           'Ask the person who runs Kinetta to retry this import after freeing space.')
+            else:
+                traceback.print_exc()
+                message = f'import stopped: {e}'
+            _update(job, status='failed', message=message, finished=dt.datetime.now(dt.timezone.utc))
+            if keep_uploads and added_ids: coach.after_import(user_id, added_ids)
         finally:
-            for p in paths:
+            for p in paths if not keep_uploads else []:
                 if '/uploads/' in p and os.path.isfile(p): os.remove(p)
-            for d in {os.path.dirname(p) for p in paths if '/uploads/' in p}:
+            for d in {os.path.dirname(p) for p in paths if not keep_uploads and '/uploads/' in p}:
                 try: os.rmdir(d)      # the job's upload folder, now empty
                 except OSError: pass
+
+
+def _storage_shortage(error):
+    return ((isinstance(error, HTTPException) and error.status_code == 507) or
+            (isinstance(error, OSError) and error.errno in (errno.ENOSPC, errno.EDQUOT)))
 
 
 def _file_read(path):
