@@ -2528,7 +2528,7 @@ function accountSupportError(error) {
 function showLogin(msg = '') {
   globalThis.CommunityTerms?.reset();
   App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {});
-  root.innerHTML = `<div class="login"><form novalidate>
+  root.innerHTML = `<div class="login login-signin"><form novalidate>
     <div>${BRAND}<p>Your workouts and food in one app. Choose who sees your activities; your food log stays private.</p></div>
     ${Native.on ? `<label${(Native.base || Native.server) === Native.server ? ' hidden' : ''} id="l-server">Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
     <label>Email or username<input name="login" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>

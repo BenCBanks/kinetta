@@ -10,7 +10,7 @@ function setup({native = false, coarse = true, viewport = true} = {}) {
   const element = (tag) => { const on = {}, el = {tag, children: [], addEventListener: (n, fn) => (on[n] ||= []).push(fn),
     appendChild(c) { this.children.push(c); }, fire(n, e = {}) { for (const fn of on[n] || []) fn(e); }}; made.push(el); return el; };
   const document = {activeElement: null, addEventListener: listen, createElement: element, body: element('body'),
-    documentElement: {style: {setProperty(name, value) { styles[name] = value; }}, classList: {toggle(name, on) { if (on) classes.add(name); else classes.delete(name); }}}};
+    documentElement: {style: {setProperty(name, value) { styles[name] = value; }}, classList: {contains: name => classes.has(name), toggle(name, on) { if (on) classes.add(name); else classes.delete(name); }}}};
   const context = {document, innerHeight: 844, addEventListener: listen,
     requestAnimationFrame: (fn) => frames.push(fn), matchMedia: () => ({matches: coarse}),
     window: {Capacitor: {isNativePlatform: () => native}, visualViewport: viewport ? vv : null}};
@@ -85,3 +85,17 @@ const fallback = setup({native:true, viewport:false});
 fallback.context.innerHeight = 480; fallback.event('resize');
 assert.equal(fallback.styles['--chat-height'], '480px');
 console.log('Food viewport: browser/native resize, focus pan, keyboard dismissal, pinch and absent visualViewport passed');
+
+// A newly focused form field is revealed without waiting for another OS keyboard event.
+for (const native of [true, false]) {
+  const t=setup({native});let calls=0;
+  const field={matches:()=>true,getBoundingClientRect:()=>({bottom:10}),scrollIntoView:()=>calls++};
+  t.focus(field);assert.equal(calls,0,'closed/external keyboard leaves forms alone');
+  if(native)t.event('keyboardDidShow',{keyboardHeight:291});
+  else{t.vv.height=553;t.event('resize');}
+  const before=calls;t.focus(field);assert.equal(calls,before+1,'switching fields reveals the new field');
+  t.vv.scale=2;t.focus(field);assert.equal(calls,before+1,'pinch zoom does not trigger form panning');
+  t.vv.scale=1;t.focus({...field,matches:s=>!s.includes('.login-signin')});
+  assert.equal(calls,before+1,'other screens retain their existing focus behavior');
+}
+console.log('Keyboard forms: focus switches, closed keyboard, pinch and unrelated fields passed');
