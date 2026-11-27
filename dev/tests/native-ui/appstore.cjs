@@ -2,7 +2,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const achievementCatalog=require('../../../app/static/profile.achievement-levels.json');
-module.exports=(homepage=false)=>{
+module.exports=(homepage=false,stage=null)=>{
  const today='2026-11-02',date=(days)=>new Date(Date.UTC(2026,10,2-days)).toISOString().slice(0,10);
  const activity=require('../../demo/activity_detail.cjs')(),friends=require('../../demo/friends.cjs')('typical');
  friends.friends=Array.from({length:3},(_,i)=>({...friends.friends[0],login:['jordan','casey','taylor'][i],name:['Jordan Example','Casey Example','Taylor Example'][i]}));
@@ -59,7 +59,7 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
   '/api/notifications':{items:[],unread:0,push:{},push_ready:false},
   '/api/notifications/count':{unread:0,friend_requests:0},'/api/map-config':{kind:'off',attribution:'',personal_default:false},
   '/api/feed/friends':[friendActivity],'/api/groups/activity-strip':{muted:false,has_upcoming:false},'/api/lifts/sessions':[],'/api/activity-food':{week:{start:date(7),end:date(1),workouts:4,distance_m:29000,seconds:10440,days_logged:7,protein_target:110,protein_days_reached:4,protein_days_known:7,protein_days_unknown:0},today:{day:today,items:[],exercise_kcal:0,estimated:true,burn_source:'formula',day_burn:2250,included_in_day_burn:true,food_href:'/food'}},
-  '/api/setup':{needed:false},'/api/milestones':{items:[],pending:false},'POST /api/milestones/celebrate':{items:[],pending:false},'/api/achievements':{pending:false,tracks:featuredTracks},'/api/achievements/showcase':{items:featuredSpecs.map(({code})=>({code,rank:featuredTracks.find(track=>track.code===code).level})),pinned:[],day_streak:0},'/api/recaps':{items:[]},
+  'POST /api/challenges/signup/continue':{joined:null},'/api/setup':{needed:false},'/api/milestones':{items:[],pending:false},'POST /api/milestones/celebrate':{items:[],pending:false},'/api/achievements':{pending:false,tracks:featuredTracks},'/api/achievements/showcase':{items:featuredSpecs.map(({code})=>({code,rank:featuredTracks.find(track=>track.code===code).level})),pinned:[],day_streak:0},'/api/recaps':{items:[]},
   '/api/plans/current':{plan:null},'/api/plan/today':{plan:null},'/api/challenges':[],
   '/api/goals':[],'/api/coach/week':{enabled:false,paused:false,latest:null},'/api/connections':{garmin:{available:false}},
   '/api/features/state':{enabled:false},'/api/food/check-in':{week:today,current:null,readiness:{ready:false,reason:'Not enough complete days yet.'},history:[]},'/api/food/week':{days:[],totals:{}},
@@ -90,5 +90,6 @@ assert.equal(friends.friends.length,3,'the App Store story includes a populated 
  assert.equal(showcase.items.length,3,'the App Store Me card features three fictional achievements');
  for(const item of showcase.items){const track=achievements.tracks.find(row=>row.code===item.code),tier=achievementCatalog.tracks[item.code]?.levels?.[item.rank-1];assert(track&&track.level>=item.rank&&track.tiers.some(earned=>earned.rank===item.rank)&&tier&&Number(track.value)>=Number(tier.canonical_value),'featured fixture medals must meet their catalog threshold');}
  assert.equal(achievements.tracks.find(row=>row.code==='workouts').display_value,overview.activities,'featured workout count matches the lifetime overview');
- return {now:today+'T12:00:00Z',position:{lat,lon,accuracy:8,timestamp:Date.parse(today+'T12:00:00Z')},responses};
+ if(stage&&!homepage)require('./store-scenes.cjs')(responses,stage,today);
+ return {homepage,now:today+'T12:00:00Z',position:{lat,lon,accuracy:8,timestamp:Date.parse(today+'T12:00:00Z')},responses};
 };

@@ -3,13 +3,13 @@
 (() => {
   const cfg=globalThis.KinettaUIFixture;
   Native.autoSync=()=>Promise.resolve();Native.resumeFoodEntry=()=>Promise.resolve();
-  if(cfg.store){Native.setBadge=()=>Promise.resolve();Native.haptic=()=>{};Challenges.resumeSignup=()=>Promise.resolve();}
-  if(cfg.store&&cfg.stage==='header-track'){
+  if(cfg.store){Native.setBadge=()=>Promise.resolve();Native.haptic=()=>{};if(typeof Challenges!=='undefined')Challenges.resumeSignup=()=>Promise.resolve();}
+  if(cfg.store?.homepage&&cfg.stage==='header-track'){
     const style=document.createElement('style');
     style.textContent='#track-ready-map-wrap{height:400px!important;min-height:400px!important;flex:none!important}#track-ready-map{height:100%!important;min-height:400px!important}#track-gps-chip:not([hidden]){display:block!important;padding:7px 12px!important;border:1px solid var(--line)!important;border-radius:999px!important;background:var(--card)!important;box-shadow:0 2px 10px #0002!important;color:var(--tx)!important}.track-sport-row{align-items:center!important}.track-sport-row #track-other{align-self:center!important;margin:0!important}';
     (document.head||document.documentElement).append(style);
   }
-  if(cfg.store&&cfg.stage==='header-food'){
+  if(cfg.store?.homepage&&cfg.stage==='header-food'){
     const style=document.createElement('style');
     style.textContent='.nutrition-day-summary{position:relative!important}.nutrition-day-summary>.nutrition-summary-tools{position:absolute!important;top:32px!important;right:8px!important;z-index:2!important;height:44px!important;margin:0!important}.nutrition-day-summary>.nutrition-summary-tools .nutrition-goals{width:44px;height:44px}.nutrition-day-summary>.nutrition-summary{align-items:flex-start!important;padding-top:0!important}.nutrition-day-summary .nutrition-macros{padding-top:64px!important}';
     (document.head||document.documentElement).append(style);
@@ -54,10 +54,15 @@
         'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelector('.me-card-weekly .me-week')&&document.querySelector('.me-featured-achievements .profile-achievement[data-achievement-code]:nth-child(3)'),
         activity:()=>document.querySelector('[data-dt="charts"][aria-selected="true"]')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
         'header-track':()=>document.querySelector('#track-start')?.getAttribute('aria-label')==='Start run'&&!document.querySelector('#track-lap')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
-        'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('1,200')&&document.querySelector('.calorie-ring[role="progressbar"][aria-valuenow="1200"]'),
+        'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes(cfg.store.homepage?'1,200':'915')&&document.querySelector(`.calorie-ring[role="progressbar"][aria-valuenow="${cfg.store.homepage?1200:915}"]`),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('#p-explore[aria-busy="false"]')&&document.querySelector('[data-progress-fitness]')?.textContent.trim(),
         'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
+        'food-review':()=>document.querySelectorAll('.thread-food').length===2&&!!document.querySelector('#thread-review:not([hidden])'),
+        'kit-chart':()=>document.querySelectorAll('.kit-chart circle').length===3,
+        'kit-history':()=>document.querySelectorAll('.kit-history-row').length===2,
+        'kit-memory':()=>document.querySelectorAll('.kit-memory-row').length===2,
+        notifications:()=>document.querySelectorAll('.note').length===4,
         'friends-typical':()=>document.querySelector('#fr-own-list')&&document.querySelectorAll('.fr-friend').length===3,
         achievements:()=>document.querySelector('#profile-achievement-page[aria-busy="false"] h1')?.textContent==='Achievements'&&document.querySelectorAll('#profile-achievement-page .profile-achievement-track .profile-achievement-ladder').length>=3,
       };
@@ -160,7 +165,7 @@
   async function capture(){
     const initialReady=()=>cfg.tour?App.pageReady:cfg.startupTiming
       ?App.pageReady&&!!document.querySelector('#page .me-card-sections[aria-busy="false"]')
-      :cfg.groups?(App.pageReady&&document.querySelector('#group-empty-create')):cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name');
+      :cfg.stage.startsWith('kit-')?document.querySelector('.kit-answer'):cfg.stage==='notifications'?document.querySelector('.note'):cfg.stage==='food-review'?document.querySelector('#thread-text'):cfg.groups?(App.pageReady&&document.querySelector('#group-empty-create')):cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name');
     for(let n=0;n<150;n++){
       if(initialReady())break;
       await new Promise(ok=>setTimeout(ok,100));
@@ -171,6 +176,18 @@
       await wait(cfg.tour.ready);
       if(cfg.tour.scroll)(await wait(cfg.tour.scroll)).scrollIntoView({block:'start'});
       document.activeElement?.blur();
+    }
+    if(cfg.store&&cfg.stage==='kit-history'){
+      // Reopen the saved conversation through its real row before capturing the list again.
+      document.querySelector('#kit-saved').click();
+      for(let n=0;n<100&&!document.querySelector('[data-kit-chat]');n++)await new Promise(ok=>setTimeout(ok,100));
+      document.querySelector('[data-kit-chat]').click();
+      for(let n=0;n<100&&(document.querySelector('#kit-chats')||!document.querySelector('.kit-chart'));n++)await new Promise(ok=>setTimeout(ok,100));
+      cfg.storeHistoryResumed=cfg.requests.filter(p=>p.endsWith('/resume')).length===2&&!!document.querySelector('.kit-chart');
+      document.querySelector('#kit-saved').click();
+    }
+    if(cfg.store&&cfg.stage==='kit-memory'){
+      document.querySelector('#kit-settings').click();document.querySelector('#kit-memory-open').click();
     }
     if(cfg.stage==='track-live'){
       const stats=document.querySelector('[data-display="stats"]');
@@ -223,7 +240,7 @@
       // The Store frame ends after the two reviewed series; keep later charts from peeking under the fixed tabs.
       for(const chart of [...document.querySelectorAll('#d-charts .chartbox')].slice(2))chart.style.setProperty('display','none','important');
       // Production styles use one accent fill for every series; tint each fixture area from its own line color.
-      for(const chart of document.querySelectorAll('#d-charts .chartbox')){
+      for(const chart of cfg.store.homepage?document.querySelectorAll('#d-charts .chartbox'):[]){
         const area=chart.querySelector('.sample-area'),color=area?.nextElementSibling?.getAttribute('stroke');
         if(area&&color){area.style.setProperty('fill',`color-mix(in srgb, ${color} 22%, var(--card))`,'important');area.style.setProperty('opacity','.22','important');}
         for(const label of chart.querySelectorAll('svg .yl')){label.style.setProperty('paint-order','stroke','important');label.style.setProperty('stroke','var(--card)','important');label.style.setProperty('stroke-width','4px','important');label.style.setProperty('stroke-linejoin','round','important');}
@@ -285,6 +302,11 @@
     if(cfg.friends){result.friends={title:document.querySelector('#fr-title')?.textContent,backLabel:document.querySelector('.top .back')?.getAttribute('aria-label'),findAction:rect('#fr-list-find'),requestRow:rect('#fr-requests-open'),requestLabel:document.querySelector('#fr-requests-open')?.textContent.trim()||'',counts:[document.querySelectorAll('.fr-friend').length,document.querySelectorAll('#fr-requests-open').length,document.querySelectorAll('.pym-tile').length],firstFriend:rect('.fr-friend'),empty:rect('.friend-empty'),emptyTitle:document.querySelector('.friend-empty > b')?.textContent.trim()||'',emptyCopy:document.querySelector('.friend-empty > p')?.textContent.trim()||'',emptyPadding:getComputedStyle(document.querySelector('.friend-empty')||document.body).padding,emptyTitleBox:rect('.friend-empty > b'),emptyCopyBox:rect('.friend-empty > p'),emptyAction:rect('#fr-empty-browse'),controls:[...document.querySelectorAll('#fr-list-find,#fr-list-add,#fr-requests-open,#fr-own-list .person-link')].map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height};}),fullChallenges:!!document.querySelector('#friends-challenges')};}
     if(cfg.activity){const bar=cfg.stage==='activity-sticky'?'.detail-sticky':cfg.stage==='activity-empty'?'.detail-title-back':'.detail-floating',social=document.querySelector('#d-soc'),reactionGroup=social?.querySelector('[data-reaction-group]'),comment=social?.querySelector('[data-ttalk]');result.activity={scrollY,documentHeight:document.documentElement.scrollHeight,hero:rect('.detail-map-hero'),bar:rect(bar),back:rect(bar+' .back'),actions:[...document.querySelectorAll(bar+' .icon-btn')].map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};}),title:rect('.d-title'),tabs:rect('.dtabs'),expanded:!!document.querySelector('.map.full'),close:rect('.map.full .map-full'),secondary:document.querySelectorAll('.detail-secondary .stat').length,social:{hidden:social?.hidden??true,react:rect('#d-soc .reaction-more'),triggerKind:reactionGroup?.dataset.mine||'',triggerGlyph:reactionGroup?.querySelector('.reaction-more .reaction-emoji')?.textContent||'',reactions:[...(social?.querySelectorAll('.reaction-summary-emoji')||[])].map(node=>({kind:node.dataset.summaryKind,count:node.querySelector('.reaction-summary-count')?.textContent.trim()||''})),comments:rect('#d-soc [data-ttalk]'),commentLabel:comment?.getAttribute('aria-label')||'',commentCount:comment?.querySelector('.num')?.textContent.trim()||''}};}
     if(cfg.recording){result.tracking={controls:rect('.track-controls'),captions:[...document.querySelectorAll('.track-live-main .track-controls .round-ctl small')].map(e=>e.getBoundingClientRect().bottom),save:rect('#track-save'),tabs:rect('nav.tabs'),map:rect('#track-map-wrap'),display:document.querySelector('[data-display="stats"]')?.getAttribute('aria-pressed')==='true'?'stats':'map',average:document.querySelector('#track-pace')?.textContent,lap:cfg.stage==='track-live'?cfg.trackLapPace:document.querySelector('#track-lap-pace')?.textContent,photos:rect('#track-photos-add'),title:rect('input[name=activity_name]'),chart:rect('#track-review-charts'),expanded:!!document.querySelector('#track-map-wrap.full')};}
+    if(cfg.store&&cfg.stage==='kit-chart')result.storeChart={points:document.querySelectorAll('.kit-chart circle').length,ticks:[...document.querySelectorAll('.kit-chart-tick')].map(e=>e.textContent),line:!!document.querySelector('.kit-chart-line')};
+    if(cfg.store&&cfg.stage==='kit-history')result.storeHistory={rows:document.querySelectorAll('.kit-history-row').length,resumed:!!cfg.storeHistoryResumed};
+    if(cfg.store&&cfg.stage==='kit-memory')result.storeMemory={rows:document.querySelectorAll('.kit-memory-row').length,enabled:!!document.querySelector('#kit-memory-on:checked')};
+    if(cfg.store&&cfg.stage==='food-review')result.storeFoodReview={foods:document.querySelectorAll('.thread-food').length,confirm:!!document.querySelector('#thread-review:not([hidden])')};
+    if(cfg.store&&cfg.stage==='notifications')result.storeNotifications=document.querySelectorAll('.note').length;
     if(cfg.store){
       result.sceneReady=storeReady();
       if(!result.sceneReady)result.storeDiagnostics=storeActivityDiagnostics();

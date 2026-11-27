@@ -27,7 +27,7 @@ class DisplayCopyTests(unittest.TestCase):
             self.assertLess(html.index('native-ui-early.js'),html.index('app-shell.js'))
             self.assertIn('webViewReadyPerfMs=performance.now()',early)
 
-    def test_store_fixture_serves_home_group_strip_and_only_noop_celebration_post(self):
+    def test_store_fixture_serves_home_group_strip_and_blocks_unlisted_writes(self):
         node = r'''const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const config={stage:'activity',store:require(process.argv[2])()};
 const context=vm.createContext({KinettaUIFixture:config,addEventListener(){},document:{documentElement:{style:{}}},history:{replaceState(){}},localStorage:{clear(){}},location:{origin:'https://example.test',href:'https://example.test/'},performance:{now:()=>0},fetch:async()=>{throw Error('native network blocked')},Response,URL,structuredClone});
@@ -57,6 +57,27 @@ for(const homepage of [false,true]){
 }"""
         result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/appstore.cjs')],
                               cwd=ROOT,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_current_store_scenes_are_display_only_and_reopen_saved_chat(self):
+        node=r"""const assert=require('node:assert/strict'),fixture=require(process.argv[1]);
+const A='00000000-0000-4000-8000-000000000011';
+for(const stage of ['kit-chart','kit-history','kit-memory','notifications','food-review']){
+ const r=fixture(false,stage).responses;
+ assert(!Object.keys(r).some(k=>/messages.*answer|DELETE |memory$/.test(k)&&k.startsWith('POST ')));
+ if(stage.startsWith('kit-')){
+  assert(r['/api/me'].kit_chat&&r['/api/me'].ai_access.coach.available);
+  assert.equal(r['/api/coach/conversation/threads'].conversations.length,2);
+  const e=r['POST /api/coach/conversation/threads/'+A+'/resume'];
+  assert.deepEqual(e.messages,r['/api/coach/conversation/threads/'+A].messages);
+  assert.deepEqual(e.messages[0].answer.chart.points.map(p=>p.plot_value),[125,171,200]);
+  assert.equal(r['/api/coach/conversation/memory'].memories.length,2);
+ }
+ const day=r['/api/food/day'];assert.equal(day.totals.kcal,915);assert.equal(day.entries.reduce((n,e)=>n+e.kcal,0),915);assert.equal(day.totals.protein_g*4+day.totals.carbs_g*4+day.totals.fat_g*9,915);
+ if(stage==='food-review')assert.equal(r['/api/food/thread'].messages[1].result.kind,'preview');
+ if(stage==='notifications')assert.equal(r['/api/notifications'].items.length,4);
+} """
+        result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/appstore.cjs')],cwd=ROOT,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_original_and_update_keep_fixture_isolation(self):

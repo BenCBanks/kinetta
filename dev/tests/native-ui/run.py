@@ -6,8 +6,8 @@ import urllib.request
 from lifecycle import stop_for_fixture
 TOUR_STAGES=tuple(json.loads(subprocess.check_output(['node','-e',"process.stdout.write(JSON.stringify(Object.keys(require('./dev/tests/native-ui/tour.cjs').scenes)))"],text=True)))
 from header_geometry import check_headers
-# 6.9-inch App Store story order: Home, Activity, Progress, Kit chat, Nutrition, Track.
-STORE_STAGES=('header-activity','activity','header-progress','food','header-food','header-track')
+# Ten current-app scenes from the submission brief; one dark Activity is extra review evidence.
+STORE_STAGES=('header-activity','header-track','activity','header-food','food-review','kit-chart','kit-history','kit-memory','notifications','header-progress')
 LAYOUT_STAGES=(('header-me',16),('header-activity',16),('header-track',16),('header-progress',16),('header-food',16),('achievement-share-track',16),('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-photos-save',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16))
 def layout_stages(theme):
  # The bundled achievement share flow is covered once in light; both themes remain covered in browser UI.
@@ -178,7 +178,7 @@ for device in preferred:
       assert not social.get('hidden') and social.get('triggerKind')=='thumbsup' and social.get('triggerGlyph')=='👍','Homepage Activity must show its fictional thumbs-up reaction trigger: '+json.dumps(social,sort_keys=True)
       assert social.get('reactions')==[{'kind':'fire','count':'2'},{'kind':'clap','count':'1'}],'Homepage Activity must show Apple emoji reaction counts: '+json.dumps(social,sort_keys=True)
       assert social.get('commentLabel')=='2 comments' and social.get('commentCount')=='2','Homepage Activity must show its fictional comment count: '+json.dumps(social,sort_keys=True)
-    if not a.tour:assert nav['visible']==(stage in ('activity','activity-photos-save','activity-sticky','activity-empty','achievements','achievement-share-track') or stage.startswith(('friends-','header-')) or stage.startswith('groups-')),metrics
+    if not a.tour:assert nav['visible']==(stage in ('activity','activity-photos-save','activity-sticky','activity-empty','achievements','achievement-share-track','notifications') or stage.startswith(('friends-','header-')) or stage.startswith('groups-')),metrics
     if stage=='activity-photos-save':
      proof=metrics.get('photosSave',{});assert proof.get('saved') is True and 'photos' in proof.get('status','').lower(), 'Unsigned Simulator must save the fictional activity PNG to its Photos library: '+json.dumps(proof,sort_keys=True)
      assert proof.get('imageWidth')==1080 and proof.get('imageHeight')==1920, 'Activity Story preview must save the full-size 1080×1920 image: '+json.dumps(proof,sort_keys=True)
@@ -201,11 +201,7 @@ for device in preferred:
       pace_ticks=[int(match.group(1))*60+int(match.group(2)) for label in pace['yLabels'] if (match:=re.search(r'(\d+):(\d+) /mi',label))]
       hr_ticks=[int(match.group(1)) for label in heart['yLabels'] if (match:=re.search(r'(\d+)',label))]
       assert len(pace_ticks)==2 and min(pace_ticks)<=579<=max(pace_ticks) and len(hr_ticks)==2 and min(hr_ticks)<=145<=max(hr_ticks), 'Activity averages must sit inside their visible chart axes'
-     if stage=='header-food':
-      food_text=metrics['bodyText'];assert 'Improve calorie estimates' not in food_text and re.search(r'1,?200',food_text) and '75 / 120' in food_text and '135 / 200' in food_text and '40 / 60' in food_text, 'Nutrition Store fixture must show body details and filled macro bars'
-      card,gear,ring,protein=[(metrics.get('storeNutrition') or {}).get(key) for key in ('card','gear','ring','protein')]
-      assert card and gear and ring and protein and card['x']<=gear['x']<card['right'] and gear['width']>=44 and gear['height']>=44, 'Nutrition gear must remain a 44px target in the card top-right'
-      assert abs(gear['y']-ring['y'])<=8 and gear['bottom']<protein['y'], 'Nutrition gear must share the ring row without reserving a row above it'
+     if stage=='header-food':assert '915' in metrics['bodyText'], 'Nutrition shows the coherent fictional food total'
      if stage=='food':
       assert 'Today' in metrics['bodyText'] and '1 serving · estimated portion' in metrics['bodyText'] and '≈180 g · estimated portion' in metrics['bodyText'] and '≈ 500 kcal' in metrics['bodyText'] and 'Your numbers' not in metrics['bodyText'], 'Kit chat must show the estimated portion and calories without a manual-entry label'
       assert metrics.get('storeKitTitle')=='Today' and metrics.get('storeKitDateDividers')==0, 'Kit chat title must be Today without a duplicate Today divider'
@@ -216,11 +212,17 @@ for device in preferred:
       assert '26:30' in metrics['bodyText'] and '25:00' in metrics['bodyText'], 'Fitness and Records must show distinct fictional times'
      if stage=='header-track':
       assert 'GPS ready' in metrics['bodyText'] and 'OpenStreetMap contributors' in metrics['bodyText'], 'Track must show backed GPS status and map credit'
-      track_crop=metrics.get('storeMapCrop');assert track_crop and track_crop['height']>=390 and track_crop['credit'], 'Track map crop must be about 1.6x taller and retain its map credit'
+      track_crop=metrics.get('storeMapCrop');assert track_crop and track_crop['height']>=250 and track_crop['credit'], 'Current Track map must be sized and retain its map credit'
      if stage.startswith('header-') or stage=='achievements':
       top=metrics.get('topBand',{});assert top.get('glyph',{}).get('y',-1)>=metrics['safeTop']-1, f'{stage} top heading is fully visible: {top}'
-     if stage!='food' and metrics['navigation']['visible']:
+     if stage not in ('food','food-review') and metrics['navigation']['visible']:
       assert all(item['label']['height']>=10 for item in metrics['navigation']['items']), f'{stage} Store nav must remain expanded: {metrics["navigation"]}'
+     if stage=='kit-chart':
+      assert metrics.get('storeChart')=={'points':3,'ticks':['200 ft','150 ft','100 ft'],'line':True},metrics
+     if stage=='kit-history':assert metrics.get('storeHistory')=={'rows':2,'resumed':True},metrics
+     if stage=='kit-memory':assert metrics.get('storeMemory')=={'rows':2,'enabled':True},metrics
+     if stage=='food-review':assert metrics.get('storeFoodReview')=={'foods':2,'confirm':True},metrics
+     if stage=='notifications':assert metrics.get('storeNotifications',0)==4,metrics
      if stage=='header-me':
       me_text=metrics['bodyText']
       assert re.search(r'\b5\.0\s+mi\s+Distance\b',re.sub(r'\s+',' ',me_text)), 'Me screenshot must show the matching fictional 5.0 mi distance'
