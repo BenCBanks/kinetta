@@ -45,11 +45,15 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
    await choose('clap');assert.equal(await reaction.getAttribute('data-mine'),'clap');
    assert.notEqual(reactionAttempts[2].client_id,reactionAttempts[1].client_id,'new intention gets a new key');
    // Discovery has specialized error rows; they must not hide quota wait times.
-   let searchLimited=false;
+   let searchLimited=false,friendWrites=0;
    await page.route('**/api/people/search?*',route=>route.fulfill(searchLimited?{status:429,headers:{'Retry-After':'19'},json:{detail:'Too many requests.'}}:{json:[{login:'zz_test_limit_peer',name:'Fictional Member',status:null}]}));
-   await page.route('**/api/friends',route=>route.request().method()==='POST'?route.fulfill({status:429,headers:{'Retry-After':'37'},json:{detail:'Too many requests.'}}):route.continue());
+   await page.route('**/api/friends',route=>{if(route.request().method()!=='POST')return route.continue();friendWrites++;return route.fulfill({status:429,headers:{'Retry-After':'37'},json:{detail:'Too many requests.'}});});
    await page.goto(base+'/me/friends?find=1');await page.locator('#fr-find input').fill('Fictional');
-   const add=page.locator('#fr-found [data-add]');await add.click();await page.getByText('Too many requests. Try again in 37 seconds.',{exact:true}).waitFor();assert(await add.isEnabled());
+   const add=page.locator('#fr-found [data-add]');await add.click();await page.getByText('Too many requests. Try again in 37 seconds.',{exact:true}).waitFor();
+   const recovery=page.locator('#fr-found [data-sharing-state]');assert(await add.isDisabled(),'uncertain invitation stays locked until saved-state readback');assert.equal(friendWrites,1);
+   await recovery.getByRole('button',{name:'Retry',exact:true}).click();assert.equal(friendWrites,1,'early Retry does not send another invitation');
+   await require('./privacy_recovery_fixture.cjs')(page);await page.waitForFunction(()=>document.querySelector('#fr-found [data-sharing-state]')?.dataset.sharingState==='confirmed');
+   assert.equal(friendWrites,1,'readback never repeats the invitation');assert(await add.isEnabled(),'the confirmed rejected invitation can be retried explicitly');
    if(out)await page.screenshot({path:path.join(out,`${native?'bridge':'web'}-friend-limited-${theme}.png`),animations:'disabled'});
    searchLimited=true;await page.locator('#fr-find input').fill('Another fictional');await page.getByText('Too many requests. Try again in 19 seconds.',{exact:true}).waitFor();assert.equal(await page.locator('#fr-find input').inputValue(),'Another fictional');
    searchLimited=false;await page.locator('#fr-found [data-retry]').click();await add.waitFor();assert.deepEqual(errors,[]);
