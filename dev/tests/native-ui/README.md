@@ -82,9 +82,8 @@ Store listing Drafts may build the unsigned Simulator artifact and run `store-ui
 
 This fixture set consolidates the earlier Draft-preview workflow and expands the capture plan. Fresh exact-head Simulator evidence and owner review are still required; historical images do not verify this revision.
 
-Store weak-frame refinement keeps the app bundle untouched: saved-chat and memory sheets receive explicitly
-capture-only full-screen framing (opaque surface, native-safe header); the actual app retains compact sheets.
-The food-review stand-in includes a fuller exchange with user-specified portions, while calories remain estimates.
-Store Activity starts at scroll zero with only its first chart shown; its chart-area tints follow each series line via capture-only styles. The
-underlying app's shared accent fill and clipped estimated-portion source label are reported separately with crops.
-These presentation overrides are not evidence that those app issues have been fixed. Homepage framing is retained.
+Store frames use the app's actual sheet sizing and chart styles. Saved-chat/memory lists have fuller fictional
+content; no full-screen, tint, chart-hiding or Progress-row-hiding overrides are applied to these scenes.
+The prior f05f7aa5 owner preview used presentation overrides and is superseded, not suitable for submission.
+Fresh acceptance captures wait for the separate real-app portion-wrap/chart-fill fix to merge; no recapture
+from the unfixed app replaces the owner set. App bugs and original native crops remain recorded privately.
