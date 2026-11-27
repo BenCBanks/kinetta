@@ -133,7 +133,14 @@ try:
     with patch.object(api_photos, 'PER_PERSON', 3):
         bodies = [dict(payload, client_id=str(uuid.uuid4()), photos=[image]) for _ in range(4)]
         with ThreadPoolExecutor(max_workers=4) as pool:
-            results = list(pool.map(lambda body: client.post('/api/activities/track', json=body).status_code, bodies))
+            responses = list(pool.map(lambda body: client.post('/api/activities/track', json=body), bodies))
+        results = []
+        for body, response in zip(bodies, responses):
+            if response.status_code == 503:
+                assert response.json() == {'detail': 'Kinetta is busy. Please try again shortly.'}
+                assert response.headers['Retry-After'] == '2'
+                response = client.post('/api/activities/track', json=body)
+            results.append(response.status_code)
         assert sorted(results) == [200, 400, 400, 400], results
     with db.connect() as c:
         assert c.execute('SELECT count(*) AS n FROM activity_photos WHERE user_id=%s', (uid,)).fetchone()['n'] == 3

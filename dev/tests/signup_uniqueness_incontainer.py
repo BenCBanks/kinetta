@@ -66,7 +66,17 @@ class Uniqueness(unittest.TestCase):
     def race(self,*calls):
         barrier=threading.Barrier(len(calls))
         def run(call):barrier.wait();return call()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(calls)) as pool:return [f.result(timeout=20) for f in [pool.submit(run,call)for call in calls]]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(calls)) as pool:
+            replies=[f.result(timeout=20) for f in [pool.submit(run,call)for call in calls]]
+        # The initial race now rejects contention instead of waiting with a DB
+        # lease. Explicitly retry only that response; keep every uniqueness,
+        # invitation, mail-count and final 200/409 assertion below unchanged.
+        for index,reply in enumerate(replies):
+            if reply.status_code==503:
+                self.assertEqual(reply.headers.get('Retry-After'),'2')
+                self.assertEqual(reply.json()['detail'],'Kinetta is busy. Please try again shortly.')
+                replies[index]=calls[index]()
+        return replies
 
     def test_confirmed_email_rejected_before_open_invite_and_beta_writes(self):
         email=self.email();token=self.invitation();before=self.snapshot()

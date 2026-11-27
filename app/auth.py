@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from fastapi import Request, HTTPException
-from . import db
+from . import db, rate_limits
 
 ph = PasswordHasher()
 COOKIE = 'fit_session'
@@ -76,7 +76,7 @@ def _keys(ip, login):
 
 def too_many(ip, login):
     pair, by_ip, by_login = _keys(ip, login)
-    with db.connect() as c:
+    with rate_limits.connection() as c:
         r = c.execute("""SELECT count(*) FILTER (WHERE key = %s) AS pair, count(*) FILTER (WHERE key = %s) AS ip,
                                 count(*) FILTER (WHERE key = %s) AS login
                          FROM auth_attempts WHERE key IN (%s, %s, %s) AND created > now() - %s * interval '1 second'""",
@@ -85,8 +85,7 @@ def too_many(ip, login):
 
 
 def failed(ip, login):
-    with db.connect() as c:
-        c.execute("DELETE FROM auth_attempts WHERE created < now() - interval '1 day'")
+    with rate_limits.connection() as c:
         for key in _keys(ip, login): c.execute('INSERT INTO auth_attempts (key) VALUES (%s)', (key,))
 
 

@@ -16,7 +16,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, StrictBool
 from psycopg import errors
-from . import db, auth, admin_mail
+from . import db, auth, admin_mail, rate_limits
 from .api_beta import EMAIL_RE
 from .auth import current_user
 
@@ -92,7 +92,7 @@ def email_exists():
 
 def reservation_lock(c):
     # Always before account, invitation and confirmation-token locks, including resends.
-    c.execute("SELECT pg_advisory_xact_lock(hashtextextended('kinetta-email-reservations',0))")
+    rate_limits.lock(c, 'kinetta-email-reservations')
 
 
 def require_available(c, email, uid=None, *, confirmation=False):
@@ -111,7 +111,7 @@ def require_available(c, email, uid=None, *, confirmation=False):
 
 def enrollment_limit(request, email, *, waitlist=False):
     # Commit rejected attempts too. Keep addresses out of the limiter key.
-    with db.connect() as c:
+    with rate_limits.connection() as c:
         purpose = 'waitlist' if waitlist else 'signup'
         ip_hit = limited(c, purpose+'-ip:' + auth.client_ip(request), 10 if waitlist else 20, 60)
         email_hit = limited(c, purpose+'-email:' + auth.token_hash(email), 3 if waitlist else 5, 60)
@@ -120,7 +120,7 @@ def enrollment_limit(request, email, *, waitlist=False):
 
 def token_limit(request, purpose, most):
     # Failure of token lookup/validation must not undo the rate accounting.
-    with db.connect() as c:
+    with rate_limits.connection() as c:
         hit = limited(c, purpose + auth.client_ip(request), most, 15)
     if hit: raise HTTPException(429, 'Too many tries - wait 15 minutes')
 
@@ -131,12 +131,12 @@ def _base():
 
 def limited(c, key, most, minutes):
     """True once `key` has been tried `most` times in the last `minutes`; every call counts as a try."""
-    c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ('rate:'+key,))
-    c.execute("DELETE FROM auth_attempts WHERE created < now() - interval '1 day'")
-    n = c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key = %s AND created > now() - %s",
-                  (key, dt.timedelta(minutes=minutes))).fetchone()['n']
-    c.execute('INSERT INTO auth_attempts (key) VALUES (%s)', (key,))
-    return n >= most
+    with rate_limits.bounded(c):
+        rate_limits.try_lock(c, 'rate:'+key)
+        n = c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key = %s AND created > now() - %s",
+                      (key, dt.timedelta(minutes=minutes))).fetchone()['n']
+        c.execute('INSERT INTO auth_attempts (key) VALUES (%s)', (key,))
+        return n >= most
 
 
 def email_recovery_limited(c, uid):
@@ -218,7 +218,7 @@ def set_email(body: EmailIn, request: Request, background: BackgroundTasks, user
     """Sends a confirmation link to the new address; the account uses it only after the link is opened."""
     email = check_new_email(body.email, body.confirm_typo)
     if not mail_ready(): raise HTTPException(503, 'Email isn’t available right now. For help, email feedback@kinetta.app.')
-    with db.connect() as c:
+    with rate_limits.connection() as c:
         hit = limited(c, f"email:{user['id']}", 5, 60)
     if hit: raise HTTPException(429, 'Too many tries - wait an hour')
     with db.connect() as c:
@@ -523,7 +523,7 @@ class ResendConfirmationIn(BaseModel):
 @router.post('/api/account/email/resend')
 def resend_confirmation(body: ResendConfirmationIn, request: Request, background: BackgroundTasks):
     who = body.login.strip()
-    with db.connect() as c:
+    with rate_limits.connection() as c:
         if limited(c, 'confirm-resend-ip:' + auth.client_ip(request), 10, 15):
             raise HTTPException(429, 'Too many tries - wait 15 minutes')
         reservation_lock(c)
@@ -556,7 +556,7 @@ class ForgotIn(BaseModel):
 def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
     who = body.login.strip()
     email_available = mail_ready()
-    with db.connect() as c:
+    with rate_limits.connection() as c:
         if limited(c, 'forgot-ip:' + auth.client_ip(request), 10, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         reservation_lock(c)
         lookup = 'lower(COALESCE(u.email::text, pending.email::text)) = lower(%s)' if '@' in who else 'u.login = %s'

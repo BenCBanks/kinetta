@@ -88,9 +88,19 @@ try:
     with db.connect() as c: c.execute('DELETE FROM auth_attempts WHERE key=%s', (f'photo-upload:{uids[0]}',))
     def attempt(_):
         try: P.upload_attempt(uids[0]); return 200
-        except HTTPException as e: return e.status_code
-    with patch.object(P, 'UPLOADS_PER_MINUTE', 3), ThreadPoolExecutor(max_workers=8) as pool:
-        assert sorted(pool.map(attempt, range(8))) == [200]*3 + [429]*5
+        except HTTPException as e:
+            if e.status_code == 503:
+                assert e.detail == 'Kinetta is busy. Please try again shortly.'
+                assert e.headers['Retry-After'] == '2'
+            return e.status_code
+    with patch.object(P, 'UPLOADS_PER_MINUTE', 3):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(attempt, range(8)))
+        # Retry only explicit non-admission after all competing transactions end.
+        assert sorted(attempt(None) if status == 503 else status for status in results) == [200]*3 + [429]*5
+    with db.connect() as c:
+        assert c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key=%s',
+                         (f'photo-upload:{uids[0]}',)).fetchone()['n'] == 8
     with db.connect() as c:
         c.execute("UPDATE auth_attempts SET created=now()-interval '61 seconds' WHERE key=%s", (f'photo-upload:{uids[0]}',))
     P.upload_attempt(uids[0])

@@ -304,7 +304,7 @@ class Service(unittest.TestCase):
   finally:self.clear_note_fixture(uid,aid)
 
  def test_19_tracked_note_does_not_turn_legacy_when_earlier_reservation_expires(self):
-  from app import account_email
+  from app import rate_limits
   uid=self.uids[0];aid=self.note_fixture(uid);prefix='coach-note:'+str(uid)+':%'
   try:
    with patch.object(coach,'DAILY_LIMIT',1),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_success) as provider:
@@ -317,8 +317,11 @@ class Service(unittest.TestCase):
      c.execute("UPDATE ai_food_attempts SET created=now()-interval '1 day 1 second' WHERE id=%s",(attempt['id'],))
      c.execute("UPDATE auth_attempts SET created=now()-interval '1 day 1 second' WHERE key LIKE %s",(prefix,))
      c.execute("UPDATE activities SET ai_note_at=now()-interval '23 hours 59 minutes' WHERE id=%s",(aid,))
-     # Authentication/email cleanup may remove quota rows before note runs.
-     account_email.limited(c,'zz_test_note_boundary_clean',1,1)
+    # Expired rows are now removed by bounded background maintenance, not
+    # by unrelated authentication/email requests. Commit the expired fixture
+    # first so the real maintenance transaction can see it.
+    rate_limits.cleanup()
+    with db.connect() as c:
      self.assertFalse(c.execute('SELECT 1 FROM auth_attempts WHERE key LIKE %s',(prefix,)).fetchone())
     self.assertEqual(coach.note(uid,aid),'Fictional note','expired request is not recharged at its later save time')
     with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
@@ -329,7 +332,6 @@ class Service(unittest.TestCase):
      self.assertTrue(c.execute('SELECT 1 FROM ai_food_attempts WHERE id=%s',(attempt['id'],)).fetchone())
   finally:
    self.clear_note_fixture(uid,aid)
-   with db.connect() as c:c.execute("DELETE FROM auth_attempts WHERE key='zz_test_note_boundary_clean'")
 
 class AccountEligibility(unittest.TestCase):
  """Paid jobs revalidate account state even without a live HTTP session."""
