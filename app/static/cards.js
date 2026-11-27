@@ -29,23 +29,34 @@ const KinettaCard=(()=>{
           $$('input[name="card-period"]',b).forEach(input=>input.checked=input.value===data.period);invalidate('/api/');MeCard.clearPreviewCache?.();
         },after:async()=>{if(!busy)await refresh();}
       });
-      // Saving settings uses confirmSetting's focus-preserving lock. Picture loading
-      // only blocks the actions that need the picture; never disable the focused input.
-      const disable=value=>{for(const id of ['#card-share','#card-copy','#card-qr'])$(id,b).disabled=value||!data.enabled||!blob;};
+      // Keep focus while locking choices for the entire save + picture refresh.
+      // A second change must not look saved while refresh's busy guard rejects it.
+      const pictureLocks=new Map();
+      const disable=value=>{
+        for(const input of $$('input',b)){
+          if(value){if(!pictureLocks.has(input))pictureLocks.set(input,input.getAttribute('aria-disabled'));input.setAttribute('aria-disabled','true');input.classList.add('setting-locked');}
+          else if(pictureLocks.has(input)){const prior=pictureLocks.get(input);prior===null?input.removeAttribute('aria-disabled'):input.setAttribute('aria-disabled',prior);input.classList.remove('setting-locked');pictureLocks.delete(input);}
+        }
+        for(const id of ['#card-share','#card-copy','#card-qr'])$(id,b).disabled=value||!data.enabled||!blob;
+      };
+      const blockPictureChange=event=>{if(pictureLocks.has(event.target)){event.preventDefault();event.stopImmediatePropagation();}};
+      for(const type of ['click','pointerdown','change'])b.addEventListener(type,blockPictureChange,true);
+      b.addEventListener('keydown',event=>{if([' ','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(event.key))blockPictureChange(event);},true);
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
       viewResources.set(b,()=>{seq++;if(imageURL)URL.revokeObjectURL(imageURL);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
       const values=()=>({enabled:$('#card-enabled',b).checked,photo:$('#card-photo',b).checked,sports:$('#card-sports',b).checked,allow_requests:$('#card-requests',b).checked,period:$('input[name="card-period"]:checked',b).value});
       async function refresh(save=false,newLink=false,reload=false){
-        if(busy)return;busy=true;blob=null;$('#card-retry',b).hidden=true;disable(true);status.textContent=save?'Saving…':'Loading picture…';const version=++seq;
+        if(busy)return;busy=true;blob=null;$('#card-retry',b).hidden=true;disable(!save);status.textContent=save?'Saving…':'Loading picture…';const version=++seq;
+        // Let confirmation capture unlocked input attributes before it owns the save lock.
         try{if(save){const result=await confirmation.save(newLink?'/api/card/new':'/api/card',newLink?{method:'POST'}:json('PUT',values()));if(!result)return;}else if(reload)data=await apiRequest('/api/card',{cache:'no-store'});if(!live()||version!==seq)return;
-          blob=await picture(owner);if(!live()||version!==seq)return;if(imageURL)URL.revokeObjectURL(imageURL);imageURL=URL.createObjectURL(blob);img.src=imageURL;img.hidden=false;img.alt='@'+data.preview.username+' on Kinetta. '+[...data.preview.sports.map(s=>(SPORT_NAMES[s.sport]||s.sport)+': '+Number(s.activities).toLocaleString()+' all-time activities'),...data.preview.stats.map(s=>s.value+' '+s.label),...(data.preview.achievements||[]).map(a=>a.value+' '+a.context)].join('. ');status.textContent=data.enabled?'Your card is active.':'Your card is off. Only you can see this preview.';$('#card-counts',b).textContent=`Joined through your card: ${data.joined} · Requests waiting: ${data.waiting}`;
+          disable(true);blob=await picture(owner);if(!live()||version!==seq)return;if(imageURL)URL.revokeObjectURL(imageURL);imageURL=URL.createObjectURL(blob);img.src=imageURL;img.hidden=false;img.alt='@'+data.preview.username+' on Kinetta. '+[...data.preview.sports.map(s=>(SPORT_NAMES[s.sport]||s.sport)+': '+Number(s.activities).toLocaleString()+' all-time activities'),...data.preview.stats.map(s=>s.value+' '+s.label),...(data.preview.achievements||[]).map(a=>a.value+' '+a.context)].join('. ');status.textContent=data.enabled?'Your card is active.':'Your card is off. Only you can see this preview.';$('#card-counts',b).textContent=`Joined through your card: ${data.joined} · Requests waiting: ${data.waiting}`;
         }catch(e){if(live()){status.textContent=e.message;$('#card-retry',b).hidden=false;$('#card-enabled',b).checked=data.enabled;$('#card-photo',b).checked=data.photo;$('#card-sports',b).checked=data.sports;$('#card-requests',b).checked=data.allow_requests;$(`input[name="card-period"][value="${data.period}"]`,b).checked=true;}}
         finally{busy=false;if(live())disable(!confirmation.known);}
       }
       $('#card-retry',b).onclick=()=>refresh();
       $$('input',b).forEach(x=>x.onchange=()=>refresh(true));
       $('#card-achievements',b).onchange=async e=>{
-        if(busy||!live())return;const on=e.target.checked;busy=true;disable(true);
+        if(busy||!live())return;const on=e.target.checked;busy=true;
         const result=await confirmation.save('/api/sharing',json('PUT',{share_achievements:on}));
         busy=false;if(live()){if(result)await refresh();else disable(true);}
       };
