@@ -3,8 +3,8 @@
 Download: one zip - every personal table as JSON Lines, spreadsheet-friendly CSVs of activities, food and weight, and
 the original activity files you or your watch uploaded. Secrets (password hash, login sessions, connection keys) and
 server paths are left out. Built in a temporary file and removed once sent; one download per 5 minutes per person.
-Delete: needs your password; removes the account, every row and every file at once. Kept only in the server's
-backups until they rotate out (see the privacy policy).
+Delete: needs your password; removes account-owned rows and original/upload files. Shared records and
+limited operational/security records have separate retention; backups rotate out (see the privacy policy).
 """
 import csv
 import io
@@ -28,19 +28,44 @@ _last_export = {}
 # table -> SQL giving one jsonb per row for the person (%s = user id). Personal tables only; secrets left out.
 DROP = " - 'user_id'"
 TABLES = {
+    'beta_requests': """SELECT to_jsonb(t)-'card_code'-'challenge_code'-'invite_id' FROM beta_requests t
+      CROSS JOIN (SELECT id,email,email_verified_at FROM users WHERE id=%s) me
+      WHERE (me.email_verified_at IS NOT NULL AND lower(t.email)=lower(me.email::text))
+        OR t.invite_id IN (SELECT id FROM invites WHERE used_by=me.id) ORDER BY t.id""",
+    'recipes': "SELECT to_jsonb(t)-'user_id' FROM recipes t WHERE user_id=%s ORDER BY id",
+    'coach_proposals': "SELECT to_jsonb(t)-'user_id' FROM coach_proposals t WHERE user_id=%s ORDER BY created,id",
+    'plan_adjustments': "SELECT to_jsonb(t)-'user_id' FROM plan_adjustments t WHERE user_id=%s ORDER BY day",
+    'ai_entitlements': "SELECT to_jsonb(t)-'user_id' FROM ai_entitlements t WHERE user_id=%s ORDER BY feature",
+    'admin_account_days': "SELECT to_jsonb(t)-'user_id' FROM admin_account_days t WHERE user_id=%s ORDER BY day",
+    'admin_login_events': "SELECT to_jsonb(t)-'user_id' FROM admin_login_events t WHERE user_id=%s ORDER BY created,id",
+    'api_requests': "SELECT to_jsonb(t)-'user_id' FROM api_requests t WHERE user_id=%s ORDER BY id",
+    'groups_created': "SELECT to_jsonb(t)-'organizer_id' FROM event_groups t WHERE organizer_id=%s ORDER BY created,id",
+    'group_members': "SELECT to_jsonb(t)-'user_id' FROM group_members t WHERE user_id=%s ORDER BY joined_at,group_id",
+    'group_updates': "SELECT to_jsonb(t)-'user_id' FROM group_updates t WHERE user_id=%s ORDER BY id",
+    'group_update_reactions': "SELECT to_jsonb(t)-'user_id' FROM group_update_reactions t WHERE user_id=%s ORDER BY created",
+    'group_weekly_reactions': "SELECT to_jsonb(t)-'user_id' FROM group_weekly_reactions t WHERE user_id=%s ORDER BY week_start",
+    'group_friend_invites': "SELECT to_jsonb(t) FROM (SELECT group_id,status,created_at,expires_at,responded_at FROM group_friend_invites WHERE %s IN (inviter_id,invitee_id)) t",
+    'achievement_moment_reactions': "SELECT to_jsonb(t)-'user_id' FROM achievement_moment_reactions t WHERE user_id=%s ORDER BY created",
+    'notifications': "SELECT to_jsonb(t)-'user_id' FROM notifications t WHERE user_id=%s ORDER BY id",
+    'meal_reminder_attempts': "SELECT to_jsonb(t)-'user_id' FROM meal_reminder_attempts t WHERE user_id=%s ORDER BY day,meal",
+    'strava_uploads': "SELECT to_jsonb(t)-'user_id'-'sha256' FROM strava_uploads t WHERE user_id=%s ORDER BY created,id",
+    'strava_import_stage': "SELECT to_jsonb(t)-'user_id'-'stop_hash' FROM strava_import_stage t WHERE user_id=%s",
+    'segment_scans': "SELECT to_jsonb(t)-'user_id' FROM segment_scans t WHERE user_id=%s ORDER BY segment_id,activity_id",
+    'route_reports_made': "SELECT to_jsonb(t) FROM (SELECT route_id,reason,note,created,status,decided,outcome FROM route_reports WHERE reporter=%s) t",
+    'segment_reports_made': "SELECT to_jsonb(t) FROM (SELECT segment_id,reason,note,created,status,decided,outcome FROM segment_reports WHERE reporter=%s) t",
     'group_challenges_created': "SELECT to_jsonb(t)-'creator_id' FROM group_challenges t WHERE creator_id=%s ORDER BY created,id",
     'group_challenge_members': "SELECT to_jsonb(t)-'user_id' FROM group_challenge_members t WHERE user_id=%s ORDER BY joined_at,challenge_id",
     'challenges':"SELECT to_jsonb(t)-'user_id'-'code'-'request_id'-'request_body' FROM challenges t WHERE user_id=%s ORDER BY created",
     'challenge_members':"SELECT to_jsonb(t)-'user_id' FROM challenge_members t WHERE user_id=%s ORDER BY joined",
     'milestones': "SELECT to_jsonb(m)-'user_id' FROM milestones m WHERE user_id=%s ORDER BY occurred,code",
     'milestone_state': "SELECT to_jsonb(m)-'user_id' FROM milestone_state m WHERE user_id=%s",
-    'signup_join_intents': "SELECT kind,want_request,created FROM signup_join_intents WHERE user_id=%s ORDER BY kind",
+    'signup_join_intents': "SELECT to_jsonb(t) FROM (SELECT kind,want_request,created FROM signup_join_intents WHERE user_id=%s ORDER BY kind) t",
     'public_card': "SELECT to_jsonb(t) - 'user_id' - 'code' FROM public_cards t WHERE user_id=%s",
-    'card_connections': "SELECT created,joined FROM card_connections WHERE user_id=%s ORDER BY created",
+    'card_connections': "SELECT to_jsonb(t) FROM (SELECT created,joined FROM card_connections WHERE user_id=%s ORDER BY created) t",
     'activity_intervals': "SELECT to_jsonb(t) - 'user_id' - 'request_hash' FROM activity_intervals t WHERE user_id=%s ORDER BY activity_id,recording_id",
     'interval_presets': "SELECT to_jsonb(t) - 'user_id' FROM interval_presets t WHERE user_id=%s AND deleted_at IS NULL ORDER BY updated,id",
     'interval_preset_receipts': "SELECT to_jsonb(t) - 'user_id' FROM interval_preset_receipts t WHERE user_id=%s ORDER BY preset_id,mutation_id",
-    'support_requests': "SELECT jsonb_build_object('kind',kind,'status',status,'received',received,'verified_at',verified_at,'completed_at',completed_at) FROM admin_data_requests WHERE user_id=%s ORDER BY received",
+    'support_requests': "SELECT jsonb_build_object('kind',kind,'status',status,'received',received,'verified_at',verified_at,'completed_at',completed_at,'method',method) FROM admin_data_requests WHERE user_id=%s ORDER BY received",
     'known_devices': "SELECT to_jsonb(t)" + DROP + " FROM known_devices t WHERE user_id=%s ORDER BY first_seen",
     'kit_visits': "SELECT to_jsonb(t)" + DROP + " FROM kit_visits t WHERE user_id=%s ORDER BY created",
     'kit_memories': "SELECT to_jsonb(t)" + DROP + " FROM kit_memories t WHERE user_id=%s ORDER BY updated",
@@ -53,7 +78,7 @@ TABLES = {
     'health_weight_exclusions': "SELECT to_jsonb(t)" + DROP + " FROM health_weight_exclusions t WHERE user_id = %s ORDER BY day",
     'recipe_link_drafts': "SELECT to_jsonb(t)" + DROP + " FROM recipe_link_drafts t WHERE user_id = %s ORDER BY created",
     'nutrition_checkins': "SELECT to_jsonb(t)" + DROP + " FROM nutrition_checkins t WHERE user_id = %s ORDER BY week",
-    'profile': "SELECT to_jsonb(t)" + DROP + " - 'food_reminders' FROM profile t WHERE user_id = %s",
+    'profile': "SELECT to_jsonb(t)" + DROP + " FROM profile t WHERE user_id = %s",
     'activities': """SELECT to_jsonb(t)""" + DROP + """ - 'geom' - 'start_pt' - 'end_pt' - 'file_path' - 'file_sha256'
                        || jsonb_build_object('track', ST_AsGeoJSON(t.geom)::jsonb) FROM activities t WHERE user_id = %s ORDER BY start_time""",
     'activity_streams': "SELECT to_jsonb(t)" + DROP + " FROM activity_streams t WHERE user_id = %s ORDER BY activity_id",
@@ -139,7 +164,7 @@ Left out on purpose: your password (only a scrambled form is stored), login sess
 def _write_export(uid, path):
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z, db.connect() as c:
         z.writestr('README.txt', README.format(when=time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())))
-        u = c.execute('SELECT login::text AS login, name, first_name, last_name, email::text AS email, email_verified_at, created FROM users WHERE id = %s', (uid,)).fetchone()
+        u = c.execute('SELECT login::text AS login, name, first_name, last_name, email::text AS email, phone_e164, email_verified_at, created FROM users WHERE id = %s', (uid,)).fetchone()
         z.writestr('data/account.json', json.dumps(u, default=str, indent=1))
         for name, q in TABLES.items():
             with z.open(f'data/{name}.jsonl', 'w') as f, c.cursor(name=f'x_{name}') as cur:   # server-side: streams big tables
