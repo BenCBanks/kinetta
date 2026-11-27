@@ -99,7 +99,10 @@ def _gemini(ctx, system=None):
                                      {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
         last = n == len(tries) - 1
         try:
-            with ai_budget.lease(attempt), urllib.request.urlopen(req, timeout=60) as r: d = json.loads(r.read())
+            with ai_budget.lease(attempt):
+                from . import coach_limits
+                coach_limits.started()
+                with urllib.request.urlopen(req, timeout=60) as r: d = json.loads(r.read())
             ai_budget.settle(attempt,d)
             break
         except urllib.error.HTTPError as e:
@@ -238,12 +241,15 @@ def note(user_id, aid):
     with db.connect() as c:
         if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         # every note counts, the ones written after an import too (2026-10-12 review: imports could run up the bill)
-        n = c.execute("""SELECT count(*) AS n FROM activities WHERE user_id = %s AND ai_note_at > now() - interval '1 day'""", (user_id,)).fetchone()['n']
+        n = c.execute("""SELECT count(*) AS n FROM activities a WHERE user_id = %s AND ai_note_at > now() - interval '1 day'
+                        AND NOT EXISTS (SELECT 1 FROM ai_food_attempts t WHERE t.user_id=a.user_id
+                          AND t.kind='activity note:' || a.id::text AND t.created <= a.ai_note_at)""", (user_id,)).fetchone()['n']
         if n >= DAILY_LIMIT: raise ValueError('Daily limit for Kit’s notes reached - try again tomorrow.')
     with db.coach_connect(user_id) as c:
         ctx = _context(c, user_id, aid)
     if not ctx: raise ValueError('Activity not found')
-    with ai_budget.scope(user_id):
+    from . import coach_limits
+    with coach_limits.note(user_id, aid, DAILY_LIMIT), ai_budget.scope(user_id):
         text = _gemini(ctx) if provider() == 'gemini' else _claude(ctx)
     if not text: raise ValueError('Kit returned an empty note.')
     with db.connect() as c:
@@ -256,7 +262,11 @@ def _claude(ctx, system=None):
     payload = dict(model=MODEL,max_tokens=2000,system=system or SYSTEM,output_config={'effort':'low'},messages=[{'role':'user','content':json.dumps(ctx,default=str)}])
     attempt = ai_budget.reserve(MODEL,'coach note',payload=payload)
     try:
-        with ai_budget.lease(attempt): r = client().beta.messages.create(**payload)
+        with ai_budget.lease(attempt):
+            send = client().beta.messages.create
+            from . import coach_limits
+            coach_limits.started()
+            r = send(**payload)
     except anthropic.RateLimitError:
         ai_budget.release_failed(attempt,429)
         raise ValueError('Kit is busy - try again in a minute.')

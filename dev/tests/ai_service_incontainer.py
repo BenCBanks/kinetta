@@ -156,4 +156,179 @@ class Service(unittest.TestCase):
   B.renew_lease(rid)
   with db.connect() as c:self.assertFalse(c.execute('SELECT lease_until>now() AS live FROM ai_food_attempts WHERE id=%s',(rid,)).fetchone()['live'])
 
+ def note_success(self,*args,**kwargs):
+  from app import coach_limits
+  # Stand in for the transport, preserving real durable attempt provenance.
+  rid=B.reserve('gemini-3.1-flash-lite','coach note')
+  coach_limits.started()
+  B.settle(rid,{'usageMetadata':{'promptTokenCount':0,'candidatesTokenCount':0}})
+  B.finish(rid)
+  return 'Fictional note'
+
+ def note_failure(self,*args,**kwargs):
+  self.note_success();raise ValueError('Uncertain stand-in failure')
+
+ def note_fixture(self,uid):
+  with db.connect() as c:
+   c.execute('DELETE FROM auth_attempts WHERE key LIKE %s',('coach-note:'+str(uid)+':%',))
+   return c.execute("INSERT INTO activities(user_id,source,sport,name,start_time,elapsed_s,moving_s) VALUES(%s,'manual','run','Fictional note cap',now(),1200,1200) RETURNING id",(uid,)).fetchone()['id']
+
+ def clear_note_fixture(self,uid,aid):
+  with db.connect() as c:
+   c.execute('DELETE FROM activities WHERE user_id=%s AND id=%s',(uid,aid))
+   c.execute('DELETE FROM auth_attempts WHERE key LIKE %s',('coach-note:'+str(uid)+':%',))
+
+ def test_12_note_regeneration_uses_committed_rolling_cap(self):
+  uid=self.uids[0];aid=self.note_fixture(uid)
+  try:
+   with patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_success) as provider:
+    for _ in range(30):self.assertEqual(coach.note(uid,aid),'Fictional note')
+    with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    self.assertEqual(provider.call_count,30)
+    with db.connect() as c:
+     self.assertEqual(c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key LIKE %s',('coach-note:'+str(uid)+':%',)).fetchone()['n'],30)
+     c.execute("UPDATE auth_attempts SET created=now()-interval '1 day 1 second' WHERE key LIKE %s",('coach-note:'+str(uid)+':%',))
+    self.assertEqual(coach.note(uid,aid),'Fictional note','rolling-window expiry allows a new request')
+  finally:self.clear_note_fixture(uid,aid)
+
+ def test_13_parallel_notes_share_the_same_brake(self):
+  from concurrent.futures import ThreadPoolExecutor
+  uid=self.uids[1];aid=self.note_fixture(uid)
+  try:
+   def attempt(_):
+    try:coach.note(uid,aid);return True
+    except ValueError as exc:self.assertIn('Daily limit',str(exc));return False
+   with patch.dict(os.environ,{'KINETTA_AI_USER_CONCURRENT':'3'}),patch.object(coach,'DAILY_LIMIT',3),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_success) as provider:
+    with ThreadPoolExecutor(max_workers=6) as pool:self.assertEqual(sum(pool.map(attempt,range(12))),3)
+    self.assertEqual(provider.call_count,3)
+  finally:self.clear_note_fixture(uid,aid)
+
+ def test_14_note_failure_keeps_slot_but_missing_activity_does_not_charge(self):
+  uid=self.uids[2];aid=self.note_fixture(uid)
+  try:
+   with patch.object(coach,'_context',return_value=None),patch.object(coach,'_gemini') as provider:
+    with self.assertRaisesRegex(ValueError,'Activity not found'):coach.note(uid,aid)
+    provider.assert_not_called()
+   with db.connect() as c:self.assertFalse(c.execute('SELECT 1 FROM auth_attempts WHERE key LIKE %s',('coach-note:'+str(uid)+':%',)).fetchone())
+   with patch.object(coach,'DAILY_LIMIT',1),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_failure) as provider:
+    with self.assertRaisesRegex(ValueError,'Uncertain'):coach.note(uid,aid)
+    with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    self.assertEqual(provider.call_count,1)
+  finally:self.clear_note_fixture(uid,aid)
+
+ def test_15_no_call_failures_release_slot(self):
+  uid=self.uids[2];aid=self.note_fixture(uid)
+  try:
+   for failure in ('scope','selection','budget','request','claude_setup'):
+    from contextlib import ExitStack
+    with self.subTest(failure=failure),ExitStack() as stack:
+     stack.enter_context(patch.object(coach,'_context',return_value={'fictional':1}))
+     if failure=='scope':stack.enter_context(patch.object(B,'scope',side_effect=ValueError('setup')))
+     if failure=='selection':stack.enter_context(patch.object(coach,'provider',side_effect=['gemini','gemini',ValueError('setup')]))
+     if failure=='budget':stack.enter_context(patch.object(B,'reserve',side_effect=HTTPException(429,'stand-in cap')))
+     if failure=='request':stack.enter_context(patch('urllib.request.Request',side_effect=ValueError('setup')))
+     if failure=='claude_setup':
+      stack.enter_context(patch.object(coach,'provider',return_value='claude'))
+      stack.enter_context(patch.object(coach,'client',side_effect=ValueError('setup')))
+     transport=stack.enter_context(patch('urllib.request.urlopen',side_effect=AssertionError('No send permitted')))
+     with self.assertRaises((ValueError,HTTPException)):coach.note(uid,aid)
+     transport.assert_not_called()
+    with db.connect() as c:
+     self.assertFalse(c.execute('SELECT 1 FROM auth_attempts WHERE key LIKE %s',('coach-note:'+str(uid)+':%',)).fetchone())
+  finally:self.clear_note_fixture(uid,aid)
+
+ def test_16_denied_retries_do_not_extend_expiry(self):
+  uid=self.uids[1];aid=self.note_fixture(uid);prefix='coach-note:'+str(uid)+':%'
+  try:
+   with patch.object(coach,'DAILY_LIMIT',3),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_failure) as provider:
+    for _ in range(3):
+     with self.assertRaisesRegex(ValueError,'Uncertain'):coach.note(uid,aid)
+    with db.connect() as c:c.execute("UPDATE auth_attempts SET created=now()-interval '23 hours 59 minutes' WHERE key LIKE %s",(prefix,))
+    for _ in range(10):
+     with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    with db.connect() as c:
+     rows=c.execute('SELECT key,created FROM auth_attempts WHERE key LIKE %s ORDER BY created,key',(prefix,)).fetchall()
+     self.assertEqual(len(rows),3)
+     c.execute("UPDATE auth_attempts SET created=now()-interval '1 day 1 second' WHERE key=%s",(rows[0]['key'],))
+    with self.assertRaisesRegex(ValueError,'Uncertain'):coach.note(uid,aid)
+    for _ in range(10):
+     with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    self.assertEqual(provider.call_count,4)
+    with db.connect() as c:
+     self.assertEqual(c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key LIKE %s',(prefix,)).fetchone()['n'],3)
+     # Rejections did not replace or touch the remaining original rows.
+     for row in rows[1:]:self.assertEqual(c.execute('SELECT created FROM auth_attempts WHERE key=%s',(row['key'],)).fetchone()['created'],row['created'])
+  finally:self.clear_note_fixture(uid,aid)
+
+ def test_17_existing_saved_notes_are_counted_once(self):
+  uid=self.uids[0];aid=self.note_fixture(uid);other=None
+  try:
+   with db.connect() as c:
+    c.execute("UPDATE activities SET ai_note='Legacy note',ai_note_at=now()-interval '1 hour' WHERE id=%s",(aid,))
+    other=c.execute("INSERT INTO activities(user_id,source,sport,name,start_time,ai_note_at) VALUES(%s,'manual','run','Other legacy note',now(),now()-interval '1 hour') RETURNING id",(uid,)).fetchone()['id']
+   with patch.object(coach,'DAILY_LIMIT',4),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_success) as provider:
+    self.assertEqual(coach.note(uid,aid),'Fictional note')
+    # Two legacy notes plus two regenerations fill four slots. Saved output
+    # from a tracked request does not create a second legacy charge.
+    self.assertEqual(coach.note(uid,aid),'Fictional note')
+    with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    self.assertEqual(provider.call_count,2)
+  finally:
+   self.clear_note_fixture(uid,aid)
+   if other:
+    with db.connect() as c:c.execute('DELETE FROM activities WHERE id=%s',(other,))
+
+ def test_18_provider_retries_share_one_note_slot_and_existing_money_ledger(self):
+  import urllib.error
+  uid=self.uids[2];aid=self.note_fixture(uid);seen=[]
+  def transport(req,timeout=None):
+   seen.append(req)
+   if len(seen)<3:raise urllib.error.HTTPError(req.full_url,503,'stand-in',{},io.BytesIO())
+   return io.BytesIO(json.dumps({'candidates':[{'content':{'parts':[{'text':'Fictional note'}]}}],
+    'usageMetadata':{'promptTokenCount':100,'candidatesTokenCount':10,'thoughtsTokenCount':0}}).encode())
+  try:
+   with db.connect() as c:
+    before=c.execute("SELECT charged_micros FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date").fetchone()['charged_micros']
+    previous=c.execute('SELECT count(*) AS n FROM ai_food_attempts WHERE user_id=%s',(uid,)).fetchone()['n']
+   with patch.object(coach,'DAILY_LIMIT',1),patch.object(coach,'_context',return_value={'fictional':1}),patch('urllib.request.urlopen',side_effect=transport),patch('time.sleep'):
+    self.assertEqual(coach.note(uid,aid),'Fictional note')
+    with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+   self.assertEqual(len(seen),3)
+   with db.connect() as c:
+    self.assertEqual(c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key LIKE %s',('coach-note:'+str(uid)+':%',)).fetchone()['n'],1)
+    rows=c.execute('SELECT charged_micros,state,kind FROM ai_food_attempts WHERE user_id=%s ORDER BY created DESC LIMIT 3',(uid,)).fetchall()
+    self.assertTrue(all(r['state']=='measured' for r in rows));self.assertEqual(sum(r['charged_micros'] for r in rows),40)
+    self.assertTrue(all(r['kind']=='activity note:'+str(aid) for r in rows))
+    self.assertEqual(c.execute('SELECT count(*) AS n FROM ai_food_attempts WHERE user_id=%s',(uid,)).fetchone()['n'],previous+3)
+    self.assertEqual(c.execute("SELECT charged_micros FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date").fetchone()['charged_micros']-before,40)
+  finally:self.clear_note_fixture(uid,aid)
+
+ def test_19_tracked_note_does_not_turn_legacy_when_earlier_reservation_expires(self):
+  from app import account_email
+  uid=self.uids[0];aid=self.note_fixture(uid);prefix='coach-note:'+str(uid)+':%'
+  try:
+   with patch.object(coach,'DAILY_LIMIT',1),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_success) as provider:
+    self.assertEqual(coach.note(uid,aid),'Fictional note')
+    with db.connect() as c:
+     attempt=c.execute('SELECT id,kind FROM ai_food_attempts WHERE user_id=%s ORDER BY created DESC LIMIT 1',(uid,)).fetchone()
+     self.assertEqual(attempt['kind'],'activity note:'+str(aid))
+     # At the boundary, the reservation is older than 24h but its result was
+     # saved a little later and is still inside the legacy-note lookback.
+     c.execute("UPDATE ai_food_attempts SET created=now()-interval '1 day 1 second' WHERE id=%s",(attempt['id'],))
+     c.execute("UPDATE auth_attempts SET created=now()-interval '1 day 1 second' WHERE key LIKE %s",(prefix,))
+     c.execute("UPDATE activities SET ai_note_at=now()-interval '23 hours 59 minutes' WHERE id=%s",(aid,))
+     # Authentication/email cleanup may remove quota rows before note runs.
+     account_email.limited(c,'zz_test_note_boundary_clean',1,1)
+     self.assertFalse(c.execute('SELECT 1 FROM auth_attempts WHERE key LIKE %s',(prefix,)).fetchone())
+    self.assertEqual(coach.note(uid,aid),'Fictional note','expired request is not recharged at its later save time')
+    with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    self.assertEqual(provider.call_count,2)
+    with db.connect() as c:
+     keys=c.execute('SELECT key FROM auth_attempts WHERE key LIKE %s',(prefix,)).fetchall()
+     self.assertEqual(len(keys),1);self.assertFalse(keys[0]['key'].endswith(':legacy'))
+     self.assertTrue(c.execute('SELECT 1 FROM ai_food_attempts WHERE id=%s',(attempt['id'],)).fetchone())
+  finally:
+   self.clear_note_fixture(uid,aid)
+   with db.connect() as c:c.execute("DELETE FROM auth_attempts WHERE key='zz_test_note_boundary_clean'")
+
 unittest.main()
