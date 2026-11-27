@@ -11,6 +11,7 @@ Usually you don't need this: the first person creates their account in the brows
 """
 import sys, getpass
 from psycopg import sql
+from psycopg.rows import tuple_row
 from . import db, auth
 
 def ask(prompt):
@@ -43,14 +44,22 @@ def main(a):
             c.execute('DELETE FROM admin_challenges WHERE user_id=(SELECT id FROM users WHERE login=%s)',(a[1],))
             print('password set (other logins for this person were signed out)')
         elif a[0] == 'sql-login' and len(a) in (2, 3) and a[2:] in ([], ['--all-people']):
-            u = c.execute('SELECT id, login::text AS login, is_admin FROM users WHERE login = %s', (a[1],)).fetchone()
+            u = c.execute('SELECT id, login::text AS login, is_admin FROM users WHERE login = %s FOR UPDATE', (a[1],)).fetchone()
             if not u: sys.exit(f'no user {a[1]}')
             role = f"{u['login'].lower()}_sql"
             if not role.replace('_', '').isalnum(): sys.exit('login must be letters/numbers only')
             pw = ask(f'Password for SQL login {role}: ')
             exists = c.execute('SELECT 1 FROM pg_roles WHERE rolname = %s', (role,)).fetchone()
+            from .sql_logins import check_owner, record_owner
+            # psycopg's CLI connection uses dict rows; ownership helpers use tuples.
+            u['sql_role'] = role
+            with c.cursor(row_factory=tuple_row) as catalog:
+                if exists: check_owner(catalog, u)
             verb = 'ALTER' if exists else 'CREATE'
             c.execute(sql.SQL(verb + ' ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role), sql.Literal(pw)))
+            if not exists:
+                with c.cursor(row_factory=tuple_row) as catalog:
+                    record_owner(catalog, u)
             c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)))
             everyone = a[2:] == ['--all-people']
             if everyone and not u['is_admin']: sys.exit('--all-people is only for admins - nothing changed')

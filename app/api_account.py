@@ -222,12 +222,51 @@ def remove_person(login: str, body: RemoveIn, user=Depends(admin_user)):
     return {'ok': True}
 
 
+def _disable_sql_login(account):
+    """Fence reconnects before terminating sessions, including a pre-assumed reader role.
+
+    Role changes commit separately: if later erasure fails, the login stays disabled.
+    fit_app cannot signal these backends; use the existing bootstrap credential only
+    for this fixed, catalog-checked login operation, never arbitrary caller SQL.
+    """
+    import psycopg
+    from .sql_logins import check_owner
+    role=account['sql_role']
+    with psycopg.connect(db._conninfo('postgres', db.secret('POSTGRES_PASSWORD')), autocommit=True,
+                         connect_timeout=5, options='-c statement_timeout=15000 -c lock_timeout=5000 -c search_path=pg_catalog,pg_temp') as admin:
+        with admin.transaction():
+            # The deleting transaction holds this account row locked and has not
+            # removed it yet. Re-read its durable mapping, never caller metadata.
+            mapped=admin.execute('SELECT id,login::text,sql_role FROM public.users WHERE id=%s',(account['id'],)).fetchone()
+            if mapped != (account['id'],account['login'],role):
+                raise RuntimeError('SQL login account mapping changed')
+            if not check_owner(admin,account):return
+            admin.execute(sql.SQL('ALTER ROLE {} NOLOGIN').format(sql.Identifier(role)))
+            grants=admin.execute("""SELECT r.rolname,g.rolname FROM pg_catalog.pg_auth_members m
+              JOIN pg_catalog.pg_roles r ON r.oid=m.roleid JOIN pg_catalog.pg_roles g ON g.oid=m.grantor
+              JOIN pg_catalog.pg_roles u ON u.oid=m.member
+              WHERE u.rolname=%s AND r.rolname IN ('fit_readers','fit_all_readers')""",(role,)).fetchall()
+            for reader,grantor in grants:
+                admin.execute(sql.SQL('REVOKE {} FROM {} GRANTED BY {}').format(sql.Identifier(reader),sql.Identifier(role),sql.Identifier(grantor)))
+        # usename is the authenticated login, even after SET ROLE fit_all_readers.
+        for _ in range(2):
+            rows=admin.execute("SELECT pg_catalog.pg_terminate_backend(pid,5000) FROM pg_catalog.pg_stat_activity WHERE usename=%s AND pid<>pg_backend_pid()",(role,)).fetchall()
+            if not all(r[0] for r in rows):raise RuntimeError('SQL login sessions could not be stopped')
+        if admin.execute('SELECT 1 FROM pg_catalog.pg_stat_activity WHERE usename=%s',(role,)).fetchone():
+            raise RuntimeError('SQL login sessions remain active')
+
+
 def erase(c, t):
     """Delete a person and every row of theirs (all personal tables cascade from users), plus their beta request."""
     # Matchers lock accounts before segment rows. Take the exclusive account lock
     # first too, so their foreign-key/key-share locks cannot deadlock with erasure.
-    c.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (t['id'],))
+    t = c.execute('SELECT id,login::text AS login,sql_role FROM users WHERE id = %s FOR UPDATE', (t['id'],)).fetchone()
+    if not t:return
     c.execute("""DELETE FROM beta_requests WHERE invite_id IN (SELECT id FROM invites WHERE used_by = %s)""", (t['id'],))
+    # Public enrollment may never have acquired an invite. Only a verified
+    # account address proves ownership of those otherwise unlinked requests.
+    c.execute("""DELETE FROM beta_requests WHERE lower(email) IN
+      (SELECT lower(email::text) FROM users WHERE id=%s AND email_verified_at IS NOT NULL)""", (t['id'],))
     # A verified deletion request completes in the same transaction as the deletion; the account link is then cleared.
     for r in c.execute("UPDATE admin_data_requests SET status='completed',completed_at=now() WHERE user_id=%s AND kind='deletion' AND status='verified' RETURNING id", (t['id'],)).fetchall():
         audit(c, None, 'request.completed', r['id'])
@@ -236,13 +275,16 @@ def erase(c, t):
     from . import api_segments
     api_segments.take_down(c, [r['id'] for r in c.execute("SELECT id FROM segments WHERE creator_id = %s AND audience = 'everyone' AND status <> 'removed'", (t['id'],)).fetchall()], 'creator_deleted')
     c.execute("DELETE FROM segments WHERE creator_id = %s AND audience = 'me'", (t['id'],))
-    c.execute('DELETE FROM users WHERE id = %s', (t['id'],))
-    if t['sql_role']:
+    if t['sql_role'] and c.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (t['sql_role'],)).fetchone():
+        # Commit the login fence before signaling, so it cannot reconnect between
+        # termination and the account transaction's commit. Do not swallow failures.
+        _disable_sql_login(t)
         try:
             with c.transaction():
                 c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(t['sql_role'])))
         except Exception:
-            pass    # the person is gone; a leftover SQL login can't see any rows
+            pass    # A dependent object may retain the disabled role, without reader access.
+    c.execute('DELETE FROM users WHERE id = %s', (t['id'],))
 
 
 def erase_files(uid):

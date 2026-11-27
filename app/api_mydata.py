@@ -3,8 +3,8 @@
 Download: one zip - every personal table as JSON Lines, spreadsheet-friendly CSVs of activities, food and weight, and
 the original activity files you or your watch uploaded. Secrets (password hash, login sessions, connection keys) and
 server paths are left out. Built in a temporary file and removed once sent; one download per 5 minutes per person.
-Delete: needs your password; removes the account, every row and every file at once. Kept only in the server's
-backups until they rotate out (see the privacy policy).
+Delete: needs your password; removes account-owned rows and original/upload files. Shared records and
+limited operational/security records have separate retention; backups rotate out (see the privacy policy).
 """
 import csv
 import io
@@ -34,13 +34,13 @@ TABLES = {
     'challenge_members':"SELECT to_jsonb(t)-'user_id' FROM challenge_members t WHERE user_id=%s ORDER BY joined",
     'milestones': "SELECT to_jsonb(m)-'user_id' FROM milestones m WHERE user_id=%s ORDER BY occurred,code",
     'milestone_state': "SELECT to_jsonb(m)-'user_id' FROM milestone_state m WHERE user_id=%s",
-    'signup_join_intents': "SELECT kind,want_request,created FROM signup_join_intents WHERE user_id=%s ORDER BY kind",
+    'signup_join_intents': "SELECT to_jsonb(t) FROM (SELECT kind,want_request,created FROM signup_join_intents WHERE user_id=%s ORDER BY kind) t",
     'public_card': "SELECT to_jsonb(t) - 'user_id' - 'code' FROM public_cards t WHERE user_id=%s",
-    'card_connections': "SELECT created,joined FROM card_connections WHERE user_id=%s ORDER BY created",
+    'card_connections': "SELECT to_jsonb(t) FROM (SELECT created,joined FROM card_connections WHERE user_id=%s ORDER BY created) t",
     'activity_intervals': "SELECT to_jsonb(t) - 'user_id' - 'request_hash' FROM activity_intervals t WHERE user_id=%s ORDER BY activity_id,recording_id",
     'interval_presets': "SELECT to_jsonb(t) - 'user_id' FROM interval_presets t WHERE user_id=%s AND deleted_at IS NULL ORDER BY updated,id",
     'interval_preset_receipts': "SELECT to_jsonb(t) - 'user_id' FROM interval_preset_receipts t WHERE user_id=%s ORDER BY preset_id,mutation_id",
-    'support_requests': "SELECT jsonb_build_object('kind',kind,'status',status,'received',received,'verified_at',verified_at,'completed_at',completed_at) FROM admin_data_requests WHERE user_id=%s ORDER BY received",
+    'support_requests': "SELECT jsonb_build_object('kind',kind,'status',status,'received',received,'verified_at',verified_at,'completed_at',completed_at,'method',method) FROM admin_data_requests WHERE user_id=%s ORDER BY received",
     'known_devices': "SELECT to_jsonb(t)" + DROP + " FROM known_devices t WHERE user_id=%s ORDER BY first_seen",
     'kit_visits': "SELECT to_jsonb(t)" + DROP + " FROM kit_visits t WHERE user_id=%s ORDER BY created",
     'kit_memories': "SELECT to_jsonb(t)" + DROP + " FROM kit_memories t WHERE user_id=%s ORDER BY updated",
@@ -53,7 +53,7 @@ TABLES = {
     'health_weight_exclusions': "SELECT to_jsonb(t)" + DROP + " FROM health_weight_exclusions t WHERE user_id = %s ORDER BY day",
     'recipe_link_drafts': "SELECT to_jsonb(t)" + DROP + " FROM recipe_link_drafts t WHERE user_id = %s ORDER BY created",
     'nutrition_checkins': "SELECT to_jsonb(t)" + DROP + " FROM nutrition_checkins t WHERE user_id = %s ORDER BY week",
-    'profile': "SELECT to_jsonb(t)" + DROP + " - 'food_reminders' FROM profile t WHERE user_id = %s",
+    'profile': "SELECT to_jsonb(t)" + DROP + " FROM profile t WHERE user_id = %s",
     'activities': """SELECT to_jsonb(t)""" + DROP + """ - 'geom' - 'start_pt' - 'end_pt' - 'file_path' - 'file_sha256'
                        || jsonb_build_object('track', ST_AsGeoJSON(t.geom)::jsonb) FROM activities t WHERE user_id = %s ORDER BY start_time""",
     'activity_streams': "SELECT to_jsonb(t)" + DROP + " FROM activity_streams t WHERE user_id = %s ORDER BY activity_id",
@@ -118,6 +118,79 @@ TABLES = {
     'dishes_shared_with_me': """SELECT jsonb_build_object('dish_id', s.dish_id, 'dish', d.name, 'from', u.login, 'created', s.created)
                    FROM dish_shares s JOIN dishes d ON d.id = s.dish_id JOIN users u ON u.id = d.user_id WHERE s.user_id = %s""",
 }
+# Explicit projections: schema additions never silently enter these exports.
+NEW_EXPORTS = {
+    'beta_requests': ('beta_requests', 'id name email phone watch note created status card_request challenge_join'),
+    'recipes': ('recipes', 'id name items known_kcal known_protein_g known_carbs_g known_fat_g ai_note ai_note_at created updated cooked'),
+    'coach_proposals': ('coach_proposals', 'id kind payload status created expires'),
+    'plan_adjustments': ('plan_adjustments', 'plan_id day workout created'),
+    'ai_entitlements': ('ai_entitlements', 'feature enabled expires_at updated_at'),
+    'admin_account_days': ('admin_account_days', 'day'),
+    'admin_login_events': ('admin_login_events', 'channel outcome created'),
+    'api_requests': ('api_requests', 'created method route status duration_ms channel'),
+    'groups_created': ('event_groups', 'id title event_date time_zone note goal_type goal_target goal_unit goal_sports goal_start_date training_for joining_closed closed_at created'),
+    'group_members': ('group_members', 'group_id status joined_at recap_consent notifications_muted sharing_level monday_recap_enabled'),
+    'group_updates': ('group_updates', 'id group_id text created'),
+    'group_update_reactions': ('group_update_reactions', 'update_id kind created'),
+    'group_weekly_reactions': ('group_weekly_reactions', 'group_id week_start kind created'),
+    'group_friend_invites': ('group_friend_invites', 'group_id status created_at expires_at responded_at'),
+    'achievement_moment_reactions': ('achievement_moment_reactions', 'owner_id week_start kind created'),
+    'notifications': ('notifications', 'id kind activity_id dish_id comment_id created read_at reaction_kind milestone_id challenge_id group_id group_update_id group_week_start group_friend_invite_id'),
+    'meal_reminder_attempts': ('meal_reminder_attempts', 'day meal attempted_at delivered'),
+    'strava_uploads': ('strava_uploads', 'id size received state audience cursor preview result error_code created updated expires'),
+    'strava_import_stage': ('strava_import_stage', 'state upload_id reminder_opt_in reminder_due reminder_attempted reminder_sent updated expires'),
+    'segment_scans': ('segment_scans', 'segment_id activity_id matcher outcome reason scanned generation source_revision'),
+    'route_reports_made': ('route_reports', 'route_id reason note created status decided outcome'),
+    'segment_reports_made': ('segment_reports', 'segment_id reason note created status decided outcome'),
+}
+_SCOPES = {
+    'groups_created': 'organizer_id=%s', 'group_friend_invites': '%s IN (inviter_id,invitee_id)',
+    'route_reports_made': 'reporter=%s', 'segment_reports_made': 'reporter=%s',
+}
+for _name, (_table, _fields) in NEW_EXPORTS.items():
+    _scope = _SCOPES.get(_name, 'user_id=%s')
+    if _name == 'beta_requests':
+        # Bind the requesting identity once; neither an unverified address nor an invite for someone else is ownership.
+        TABLES[_name] = "SELECT to_jsonb(t) FROM (SELECT " + ','.join('beta_requests.'+field for field in _fields.split()) + " FROM beta_requests CROSS JOIN (SELECT %s::bigint AS id) me WHERE invite_id IN (SELECT id FROM invites WHERE used_by=me.id) OR lower(email) IN (SELECT lower(email::text) FROM users WHERE id=me.id AND email_verified_at IS NOT NULL) ORDER BY beta_requests.id) t"
+    else:
+        TABLES[_name] = 'SELECT to_jsonb(t) FROM (SELECT '+_fields.replace(' ', ',')+' FROM '+_table+' WHERE '+_scope+') t'
+
+
+def _scalars(names):
+    return dict.fromkeys(names.split())
+
+
+_NUTRIENTS = _scalars('kcal protein_g carbs_g fat_g fiber_g sodium_mg sugar_g saturated_fat_g')
+_WORKOUT = _scalars('day type dist title detail')
+_FOOD = {**_scalars('candidate_id name source source_id amount unit share grams'), **_NUTRIENTS}
+_PAYLOAD = {**_scalars('plan_id day meal client_id'),
+    'candidate': {**_scalars('candidate_id reason value unit target before after score'),
+                  'changes': [_WORKOUT], 'foods': [_FOOD], 'totals': _NUTRIENTS,
+                  'goal': _scalars('id sport period metric target')},
+    'receipt': _scalars('proposal_id goal_id before after saved_at')}
+_NESTED = {
+    'recipes': {'items': [{**_scalars('id name grams amount unit source'), **_NUTRIENTS, 'per100': _NUTRIENTS}]},
+    'coach_proposals': {'payload': _PAYLOAD}, 'plan_adjustments': {'workout': _WORKOUT},
+    'strava_uploads': {'preview': _scalars('added already_here unreadable'), 'result': _scalars('added already_here unreadable')},
+}
+
+
+def _project_json(value, schema):
+    """Unknown nested fields/containers are omitted, not recursively dumped."""
+    if isinstance(schema, dict):
+        return {k:_project_json(value[k],child) for k,child in schema.items() if k in value} if isinstance(value,dict) else None
+    if isinstance(schema, list):
+        return [_project_json(item,schema[0]) for item in value if isinstance(item,dict)] if isinstance(value,list) else None
+    return value if value is None or isinstance(value,(str,int,float,bool)) else None
+
+
+def export_record(name, value):
+    if name not in NEW_EXPORTS:return value
+    result={k:value[k] for k in NEW_EXPORTS[name][1].split() if k in value}
+    for key,schema in _NESTED.get(name,{}).items():
+        if key in result:result[key]=_project_json(result[key],schema)
+    return result
+
 CSVS = {
     'activities.csv': """SELECT start_time, sport, name, distance_m, moving_s, elapsed_s, ascent_m, avg_hr, max_hr, calories, effort, device
                          FROM activities WHERE user_id = %s ORDER BY start_time""",
@@ -127,26 +200,26 @@ CSVS = {
 }
 README = """Your Kinetta data, downloaded {when}.
 
-data/*.jsonl  every table Kinetta keeps about you, one JSON object per line (activity tracks are GeoJSON).
+data/*.jsonl  your exported account records, one JSON object per line (activity tracks are GeoJSON).
 *.csv         your activities, food log and weigh-ins, ready for a spreadsheet. Distances in meters, times in seconds.
 files/        the original activity files (FIT, GPX, TCX) you or your watch uploaded.
 photos/       your profile photo and the photos on your activities (activity id - photo id.jpg).
 
-Left out on purpose: your password (only a scrambled form is stored), login sessions and connection keys.
+Left out on purpose: passwords, login sessions, connection keys, internal worker/moderation records and other people’s private content.
 """
 
 
 def _write_export(uid, path):
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z, db.connect() as c:
         z.writestr('README.txt', README.format(when=time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())))
-        u = c.execute('SELECT login::text AS login, name, first_name, last_name, email::text AS email, email_verified_at, created FROM users WHERE id = %s', (uid,)).fetchone()
+        u = c.execute('SELECT login::text AS login, name, first_name, last_name, email::text AS email, phone_e164, email_verified_at, created FROM users WHERE id = %s', (uid,)).fetchone()
         z.writestr('data/account.json', json.dumps(u, default=str, indent=1))
         for name, q in TABLES.items():
             with z.open(f'data/{name}.jsonl', 'w') as f, c.cursor(name=f'x_{name}') as cur:   # server-side: streams big tables
                 cur.itersize = 500
                 cur.execute(q, (uid,))
                 for r in cur:
-                    f.write((json.dumps(next(iter(r.values())), default=str, separators=(',', ':')) + '\n').encode())
+                    f.write((json.dumps(export_record(name,next(iter(r.values()))), default=str, separators=(',', ':')) + '\n').encode())
         for name, q in CSVS.items():
             rows = c.execute(q, (uid,)).fetchall()
             buf = io.StringIO(); w = csv.writer(buf)
@@ -160,11 +233,13 @@ def _write_export(uid, path):
             cur.execute('SELECT id, activity_id, img FROM activity_photos WHERE user_id = %s ORDER BY id', (uid,))
             for r in cur: z.writestr(f"photos/activities/{r['activity_id']}-{r['id']}.jpg", bytes(r['img']))
     base = os.path.join(DATA, 'files', str(uid))
-    if os.path.isdir(base):
+    if os.path.isdir(base) and not os.path.islink(base):
         with zipfile.ZipFile(path, 'a', zipfile.ZIP_STORED) as z:     # already compressed (.fit / .gz) mostly
             for root, _, files in os.walk(base):
                 for fn in files:
                     full = os.path.join(root, fn)
+                    if os.path.islink(full) or not os.path.isfile(full):continue
+                    if os.path.commonpath((os.path.realpath(base),os.path.realpath(full))) != os.path.realpath(base):continue
                     z.write(full, 'files/' + os.path.relpath(full, base))
 
 

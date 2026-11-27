@@ -89,9 +89,9 @@ try:
     with food.op.open(urllib.request.Request(BASE + '/api/account/export')) as response:
         export = zipfile.ZipFile(io.BytesIO(response.read()))
     exported_profile = json.loads(export.read('data/profile.jsonl').splitlines()[0])
-    assert 'food_reminders' not in exported_profile, 'legacy preference is omitted from profile export'
+    assert exported_profile['food_reminders'] is True, 'export includes the saved legacy preference without exposing it in Progress'
     exported_names = set(export.namelist())
-    assert 'data/meal_reminder_attempts.jsonl' not in exported_names
+    assert 'data/meal_reminder_attempts.jsonl' in exported_names, 'export includes stored legacy reminder delivery records'
     assert {'data/profile.jsonl', 'data/activities.jsonl', 'data/personal_notification_attempts.jsonl'} <= exported_names, 'unrelated export sections retain their shape'
     assert own_food['mapped'] == 0 and own_food['record'] is None
     assert get(runner)['food'] == {'protein_days': None, 'weight_change_kg': None, 'library_items':1, 'weight_kg':None, 'logged_days':0}

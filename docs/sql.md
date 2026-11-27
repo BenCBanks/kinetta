@@ -28,6 +28,10 @@ docker compose exec app python -m app.users sql-login sam
 ```
 
 You'll be asked to type a password twice; it is never shown. The login is called `sam_sql`.
+New logins receive a database/account ownership record. Password resets and account deletion
+refuse to change a role if that record is missing, mismatched or the role is shared. Legacy
+logins, changed usernames and restored databases may need administrator ownership review;
+Kinetta never automatically adopts an existing database role.
 
 The admin can also make a login that reads **everyone's** rows with `--all-people`. Only do that if everyone on your
 server knows about it.
