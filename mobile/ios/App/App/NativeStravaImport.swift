@@ -11,6 +11,7 @@ final class NativeStravaImportCenter: NSObject,UIDocumentPickerDelegate {
     private var pending: URL?
     private var version = UUID()
     private var showing = false
+    private weak var importController: UIViewController?
     private var presenter: UIViewController? { plugin?.bridge?.viewController }
     func bind(_ session: StravaImportSession,label: String,done: @escaping (Error?) -> Void) {
         let stamp = version
@@ -22,7 +23,7 @@ final class NativeStravaImportCenter: NSObject,UIDocumentPickerDelegate {
     func stop(done: @escaping (Error?) -> Void) {
         DispatchQueue.main.async {
             self.version = UUID();self.bound = nil;if let url = self.pending { self.discardInbox(url) };self.pending = nil
-            if self.showing { self.presenter?.presentedViewController?.dismiss(animated:false);self.showing = false }
+            if self.showing { self.importController?.dismiss(animated:false);self.showing = false }
             NativeStravaTransfer.shared.stop(done:done)
         }
     }
@@ -47,11 +48,11 @@ final class NativeStravaImportCenter: NSObject,UIDocumentPickerDelegate {
         return url.isFileURL && url.standardizedFileURL.path.hasPrefix(documents.appendingPathComponent("Inbox",isDirectory:true).standardizedFileURL.path+"/")
     }
     private func discardInbox(_ url: URL) { if isInbox(url) { try? FileManager.default.removeItem(at:url) } }
-    func resume() { NativeStravaTransfer.shared.start();deliver() }
+    func resume() { if let who = bound { NativeStravaTransfer.shared.bind(who) { _ in } };deliver() }
     func pick() throws {
         guard bound != nil,!showing,let presenter = presenter,presenter.presentedViewController == nil else { throw StravaImportFailure.account }
         let picker = UIDocumentPickerViewController(forOpeningContentTypes:[.zip],asCopy:false)
-        picker.allowsMultipleSelection = false;picker.delegate = self;showing = true;presenter.present(picker,animated:true)
+        picker.allowsMultipleSelection = false;picker.delegate = self;showing = true;importController = picker;presenter.present(picker,animated:true)
     }
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { showing = false }
     func documentPicker(_ controller: UIDocumentPickerViewController,didPickDocumentsAt urls: [URL]) {
@@ -96,7 +97,7 @@ final class NativeStravaImportCenter: NSObject,UIDocumentPickerDelegate {
                 if let error = error { DispatchQueue.main.async { self.message(error.localizedDescription) } }
             }
         })
-        presenter.present(alert,animated:true)
+        importController = alert;presenter.present(alert,animated:true)
     }
     private func message(_ text: String) {
         guard let presenter = presenter,presenter.presentedViewController == nil else { return }

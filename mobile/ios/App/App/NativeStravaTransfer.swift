@@ -140,7 +140,7 @@ final class NativeStravaTransfer: NSObject,URLSessionDataDelegate {
         busy = true;controlPhase = true;let stamp = generation
         background.getAllTasks { tasks in self.queue.async {
             guard !self.stopping,self.generation == stamp,self.credential == who else { return }
-            let valid = tasks.filter { $0.taskDescription == row.id.uuidString.lowercased() }
+            let valid = tasks.filter { $0.taskDescription == row.id.uuidString.lowercased() && $0.state != .completed && $0.state != .canceling }
             tasks.filter { $0.taskDescription != row.id.uuidString.lowercased() }.forEach { $0.cancel() }
             if !valid.isEmpty { valid.forEach { $0.resume() };self.controlPhase = false;self.completeEvents();return }
             self.reconcile(who,row:row)
