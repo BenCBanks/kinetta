@@ -1,5 +1,5 @@
 """Kinetta web app: accounts, login, per-person settings, the phone-installable app and all API routers."""
-import os, time
+import os, re, time
 from contextlib import asynccontextmanager
 from typing import Literal
 from fastapi import FastAPI, Request, Response, Depends, HTTPException, BackgroundTasks
@@ -13,6 +13,7 @@ from . import cards,milestones,api_achievements,challenges,groups,personal_notif
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts, garmin_connect
 import threading
 from .auth import current_user
+from . import api_strava_import,strava_upload
 from . import request_log
 from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread, kit_history_api, workout_compare
 from . import api_routes_plan, api_segments, segments, route_sharing, map_config, api_contacts
@@ -30,9 +31,11 @@ async def lifespan(app):
     challenge_stop,challenge_worker=challenges.start_worker()
     personal_stop,personal_worker=personal_notifications.start_worker()
     group_stop,group_worker=groups.start_worker()
+    strava_stop,strava_worker=strava_upload.start_worker()
     feature_stop,feature_worker=admin_features.start_cleanup()
     try:yield
     finally:
+        strava_stop.set();strava_worker.join(timeout=3)
         feature_stop.set();feature_worker.join(timeout=3)
         personal_stop.set();personal_worker.join(timeout=3)
         group_stop.set();group_worker.join(timeout=3)
@@ -67,6 +70,7 @@ from . import api_food_photos
 app.include_router(api_food_photos.router)
 app.include_router(nutrition_insights.router)
 app.include_router(history_import.router)
+app.include_router(api_strava_import.router)
 app.include_router(plans.router)
 app.include_router(api_beta.router)
 app.include_router(api_mydata.router)
@@ -132,7 +136,8 @@ async def guard(request: Request, call_next):
         if origin and origin.split('://', 1)[-1] != host and origin not in APP_ORIGINS:
             return Response('{"detail":"Bad origin"}', 403, media_type='application/json')
         ctype = request.headers.get('content-type', '')
-        if 'application/json' not in ctype and not (request.url.path == '/api/import' and ctype.startswith('multipart/form-data')):
+        strava_piece = (request.method == 'PUT' and re.fullmatch(r'/api/strava-import/uploads/[0-9a-fA-F-]{36}/pieces/[0-9]+',request.url.path) and ctype.split(';')[0]=='application/octet-stream')
+        if 'application/json' not in ctype and not strava_piece and not (request.url.path == '/api/import' and ctype.startswith('multipart/form-data')):
             return Response('{"detail":"JSON only"}', 415, media_type='application/json')
     # Through Cloudflare, plain http is answered with a redirect to https, so passwords never travel unencrypted.
     if request.headers.get('cf-connecting-ip') and request.headers.get('x-forwarded-proto', 'https') == 'http':
@@ -173,7 +178,7 @@ app.add_middleware(_gzip.GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 # Only the iPhone app may read answers across sites, and never with cookies (it sends its token in a header).
 app.add_middleware(CORSMiddleware, allow_origins=list(APP_ORIGINS), allow_credentials=False, allow_methods=['*'],
-                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account', 'X-Kinetta-Version'], max_age=3600)
+                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account', 'X-Kinetta-Version', 'X-Content-Sha256'], max_age=3600)
 
 
 class Login(BaseModel):

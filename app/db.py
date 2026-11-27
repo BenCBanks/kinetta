@@ -2602,6 +2602,42 @@ MIGRATIONS = [
         AND jsonb_typeof(prescription->'paces')='object' AND jsonb_typeof(prescription->'history')='object'),false));
     """,
 
+    # 128: account-bound resumable Strava history staging and durable work; no activity defaults change.
+    """
+    CREATE TABLE IF NOT EXISTS strava_uploads (
+      id uuid PRIMARY KEY, user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      size bigint NOT NULL CHECK(size>0 AND size<=2147483648), sha256 text NOT NULL CHECK(sha256 ~ '^[0-9a-f]{64}$'),
+      received bigint NOT NULL DEFAULT 0 CHECK(received>=0 AND received<=size),
+      state text NOT NULL DEFAULT 'uploading' CHECK(state IN ('uploading','preview_queued','review','importing','done','failed','cancelled')),
+      audience text CHECK(audience IN ('me','friends','everyone')), cursor integer NOT NULL DEFAULT 0,
+      preview jsonb NOT NULL DEFAULT '{}', result jsonb NOT NULL DEFAULT '{"added":0,"already_here":0,"unreadable":0}',
+      error_code text, created timestamptz NOT NULL DEFAULT now(), updated timestamptz NOT NULL DEFAULT now(),
+      expires timestamptz NOT NULL DEFAULT now()+interval '7 days');
+    CREATE INDEX IF NOT EXISTS strava_uploads_queue ON strava_uploads(state,created);
+    CREATE TABLE IF NOT EXISTS strava_import_stage (
+      user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      state text NOT NULL DEFAULT 'requested' CHECK(state IN ('requested','done','cancelled')),
+      upload_id uuid,
+      reminder_opt_in boolean NOT NULL DEFAULT false, reminder_due timestamptz,
+      reminder_attempted timestamptz, reminder_sent boolean NOT NULL DEFAULT false,
+      stop_hash text, updated timestamptz NOT NULL DEFAULT now(),
+      expires timestamptz NOT NULL DEFAULT now()+interval '90 days');
+    CREATE UNIQUE INDEX IF NOT EXISTS strava_upload_owner ON strava_uploads(user_id,id);
+    ALTER TABLE strava_import_stage DROP CONSTRAINT IF EXISTS strava_import_stage_upload_id_fkey;
+    ALTER TABLE strava_import_stage DROP CONSTRAINT IF EXISTS strava_import_stage_upload_owner;
+    ALTER TABLE strava_import_stage ADD CONSTRAINT strava_import_stage_upload_owner
+      FOREIGN KEY(user_id,upload_id) REFERENCES strava_uploads(user_id,id) ON DELETE SET NULL(upload_id);
+    CREATE INDEX IF NOT EXISTS strava_reminder_due ON strava_import_stage(reminder_due) WHERE reminder_opt_in AND reminder_attempted IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS strava_reminder_stop ON strava_import_stage(stop_hash) WHERE stop_hash IS NOT NULL;
+    ALTER TABLE strava_uploads ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE strava_import_stage ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS own_rows ON strava_uploads;
+    CREATE POLICY own_rows ON strava_uploads FOR SELECT TO fit_readers USING(user_id=public.fit_me());
+    DROP POLICY IF EXISTS own_rows ON strava_import_stage;
+    CREATE POLICY own_rows ON strava_import_stage FOR SELECT TO fit_readers USING(user_id=public.fit_me());
+    GRANT SELECT ON strava_uploads,strava_import_stage TO fit_readers;
+    """,
+
 ]
 
 
