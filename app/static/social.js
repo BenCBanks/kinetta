@@ -1122,9 +1122,9 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
       await draw(held.data);if(active()&&held.version===revision&&document.activeElement===document.body)$('[data-card-edit]',box)?.focus({preventScroll:true});
     }});ProfileLayout.mount(box,r,{shared:!mine,featured:true});
     const act=$('[data-person-action]',box);
-    if(act){const saved=SocialData.confirmSetting(box,{path:'/api/friends',mask:()=>[act],failureText:'Request checked. Try again if needed.',paint:state=>{
+    if(act){const saved=SocialData.confirmSetting(box,{path:'/api/friends',mask:()=>[act],failureText:'Request checked. Try again if needed.',paint:(state,{failure})=>{
       if(!['friends','incoming','outgoing'].every(key=>Array.isArray(state?.[key])))throw Error();
-      invalidate('/api/friends');invalidate('/api/people/');MeCard.clearPreviewCache?.();invalidate('/api/me');invalidateFeed();return reload();
+      invalidate('/api/friends');invalidate('/api/people/');MeCard.clearPreviewCache?.();invalidate('/api/me');invalidateFeed();if(!failure)return reload();
     }});act.onclick=()=>{const url='/api/friends/'+encodeURIComponent(p.login);return act.dataset.personAction==='cancel'?saved.save(url,{method:'DELETE'}):act.dataset.personAction==='accept'?saved.save(url+'/accept',json('POST',{})):saved.save('/api/friends',json('POST',{login:p.login}));};}
     const manage=$('[data-person-manage]',box);if(manage)manage.onclick=()=>friendshipSheet(p,({blocked})=>blocked?go('/me/friends',{replace:true}):reload());
     const report=$('[data-person-report]',box);if(report)report.onclick=()=>reportSheet(p,{},()=>go('/me/friends',{replace:true}));

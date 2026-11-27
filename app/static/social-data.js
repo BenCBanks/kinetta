@@ -123,9 +123,23 @@ const SocialData=(()=>{
   function setUntil(until,required=false){try{until?localStorage.setItem(storageKey(),String(until)):localStorage.removeItem(storageKey());}catch(error){if(required)throw Error('Saved setting cannot be confirmed on this device.');}}
   // Compare only the requested settings with their authoritative readback, not the whole response.
   function requestedSetting(data,attempt){
-    if(!attempt?.options?.body)return null;
-    let wanted;try{wanted=JSON.parse(attempt.options.body);}catch(_){return null;}
+    if(!attempt)return null;
+    let wanted;try{wanted=JSON.parse(attempt.options?.body||'{}');}catch(_){return null;}
     const path=attempt.path;
+    if(/^\/api\/(friend-links|group-invites|group-friend-invites)\//.test(path)){
+      if(path.endsWith('/decline'))return typeof data.declined==='boolean'?data.declined:null;
+      if(typeof data.member!=='boolean')return null;
+      return data.member&&(!Object.hasOwn(wanted,'share_total')||data.share_total===wanted.share_total);
+    }
+    if(/^\/api\/challenges\/[^/]+\/join$/.test(path))return typeof data.member==='boolean'?data.member:null;
+    if(/^\/api\/groups\/[^/]+\/friend-invites$/.test(path))return Array.isArray(data.friends)?data.friends.some(p=>p.username===wanted.username&&['invited','member'].includes(p.state)):null;
+    if(path.startsWith('/api/friends')&&['friends','incoming','outgoing'].every(key=>Array.isArray(data[key]))){
+      const parts=path.split('/'),login=path==='/api/friends'?wanted.login:decodeURIComponent(parts[3]),has=key=>data[key].some(p=>p.login===login);
+      if(parts[4]==='accept')return has('friends');
+      if(parts[4]==='decline')return !has('incoming');
+      if(attempt.options?.method==='DELETE')return !has('outgoing');
+      return has('friends')||has('outgoing');
+    }
     if(path==='/api/sharing')data=data.sharing||data;
     else if(path==='/api/contacts/settings')data=data.contacts||data;
     else if(path.startsWith('/api/card'))data=data.card||data;

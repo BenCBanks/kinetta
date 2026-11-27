@@ -5,10 +5,10 @@ const FriendsUI=(()=>{
  const profile=(p,cls='')=>`<a class="person-link ${cls}" href="${profileHref(p)}" title="${esc(p.name)} · @${esc(p.login)}">${identity(p)}</a>`;
  const status=label=>`<span class="friend-status" role="status"><span aria-hidden="true">✓</span> ${label}</span>`;
  const reconcile=(root,write,options,done)=>{
-  const saved=SocialData.confirmSetting(root,{path:'/api/friends',failureText:'Request checked. Try again if needed.',paint:r=>{
+  const saved=SocialData.confirmSetting(root,{path:'/api/friends',failureText:'Request checked. Try again if needed.',paint:(r,{failure})=>{
    if(!['friends','incoming','outgoing'].every(key=>Array.isArray(r?.[key])))throw Error();
    invalidate('/api/friends');invalidate('/api/people/');invalidate('/api/me');invalidateFeed();
-   App.cache.set('/api/friends',{data:r,at:Date.now()});keep('/api/friends',r);return done(r);
+   App.cache.set('/api/friends',{data:r,at:Date.now()});keep('/api/friends',r);if(!failure)return done(r);
   }});return saved.save(write,options);
  };
  const bindLargeTitle=el=>{

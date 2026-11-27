@@ -83,6 +83,7 @@ module.exports=async(browser,base,out='')=>{
    else if(spec.name==='public')await p.waitForFunction(()=>document.querySelector('#challenge-public-status')?.textContent.includes('Not joined'));
    else await p.locator(spec.button).first().waitFor({state:'visible'});
    assert.equal(writes,1,'read-only recovery never repeats the write');assert.equal(member,completed&&spec.name!=='decline');assert.equal(declined,completed&&spec.name==='decline');
+   if(!completed&&spec.name!=='public'){const note=p.locator('[data-sharing-state=confirmed]').last();await note.waitFor({state:'visible'});assert.match(await note.innerText(),/Not saved/,'rejected '+spec.name+' keeps feedback through Retry');}
    if(!completed)assert.equal(new URL(p.url()).pathname,spec.route.split('?')[0],'failure cannot navigate as success');
    if(completed&&spec.done&&!['decline','public'].includes(spec.name)){armed=false;await p.goto(base+spec.route);await p.waitForURL(base+spec.done);assert.equal(writes,1,'reopening resumes the saved relationship');}
    console.log('Invitation recovery '+mode+' '+theme+' '+spec.name+' '+fault+' PASS');
