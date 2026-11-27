@@ -2401,3 +2401,5 @@ body .social-sheet .comment .c-comment-options { margin-left:auto; }
 
 .switch-row input.setting-unconfirmed[type=checkbox] { background:var(--card2)!important; }
 .switch-row input.setting-unconfirmed[type=checkbox]::after { transform:translateX(10px)!important; }
+
+.goal-choice:has(input.setting-unconfirmed) { border-color:var(--line);background:var(--card); }

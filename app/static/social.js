@@ -1741,7 +1741,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   phoneInput.oninput=updatePhoneButton;
   phoneForm.onsubmit=async e=>{
     e.preventDefault();if(sharingOwner!==readOwner()||!box.isConnected||phoneSave.disabled)return;
-    phoneSave.disabled=true;phoneStatus.textContent='';const submitted=phoneInput.value;
+    phoneStatus.textContent='';const submitted=phoneInput.value;
     const result=await confirmation.save('/api/contacts/settings',json('PUT',{phone_e164:submitted.trim()||null}));
     if(sharingOwner!==readOwner()||!box.isConnected)return;
     const failure=result?.failure||confirmation.failure;

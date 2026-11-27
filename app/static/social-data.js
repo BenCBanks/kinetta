@@ -129,16 +129,16 @@ const SocialData=(()=>{
         if(pendingUntil()){state(false);return null;}
         await saveCache(data);if(!live()||expected!==generation())return {data,failure};
         // Restore before paint so saved values/disabled states win over the old snapshot.
-        // Focus survives ordinary paints; replacing a subtree is the caller's responsibility.
+        // Keep scroll and the equivalent focused control through a saved-state repaint.
         const focused=document.activeElement,scrollX=window.scrollX,scrollY=window.scrollY;
         const focusPath=[];let cursor=focused;
         while(cursor&&cursor!==root){const parent=cursor.parentElement;if(!parent)break;focusPath.unshift([...parent.children].indexOf(cursor));cursor=parent;}
         const hadFocus=cursor===root,scrollers=[];for(let node=focused?.parentElement;node;node=node.parentElement)if(node.scrollTop)scrollers.push([node,node.scrollTop]);
         restore();await paint(data,{failure});if(!live()||expected!==generation())return null;
+        known=true;await after(data);if(!live()||expected!==generation())return null;
         if(hadFocus&&!focused.isConnected){let replacement=root;for(const index of focusPath)replacement=replacement?.children[index];replacement?.focus?.({preventScroll:true});}
         for(const [node,top] of scrollers)if(node.isConnected)node.scrollTop=top;
         if(window.scrollX!==scrollX||window.scrollY!==scrollY)window.scrollTo(scrollX,scrollY);
-        known=true;await after(data);if(!live()||expected!==generation())return null;
         setUntil(0);affected=null;note.dataset.sharingState='confirmed';note.hidden=true;retry.hidden=true;
         return {data,failure};
       }catch(error){

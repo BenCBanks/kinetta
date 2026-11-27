@@ -162,8 +162,8 @@ async function uncertainSaves(browser,mode){
   await page.locator('[data-vis="'+(kind==='lost'?'everyone':'me')+'"]').click();
   const note=page.locator('#sh-body > [data-sharing-state]');
   {
-   await note.locator('button').waitFor();assert.match(await note.innerText(),/Not confirmed.*Retry/);
-   assert.equal(await page.locator('[data-vis="me"]').isVisible(),false,'no stale private selection while unreadable');
+   await note.locator('button').waitFor();assert.match(await note.innerText(),/Sharing not confirmed.*Retry/);
+   assert.equal(await page.locator('[data-vis="me"]').isVisible(),true,'uncertainty preserves rows');assert.equal(await page.locator('[data-vis="me"]').getAttribute('aria-checked'),'mixed','no stale private selection while unreadable');
    unreadable=false;await require('./privacy_recovery_fixture.cjs')(page);await note.locator('button').click();
   }
   await page.locator('[data-vis="everyone"][aria-checked="true"]').waitFor();
@@ -183,7 +183,7 @@ async function uncertainSaves(browser,mode){
 
 (async()=>{
   const browser=await chromium.launch();
-  try{for(const theme of ['light','dark'])await runTheme(browser,theme);for(const mode of ['web','bridge'])await uncertainSaves(browser,mode);await require('./privacy_ordering_ui.cjs')(browser,base,out);}
+  try{for(const theme of ['light','dark'])await runTheme(browser,theme);for(const mode of ['web','bridge'])await uncertainSaves(browser,mode);await require('./privacy_ordering_ui.cjs')(browser,base,out);await require('./privacy_stability_ui.cjs')(browser,base,out);}
   finally{await browser.close();}
   console.log('Sharing Settings: achievement switch API sync, contact choices, phone save, 330/390px light/dark, all writes intercepted PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
