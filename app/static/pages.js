@@ -2130,7 +2130,8 @@ route(/^\/track\/import$/, 'track', async (el) => {
     ${mapId?`<p class="muted">Choose the original FIT, GPX or TCX for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
     <section class="inset-section"><h2 class="inset-caption">Files</h2><div class="inset-group activity-upload">
       <label class="inset-row has-detail import-pick" id="u-drop" for="u-file"><span class="inset-icon" aria-hidden="true">${svg('upload')}</span><span class="inset-label has-detail"><span>Choose files</span><small>FIT, GPX, TCX, Strava ZIP or .gz</small></span><span class="inset-value">Browse</span></label>
-      <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
+      <!-- The lazy upload helper enables this after the change handler is installed. -->
+      <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden disabled>
       <div id="u-prog" class="activity-upload-progress" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
       <div class="inset-group upload-archive" id="u-zip" hidden></div>
     </section>

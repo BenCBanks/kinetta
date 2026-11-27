@@ -15,10 +15,12 @@ async function observed(request){let timer;try{await Promise.race([request,new P
       try{
         assert.equal((await c.request.post(base+'/api/login',{data:{login:'zz_test_track_empty',password:'green teapot on the hill'}})).status(),200);
         let upload=null,audience='friends',legacy=0,confirms=0,finalizes=0,lost=true,failPoll=false,hold=false,holdPoll=false,releasePoll,pollEntered,holdReserve=false,releaseReserve,reserveEntered,rejectConfirm=true,pieces=[],calls=[],account=(await(await c.request.get(base+'/api/me')).json()).id;
+        let releaseHelper,helperEntered;const helperGate=new Promise(resolve=>{releaseHelper=resolve;}),helperRequested=new Promise(resolve=>{helperEntered=resolve;});
         const newUpload=(body)=>({id:body.id,state:'uploading',size:body.size,received:0,sha256:body.sha256,expires:new Date(Date.now()+86400000).toISOString(),preview:null,result:null,error_code:null});
         await c.route('**/*',async route=>{
           const req=route.request(),u=new URL(req.url()),path=u.pathname,method=req.method();
           if(u.origin!==base)return route.abort();
+          if(path==='/static/activity-upload.js'){helperEntered();await helperGate;return route.continue();}
           if(path.startsWith('/api/strava-import')){
             calls.push(method+' '+path);assert.equal(req.headers()['x-kinetta-account'],String(account));
             if(path.endsWith('/stage'))return route.fulfill({json:{upload,current_audience:audience,chunk_size:chunk,max_size:2147483648}});
@@ -43,7 +45,12 @@ async function observed(request){let timer;try{await Promise.race([request,new P
           return route.continue();
         });
         const page=await c.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-        await page.goto(base+'/track/import');await page.locator('#u-file').waitFor({state:'attached'});await page.waitForFunction(()=>!document.querySelector('#u-file').disabled);
+        await page.goto(base+'/track/import',{waitUntil:'domcontentloaded'});await page.locator('#u-file').waitFor({state:'attached'});
+        // A slow lazy helper must not expose a picker that silently loses its first file.
+        await observed(helperRequested);
+        assert.equal(await page.locator('#u-file').isDisabled(),true,'file picker waits for the upload change handler');
+        assert.equal(await page.locator('#u-file').evaluate(input=>input.onchange),null);
+        releaseHelper();await page.waitForFunction(()=>!document.querySelector('#u-file').disabled&&typeof document.querySelector('#u-file').onchange==='function');
         account=await page.evaluate(()=>App.me.id);
         await page.locator('[data-upload="retry"]').count().then(async n=>{if(n)await page.locator('[data-upload="retry"]').click();});
         const shot=async name=>{if(out)await page.screenshot({path:`${out}/${name}-${width}-${theme}.png`});};
