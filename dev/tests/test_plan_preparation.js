@@ -20,7 +20,7 @@ const w={day:'2026-11-03',type:'easy',status:'upcoming',title:'Fictional easy ru
 {
  const plan=fs.readFileSync('app/static/plan.js','utf8'),nodes=new Map(),box={classList:{add(){}},innerHTML:''};
  const ctx={Object,Map,Set,Number,planWeekOpen:new Map(),readOwner:()=> 'fictional-owner',esc:x=>String(x??''),pday:x=>x,dur:x=>String(x),stat:()=>'',planWeekRows:()=>'',wireWorkouts(){},$$:()=>[],$:selector=>selector==='[data-plan-start]'?null:nodes.get(selector)||nodes.set(selector,{}).get(selector)};
- vm.createContext(ctx);vm.runInContext(plan.slice(plan.indexOf('function planOverview('),plan.indexOf('function planActions(')),ctx);
+ vm.createContext(ctx);vm.runInContext(plan.match(/^const planLevelScope=.*$/m)[0],ctx);vm.runInContext(plan.slice(plan.indexOf('function planOverview('),plan.indexOf('function planActions(')),ctx);
  const d={plan:{id:1,race:'5k',race_name:'5K',level:'beginner',level_name:'Beginner',unit:'mi',weeks:8,runs:3,start_day:'2027-03-08',race_day:'2027-05-02'},weeks:[{n:1,start:'2027-03-08',workouts:[]}],today:'2027-03-01',days_to_race:62,vdot:null,prescription_version:2,paces:{easy:['9:21/mi','10:18/mi'],'5k':'8:10/mi'}};
  ctx.planOverview(box,d);assert.match(box.innerHTML,/9:21–10:18\/mi/);assert.match(box.innerHTML,/8:10\/mi/);assert.match(box.innerHTML,/when this plan was created/);
  // A requested goal may be retained while the server rejects its numeric pace.
