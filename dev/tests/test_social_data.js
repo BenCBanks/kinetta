@@ -151,6 +151,7 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  localStorage.setItem=write;memoryOnly.data.draft(82,'Memory-only fictional draft');
  assert.deepEqual(draftKeys(),[],'restored quota cannot persist a session without a clearing fence');
  console.log('Social reads: prefetch/in-flight dedupe, mutation ordering, retained drafts/failures, permission clearing, same-login session isolation and refresh epochs PASS');
+ { // Keep privacy fixture storage separate from the preceding draft fixtures.
  // Failed writes may already be saved; never restore an optimistic/previous privacy claim.
  class Node {
   constructor(tag='button'){this.tag=tag;this.children=[];this.hidden=false;this.dataset={};this.isConnected=true;this.attrs=new Map();this.style={visibility:''};this.classList={add(){},remove(){}};}
@@ -263,4 +264,5 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  console.log('Expiring uncertainty: delayed readback, early GET-only Retry, navigation/full reload, stale-owner/read guards PASS');
  console.log('Uncertain privacy: lost reply/offline/503, stable disabled controls, same-account dismissal cache recovery PASS');
  console.log('Social reads/cache/drafts/account isolation PASS');
+ }
 })().catch(e=>{console.error(e);process.exit(1)});

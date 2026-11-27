@@ -2,7 +2,7 @@
 'use strict';
 const SocialData=(()=>{
   let owner=null,epoch=0,hydrated=false,revoked=false,draftGeneration=null;const cache=new Map(),pending=new Map(),versions=new Map(),drafts=new Map(),watchers=new Map();
-  const scope=()=>{const next=readOwner();if(next!==owner){owner=next;epoch++;cache.clear();pending.clear();versions.clear();drafts.clear();watchers.clear();hydrated=false;revoked=false;draftGeneration=generation();}return next;};
+  const scope=()=>{const next=readOwner();if(next!==owner){owner=next;epoch++;cache.clear();pending.clear();versions.clear();drafts.clear();watchers.clear();hydrated=false;revoked=false;draftGeneration=readDraftGeneration();}return next;};
   const key=id=>String(id);
   function remember(id,data){scope();if(!Array.isArray(data?.cheers)||!Array.isArray(data?.comments))return;
     const k=key(id);data={...cache.get(k)?.data,...data};
@@ -34,9 +34,9 @@ const SocialData=(()=>{
     for(const event of ['pointerenter','pointerdown','focus'])button.addEventListener(event,()=>prefetch(id),{passive:true});
   }
   const draftPrefix='fit.comment-draft:',generationKey='fit.comment-drafts-generation',draftTTL=7*86400000;
-  function generation(){try{return localStorage.getItem(generationKey);}catch(_){return null;}}
+  function readDraftGeneration(){try{return localStorage.getItem(generationKey);}catch(_){return null;}}
   // Establish one shared epoch before any tab scopes its reads or drafts.
-  try{if(!generation())localStorage.setItem(generationKey,newId());}catch(_){}
+  try{if(!readDraftGeneration())localStorage.setItem(generationKey,newId());}catch(_){}
   function revokeDrafts(){
     scope();if(revoked)return;revoked=true;hydrated=true;drafts.clear();
     globalThis.dispatchEvent?.(new Event('comment-drafts-cleared'));
@@ -52,7 +52,7 @@ const SocialData=(()=>{
     const gen=draftGeneration,identity=owner;
     const run=locked=>{try{
       if(identity!==readOwner()||gen!==draftGeneration||revoked||!gen)return;
-      if(generation()!==gen){revokeDrafts();return;}
+      if(readDraftGeneration()!==gen){revokeDrafts();return;}
       work(gen,locked);
     }catch(_){/* Storage failure leaves this tab's draft in memory. */}};
     if(globalThis.navigator?.locks?.request){
@@ -77,7 +77,7 @@ const SocialData=(()=>{
   function savedDrafts(){
     scope();
     // Check synchronously too: a suspended tab may write before its storage event is delivered.
-    if(generation()!==draftGeneration)revokeDrafts();
+    if(readDraftGeneration()!==draftGeneration)revokeDrafts();
     for(const [id,row] of drafts)if(Date.now()-row.at>=draftTTL)drafts.delete(id);
     // Never persist readOwner: it includes a bearer token.
     const account=typeof App!=='undefined'&&App.me?JSON.stringify([Native.base||location.origin,App.me.id]):null;
@@ -97,9 +97,9 @@ const SocialData=(()=>{
       const storedKey=draftScope(account,gen)+encodeURIComponent(id);
       try{
         if(validDraft(row))localStorage.setItem(storedKey,JSON.stringify(row));else localStorage.removeItem(storedKey);
-        if(generation()===gen)storedDrafts(account,gen,true,locked);
+        if(readDraftGeneration()===gen)storedDrafts(account,gen,true,locked);
       }finally{
-        if(generation()!==gen){try{localStorage.removeItem(storedKey);}catch(_){}revokeDrafts();}
+        if(readDraftGeneration()!==gen){try{localStorage.removeItem(storedKey);}catch(_){}revokeDrafts();}
       }
     });
   }
