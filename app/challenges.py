@@ -112,11 +112,28 @@ def progress(c,row,uid,now=None):
     return {'value':round(value,3),'complete':value>=row['target'],'manual':manual,'garmin_sources':sorted(sources),
       'days_left':max(0,(row['end_day']-today).days),'finished':finished,'needs_target':needs_target}
 
-def preview(c,row,uid=None,request=None):
-    from .api_social import _blocked_pair
-    mine=member(c,row['id'],uid) if uid else None
-    count=c.execute("SELECT count(*) AS n FROM challenge_members m JOIN users u ON u.id=m.user_id WHERE m.challenge_id=%s AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL",(row['id'],)).fetchone()['n']
-    creator=None if uid and _blocked_pair(c,uid,row['user_id']) else row['creator']
+def _list_preview_facts(c,rows,uid):
+    """Batch only preview reads on the list's existing transaction; no progress or clock caching."""
+    if not rows:return {}
+    facts=c.execute('''SELECT q.id,
+      EXISTS(SELECT 1 FROM challenge_members m WHERE m.challenge_id=q.id AND m.user_id=%s AND m.status='active') AS member,
+      (SELECT count(*) FROM challenge_members m JOIN users u ON u.id=m.user_id
+        WHERE m.challenge_id=q.id AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL) AS participants,
+      EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=%s AND b.blocked=q.creator_id)
+        OR (b.user_id=q.creator_id AND b.blocked=%s)) AS creator_blocked
+      FROM unnest(%s::uuid[],%s::bigint[]) AS q(id,creator_id)''',
+      (uid,uid,uid,[r['id'] for r in rows],[r['user_id'] for r in rows])).fetchall()
+    return {r['id']:r for r in facts}
+
+def preview(c,row,uid=None,request=None,*,facts=None):
+    if facts is None:
+        from .api_social import _blocked_pair
+        mine=member(c,row['id'],uid) if uid else None
+        count=c.execute("SELECT count(*) AS n FROM challenge_members m JOIN users u ON u.id=m.user_id WHERE m.challenge_id=%s AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL",(row['id'],)).fetchone()['n']
+        blocked=uid and _blocked_pair(c,uid,row['user_id'])
+    else:
+        mine=facts['member'];count=facts['participants'];blocked=facts['creator_blocked']
+    creator=None if blocked else row['creator']
     return {'code':row['code'],'kind':row['kind'],'title':title(row),'sports':row['sports'],'target':row['target'],'unit':row['unit'],
       'start':row['start_day'],'end':row['end_day'],'creator':creator,'participants':count,'member':bool(mine),'owner':uid==row['user_id'],
       'joining_closed':dt.datetime.now(UTC)>=deadline(row),'ended_early':bool(row['ended_at']),'url':link(row['code'],request)}
@@ -238,7 +255,8 @@ def continue_signup(user=Depends(current_user)):
 def own(request:Request,user=Depends(current_user),include_groups:bool=False):
     with db.connect() as c:
         rows=c.execute("SELECT q.*,u.login::text AS creator FROM challenge_members m JOIN challenges q ON q.id=m.challenge_id JOIN users u ON u.id=q.user_id WHERE m.user_id=%s AND (m.status='active' OR q.user_id=%s) AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND coalesce(q.ended_at,((q.end_day+1)::timestamp AT TIME ZONE 'Etc/GMT+12'))>now()-interval '90 days' ORDER BY q.end_day DESC,q.created DESC",(user['id'],user['id'])).fetchall()
-        items = [{**preview(c,row,user['id'],request),'ended_on':row['ended_at'].astimezone(zone_of(c,user['id'])).date().isoformat() if row.get('ended_at') else None,'self':progress(c,row,user['id'])} for row in rows]
+        facts=_list_preview_facts(c,rows,user['id'])
+        items = [{**preview(c,row,user['id'],request,facts=facts[row['id']]),'ended_on':row['ended_at'].astimezone(zone_of(c,user['id'])).date().isoformat() if row.get('ended_at') else None,'self':progress(c,row,user['id'])} for row in rows]
         if include_groups:
             from .group_challenge_api import own_summaries
             items += own_summaries(c,user['id'])
