@@ -1,4 +1,8 @@
 """Bound expensive password work, retaining Argon2 costs and transactional retry safety."""
+import asyncio
+import json
+import contextvars
+import httpx
 import datetime as dt
 import os
 import threading
@@ -11,7 +15,7 @@ from unittest.mock import patch
 from argon2 import PasswordHasher, extract_parameters
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from app import auth, db, account_email, admin_auth, admin_passwords
+from app import auth, db, account_email, admin_auth, admin_passwords, password_work
 from app.main import app
 
 PW = 'fictional maple kettle password'
@@ -20,14 +24,17 @@ NEW = 'a different fictional kettle sentence'
 
 @contextmanager
 def full_queue():
-    acquired = 0
-    try:
-        for _ in range(10):
-            if not auth._PASSWORD_JOBS.acquire(timeout=1): raise AssertionError('queue place leaked')
-            acquired += 1
-        yield
+    with password_work.admission.lock:
+        old = (password_work.admission.active, password_work.admission.waiting, password_work.admission.public_waiting)
+        password_work.admission.active = 2
+        password_work.admission.waiting = 8
+        password_work.admission.public_waiting = 7
+    for _ in range(2): auth._PASSWORD_ACTIVE.acquire()
+    try: yield
     finally:
-        for _ in range(acquired): auth._PASSWORD_JOBS.release()
+        for _ in range(2): auth._PASSWORD_ACTIVE.release()
+        with password_work.admission.lock:
+            password_work.admission.active, password_work.admission.waiting, password_work.admission.public_waiting = old
 
 
 class PasswordWork(unittest.TestCase):
@@ -67,10 +74,10 @@ class PasswordWork(unittest.TestCase):
         self.assertIn('hashed', results); self.assertIn(503, results)
         self.assertTrue(auth.check_pw(auth.hash_pw(PW), PW), 'all permits are returned')
 
-    def test_queue_timeout_is_bounded_and_releases_its_reservation(self):
+    def test_direct_helper_fails_immediately_instead_of_waiting_with_a_database_lease(self):
         for _ in range(2): auth._PASSWORD_ACTIVE.acquire()
         try:
-            with patch.object(auth, '_PASSWORD_WAIT', .02), patch.object(PasswordHasher, 'hash') as work:
+            with patch.object(PasswordHasher, 'hash') as work:
                 start = time.monotonic()
                 with self.assertRaises(HTTPException) as caught: auth.hash_pw(PW)
                 self.assertEqual(caught.exception.status_code, 503)
@@ -79,7 +86,7 @@ class PasswordWork(unittest.TestCase):
                 work.assert_not_called()
         finally:
             for _ in range(2): auth._PASSWORD_ACTIVE.release()
-        with full_queue(): pass  # A timed-out request did not leak a queue place.
+        with full_queue(): pass  # A rejected direct call did not leak a hash place.
         self.assertTrue(auth.check_pw(auth.hash_pw(PW), PW))
 
     def test_known_unknown_and_generation_share_the_same_full_queue(self):
@@ -195,6 +202,164 @@ class PasswordRoutes(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.text)
         self.assertNotIn('set-cookie',response.headers)
         self.assertEqual(self.anon.post('/api/password/temporary',json=body).status_code,401)
+
+    def test_busy_unknown_and_known_traffic_spends_only_source_budget_before_hashing(self):
+        with db.connect() as c: c.execute('DELETE FROM auth_attempts')
+        with full_queue(), patch.object(password_work, 'SOURCE_LIMIT', 3), patch.object(PasswordHasher, 'verify') as verify:
+            for login in ['zz_test_hashguard_member', 'zz_test_hashguard_missing', 'zz_test_hashguard_member']:
+                self.retry(self.anon.post('/api/login', json={'login':login,'password':PW}))
+            self.assertEqual(self.anon.post('/api/login',json={'login':'another_unknown','password':PW}).status_code,429)
+            verify.assert_not_called()
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE 'password-work:public:%%'").fetchone()['n'],3)
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE 'fail:%%'").fetchone()['n'],0)
+        # The congestion budget is tied to the source, never to an account name.
+        self.assertFalse(auth.too_many('a different fictional source','zz_test_hashguard_member'))
+        with db.connect() as c: c.execute('DELETE FROM auth_attempts')
+        with full_queue(), patch.object(password_work,'SOURCE_LIMIT',3), patch.object(PasswordHasher,'verify') as verify:
+            def burst(_):
+                return self.make_client().post('/api/login',json={'login':'unknown_fictional','password':PW}).status_code
+            with ThreadPoolExecutor(max_workers=8) as pool: results=list(pool.map(burst,range(8)))
+            self.assertEqual(results.count(503),3)
+            self.assertEqual(results.count(429),5,'source reservations are atomic across simultaneous requests')
+            verify.assert_not_called()
+
+    def test_real_queued_routes_release_database_and_keep_loop_and_recovery_responsive(self):
+        async def scenario():
+            started = threading.Event(); release = threading.Event(); first = True
+            original_verify = PasswordHasher.verify; original_connect = db.connect
+            owner = contextvars.ContextVar('test_password_request', default='other')
+            opened = {}; lock = threading.Lock()
+            @contextmanager
+            def connect():
+                name = owner.get()
+                with original_connect() as c:
+                    with lock: opened[name] = opened.get(name,0)+1
+                    try: yield c
+                    finally:
+                        with lock: opened[name] -= 1
+            def verify(hasher, *args, **kwargs):
+                nonlocal first
+                if first:
+                    first = False; started.set()
+                    if not release.wait(4): raise AssertionError('blocked test hash not released')
+                return original_verify(hasher,*args,**kwargs)
+            async def until(predicate):
+                for _ in range(300):
+                    if predicate(): return
+                    await asyncio.sleep(.005)
+                self.fail('request did not reach its expected queued state')
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://testserver') as client:
+                async def login(name):
+                    owner.set(name)
+                    return await client.post('/api/login',json={'login':'zz_test_hashguard_admin','password':PW})
+                jobs=[]
+                with patch.object(PasswordHasher,'verify',verify), patch.object(db,'connect',connect):
+                    try:
+                        jobs.append(asyncio.create_task(login('active'))); await until(started.is_set)
+                        jobs.extend(asyncio.create_task(login('queued'+str(i))) for i in range(7))
+                        await until(lambda: password_work.admission.waiting==7)
+                        with lock:
+                            self.assertEqual(opened.get('active'),1)
+                            self.assertTrue(all(opened.get('queued'+str(i),0)==0 for i in range(7)),opened)
+                        # These requests share the actual ASGI loop and real connection pool.
+                        measured = {}; at = time.monotonic()
+                        health=await asyncio.wait_for(client.get('/api/health'),1)
+                        measured['health_ms'] = round((time.monotonic()-at)*1000,1)
+                        self.assertEqual(health.status_code,200)
+                        client.cookies.set(auth.COOKIE,self.session)
+                        at = time.monotonic()
+                        me=await asyncio.wait_for(client.get('/api/me'),1)
+                        measured['me_ms'] = round((time.monotonic()-at)*1000,1)
+                        self.assertEqual(me.status_code,200)
+                        at = time.monotonic()
+                        reset=await asyncio.wait_for(client.post('/api/password/reset',json={'token':self.reset,'password':NEW}),2)
+                        measured['reset_ms'] = round((time.monotonic()-at)*1000,1)
+                        self.assertEqual(reset.status_code,200,reset.text)
+                        self.assertFalse(release.is_set(),'recovery finished while login was still held')
+                        print('Queued-route evidence:',json.dumps(dict(queued=7,queued_database_leases=0,**measured)),flush=True)
+                    finally:
+                        release.set()
+                        results=await asyncio.gather(*jobs)
+                self.assertTrue(all(r.status_code==200 for r in results),[r.text for r in results])
+                self.assertEqual(password_work.admission.waiting,0)
+        asyncio.run(scenario())
+
+    def test_route_timeout_and_disconnect_do_not_hash_or_leak_queue_places(self):
+        async def scenario():
+            self.assertTrue(password_work.admission.enter('public'))
+            source = '192.0.2.37'
+            transport=httpx.ASGITransport(app=app,client=(source,1234))
+            try:
+                with patch.object(password_work,'WAIT_SECONDS',.05), patch.object(PasswordHasher,'verify') as verify:
+                    async with httpx.AsyncClient(transport=transport,base_url='http://testserver') as client:
+                        self.retry(await client.post('/api/login',json={'login':'zz_test_hashguard_missing','password':PW}))
+                    verify.assert_not_called()
+                self.assertEqual(password_work.admission.waiting,0)
+                incoming=asyncio.Queue(); sent=[]
+                await incoming.put({'type':'http.request','body':json.dumps({'login':'zz_test_hashguard_member','password':PW}).encode(),'more_body':False})
+                scope={'type':'http','asgi':{'version':'3.0'},'http_version':'1.1','method':'POST','scheme':'http',
+                       'path':'/api/login','raw_path':b'/api/login','query_string':b'',
+                       'headers':[(b'host',b'testserver'),(b'content-type',b'application/json')],
+                       'client':(source,1234),'server':('testserver',80)}
+                async def send(message): sent.append(message)
+                with patch.object(PasswordHasher,'verify') as verify:
+                    task=asyncio.create_task(app(scope,incoming.get,send))
+                    for _ in range(300):
+                        if password_work.admission.waiting: break
+                        await asyncio.sleep(.005)
+                    self.assertEqual(password_work.admission.waiting,1)
+                    await incoming.put({'type':'http.disconnect'})
+                    await asyncio.wait_for(task,1)
+                    verify.assert_not_called()
+                self.assertEqual(password_work.admission.waiting,0)
+                self.assertFalse(any(m.get('status')==200 for m in sent))
+                with db.connect() as c:
+                    self.assertEqual(c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key=%s',('password-work:public:'+source,)).fetchone()['n'],2)
+            finally: password_work.admission.leave('public')
+            self.assertEqual(password_work.admission.active,0)
+        asyncio.run(scenario())
+
+    def test_fragmented_body_and_immediate_admission_preserve_validation(self):
+        async def scenario():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://testserver') as client:
+                for raw,status in [(json.dumps({'login':'zz_test_hashguard_member','password':PW}).encode(),200),(b'{broken',422)]:
+                    async def body():
+                        for offset in range(0,len(raw),3):
+                            await asyncio.sleep(0)
+                            yield raw[offset:offset+3]
+                    with patch.object(password_work,'source_attempt',return_value=True):
+                        response=await asyncio.wait_for(client.post('/api/login',content=body(),headers={'Content-Type':'application/json'}),2)
+                    self.assertEqual(response.status_code,status,response.text)
+                self.assertEqual(password_work.admission.active,0)
+        asyncio.run(scenario())
+
+    def test_background_device_email_does_not_keep_the_login_place(self):
+        from app import api_devices
+        async def scenario():
+            started=threading.Event();release=threading.Event();first=True
+            def remember(c,background,*args,**kwargs):
+                nonlocal first
+                if first:
+                    first=False
+                    def delivery():
+                        started.set()
+                        self.assertTrue(release.wait(4))
+                    background.add_task(delivery)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://testserver') as client:
+                with patch.object(api_devices,'remember',remember):
+                    pending=asyncio.create_task(client.post('/api/login',json={'login':'zz_test_hashguard_member','password':PW}))
+                    try:
+                        for _ in range(300):
+                            if started.is_set(): break
+                            await asyncio.sleep(.005)
+                        self.assertTrue(started.is_set())
+                        self.assertEqual(password_work.admission.active,0)
+                        response=await asyncio.wait_for(client.post('/api/login',json={'login':'zz_test_hashguard_member','password':PW}),2)
+                        self.assertEqual(response.status_code,200,response.text)
+                    finally:
+                        release.set();await pending
+        asyncio.run(scenario())
 
 
 if __name__=='__main__':unittest.main()

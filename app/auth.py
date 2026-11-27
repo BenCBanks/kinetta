@@ -11,11 +11,9 @@ COOKIE = 'fit_session'
 SESSION_DAYS = 180          # phones stay logged in; logging out ends it
 # failed sign-in attempts are counted in the database (auth_attempts), so the limits survive restarts (2026-10-24)
 
-# Argon2 keeps its default cost. Bound the work instead: two hashes and at most
-# eight waiting requests per process, rather than a password burst filling RAM.
+# HTTP admission waits asynchronously before route dependencies/transactions.
+# This final guard never waits (also protects CLI/direct callers and cancellation).
 _PASSWORD_ACTIVE = threading.BoundedSemaphore(2)
-_PASSWORD_JOBS = threading.BoundedSemaphore(10)
-_PASSWORD_WAIT = 5
 
 
 def _password_busy():
@@ -24,13 +22,9 @@ def _password_busy():
 
 @contextmanager
 def _password_slot():
-    if not _PASSWORD_JOBS.acquire(blocking=False): _password_busy()
-    try:
-        if not _PASSWORD_ACTIVE.acquire(timeout=_PASSWORD_WAIT): _password_busy()
-        try: yield
-        finally: _PASSWORD_ACTIVE.release()
-    finally:
-        _PASSWORD_JOBS.release()
+    if not _PASSWORD_ACTIVE.acquire(blocking=False): _password_busy()
+    try: yield
+    finally: _PASSWORD_ACTIVE.release()
 
 
 def hash_pw(pw):

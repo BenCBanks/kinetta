@@ -91,6 +91,7 @@ node dev/tests/test_join_context.js
 node dev/tests/test_route_drafts.js
 node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
+node --check dev/tests/password_retry_ui.cjs
 node dev/tests/test_plan_preparation.js
 node --check dev/tests/plan_ui.cjs
 node --check dev/tests/recipes_compact_ui.cjs

@@ -58,6 +58,7 @@ case "$1" in
     node dev/tests/shell_ui.cjs
     node dev/tests/kit_chart_ui.cjs
     node dev/tests/password_visibility_ui.cjs
+    node dev/tests/password_retry_ui.cjs
     python3 dev/tests/signup_uniqueness_fixture.py
     node dev/tests/signup_uniqueness_ui.cjs
     node dev/tests/first_run_welcome_ui.cjs
