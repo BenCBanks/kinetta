@@ -4,6 +4,7 @@ import io
 import json
 import tempfile
 import threading
+import time
 import unittest
 import uuid
 import zipfile
@@ -12,6 +13,7 @@ from unittest.mock import patch
 import psycopg
 from psycopg import sql
 from PIL import Image
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from app import api_photos as P, api_mydata as E, api_account as A, auth, db
 from app.main import app
@@ -59,7 +61,16 @@ class PhotoReplay(unittest.TestCase):
     def test_concurrent_retries_commit_one_photo(self):
         barrier=threading.Barrier(2);prepared=P.prepare_activity_photo(P.PhotoIn(image=self.image))
         def prepare(_):barrier.wait(timeout=5);return prepared
-        def upload(_):return P.add_activity_photo(self.aids[0],P.PhotoIn(image=self.image,client_id=self.key),self.users[0])
+        def upload(_):
+            # Explicit non-admission can win the race before the receipt lock.
+            # Retry only that exact response; both admitted writers still meet at prepare.
+            for attempt in range(20):
+                try:return P.add_activity_photo(self.aids[0],P.PhotoIn(image=self.image,client_id=self.key),self.users[0])
+                except HTTPException as error:
+                    if error.status_code!=503 or error.detail!='Kinetta is busy. Please try again shortly.':raise
+                    self.assertEqual(error.headers,{'Retry-After':'2'})
+                    if attempt==19:raise
+                    time.sleep(.01)
         with patch.object(P,'prepare_activity_photo',side_effect=prepare),ThreadPoolExecutor(max_workers=2) as pool:
             saved=list(pool.map(upload,range(2)))
         self.assertEqual(saved[0],saved[1]);self.assertEqual(self.count(),1);self.assertEqual(self.count('photo_upload_receipts'),1)
