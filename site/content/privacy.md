@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated November 25, 2026
+Last updated November 27, 2026
 
 ## intro
 
@@ -28,11 +28,13 @@ What we keep
 
 ## collect
 
-**Your account:** email, username, display name, password (stored scrambled, never in plain text), and an optional photo and bio. You may add an optional phone number under Me → Settings → Sharing & privacy. Kinetta stores it in normalized international format; it is not verified or shown to other members. Remove it there to clear it from your account.
+**Your account:** email, username, first and last name, password (stored scrambled, never in plain text), and an optional photo and bio. New accounts require both first and last name; you choose your own username. You may add an optional phone number under Me → Settings → Sharing & privacy. Kinetta stores it in normalized international format; it is not verified or shown to other members. Remove it there to clear it from your account.
 
 ## collect-records
 
 **What you add or import:** workouts, activity files, routes, heart rate and other measurements, food, recipes, weight, goals, plans and settings. Body details like height and age are optional and only used for your own estimates. On iPhone, Save to Photos uses iOS add-only permission: Kinetta can add the rendered activity picture you chose, but cannot browse your photo library through that permission. That save does not upload the picture to our server. Choosing a photo to attach or upload is a separate action.
+
+If you upload a Strava archive in the browser, the whole ZIP, including any extra files it contains, is stored temporarily on the server before you confirm which audience to use for the import. The temporary archive is removed after completion, cancellation or expiry; cleanup retries if removal fails. Imported activity records and their original activity files stay until you delete them or your account.
 
 ## collect-contacts
 
@@ -48,7 +50,7 @@ Invite rows stay on your iPhone. If Kinetta shows an Invite option for a contact
 
 ## collect-chat
 
-**Chats:** Kit and food-log conversations are private to you. Saved Kit conversations stay until you delete them. In Kit, you can delete one conversation or all conversations. If you remove health data or turn off its sharing with Kit, affected saved answers are permanently removed, even if you later reconnect or turn sharing back on; the questions remain. Your saved conversations are included when you download your data, and deleting your account removes them. Older app versions may use a temporary Kit chat that is removed when you leave. Kit can separately remember up to 12 short notes about your goals and preferences; you can see or delete them in Me → Settings → What Kit remembers, or turn memory off in Kit, and notes older than six months are removed. Deleting a conversation does not erase those separately saved notes. We don't keep food photos after they're processed. When you import a recipe link we keep the recipe, not the web page.
+**Chats:** Kit and food-log conversations are private to you. Saved Kit conversations stay until you delete them. In Kit, you can delete one conversation or all conversations. If you remove health data or turn off its sharing with Kit, affected saved answers are permanently removed, even if you later reconnect or turn sharing back on; the questions remain. Your saved conversations are included when you download your data, and deleting your account removes them. Older app versions may use a temporary Kit chat that is removed when you leave. Kit can separately remember up to 12 short notes about your goals and preferences; you can see, edit or delete them in Me → Settings → What Kit remembers. Notes are not used once 180 days have passed since their last update; expired notes are removed when you open memory or start a temporary chat. Turning memory off deletes the saved notes. Deleting a conversation does not erase those separately saved notes. We don't keep food photos after they're processed. When you import a recipe link we keep the recipe, not the web page.
 
 ## collect-other
 
@@ -90,7 +92,9 @@ New accounts share new activities with everyone on Kinetta. You can change this 
 
 Shared maps hide where a route starts and ends, but the rest of the route and its time can still hint at where you live or your routine. We strip location data from photos you upload.
 
-Groups are visible to their members. A group's workout totals include your activity only when you choose “Share my total” for that group and your account-wide sharing setting allows it; the stricter setting applies. Combined totals appear only when a group has at least three visible active members; blocked or otherwise ineligible members do not count toward that threshold. Your name appears in an event recap only if you opt in for that group. Monday recap alerts are optional in-app notices and start off; you can turn them off or mute notifications per group.
+Groups are visible to their members. In each group challenge, “Share my total” controls whether other members see your contribution. “Share achievements” in Sharing & privacy must also be on. Only eligible workouts shared with Friends or Everyone count; members see totals, not the individual workouts through the challenge. These totals can appear with fewer than three members. Blocked or otherwise ineligible members are hidden from the viewer.
+
+Current group invitations start “Share my total” on. New challenges use your saved group choice while preserving earlier opt-outs; existing per-challenge choices can remain when you rejoin. Check the switch in each challenge. Combined group recap totals still require at least three visible active members. Your username appears in an event recap only if you opt in for that group. Monday recap alerts are optional in-app notices and start off; you can turn them off or mute notifications per group.
 
 ## sharing-fixed-courses
 
@@ -102,11 +106,11 @@ Groups are visible to their members. A group's workout totals include your activ
 
 Recap totals and activity charts also include Only me workouts. Individual activity highlights use shared activities. You review the picture before sharing.
 
-Joining a challenge is optional and does not make people friends. Participants see only usernames, permitted profile photos and aggregate challenge progress. Only me workouts count toward progress, without revealing their individual details. Finished totals continue to reflect late entries, edits and deletions. Food challenges share logging-day or protein-goal-day counts, never meals, intake amounts or personal targets. Leaving or removal hides the participant immediately; blocking hides people from each other. Challenge data is deleted 90 days after the final local end or an early stop. Milestone offers stay private and use only fixed activity achievements or cumulative food-logging days. Photo and username start off in milestone pictures. Sharing or dismissing marks an offer seen; old imports stay silent. Optional milestone notifications start off and send at most one a day. The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
+Joining a standalone challenge is optional and does not make people friends. Participants see only usernames, permitted profile photos and aggregate challenge progress. Only me workouts count toward standalone challenge progress, without revealing their individual details. Finished totals continue to reflect late entries, edits and deletions. Food challenges share logging-day or protein-goal-day counts, never meals, intake amounts or personal targets. Leaving or removal hides the participant immediately; blocking hides people from each other. Standalone challenge data is deleted 90 days after the final local end or an early stop. Milestone offers stay private and use only fixed activity achievements or cumulative food-logging days. Photo and username start off in milestone pictures. Sharing or dismissing marks an offer seen; old imports stay silent. Optional milestone notifications start off and send at most one a day. The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
 
 ## identity
 
-Other members can find you by name or username and see your profile and accepted-friend count. Profile totals, sports and distance charts count all your finished workouts, including Only me and friends-only ones; only activities shared with that person are listed or can be opened. Your friends list is visible only to you; other people do not receive it or a mutual-friends list. Anyone who can see an activity can see its cheers and comments. Your food entries, weight, body details and private notes are never shared. Deliberately shared recap pictures and public cards may include only the food-consistency summaries you select. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
+Other members can find you by first name or username, subject to your findability settings, and see your profile and accepted-friend count. Accepted friends can also search by last name. When a name is shown, you, your accepted friends and administrators can see your full name; other members receive only your first name. Group and challenge rosters use usernames. Profile totals, sports and distance charts count all your finished workouts, including Only me and friends-only ones; only activities shared with that person are listed or can be opened. Your friends list is visible only to you; other people do not receive it or a mutual-friends list. Anyone who can see an activity can see its cheers and comments. Your food entries, weight, body details and private notes are never shared. Deliberately shared recap pictures and public cards may include only the food-consistency summaries you select. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
 
 ## ai-heading
 

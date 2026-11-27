@@ -22,7 +22,7 @@ class CopyTests(unittest.TestCase):
   self.assertNotIn('never sends a friend request',home)
   self.assertNotIn('not your food details or protein target',home)
   privacy=(content.ROOT/'site/privacy.html').read_text()
-  self.assertIn('A group\'s workout totals include your activity only when you choose',privacy)
+  self.assertIn('In each group challenge, “Share my total” controls whether other members see your contribution.',privacy)
   self.assertIn('Food challenges share logging-day or protein-goal-day counts',privacy)
   self.assertIn('assets/tour/challenge-start-light.webp',home)
   self.assertIn('assets/tour/challenge-start-dark.webp',home)
