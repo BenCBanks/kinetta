@@ -91,6 +91,7 @@ node dev/tests/test_join_context.js
 node dev/tests/test_route_drafts.js
 node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
+node --check dev/tests/password_retry_ui.cjs
 node dev/tests/test_plan_preparation.js
 node --check dev/tests/plan_ui.cjs
 node --check dev/tests/recipes_compact_ui.cjs
@@ -328,6 +329,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_signup.py
 docker compose -p "$P" exec -T app python - < dev/tests/signup_uniqueness_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_friend_links.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_password_hashing.py
 
 echo "== admin launch tools (fictional accounts, stand-in mail)"
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_launch.py

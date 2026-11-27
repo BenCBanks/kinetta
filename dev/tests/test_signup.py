@@ -172,7 +172,8 @@ class Signup(unittest.TestCase):
             def fetchone(self): return None
         @contextmanager
         def empty_db(): yield EmptySetupDb()
-        with patch('app.api_account.db.connect', empty_db):
+        # This fixture models setup validation, not the separate pre-route source budget.
+        with patch('app.api_account.db.connect', empty_db), patch('app.password_work.source_attempt', return_value=True):
             response = client().post('/api/setup', json={'first_name':'Riley','last_name':'  ','password':PW})
         self.assertEqual(response.status_code,400,response.text)
         self.assertEqual(response.json()['detail'],'Please add your last name.')
