@@ -1417,7 +1417,7 @@ const MeCard=(()=>{
         const [me,showcase]=await Promise.all([apiRequest('/api/me',{cache:'no-store'}),apiRequest('/api/achievements/showcase',{cache:'no-store'})]);return {me,showcase};
       },cache:({me,showcase})=>{if(!me.profile_layout||!Array.isArray(showcase?.pinned))throw Error();refreshMe(me);},mask:()=>[...form.children].filter(node=>node!==$('.me-editor-head',form)),uncertain:()=>{
         App.me.profile_layout=null;keep('/api/me',App.me);invalidate('/api/me');invalidate('/api/people/');invalidate('/api/achievements/showcase');clearPreviewCache();data=null;
-        
+
       },paint:({me,showcase})=>{
         start.name=me.name;start.bio=me.bio||'';start.layout=ProfileLayout.singlePeriod(me.profile_layout);start.featuredPins=[...showcase.pinned];
         Object.assign(value,structuredClone(start.layout));name.value=start.name;bio.value=start.bio;
