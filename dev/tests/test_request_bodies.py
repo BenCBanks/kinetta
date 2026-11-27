@@ -65,6 +65,25 @@ class Bodies(unittest.TestCase):
             self.assertEqual(client.post('/api/json',json={'ok':True}).status_code,503)
         readers.release()
 
+    def test_real_sessions_keep_large_contacts_schema_validation(self):
+        from app.main import app
+        client=TestClient(app)
+        self.addCleanup(client.close)
+        digest='b'*64
+        body={'salt':'a'*43,'hashes':[{'kind':'email','digest':digest}]*2000}
+        import json
+        self.assertGreater(len(json.dumps(body)),B.ANONYMOUS_BYTES)
+        for headers in ({'authorization':'Bearer '+self.token},{'cookie':auth.COOKIE+'='+self.token}):
+            # The legitimate maximum passes body receipt and route validation.
+            with db.connect() as c:c.execute('DELETE FROM auth_attempts WHERE key=%s',(f'contacts-check:{self.uid}',))
+            response=client.post('/api/contacts/match',json=body,headers=headers)
+            self.assertEqual(response.status_code,200,response.text)
+            too_many=client.post('/api/contacts/match',json={**body,'hashes':body['hashes']+[body['hashes'][0]]},headers=headers)
+            self.assertEqual(too_many.status_code,422,too_many.text)
+            self.assertNotIn(digest,too_many.text)
+        # No session must not gain the authenticated body's larger allowance.
+        self.assertEqual(client.post('/api/contacts/match',json=body).status_code,413)
+
     def test_anonymous_multipart_never_spools(self):
         with TestClient(fixture()) as client, patch('starlette.formparsers.SpooledTemporaryFile',side_effect=AssertionError('anonymous parser ran')):
             for headers in ({},{'authorization':'Bearer fake'}):
