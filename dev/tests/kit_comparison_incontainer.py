@@ -143,6 +143,7 @@ class Comparison(unittest.TestCase):
 
     def test_rls_readonly_pool_cleanup_and_no_provider(self):
         with db.coach_connect(self.a) as c:
+            self.assertEqual(c.execute("SHOW statement_timeout").fetchone()['statement_timeout'],'3s')
             self.assertEqual(c.execute('SELECT count(*) AS n FROM activities WHERE user_id=%s', (self.b,)).fetchone()['n'],0)
             self.assertTrue(all(r['user_id']==self.a for r in c.execute('SELECT user_id FROM activities').fetchall()))
         with self.assertRaises((errors.InsufficientPrivilege,errors.ReadOnlySqlTransaction)):

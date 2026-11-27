@@ -11,3 +11,7 @@ Results contain `metric`, `sport`, `timezone`, `source_consents`, `current`, `pr
 `source_consents` describes permission scope, not which denied sources exist. The helper discards a workout result if either source consent changes during the read. Before passing any derived result to a provider or saving it, a future integration must revalidate applicable consent and bind that check to the result's source scope; no database read can prevent a revocation after its last query. Do not bypass existing other-tool or saved-context consent gates. Model integration and its reviewed evaluation/fingerprint are separate work.
 
 Disposable-database contracts cover source combinations and mixed provenance, independent weight consent, owner/RLS/read-only boundaries, complete aggregation beyond a page, unknown flags/nonfinite values, sparse food logs, zero baselines, elapsed fallback, leap/DST dates, bounds/forged arguments, in-flight consent changes and no provider calls. These are deterministic contract checks, not model-quality evidence.
+
+## Current integration boundary
+
+Refreshed against main `f1811e87` (schema 132). The helper is still unregistered: current `coach_tools.period_compare` retains its existing account-wide consent gate, and neither Kit tools, saved context nor provider prompts call this reader. Its source-filtered comparison is not a replacement for those gates. The test registration retains all current history, goal and import checks and runs in quick and full CI. No migrations or fingerprinted source files change.
