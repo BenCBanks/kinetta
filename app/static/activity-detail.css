@@ -113,7 +113,6 @@ body.ph-open { overflow: hidden; }
 .activity-detail .activity-charts .lbl > span:first-child,.activity-detail .dpane h2 { font-size:.9375rem; font-weight:600; }
 .activity-detail .activity-chart-card { background:var(--surface-card); box-shadow:var(--elevation-rest); }
 .activity-detail .activity-charts .chartbox { padding:4px 0 2px; }
-.activity-detail .activity-charts .chartbox .area { fill:url(#kinetta-accent-gradient); opacity:.22; }
 
 /* PR3 charts share one inspection line and keep the axis labels quiet and aligned. */
 .activity-detail .activity-charts .chartbox + .chartbox { margin-top:12px; padding-top:10px; border-top:1px solid var(--color-divider); }
@@ -127,7 +126,6 @@ body.ph-open { overflow: hidden; }
 .activity-detail .activity-charts .activity-chart-x-label { display:none; }
 .activity-detail .activity-charts .activity-chart-last .activity-chart-x-label { display:block; }
 .activity-detail .activity-charts .gl { stroke:var(--color-divider); }
-.activity-detail .activity-charts .sample-area { opacity:.12; }
 .activity-detail .activity-charts .chartbox .sample-area { opacity:.12; }
 .activity-detail .activity-chart-card { padding-bottom:16px; }
 
