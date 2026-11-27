@@ -130,10 +130,16 @@ class Privacy(unittest.TestCase):
         body = P.food_photo.PhotoIn(image='bad')
         def clean(uid):
             try: P.clean(body, {'id': uid}); return 200
-            except HTTPException as e: return e.status_code
+            except HTTPException as e:
+                if e.status_code == 503 and e.detail == 'Kinetta is busy. Please try again shortly.':
+                    self.assertEqual(e.headers['Retry-After'],'2')
+                    return 'limiter_busy'
+                return e.status_code
         with patch.object(P, 'REQUESTS_PER_MINUTE', 2), patch.object(P.image_work, 'run', side_effect=lambda fn, *args: fn(*args)):
             with ThreadPoolExecutor(max_workers=6) as pool:
-                self.assertEqual(sorted(pool.map(clean, [self.ids[0]] * 6)), [400, 400, 429, 429, 429, 429])
+                results = list(pool.map(clean, [self.ids[0]] * 6))
+            self.assertEqual(sorted(clean(self.ids[0]) if status == 'limiter_busy' else status for status in results),
+                             [400, 400, 429, 429, 429, 429])
             with patch.object(P.Image, 'open', side_effect=AssertionError('Decode before limiter')):
                 self.assertEqual(clean(self.ids[0]), 429)
             self.assertEqual(clean(self.ids[1]), 400, 'Separate account retains its budget')

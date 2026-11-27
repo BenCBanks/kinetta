@@ -170,6 +170,48 @@ class Limits(unittest.TestCase):
         holder.rollback()
         self.assertEqual(check(0),200)
 
+    def test_track_photo_contention_is_retryable_without_partial_save(self):
+        import base64, datetime as dt, uuid
+        from pathlib import Path
+        from app.main import app
+        from app.api_account import erase_files
+        login='zz_test_limit_track_'+uuid.uuid4().hex[:10]
+        with db.connect() as c:
+            uid=c.execute("INSERT INTO users(login,name,email,email_verified_at) VALUES(%s,'Fictional Track',%s,now()) RETURNING id",
+                (login,login+'@example.test')).fetchone()['id']
+            c.execute('INSERT INTO profile(user_id) VALUES(%s)',(uid,))
+            token=auth.new_session(c,uid,'fictional limiter fixture')
+        def remove():
+            with db.connect() as c:
+                c.execute('DELETE FROM users WHERE id=%s',(uid,))
+                c.execute('DELETE FROM auth_attempts WHERE key=%s',(f'photo-upload:{uid}',))
+            erase_files(uid)
+        self.addCleanup(remove)
+        image=Path(__file__).resolve().parents[2]/'dev/demo/photos/curry-rice-bowl.jpg'
+        payload={'client_id':str(uuid.uuid4()),'sport':'walk','name':'Fictional walk',
+            'start':(dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=1)).isoformat(),
+            'elapsed_s':60,'moving_s':60,'points':[], 'review_version':1, 'photos':[base64.b64encode(image.read_bytes()).decode()]}
+        holder=self.hold('rate:photo-upload:'+str(uid))
+        client=TestClient(app);self.addCleanup(client.close)
+        client.headers.update({'Authorization':'Bearer '+token,'Origin':'http://testserver'})
+        started=time.monotonic();rejected=client.post('/api/activities/track',json=payload)
+        self.assertLess(time.monotonic()-started,1)
+        self.assertEqual(rejected.status_code,503,rejected.text)
+        self.assertEqual(rejected.headers['Retry-After'],'2')
+        self.assertEqual(rejected.json(),{'detail':'Kinetta is busy. Please try again shortly.'})
+        self.assertEqual(client.get('/api/health').status_code,200)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM activities WHERE user_id=%s',(uid,)).fetchone()['n'],0)
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM activity_photos WHERE user_id=%s',(uid,)).fetchone()['n'],0)
+        holder.rollback()
+        saved=client.post('/api/activities/track',json=payload)
+        self.assertEqual(saved.status_code,200,saved.text)
+        replay=client.post('/api/activities/track',json=payload)
+        self.assertEqual(replay.json(),{'id':saved.json()['id'],'duplicate':True})
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM activities WHERE user_id=%s',(uid,)).fetchone()['n'],1)
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM activity_photos WHERE user_id=%s',(uid,)).fetchone()['n'],1)
+
     def test_concurrent_counter_cannot_exceed_allowance(self):
         barrier=threading.Barrier(4)
         def run():

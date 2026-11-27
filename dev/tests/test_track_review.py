@@ -30,7 +30,10 @@ def race_save(payload, count):
         if status == 200:
             saved.append(result)
         else:
-            assert result == {'detail': 'Photo processing is busy. Your photo is kept; try again shortly.'}, result
+            assert result in (
+                {'detail': 'Photo processing is busy. Your photo is kept; try again shortly.'},
+                {'detail': 'Kinetta is busy. Please try again shortly.'},
+            ), result
     assert saved, 'at least one recording save completes under contention'
     retried = request(owner, 'POST', '/api/activities/track', payload)
     assert retried == {'id': saved[0]['id'], 'duplicate': True}, retried
