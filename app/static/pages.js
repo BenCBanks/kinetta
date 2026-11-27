@@ -2112,32 +2112,41 @@ route(/^\/track\/import$/, 'track', async (el) => {
   const mapFor=new URLSearchParams(location.search).get('map_for'),mapId=/^[1-9]\d*$/.test(mapFor||'')?mapFor:null;
   if (Native.on) return go('/track/connections', {replace:true});
   el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Upload activities</h1>
-    ${mapId?`<p class="muted">Choose the original ZIP or FIT for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
+    ${mapId?`<p class="muted">Choose the original FIT, GPX or TCX for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
     <section class="inset-section"><h2 class="inset-caption">Files</h2><div class="inset-group activity-upload">
-      <label class="inset-row has-detail import-pick" id="u-drop" for="u-file"><span class="inset-icon" aria-hidden="true">${svg('upload')}</span><span class="inset-label has-detail"><span>Choose files</span><small>FIT, GPX, TCX, ZIP or .gz · drop files here</small></span><span class="inset-value">Browse</span></label>
+      <label class="inset-row has-detail import-pick" id="u-drop" for="u-file"><span class="inset-icon" aria-hidden="true">${svg('upload')}</span><span class="inset-label has-detail"><span>Choose files</span><small>FIT, GPX, TCX, Strava ZIP or .gz</small></span><span class="inset-value">Browse</span></label>
       <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
       <div id="u-prog" class="activity-upload-progress" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
-      <p class="inset-footer">Duplicates are skipped automatically.</p>
+      <div class="inset-group upload-archive" id="u-zip" hidden></div>
     </section>
-    <details class="inset-disclosure"><summary>Get your Strava history</summary><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a large archive, ask the person running your Kinetta for help importing it.</p></details>
+    <details class="inset-disclosure"><summary>Get your Strava history</summary><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is.</p></details>
     <section class="inset-section"><h2 class="inset-caption">Recent imports</h2><div class="inset-group" id="u-jobs">${skel(1)}</div></section>`;
   wireBack(el, '/track');
   const input = $('#u-file', el), drop = $('#u-drop', el);
+  await loadClassicScript('/static/activity-upload.js?v=__ASSET_HASH__');
+  if(!valid())return;
+  const zip=ActivityZipUpload.mount(el,valid,account,()=>input.click());
+  let activeXHR;
   const send = (files) => {
     if (!valid()||!files.length) return;
-    const fd = new FormData(); for (const f of files) fd.append('files', f, f.name);
-    const xhr = new XMLHttpRequest(); xhr.open('POST', Native.base + '/api/import');
+    if(activeXHR&&activeXHR.readyState!==4)return;
+    const selected=Array.from(files),archives=selected.filter(f=>/\.zip$/i.test(f.name));
+    input.value='';
+    if(archives.length){if(selected.length!==1)return toast('Choose one Strava ZIP at a time.');$('#u-prog',el).hidden=true;return zip.select(archives[0]);}
+    if(zip.blocked())return toast('Finish or cancel the Strava import first.');
+    const fd = new FormData(); for (const f of selected) fd.append('files', f, f.name);
+    const xhr = activeXHR = new XMLHttpRequest(); xhr.open('POST', Native.base + '/api/import'); xhr.timeout=120000;
     for (const [k, v] of Object.entries(Native.headers())) xhr.setRequestHeader(k, v);
     if(account)xhr.setRequestHeader('X-Kinetta-Account',String(account));
     $('#u-prog', el).hidden = false;
-    const total = [...files].reduce((s, f) => s + f.size, 0);
+    const total = selected.reduce((s, f) => s + f.size, 0);
     xhr.upload.onprogress = (e) => { if(!valid())return;const p = e.lengthComputable ? e.loaded / e.total : 0; $('#u-bar', el).style.setProperty('--w', p); $('#u-text', el).textContent = `Uploading ${(e.loaded / 1048576).toFixed(1)} of ${(total / 1048576).toFixed(1)} MB…`; };
     xhr.onload = () => {
       if(!valid())return;
       if (xhr.status === 200) { $('#u-text', el).textContent = 'Uploaded. Processing below.'; invalidate('/api/'); poll(); }
       else { let m = 'Upload failed'; try { m = JSON.parse(xhr.responseText).detail || m; } catch (e) { /* */ } $('#u-text', el).textContent = m; }
     };
-    xhr.onerror = () => { if(valid())$('#u-text', el).textContent = 'Upload failed. Check your connection and try again.'; };
+    xhr.onerror = xhr.ontimeout = () => { if(valid())$('#u-text', el).textContent = 'Upload interrupted. Choose the files again to retry.'; };
     xhr.send(fd);
   };
   input.onchange = () => send(input.files);
@@ -2151,6 +2160,7 @@ route(/^\/track\/import$/, 'track', async (el) => {
     try {
       const jobs = await api('/api/imports');
       if(!valid())return;
+      $('#u-jobs', el).closest('section').hidden=!jobs.length;
       $('#u-jobs', el).innerHTML = jobs.length ? jobs.map((j) => `<div class="job"><b>${esc(j.label)}</b>
         <small>${j.status === 'running' || j.status === 'queued' ? `${j.status === 'queued' ? 'Waiting' : 'Processing'} ${j.done} of ${j.total || '?'}` : j.status === 'done' ? 'Finished' : 'Stopped'} · ${j.added} added · ${j.duplicates} duplicate${j.duplicates === 1 ? '' : 's'}${j.failed ? ` · ${j.failed} couldn't be read` : ''}</small>
         ${j.total ? `<div class="prog"><div class="bar" data-w="${(j.done / j.total).toFixed(3)}"></div></div>` : ''}
@@ -2158,6 +2168,7 @@ route(/^\/track\/import$/, 'track', async (el) => {
       if (jobs.some((j) => j.status === 'running' || j.status === 'queued')) { invalidate('/api/'); timer = setTimeout(poll, 2000); }
     } catch (e) { /* keep last view */ }
   };
+  viewResources.set(el,()=>{zip.dispose();activeXHR?.abort();clearTimeout(timer);});
   poll();
 });
 

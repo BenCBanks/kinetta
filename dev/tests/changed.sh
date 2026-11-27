@@ -146,7 +146,7 @@ app/static/food*.js,app/static/thread*.js,app/static/cook.js,app/static/recipe-i
 app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/static/activity-home.css,app/static/comments-sheet-states.*,app/static/friends-ui.*,app/static/contacts-ui.*,app/static/challenges.*,app/static/challenge-public.js,app/static/media.js;social;Activity,Activity detail,Friends,Groups,Group create,Group empty roster,Group full roster,Invite acceptance,Activity photo viewer,Activity full map,Sharing & privacy
 app/static/challenge-summary.js;challenges;Activity
 app/static/track*.js,app/static/track-home.css,app/static/track-route.css,app/static/intervals.js,app/static/segments.js,app/static/maps.*,app/static/vendor/leaflet.*,app/static/vendor/protomaps-leaflet.js;track;Track ready,Activity detail,Activity full map
-app/static/activity-import.css;track;Track ready
+app/static/activity-import.css,app/static/activity-upload.js,app/static/upload-hash-worker.js;track;Track ready
 app/static/lift*.js,app/static/lift-ui.css,app/static/lift-route.css;lift;Lifting with sets,Lifting blank sets
 app/static/plan*.js,app/static/plan-ui.css,app/static/planner.js;plan;Me,Me Today plan,Track ready
 app/static/discovery.js,app/static/heatmap-ui.css,app/static/milestones.*,app/static/recaps*,app/static/recap-editor.js,app/static/progress-routes.js,app/static/progress-route.css,app/static/share-art.js;progress;Progress,Fitness,Share progress
@@ -327,7 +327,7 @@ for group in $group_order; do
     activity-detail) tests="activity_detail_ui.cjs" ;;
     challenges) tests="activity_home_ui.cjs" ;;
     challenge-share) tests="activity_home_ui.cjs" ;;
-    track) tests="track_home_ui.cjs track_review_recovery_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs interval_voice_ui.cjs map_ui.cjs tracking_ui.cjs edit_activity_ui.cjs map_feedback_ui.cjs" ;;
+    track) tests="activity_upload_ui.cjs track_home_ui.cjs track_review_recovery_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs interval_voice_ui.cjs map_ui.cjs tracking_ui.cjs edit_activity_ui.cjs map_feedback_ui.cjs" ;;
     lift) tests="lift_compact_ui.cjs lift_ui.cjs lift_lazy_route_ui.cjs" ;;
     plan) tests="plan_ui.cjs" ;;
     progress) tests="progress_ui.cjs progress_large_text_ui.cjs fitness_ui.cjs heatmap_ui.cjs recaps_ui.cjs weight_progress_ui.cjs weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs profile_card_ui.cjs" ;;

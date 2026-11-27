@@ -11,3 +11,17 @@
 .activity-import #u-jobs .job > small { display:block; margin-top:4px; color:var(--tx3); line-height:1.4; }
 .activity-import #u-jobs .job .prog { height:3px; margin-top:8px; }
 .activity-import .inset-disclosure { margin-top:0; }
+
+.activity-import .upload-archive { margin-top:12px; padding:16px; }
+.activity-import .upload-status b { font-size:16px; font-weight:600; }
+.activity-import .upload-status p { margin:6px 0 0; }
+.activity-import .upload-archive progress { display:block; width:100%; height:4px; margin:12px 0; accent-color:var(--accent); }
+.activity-import .upload-counts { display:flex; gap:16px; margin:16px 0; }
+.activity-import .upload-counts > div { flex:1; min-width:0; }
+.activity-import .upload-counts dt { color:var(--tx3); font-size:13px; }
+.activity-import .upload-counts dd { margin:4px 0 0; font-size:24px; font-weight:600; }
+.activity-import .upload-privacy { display:flex; justify-content:space-between; gap:12px; padding:12px 0; border-top:1px solid var(--line); font-size:15px; }
+.activity-import .upload-privacy b { font-weight:500; }
+.activity-import .upload-error { font-size:15px; margin:12px 0; overflow-wrap:anywhere; }
+.activity-import .upload-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.activity-import .upload-actions button { min-height:44px; flex:1 1 auto; font-size:15px; box-shadow:none; }
