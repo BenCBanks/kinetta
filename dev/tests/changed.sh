@@ -298,7 +298,11 @@ run_ui() {
   if [[ $list_tests == 1 ]]; then printf 'UI: %s\n' "$1"; return; fi
   echo "Running changed-screen suite: $1 (shard $ui_shard)"
   case "$1" in
-    loading_audit.cjs) KINETTA_LOADING_SCREENS="Home,Progress,Nutrition day,Me" KINETTA_LOADING_THEMES="light,dark" NODE_PATH="$browser" node "dev/tests/$1" ;;
+    loading_audit.cjs)
+      # Draft CI skips the duplicate spacing audit, but loading still needs its
+      # fixtures. Prepare them only on the shard that actually runs this suite.
+      if [[ "${KINETTA_CHANGED_SPACING:-1}" != 1 ]]; then python3 dev/tests/spacing_prepare.py; fi
+      KINETTA_LOADING_SCREENS="Home,Progress,Nutrition day,Me" KINETTA_LOADING_THEMES="light,dark" NODE_PATH="$browser" node "dev/tests/$1" ;;
     inline_reactions_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     weight_progress_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     *) NODE_PATH="$browser" node "dev/tests/$1" ;;

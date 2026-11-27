@@ -10,7 +10,9 @@
 .activity-import #u-jobs .job + .job { border-top:1px solid var(--line); }
 .activity-import #u-jobs .job > small { display:block; margin-top:4px; color:var(--tx3); line-height:1.4; }
 .activity-import #u-jobs .job .prog { height:3px; margin-top:8px; }
-.activity-import .inset-disclosure { margin-top:0; }
+.activity-import .inset-disclosure { margin:12px 0; }
+.activity-import .inset-disclosure > summary { min-height:44px; padding-inline:16px; }
+.activity-import .inset-disclosure > p { padding-inline:16px; }
 
 .activity-import .upload-archive { margin-top:12px; padding:16px; }
 .activity-import .upload-status b { font-size:16px; font-weight:600; }
