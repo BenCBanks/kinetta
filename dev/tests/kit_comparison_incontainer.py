@@ -6,9 +6,38 @@ from unittest.mock import patch
 from psycopg import errors
 from pydantic import ValidationError
 from app import db
-from app.kit_comparison import OwnComparison
+from app.coach_tools import ComparisonRange
+from app.kit_comparison import Compare, OwnComparison
 
 DATES = {'start': '2004-03-01', 'end': '2004-03-03'}
+
+
+class CalendarValidation(unittest.TestCase):
+    def test_calendar_underflow_is_value_error_before_database_access(self):
+        for start, end in [('0001-01-01', '0001-01-01'),
+                           ('0001-01-02', '0001-01-03'),
+                           ('0001-12-31', '0002-12-31')]:
+            with self.subTest(start=start, end=end), patch.object(db, 'coach_connect') as connect:
+                with self.assertRaises(ValueError):
+                    OwnComparison(1).read({'start': start, 'end': end, 'metric': 'workouts'})
+                connect.assert_not_called()
+
+    def test_unknown_fields_are_forbidden_by_both_range_models(self):
+        for model in [ComparisonRange, Compare]:
+            self.assertEqual(model.model_config['extra'], 'forbid')
+            self.assertFalse(model.model_json_schema()['additionalProperties'])
+            for key in ['user_id', 'sql', 'connection', 'unexpected']:
+                args = {**DATES, key: 'forged'}
+                if model is Compare:
+                    args['metric'] = 'workouts'
+                with self.subTest(model=model.__name__, key=key):
+                    with self.assertRaises(ValidationError) as raised:
+                        model.model_validate(args)
+                    self.assertEqual(raised.exception.errors()[0]['type'], 'extra_forbidden')
+        with patch.object(db, 'coach_connect') as connect:
+            with self.assertRaises(ValueError):
+                OwnComparison(1).read({**DATES, 'metric': 'workouts', 'user_id': 2})
+            connect.assert_not_called()
 
 
 class Comparison(unittest.TestCase):
@@ -121,6 +150,12 @@ class Comparison(unittest.TestCase):
         with self.assertRaises(ValueError):self.read(start=today,end=today)
         leap=self.read(start='2008-01-01',end='2008-12-31')
         self.assertEqual(leap['current']['calendar_days'],366)
+        for start, end in [('0001-01-02', '0001-01-02'),
+                           ('0001-01-03', '0001-01-04')]:
+            with self.subTest(start=start, end=end):
+                earliest=self.read('workouts',start=start,end=end)
+                self.assertEqual(earliest['previous']['start'],dt.date.min)
+                self.assertEqual(earliest['current']['calendar_days'],earliest['previous']['calendar_days'])
 
     def test_dst_dates_are_local_and_inclusive(self):
         with db.connect() as c:

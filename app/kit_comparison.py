@@ -25,6 +25,12 @@ class OwnComparison:
 
     def read(self, arguments):
         r = Compare.model_validate(arguments)
+        days = (r.end-r.start).days+1
+        # Keep calendar underflow a validation error at the arithmetic boundary too.
+        if r.start.toordinal() <= days:
+            raise ValueError('The preceding equal period must fit within the calendar')
+        previous_start = r.start-dt.timedelta(days=days)
+        previous_end = r.start-dt.timedelta(days=1)
         with db.coach_connect(self._uid) as c:
             p = c.execute('''SELECT tz,health_ai_ok,garmin_ai_ok,
                 (now() AT TIME ZONE tz)::date AS today FROM profile WHERE user_id=%s''', (self._uid,)).fetchone()
@@ -32,9 +38,6 @@ class OwnComparison:
                 raise ValueError('Use completed account-local dates before today')
             scope = {} if r.metric == 'protein_g' else {
                 'health': bool(p['health_ai_ok']), 'garmin': bool(p['garmin_ai_ok'])}
-            days = (r.end-r.start).days+1
-            previous_end = r.start-dt.timedelta(days=1)
-            previous_start = r.start-dt.timedelta(days=days)
             current = self._period(c, r, p, r.start, r.end, days)
             previous = self._period(c, r, p, previous_start, previous_end, days)
             # Discard rather than return a comparison computed across a consent change.
