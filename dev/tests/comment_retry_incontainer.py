@@ -62,6 +62,16 @@ try:
     assert writer.post(path,json={**payload,'client_id':'not-a-uuid'}).status_code == 422
     # The key is scoped to the authenticated account, never a globally readable identifier.
     assert other.post(path,json=payload).status_code == 200
+    # Export the owner's retry metadata without mixing another writer using the same UUID.
+    from app import api_mydata
+    with db.connect() as c:
+        def exported(uid):
+            return [next(iter(row.values())) for row in c.execute(api_mydata.TABLES['comments_written'],(uid,))]
+        own,peer=exported(people[1][0]),exported(people[2][0])
+        assert len(own)==len(peer)==1
+        assert set(own[0])=={'id','activity_id','text','created','client_id'}
+        assert own[0]['id']==cid and own[0]['client_id']==key
+        assert peer[0]['id']!=cid and peer[0]['client_id']==key
     concurrent = {**payload,'client_id':str(uuid.uuid4()),'text':'Fictional concurrent retry'}
     with ThreadPoolExecutor(max_workers=4) as pool:
         replies = list(pool.map(lambda _:writer.post(path,json=concurrent),range(4)))
