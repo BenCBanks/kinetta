@@ -1,6 +1,9 @@
 """Bound expensive password work, retaining Argon2 costs and transactional retry safety."""
 import asyncio
 import json
+import socket
+import http.client
+import uvicorn
 import contextvars
 import httpx
 import datetime as dt
@@ -10,7 +13,7 @@ import time
 import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from unittest.mock import patch
 from argon2 import PasswordHasher, extract_parameters
 from fastapi import HTTPException
@@ -36,6 +39,38 @@ def full_queue():
         for _ in range(2): auth._PASSWORD_ACTIVE.release()
         with password_work.admission.lock:
             password_work.admission.active, password_work.admission.waiting, password_work.admission.public_waiting = old
+
+
+@contextmanager
+def real_http():
+    # Real Uvicorn/TCP, ephemeral loopback only; the surrounding fixture owns the DB.
+    listener=socket.socket(); listener.bind(('127.0.0.1',0)); listener.listen(64)
+    port=listener.getsockname()[1]
+    server=uvicorn.Server(uvicorn.Config(app,log_config=None,access_log=False,log_level='critical',lifespan='off',proxy_headers=False))
+    worker=threading.Thread(target=lambda:server.run(sockets=[listener]),daemon=True)
+    worker.start()
+    try:
+        for _ in range(300):
+            if server.started: break
+            time.sleep(.01)
+        if not server.started: raise AssertionError('fictional loopback server did not start')
+        yield port
+    finally:
+        server.should_exit=True; worker.join(2)
+        if worker.is_alive(): server.force_exit=True; worker.join(2)
+        listener.close()
+        if worker.is_alive(): raise AssertionError('fictional loopback server did not stop')
+
+
+def wire_request(port,path,body=None,token=None,timeout=2):
+    client=http.client.HTTPConnection('127.0.0.1',port,timeout=timeout)
+    headers={'Origin':f'http://127.0.0.1:{port}','Content-Type':'application/json','Connection':'close'}
+    if token: headers['Cookie']=auth.COOKIE+'='+token
+    try:
+        client.request('POST' if body is not None else 'GET',path,json.dumps(body) if body is not None else None,headers)
+        response=client.getresponse(); raw=response.read()
+        return response.status,json.loads(raw) if raw else None
+    finally: client.close()
 
 
 class PasswordWork(unittest.TestCase):
@@ -221,8 +256,12 @@ class PasswordRoutes(unittest.TestCase):
             def burst(_):
                 return self.make_client().post('/api/login',json={'login':'unknown_fictional','password':PW}).status_code
             with ThreadPoolExecutor(max_workers=8) as pool: results=list(pool.map(burst,range(8)))
-            self.assertEqual(results.count(503),3)
-            self.assertEqual(results.count(429),5,'source reservations are atomic across simultaneous requests')
+            self.assertTrue(all(s in (503,429) for s in results),results)
+            with db.connect() as c:
+                n=c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE 'password-work:public:%%'").fetchone()['n']
+            self.assertLessEqual(n,3,'contended counters must not overrun their budget')
+            for _ in range(3-n): self.retry(self.anon.post('/api/login',json={'login':'unknown_fictional','password':PW}))
+            self.assertEqual(self.anon.post('/api/login',json={'login':'unknown_fictional','password':PW}).status_code,429)
             verify.assert_not_called()
 
     def test_successful_family_signins_do_not_exhaust_shared_source_budget(self):
@@ -258,7 +297,7 @@ class PasswordRoutes(unittest.TestCase):
     def test_success_budget_cleanup_failure_does_not_fail_committed_login(self):
         helper = password_work.source_success
         def failing_cleanup(reservation):
-            with patch.object(db,'connect',side_effect=RuntimeError('fictional sensitive diagnostic')):
+            with patch.object(password_work,'source_connection',side_effect=RuntimeError('fictional sensitive diagnostic')):
                 with self.assertLogs('app.password_work',level='WARNING') as logs: helper(reservation)
             self.assertNotIn('sensitive',str(logs.output))
         with patch.object(password_work,'source_success',side_effect=failing_cleanup):
@@ -270,6 +309,190 @@ class PasswordRoutes(unittest.TestCase):
             c.execute("UPDATE auth_attempts SET created=now()-interval '61 seconds' WHERE key LIKE 'password-work:%%'")
         with patch.object(password_work,'SOURCE_LIMIT',1):
             self.assertEqual(self.anon.post('/api/login',json={'login':'zz_test_hashguard_member','password':PW}).status_code,200)
+
+    def test_atomic_counter_across_independent_workers_never_overruns_source(self):
+        request=Request({'type':'http','headers':[],'client':('192.0.2.164',1)})
+        begin=threading.Barrier(8)
+        def attempt(_):
+            begin.wait()
+            try: return password_work.source_attempt(request,'public')
+            except password_work.SourceBusy: return None
+        with patch.object(password_work,'SOURCE_LIMIT',3), ThreadPoolExecutor(max_workers=8) as workers:
+            results=list(workers.map(attempt,range(8)))
+            self.assertLessEqual(sum(result is not None for result in results),3)
+            for _ in range(3): password_work.source_attempt(request,'public')
+            self.assertIsNone(password_work.source_attempt(request,'public'))
+        prefix=password_work.source_prefix(request,'public')
+        with db.connect() as c:
+            keys=c.execute('SELECT key FROM auth_attempts WHERE key LIKE %s',(prefix+'%',)).fetchall()
+        self.assertEqual(len(keys),3)
+        self.assertEqual(len({row['key'] for row in keys}),3)
+
+    def test_real_slow_unfinished_bodies_never_take_password_places_and_expire(self):
+        sockets=[]; drippers=[]; stop=threading.Event(); leases=0; lease_lock=threading.Lock()
+        original=db.pool().connection
+        @contextmanager
+        def connection(*args,**kwargs):
+            nonlocal leases
+            with original(*args,**kwargs) as c:
+                with lease_lock: leases+=1
+                try: yield c
+                finally:
+                    with lease_lock: leases-=1
+        def drip(sock):
+            while not stop.wait(.1):
+                try: sock.sendall(b' ')
+                except OSError: return
+        with real_http() as port, patch.object(db.pool(),'connection',connection), patch.object(PasswordHasher,'verify',autospec=True,side_effect=PasswordHasher.verify) as verify:
+            started=time.monotonic()
+            try:
+                for path in ['/api/login','/api/password/reset']:
+                    sock=socket.create_connection(('127.0.0.1',port),timeout=8); sockets.append(sock)
+                    sock.sendall(f'POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: http://127.0.0.1:{port}\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{{'.encode())
+                    thread=threading.Thread(target=drip,args=(sock,),daemon=True);thread.start();drippers.append(thread)
+                for _ in range(300):
+                    if password_work.body_readers.active==2: break
+                    time.sleep(.005)
+                self.assertEqual(password_work.body_readers.active,2)
+                self.assertEqual(password_work.admission.active,0)
+                self.assertEqual(password_work.counter_workers.active,0)
+                with lease_lock: self.assertEqual(leases,0,'slow body readers retain no DB lease')
+                at=time.monotonic();self.assertEqual(wire_request(port,'/api/health')[0],200);health_ms=round((time.monotonic()-at)*1000,1)
+                at=time.monotonic();self.assertEqual(wire_request(port,'/api/me',token=self.session)[0],200);me_ms=round((time.monotonic()-at)*1000,1)
+                # Both public/recovery bodies are unfinished, yet a complete login can hash now.
+                self.assertEqual(wire_request(port,'/api/login',{'login':'zz_test_hashguard_member','password':PW})[0],200)
+                statuses=[]
+                for sock in sockets:
+                    response=http.client.HTTPResponse(sock);response.begin();statuses.append(response.status);response.read();response.close()
+                self.assertEqual(statuses,[408,408])
+                self.assertLess(time.monotonic()-started,8)
+                self.assertEqual(verify.call_count,1,'only the complete login reached verification')
+                print('Slow TCP evidence:',json.dumps(dict(health_ms=health_ms,me_ms=me_ms,body_statuses=statuses,password_places_while_reading=0,db_leases_while_reading=0)),flush=True)
+            finally:
+                stop.set()
+                for sock in sockets: sock.close()
+                for thread in drippers: thread.join(1)
+        self.assertEqual(password_work.body_readers.active,0)
+        self.assertEqual(password_work.admission.active,0)
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE 'password-work:%%'").fetchone()['n'],2)
+
+    def test_real_oversized_and_disconnected_bodies_never_take_password_places(self):
+        with real_http() as port, patch.object(PasswordHasher,'verify') as verify:
+            client=http.client.HTTPConnection('127.0.0.1',port,timeout=2)
+            try:
+                client.request('POST','/api/login',b'x'*(password_work.BODY_LIMIT+1),{'Content-Type':'application/json'})
+                response=client.getresponse();self.assertEqual(response.status,413);response.read()
+            finally: client.close()
+            sock=socket.create_connection(('127.0.0.1',port),timeout=2)
+            sock.sendall(f'POST /api/login HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{{'.encode())
+            try:
+                for _ in range(200):
+                    if password_work.body_readers.active: break
+                    time.sleep(.005)
+                self.assertEqual(password_work.body_readers.active,1)
+                self.assertEqual(password_work.admission.active,0)
+            finally: sock.close()
+            for _ in range(200):
+                if not password_work.body_readers.active: break
+                time.sleep(.005)
+            verify.assert_not_called()
+            self.assertEqual(password_work.admission.active,0)
+            self.assertEqual(password_work.body_readers.active,0)
+
+    def test_real_same_source_lock_flood_keeps_database_and_endpoints_responsive(self):
+        request=Request({'type':'http','headers':[],'client':('127.0.0.1',1)})
+        prefix=password_work.source_prefix(request,'public')
+        leases=peak=counter_leases=counter_peak=0; lock=threading.Lock(); original=db.pool().connection
+        @contextmanager
+        def connection(*args,**kwargs):
+            nonlocal leases,peak,counter_leases,counter_peak
+            counter=threading.current_thread().name.startswith('password-source')
+            with original(*args,**kwargs) as c:
+                with lock:
+                    leases+=1;peak=max(peak,leases)
+                    counter_leases+=int(counter);counter_peak=max(counter_peak,counter_leases)
+                try: yield c
+                finally:
+                    with lock: leases-=1;counter_leases-=int(counter)
+        with real_http() as port, ThreadPoolExecutor(max_workers=24) as clients, db.connect() as holder:
+            holder.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',(prefix,))
+            with patch.object(db.pool(),'connection',connection), patch.object(PasswordHasher,'verify') as verify:
+                begin=threading.Barrier(25)
+                def flood(_):
+                    begin.wait();return wire_request(port,'/api/login',{'login':'zz_test_hashguard_missing','password':PW})[0]
+                jobs=[clients.submit(flood,i) for i in range(24)];begin.wait()
+                at=time.monotonic();self.assertEqual(wire_request(port,'/api/health',timeout=1)[0],200);health_ms=round((time.monotonic()-at)*1000,1)
+                at=time.monotonic();self.assertEqual(wire_request(port,'/api/me',token=self.session,timeout=1)[0],200);me_ms=round((time.monotonic()-at)*1000,1)
+                results=[job.result(timeout=2) for job in jobs]
+                self.assertEqual(results,[503]*24)
+                verify.assert_not_called()
+                self.assertEqual(counter_peak,1,'the public counter flood uses only one DB connection')
+                # Existing per-request audit logging also borrows briefly after responses.
+                for _ in range(200):
+                    if not leases: break
+                    time.sleep(.005)
+                self.assertEqual(leases,0)
+                self.assertEqual(password_work.counter_workers.active,0)
+                self.assertEqual(password_work.admission.active,0)
+                print('Counter-lock TCP evidence:',json.dumps(dict(rejected=len(results),counter_peak_db_leases=counter_peak,total_peak_including_audit_and_me=peak,health_ms=health_ms,me_ms=me_ms)),flush=True)
+        # The advisory lock and SET LOCAL bounds leave no permanent throttle or pool settings.
+        self.assertEqual(self.anon.post('/api/login',json={'login':'zz_test_hashguard_member','password':PW}).status_code,200)
+
+    def test_counter_pool_table_and_statement_waits_are_bounded(self):
+        from psycopg.errors import QueryCanceled
+        with real_http() as port, patch.object(PasswordHasher,'verify') as verify:
+            with db.connect() as holder:
+                holder.execute('LOCK TABLE auth_attempts IN ACCESS EXCLUSIVE MODE')
+                at=time.monotonic();status,body=wire_request(port,'/api/login',{'login':'unknown','password':PW})
+                self.assertEqual((status,body),(503,{'detail':password_work.BUSY}))
+                self.assertLess(time.monotonic()-at,1)
+                self.assertEqual(wire_request(port,'/api/me',token=self.session,timeout=1)[0],200)
+            with ExitStack() as held:
+                for _ in range(8): held.enter_context(db.connect())
+                at=time.monotonic();status,_=wire_request(port,'/api/login',{'login':'unknown','password':PW})
+                self.assertEqual(status,503);self.assertLess(time.monotonic()-at,1)
+                # All eight leases are deliberately held by this fixture; health also needs the DB.
+            verify.assert_not_called()
+        at=time.monotonic()
+        with self.assertRaises(QueryCanceled):
+            with password_work.source_connection() as c: c.execute('SELECT pg_sleep(2)')
+        self.assertLess(time.monotonic()-at,1)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SHOW statement_timeout').fetchone()['statement_timeout'],'0')
+            self.assertEqual(c.execute('SHOW lock_timeout').fetchone()['lock_timeout'],'0')
+        self.assertEqual(password_work.counter_workers.active,0)
+
+    def test_cancelled_counter_wait_keeps_worker_bound_until_actual_completion(self):
+        async def scenario():
+            started=threading.Event();release=threading.Event()
+            def check(*args): started.set();release.wait(2);return None
+            with patch.object(password_work,'source_attempt',side_effect=check) as work:
+                job=asyncio.create_task(password_work.source_check(None,'public'))
+                try:
+                    for _ in range(300):
+                        if started.is_set(): break
+                        await asyncio.sleep(.005)
+                    self.assertTrue(started.is_set())
+                    queued=asyncio.create_task(password_work.source_check(None,'public'))
+                    for _ in range(200):
+                        if password_work.counter_workers.waiting: break
+                        await asyncio.sleep(.005)
+                    self.assertEqual(password_work.counter_workers.waiting,1)
+                    queued.cancel()
+                    with self.assertRaises(asyncio.CancelledError): await queued
+                    self.assertEqual(password_work.counter_workers.waiting,0)
+                    job.cancel()
+                    with self.assertRaises(asyncio.CancelledError): await job
+                    self.assertEqual(password_work.counter_workers.active,1)
+                    with self.assertRaises(password_work.SourceBusy): await password_work.source_check(None,'public')
+                    self.assertEqual(work.call_count,1)
+                finally: release.set()
+                for _ in range(300):
+                    if not password_work.counter_workers.active: break
+                    await asyncio.sleep(.005)
+                self.assertEqual(password_work.counter_workers.active,0)
+        asyncio.run(scenario())
 
     def test_real_queued_routes_release_database_and_keep_loop_and_recovery_responsive(self):
         async def scenario():
