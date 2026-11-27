@@ -310,6 +310,44 @@ class PasswordRoutes(unittest.TestCase):
         with patch.object(password_work,'SOURCE_LIMIT',1):
             self.assertEqual(self.anon.post('/api/login',json={'login':'zz_test_hashguard_member','password':PW}).status_code,200)
 
+    def test_eight_shared_source_logins_queue_through_slow_healthy_counters(self):
+        # The coach confirmation suite starts eight ordinary logins together. Counter
+        # bookkeeping can take tens of ms on a shared runner; waiting needs no DB lease.
+        original = password_work.source_connection
+        verify_original = PasswordHasher.verify
+        lock = threading.Lock()
+        verified = peak = calls = 0
+        @contextmanager
+        def slow_connection():
+            with original() as c:
+                if threading.current_thread().name.startswith('password-source'):
+                    c.execute('SELECT pg_sleep(0.04)')
+                yield c
+        def verify(*args, **kwargs):
+            nonlocal verified, peak, calls
+            with lock:
+                verified += 1; peak = max(peak, verified); calls += 1
+            try: return verify_original(*args, **kwargs)
+            finally:
+                with lock: verified -= 1
+        with real_http() as port, patch.object(password_work, 'source_connection', slow_connection), \
+             patch.object(PasswordHasher, 'verify', verify), ThreadPoolExecutor(max_workers=8) as clients:
+            begin = threading.Barrier(9)
+            def login(_):
+                begin.wait()
+                return wire_request(port, '/api/login', {'login':'zz_test_hashguard_member','password':PW}, timeout=8)
+            jobs = [clients.submit(login, i) for i in range(8)]
+            begin.wait()
+            results = [job.result(timeout=10) for job in jobs]
+        self.assertEqual([status for status, _ in results], [200]*8, results)
+        self.assertEqual(calls, 8)
+        self.assertLessEqual(peak, 1, 'the public hash lane remains one at a time')
+        for gate in (password_work.admission, password_work.counter_workers, password_work.body_readers):
+            self.assertEqual((gate.active,gate.public,gate.waiting,gate.public_waiting), (0,0,0,0))
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE 'password-work:%%'").fetchone()['n'], 0)
+        print('Eight-login shared-source proof: all eight real password checks succeeded; public hash peak', peak, flush=True)
+
     def test_atomic_counter_across_independent_workers_never_overruns_source(self):
         request=Request({'type':'http','headers':[],'client':('192.0.2.164',1)})
         begin=threading.Barrier(8)

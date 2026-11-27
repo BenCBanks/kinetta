@@ -22,7 +22,7 @@ WAIT_SECONDS = 5
 BODY_SECONDS = 5
 BODY_LIMIT = 16384
 BODY_MESSAGES = 256
-COUNTER_WAIT_SECONDS = .1
+COUNTER_WAIT_SECONDS = 1
 SOURCE_LIMIT = 60  # Unsuccessful + in-flight requests/minute per source and category; successes refund only themselves.
 BUSY = 'Kinetta is busy. Please try again in a few seconds.'
 
@@ -115,7 +115,9 @@ _counter_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='passwo
 
 async def source_check(request, kind):
     # At most two submitted jobs, with one reserved for recovery. Eight async waiters
-    # get at most 100ms, with no worker thread or DB lease, before a plain retry.
+    # get at most one second, with no worker thread or DB lease, before a plain retry.
+    # A 100ms queue deadline rejected healthy eight-login bursts on shared runners;
+    # SQL/pool waits and the number of workers/waiters remain independently bounded.
     # Release on actual completion, not coroutine cancellation while a thread still runs.
     queued = False
     deadline = time.monotonic() + COUNTER_WAIT_SECONDS
