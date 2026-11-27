@@ -2662,6 +2662,32 @@ MIGRATIONS = [
     CREATE INDEX IF NOT EXISTS auth_attempts_enrollment_expiry ON auth_attempts(created)
       WHERE key LIKE 'enrollment-source:%';
     """,
+    # 131: account-scoped comment retries, after report target129 and enrollment expiry130.
+    """
+    ALTER TABLE comments ADD COLUMN IF NOT EXISTS client_id uuid;
+    CREATE UNIQUE INDEX IF NOT EXISTS comments_request ON comments(user_id,client_id) WHERE client_id IS NOT NULL;
+    """,
+
+    # 132: receipts survive comment removal; seven-day replay window (same as device drafts).
+    """
+    CREATE TABLE IF NOT EXISTS comment_receipts (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id uuid NOT NULL,
+      activity_id bigint NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      text_hash text NOT NULL CHECK(text_hash ~ '^[0-9a-f]{64}$'),
+      created timestamptz NOT NULL DEFAULT now(),
+      expires timestamptz NOT NULL DEFAULT now()+interval '7 days',
+      PRIMARY KEY(user_id,client_id));
+    INSERT INTO comment_receipts(user_id,client_id,activity_id,text_hash,created,expires)
+      SELECT user_id,client_id,activity_id,encode(sha256(convert_to(text,'UTF8')),'hex'),created,created+interval '7 days'
+      FROM comments WHERE client_id IS NOT NULL AND created>now()-interval '7 days'
+      ON CONFLICT DO NOTHING;
+    ALTER TABLE comment_receipts ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS own_rows ON comment_receipts;
+    CREATE POLICY own_rows ON comment_receipts FOR SELECT TO fit_readers USING(user_id=public.fit_me());
+    GRANT SELECT ON comment_receipts TO fit_readers;
+    """,
+
 ]
 
 

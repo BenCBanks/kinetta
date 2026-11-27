@@ -109,6 +109,7 @@ TABLES = {
     'exercises': "SELECT to_jsonb(t)" + DROP + " FROM exercises t WHERE user_id = %s ORDER BY id",
     'lift_sets': "SELECT to_jsonb(t)" + DROP + " - 'id' FROM lift_sets t WHERE user_id = %s ORDER BY activity_id, pos, n",
     'activity_photos': "SELECT to_jsonb(t)" + DROP + " - 'img' - 'thumb' FROM activity_photos t WHERE user_id = %s ORDER BY id",
+    'comment_receipts': "SELECT to_jsonb(t)" + DROP + " FROM comment_receipts t WHERE user_id=%s ORDER BY created",
     'comments_written': "SELECT to_jsonb(t)" + DROP + " FROM comments t WHERE user_id = %s ORDER BY created",
     'ai_daily_usage': "SELECT to_jsonb(t)" + DROP + " FROM ai_daily_usage t WHERE user_id = %s ORDER BY day,kind",
     'ai_food_attempts': "SELECT to_jsonb(t)" + DROP + " FROM ai_food_attempts t WHERE user_id = %s ORDER BY created",

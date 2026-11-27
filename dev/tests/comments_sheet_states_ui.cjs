@@ -1,6 +1,6 @@
 'use strict';
 // Fictional account only. The API response is intercepted to hold, fail, or
-// return controlled comment lists without creating or changing real comments.
+// return controlled lists. Retry cases create and clean up fictional comments.
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_COMMENTS_STATES_SHOTS,pw='green teapot on the hill';
 const wait=async(page,fn,label)=>{
@@ -13,7 +13,9 @@ const commentList=Array.from({length:16},(_,i)=>({id:9000+i,login:`fictional_${i
 (async()=>{
  const browser=await chromium.launch();
  try{
-  for(const theme of ['light','dark'])for(const width of [390,330])for(const state of ['loading','error','empty','newest']){
+  await crossTabDraftChecks(browser);
+  if(process.env.KINETTA_COMMENTS_DRAFTS_ONLY)return;
+  if(!process.env.KINETTA_COMMENTS_RETRY_ONLY)for(const theme of ['light','dark'])for(const width of [390,330])for(const state of ['loading','error','empty','newest']){
    if(process.env.KINETTA_COMMENTS_STATE_CASE&&!process.env.KINETTA_COMMENTS_STATE_CASE.split(',').includes(`${state}-${width}-${theme}`))continue;
    const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
    try{
@@ -57,6 +59,131 @@ const commentList=Array.from({length:16},(_,i)=>({id:9000+i,login:`fictional_${i
     console.log(`Comments ${state} ${width}px ${theme}: PASS`);
    }finally{await context.close();}
   }
-  console.log('Comments loading/error/empty/newest states: fictional browser checks PASS');
+  await retryChecks(browser);
+  console.log('Comments loading/error/empty/newest and durable retry states: fictional browser checks PASS');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+async function retryChecks(browser){
+ for(const native of [false,true]){
+  const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'});
+  const created=[];let release,token;
+  try{
+   const signed=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_inline_owner',password:pw,app:native}});assert.equal(signed.status(),200);
+   token=(await signed.json()).token;
+   if(native)await context.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:()=>false,Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});
+   const rows=await(await context.request.get(base+'/api/activities?limit=100',{headers:{...(native?{Authorization:'Bearer '+token}:{})}})).json(),aid=rows.find(r=>r.name==='Fictional empty run').id,url=base+`/api/activities/${aid}/comments`;
+   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let fault=null,attempts=[];
+   await context.route('**/*',route=>{if(new URL(route.request().url()).origin!==new URL(base).origin)return route.abort();return route.continue();});
+   await page.route(url,async route=>{
+    if(route.request().method()!=='POST')return route.continue();attempts.push(route.request().postDataJSON());
+    if(fault==='lost'){fault=null;const saved=await route.fetch();assert.equal(saved.status(),200);return route.abort();}
+    if(fault==='timeout'){fault=null;await new Promise(r=>release=r);return route.abort();}
+    if(fault==='503'){fault=null;return route.fulfill({status:503,json:{detail:'Fictional outage'}});}
+    return route.continue();
+   });
+   const open=async()=>{await page.goto(base+'/me/activities');await page.waitForFunction(()=>App.pageReady);await page.locator('article.post').filter({hasText:'Fictional empty run'}).locator('.activity-comments').click();await page.locator('.c-form textarea').waitFor();};
+   const count=async text=>{const social=await(await context.request.get(base+`/api/activities/${aid}/social`,{headers:{...(native?{Authorization:'Bearer '+token}:{})}})).json();const matches=social.comments.filter(r=>r.text===text);for(const row of matches)if(!created.includes(row.id))created.push(row.id);return matches.length;};
+   const shot=async(name,selector)=>{if(!out)return;fs.mkdirSync(out,{recursive:true});for(const theme of ['light','dark']){await page.emulateMedia({colorScheme:theme});await page.locator(selector).screenshot({path:path.join(out,`${native?'bridge':'web'}-${name}-${theme}.png`),animations:'disabled'});}await page.emulateMedia({colorScheme:'light'});};
+   await open();const field=page.locator('.c-form textarea'),post=page.locator('.c-send'),text='Fictional retry '+Date.now().toString(36);
+   await field.fill('Old fictional intention');
+   await page.evaluate(()=>{const original=Storage.prototype.setItem;window.restoreDraftStorage=()=>{Storage.prototype.setItem=original;};Storage.prototype.setItem=function(k,v){if(k.startsWith('fit.comment-draft:'))throw new DOMException('Fictional quota','QuotaExceededError');return original.call(this,k,v);};});
+   await field.fill(text);fault='lost';await post.click();await page.locator('.comment-retry').waitFor();assert.equal(await count(text),1);
+   const quotaKey=attempts.at(-1).client_id;
+   for(let n=0;n<2;n++){fault='lost';await page.locator('.comment-retry').click();await page.locator('.comment-retry').waitFor();assert.equal(attempts.at(-1).client_id,quotaKey,'quota plus repeated lost replies keeps one intention');assert.equal(await count(text),1);}
+   await page.evaluate(aid=>{window.restoreDraftStorage();SocialData.draft(aid,SocialData.draft(aid));},aid);
+   const key=attempts.at(-1).client_id;assert.match(key,/^[0-9a-f-]{36}$/);await shot('lost-reply','.sheet');
+   await open();assert.equal(await field.inputValue(),text,'reload retains unsent text');await shot('reload','.sheet');await post.click();await page.getByText('Comment posted.',{exact:true}).waitFor();assert.equal(await count(text),1,'reload retry never duplicates');assert.equal(attempts.at(-1).client_id,key);await shot('posted','.sheet');assert.deepEqual(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[]);
+   const held='Fictional held '+Date.now().toString(36);await field.fill(held);await page.clock.install();fault='timeout';await post.click();await page.waitForFunction(()=>document.querySelector('.c-send')?.dataset.posting==='1');await page.clock.runFor(20001);await page.locator('.comment-retry').waitFor();assert.equal(await field.inputValue(),held);assert(await post.isEnabled());await shot('comment-timeout','.sheet');release();release=null;await page.locator('.comment-retry').click();await page.getByText('Comment posted.',{exact:true}).waitFor();assert.equal(await count(held),1);await page.clock.resume();
+   const offline='Fictional draft '+Date.now().toString(36);await field.fill(offline);fault='503';await post.click();await page.locator('.comment-retry').waitFor();await open();assert.equal(await field.inputValue(),offline);await page.locator('.sheet').evaluate(n=>n.requestClose());await page.locator('.scrim').waitFor({state:'detached'});await page.evaluate(()=>{App.me=null;App.pageReady=false;App.page=null;history.replaceState(null,'','/login');showLogin();});assert.deepEqual(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[],'sign-in clears prior draft');
+   const login=page.locator('.login input[name=login]'),password=page.locator('.login input[name=password]'),button=page.locator('.login button[type=submit]');await login.fill('zz_test_inline_owner');await password.fill(pw);let loginCalls=0;
+   await page.route('**/api/login',async route=>{loginCalls++;if(loginCalls===1){await new Promise(r=>release=r);return route.abort();}return route.continue();});
+   await button.click();await button.evaluate(n=>{n.form.requestSubmit();n.form.requestSubmit();});await page.clock.runFor(20001);await page.getByText('Sign-in is temporarily unavailable. Please try again.',{exact:true}).waitFor();assert(await button.isEnabled());assert.equal(await login.inputValue(),'zz_test_inline_owner');assert.equal(await password.inputValue(),pw);await shot('login-timeout','.login form');release();release=null;await page.clock.resume();await button.click();await page.waitForFunction(()=>App.me&&App.pageReady);assert.equal(loginCalls,2);assert.deepEqual(errors,[]);
+   // Clean the fictional comments while this test session is still authenticated.
+   for(const id of created)assert.equal((await context.request.delete(base+'/api/comments/'+id,{headers:{Origin:base,'Content-Type':'application/json',...(native?{Authorization:'Bearer '+token}:{})},data:{}})).status(),200);created.length=0;
+   // Two real tabs, plus a suspended-tab stand-in with all clear events blocked.
+   const peers=[];
+   try{
+    for(const sleeping of [false,true]){
+     const peer=await context.newPage();peer.on('pageerror',e=>errors.push(e.message));peers.push(peer);
+     if(sleeping)await peer.addInitScript(()=>{window.BroadcastChannel=undefined;window.addEventListener('storage',e=>e.stopImmediatePropagation(),{capture:true});});
+     await peer.goto(base+'/me/activities');await peer.waitForFunction(()=>App.pageReady);
+     await peer.locator('article.post').filter({hasText:'Fictional empty run'}).locator('.activity-comments').click();
+     await peer.locator('.c-form textarea').fill('Fictional stale tab');
+    }
+    await page.evaluate(async()=>{
+     await api('/api/logout',json('POST',{}));
+     const original=Storage.prototype.setItem;
+     Storage.prototype.setItem=function(k,v){if(k==='fit.comment-drafts-generation')throw new DOMException('Fictional quota','QuotaExceededError');return original.call(this,k,v);};
+     try{App.me=null;showLogin();}finally{Storage.prototype.setItem=original;}
+    });
+    await peers[0].waitForFunction(()=>document.querySelector('.c-form textarea')?.value==='');
+    for(const peer of peers){assert.equal(await peer.evaluate(aid=>SocialData.draftRequest(aid,'Never rewrite after logout'),aid),null);assert.deepEqual(await peer.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[]);assert(await peer.locator('.c-send').isDisabled());}
+   }finally{for(const peer of peers)await peer.close();}
+   assert.deepEqual(errors,[]);
+   console.log(`Durable comments/quota/lost-reply/reload + cross-tab logout/quota fence + sign-in timeout/retry ${native?'bridge':'web'} PASS`);
+  }finally{
+   release?.();for(const id of created)await context.request.delete(base+'/api/comments/'+id,{headers:{Origin:base,'Content-Type':'application/json',...(native?{Authorization:'Bearer '+token}:{})},data:{}});await context.close();
+  }
+ }
+}
+
+// Real independent browser tabs, actual draft coordinator, fictional stand-in shell.
+// No API/provider calls: storage behaviour is identical on the web and bridge.
+async function crossTabDraftChecks(browser){
+ const source=fs.readFileSync('app/static/social-data.js','utf8');
+ const clear=fs.readFileSync('app/static/app.js','utf8').split('function clearCommentDrafts() {')[1].split('\nlet pendingDishEntry')[0];
+ for(const native of [false,true])for(const webLocks of [true,false]){
+  const context=await browser.newContext({serviceWorkers:'block'});
+  try{
+   await context.route('**/*',route=>route.request().resourceType()==='document'?route.fulfill({contentType:'text/html',body:'<!doctype html><title>Fictional draft storage check</title>'}):route.abort());
+   if(!webLocks)await context.addInitScript(()=>Object.defineProperty(navigator,'locks',{value:undefined}));
+   await context.addInitScript(`window.App={me:{id:1}};window.Native={base:${JSON.stringify(native?'https://bridge.example.test':'')}};window.readOwner=()=> 'fictional-session';window.newId=()=>crypto.randomUUID();`+source+'\nwindow.SocialData=SocialData;\nfunction clearCommentDrafts() {'+clear+'\nwindow.clearCommentDrafts=clearCommentDrafts;');
+   const one=await context.newPage(),two=await context.newPage();
+   const settled=()=>Promise.all([one,two].map(p=>p.evaluate(()=>SocialData.draftsSettled())));
+   await one.goto('http://drafts.localhost/');await two.goto('http://drafts.localhost/');
+   await one.evaluate(()=>SocialData.draft(101));await two.evaluate(()=>SocialData.draft(102));
+   const a=await one.evaluate(()=>SocialData.draftRequest(101,'Fictional draft A'));
+   const b=await two.evaluate(()=>SocialData.draftRequest(102,'Fictional draft B'));
+   for(const page of [one,two]){
+    await settled();await page.reload();
+    assert.deepEqual(await page.evaluate(()=>[SocialData.draft(101),SocialData.draft(102)]),['Fictional draft A','Fictional draft B']);
+    assert.deepEqual(await page.evaluate(()=>[SocialData.draftRequest(101,'Fictional draft A'),SocialData.draftRequest(102,'Fictional draft B')]),[a,b]);
+   }
+   await one.evaluate(()=>SocialData.draft(101,''));await two.evaluate(()=>SocialData.draft(102,'Fictional revised B'));
+   await settled();await one.reload();assert.deepEqual(await one.evaluate(()=>[SocialData.draft(101),SocialData.draft(102)]),['','Fictional revised B'],'stale memory cannot restore another activity cleared elsewhere');
+   const pending=await one.evaluate(async()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw Error('Fictional quota');};try{const id=SocialData.draftRequest(103,'Fictional pending A');await SocialData.draftsSettled();return id;}finally{Storage.prototype.setItem=set;}});
+   await two.evaluate(()=>SocialData.draft(104,'Fictional separate B'));await one.evaluate(()=>SocialData.draftRequest(103,'Fictional pending A'));
+   await settled();await two.reload();assert.deepEqual(await two.evaluate(()=>[SocialData.draftRequest(103,'Fictional pending A'),SocialData.draft(104)]),[pending,'Fictional separate B']);
+   // Concurrent calls from distinct real tabs; neither operation writes the peer's key.
+   for(let n=0;n<12;n++)await Promise.all([
+    one.evaluate(n=>SocialData.draft(201,'Concurrent A '+n),n),
+    two.evaluate(n=>SocialData.draft(202,'Concurrent B '+n),n)
+   ]);
+   await settled();await one.reload();await two.reload();
+   assert.deepEqual(await one.evaluate(()=>[SocialData.draft(201),SocialData.draft(202)]),['Concurrent A 11','Concurrent B 11']);
+   // A's delete overlaps B's edit, including a stale in-memory copy of A in B's tab.
+   await Promise.all([one.evaluate(()=>SocialData.draft(201,'')),two.evaluate(()=>SocialData.draft(202,'B while A deleted'))]);
+   await settled();await one.reload();await two.reload();
+   assert.deepEqual(await two.evaluate(()=>[SocialData.draft(201),SocialData.draft(202)]),['','B while A deleted']);
+   await one.evaluate(async()=>{for(let id=3000;id<3042;id++)SocialData.draft(id,'Cap fixture '+id);await SocialData.draftsSettled();});
+   const count=await one.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:')).length);
+   if(webLocks){
+    assert.equal(count,40);
+    const oldest=await one.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:')).map(k=>({id:k.split(':').at(-1),at:JSON.parse(localStorage.getItem(k)).at})).sort((a,b)=>a.at-b.at)[0].id);
+    await one.evaluate(()=>new Promise(ready=>{window.heldDraftLock=navigator.locks.request('fit.comment-drafts',()=>{ready();return new Promise(release=>window.releaseDraftLock=release);});}));
+    await two.evaluate(id=>SocialData.draft(id,'Refreshed before cleanup'),oldest);
+    await one.evaluate(()=>SocialData.draft(4000,'New draft runs cap cleanup'));
+    await one.evaluate(()=>{window.releaseDraftLock();return window.heldDraftLock;});await settled();
+    const saved=await one.evaluate(id=>{const k=Object.keys(localStorage).find(k=>k.startsWith('fit.comment-draft:')&&k.endsWith(':'+id));return k?JSON.parse(localStorage.getItem(k)).text:null;},oldest);
+    assert.equal(saved,'Refreshed before cleanup','shared lock prevents stale cap cleanup from deleting the peer rewrite');
+   }else assert(count>40,'fallback skips cross-key cap eviction');
+   // Suppress clear events so the stale tab must use the synchronous generation fence.
+   await two.evaluate(()=>{window.addEventListener('storage',e=>e.stopImmediatePropagation(),{capture:true});});
+   await one.evaluate(()=>clearCommentDrafts());
+   assert.equal(await two.evaluate(()=>SocialData.draftRequest(102,'Must not restore after sign-out')),null);
+   assert.deepEqual(await two.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[]);
+   console.log(`Two-tab per-activity drafts/reload/clear/quota/generation ${native?'bridge':'web'} ${webLocks?'WebLocks':'fallback'} PASS`);
+  }finally{await context.close();}
+ }
+}

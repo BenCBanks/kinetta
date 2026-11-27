@@ -263,3 +263,7 @@ check(all(row['name']=='Riley' and 'last_name' not in row for row in blocked),'b
 for username in ('zz_test_block_order_a','zz_test_block_order_z'):st.q('DELETE',f'/api/people/{username}/block')
 for fixture in (block_a,block_z):fixture.q('POST','/api/account/delete',{'password':PW})
 print(f'friends and sharing: {ok_n} checks passed')
+
+# Same real DB/API contract, including concurrent lost-reply retries; no providers.
+subprocess.run(['docker','compose','-p',project,'exec','-T','app','python','-'],
+               input=__import__('pathlib').Path(__file__).with_name('comment_retry_incontainer.py').read_text(),text=True,check=True)
