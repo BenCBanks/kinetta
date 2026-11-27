@@ -343,7 +343,6 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .group-member.is-viewer .group-member-name b {color:var(--accent);font-weight:600;}
 .group-member-value,.group-member-total-only {flex:none;max-width:42%;color:var(--tx2);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere;}
 .group-member-total-only {font-size:13px;font-weight:500;}
-.group-invite-friends {margin:10px 0 4px;min-height:50px;}
 .group-more {width:100%;min-height:44px;text-align:left;padding:8px 0;color:var(--accent);}
 .group-roster[hidden],.group-updates[hidden] {display:none!important;}
 .home-groups .group-empty {display:grid;justify-items:center;align-content:center;gap:16px;min-height:clamp(380px,52dvh,440px);padding:0 2px;text-align:center;}
@@ -444,7 +443,6 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .group-recap>strong {display:block;margin:10px 0 16px;font-size:20px;line-height:1.3;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
 .group-recap-label {margin:0 0 4px;color:var(--tx3);font-size:13px;}
 .group-recap-names {margin:0;color:var(--tx2);line-height:1.45;overflow-wrap:anywhere;}
-.group-updates>h2 {margin:0 0 4px;font-size:17px;}
 .group-update {min-width:0;padding:12px 0;border-top:1px solid var(--line);}
 .group-update:first-child {border-top:0;}
 .group-update-head {display:flex;align-items:center;gap:8px;min-height:44px;}
@@ -454,10 +452,11 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .group-update>p {margin:4px 0 6px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;}
 .group-update .activity-reactions {margin:0;}
 .group-update-empty {margin:0;padding:10px 0;color:var(--tx3);}
-.group-update-form {display:grid;gap:8px;padding-top:12px;border-top:1px solid var(--line);}
-.group-update-form textarea {display:block;width:100%;min-height:72px;font-size:16px;line-height:1.4;resize:vertical;}
-.group-update-form button {justify-self:start;min-height:44px;padding:8px 14px;box-shadow:none;}
-.group-update-status {margin:0;min-height:0;overflow-wrap:anywhere;}
+.group-update-form {display:grid;grid-template-columns:minmax(0,1fr) 46px;align-items:end;gap:8px;margin:0;}
+.group-update-list + .group-update-form {padding-top:12px;border-top:1px solid var(--line);}
+.group-update-form textarea {display:block;width:100%;min-width:0;height:46px;min-height:46px;max-height:134px;padding:11px 12px;border-radius:23px;font-size:16px;line-height:22px;resize:none;scroll-margin-block:12px;}
+.group-update-form button {width:46px;min-width:44px;height:46px;min-height:44px;padding:0;box-shadow:none;font-size:13px;font-weight:600;}
+.group-update-status {grid-column:1/-1;margin:0;min-height:0;overflow-wrap:anywhere;}
 .group-update-status:empty {display:none;}
 @media(prefers-reduced-motion:reduce){.group-detail-tabs button::after{transition:none;}}
 .group-cheer-people {display:grid;gap:4px;}
@@ -534,6 +533,8 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .group-section-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;}
 .group-section-heading h2,.group-updates-section>h2 {font-size:18px;margin:0;}
 .group-challenges-section,.group-updates-section {margin-top:22px;}
+.group-updates-section>h2 {margin-bottom:8px;}
+.group-page:not(.group-challenge-detail) {padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + var(--kb,0px) + 28px);}
 .group-section-heading {min-height:44px;}
 .group-challenge-row {gap:12px;min-height:76px;}
 .group-challenge-row .grow {min-width:0;}

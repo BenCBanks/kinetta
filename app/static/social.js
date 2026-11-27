@@ -1490,22 +1490,22 @@ function groupRecapCard(group){
   return `<section class="group-recap card" data-group-recap><div class="group-recap-head"><h2>${esc(groupDate(recap.event_date,group.time_zone))}</h2><button type="button" class="linkbtn" data-group-recap-share>Share</button></div><strong>${esc(value)}</strong><p class="group-recap-label">People who took part</p>${recap.participants.length?`<p class="group-recap-names">${recap.participants.map(name=>'@'+esc(name)).join(' · ')}</p>`:'<p class="group-recap-names">No one chose to appear by name.</p>'}</section>`;
 }
 function groupUpdateMarkup(group,update){
-  const controls=update.can_delete||update.can_report?`<button type="button" class="icon-btn group-update-options" data-update-options="${update.id}" aria-label="Update options from @${esc(update.username)}">${svg('more')}</button>`:'';
+  const controls=update.can_delete||update.can_report?`<button type="button" class="icon-btn group-update-options" data-update-options="${update.id}" aria-label="Comment options from @${esc(update.username)}">${svg('more')}</button>`:'';
   const author={login:update.username,name:update.name||update.username,photo:update.photo},badge=achievementBadgeMarkup(update.badge,'group-update-badge');
   return `<article class="group-update" data-group-update="${update.id}"><div class="post-hd group-update-head"><span class="post-av" aria-hidden="true">${avatar(author)}</span><div class="ph-txt"><b>@${esc(update.username)}</b><small>${esc(when(update.created))}</small></div>${controls}</div>${badge}<p>${esc(update.text)}</p>${reactionButtons(null,update,false,true,null,{id:group.id,updateId:update.id})}</article>`;
 }
 function groupUpdateMenu(group,update,reload){
-  const opts=[];if(update.can_delete)opts.push('<button type="button" class="row-link danger" data-update-action="delete"><span>Delete update</span>'+svg('chev')+'</button>');
-  if(update.can_report)opts.push('<button type="button" class="row-link" data-update-action="report"><span>Report update</span>'+svg('chev')+'</button>');
-  groupActionSheet('Update options',`<div class="group-options-list">${opts.join('')}</div>`,(body,close)=>{
+  const opts=[];if(update.can_delete)opts.push('<button type="button" class="row-link danger" data-update-action="delete"><span>Delete comment</span>'+svg('chev')+'</button>');
+  if(update.can_report)opts.push('<button type="button" class="row-link" data-update-action="report"><span>Report comment</span>'+svg('chev')+'</button>');
+  groupActionSheet('Comment options',`<div class="group-options-list">${opts.join('')}</div>`,(body,close)=>{
     $$('[data-update-action]',body).forEach(button=>button.onclick=()=>{close();
-      if(button.dataset.updateAction==='delete')groupConfirm('Delete update?','This update and its cheers will be removed from the group.',async()=>{try{await api(`/api/groups/${encodeURIComponent(group.id)}/updates/${update.id}`,{method:'DELETE'});toast('Update deleted');reload();}catch(error){toast(error.message);}});
+      if(button.dataset.updateAction==='delete')groupConfirm('Delete comment?','This comment and its reactions will be removed from the group.',async()=>{try{await api(`/api/groups/${encodeURIComponent(group.id)}/updates/${update.id}`,{method:'DELETE'});toast('Comment deleted');reload();}catch(error){toast(error.message);}});
       else groupUpdateReport(group,update,reload);
     });
   });
 }
 function groupUpdateReport(group,update,reload){
-  groupActionSheet('Report update',`<form class="form" id="group-update-report-form"><p class="small muted">The people who run this Kinetta see your report. Group members aren’t told who sent it.</p><div class="checks">${Object.entries(REPORT_WHY).map(([key,label])=>`<label class="check"><input type="radio" name="reason" value="${key}"> ${esc(label)}</label>`).join('')}</div><label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label><button type="submit" class="primary wide">Send report</button></form>`,(body,close)=>{
+  groupActionSheet('Report comment',`<form class="form" id="group-update-report-form"><p class="small muted">The people who run this Kinetta see your report. Group members aren’t told who sent it.</p><div class="checks">${Object.entries(REPORT_WHY).map(([key,label])=>`<label class="check"><input type="radio" name="reason" value="${key}"> ${esc(label)}</label>`).join('')}</div><label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label><button type="submit" class="primary wide">Send report</button></form>`,(body,close)=>{
     const form=$('#group-update-report-form',body);form.onsubmit=async event=>{event.preventDefault();const reason=form.elements.reason.value;if(!reason){toast('Choose a reason');return;}try{await api(`/api/groups/${encodeURIComponent(group.id)}/updates/${update.id}/report`,json('POST',{reason,note:form.elements.note.value}));close();toast('Report sent');reload();}catch(error){toast(error.message);}};
   });
 }
@@ -1528,24 +1528,40 @@ function groupChallengeRow(group,q){
 function groupPage(el,group,unused='members',keepExpanded=false){
   const owner=readOwner();let expanded=keepExpanded;
   const base='/api/groups/'+encodeURIComponent(group.id);
-  const reload=async()=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected&&owner===readOwner())groupPage(el,{...fresh,challenges},'members',expanded);else throw Error('Group changed');}catch(error){if(el.isConnected&&owner===readOwner())toast(error.message);throw error;}};
+  const reload=async(silent=false)=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected&&owner===readOwner())groupPage(el,{...fresh,challenges},'members',expanded);else throw Error('Group changed');}catch(error){if(!silent&&el.isConnected&&owner===readOwner())toast(error.message);throw error;}};
   const draw=()=>{
     const people={...group,sharing_level:'total_shared',members:group.members.map(m=>({...m,value:undefined,sharing_total_only:false}))};
     el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<button type="button" class="group-header-invite" id="group-header-invite">${svg('people')}<span>Invite</span></button><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
       <header class="group-title"><div class="group-title-name">${svg('lock')}<h1>${esc(group.title)}</h1></div><p class="group-title-summary">Private group</p></header>
-      <section class="group-members-section"><h2>Members <span>${group.member_count}</span></h2><div class="group-roster card" id="group-panel-members"><div id="group-members" role="list">${groupRoster(people,expanded)}</div></div>${group.member_count===1?'<button type="button" class="primary wide group-invite-friends" data-group-invite>Invite friends</button>':''}</section>
+      <section class="group-members-section"><h2>Members <span>${group.member_count}</span></h2><div class="group-roster card" id="group-panel-members"><div id="group-members" role="list">${groupRoster(people,expanded)}</div></div></section>
       <section class="group-challenges-section"><div class="group-section-heading"><h2>Challenges</h2>${group.closed?'':'<button type="button" class="linkbtn" data-group-add-challenge>Add</button>'}</div>${group.challenges?.length?`<div class="card list">${group.challenges.map(q=>groupChallengeRow(group,q)).join('')}</div>`:'<p class="group-update-empty">No challenges yet.</p>'}</section>
-      <section class="group-updates-section"><h2>Updates</h2><div class="group-updates card" id="group-panel-updates"><div class="group-update-list">${group.updates?.length?group.updates.map(update=>groupUpdateMarkup(group,update)).join(''):'<p class="group-update-empty">No updates yet.</p>'}</div>${group.closed?'':'<form class="group-update-form"><label class="vh" for="group-update-text">Post an update</label><textarea id="group-update-text" name="text" maxlength="200" rows="2" placeholder="Share an update…" required></textarea><button type="submit" class="primary">Post an update</button><p class="group-update-status small muted" role="status"></p></form>'}</div></section>`;
+      <section class="group-updates-section"><h2>Comments</h2><div class="group-updates card" id="group-panel-updates">${group.updates?.length?`<div class="group-update-list">${group.updates.map(update=>groupUpdateMarkup(group,update)).join('')}</div>`:group.closed?'<p class="group-update-empty">No comments yet.</p>':''}${group.closed?'':'<form class="group-update-form"><label class="vh" for="group-update-text">Add a comment</label><textarea id="group-update-text" name="text" maxlength="200" rows="1" placeholder="Add a comment…" required></textarea><button type="submit" class="c-send" aria-label="Post comment" disabled>Post</button><p class="group-update-status small muted" role="status"></p></form>'}</div></section>`;
     wireBack(el,'/activity?view=groups');$('#group-options',el).onclick=()=>groupMenu(group,reload,async()=>{
       const destination=BackNavigation.destination(history.state,location.pathname+location.search,'/activity?view=groups',readOwner(),{historyLength:history.length});
       try{await api(base+'/leave',json('POST',{}));invalidate('/api/groups');toast(`You left ${group.title}`);go(destination.path,{replace:true});}catch(error){toast(error.message);}
     });
-    $('#group-header-invite',el).onclick=()=>groupInvite(group);$('[data-group-invite]',el)?.addEventListener('click',()=>groupInvite(group));
+    $('#group-header-invite',el).onclick=()=>groupInvite(group);
     $('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
     $('[data-group-add-challenge]',el)?.addEventListener('click',()=>groupChallengeEditor(group,null,reload));
     $$('[data-group-reaction-group]',el).forEach(node=>wireReactionGroup(node,null));
     $$('[data-update-options]',el).forEach(button=>{const update=group.updates.find(item=>String(item.id)===button.dataset.updateOptions);if(update)button.onclick=()=>groupUpdateMenu(group,update,reload);});
-    const form=$('.group-update-form',el);if(form)form.onsubmit=async event=>{event.preventDefault();const text=form.elements.text.value.trim(),button=$('button[type=submit]',form),status=$('.group-update-status',form);if(!text||button.disabled)return;button.disabled=true;status.textContent='Posting…';try{await api(base+'/updates',json('POST',{text}));form.elements.text.value='';await reload();}catch(error){status.textContent=error.message;button.disabled=false;}};
+    const form=$('.group-update-form',el);
+    if(form){
+      const field=form.elements.text,button=$('button[type=submit]',form),status=$('.group-update-status',form);
+      let posting=false;
+      const fit=()=>{field.style.height='46px';field.style.height=Math.min(134,field.scrollHeight+2)+'px';button.disabled=posting||!field.value.trim();};
+      field.oninput=()=>{status.textContent='';fit();};
+      form.onsubmit=async event=>{
+        event.preventDefault();const text=field.value.trim();if(!text||posting)return;
+        posting=true;button.disabled=true;field.readOnly=true;status.textContent='Posting…';
+        try{await api(base+'/updates',json('POST',{text}));}
+        catch(error){if(form.isConnected&&owner===readOwner()){status.textContent=error.message;posting=false;field.readOnly=false;fit();}return;}
+        if(!form.isConnected||owner!==readOwner())return;
+        field.value='';fit();status.textContent='Comment posted.';
+        try{await reload(true);}
+        catch(error){if(form.isConnected&&owner===readOwner()){posting=false;field.readOnly=false;fit();status.textContent="Comment posted. Couldn't refresh comments.";}}
+      };
+    }
   };draw();
 }
 function groupChallengeEditor(group,q,done){

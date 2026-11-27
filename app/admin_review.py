@@ -10,7 +10,7 @@ from .admin_auth import admin_user, audit
 from .admin_actions import ActionIn, replay, complete
 
 router = APIRouter(prefix='/api/admin')
-LABELS = {'remove_group_update': 'Remove this update', 'remove_group': 'Remove this group', 'unshare_dish': 'Stop sharing this recipe', 'remove_challenge': 'Remove this challenge', 'dismiss': 'Dismiss report', 'remove_comment': 'Remove this comment', 'hide_activity': 'Hide this activity',
+LABELS = {'remove_group_update': 'Remove this comment', 'remove_group': 'Remove this group', 'unshare_dish': 'Stop sharing this recipe', 'remove_challenge': 'Remove this challenge', 'dismiss': 'Dismiss report', 'remove_comment': 'Remove this comment', 'hide_activity': 'Hide this activity',
           'remove_activity_photo': 'Remove an attached photo', 'remove_photo': 'Remove profile photo', 'clear_bio': 'Clear profile bio', 'clear_profile': 'Remove profile photo and bio'}
 
 
@@ -62,12 +62,12 @@ def material(c, rid, lock=False):
             row = c.execute('SELECT id,text,created FROM group_updates WHERE id=%s AND group_id=%s AND user_id=%s',
                             (r['group_update_id'], r['group_id'], r['person'])).fetchone()
             if row:
-                item = {**row, 'scope': 'Reported update only; other group updates are not shown.'}
+                item = {**row, 'scope': 'Reported comment only; other group comments are not shown.'}
                 allowed += ['remove_group_update']
         elif r['group_id'] and r['what'].startswith('Group: '):
             row = c.execute('SELECT title FROM event_groups WHERE id=%s AND organizer_id=%s', (r['group_id'], r['person'])).fetchone()
             if row:
-                item = {'name': row['title'], 'scope': 'Reported group name only; members, totals and updates are not shown.'}
+                item = {'name': row['title'], 'scope': 'Reported group name only; members, totals and comments are not shown.'}
                 allowed += ['remove_group']
     elif r['kind'] == 'person':
         if lock: c.execute('SELECT user_id FROM profile WHERE user_id=%s FOR UPDATE', (r['person'],))
