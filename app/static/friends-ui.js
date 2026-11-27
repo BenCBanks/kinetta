@@ -124,7 +124,7 @@ const FriendsUI=(()=>{
   const resultError=(row,message)=>{let note=row.nextElementSibling?.classList.contains('friend-row-error')?row.nextElementSibling:null;if(!note){note=document.createElement('small');note.className='friend-row-error';note.setAttribute('role','status');row.insertAdjacentElement('afterend',note);}note.textContent=message;};
   const availability=()=>$$('[data-add],[data-friend-accept],[data-request-menu],[data-request-cancel],[data-request-accept],[data-request-decline]',el).forEach(button=>{button.disabled=!navigator.onLine||button.getAttribute('aria-busy')==='true';});
   async function changeFriend(login,kind,button,row){
-    if(!live()||button.disabled||!navigator.onLine)return;const label=button.getAttribute('aria-label');button.disabled=true;button.setAttribute('aria-busy','true');
+    if(!live()||button.disabled||!navigator.onLine)return;clearTimeout(timer);searchVersion++;const label=button.getAttribute('aria-label');button.disabled=true;button.setAttribute('aria-busy','true');
     if(kind==='add'){button.classList.add('is-pending');if(label)button.setAttribute('aria-label',label.replace(/^Add /,'Sending request to '));}
     button.disabled=false;button.removeAttribute('aria-busy');button.classList.remove('is-pending');if(label)button.setAttribute('aria-label',label);
     await reconcile(row,kind==='add'?'/api/friends':`/api/friends/${encodeURIComponent(login)}${kind==='accept'?'/accept':''}`,kind==='add'?json('POST',{login}):kind==='accept'?json('POST',{}):{method:'DELETE'},async r=>{
