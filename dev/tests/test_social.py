@@ -266,4 +266,4 @@ print(f'friends and sharing: {ok_n} checks passed')
 
 # Same real DB/API contract, including concurrent lost-reply retries; no providers.
 subprocess.run(['docker','compose','-p',project,'exec','-T','app','python','-'],
-               input=__import__('pathlib').Path('dev/tests/comment_retry_incontainer.py').read_text(),text=True,check=True)
+               input=__import__('pathlib').Path(__file__).with_name('comment_retry_incontainer.py').read_text(),text=True,check=True)

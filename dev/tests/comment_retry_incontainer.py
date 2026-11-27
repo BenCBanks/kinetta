@@ -8,7 +8,16 @@ from app.main import app
 suffix = uuid.uuid4().hex[:8]
 password = 'green teapot on the hill'
 people = []
+# Draft runs append to their own base without placeholder slots. Restack after 129/130 before Ready;
+# the test also allows later migrations once this PR has landed.
+comment_slot = next(i for i,m in enumerate(db.MIGRATIONS,1) if 'CREATE UNIQUE INDEX IF NOT EXISTS comments_request' in m)
+for marker in ('reports ADD COLUMN IF NOT EXISTS group_update_id', 'auth_attempts_enrollment_expiry'):
+    predecessors = [i for i,m in enumerate(db.MIGRATIONS,1) if marker in m]
+    assert all(i < comment_slot for i in predecessors), 'pending prerequisites must precede comments'
+db.migrate();db.migrate()
 with db.connect() as c:
+    assert c.execute('SELECT max(version) AS v FROM schema_version').fetchone()['v'] == len(db.MIGRATIONS)
+
     migration = next(m for m in db.MIGRATIONS if 'CREATE UNIQUE INDEX IF NOT EXISTS comments_request' in m)
     before = c.execute('SELECT id,activity_id,user_id,text FROM comments ORDER BY id').fetchall()
     c.execute(migration);c.execute(migration)
