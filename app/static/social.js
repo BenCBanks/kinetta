@@ -1356,9 +1356,9 @@ function groupInviteSheet(group,initialUrl=null){
       $('[data-find-group-friends]',results)?.addEventListener('click',()=>body.closest('.sheet').requestClose());
       $$('[data-invite-friend]',results).forEach(button=>button.onclick=async()=>{
         const username=button.dataset.inviteFriend,friend=friends.find(row=>row.username===username);if(!live()||button.disabled||sending.has(username))return;
-        sending.add(username);draw();Native.haptic('light');
+        sending.add(username);Native.haptic('light');
         try{await inviteSaved.save(base+'/friend-invites',json('POST',{username}));}
-        finally{sending.delete(username);if(live()&&inviteSaved.known)draw();}
+        finally{sending.delete(username);}
       });
     };
     const inviteSaved=SocialData.confirmSetting(body,{path:base+'/friends',mask:()=>sending.size?[...sending].map(username=>$(`[data-invite-friend="${CSS.escape(username)}"]`,results)):[results],failureText:'Invitation checked. Try again if needed.',paint:response=>{

@@ -41,7 +41,7 @@ module.exports=async(browser,base,out='')=>{
    if(u.pathname==='/api/people/suggested')return r.fulfill({json:[]});
    return r.continue();
   });
-  try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503',...(['public','friend','group','addressed','challenge'].includes(spec.name)?['lost-reload','lost-reload-unreadable','503-reload']:[])]){
+  try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503',...(['public','friend','group','addressed','challenge'].includes(spec.name)?['lost-reload','lost-reload-unreadable','503-reload']:[])].filter(f=>!process.env.KINETTA_INVITATION_FAULT||f===process.env.KINETTA_INVITATION_FAULT)){
    armed=false;member=false;declined=false;unreadable=false;writes=0;reads=0;
    await p.goto(base+spec.route);if(spec.prepare)await spec.prepare(p);await p.locator(spec.button).first().waitFor();
    if(spec.name==='group'||spec.name==='addressed')await p.locator('[data-group-join-share]').uncheck();
@@ -70,10 +70,10 @@ module.exports=async(browser,base,out='')=>{
     if(spec.name==='public')assert.equal(await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.includes(':challenge:')).length),0,'confirmed membership read clears uncertainty');
     console.log('Invitation recovery '+mode+' '+theme+' '+spec.name+' '+fault+' PASS');continue;
    }
-   if(spec.name==='public'){await p.getByRole('button',{name:'Retry',exact:true}).waitFor();unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await p.locator(spec.button).click();}
+   if(spec.name==='public'){await p.getByRole('button',{name:'Retry',exact:true}).waitFor();unreadable=false;if(fault==='lost'){const previous=reads;await p.locator(spec.button).click();assert.equal(await p.locator('#challenge-public-status').innerText(),'Checking…');assert.equal(reads,previous,'early public Retry does not read before the bound');await require('./privacy_recovery_fixture.cjs')(p);}else{await require('./privacy_recovery_fixture.cjs')(p);await p.locator(spec.button).click();}}
    else if(spec.name!=='public'){const note=p.locator('[data-sharing-state=unknown]');await note.waitFor();assert(await p.locator(spec.button).first().isVisible(),'uncertain action keeps its position');assert.equal(await p.locator(spec.button).first().getAttribute('aria-disabled'),'true','uncertain action is blocked');
     if(out&&fault==='lost-offline'&&mode==='web'&&['friend','group','challenge'].includes(spec.name)){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'invite-'+spec.name+'-'+theme+'-unknown.png')});}
-    unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await note.getByRole('button',{name:'Retry',exact:true}).click();
+    unreadable=false;if(fault==='lost'){const previous=reads;await note.getByRole('button',{name:'Retry',exact:true}).click();await p.locator('[data-sharing-state=checking]').waitFor();assert.equal(reads,previous,'early Retry does not read before the bound');await require('./privacy_recovery_fixture.cjs')(p);}else{await require('./privacy_recovery_fixture.cjs')(p);await note.getByRole('button',{name:'Retry',exact:true}).click();}
    }
    const completed=fault.startsWith('lost');
    if(completed&&spec.done)await p.waitForURL(base+spec.done);
