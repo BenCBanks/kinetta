@@ -1,4 +1,4 @@
-FROM node:22.22.1-slim AS js-minifier
+FROM node:22.22.3-slim AS js-minifier
 ARG TARGETARCH
 WORKDIR /minifier
 COPY mobile/package.json mobile/package-lock.json ./
