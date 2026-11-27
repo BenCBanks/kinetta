@@ -685,7 +685,7 @@ def _group_detail(c, group, uid, answer):
     return result
 
 
-def _create_group(body, request, user, *, legacy_goal=True):
+def _create_group(body, request, user, *, legacy_goal=True, creation_id=None):
     _valid_goal(body)
     _validate_event_date(body.event_date, body.time_zone)
     start_date = body.goal_start_date or _now().astimezone(_zone(body.time_zone)).date()
@@ -694,14 +694,25 @@ def _create_group(body, request, user, *, legacy_goal=True):
         from . import challenges
         challenges.account_locks(c, [user['id']])
         challenges.confirmed_for_challenge(c, user['id'])
+        if creation_id is not None:
+            # The account lock serializes same-account retries; never return another owner's group.
+            existing = c.execute('SELECT * FROM event_groups WHERE id=%s AND organizer_id=%s',
+                                 (creation_id, user['id'])).fetchone()
+            if existing:
+                if existing['title'] != body.title or existing['time_zone'] != body.time_zone:
+                    raise HTTPException(409, 'This group was already created. Open Groups to see it.')
+                return _answer(c, existing, user['id'])
         community_filter.check(body.title, 'group name')
         community_filter.check(body.note, 'group note')
         community_filter.check(body.training_for, 'training goal')
-        group = c.execute('''INSERT INTO event_groups(organizer_id,title,event_date,time_zone,note,goal_type,goal_target,goal_unit,
+        group = c.execute('''INSERT INTO event_groups(id,organizer_id,title,event_date,time_zone,note,goal_type,goal_target,goal_unit,
                                                       goal_sports,goal_start_date,training_for)
-                             VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
-                          (user['id'], body.title, body.event_date, body.time_zone, body.note, body.goal_type,
+                             VALUES(COALESCE(%s,gen_random_uuid()),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                             ON CONFLICT(id) DO NOTHING RETURNING *''',
+                          (creation_id, user['id'], body.title, body.event_date, body.time_zone, body.note, body.goal_type,
                            body.goal_target, body.goal_unit, body.goal_sports, start_date, body.training_for)).fetchone()
+        if not group:
+            raise HTTPException(409, 'Could not create this group. Close this sheet and try again.')
         c.execute("INSERT INTO group_members(group_id,user_id,sharing_level) VALUES(%s,%s,%s)",
                   (group['id'], user['id'], 'just_in' if legacy_goal else 'total_shared'))
         invite_url = _new_invite(c, group, request)

@@ -2256,6 +2256,43 @@ class GroupChallengeAPI(unittest.TestCase):
         self.assertEqual(self.clients[1].post(self.root,json=dict(self.body,id=str(uuid.uuid4()))).status_code,409)
         self.create()  # An existing retry still works at the limit.
 
+    def test_people_create_retry_keeps_one_group_member_and_invite(self):
+        body={'id':str(uuid.uuid4()),'title':'Fictional retry crew','time_zone':'UTC'}
+        path='/api/groups/people'
+        first=self.clients[0].post(path,json=body)
+        self.assertEqual(first.status_code,200,first.text)
+        again=self.clients[0].post(path,json=body)
+        self.assertEqual(again.status_code,200,again.text)
+        self.assertEqual(again.json()['id'],first.json()['id'])
+        with db.connect() as c:
+            for table in ('event_groups','group_members','group_invites'):
+                key='id' if table=='event_groups' else 'group_id'
+                self.assertEqual(c.execute(f'SELECT count(*) AS n FROM {table} WHERE {key}=%s',
+                                          (body['id'],)).fetchone()['n'],1)
+        self.assertEqual(self.clients[0].post(path,json=dict(body,title='Different crew')).status_code,409)
+        # A foreign UUID is never a read capability, nor another owner's retry.
+        other=self.clients[1].post(path,json=body)
+        self.assertEqual(other.status_code,409)
+        self.assertNotIn('invite_url',other.json())
+        self.assertEqual(self.anon.post(path,json=body).status_code,401)
+        with db.connect() as c:
+            c.execute('UPDATE users SET needs_email_confirm=true,email_verified_at=NULL WHERE id=%s',(self.ids[0],))
+        self.assertEqual(self.clients[0].post(path,json=body).status_code,403)
+
+    def test_people_create_concurrent_retry_and_legacy_clients(self):
+        from concurrent.futures import ThreadPoolExecutor
+        body={'id':str(uuid.uuid4()),'title':'Fictional concurrent crew','time_zone':'UTC'}
+        path='/api/groups/people'
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            replies=list(pool.map(lambda _:self.clients[0].post(path,json=body),range(2)))
+        self.assertEqual([r.status_code for r in replies],[200,200])
+        self.assertEqual({r.json()['id'] for r in replies},{body['id']})
+        legacy={k:v for k,v in body.items() if k!='id'}
+        first=self.clients[0].post(path,json=legacy)
+        second=self.clients[0].post(path,json=legacy)
+        self.assertEqual((first.status_code,second.status_code),(200,200))
+        self.assertNotEqual(first.json()['id'],second.json()['id'],'keyless clients keep existing semantics')
+
     def test_name_only_group_stays_without_challenges_through_both_join_paths(self):
         response=self.clients[0].post('/api/groups/people',json={'title':'Fictional people crew','time_zone':'UTC'})
         self.assertEqual(response.status_code,200,response.text)

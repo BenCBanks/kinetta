@@ -22,6 +22,7 @@ class Sharing(BaseModel):
 
 class PeopleCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
+    id: UUID | None = None  # Optional for older clients; stable across a create-sheet retry.
     title: str = Field(min_length=1,max_length=80,pattern=r'\S')
     time_zone: str = Field(min_length=1,max_length=80)
 
@@ -30,7 +31,7 @@ class PeopleCreate(BaseModel):
 def create_people(body: PeopleCreate, request: Request, user=Depends(current_user)):
     # Required legacy columns are compatibility storage, never a real challenge.
     legacy = G.GroupCreate(title=body.title,time_zone=body.time_zone,goal_type='sessions',goal_target=1,goal_unit='sessions')
-    return G._create_group(legacy,request,user,legacy_goal=False)
+    return G._create_group(legacy,request,user,legacy_goal=False,creation_id=body.id)
 
 
 def _context(c, gid, uid, write=False, allow_closed=False):
