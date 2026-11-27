@@ -40,11 +40,11 @@ module.exports=async(browser,base,out='')=>{
    await send.click();await p.locator('.group-update-status:not(:empty)').waitFor();await p.waitForFunction(()=>!document.querySelector('.group-update-form button').disabled);
    assert.equal(await field.inputValue(),'Fictional trail plans.\nMeet at the park.\nBring water.','failed submit retains the whole draft');assert.match(await p.locator('.group-update-status').innerText(),/try again/i);
    if(width===390)await shot('error');
-   fail=false;await send.click();await p.locator('[data-group-update="7003"]').waitFor();assert.equal(posts.length,2);assert.equal(posts[0].text,posts[1].text);assert.equal(await field.inputValue(),'');
+   fail=false;await send.click();await p.locator('[data-group-update="7003"]').waitFor();assert.equal(posts.length,2);assert.equal(posts[0].text,posts[1].text);assert.match(posts[0].client_id,/^[0-9a-f-]{36}$/);assert.equal(posts[1].client_id,posts[0].client_id,'retry keeps the same admission key');assert.equal(await field.inputValue(),'');
    if(width===390){
     await shot('posted');reloadFail=true;await field.fill('Fictional second comment.');await send.click();
     await p.waitForFunction(()=>document.querySelector('.group-update-status').textContent==="Comment posted. Couldn't refresh comments.");
-    assert.equal(posts.length,3,'successful post with failed reload sends only one write');assert.equal(await field.inputValue(),'','committed text is not offered for reposting');
+    assert.equal(posts.length,3,'successful post with failed reload sends only one write');assert.notEqual(posts[2].client_id,posts[1].client_id,'a new comment gets a new admission key');assert.equal(await field.inputValue(),'','committed text is not offered for reposting');
     assert(await send.isDisabled());assert.equal(await field.evaluate(f=>f.readOnly),false,'composer remains available for a new comment');
     assert(!await p.getByText('Kinetta is having trouble right now. Please try again.',{exact:true}).count(),'failed read does not imply the post failed');
     await shot('posted-refresh-error');reloadFail=false;
