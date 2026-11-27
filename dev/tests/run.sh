@@ -336,6 +336,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_friend_links.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_password_hashing.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_request_bodies.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_rate_limits.py
 
 echo "== admin launch tools (fictional accounts, stand-in mail)"
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_launch.py

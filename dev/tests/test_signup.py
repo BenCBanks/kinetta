@@ -796,8 +796,16 @@ class Signup(unittest.TestCase):
         with db.connect()as c:
             self.assertIsNone(c.execute('SELECT used_at FROM account_tokens WHERE token_hash=%s',(auth.token_hash(valid),)).fetchone()['used_at'])
             c.execute('DELETE FROM auth_attempts')
-        replies=self.race(*[lambda:client().post('/api/password/reset/check',json={'token':'missing'})for _ in range(4)])
-        self.assertEqual([r.status_code for r in replies],[404]*4)
+        calls=[lambda:client().post('/api/password/reset/check',json={'token':'missing'})for _ in range(4)]
+        replies=self.race(*calls)
+        for call,reply in zip(calls,replies):
+            # Contention is no longer a blocking DB queue. Retry only an explicit
+            # busy response, then retain the original exact durable-count guard.
+            self.assertIn(reply.status_code,(404,503),reply.text)
+            if reply.status_code==503:
+                self.assertEqual(reply.headers['Retry-After'],'2')
+                reply=call()
+            self.assertEqual(reply.status_code,404,reply.text)
         with db.connect()as c:self.assertEqual(c.execute("SELECT count(*)AS n FROM auth_attempts WHERE key LIKE 'reset-ip:%%'").fetchone()['n'],4)
 
     def test_waitlist_budgets_do_not_block_unrelated_sources(self):

@@ -4,7 +4,7 @@ from urllib.parse import urlsplit
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, ConfigDict
-from . import auth, db
+from . import auth, db, rate_limits
 
 router = APIRouter(prefix='/api/admin')
 COOKIE = 'kinetta_admin'
@@ -30,10 +30,9 @@ def attempt_key(request, name):
 def attempt(request, name, limit):
     # Durable across workers/restarts; store only a keyed hash of the visitor/group.
     digest=attempt_key(request,name)
-    with db.connect() as c:
-        c.execute('SELECT pg_advisory_xact_lock(hashtext(%s))',('admin-attempt:'+digest,))
-        c.execute("DELETE FROM admin_attempts WHERE created<now()-interval '15 minutes'")
-        count=c.execute('SELECT count(*) AS n FROM admin_attempts WHERE key=%s',(digest,)).fetchone()['n']
+    with rate_limits.connection() as c:
+        rate_limits.try_lock(c, 'admin-attempt:'+digest, legacy=True)
+        count=c.execute("SELECT count(*) AS n FROM admin_attempts WHERE key=%s AND created>=now()-interval '15 minutes'",(digest,)).fetchone()['n']
         if count>=limit:raise HTTPException(429,'Too many attempts. Try again in 15 minutes.')
         c.execute('INSERT INTO admin_attempts (key) VALUES (%s)',(digest,))
 

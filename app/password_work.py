@@ -63,7 +63,6 @@ def source_attempt(request, kind):
                 raise SourceBusy()
             n = c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE %s AND created>now()-interval '1 minute'", (prefix + '%',)).fetchone()['n']
             if n >= SOURCE_LIMIT: return None
-            c.execute("DELETE FROM auth_attempts WHERE created<now()-interval '1 day'")
             c.execute('INSERT INTO auth_attempts(key) VALUES(%s)', (reservation,))
     except (PoolTimeout, QueryCanceled, LockNotAvailable):
         raise SourceBusy() from None

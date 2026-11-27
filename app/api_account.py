@@ -340,8 +340,8 @@ def suggest_taken_login(c, value):
 @router.get('/api/account/username-availability')
 def username_availability(request: Request, login: str = Query('', max_length=60)):
     """Only public handle availability; an unchanged handle comes from the authenticated session."""
-    from . import account_email
-    with db.connect() as c:
+    from . import account_email, rate_limits
+    with rate_limits.connection() as c:
         hit = account_email.limited(c, 'username-ip:' + auth.client_ip(request), 60, 1)
     if hit: raise HTTPException(429, 'Too many checks. Wait a minute and try again.')
     who = None

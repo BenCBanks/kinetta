@@ -12,7 +12,7 @@ import logging, os
 from psycopg import Error as DatabaseError
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import Field, StrictBool
-from . import db, auth, account_email
+from . import db, auth, account_email, rate_limits
 from .api_account import NewAccountIn, _create, require_signup_age
 from .enrollment_requests import EnrollmentRoute
 
@@ -44,17 +44,18 @@ def admin_notice(c, *, waitlist_new=False):
     most = cap()
     if not waitlist_new and (most is None or accounts(c)*10 < most*9): return
     # One aggregate bell notice per administrator per rolling day; never email or push.
-    c.execute("SELECT pg_advisory_xact_lock(hashtextextended('signup-admin-notice',0))")
-    for admin in c.execute('SELECT id FROM users WHERE is_admin AND suspended_at IS NULL ORDER BY id FOR KEY SHARE').fetchall():
-        if not c.execute("SELECT 1 FROM notifications WHERE user_id=%s AND kind='signup_admin' AND created>now()-interval '1 day'", (admin['id'],)).fetchone():
-            c.execute("INSERT INTO notifications(user_id,kind,actor_id) VALUES(%s,'signup_admin',%s)", (admin['id'],admin['id']))
+    with rate_limits.bounded(c):
+        rate_limits.try_lock(c, 'signup-admin-notice')
+        for admin in c.execute('SELECT id FROM users WHERE is_admin AND suspended_at IS NULL ORDER BY id FOR KEY SHARE').fetchall():
+            if not c.execute("SELECT 1 FROM notifications WHERE user_id=%s AND kind='signup_admin' AND created>now()-interval '1 day'", (admin['id'],)).fetchone():
+                c.execute("INSERT INTO notifications(user_id,kind,actor_id) VALUES(%s,'signup_admin',%s)", (admin['id'],admin['id']))
 
 
 def capacity_notice(*, waitlist_new=False):
     # Recipient foreign keys must never reverse an account/cap transaction's lock order.
     try:
-        with db.connect() as c: admin_notice(c, waitlist_new=waitlist_new)
-    except DatabaseError:
+        with rate_limits.connection() as c: admin_notice(c, waitlist_new=waitlist_new)
+    except (DatabaseError, HTTPException):
         logging.getLogger('uvicorn.error').warning('Sign-up administrator notice unavailable')
 
 
