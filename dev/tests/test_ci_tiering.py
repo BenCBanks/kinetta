@@ -88,7 +88,7 @@ class CITieringTests(unittest.TestCase):
                                 "ui_shard": "1/3", "browser": "unused"}, capture_output=True)
         self.assertEqual(result.returncode, 23, result.stderr)
 
-    def test_loading_audit_keeps_its_fixtures_when_duplicate_spacing_is_disabled(self):
+    def test_selected_loading_audit_prepares_and_reuses_its_fixtures(self):
         dispatcher = CHANGED_SCREENS.split("declare -A ran_ui=()", 1)[1].split("\nfor group in", 1)[0]
         script = "set -euo pipefail\ndeclare -A ran_ui=()\n" + dispatcher
         script += r'''
@@ -108,20 +108,21 @@ node() {
 run_ui loading_audit.cjs
 run_ui loading_audit.cjs
 '''
-        cases = [("0", "1", "0", "0", 0, ["prepare", "audit"]),
-                 ("1", "1", "0", "0", 0, ["audit"]),
-                 ("0", "2", "0", "0", 0, []),
-                 ("0", "1", "1", "0", 0, []),
-                 ("0", "1", "0", "1", 27, ["prepare"])]
-        for spacing, shard, listing, fails, code, expected in cases:
-            with self.subTest(spacing=spacing, shard=shard, listing=listing, fails=fails), tempfile.TemporaryDirectory() as tmp:
+        cases = [("0", "0", "1", "0", "0", 0, ["prepare", "audit"]),
+                 ("1", "0", "1", "0", "0", 0, ["prepare", "audit"]),
+                 ("1", "1", "1", "0", "0", 0, ["audit"]),
+                 ("0", "0", "2", "0", "0", 0, []),
+                 ("0", "0", "1", "1", "0", 0, []),
+                 ("0", "0", "1", "0", "1", 27, ["prepare"])]
+        for spacing, prepared, shard, listing, fails, code, expected in cases:
+            with self.subTest(spacing=spacing, prepared=prepared, shard=shard, listing=listing, fails=fails), tempfile.TemporaryDirectory() as tmp:
                 fixture, events = Path(tmp)/"fixtures.json", Path(tmp)/"events"
-                if spacing == "1":
+                if prepared == "1":
                     fixture.write_text("{}")  # Existing spacing preparation remains reused.
                 result = subprocess.run(["bash", "-c", script], cwd=ROOT, text=True, capture_output=True,
                                         env={**os.environ, "shard_index": shard, "shard_count": "3",
                                              "ui_shard": f"{shard}/3", "list_tests": listing, "browser": "unused",
-                                             "KINETTA_CHANGED_SPACING": spacing, "preparation_fails": fails,
+                                             "KINETTA_CHANGED_SPACING": spacing, "spacing_fixtures_prepared": prepared, "preparation_fails": fails,
                                              "KINETTA_SPACING_FIXTURES": str(fixture), "events": str(events)})
                 self.assertEqual(result.returncode, code, result.stderr)
                 self.assertEqual(events.read_text().splitlines() if events.exists() else [], expected)
