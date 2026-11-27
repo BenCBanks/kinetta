@@ -1361,7 +1361,7 @@ function groupInviteSheet(group,initialUrl=null){
         finally{sending.delete(username);}
       });
     };
-    const inviteSaved=SocialData.confirmSetting(body,{path:base+'/friends',mask:()=>sending.size?[...sending].map(username=>$(`[data-invite-friend="${CSS.escape(username)}"]`,results)):[results],failureText:'Invitation checked. Try again if needed.',paint:response=>{
+    const inviteSaved=SocialData.confirmSetting($('.group-friend-picker',body),{path:base+'/friends',mask:()=>sending.size?[...sending].map(username=>$(`[data-invite-friend="${CSS.escape(username)}"]`,results)):[results],failureText:'Invitation checked. Try again if needed.',paint:response=>{
       if(!Array.isArray(response?.friends)||response.friends.some(f=>!['none','invited','member'].includes(f.state)))throw Error();
       friends=response.friends;canInvite=response.can_invite;loaded=true;failed=false;draw();
     }});
@@ -1673,15 +1673,16 @@ function recoverGroupInvitation(el,base,{decline=false}={}){
     if(state.member){
       if(typeof state.id!=='string'||typeof state.share_total!=='boolean')throw Error();
       if(failure){
-        $('[data-group-join-share]',el).checked=state.share_total;
-        if(saved.attempted?.path.endsWith('/accept')){
-          const wanted=JSON.parse(saved.attempted.options.body).share_total;
+        const sharing=$('[data-group-join-share]',el);sharing.checked=state.share_total;sharing.disabled=true;
+        if(saved.attempted?.path.endsWith('/accept')||saved.attempted?.path.endsWith('/sharing')){
+          const wanted=groupInvitationChoice(base)?.share_total;
+          if(typeof wanted!=='boolean')throw Error('Invitation choice could not be checked.');
           failure.message='Not saved. You joined, but sharing is '+(state.share_total?'on':'off')+'. You chose '+(wanted?'on':'off')+'.';
           if(state.share_total!==wanted){
             const actions=$('[data-invite-actions]',el);
             const note=card.querySelector('[data-sharing-state]');
             if(note&&actions)actions.before(note);
-            if(actions)actions.innerHTML=`<button type="button" class="primary friend-invite-primary" id="group-sharing-reconcile">Turn sharing ${state.share_total?'off':'on'}</button><button type="button" class="friend-invite-later" id="group-sharing-open">Open group keeping sharing ${state.share_total?'on':'off'}</button>`;
+            if(actions)actions.innerHTML=`<button type="button" class="primary friend-invite-primary" id="group-sharing-reconcile">Turn sharing ${state.share_total?'off':'on'}</button><button type="button" class="friend-invite-later group-friend-invite-decline" id="group-sharing-open">Open group keeping sharing ${state.share_total?'on':'off'}</button>`;
             $('#group-sharing-reconcile',el)?.addEventListener('click',()=>saved.save('/api/groups/'+encodeURIComponent(state.id)+'/sharing',json('POST',{level:state.share_total?'just_in':'total_shared'})));
             $('#group-sharing-open',el)?.addEventListener('click',()=>{groupInvitationChoice(base,null);invalidate('/api/groups');go('/groups/'+encodeURIComponent(state.id),{replace:true});});
           }

@@ -160,11 +160,11 @@ async function sectionReturnJourneys(p,base){
 async function homeDefaults(browser){
  const c=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));
  await p.route('**/*',async route=>{const req=route.request(),url=new URL(req.url());if(url.origin!==base)return route.abort();
-  if(url.pathname==='/api/friend-links/navigation-friend')return route.fulfill({json:{name:'@fictional_friend'}});
+  if(url.pathname==='/api/friend-links/navigation-friend/state')return route.fulfill({json:{member:false,name:'@fictional_friend'}});
   if(url.pathname==='/api/cards/navigation-card')return route.fulfill({json:{username:'Fictional card',url:'/api/navigation-card',allow_requests:false,relationship:'none'}});
   if(url.pathname==='/api/navigation-card/image.png')return route.fulfill({status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC','base64')});
   if(url.pathname==='/api/challenges/navigation-challenge')return route.fulfill({json:{code:'navigation-challenge',kind:'activities',target:3,unit:'days',start:'2026-11-07',end:'2026-11-13',participants:1,joining_closed:false,member:false,creator:'fictional_friend',people:[],garmin_sources:[]}});
-  if(url.pathname==='/api/group-invites/navigation-group')return route.fulfill({json:{available:true}});
+  if(url.pathname==='/api/group-invites/navigation-group/state')return route.fulfill({json:{member:false,available:true}});
   if(url.pathname==='/api/join/navigation-join')return route.fulfill({json:{inviter:'Fictional inviter'}});
   if(req.method()==='POST'){
    if(url.pathname==='/api/login')return route.continue();

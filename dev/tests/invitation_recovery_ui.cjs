@@ -21,7 +21,7 @@ module.exports=async(browser,base,out='')=>{
   const login=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run',app:mode==='bridge'}});assert(login.ok());
   if(mode==='bridge'){const {token}=await login.json();await c.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});}
   const p=await c.newPage();p.setDefaultTimeout(8000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
-  let spec,armed=false,member=false,declined=false,unreadable=false,fault='',writes=0,reads=0,shareTotal=false;
+  let spec,armed=false,member=false,declined=false,unreadable=false,fault='',writes=0,reads=0,shareTotal=false,repairFault='',repairWrites=0;
   await c.route('**/*',async r=>{
    const req=r.request(),u=new URL(req.url()),method=req.method();if(u.origin!==base)return r.abort();
    if(method==='GET'&&u.pathname===spec?.read)reads++;
@@ -29,6 +29,7 @@ module.exports=async(browser,base,out='')=>{
    if(armed&&spec.name==='public'&&u.pathname.startsWith('/api/challenges/'))assert.equal(req.headers()['x-kinetta-account'],'fictional-owner');
    if(armed&&method==='GET'&&u.pathname===spec.read&&unreadable)return fault.includes('offline')?r.abort():r.fulfill({status:503,json:{detail:'Fictional outage'}});
    if(armed&&method!=='GET'&&u.pathname===spec.write){writes++;if(fault.includes('mismatch')){member=true;shareTotal=fault.endsWith('-on');return fault.startsWith('lost-')?r.abort():r.fulfill({json:{id:gid,member:true,share_total:shareTotal}});}if(fault.startsWith('lost')){if(spec.name==='decline')declined=true;else member=true;return r.abort();}return fault==='offline'?r.abort():r.fulfill({status:503,json:{detail:'Fictional outage'}});}
+   if(armed&&method==='POST'&&u.pathname==='/api/groups/'+gid+'/sharing'){repairWrites++;if(repairFault!=='503')shareTotal=req.postDataJSON().level==='total_shared';return repairFault==='lost'?r.abort():repairFault==='503'?r.fulfill({status:503,json:{detail:'Fictional outage'}}):r.fulfill({json:{ok:true}});}
    if(u.pathname==='/api/friend-links/'+code+'/state')return r.fulfill({json:{member,name:'@'+person.login,login:person.login}});
    if(u.pathname==='/api/group-invites/'+code+'/state')return r.fulfill({json:member?{member,id:gid,share_total:shareTotal}:{member}});
    if(u.pathname==='/api/group-friend-invites/77/state')return r.fulfill({json:member?{member,id:gid,share_total:shareTotal}:{member,declined,title:group.title,inviter:person.login}});
@@ -42,7 +43,7 @@ module.exports=async(browser,base,out='')=>{
    return r.continue();
   });
   try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503',...(['group','addressed'].includes(spec.name)?['mismatch-on','mismatch-off','lost-mismatch-on','lost-mismatch-off','lost-reload-mismatch-on','lost-reload-mismatch-off']:[]),...(['public','friend','group','addressed','challenge'].includes(spec.name)?['lost-reload','lost-reload-unreadable','503-reload']:[])].filter(f=>!process.env.KINETTA_INVITATION_FAULT||f===process.env.KINETTA_INVITATION_FAULT)){
-   armed=false;member=false;declined=false;unreadable=false;writes=0;reads=0;shareTotal=false;
+   armed=false;member=false;declined=false;unreadable=false;writes=0;reads=0;shareTotal=false;repairFault='';repairWrites=0;
    if(p.url()!=='about:blank')await p.evaluate(()=>{for(const key of Object.keys(localStorage))if(key.startsWith('kinetta.group-invite-choice:'))localStorage.removeItem(key);});
    await p.goto(base+spec.route);if(spec.prepare)await spec.prepare(p);await p.locator(spec.button).first().waitFor();
    if(spec.name==='group'||spec.name==='addressed')await p.locator('[data-group-join-share]').setChecked(fault.endsWith('mismatch-off'));
@@ -63,6 +64,7 @@ module.exports=async(browser,base,out='')=>{
     assert.match(await note.innerText(),new RegExp('Not saved.*sharing is '+(shareTotal?'on':'off')+'.*You chose '+(shareTotal?'off':'on')));
     assert.equal(new URL(p.url()).pathname,spec.route,'membership alone cannot redirect past mismatched sharing');
     assert.equal(await p.locator('[data-group-join-share]').isChecked(),shareTotal,'the switch shows the saved sharing choice');
+    assert(await p.locator('[data-group-join-share]').isDisabled(),'joined recovery offers explicit actions rather than an unsaved switch edit');
     assert.equal(await p.getByRole('button',{name:`Turn sharing ${shareTotal?'off':'on'}`,exact:true}).count(),1,'mismatch offers a direct sharing repair');
     assert.equal(await p.getByRole('button',{name:`Open group keeping sharing ${shareTotal?'on':'off'}`,exact:true}).count(),1,'mismatch offers an explicit keep-sharing path');
     assert(await p.locator('[data-sharing-state=confirmed]').evaluate(note=>!!note.nextElementSibling?.matches('[data-invite-actions]')),'mismatch message appears above its actions');
@@ -71,6 +73,23 @@ module.exports=async(browser,base,out='')=>{
      await p.reload();await p.locator('[data-sharing-state=confirmed]').waitFor({state:'visible'});assert.equal(new URL(p.url()).pathname,spec.route,'mismatched choice stays unresolved across repeated reloads');assert.equal(writes,1);
      shareTotal=!shareTotal;await p.reload();await p.waitForURL(base+spec.done);assert.equal(writes,1,'matching GET confirms the saved choice without another POST');
      assert.deepEqual(await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('kinetta.group-invite-choice:'))),[],'only a matching confirmation clears the choice');
+    }
+    if(!fault.includes('reload')){
+     if(fault==='mismatch-off'){await p.locator('#group-sharing-open').click();await p.waitForURL(base+spec.done);assert.equal(repairWrites,0,'explicit keep-sharing path never writes');}
+     else{
+      repairFault=fault==='mismatch-on'?'503':fault==='lost-mismatch-on'?'lost':'';
+      const wanted=!shareTotal;
+      await p.locator('#group-sharing-reconcile').click();
+      if(repairFault){await p.locator('[data-sharing-state=unknown]').waitFor();await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-sharing-state=unknown] button').click();}
+      if(repairFault==='503'){
+       await p.locator('[data-sharing-state=confirmed]').waitFor({state:'visible'});
+       assert.equal(await p.locator('[data-group-join-share]').isChecked(),shareTotal,'failed repair keeps the actual saved choice');
+       assert.match(await p.locator('[data-sharing-state=confirmed]').innerText(),/Not saved.*You chose/);
+       repairFault='';await p.locator('#group-sharing-reconcile').click();
+      }
+      await p.waitForURL(base+spec.done);assert.equal(shareTotal,wanted,'repair confirms the original choice');assert.equal(repairWrites,fault==='mismatch-on'?2:1);
+     }
+     assert.deepEqual(await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('kinetta.group-invite-choice:'))),[],'confirmed action clears pending invitation choice');
     }
     console.log('Invitation recovery '+mode+' '+theme+' '+spec.name+' '+fault+' PASS');continue;
    }
