@@ -12,6 +12,7 @@ async function runTheme(browser,theme){
   let state={phone_e164:null,email_ready:true,find_by_email:true,find_by_phone:true},shareAchievements=false,shareWrites=[],sharingState={default:'everyone',findable:true,trim_m:400,trims:[0,200,400,800]},blocked=[{login:'zz_test_blocked',name:'Riley Sample',photo:null}];
   const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:theme,isMobile:true,hasTouch:true,serviceWorkers:'block',timezoneId:'UTC'});
   await context.route('**/*',async route=>{
+
     const request=route.request(),url=new URL(request.url());
     if(url.origin!==base)return route.abort();
     if(url.pathname==='/api/sharing'){
@@ -56,6 +57,7 @@ async function runTheme(browser,theme){
   await page.setViewportSize({width:390,height:844});
   const friendsPick=page.waitForResponse(r=>r.url()===base+'/api/sharing'&&r.request().method()==='PUT');
   await page.locator('[data-vis="friends"]').click();assert.deepEqual((await friendsPick).request().postDataJSON(),{default:'friends'});
+  await page.locator('[data-vis="friends"][aria-checked="true"]').waitFor();
   assert.equal(await page.locator('[data-vis="friends"]').getAttribute('aria-checked'),'true','audience row updates selection');
   const achievementsCard=page.locator('#sh-achievements-card'),achievementsSwitch=page.locator('#sh-achievements');
   assert.equal(await achievementsSwitch.isChecked(),false,'achievement sharing starts off in the settings fixture');
@@ -79,6 +81,7 @@ async function runTheme(browser,theme){
   const sharingOnResponse=await sharingOn;assert.equal(sharingOnResponse.status(),200);
   assert.deepEqual(sharingOnResponse.request().postDataJSON(),{share_achievements:true});
   assert.equal(await achievementsSwitch.isChecked(),true,'turning the setting on updates the switch');
+  await page.locator('#sh-body > [data-sharing-state="confirmed"]').waitFor({state:'attached'});
   await page.reload();await page.locator('#sh-contact-discovery').waitFor();
   assert.equal(await page.locator('#sharing-default-disclosure').count(),1,'the default note stays visible on repeat visits');
   assert.equal(await page.locator('#sharing-default-disclosure').innerText(),'New accounts share activities and achievements with everyone signed in. You can change this here any time.');
@@ -130,6 +133,7 @@ async function runTheme(browser,theme){
   await page.locator('#sh-phone-save').click();
   const phoneResponse=await phoneSave;assert.equal(phoneResponse.status(),200);
   assert.deepEqual(phoneResponse.request().postDataJSON(),{phone_e164:'+1 555 010 1234'});
+  await page.getByText('Phone number saved.',{exact:true}).waitFor();
   assert.equal(await page.locator('#sh-contact-status').innerText(),'Phone number saved.');
   await clearToast();
   await page.reload();await page.locator('#sh-contact-discovery').waitFor();await frameCard();
@@ -138,9 +142,48 @@ async function runTheme(browser,theme){
   await context.close();
 }
 
+async function uncertainSaves(browser,mode){
+ const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+ const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:pw,app:mode==='bridge'}});
+ assert.equal(login.status(),200);const {token}=await login.json();
+ if(mode==='bridge')await context.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});
+ const headers=mode==='bridge'?{Authorization:'Bearer '+token}:{};
+ let saved=await(await context.request.get(base+'/api/sharing',{headers})).json(),fault=null,unreadable=false,writes=0;
+ await context.route('**/api/sharing',route=>{
+  if(route.request().method()==='GET')return unreadable?route.abort():route.fulfill({json:saved});
+  writes++;if(fault==='lost'){saved={...saved,...route.request().postDataJSON()};return route.abort();}
+  return fault==='offline'?route.abort():route.fulfill({status:503,json:{detail:'Fictional outage'}});
+ });
+ const page=await context.newPage();page.setDefaultTimeout(8000);
+ try{for(const kind of ['lost','503','offline']){
+  saved={...saved,default:kind==='lost'?'me':'everyone'};fault=null;unreadable=false;
+  await page.goto(base+'/me/sharing');await page.locator('[data-vis="everyone"]').waitFor();
+  fault=kind;unreadable=kind==='offline';const before=writes;
+  await page.locator('[data-vis="'+(kind==='lost'?'everyone':'me')+'"]').click();
+  const note=page.locator('#sh-body > [data-sharing-state]');
+  {
+   await note.locator('button').waitFor();assert.match(await note.innerText(),/Sharing not confirmed.[\s\S]*Retry/);
+   assert.equal(await page.locator('[data-vis="me"]').isVisible(),true,'uncertainty preserves rows');assert.equal(await page.locator('[data-vis="me"]').getAttribute('aria-checked'),'mixed','no stale private selection while unreadable');
+   unreadable=false;await require('./privacy_recovery_fixture.cjs')(page);await note.locator('button').click();
+  }
+  await page.locator('[data-vis="everyone"][aria-checked="true"]').waitFor();
+  assert.equal(await page.locator('[data-vis="me"]').getAttribute('aria-checked'),'false');
+  assert.equal(writes,before+1,'readback and Retry never repeat the write');
+ }
+ // A malformed read is uncertain too; switches must not remain visibly off after a committed opt-in.
+ saved={...saved,share_achievements:false};fault=null;
+ await page.goto(base+'/me/sharing');await page.locator('#sh-achievements').waitFor();fault='lost';
+ await page.locator('#sh-achievements').check();
+ await page.locator('#sh-body > [data-sharing-state=unknown]').waitFor();await require('./privacy_recovery_fixture.cjs')(page);await page.locator('#sh-body > [data-sharing-state=unknown] button').click();
+ await page.locator('#sh-body > [data-sharing-state="confirmed"]').waitFor({state:'attached'});
+ assert.equal(await page.locator('#sh-achievements').isChecked(),true);
+ console.log('Sharing recovery '+mode+': committed lost reply, 503, offline, GET-only Retry and achievements PASS');
+ }finally{await context.close();}
+}
+
 (async()=>{
   const browser=await chromium.launch();
-  try{for(const theme of ['light','dark'])await runTheme(browser,theme);}
+  try{for(const theme of ['light','dark'])await runTheme(browser,theme);for(const mode of ['web','bridge'])await uncertainSaves(browser,mode);await require('./privacy_ordering_ui.cjs')(browser,base,out);await require('./privacy_stability_ui.cjs')(browser,base,out);}
   finally{await browser.close();}
   console.log('Sharing Settings: achievement switch API sync, contact choices, phone save, 330/390px light/dark, all writes intercepted PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

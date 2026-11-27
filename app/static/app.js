@@ -434,7 +434,7 @@ async function apiRequest(path, opts = {}) {
   const mePath=path==='/api/me',requestPath=mePath?'/api/me?refresh=1':path;
   let r,body=null;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
-  if (App.me && !mePath && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
+  if (App.me && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
   const timeout=!opts.signal&&(!opts.method||opts.method.toUpperCase()==='GET')?new AbortController():null;
   const timer=timeout?setTimeout(()=>timeout.abort(),20000):null;
@@ -1627,6 +1627,7 @@ function render(options) {
   });
 }
 function loadErrorCopy(e) {
+  if(e?.code==='privacy_save_pending')return 'Sharing not confirmed. Try again to check the saved setting.';
   if (e && e.status === 403) return "This item isn't available to you.";
   if (e && e.status === 404) return 'This item may have been removed or is not shared with you.';
   if (e && e.status === 429) return 'Too many requests. Wait a moment, then try again.';

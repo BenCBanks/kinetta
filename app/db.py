@@ -80,8 +80,23 @@ def pool():
 @contextmanager
 def connect():
     """One transaction: committed when the block ends, rolled back on error."""
-    with pool().connection() as c:
+    from . import privacy_save
+    left = privacy_save.remaining()
+    if left is None:
+        with pool().connection() as c:
+            yield c
+        return
+    # This applies to every matched setting request, including old/keyless clients.
+    # PostgreSQL 17 kills an over-budget transaction even if the HTTP worker outlives
+    # its request. A shared absolute deadline also prevents later transactions.
+    with pool().connection(timeout=min(left, 1)) as c:
+        ms = max(1, int(privacy_save.remaining() * 1000))
+        c.execute("SELECT set_config('transaction_timeout', %s, true), "
+                  "set_config('statement_timeout', %s, true), set_config('lock_timeout', %s, true)",
+                  (str(ms), str(min(ms, privacy_save.STATEMENT_MS)), str(min(ms, privacy_save.LOCK_MS))))
         yield c
+        privacy_save.remaining()  # Never commit after the request's deadline.
+        c.commit()  # transaction_timeout remains active through COMMIT.
 
 
 @contextmanager

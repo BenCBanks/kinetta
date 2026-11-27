@@ -14,7 +14,7 @@ from . import db, auth, api_activities, api_food, api_connections, api_account, 
 import threading
 from .auth import current_user
 from . import api_strava_import,strava_upload,enrollment_requests
-from . import request_log, account_files, rate_limits
+from . import request_log, account_files, rate_limits, privacy_save
 from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread, kit_history_api, workout_compare
 from . import api_routes_plan, api_segments, segments, route_sharing, map_config, api_contacts
 
@@ -154,7 +154,7 @@ async def guard(request: Request, call_next):
         return Response(status_code=308, headers={'Location': str(request.url.replace(scheme='https'))})
     from starlette.concurrency import run_in_threadpool
     try:
-        r = await call_next(request)
+        r = await privacy_save.guarded(request, call_next) if privacy_save.applies(request) else await call_next(request)
     except Exception:
         if request.url.path.startswith('/api/admin/'):
             await run_in_threadpool(admin_support.rejected, request, 500)

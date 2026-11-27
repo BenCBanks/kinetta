@@ -1064,12 +1064,21 @@ function shareFields(box, aid, s) {
   const say = () => { note.textContent = vis === 'me' ? 'Only you. Nobody else can see it.' : vis === 'friends' ? 'Friends you have approved.' : 'Anyone with an account on this Kinetta server.'; };
   say(); wireSeg(box, 'vis', (v) => { vis = v; say(); });
   const u = $('#sh-usual', box); if (u) u.onclick = () => { usual = true; u.textContent = 'Your usual details will be used'; u.disabled = true; };
+  const summary=box.closest('.sheet')?.querySelector('#e-visibility-value');
+  const confirmation=SocialData.confirmSetting(box,{path:`/api/activities/${aid}/social`,uncertain:()=>{if(summary)summary.textContent='Not confirmed';},paint:fresh=>{
+    if(!Object.hasOwn(VIS,fresh?.visibility)||Object.keys(DETAIL_NAMES).some(k=>typeof fresh.details?.[k]!=='boolean'))throw Error('Sharing unavailable');
+    s=fresh;vis=s.visibility;usual=false;$$('[data-vis]',box).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.vis===vis)));
+    for(const key of Object.keys(DETAIL_NAMES))$(`input[name="${key}"]`,box).checked=s.details[key]===true;
+    if(summary)summary.textContent=VIS_SHORT[vis];if(u){u.disabled=false;u.hidden=!s.custom;u.textContent='Use my usual details';}say();socialChanged(aid);invalidate('/api/people/');MeCard.clearPreviewCache?.();
+  }});
   return async () => {
+    if(!confirmation.known)throw Error('Sharing not confirmed. Tap Retry first.');
     const d = Object.fromEntries(Object.keys(DETAIL_NAMES).map((k) => [k, $(`input[name="${k}"]`, box).checked]));
     const changed = Object.keys(d).some((k) => d[k] !== s.details[k]), body = {visibility: vis};
     if (usual) body.usual_details = true; else if (changed) body.details = d;
     if (vis === s.visibility && !usual && !changed) return;
-    await api(`/api/activities/${aid}/sharing`, json('PUT', body));socialChanged(aid);invalidate('/api/people/');MeCard.clearPreviewCache?.();
+    const desired=vis,result=await confirmation.save(`/api/activities/${aid}/sharing`,json('PUT',body));
+    if(!result||result.data.visibility!==desired||(body.details&&Object.keys(body.details).some(k=>result.data.details[k]!==body.details[k]))||(body.usual_details&&result.data.custom))throw Error('Sharing not confirmed. Check the saved setting and try again.');
   };
 }
 
@@ -1513,9 +1522,9 @@ function groupChallengeRow(group,q){
   return `<a class="row-link group-challenge-row" href="/groups/${encodeURIComponent(group.id)}/challenges/${encodeURIComponent(q.id)}"><span class="grow"><b>${esc(q.title)}</b><small>${q.ended_at?'Ended · ':''}${esc(groupAmount(value,q.unit))} of ${esc(groupAmount(q.target,q.unit))}</small><progress max="${max}" value="${Math.min(max,Math.max(0,Number(value)||0))}" aria-label="${esc(q.title)} progress"></progress></span>${svg('chev')}</a>`;
 }
 function groupPage(el,group,unused='members',keepExpanded=false){
-  let expanded=keepExpanded;
+  const owner=readOwner();let expanded=keepExpanded;
   const base='/api/groups/'+encodeURIComponent(group.id);
-  const reload=async()=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected)groupPage(el,{...fresh,challenges},'members',expanded);}catch(error){if(el.isConnected)toast(error.message);}};
+  const reload=async()=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected&&owner===readOwner())groupPage(el,{...fresh,challenges},'members',expanded);else throw Error('Group changed');}catch(error){if(el.isConnected&&owner===readOwner())toast(error.message);throw error;}};
   const draw=()=>{
     const people={...group,sharing_level:'total_shared',members:group.members.map(m=>({...m,value:undefined,sharing_total_only:false}))};
     el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<button type="button" class="group-header-invite" id="group-header-invite">${svg('people')}<span>Invite</span></button><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
@@ -1558,8 +1567,11 @@ function groupChallengePage(el,group,q){
   el.innerHTML=`<div class="top">${backBtn('Group')}<span class="grow group-challenge-parent">${esc(group.title)}</span>${q.can_manage&&!q.ended_at?'<button type="button" class="icon-btn" data-challenge-options aria-label="Challenge options">'+svg('more')+'</button>':''}</div><header class="group-title"><h1>${esc(q.title)}</h1><p class="group-title-summary">${esc(GROUP_GOALS[q.metric])} · ${q.ended_at?'Ended':q.end_date?esc(groupDate(q.end_date,q.time_zone)):'No end date'}</p></header>${q.training_for?`<p class="group-training-for">Training for ${esc(q.training_for)}</p>`:''}${q.note?`<p class="group-note">${esc(q.note)}</p>`:''}${groupGoal(goal)}${q.legacy_goal&&group.event_state==='today'?'<section class="group-event-day card">Today’s the day</section>':q.legacy_goal&&group.event_state==='complete'?groupRecapCard(group):''}<section class="group-members-section"><h2>Members</h2><div class="card group-roster">${groupRoster({...roster,goal_unit:q.unit},true)}</div></section><label class="group-join-share"><span>Share my total</span><input type="checkbox" role="switch" data-challenge-sharing${q.share_total?' checked':''}></label>`;
   wireBack(el,new URLSearchParams(location.search).get('from')==='challenges'?'/me/challenges':'/groups/'+group.id);
   const recap=$('[data-group-recap-share]',el);if(recap)recap.onclick=()=>openGroupRecapShare(el,group,recap);
-  $('[data-challenge-sharing]',el).closest('label').insertAdjacentHTML('afterend',App.me?.share_achievements?'':'<p class="small muted">Totals are hidden while activity sharing is off in Settings.</p>');
-  $('[data-challenge-sharing]',el).onchange=async event=>{const input=event.currentTarget;input.disabled=true;try{await api(path+'/sharing',json('POST',{share_total:input.checked}));await reload();}catch(error){if(input.isConnected){input.checked=q.share_total;input.disabled=false;toast(error.message);}}};
+  $('[data-challenge-sharing]',el).closest('label').insertAdjacentHTML('afterend',App.me?.share_achievements===false?'<p class="small muted">Totals are hidden while activity sharing is off in Settings.</p>':App.me?.share_achievements==null?'<p class="small muted">Activity sharing not confirmed.</p>':'');
+  const confirmation=SocialData.confirmSetting(el,{path,mask:()=>[$('[data-challenge-sharing]',el).closest('label'),$('.group-roster',el),$('[data-challenge-sharing]',el).closest('label').nextElementSibling],paint:fresh=>{
+    if(typeof fresh?.share_total!=='boolean')throw Error('Sharing unavailable');invalidate('/api/groups');groupChallengePage(el,group,fresh);
+  }});
+  $('[data-challenge-sharing]',el).onchange=event=>confirmation.save(path+'/sharing',json('POST',{share_total:event.currentTarget.checked}));
   $('[data-challenge-options]',el)?.addEventListener('click',()=>groupActionSheet('Challenge options','<button type="button" class="row-link" data-challenge-edit>Edit challenge</button><button type="button" class="row-link danger" data-challenge-end>End challenge</button>',(body,close)=>{
     $('[data-challenge-edit]',body).onclick=()=>{close();groupChallengeEditor(group,q,reload);};
     $('[data-challenge-end]',body).onclick=()=>{close();groupConfirm('End challenge?','The final totals will be kept. The group stays open.',async()=>{try{await api(path+'/end',json('POST',{}));await reload();}catch(error){toast(error.message);}});};
@@ -1568,7 +1580,7 @@ function groupChallengePage(el,group,q){
 function groupActionSheet(title,html,handler){sheet(title,html,handler);}
 function groupInvite(group){groupInviteSheet(group);}
 function groupMenu(group,reload,onLeave){
-  const opts=[];
+  const owner=readOwner(),opts=[];
   if(group.is_organizer&&!group.closed)opts.push(group.joining_closed?`<button type="button" class="row-link" data-gact="reopen"><span>Make a new invite</span>${svg('chev')}</button>`:`<button type="button" class="row-link" data-gact="stop"><span>Stop new members</span>${svg('chev')}</button>`);
   if(group.is_organizer&&group.member_count>1)opts.push(`<button type="button" class="row-link" data-gact="transfer"><span>Transfer organizer</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="remove"><span>Remove a member</span>${svg('chev')}</button>`);
   if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link danger" data-gact="close"><span>Close group</span>${svg('chev')}</button>`);
@@ -1578,7 +1590,7 @@ function groupMenu(group,reload,onLeave){
   opts.push(`<button type="button" class="row-link" data-gact="leave"><span>Leave group</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="report"><span>Report group</span>${svg('chev')}</button>`);
   groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div>`,(body,close)=>{
     const run=async(path,method='POST',payload={})=>{try{await api(path,json(method,payload));close();toast('Group updated');reload();}catch(error){toast(error.message);}};
-    $$('[data-gact]',body).forEach(button=>button.onclick=()=>{const action=button.dataset.gact;close();
+    $$('[data-gact]',body).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;const action=button.dataset.gact;close();
       if(action==='invite'||action==='reopen')groupInvite(group);
       else if(action==='event-date')groupEventDateSheet(group,reload);
       else if(action==='stop')run('/api/groups/'+encodeURIComponent(group.id)+'/stop-joining');
@@ -1586,9 +1598,14 @@ function groupMenu(group,reload,onLeave){
       else if(action==='close')groupConfirm('Close group?','People can no longer join this group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/close'));
       else if(action==='transfer'||action==='remove')groupMemberAction(group,action==='transfer'?'Transfer organizer':'Remove a member',action==='transfer'?'transfer':'remove',reload);
       else if(action==='notifications')run('/api/groups/'+encodeURIComponent(group.id)+'/notifications','POST',{muted:!group.notifications_muted});
-      else if(action==='sharing')api('/api/groups/'+encodeURIComponent(group.id)+'/sharing',json('POST',{level:group.sharing_level==='total_shared'?'just_in':'total_shared'})).then(()=>{toast(group.sharing_level==='total_shared'?'Your total is no longer shared':'Your total is shared with members');reload();}).catch(error=>toast(error.message));
       else if(action==='monday-recap')api('/api/groups/'+encodeURIComponent(group.id)+'/monday-recap',json('POST',{enabled:!group.monday_recap_enabled})).then(()=>{toast(group.monday_recap_enabled?'Monday recap off':'Monday recap on');reload();}).catch(error=>toast(error.message));
-      else if(action==='recap-consent')api('/api/groups/'+encodeURIComponent(group.id)+'/recap-consent',json('POST',{consent:!group.recap_consent})).then(()=>{toast(group.recap_consent?'Your name was removed from the recap':'Your name can appear in the recap');reload();}).catch(error=>toast(error.message));
+      else if(action==='sharing'||action==='recap-consent'){
+        const root=document.querySelector('.group-page'),path='/api/groups/'+encodeURIComponent(group.id);
+        SocialData.confirmSetting(root,{path,mask:()=>[...root.children],paint:async fresh=>{
+          if(typeof fresh?.recap_consent!=='boolean'||!['just_in','total_shared'].includes(fresh?.sharing_level))throw Error('Sharing unavailable');
+          Object.assign(group,fresh);await reload();
+        }}).save(path+(action==='sharing'?'/sharing':'/recap-consent'),json('POST',action==='sharing'?{level:group.sharing_level==='total_shared'?'just_in':'total_shared'}:{consent:!group.recap_consent}));
+      }
       else if(action==='report')groupReport(group);
     });
 
@@ -1687,57 +1704,50 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   ContactsUI.addPrivacyRemoval(box);
   if (appFeatureEnabled('progress_segments') && typeof Segments !== 'undefined' && $('#sh-segments', box)) Segments.settingsRow($('#sh-segments', box));
   $('#sh-trim-open',box).onclick=()=>go('/me/sharing/routes');
-  const save = async (body, msg) => {
-    if(sharingOwner!==readOwner()||!box.isConnected)return;
-    const controls=$$('button[data-vis],#sh-d input,#sh-find,#sh-achievements,#sh-find-email,#sh-find-phone',box);controls.forEach(b=>b.disabled=true);
-    try {
-      await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner())return;
-      if(body.default){s.default=body.default;App.me.share_default=body.default;keep('/api/me',App.me);}
-      if(body.details)s.details=body.details;
-      if(body.share_achievements!==undefined)s.share_achievements=body.share_achievements;
-      invalidate('/api/');MeCard.clearPreviewCache?.();if(box.isConnected)toast(msg);
-    }catch(x){
-      if(sharingOwner===readOwner()&&box.isConnected){$$('[data-vis]',box).forEach(b=>{b.setAttribute('aria-checked',String(b.dataset.vis===s.default));b.tabIndex=b.dataset.vis===s.default?0:-1;b.innerHTML=`<span>${esc(VIS_SHORT[b.dataset.vis])}</span>${b.dataset.vis===s.default?svg('check'):''}`;});
-        $$('input[name]',box).forEach(b=>{if(Object.hasOwn(s.details,b.name))b.checked=!!s.details[b.name];});$('#sh-achievements',box).checked=!!s.share_achievements;$('#sh-find',box).checked=!!s.findable;toast(x.message);}
-    }finally{if(sharingOwner===readOwner()&&box.isConnected)controls.forEach(b=>b.disabled=false);}
-  };
+  const confirmation=SocialData.confirmSetting(box,{
+    unknownText:'Sharing not confirmed.',
+    mask:(path,options)=>{
+      if(!path)return $$('[data-vis],#sh-d input,#sh-achievements,#sh-find,#sh-find-email,#sh-find-phone',box);
+      const fields=Object.keys(JSON.parse(options.body)),nodes=[];
+      if(fields.includes('default'))nodes.push(...$$('[data-vis]',box));
+      if(fields.includes('details'))nodes.push(...$$('#sh-d input',box));
+      for(const [field,id] of [['share_achievements','sh-achievements'],['findable','sh-find'],['find_by_email','sh-find-email'],['find_by_phone','sh-find-phone'],['phone_e164','sh-contact-phone']])if(fields.includes(field))nodes.push($('#'+id,box));
+      return nodes;
+    },
+    read:async()=>{const [sharing,contacts]=await Promise.all(['/api/sharing','/api/contacts/settings'].map(path=>apiRequest(path,{cache:'no-store'})));return{sharing,contacts};},
+    uncertain:()=>{App.me.share_default=null;App.me.share_achievements=null;keep('/api/me',App.me);invalidate('/api/');MeCard.clearPreviewCache?.();},
+    cache:({sharing})=>{if(!Object.hasOwn(VIS,sharing?.default)||typeof sharing.share_achievements!=='boolean')throw Error('Sharing unavailable');App.me.share_default=sharing.default;App.me.share_achievements=sharing.share_achievements;keep('/api/me',App.me);},
+    paint:({sharing,contacts:fresh})=>{
+      if(!Object.hasOwn(VIS,sharing?.default)||typeof sharing.share_achievements!=='boolean'||typeof sharing.findable!=='boolean'||Object.keys(DETAIL_NAMES).some(k=>typeof sharing.details?.[k]!=='boolean')||!Number.isFinite(sharing.trim_m)||typeof fresh?.find_by_email!=='boolean'||typeof fresh.find_by_phone!=='boolean')throw Error('Sharing unavailable');
+      Object.assign(s,sharing);Object.assign(contacts,fresh);
+      $$('[data-vis]',box).forEach(b=>{const selected=b.dataset.vis===s.default;b.setAttribute('aria-checked',String(selected));b.tabIndex=selected?0:-1;b.innerHTML=`<span>${esc(VIS_SHORT[b.dataset.vis])}</span>${check(selected)}`;});
+      for(const key of Object.keys(DETAIL_NAMES)){$(`input[name="${key}"]`,box).checked=s.details[key]===true;}
+      for(const [id,value] of [['sh-achievements',s.share_achievements],['sh-find',s.findable],['sh-find-email',fresh.find_by_email],['sh-find-phone',fresh.find_by_phone]])$('#'+id,box).checked=value;
+      $('#sh-trim-open small',box).textContent='Start and end · '+trimName(s.trim_m);updatePhoneButton();
+      App.me.share_default=s.default;App.me.share_achievements=s.share_achievements;keep('/api/me',App.me);
+    }
+  });
+  const save=(body)=>confirmation.save('/api/sharing',json('PUT',body));
   const audience=$$('[data-vis]',box);
-  audience.forEach(b=>{b.onclick=async()=>{if(sharingOwner!==readOwner()||b.disabled)return;const v=b.dataset.vis;audience.forEach(o=>{o.setAttribute('aria-checked',String(o===b));o.tabIndex=o===b?0:-1;o.innerHTML=`<span>${esc(VIS_SHORT[o.dataset.vis])}</span>${o===b?svg('check'):''}`;});await save({default:v},`New activities: ${VIS[v].toLowerCase()}`);};b.onkeydown=e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=audience.indexOf(b),next=e.key==='Home'?0:e.key==='End'?audience.length-1:(current+(e.key==='ArrowDown'?1:-1)+audience.length)%audience.length;audience[next].focus();audience[next].click();};});
-  const f = $('#sh-d', box); f.onchange = () => save({details: readChecks(f)}, 'Saved');
-  $('#sh-achievements',box).onchange=e=>save({share_achievements:e.target.checked},'Saved');
-  $('#sh-find', box).onchange = async (e) => {
-    if(sharingOwner!==readOwner()||!box.isConnected)return;
-    const on = e.target.checked,input=e.target;input.disabled=true;
-    try { await api('/api/sharing', json('PUT', {findable: on}));if(sharingOwner!==readOwner()||!box.isConnected)return;s.findable=on;invalidate('/api/people/');MeCard.clearPreviewCache?.();toast(on ? 'People can find you by name' : "You're hidden from friend search"); }
-    catch (x) { e.target.checked = !on; toast(x.message); }
-    finally{if(sharingOwner===readOwner()&&box.isConnected)input.disabled=false;}
-  };
+  audience.forEach(b=>{b.onclick=()=>save({default:b.dataset.vis});b.onkeydown=e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=audience.indexOf(b),next=e.key==='Home'?0:e.key==='End'?audience.length-1:(current+(e.key==='ArrowDown'?1:-1)+audience.length)%audience.length;audience[next].focus();audience[next].click();};});
+  $('#sh-d',box).onchange=()=>save({details:readChecks($('#sh-d',box))});
+  $('#sh-achievements',box).onchange=e=>save({share_achievements:e.target.checked});
+  $('#sh-find',box).onchange=e=>save({findable:e.target.checked});
   for(const [field,id] of [['find_by_email','sh-find-email'],['find_by_phone','sh-find-phone']]){
-    const input=$('#'+id,box);
-    input.onchange=async()=>{
-      if(sharingOwner!==readOwner()||!box.isConnected)return;
-      const on=input.checked;input.disabled=true;
-      try{
-        const updated=await api('/api/contacts/settings',json('PUT',{[field]:on}));
-        if(sharingOwner!==readOwner()||!box.isConnected)return;
-        contacts[field]=updated[field];toast(on?'People can find you this way':"People can't find you this way");
-      }catch(x){if(sharingOwner===readOwner()&&box.isConnected){input.checked=!on;toast(x.message);}}
-      finally{if(sharingOwner===readOwner()&&box.isConnected)input.disabled=false;}
-    };
+    $('#'+id,box).onchange=e=>confirmation.save('/api/contacts/settings',json('PUT',{[field]:e.target.checked}));
   }
   const phoneForm=$('#sh-contact-phone',box),phoneInput=phoneForm.elements.phone_e164,phoneSave=$('#sh-phone-save',box),phoneStatus=$('#sh-contact-status',box);
   const updatePhoneButton=()=>{phoneSave.disabled=sharingOwner!==readOwner()||phoneInput.value.trim()===(contacts.phone_e164||'');};
   phoneInput.oninput=updatePhoneButton;
   phoneForm.onsubmit=async e=>{
     e.preventDefault();if(sharingOwner!==readOwner()||!box.isConnected||phoneSave.disabled)return;
-    phoneSave.disabled=true;phoneStatus.textContent='';
-    try{
-      const updated=await api('/api/contacts/settings',json('PUT',{phone_e164:phoneInput.value.trim()||null}));
-      if(sharingOwner!==readOwner()||!box.isConnected)return;
-      contacts.phone_e164=updated.phone_e164;phoneInput.value=updated.phone_e164||'';
-      phoneStatus.textContent=contacts.phone_e164?'Phone number saved.':'Phone number removed.';
-    }catch(x){if(sharingOwner===readOwner()&&box.isConnected)phoneStatus.textContent=x.message;}
-    finally{if(sharingOwner===readOwner()&&box.isConnected)updatePhoneButton();}
+    phoneStatus.textContent='';const submitted=phoneInput.value;
+    const result=await confirmation.save('/api/contacts/settings',json('PUT',{phone_e164:submitted.trim()||null}));
+    if(sharingOwner!==readOwner()||!box.isConnected)return;
+    const failure=result?.failure||confirmation.failure;
+    if(failure)phoneStatus.textContent=failure.message;
+    else if(result){if(phoneInput.value===submitted)phoneInput.value=contacts.phone_e164||'';phoneStatus.textContent=contacts.phone_e164?'Phone number saved.':'Phone number removed.';}
+    updatePhoneButton();
   };
 });
 
@@ -1747,8 +1757,11 @@ route(/^\/me\/sharing\/routes$/, 'me', async (el) => {
   wireBack(el,'/me/sharing');
   const s=await api('/api/sharing'),box=$('#sh-trim-options',el);if(!el.isConnected||owner!==readOwner())return;
   box.innerHTML=s.trims.map(m=>`<button type="button" class="sharing-choice" role="radio" tabindex="${m===s.trim_m?0:-1}" aria-checked="${m===s.trim_m}" data-trim="${m}"><span>${esc(trimName(m))}</span>${m===s.trim_m?svg('check'):''}</button>`).join('')+'<p class="settings-footnote">A route too short for this distance is shared without a map.</p>';
-  const trimChoices=$$('[data-trim]',box);
-  trimChoices.forEach(b=>{b.onclick=async()=>{if(owner!==readOwner()||b.disabled)return;const previous=s.trim_m,next=Number(b.dataset.trim);trimChoices.forEach(o=>{o.disabled=true;o.tabIndex=o===b?0:-1;o.setAttribute('aria-checked',String(o===b));o.innerHTML=`<span>${esc(trimName(Number(o.dataset.trim)))}</span>${o===b?svg('check'):''}`;});try{await api('/api/sharing',json('PUT',{trim_m:next}));if(owner!==readOwner()||!el.isConnected)return;s.trim_m=next;invalidate('/api/');MeCard.clearPreviewCache?.();toast(next===0?'Maps show the whole route':`Maps hide the first and last ${trimName(next)}`);go('/me/sharing');}catch(error){trimChoices.forEach(o=>{o.disabled=false;o.tabIndex=Number(o.dataset.trim)===previous?0:-1;o.setAttribute('aria-checked',String(Number(o.dataset.trim)===previous));o.innerHTML=`<span>${esc(trimName(Number(o.dataset.trim)))}</span>${Number(o.dataset.trim)===previous?svg('check'):''}`;});toast(error.message);}};b.onkeydown=e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=trimChoices.indexOf(b),next=e.key==='Home'?0:e.key==='End'?trimChoices.length-1:(current+(e.key==='ArrowDown'?1:-1)+trimChoices.length)%trimChoices.length;trimChoices[next].focus();trimChoices[next].click();};});
+  const trimChoices=$$('[data-trim]',box),confirmation=SocialData.confirmSetting(box,{path:'/api/sharing',paint:fresh=>{
+    if(!Number.isFinite(fresh?.trim_m)||!fresh.trims?.includes(fresh.trim_m))throw Error('Sharing unavailable');
+    s.trim_m=fresh.trim_m;trimChoices.forEach(b=>{const selected=Number(b.dataset.trim)===s.trim_m;b.tabIndex=selected?0:-1;b.setAttribute('aria-checked',String(selected));b.innerHTML=`<span>${esc(trimName(Number(b.dataset.trim)))}</span>${selected?svg('check'):''}`;});invalidate('/api/');MeCard.clearPreviewCache?.();
+  }});
+  trimChoices.forEach(b=>{b.onclick=async()=>{const next=Number(b.dataset.trim),result=await confirmation.save('/api/sharing',json('PUT',{trim_m:next}));if(result&&result.data.trim_m===next)go('/me/sharing');};b.onkeydown=e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=trimChoices.indexOf(b),next=e.key==='Home'?0:e.key==='End'?trimChoices.length-1:(current+(e.key==='ArrowDown'?1:-1)+trimChoices.length)%trimChoices.length;trimChoices[next].focus();trimChoices[next].click();};});
 });
 
 route(/^\/me\/sharing\/blocked$/, 'me', async (el) => {
