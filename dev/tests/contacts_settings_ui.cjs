@@ -162,7 +162,7 @@ async function uncertainSaves(browser,mode){
   await page.locator('[data-vis="'+(kind==='lost'?'everyone':'me')+'"]').click();
   const note=page.locator('#sh-body > [data-sharing-state]');
   {
-   await note.locator('button').waitFor();assert.match(await note.innerText(),/Sharing not confirmed.*Retry/);
+   await note.locator('button').waitFor();assert.match(await note.innerText(),/Sharing not confirmed.[\s\S]*Retry/);
    assert.equal(await page.locator('[data-vis="me"]').isVisible(),true,'uncertainty preserves rows');assert.equal(await page.locator('[data-vis="me"]').getAttribute('aria-checked'),'mixed','no stale private selection while unreadable');
    unreadable=false;await require('./privacy_recovery_fixture.cjs')(page);await note.locator('button').click();
   }

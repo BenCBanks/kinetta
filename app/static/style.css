@@ -2394,8 +2394,8 @@ body .social-sheet .comment .c-comment-options { margin-left:auto; }
 .setting-recovery[hidden] { display:none; }
 .setting-recovery button { min-height:44px; }
 .setting-unconfirmed { cursor:wait; }
-.setting-unconfirmed[aria-checked=mixed] svg,.setting-unconfirmed[aria-pressed=mixed] svg { visibility:hidden; }
-.setting-unconfirmed[aria-checked=mixed],.setting-unconfirmed[aria-pressed=mixed] { background:transparent!important;box-shadow:none!important; }
+.setting-unconfirmed[aria-checked] svg,.setting-unconfirmed[aria-pressed] svg { visibility:hidden; }
+.setting-unconfirmed[aria-checked],.setting-unconfirmed[aria-pressed] { background:transparent!important;box-shadow:none!important; }
 .setting-unconfirmed:is(input[type=checkbox],input[type=radio]) { opacity:.45; }
 .setting-unconfirmed:is(select) { color:transparent; }
 
@@ -2403,3 +2403,7 @@ body .social-sheet .comment .c-comment-options { margin-left:auto; }
 .switch-row input.setting-unconfirmed[type=checkbox]::after { transform:translateX(10px)!important; }
 
 .goal-choice:has(input.setting-unconfirmed) { border-color:var(--line);background:var(--card); }
+
+input.setting-unconfirmed[type=checkbox],.setting-unconfirmed .switch-track,.setting-unconfirmed .tog { background:var(--card2)!important; }
+input.setting-unconfirmed[type=checkbox]::after,.setting-unconfirmed .switch-track::after,.setting-unconfirmed .tog::after { transform:translateX(10px)!important; }
+input.setting-unconfirmed[type=radio] { appearance:none;border:1px solid var(--tx3);border-radius:50%;background:transparent; }
