@@ -285,7 +285,10 @@ final class NativeStravaTransfer: StravaRedirectGuard, URLSessionDataDelegate, @
     func urlSession(_ session: URLSession,dataTask: URLSessionDataTask,didReceive response: URLResponse,completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         if session === control {
             guard let read = controlReads[dataTask.taskIdentifier],current(read),response.expectedContentLength < 64*1024 else {
-                completionHandler(.cancel);refuseControl(dataTask);return
+                // Explicitly cancel while the task is still receiving headers.
+                // Returning .cancel first can complete a custom protocol task
+                // before its transport cancellation callback is delivered.
+                refuseControl(dataTask);completionHandler(.cancel);return
             }
         }
         completionHandler(.allow)
