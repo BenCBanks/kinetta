@@ -1169,8 +1169,6 @@ def create_friend_invite(group_id: str, body: GroupFriendInviteCreate, user=Depe
             raise HTTPException(404,INVITE_UNAVAILABLE)
         active_ids=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",
                                                     (group_id,)).fetchall()]
-        if any(_blocked(c,candidate['id'],member) for member in active_ids):
-            raise HTTPException(404,INVITE_UNAVAILABLE)
         expired=c.execute('''UPDATE group_friend_invites SET status='expired'
             WHERE group_id=%s AND invitee_id=%s AND status IN ('pending','declined') AND expires_at<=now()
             RETURNING id''',(group_id,candidate['id'])).fetchall()
@@ -1180,13 +1178,19 @@ def create_friend_invite(group_id: str, body: GroupFriendInviteCreate, user=Depe
             (group_id,candidate['id'])).fetchone()
         if held:
             # A declined invitation stays quiet and holds the pair until the original expiry.
+            if any(_blocked(c,candidate['id'],member) for member in active_ids):
+                raise HTTPException(404,INVITE_UNAVAILABLE)
             return {'state':'invited'}
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',('group-friend-invite:'+str(user['id']),))
         sent=c.execute('''SELECT count(DISTINCT invitee_id) AS n FROM group_friend_invites
             WHERE inviter_id=%s AND created_at>now()-interval '24 hours' ''',(user['id'],)).fetchone()['n']
         if sent>=30:
             raise HTTPException(429,'Too many group invitations. Try again tomorrow.')
+        # Eligibility above is independent of blocks. At an exhausted budget,
+        # private blocks must not turn the refusal into a different response.
         member_limits.claim(c,user['id'],'invite',str(group_id),recipient=candidate['id'])
+        if any(_blocked(c,candidate['id'],member) for member in active_ids):
+            raise HTTPException(404,INVITE_UNAVAILABLE)
         invite=c.execute('''INSERT INTO group_friend_invites(group_id,inviter_id,invitee_id,expires_at)
             VALUES(%s,%s,%s,now()+interval '30 days') RETURNING id''',
             (group_id,user['id'],candidate['id'])).fetchone()

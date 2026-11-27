@@ -15,7 +15,7 @@ These rolling budgets apply to all accounts. They do not change visibility or co
 
 Blocking, unblocking, declining a friend request and removing a reaction use no member-action admission lock or budget. Exhausting another budget does not prevent protection. Deleting content does not refund its action budget. Rejected writes roll back their budget and receipts.
 
-Group-update recipient budgets use the complete active group roster, independently of private block and mute choices. Delivery applies those choices separately. Activity comments and directed invitations use their explicit authorized target; unavailable targets keep the existing 404 response before admission.
+Group-update recipient budgets use the complete active group roster, independently of private block and mute choices. Delivery applies those choices separately. For new activity comments and directed invitations, independent audience/eligibility refusals keep their existing response (for example, a private activity or no accepted friendship). Otherwise admission precedes block checks, so a block cannot change an exhausted-budget response. Full access is still required before returning data or writing content; block refusals roll back admission and receipts. Matching committed retries remain free and recheck full access.
 
 Admission takes a nonwaiting account transaction lock before existing write locks. Concurrent contention returns 503 with `Retry-After: 2`; exhausted rolling budgets return 429 with a computed `Retry-After`. The ordinary web and iPhone error paths display the delay. Comment failures preserve text and the request key for explicit retry. Group update retries retain their request key while that form is open.
 

@@ -69,9 +69,10 @@ def confirmed(c, uid):
 
 # A lifting session still being logged (lift_open) is nobody else's business until it's finished: it can still be
 # discarded (28 October 2026, owner: people may not want to post it at all).
-CAN_SEE = f"""(a.user_id = %(viewer)s OR (NOT a.lift_open AND NOT {blocked('a.user_id')} AND NOT {unconfirmed('a.user_id')} AND (a.visibility = 'everyone' OR (a.visibility = 'friends' AND EXISTS (
+ACTIVITY_AUDIENCE = f"""(a.user_id = %(viewer)s OR (NOT a.lift_open AND NOT {unconfirmed('a.user_id')} AND (a.visibility = 'everyone' OR (a.visibility = 'friends' AND EXISTS (
     SELECT 1 FROM friendships f WHERE f.status = 'accepted'
       AND ((f.requester = a.user_id AND f.addressee = %(viewer)s) OR (f.addressee = a.user_id AND f.requester = %(viewer)s)))))))"""
+CAN_SEE = f"({ACTIVITY_AUDIENCE} AND (a.user_id = %(viewer)s OR NOT {blocked('a.user_id')}))"
 FRIEND_IDS = """SELECT CASE WHEN f.requester = %(viewer)s THEN f.addressee ELSE f.requester END FROM friendships f
     WHERE f.status = 'accepted' AND %(viewer)s IN (f.requester, f.addressee)"""
 
@@ -877,7 +878,13 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
         member_limits.lock(c, user['id'])
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (user['id'],)).fetchone()
         confirmed(c, user['id'])
-        owner = can_see(c, user['id'], aid)
+        # Reject independently invisible targets first. For an otherwise eligible
+        # new action, reserve before consulting private blocks, then recheck full
+        # access before any write/response. A denied write rolls the reservation back.
+        target = c.execute(f'SELECT a.user_id FROM activities a WHERE a.id=%(aid)s AND {ACTIVITY_AUDIENCE}',
+                           {'aid':aid,'viewer':user['id']}).fetchone()
+        if not target: raise HTTPException(404, 'Not found')
+        owner = target['user_id']
         # The account lock also serializes concurrent retries. Recheck access before replay.
         if body.client_id is not None:
             # No deleted text is retained. Expired receipts are pruned on this owner's next write;
@@ -887,16 +894,19 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
                                 (user['id'],body.client_id)).fetchone()
             text_hash = hashlib.sha256(text.encode('utf-8')).hexdigest()
             if receipt:
+                can_see(c, user['id'], aid)
                 if receipt['activity_id'] != aid or receipt['text_hash'] != text_hash:
                     raise HTTPException(409, 'This retry belongs to a different comment. Reopen Comments and try again.')
                 return _social(c, aid, user['id'], owner)
             previous = c.execute('SELECT activity_id,text FROM comments WHERE user_id=%s AND client_id=%s',
                                  (user['id'],body.client_id)).fetchone()
             if previous:
+                can_see(c, user['id'], aid)
                 if previous['activity_id'] != aid or previous['text'] != text:
                     raise HTTPException(409, 'This retry belongs to a different comment. Reopen Comments and try again.')
                 return _social(c, aid, user['id'], owner)
         counted=member_limits.claim(c,user['id'],'comment',f'activity:{aid}',recipient=owner,payload=text,request_key=body.client_id,quiet=True)
+        owner = can_see(c, user['id'], aid)
         if counted['replayed']: return _social(c,aid,user['id'],owner)
         private = owner == user['id'] and c.execute("SELECT 1 FROM activities WHERE id=%s AND user_id=%s AND visibility='me' FOR SHARE", (aid,user['id'])).fetchone()
         if not private: community_filter.public(c, user['id'], ('comment', text))

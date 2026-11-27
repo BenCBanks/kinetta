@@ -191,7 +191,7 @@ class MemberLimits(unittest.TestCase):
         with db.connect() as c: login = c.execute('SELECT login FROM users WHERE id=%s', (self.oid,)).fetchone()['login']
         self.assertEqual(self.actor.post(f'/api/people/{login}/block', json={}).status_code, 200)
         self.assertEqual(self.comment('Nice fictional run', key).status_code, 404)
-        self.assertEqual(self.comment('New blocked text', uuid.uuid4()).status_code, 404)
+        self.assertEqual(self.comment('New blocked text', uuid.uuid4()).status_code, 429,'new attempts reserve before the block check at full budget')
 
     def test_group_update_admission_is_independent_of_private_block_and_mute(self):
         gid=self.group();path=f'/api/groups/{gid}/updates'
@@ -239,8 +239,8 @@ class MemberLimits(unittest.TestCase):
                 with db.connect() as c:c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
                 if full:self.seed('comment',10,age=120,recipient=self.oid)
                 missing=self.comment('Hidden activity comment',uuid.uuid4())
-                self.assertEqual(missing.status_code,404,'invisible target stays missing before budget admission')
-                self.assertNotIn('Retry-After',missing.headers)
+                self.assertEqual(missing.status_code,429 if full else 404,'block checks follow new-action admission')
+                self.assertEqual('Retry-After' in missing.headers,full)
                 self.assertEqual(len(self.events('comment')),10 if full else 0)
 
     def test_invitation_admission_uses_explicit_target_not_notification_delivery(self):
@@ -271,9 +271,137 @@ class MemberLimits(unittest.TestCase):
                 with db.connect() as c:c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
                 if full:self.seed('invite',3,age=120,recipient=self.tid)
                 missing=self.actor.post(path,json={'username':login})
-                self.assertEqual(missing.status_code,404,'unavailable invitation target stays missing before budget admission')
-                self.assertNotIn('Retry-After',missing.headers)
+                self.assertEqual(missing.status_code,429 if full else 404,'otherwise eligible invitations reserve before checking blocks')
+                self.assertEqual('Retry-After' in missing.headers,full)
                 self.assertEqual(len(self.events('invite')),3 if full else 0)
+
+    def same_refusal(self, response, previous):
+        self.assertEqual(response.status_code, previous.status_code)
+        wait=response.headers.get('Retry-After');prior=previous.headers.get('Retry-After')
+        if wait is None or prior is None:
+            self.assertEqual(wait,prior);self.assertEqual(response.json(),previous.json())
+        else:
+            # The same rolling window can age by a second between HTTP requests.
+            self.assertLessEqual(abs(int(wait)-int(prior)),3)
+            self.assertEqual(response.json()['detail'].replace(wait,'<seconds>'),
+                             previous.json()['detail'].replace(prior,'<seconds>'))
+
+    def block_pair(self, pair):
+        with db.connect() as c:
+            c.execute('DELETE FROM blocks WHERE user_id=ANY(%s)',(self.ids,))
+            if pair:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',pair)
+
+    def test_exhausted_comment_admission_response_does_not_disclose_a_block(self):
+        for budget in ('actor','recipient'):
+            with self.subTest(budget=budget):
+                with db.connect() as c:c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                self.seed('comment',6 if budget=='actor' else 10,age=0 if budget=='actor' else 120,
+                          recipient=None if budget=='actor' else self.oid)
+                previous=None
+                for pair in (None,(self.uid,self.oid),(self.oid,self.uid)):
+                    self.block_pair(pair)
+                    response=self.comment('Fictional admission comparison',uuid.uuid4())
+                    self.assertEqual(response.status_code,429,response.text)
+                    if previous is not None:self.same_refusal(response,previous)
+                    previous=response
+                with db.connect() as c:
+                    self.assertEqual(c.execute('SELECT count(*) AS n FROM comments WHERE user_id=%s',(self.uid,)).fetchone()['n'],0)
+                    self.assertEqual(c.execute('SELECT count(*) AS n FROM member_action_receipts WHERE user_id=%s',(self.uid,)).fetchone()['n'],0)
+
+    def test_comments_independently_invisible_targets_match_with_and_without_blocks(self):
+        for reason in ('missing','private','not_friends','unfinished','unconfirmed','suspended'):
+            for full in (False,True):
+                with self.subTest(reason=reason,full=full):
+                    with db.connect() as c:
+                        c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                        c.execute('UPDATE activities SET visibility=%s,lift_open=%s WHERE id=%s',
+                                  ('me' if reason=='private' else 'friends' if reason=='not_friends' else 'everyone',reason=='unfinished',self.aid))
+                        c.execute('UPDATE users SET needs_email_confirm=%s,suspended_at=CASE WHEN %s THEN now() END WHERE id=%s',
+                                  (reason=='unconfirmed',reason=='suspended',self.oid))
+                    if full:self.seed('comment',6)
+                    previous=None
+                    for pair in (None,(self.uid,self.oid),(self.oid,self.uid)):
+                        self.block_pair(pair)
+                        path=f'/api/activities/{0 if reason=="missing" else self.aid}/comments'
+                        with patch.object(M,'claim',wraps=M.claim) as admission:
+                            response=self.actor.post(path,json={'text':'Fictional independent refusal','client_id':str(uuid.uuid4())})
+                        self.assertEqual(response.status_code,404,response.text)
+                        self.assertFalse(admission.called,'audience refusal is independent of blocks and budgets')
+                        if previous is not None:self.same_refusal(response,previous)
+                        previous=response
+
+    def test_exhausted_invitation_response_does_not_disclose_a_member_block(self):
+        gid=self.group();path=f'/api/groups/{gid}/friend-invites'
+        with db.connect() as c:
+            login=c.execute('SELECT login FROM users WHERE id=%s',(self.tid,)).fetchone()['login']
+            c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(self.uid,self.tid))
+        for budget in ('actor','recipient','legacy_invite_count'):
+            with self.subTest(budget=budget):
+                with db.connect() as c:
+                    c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                    if budget=='legacy_invite_count':
+                        peers=[r['id'] for r in c.execute("""INSERT INTO users(login,name,pw_hash)
+                            SELECT %s||n,'Fictional prior invite',%s FROM generate_series(1,30) n RETURNING id""",
+                            ('zz_test_invite_count_'+uuid.uuid4().hex[:8],self.password)).fetchall()]
+                        self.ids.extend(peers)
+                        c.execute("""INSERT INTO group_friend_invites(group_id,inviter_id,invitee_id,expires_at)
+                            SELECT %s,%s,id,now()+interval '1 day' FROM unnest(%s::bigint[]) id""",(gid,self.uid,peers))
+                if budget!='legacy_invite_count':self.seed('invite',30 if budget=='actor' else 3,age=120,recipient=None if budget=='actor' else self.tid)
+                previous=None
+                for pair in (None,(self.uid,self.tid),(self.tid,self.uid),(self.oid,self.tid),(self.tid,self.oid)):
+                    self.block_pair(pair)
+                    response=self.actor.post(path,json={'username':login})
+                    self.assertEqual(response.status_code,429,response.text)
+                    if previous is not None:self.same_refusal(response,previous)
+                    previous=response
+                with db.connect() as c:
+                    self.assertIsNone(c.execute('SELECT 1 FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s',(gid,self.tid)).fetchone())
+
+    def test_invite_independent_eligibility_refusals_match_with_and_without_blocks(self):
+        gid=self.group();path=f'/api/groups/{gid}/friend-invites'
+        with db.connect() as c:login=c.execute('SELECT login FROM users WHERE id=%s',(self.tid,)).fetchone()['login']
+        for reason in ('not_friends','active','removed','unconfirmed','suspended','closed'):
+            for full in (False,True):
+                with self.subTest(reason=reason,full=full):
+                    with db.connect() as c:
+                        c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                        c.execute('DELETE FROM friendships WHERE requester=%s AND addressee=%s',(self.uid,self.tid))
+                        if reason!='not_friends':c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(self.uid,self.tid))
+                        c.execute('DELETE FROM group_members WHERE group_id=%s AND user_id=%s',(gid,self.tid))
+                        if reason in ('active','removed'):c.execute('INSERT INTO group_members(group_id,user_id,status,removed_invite_generation) VALUES(%s,%s,%s,%s)',(gid,self.tid,reason,1 if reason=='removed' else None))
+                        c.execute('UPDATE users SET needs_email_confirm=%s,suspended_at=CASE WHEN %s THEN now() END WHERE id=%s',
+                                  (reason=='unconfirmed',reason=='suspended',self.tid))
+                        c.execute('UPDATE event_groups SET joining_closed=%s WHERE id=%s',(reason=='closed',gid))
+                    if full:self.seed('invite',30,age=120)
+                    previous=None
+                    for pair in (None,(self.uid,self.tid),(self.tid,self.uid),(self.oid,self.tid),(self.tid,self.oid)):
+                        self.block_pair(pair)
+                        with patch.object(M,'claim',wraps=M.claim) as admission:
+                            response=self.actor.post(path,json={'username':login})
+                        self.assertEqual(response.status_code,409 if reason=='closed' else 404,response.text)
+                        self.assertFalse(admission.called,'independent eligibility refusal precedes new-action admission')
+                        if previous is not None:self.same_refusal(response,previous)
+                        previous=response
+
+    def test_blocked_new_writes_roll_back_admission_and_retry_metadata(self):
+        key=uuid.uuid4();self.block_pair((self.oid,self.uid))
+        denied=self.comment('Fictional blocked write',key)
+        self.assertEqual(denied.status_code,404,denied.text)
+        with db.connect() as c:
+            self.assertIsNone(c.execute('SELECT 1 FROM member_action_receipts WHERE user_id=%s AND client_id=%s',(self.uid,key)).fetchone())
+            self.assertIsNone(c.execute('SELECT 1 FROM comment_receipts WHERE user_id=%s AND client_id=%s',(self.uid,key)).fetchone())
+            self.assertIsNone(c.execute('SELECT 1 FROM comments WHERE user_id=%s',(self.uid,)).fetchone())
+        self.assertEqual(self.events('comment'),[])
+        gid=self.group();self.block_pair((self.oid,self.tid))
+        with db.connect() as c:
+            login=c.execute('SELECT login FROM users WHERE id=%s',(self.tid,)).fetchone()['login']
+            c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(self.uid,self.tid))
+        denied=self.actor.post(f'/api/groups/{gid}/friend-invites',json={'username':login})
+        self.assertEqual(denied.status_code,404,denied.text)
+        self.assertEqual(self.events('invite'),[])
+        with db.connect() as c:
+            self.assertIsNone(c.execute('SELECT 1 FROM group_friend_invites WHERE group_id=%s',(gid,)).fetchone())
+            self.assertIsNone(c.execute('SELECT 1 FROM notifications WHERE actor_id=%s',(self.uid,)).fetchone())
 
     def test_pair_comment_cap_crosses_targets_and_group_updates(self):
         self.seed('comment', 9, age=120, recipient=self.oid)

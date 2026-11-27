@@ -1,5 +1,7 @@
-"""Durable member budgets. Call inside the action transaction, after access checks.
+"""Durable member budgets inside the action transaction.
 
+Reject independent access failures first; otherwise admit new comments/invites
+before block-sensitive checks, and require full access before data or writes.
 Acquire lock() before any existing account/group locks. Never used by blocking.
 Receipts keep hashes and result IDs, not posted text or search terms.
 """
