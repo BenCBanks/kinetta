@@ -126,9 +126,10 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const retrySave=p.locator('[data-card-save]');
    await p.locator('[data-featured-toggle="climbing"]').click();assert.equal(await retrySave.isDisabled(),false);
    failFeatureSave=true;response=waitSave();await retrySave.click();assert.equal((await response).status(),503);
-   await p.waitForFunction(()=>document.querySelector('[data-card-status]')?.textContent==='Kinetta is having trouble right now. Please try again.');
-   assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run','climbing'],'a failed Save keeps the pending selection for retry');
-   assert.equal(await retrySave.isDisabled(),false,'a failed Save leaves the retry enabled');
+   await p.locator('[data-sharing-state=confirmed]').filter({hasText:'Saved setting shown.'}).waitFor();
+   assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run'],'failed Save rereads the stored pins rather than presenting draft hiding as saved');
+   assert.equal(await retrySave.isDisabled(),true,'confirmed saved choices do not repeat an uncertain write');
+   await p.locator('[data-featured-toggle="climbing"]').click(); // An explicit new edit can still be discarded.
    await p.locator('[data-card-cancel]').click();await p.locator('[data-confirm-ok]').click();await p.locator('[data-card-edit]').click();await p.locator('[data-featured-list][aria-busy="false"]').waitFor();
    assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run'],'Cancel discards the failed pending selection');await p.locator('[data-card-cancel]').click();
   };
@@ -142,6 +143,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    if(out){fs.mkdirSync(out,{recursive:true});await p.locator('.me-featured-achievements').screenshot({path:`${out}/me-featured-heading-${size.width}-${theme}.png`,animations:'disabled'});}
    assert.deepEqual(errors,[]);await c.close();continue;
   }
+  if(process.env.KINETTA_ME_FEATURED_EDITOR_ONLY==='1'){await featuredEditor();await c.close();continue;}
   if(process.env.KINETTA_ME_FEATURED_CHECKPOINT==='1'){await featuredEditor({checkpoint:true});await c.close();continue;}
   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');
