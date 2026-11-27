@@ -113,9 +113,17 @@ final class OversizedControl: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        let headers = Self.declared ? ["Content-Length":String(64*1024)] : [:]
-        client?.urlProtocol(self,didReceive:HTTPURLResponse(url:request.url!,statusCode:200,httpVersion:"HTTP/1.1",headerFields:headers)!,cacheStoragePolicy:.notAllowed)
-        if !Self.declared {
+        var headers = ["Content-Type":"application/json"]
+        if Self.declared { headers["Content-Length"] = String(64*1024) }
+        let response = HTTPURLResponse(url:request.url!,statusCode:200,httpVersion:"HTTP/1.1",headerFields:headers)!
+        print("Control fixture expected=\(response.expectedContentLength), declared=\(response.value(forHTTPHeaderField:"Content-Length") ?? "unknown")")
+        client?.urlProtocol(self,didReceive:response,cacheStoragePolicy:.notAllowed)
+        if Self.declared {
+            // Darwin may defer a header-only custom protocol response until its
+            // first body byte. One byte cannot hit the streamed-body cap: only
+            // the declared length can reject this deliberately unfinished read.
+            client?.urlProtocol(self,didLoad:Data([32]))
+        } else {
             for _ in 0..<4 { client?.urlProtocol(self,didLoad:Data(repeating:32,count:16*1024)) }
         }
         Self.entered.signal()
