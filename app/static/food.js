@@ -858,7 +858,16 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
     $('#tm-no-match',body).hidden=!q||count>0;
     $('#tm-describe',body).hidden=count===0;
   };
-  $$('[data-library-tab]',body).forEach(button=>button.onclick=()=>{activeTab=button.dataset.libraryTab;$$('[data-library-tab]',body).forEach(tab=>{const selected=tab===button;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});applyLibraryFilter();});
+  const libraryTabs=$$('[data-library-tab]',body);
+  libraryTabs.forEach((button,index)=>{
+    button.onclick=()=>{activeTab=button.dataset.libraryTab;libraryTabs.forEach(tab=>{const selected=tab===button;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});applyLibraryFilter();};
+    button.onkeydown=event=>{
+      if(event.altKey||event.ctrlKey||event.metaKey)return;
+      const next=event.key==='ArrowRight'?(index+1)%libraryTabs.length:event.key==='ArrowLeft'?(index+libraryTabs.length-1)%libraryTabs.length:event.key==='Home'?0:event.key==='End'?libraryTabs.length-1:null;
+      if(next===null)return;
+      event.preventDefault();libraryTabs[next].click();libraryTabs[next].focus();
+    };
+  });
   const search=$('#tm-filter',body);search.oninput=applyLibraryFilter;
   applyLibraryFilter();
 }

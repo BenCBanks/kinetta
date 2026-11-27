@@ -10,7 +10,7 @@ async function assertImportFits(p,label){assert.equal(await p.evaluate(()=>docum
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'recipes_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1)),browser=await chromium.launch(),contexts=[];
  async function open(state,theme,size,native=false,sourceKey='saved'){
-  const recipe=['saved','draft','weight','recipes'].includes(state),c=await browser.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
+  const recipe=['saved','draft','weight','recipes'].includes(state),c=await browser.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:size.width<768,hasTouch:size.width<768,timezoneId:'UTC'});contexts.push(c);
   const signed=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_recipes_ui_'+(recipe?'recipe':state),password:pw,app:native}});assert.equal(signed.status(),200);const token=(await signed.json()).token;
   const dishId=ids.recipe[state==='draft'?'draft':sourceKey];
   if(recipe&&state!=='draft')assert.equal((await c.request.patch(base+'/api/dishes/'+dishId,{headers:{Origin:base,...(native?{Authorization:'Bearer '+token}:{})},data:{serving:state==='weight'?'portion':'one'}})).status(),200);
@@ -34,6 +34,23 @@ async function assertImportFits(p,label){assert.equal(await p.evaluate(()=>docum
   await active.locator('.sheet header [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'sheet closed');
  }
  try{
+  if(runCase('library-keyboard'))for(const theme of ['light','dark']){
+   const {c,p,errors}=await open('typical',theme,{width:1280,height:900,root:16});
+   const tabs=p.locator('[data-library-tab]');await tabs.first().focus();
+   const select=async(key,index)=>{
+    await p.keyboard.press(key);
+    assert.equal(await tabs.nth(index).evaluate(n=>n===document.activeElement),true,`${key} focuses the destination tab`);
+    assert.equal(await tabs.nth(index).getAttribute('aria-selected'),'true');
+    assert.deepEqual(await tabs.evaluateAll(ns=>ns.map(n=>n.tabIndex)),[0,1,2,3].map(i=>i===index?0:-1),'only selected tab is a Tab stop');
+    assert(await p.locator(`[data-library-panel="${await tabs.nth(index).getAttribute('data-library-tab')}"]`).isVisible(),'keyboard selection shows its panel');
+   };
+   await select('ArrowRight',1);await select('ArrowRight',2);await select('ArrowRight',3);
+   await capture(p,`library-keyboard-1280-${theme}`);
+   await select('ArrowRight',0);await select('ArrowLeft',3);await select('Home',0);await select('End',3);
+   await p.keyboard.press('Tab');assert.equal(await tabs.evaluateAll(ns=>ns.includes(document.activeElement)),false,'Tab leaves the tablist');
+   await tabs.nth(1).click();assert.equal(await tabs.nth(1).getAttribute('aria-selected'),'true','mouse selection still works');
+   assert.deepEqual(errors,[]);await c.close();console.log('PASS library keyboard '+theme);
+  }
   for(const state of ['empty','typical','heavy','saved','draft','weight'])for(const size of [{width:390,height:844,root:16},...(['empty','typical','heavy','saved'].includes(state)?[{width:330,height:667,root:16}]:[])])for(const theme of ['light','dark']){
    const name=`${state}-${size.width}-${theme}`;if(!runCase(name))continue;
    const {c,p,errors,writes}=await open(state,theme,size);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
