@@ -1277,7 +1277,7 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
   try { who = await apiRequest(statePath,{cache:'no-store'});if(!live())return;if(who.member===true){store.del('kinetta.friendLink');go(profileHref(who),{replace:true});return;} }
   catch (x) {
     if ([403,404].includes(x.status)) {
-      el.innerHTML = `<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen friend-invite-unavailable"><span class="friend-invite-symbol" aria-hidden="true">${GROUP_INVITE_GLYPH}</span><p class="friend-invite-caption">This invite isn’t available</p><a class="friend-invite-home" href="/activity">Go home</a></section>`;
+      el.innerHTML = `<div class="top">${backBtn('Home')}</div><section class="friend-invite-screen friend-invite-unavailable"><span class="friend-invite-symbol" aria-hidden="true">${svg('me')}</span><p class="friend-invite-caption">This invite isn’t available</p><a class="friend-invite-home" href="/activity">Go home</a></section>`;
       wireBack(el, '/activity'); return;
     }
     showError(el,x); return;
