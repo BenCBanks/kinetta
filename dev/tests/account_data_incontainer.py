@@ -1,5 +1,7 @@
 """Fresh-schema export/deletion inventory and fictional regressions; no outbound calls."""
 import json
+import datetime as dt
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import re
@@ -376,14 +378,37 @@ class AccountData(unittest.TestCase):
                         peer=ids[(i+1)%3];record=dict(group_id=groups[uid],status='pending',created_at=f'2026-11-{10+i:02d}T10:00:00+00:00',expires_at=f'2026-12-{10+i:02d}T10:00:00+00:00',responded_at=None)
                         add(uid,'group_friend_invites','group_friend_invites',record,{'inviter_id':uid,'invitee_id':peer})
                         expected[peer]['group_friend_invites'].append(record.copy())
-                for uid in ids:
-                    archive=Path(temp)/f'{uid}.zip';E._write_export(uid,archive)
-                    with zipfile.ZipFile(archive) as z:
-                        for name,records in expected[uid].items():
-                            with self.subTest(user=uid,artifact=name):
-                                self.assertTrue(records,'No empty fixture may masquerade as isolation proof')
-                                actual=[json.loads(line) for line in z.read('data/'+name+'.jsonl').splitlines()]
-                                self.assertCountEqual(actual,records)
+                # PostgreSQL JSON timestamps follow the connection timezone.
+                # Compare instants, never discard rows/fields to tolerate other
+                # suites' data: an extra account record must still fail exactly.
+                timestamp_fields=set('created expires ai_note_at updated cooked expires_at updated_at joined_at closed_at created_at responded_at read_at attempted_at reminder_due reminder_attempted scanned decided'.split())
+                def instants(records):
+                    result=[]
+                    for record in records:
+                        row=record.copy()
+                        for key in timestamp_fields & row.keys():
+                            if row[key] is not None:
+                                value=dt.datetime.fromisoformat(row[key])
+                                self.assertIsNotNone(value.tzinfo,'Export timestamps must include their offset')
+                                row[key]=value.astimezone(dt.timezone.utc)
+                        result.append(row)
+                    return result
+                connect=db.connect
+                for timezone in ('UTC','America/New_York'):
+                    @contextmanager
+                    def export_connection():
+                        with connect() as c:
+                            c.execute("SELECT set_config('TimeZone',%s,true)",(timezone,))
+                            yield c
+                    for uid in ids:
+                        archive=Path(temp)/f'{uid}.zip'
+                        with patch.object(E.db,'connect',export_connection):E._write_export(uid,archive)
+                        with zipfile.ZipFile(archive) as z:
+                            for name,records in expected[uid].items():
+                                with self.subTest(timezone=timezone,user=uid,artifact=name):
+                                    self.assertTrue(records,'No empty fixture may masquerade as isolation proof')
+                                    actual=[json.loads(line) for line in z.read('data/'+name+'.jsonl').splitlines()]
+                                    self.assertCountEqual(instants(actual),instants(records))
             finally:
                 with db.connect() as c:
                     # Reverse FK insertion order, and remove retained nullable-owner
