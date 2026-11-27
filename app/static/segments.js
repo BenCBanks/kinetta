@@ -331,7 +331,7 @@ const Segments = (() => {
     },after:data=>activityCard(box,aid,data)});
     $('#sa-declare',box).onsubmit=async(e)=>{
       e.preventDefault();if(!live())return;const f=e.currentTarget,button=$('button',f),status=$('#sa-status',f);
-      button.disabled=true;status.textContent='Saving declaration…';
+      status.textContent='Saving declaration…'; // confirmSetting locks without dropping focused-button focus.
       await saved.save(`/api/activities/${aid}/segment-assistance`,json('PUT',{assistance:f.elements.assistance.value||null,revision:r.assistance_revision,confirmed:f.elements.confirmed.checked}));
     };
     $('#sa-ex',box).onchange=e=>{if(live())saved.save(`/api/activities/${aid}/leaderboards`,json('PUT',{excluded:e.target.checked}));};

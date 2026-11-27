@@ -864,7 +864,7 @@ const ProfileLayout=(()=>{
       sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
         const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
         const recovery=document.createElement('p');recovery.className='setting-recovery small';recovery.setAttribute('role','status');
-        const saved=SocialData.confirmSetting(body,{path:'/api/achievements/showcase',uncertain:()=>{
+        const saved=SocialData.confirmSetting(body,{path:'/api/achievements/showcase',matches:(data,attempt)=>Array.isArray(data.pinned)?data.pinned.includes(code)===JSON.parse(attempt.options.body).pinned:null,uncertain:()=>{
           invalidate('/api/achievements/showcase');invalidate('/api/people/');MeCard.clearPreviewCache?.();
           recovery.innerHTML='Not confirmed. <button type="button" class="linkbtn">Retry</button>';if(!body.isConnected)box.before(recovery);$('button',recovery).onclick=()=>render();
         },mask:()=>[...body.children,box],cache:result=>{
@@ -877,7 +877,7 @@ const ProfileLayout=(()=>{
             });
             onInteraction();box.hidden=false;recovery.remove();onInteraction('save-end');
         },paint:()=>{button.disabled=false;
-        },after:()=>close()});
+        },after:(_,{failure})=>{if(!failure)close();}});
         button.onclick=async()=>{
           onInteraction('save-start');
           await saved.save('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
@@ -1418,9 +1418,9 @@ const MeCard=(()=>{
       },cache:({me,showcase})=>{if(!me.profile_layout||!Array.isArray(showcase?.pinned))throw Error();refreshMe(me);},mask:()=>[...form.children].filter(node=>node!==$('.me-editor-head',form)),uncertain:()=>{
         App.me.profile_layout=null;keep('/api/me',App.me);invalidate('/api/me');invalidate('/api/people/');invalidate('/api/achievements/showcase');clearPreviewCache();data=null;
 
-      },paint:({me,showcase})=>{
+      },paint:({me,showcase},{failure})=>{
         start.name=me.name;start.bio=me.bio||'';start.layout=ProfileLayout.singlePeriod(me.profile_layout);start.featuredPins=[...showcase.pinned];
-        Object.assign(value,structuredClone(start.layout));name.value=start.name;bio.value=start.bio;
+        Object.assign(value,structuredClone(start.layout));if(!failure){name.value=start.name;bio.value=start.bio;}
         featuredPins=[...start.featuredPins];chosenPeriod=value.sections.includes('recent')?'recent':'totals';
         order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))].filter(k=>k!=='recent'&&k!=='totals'||k===chosenPeriod);
         busy=false;featuredBusy=false;cancel.disabled=false;save.textContent='Save';rows();periodChoices();renderFeatured();

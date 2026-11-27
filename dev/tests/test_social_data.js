@@ -185,8 +185,8 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  ctx.api=async()=>{};ctx.apiRequest=async()=>{if(!readableAgain)throw Error('offline');return {enabled:true};};
  const redraw=data.confirmSetting(redrawRoot,{path:'/saved',paint:()=>{},after:()=>{redrawRoot.children.forEach(n=>n.parentElement=null);redrawRoot.children=[];redrawRoot.append(new Node());}});
  await redraw.read();readableAgain=false;await redraw.save('/save',{method:'PUT'});
- assert.equal(redrawRoot.children[0].dataset.sharingState,'unknown','redraw does not lose the retry status');
- readableAgain=true;now+=25001;await redrawRoot.children[0].children[1].onclick();assert(redraw.known,'redrawn roots recover through GET only');
+ const redrawNote=redrawRoot.children.find(n=>n.dataset.sharingState);assert.equal(redrawNote.dataset.sharingState,'unknown','redraw does not lose the retry status');
+ readableAgain=true;now+=25001;await redrawNote.children[1].onclick();assert(redraw.known,'redrawn roots recover through GET only');
  const invalidRoot=new Node(),invalidField=new Node();invalidRoot.append(invalidField);ctx.api=async()=>{};ctx.apiRequest=async()=>({});
  const invalid=data.confirmSetting(invalidRoot,{path:'/saved',paint:fresh=>{if(typeof fresh.enabled!=='boolean')throw Error('invalid');}});await invalid.save('/save',{method:'PUT'});assert(!invalid.known&&invalidField.getAttribute('aria-disabled')==='true','successful transport with invalid readback never paints a private default');
  now+=25001;

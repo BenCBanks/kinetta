@@ -69,9 +69,12 @@ module.exports=async(browser,base,out='')=>{
    {const note=p.locator('[data-sharing-state=unknown]').last();await note.waitFor();assert.match(await note.innerText(),/Not confirmed.[\s\S]*Retry/);assert(await note.evaluate(note=>[...note.parentElement.querySelectorAll('input,select,textarea,button:not(.back):not([data-close]):not(.sharing-nav),[role=radio],[role=switch]')].filter(n=>!note.contains(n)).every(n=>n.getAttribute('aria-disabled')==='true'&&n.classList.contains('setting-locked'))),spec.name+' visibly locks sibling save controls');assert(await note.evaluate(note=>[...note.parentElement.querySelectorAll('input[type=checkbox]')].every(n=>{const checked=n.checked;n.click();return n.checked===checked;})),spec.name+' cannot toggle unsaved sibling values');assert(await p.locator(spec.target).isVisible(),spec.name+' keeps affected rows visible');const next=await p.locator(spec.target).boundingBox();assert.equal(next.height,geometry.height,spec.name+' keeps the row height');assert(await p.locator(spec.target).evaluate(node=>node.matches('[aria-disabled=true]')||!!node.querySelector('[aria-disabled=true]')),spec.name+' prevents uncertain edits');
     if(out&&mode==='web')await p.screenshot({path:path.join(out,`${spec.name}-${theme}-unknown.png`)});
     unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await note.getByRole('button',{name:'Retry',exact:true}).click();await wait(250);assert.equal(writes,1,'Retry never repeats the write');}
+   if(!fault.startsWith('lost')){
+    const status=p.locator('[data-sharing-state=confirmed]').last();await status.waitFor({state:'visible'});assert.match(await status.innerText(),/Not saved/,'rejected '+spec.name+' retains failure through Retry and repaint');
+   }
    await spec.check(p,state);if(await p.locator(spec.target).count())await p.waitForFunction(selector=>{const node=document.querySelector(selector);if(!node)return true;for(let parent=node.parentElement;parent;parent=parent.parentElement){const note=parent.querySelector(':scope > [data-sharing-state]');if(note)return note.dataset.sharingState==='confirmed';}return true;},spec.target);
    if(out&&mode==='web'&&fault==='offline')await p.screenshot({path:path.join(out,`${spec.name}-${theme}-confirmed.png`)});
-   console.log('Consent readback',mode,theme,spec.name,fault,'PASS');
+   console.log('Consent readback',mode,theme,spec.name,fault,'PASS');if(spec.name==='pin-menu')await p.goto(base+'/me');
   }}assert.deepEqual(errors,[]);}finally{await c.close();}
  }
 };
