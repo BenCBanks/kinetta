@@ -154,6 +154,23 @@ class Privacy(unittest.TestCase):
                     with self.assertRaises(HTTPException): job.result()
             self.assertTrue(P._decode_slots.acquire(blocking=False)); P._decode_slots.release()
 
+    def test_scaled_jpeg_draft_keeps_orientation_without_private_metadata(self):
+        # Exercise the actual scaled JPEG decoder, rather than only tiny uploads
+        # which never enter draft downsampling. This is a normal generated JPEG,
+        # not a native-memory-corruption exploit fixture.
+        raw = base64.b64decode(jpeg((4096, 2048)).split(',', 1)[-1])
+        encoded = base64.b64decode(P._encode(raw, 4_000_000), validate=True)
+        with Image.open(io.BytesIO(encoded)) as decoded:
+            decoded.load()
+            self.assertEqual(decoded.format, 'JPEG')
+            self.assertEqual(decoded.mode, 'RGB')
+            self.assertLessEqual(max(decoded.size), P.MAX_SIDE)
+            self.assertEqual(decoded.height, decoded.width * 2, 'orientation is applied to downsampled pixels')
+            self.assertFalse(decoded.getexif())
+            self.assertFalse(set(decoded.info) & {'exif', 'icc_profile', 'comment', 'xmp'})
+        self.assertNotIn(SENTINEL, encoded)
+        self.assertTrue(encoded.endswith(b'\xff\xd9'))
+
     def test_resize_and_quality_fit_before_rejecting(self):
         pixels = Image.frombytes('RGB', (2400, 1600), random.Random(7).randbytes(2400 * 1600 * 3))
         raw = io.BytesIO(); pixels.save(raw, 'JPEG', quality=35)

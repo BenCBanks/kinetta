@@ -1,4 +1,5 @@
-fastapi==0.115.*
+fastapi==0.135.4
+starlette==1.0.1
 uvicorn[standard]==0.32.*
 argon2-cffi==23.*
 psycopg[binary,pool]==3.2.*
@@ -8,4 +9,4 @@ fitdecode==0.10.*
 anthropic==1.*
 httpx[http2]==0.28.*
 PyJWT[crypto]==2.10.*
-pillow==11.*
+pillow==13.0.0
