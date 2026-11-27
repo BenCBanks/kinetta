@@ -59,7 +59,7 @@ async function waitForMaps(page, {advanceMapFade = false, requireMap = false} = 
 // Track archive work independently of Playwright's route registry. Removing routes
 // first can dispose route.fetch's request context while an upstream read is pending.
 const relays=new WeakMap();
-async function installArchiveRelay(context,{archiveOrigin,publishedOrigin,browserOrigin,requireRange=true,onError=error=>{throw error;},log=console.log}){
+async function installArchiveRelay(context,{archiveOrigin,publishedOrigin,browserOrigin,requireRange=true,cache=null,onError=error=>{throw error;},log=console.log}){
   const state={pending:new Set(),closing:false};relays.set(context,state);
   await context.route(archiveOrigin+'/**',route=>{
     const request=route.request();
@@ -67,6 +67,11 @@ async function installArchiveRelay(context,{archiveOrigin,publishedOrigin,browse
     const work=(async()=>{
       const method=request.method(),range=request.headers().range;
       if(!['GET','HEAD'].includes(method)||requireRange&&method==='GET'&&!range)return route.abort();
+      const cached=method==='GET'&&cache?.get(request.url(),range);
+      if(cached){
+        if(request.headers()['if-match']&&request.headers()['if-match']!==cached.headers.etag)throw Error('Capture request archive validator mismatch');
+        await route.fulfill({...cached,headers:{...cached.headers,'access-control-allow-origin':browserOrigin,'access-control-expose-headers':'content-range,content-length,etag'}});return;
+      }
       for(let attempt=0;;attempt++){
         const began=Date.now();
         try{

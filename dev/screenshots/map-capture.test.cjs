@@ -3,8 +3,10 @@ const assert=require('node:assert/strict');
 const http=require('node:http');
 const fs=require('node:fs');
 const path=require('node:path');
+const os=require('node:os');
 const {chromium}=require('playwright');
 const {waitForMaps,installArchiveRelay,closeCaptureContext}=require('./map-capture.cjs');
+const {prepareArchive,openArchiveCache}=require('./archive-cache.cjs');
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 (async()=>{
   const browser=await chromium.launch();
@@ -70,11 +72,28 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
     assert.deepEqual(order,['unroute','closed']);assert.deepEqual(errors,[]);
     assert.equal(logs[0].status,206);assert.equal(logs[0].contentRange,'bytes 0-126/1000');assert.equal(logs[0].mapRange,'bytes=0-126');assert(Number.isFinite(logs[0].elapsedMs));
     assert.equal(logs[0].attempt,1);
+    const cacheRoot=fs.mkdtempSync(path.join(os.tmpdir(),'kinetta-capture-relay-'));
+    try{
+      const cacheURL='https://archive.example.test/fixture.pmtiles',cacheDir=path.join(cacheRoot,'ranges');
+      await prepareArchive(cacheDir,{approvedURL:cacheURL,plan:{url:cacheURL,ranges:['bytes=0-3']},log:()=>{},
+        fetcher:async()=>new Response(Buffer.from([1,2,3,4]),{status:206,headers:{etag:'"fixture"','content-range':'bytes 0-3/100','content-type':'application/octet-stream'}})});
+      const cachedContext=await browser.newContext(),cachedErrors=[],cacheLogs=[];
+      await installArchiveRelay(cachedContext,{archiveOrigin:new URL(cacheURL).origin,publishedOrigin:'https://login.example.test',browserOrigin:'http://capture.example.test',
+        cache:openArchiveCache(cacheDir,cacheURL,line=>cacheLogs.push(JSON.parse(line))),onError:error=>cachedErrors.push(error)});
+      const cachedPage=await cachedContext.newPage();
+      await cachedPage.route('http://capture.example.test/**',route=>route.fulfill({body:'<!doctype html><p>Fictional cached capture</p>',contentType:'text/html'}));
+      await cachedPage.goto('http://capture.example.test/');
+      const result=await cachedPage.evaluate(async url=>{const r=await fetch(url,{headers:{Range:'bytes=0-3'}});return {status:r.status,range:r.headers.get('content-range'),etag:r.headers.get('etag'),bytes:[...new Uint8Array(await r.arrayBuffer())]};},cacheURL);
+      assert.deepEqual(result,{status:206,range:'bytes 0-3/100',etag:'"fixture"',bytes:[1,2,3,4]});
+      assert.deepEqual(cachedErrors,[]);assert.equal(cacheLogs.filter(row=>row.mapCache==='hit').length,1);
+      await closeCaptureContext(cachedContext);
+    }finally{fs.rmSync(cacheRoot,{recursive:true,force:true});}
     const workflow=fs.readFileSync('.github/workflows/screenshots.yml','utf8');
     assert.equal(workflow.split("contains(github.event.pull_request.labels.*.name, 'homepage-capture')").length-1,2);
     assert.equal(workflow.split('github.event.pull_request.head.repo.full_name == github.repository').length-1,2);
     assert(workflow.includes("if: github.event_name != 'pull_request'\n        env:\n          PUBLISH_BRANCH:"),'PR capture never commits generated assets');
-    console.log('Map capture: delayed real Leaflet fades, unavailable/required assertions, held Range drain, status/timing logs and same-repo Draft opt-in PASS');
+    assert(workflow.includes('node dev/screenshots/archive-cache.cjs "$RUNNER_TEMP/homepage-map-ranges"'));
+    console.log('Map capture: delayed real Leaflet fades, unavailable/required assertions, held Range drain, validated cached bytes/CORS, status/timing logs and same-repo Draft opt-in PASS');
   }finally{
     await browser.close();
     if(server)await new Promise(resolve=>server.close(resolve));

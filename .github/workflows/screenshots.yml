@@ -127,12 +127,19 @@ jobs:
           npm ci --prefix dev/tests/browser
           dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Check delayed map capture synchronization
-        run: NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node dev/screenshots/map-capture.test.cjs
+        run: |
+          node dev/screenshots/archive-cache.test.cjs
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node dev/screenshots/map-capture.test.cjs
       - name: Check app boot
         env:
           KINETTA_PROJECT: shots
         run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/boot_ui.cjs"
+      - name: Prepare bounded approved archive ranges for capture
+        run: |
+          # Fresh job-local real bytes only; cold timings remain in this step's log.
+          node dev/screenshots/archive-cache.cjs "$RUNNER_TEMP/homepage-map-ranges"
+          echo "KINETTA_CAPTURE_ARCHIVE_CACHE=$RUNNER_TEMP/homepage-map-ranges" >> "$GITHUB_ENV"
       - name: Capture website screenshots
         env:
           KINETTA_PROJECT: shots
@@ -247,4 +254,13 @@ jobs:
         run: gh workflow run pages.yml --ref main
       - name: Stop it
         if: always()
-        run: docker compose -p shots down -v
+        run: |
+          docker compose -p shots down -v
+          python3 - <<'PY'
+          import os, shutil
+          from pathlib import Path
+          cache = Path(os.environ['RUNNER_TEMP']) / 'homepage-map-ranges'
+          if cache.exists():
+              assert not cache.is_symlink()
+              shutil.rmtree(cache)
+          PY

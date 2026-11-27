@@ -1,0 +1,15 @@
+{
+  "description": "Exact ranges observed for the fictional website map scenes; refresh this plan if the approved archive or fixture geography changes.",
+  "url": "https://maps.kinetta.app/basemap-20261030.pmtiles",
+  "ranges": [
+    "bytes=0-16383",
+    "bytes=101857-111077",
+    "bytes=1055121-1063562",
+    "bytes=600428405-600514882",
+    "bytes=600554887-600634853",
+    "bytes=601186973-601272471",
+    "bytes=601369216-601465511",
+    "bytes=2882569022-2882626115",
+    "bytes=2888822042-2888915730"
+  ]
+}

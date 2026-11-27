@@ -17,6 +17,7 @@ const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const MAP_SHOTS = new Set(['home-feed','activity-detail','feed','activity','activity-splits','route']);
 const NEEDS_MAP = !ONLY || ONLY.some(name => MAP_SHOTS.has(name));
 const {waitForMaps, installArchiveRelay, closeCaptureContext} = require('./map-capture.cjs');
+const {openArchiveCache} = require('./archive-cache.cjs');
 const W = Number(process.env.SCREENSHOT_WIDTH || 393);
 const H = Number(process.env.SCREENSHOT_HEIGHT || 852);
 const SCALE = Number(process.env.SCREENSHOT_SCALE || 2);
@@ -239,7 +240,9 @@ async function say(page, text) {
       // the range bytes and map renderer stay unchanged, and no production setting is edited.
       const archiveOrigin = new URL(basemap.url).origin;
       const publishedOrigin = process.env.KINETTA_SCREENSHOT_MAP_ORIGIN || 'https://login.kinetta.app';
+      const cache=basemap.kind==='pmtiles'&&process.env.KINETTA_CAPTURE_ARCHIVE_CACHE?openArchiveCache(process.env.KINETTA_CAPTURE_ARCHIVE_CACHE,basemap.url):null;
       await installArchiveRelay(ctx, {archiveOrigin, publishedOrigin, browserOrigin:new URL(B).origin,requireRange:basemap.kind==='pmtiles',
+        cache,
         onError:error=>errors.push('Map relay: '+error.message)});
     }
     const page = await ctx.newPage();
