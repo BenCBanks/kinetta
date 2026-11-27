@@ -1,0 +1,41 @@
+name: Strava native foundation
+on:
+  pull_request:
+    paths: ["mobile/ios/App/App/*Strava*.swift", "mobile/ios/App/App/StravaImport*.swift", "mobile/tests/strava/**", "mobile/tests/strava-store/**", ".github/workflows/strava-native.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: strava-native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unsigned:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-26-intel
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Check native adapter and registration
+        run: |
+          node dev/tests/test_native_strava.js
+          python3 dev/tests/test_native_strava.py
+      - name: Test account-bound import state
+        working-directory: mobile
+        run: |
+          swiftc ios/App/App/StravaImportState.swift tests/strava/main.swift -o "$RUNNER_TEMP/strava-state-tests"
+          "$RUNNER_TEMP/strava-state-tests"
+          swiftc ios/App/App/StravaImportState.swift ios/App/App/StravaImportStore.swift tests/strava-store/main.swift -o "$RUNNER_TEMP/strava-store-tests"
+          "$RUNNER_TEMP/strava-store-tests"
+      - name: Build unsigned native foundation
+        working-directory: mobile
+        run: |
+          npm ci
+          npm run sync
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build

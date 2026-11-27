@@ -788,6 +788,7 @@ class KinettaBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(KinettaHealthSyncPlugin())
         bridge?.registerPluginInstance(KinettaHealthFoodPlugin())
         bridge?.registerPluginInstance(KinettaFoodEntryPlugin())
+        bridge?.registerPluginInstance(KinettaStravaImportPlugin())
         bridge?.registerPluginInstance(KinettaPushPlugin())
         bridge?.registerPluginInstance(KinettaTrackPlugin())
         bridge?.registerPluginInstance(KinettaHapticsPlugin())

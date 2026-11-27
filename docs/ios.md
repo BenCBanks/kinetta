@@ -278,3 +278,81 @@ Foundation destination tests run in the unsigned build job. Browser tests exerci
 the real native JavaScript with a bridge stand-in and actual owner/friend APIs;
 these do not establish physical APNs delivery. Activity-photo thumbnails remain a
 separate extension follow-up.
+
+## Native Strava archive foundation (Draft)
+
+This foundation depends on the resumable server API in Draft #1616. It adds no web
+screen or import action to Connections. Older builds still use browser file import.
+The bridge exposes `pick`, `review`, `status`, `resume`, and `stop` for the guided
+client follow-up. The signed-in session adapter binds only after `/api/me` resolves;
+sign-out and account/server replacement await native cancellation before proceeding.
+
+The ZIP document association allows iOS to offer **Open/Copy to Kinetta** from Files
+or Mail's document-sharing UI. A native ZIP-only document picker is also available.
+This is a document handler, not a dedicated Share extension. A signed-out handoff is
+refused: sign in and choose the original document again. Cold and warm URL deliveries
+are handled in SceneDelegate without forwarding file paths into the WebView.
+
+A coordinated security-scoped copy streams through a 1 MiB buffer into the private
+app container. It accepts a regular ZIP file up to the server's 2 GiB limit, checks
+its signature and SHA-256, and retains at least 25% of disk space and 1 GiB headroom.
+The server still validates ZIP structure and content. Original Files/Mail documents
+are preserved. iOS-created copies in this app's Inbox are protected/excluded from
+backup on receipt and removed after handoff/refusal; originals outside Inbox are
+never removed. Archive/journal/piece files use protection until first unlock and are
+excluded from backup. The app-only Keychain credential is device-only, available
+only after first unlock; it is absent from the journal and WebView status response.
+
+Choosing a file stages it locally. A native **Upload Strava archive?** alert names
+the account and server; **Upload** is the only transfer authorization. Cancel removes
+the local stage. Restart never authorizes an unconfirmed archive. Confirmed transfer
+uses file-backed background URLSession tasks, one piece of at most 8 MiB at a time,
+with SHA-256 and `X-Kinetta-Account`. A durable UUID identifies reservation/retries.
+Each continuation queries the server's committed offset before constructing the next
+piece, including after a lost response or process restart. Redirects are refused.
+Finalization requests a preview only: the native engine never calls the server's
+workout-import `/confirm` endpoint. A separate reviewed client action must show the
+current audience and explicitly confirm importing workouts.
+
+Sign-out/account replacement revokes the saved credential, cancels tasks, waits for
+cancellation, then removes the local archive, piece and journal. A cancellation
+failure blocks replacement rather than rebinding old work. Server-side staged bytes
+remain account-scoped and expire under #1616's seven-day policy; local sign-out is
+not a claim of guaranteed remote erasure while offline. Unconfirmed local staging
+also expires after seven days. The bridge reports only fixed progress metadata, never
+an original filename, source URL, archive bytes or credential.
+
+Background transfer is best effort: iOS owns scheduling and may delay cellular work,
+suspend control requests between pieces, or suppress delivery after force-quit. The
+journal permits a safe foreground resume; no continuous-speed guarantee is made.
+The background-session completion handler is retained while control reconciliation
+runs and released after the next file task is scheduled or the attempt pauses.
+
+### Evidence and physical-device acceptance
+
+Foundation-only state tests use fictional identities and prove confirmation gates,
+identity/hash/account/expiry bounds, a killed/reloaded journal and authoritative
+lost-response offsets. Bridge tests prove stale binds cannot open the picker and
+cleanup is awaited. Mac-only temporary-file tests exercise the actual streaming copy,
+hash, journal and piece builder; an unsigned build checks UIKit/Capacitor integration.
+No test sends archive bytes to production or calls an AI provider.
+
+Still required on a physical iPhone, with disposable accounts and a test server:
+
+- Files and Mail: cold/warm Open/Copy to Kinetta, on-device/iCloud provider files,
+  cancellation, signed-out handoff, repeated handoff and a non-ZIP file. Verify
+  UIKit confirmation names the correct account/server and the original remains.
+- Cancel versus Upload: observe zero reservation/piece requests before Upload;
+  verify the confirmation with VoiceOver and large text. Preview never imports.
+- Transfer: a multi-piece archive, cellular/Wi-Fi transitions, a lost response,
+  airplane mode, suspension, lock/unlock, OS termination/relaunch and force-quit.
+  Check final SHA-256 and committed offsets against the disposable API.
+- Sign out or change account/server while copying, hashing, waiting for connectivity
+  or uploading. No old task may advance the replacement account; local files and
+  credential must be absent after completed cleanup. Test expiration and low disk.
+
+No signing settings, provisioning, App Groups, entitlements or TestFlight behavior
+are changed. **Owner questions:** is the standard Open/Copy document handler enough,
+or is a dedicated Share-extension button required later? That extension and any
+new capability/provisioning changes need a separately approved design. Physical
+acceptance needs a later owner-authorized signed build, not this unsigned Draft.

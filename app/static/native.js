@@ -60,6 +60,7 @@ const Native = (() => {
   const signIn = async (server, path, body) => {
     discardRouteReads(true);
     if (typeof Track !== 'undefined' && App.me) await Track.leave();
+    await N.stopStravaImport();
     await N.stopActivityShare();N.clearPictures();
     N.pauseFoodEntry?.();
     await N.disconnectPush();
@@ -105,11 +106,37 @@ const Native = (() => {
   if(on)new MutationObserver(fill).observe(document.documentElement,{childList:true,subtree:true});
   N.forget = async ({deleted=false}={}) => {
     discardRouteReads(true);
+    await N.stopStravaImport();
     N.clearPictures();const tasks=[];N.token=null;
     if(typeof Track!=='undefined'&&App.me)tasks.push(Promise.resolve().then(()=>Track.leave()));
     if(on){tasks.push(N.stopActivityShare());tasks.push(N.stopFoodEntry({clear:true}));tasks.push(Promise.resolve().then(()=>N.disconnectPush({signedOut:true})));tasks.push(N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}));tasks.push(put('token',null));}
     await Promise.allSettled(tasks.map(p=>N.healthCall(p,'Local sign-out cleanup is waiting.',1000)));
   };
+
+  // Session plumbing only: no browser UI, archive bytes or file paths enter JS.
+  const stravaImport=P.KinettaStravaImport;
+  let stravaBinding=null,stravaTask=null,stravaEpoch=0;
+  N.stopStravaImport=async()=>{
+    stravaEpoch++;stravaBinding=null;
+    if(stravaImport)await stravaImport.stop();
+  };
+  N.bindStravaImport=()=>{
+    if(!stravaImport||!App.me||!N.token)return Promise.resolve();
+    const scope=JSON.stringify([N.base,App.me.id,N.token]),epoch=stravaEpoch;
+    if(stravaBinding===scope)return stravaImport.resume();
+    if(stravaTask)return stravaTask;
+    const data={server:N.base,userID:App.me.id,login:App.me.login,token:N.token};
+    return stravaTask=Promise.resolve(stravaImport.bind(data)).then(async()=>{
+      if(epoch!==stravaEpoch||scope!==JSON.stringify([N.base,App.me?.id,N.token])){
+        await stravaImport.stop();throw new Error('The account changed.');
+      }
+      stravaBinding=scope;
+    }).finally(()=>{stravaTask=null;});
+  };
+  N.pickStravaArchive=async()=>{if(!stravaImport)throw new Error('Install the latest Kinetta iPhone app.');await N.bindStravaImport();return stravaImport.pick();};
+  N.reviewStravaArchive=async()=>{await N.bindStravaImport();return stravaImport?.review();};
+  N.stravaImportStatus=async()=>{await N.bindStravaImport();return stravaImport?.status();};
+  if(stravaImport)stravaImport.addListener('sessionNeeded',()=>{stravaBinding=null;N.bindStravaImport().catch(()=>{});});
 
   // ---------- Native iPhone notifications ----------
   const push = P.KinettaPush;
@@ -583,6 +610,7 @@ const Native = (() => {
   if(foodEntry)foodEntry.addListener('foodEntryReady',()=>N.autoFoodEntry());
   // quietly, when the app opens and comes back to the front (at most every 10 minutes)
   N.autoSync = ({foreground=false}={}) => {
+    N.bindStravaImport().catch(()=>{});
     N.flushHealthOff?.().catch(()=>{});
     if(N.healthPaused)return;
     N.autoRestingEnergy();
