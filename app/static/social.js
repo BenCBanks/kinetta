@@ -1705,6 +1705,15 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   if (appFeatureEnabled('progress_segments') && typeof Segments !== 'undefined' && $('#sh-segments', box)) Segments.settingsRow($('#sh-segments', box));
   $('#sh-trim-open',box).onclick=()=>go('/me/sharing/routes');
   const confirmation=SocialData.confirmSetting(box,{
+    unknownText:'Sharing not confirmed.',
+    mask:(path,options)=>{
+      if(!path)return $$('[data-vis],#sh-d input,#sh-achievements,#sh-find,#sh-find-email,#sh-find-phone',box);
+      const fields=Object.keys(JSON.parse(options.body)),nodes=[];
+      if(fields.includes('default'))nodes.push(...$$('[data-vis]',box));
+      if(fields.includes('details'))nodes.push(...$$('#sh-d input',box));
+      for(const [field,id] of [['share_achievements','sh-achievements'],['findable','sh-find'],['find_by_email','sh-find-email'],['find_by_phone','sh-find-phone'],['phone_e164','sh-contact-phone']])if(fields.includes(field))nodes.push($('#'+id,box));
+      return nodes;
+    },
     read:async()=>{const [sharing,contacts]=await Promise.all(['/api/sharing','/api/contacts/settings'].map(path=>apiRequest(path,{cache:'no-store'})));return{sharing,contacts};},
     uncertain:()=>{App.me.share_default=null;App.me.share_achievements=null;keep('/api/me',App.me);invalidate('/api/');MeCard.clearPreviewCache?.();},
     cache:({sharing})=>{if(!Object.hasOwn(VIS,sharing?.default)||typeof sharing.share_achievements!=='boolean')throw Error('Sharing unavailable');App.me.share_default=sharing.default;App.me.share_achievements=sharing.share_achievements;keep('/api/me',App.me);},
@@ -1714,7 +1723,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       $$('[data-vis]',box).forEach(b=>{const selected=b.dataset.vis===s.default;b.setAttribute('aria-checked',String(selected));b.tabIndex=selected?0:-1;b.innerHTML=`<span>${esc(VIS_SHORT[b.dataset.vis])}</span>${check(selected)}`;});
       for(const key of Object.keys(DETAIL_NAMES)){$(`input[name="${key}"]`,box).checked=s.details[key]===true;}
       for(const [id,value] of [['sh-achievements',s.share_achievements],['sh-find',s.findable],['sh-find-email',fresh.find_by_email],['sh-find-phone',fresh.find_by_phone]])$('#'+id,box).checked=value;
-      $('#sh-trim-open small',box).textContent='Start and end · '+trimName(s.trim_m);phoneInput.value=contacts.phone_e164||'';updatePhoneButton();
+      $('#sh-trim-open small',box).textContent='Start and end · '+trimName(s.trim_m);updatePhoneButton();
       App.me.share_default=s.default;App.me.share_achievements=s.share_achievements;keep('/api/me',App.me);
     }
   });
@@ -1732,9 +1741,13 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   phoneInput.oninput=updatePhoneButton;
   phoneForm.onsubmit=async e=>{
     e.preventDefault();if(sharingOwner!==readOwner()||!box.isConnected||phoneSave.disabled)return;
-    phoneSave.disabled=true;phoneStatus.textContent='';
-    const result=await confirmation.save('/api/contacts/settings',json('PUT',{phone_e164:phoneInput.value.trim()||null}));
-    if(result&&sharingOwner===readOwner()&&box.isConnected){phoneStatus.textContent=contacts.phone_e164?'Phone number saved.':'Phone number removed.';updatePhoneButton();}
+    phoneSave.disabled=true;phoneStatus.textContent='';const submitted=phoneInput.value;
+    const result=await confirmation.save('/api/contacts/settings',json('PUT',{phone_e164:submitted.trim()||null}));
+    if(sharingOwner!==readOwner()||!box.isConnected)return;
+    const failure=result?.failure||confirmation.failure;
+    if(failure)phoneStatus.textContent=failure.message;
+    else if(result){if(phoneInput.value===submitted)phoneInput.value=contacts.phone_e164||'';phoneStatus.textContent=contacts.phone_e164?'Phone number saved.':'Phone number removed.';}
+    updatePhoneButton();
   };
 });
 

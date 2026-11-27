@@ -2388,3 +2388,16 @@ body .social-sheet .comment .c-comment-options { margin-left:auto; }
 .kit-chart-line{fill:none;stroke:var(--accent);stroke-width:2}
 .kit-chart-plot text{font-size:13px;fill:var(--tx3)}
 .kit-chart-plot .kit-chart-tick{font-size:12px}
+
+/* Uncertain setting recovery keeps the settings geometry and keyboard focus intact. */
+.setting-recovery { position:fixed;z-index:3100;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 12px);width:fit-content;max-width:calc(100% - 32px);margin:0 auto;padding:0 12px;min-height:44px;display:flex;align-items:center;gap:8px;background:var(--card);color:var(--tx);border-radius:var(--r2);box-shadow:var(--shadow); }
+.setting-recovery[hidden] { display:none; }
+.setting-recovery button { min-height:44px; }
+.setting-unconfirmed { cursor:wait; }
+.setting-unconfirmed[aria-checked=mixed] svg,.setting-unconfirmed[aria-pressed=mixed] svg { visibility:hidden; }
+.setting-unconfirmed[aria-checked=mixed],.setting-unconfirmed[aria-pressed=mixed] { background:transparent!important;box-shadow:none!important; }
+.setting-unconfirmed:is(input[type=checkbox],input[type=radio]) { opacity:.45; }
+.setting-unconfirmed:is(select) { color:transparent; }
+
+.switch-row input.setting-unconfirmed[type=checkbox] { background:var(--card2)!important; }
+.switch-row input.setting-unconfirmed[type=checkbox]::after { transform:translateX(10px)!important; }

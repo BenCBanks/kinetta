@@ -47,28 +47,72 @@ const SocialData=(()=>{
   }
   function setUntil(until,required=false){try{until?localStorage.setItem(storageKey(),String(until)):localStorage.removeItem(storageKey());}catch(error){if(required)throw Error('Saved setting cannot be confirmed on this device.');}}
   // A failed write may already be saved. Only this control delays readback until a possibly outstanding write is bounded.
-  function confirmSetting(root,{path,read:fetchSaved,paint,cache:saveCache=()=>{},mask=()=>[...root.children],uncertain=()=>{},after=()=>{}}){
+  function confirmSetting(root,{path,read:fetchSaved,paint,cache:saveCache=()=>{},mask=()=>[...root.querySelectorAll('input,select,textarea,button:not(.back):not([data-close]),.vis-note,.card-preview,#card-counts')],uncertain=()=>{},after=()=>{},unknownText='Not confirmed.'}){
     const account=readOwner(),key=fenceKey(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
-    note.className='small muted';note.setAttribute('role','status');note.dataset.sharingState='confirmed';note.hidden=true;
+    note.className='setting-recovery small';note.setAttribute('role','status');note.dataset.sharingState='confirmed';note.hidden=true;
     retry.type='button';retry.className='linkbtn';retry.textContent='Retry';retry.hidden=true;
     note.append(text,retry);root.prepend(note);
-    const live=()=>root.isConnected&&account===readOwner();let busy=false,known=true,hidden=new Map();
+    const live=()=>root.isConnected&&account===readOwner();let busy=false,known=true,lastError=null,waiting=null,affected=null;
+    const held=new Map(),controlSelector='button,input,select,textarea,[role="radio"],[role="switch"]';
+    // aria-disabled plus event guards keeps keyboard focus on the original control.
+    // Clear selection indicators, not rows: an uncertain value must not look private/off.
     function conceal(){
       if(note.parentElement!==root)root.prepend(note);
-      for(const node of mask().filter(n=>n&&n!==note)){if(!hidden.has(node))hidden.set(node,node.hidden);node.hidden=true;}
-      uncertain();known=false;note.hidden=false;note.dataset.sharingState='checking';text.textContent='Checking saved setting… ';retry.hidden=true;
+      for(const node of (affected||mask()).filter(n=>n&&n!==note&&!note.contains(n))){
+        const controls=[...(node.matches(controlSelector)?[node]:[]),...node.querySelectorAll(controlSelector)].filter(n=>!note.contains(n));
+        for(const field of controls){
+          if(held.has(field))continue;
+          held.set(field,{aria:field.getAttribute('aria-disabled'),checked:field.getAttribute('aria-checked'),pressed:field.getAttribute('aria-pressed'),indeterminate:field.indeterminate,readOnly:field.readOnly});
+          field.setAttribute('aria-disabled','true');field.classList.add('setting-unconfirmed');
+          if(field.matches('input[type=checkbox],input[type=radio]'))field.indeterminate=true;
+          if(field.hasAttribute('aria-checked'))field.setAttribute('aria-checked','mixed');
+          if(field.hasAttribute('aria-pressed'))field.setAttribute('aria-pressed','mixed');
+          if(field.matches('input:not([type=checkbox]):not([type=radio]),textarea'))field.readOnly=true;
+        }
+        // Non-control saved summaries retain their exact space without making stale claims.
+        if(!controls.length&&!held.has(node)){held.set(node,{visibility:node.style.visibility});node.style.visibility='hidden';}
+      }
+      uncertain();known=false;
     }
+    function restore(){
+      for(const [node,was] of held){
+        if(Object.hasOwn(was,'visibility')){node.style.visibility=was.visibility;continue;}
+        for(const [name,value] of [['aria-disabled',was.aria],['aria-checked',was.checked],['aria-pressed',was.pressed]])value===null?node.removeAttribute(name):node.setAttribute(name,value);
+        if(was.indeterminate!==undefined)node.indeterminate=was.indeterminate;
+        if(was.readOnly!==undefined)node.readOnly=was.readOnly;
+        node.classList.remove('setting-unconfirmed');
+      }
+      held.clear();
+    }
+    const block=event=>{if([...held.keys()].some(node=>node===event.target||node.contains(event.target))){event.preventDefault();event.stopImmediatePropagation();}};
+    for(const type of ['click','pointerdown','change','submit'])root.addEventListener(type,block,true);
+    root.addEventListener('keydown',event=>{if([' ','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(event.key))block(event);},true);
+    function state(checking){note.hidden=false;note.dataset.sharingState=checking?'checking':'unknown';text.textContent=checking?'Checking… ':unknownText+' ';retry.hidden=checking;}
     const views=viewsByOwner.get(key)||new Set();viewsByOwner.set(key,views);
-    views.add(()=>{if(!live())return false;conceal();if(!busy){note.dataset.sharingState='unknown';text.textContent='Not confirmed. ';retry.hidden=false;}return true;});
+    views.add(()=>{if(!live())return false;conceal();if(!busy)state(false);return true;});
+    function schedule(){
+      if(waiting)return;
+      state(true);
+      const check=()=>{
+        waiting=null;if(!live())return;
+        const remaining=pendingUntil()-Date.now();
+        if(remaining>0){waiting=setTimeout(check,Math.min(remaining,1000));return;}
+        run();
+      };
+      waiting=setTimeout(check,Math.min(Math.max(1,pendingUntil()-Date.now()),1000));
+    }
     async function run(writePath,options){
-      if(busy||!live())return null;busy=true;conceal();let failure=null,expected=generation();
+      if(busy||!live())return null;
+      if(waiting){clearTimeout(waiting);waiting=null;}
+      busy=true;lastError=null;
+      if(writePath&&known)affected=mask(writePath,options);
+      conceal();state(true);let failure=null,expected=generation();
       try{
         if(writePath){
-          if(pendingUntil())throw Error('Setting not confirmed. Retry.');
+          if(pendingUntil()){schedule();return null;}
           setUntil(Date.now()+RECOVERY_MS,true);
           expected=generation()+1;generations.set(key,expected);
           for(const notify of views)if(notify()===false)views.delete(notify);
-          // Clear kept/cached pages before a possibly-public write; reopened screens must re-read.
           if(typeof invalidate==='function')invalidate('/api/');
           if(typeof App!=='undefined')App.cache?.clear();
           try{for(const name of Object.keys(localStorage))if(name.startsWith('fit.c:'))localStorage.removeItem(name);}catch(_){}
@@ -76,27 +120,35 @@ const SocialData=(()=>{
           try{
             await api(writePath,{...options,signal:controller.signal});
             if(account===readOwner()&&expected===generation())setUntil(0);
-          }catch(error){failure=error;}finally{clearTimeout(timer);}
+          }catch(error){failure=lastError=error;}finally{clearTimeout(timer);}
         }
         if(account!==readOwner()||expected!==generation())return null;
-        if(pendingUntil())throw Error('Setting not confirmed. Retry.');
+        if(pendingUntil()){state(false);return null;}
         const data=await (fetchSaved?fetchSaved():apiRequest(path,{cache:'no-store'}));
         if(account!==readOwner()||expected!==generation())return null;
-        if(pendingUntil())throw Error('Setting not confirmed. Retry.');
+        if(pendingUntil()){state(false);return null;}
         await saveCache(data);if(!live()||expected!==generation())return {data,failure};
-        await paint(data);if(!live()||expected!==generation())return null;
+        // Restore before paint so saved values/disabled states win over the old snapshot.
+        // Focus survives ordinary paints; replacing a subtree is the caller's responsibility.
+        const focused=document.activeElement,scrollX=window.scrollX,scrollY=window.scrollY;
+        const focusPath=[];let cursor=focused;
+        while(cursor&&cursor!==root){const parent=cursor.parentElement;if(!parent)break;focusPath.unshift([...parent.children].indexOf(cursor));cursor=parent;}
+        const hadFocus=cursor===root,scrollers=[];for(let node=focused?.parentElement;node;node=node.parentElement)if(node.scrollTop)scrollers.push([node,node.scrollTop]);
+        restore();await paint(data,{failure});if(!live()||expected!==generation())return null;
+        if(hadFocus&&!focused.isConnected){let replacement=root;for(const index of focusPath)replacement=replacement?.children[index];replacement?.focus?.({preventScroll:true});}
+        for(const [node,top] of scrollers)if(node.isConnected)node.scrollTop=top;
+        if(window.scrollX!==scrollX||window.scrollY!==scrollY)window.scrollTo(scrollX,scrollY);
         known=true;await after(data);if(!live()||expected!==generation())return null;
-        setUntil(0);for(const [node,was] of hidden)node.hidden=was;hidden.clear();known=true;
-        note.dataset.sharingState='confirmed';note.hidden=!failure;text.textContent=failure?'Saved setting shown. ':'';retry.hidden=true;
+        setUntil(0);affected=null;note.dataset.sharingState='confirmed';note.hidden=true;retry.hidden=true;
         return {data,failure};
       }catch(error){
-        if(live()){conceal();note.dataset.sharingState='unknown';text.textContent='Not confirmed. ';retry.hidden=false;}
-        return null;
+        lastError=failure||error;if(live()){conceal();state(false);}return null;
       }finally{busy=false;}
     }
-    retry.onclick=()=>run();
-    if(pendingUntil()){conceal();note.dataset.sharingState='unknown';text.textContent='Not confirmed. ';retry.hidden=false;}
-    return {save:run,read:()=>run(),get known(){return known;}};
+    retry.onclick=()=>{if(pendingUntil()){schedule();return Promise.resolve(null);}return run();};
+    if(pendingUntil()){conceal();state(false);}
+    return {save:run,read:()=>run(),get known(){return known;},get failure(){return lastError;}};
   }
+
   return {remember,peek,read,forget,invalidate,prefetch,warm,draft,watch,confirmSetting};
 })();
