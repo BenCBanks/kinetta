@@ -1679,6 +1679,8 @@ function recoverGroupInvitation(el,base,{decline=false}={}){
           failure.message='Not saved. You joined, but sharing is '+(state.share_total?'on':'off')+'. You chose '+(wanted?'on':'off')+'.';
           if(state.share_total!==wanted){
             const actions=$('[data-invite-actions]',el);
+            const note=card.querySelector('[data-sharing-state]');
+            if(note&&actions)actions.before(note);
             if(actions)actions.innerHTML=`<button type="button" class="primary friend-invite-primary" id="group-sharing-reconcile">Turn sharing ${state.share_total?'off':'on'}</button><button type="button" class="friend-invite-later" id="group-sharing-open">Open group keeping sharing ${state.share_total?'on':'off'}</button>`;
             $('#group-sharing-reconcile',el)?.addEventListener('click',()=>saved.save('/api/groups/'+encodeURIComponent(state.id)+'/sharing',json('POST',{level:state.share_total?'just_in':'total_shared'})));
             $('#group-sharing-open',el)?.addEventListener('click',()=>{groupInvitationChoice(base,null);invalidate('/api/groups');go('/groups/'+encodeURIComponent(state.id),{replace:true});});

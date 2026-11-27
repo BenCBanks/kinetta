@@ -65,6 +65,7 @@ module.exports=async(browser,base,out='')=>{
     assert.equal(await p.locator('[data-group-join-share]').isChecked(),shareTotal,'the switch shows the saved sharing choice');
     assert.equal(await p.getByRole('button',{name:`Turn sharing ${shareTotal?'off':'on'}`,exact:true}).count(),1,'mismatch offers a direct sharing repair');
     assert.equal(await p.getByRole('button',{name:`Open group keeping sharing ${shareTotal?'on':'off'}`,exact:true}).count(),1,'mismatch offers an explicit keep-sharing path');
+    assert(await p.locator('[data-sharing-state=confirmed]').evaluate(note=>!!note.nextElementSibling?.matches('[data-invite-actions]')),'mismatch message appears above its actions');
     assert.equal(writes,1);assert(reads>0);if(out&&mode==='web'){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`mismatch-${spec.name}-${fault}-${theme}.png`)});}
     if(fault.includes('reload')){
      await p.reload();await p.locator('[data-sharing-state=confirmed]').waitFor({state:'visible'});assert.equal(new URL(p.url()).pathname,spec.route,'mismatched choice stays unresolved across repeated reloads');assert.equal(writes,1);
