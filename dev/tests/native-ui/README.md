@@ -6,10 +6,16 @@ This check runs a copy of the unsigned Debug Simulator app against fictional, on
 
 This proves native layout under the selected Simulator runtime. It does not replace physical iPhone/Safari/VoiceOver, camera or locked-screen interval acceptance.
 
-The optional Pro-only 6.9-inch App Store artifact is an ordered eight-shot, light-mode story: Home feed, Activity
-detail, Track ready, Nutrition day (including the calorie ring), Kit food chat, Progress, Me (with featured earned
-achievements), and Friends. All content is fictional; screenshot mode hides geographic labels. The Nutrition scene
-requires the ring's 915-of-1,800 state before capture. Artifacts remain workflow-only and are never uploaded to App Store Connect.
+The optional Pro-only 6.9-inch App Store artifact follows the current ten-scene submission brief: Home,
+Track ready, Activity detail, Nutrition day, unconfirmed food review, Kit average-climb line card, saved chats,
+Kit memory, Notifications and Progress. One dark Activity detail is extra review evidence. All content is
+fictional. The four Kit/Notifications scenes use explicit API stand-ins through production renderers; the
+saved-chat scene reopens its saved answer before returning to the list. No model generation, notification
+sending or real account is used. Food totals and macro sums agree (915 kcal); the chart retains its
+missing-run and current-week qualification. A 9:41/100% non-charging status bar is reapplied before every frame.
+Store uses the current Track and Nutrition layout; historical website-only presentation overrides do not
+apply. Only Activity/Progress content framing is cropped. Raw 1320×2868 JPEGs, measured safe areas, exact source,
+runtime and image hashes remain workflow artifacts for owner review, never App Store Connect uploads.
 
 Execution uses a separate Apple Silicon `macos-26` job, consuming the unsigned universal Simulator artifact from the existing Intel compile/archive job. The layout job remains required before any tester release. An initial zero safe-area inset is not accepted: fictional measurements wait for a positive status-bar inset and stable layout. Runner boot failures are failures, never UI acceptance.
 
@@ -71,3 +77,13 @@ header-Me JSON artifact, and appended to the GitHub Actions job summary. The `/a
 local fictional stand-ins, so these measurements show native/WebView/index/render overhead with a near-zero API
 response; they are not production network or physical-iPhone timings. Instrumentation runs only in the disposable
 Debug Simulator copy and does not alter app startup behavior.
+
+Store listing Drafts may build the unsigned Simulator artifact and run `store-ui` when the existing Store path selector matches. Ordinary Drafts still skip these jobs. The `native-ui`/Compact retry gates and the main-only release/signing/TestFlight conditions are unchanged. No signing or App Store Connect action is performed by a Draft preview.
+
+This fixture set consolidates the earlier Draft-preview workflow and expands the capture plan. Fresh exact-head Simulator evidence and owner review are still required; historical images do not verify this revision.
+
+Store frames use the app's actual sheet sizing and chart styles. Saved-chat/memory lists have fuller fictional
+content; no full-screen, tint, chart-hiding or Progress-row-hiding overrides are applied to these scenes.
+The prior f05f7aa5 owner preview used presentation overrides and is superseded, not suitable for submission.
+The real-app portion-wrap/chart-fill fix merged in #1628. Fresh acceptance captures use current main
+with that fix and unchanged app presentation. Original native crops remain recorded privately for traceability.
