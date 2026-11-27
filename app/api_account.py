@@ -222,7 +222,7 @@ def remove_person(login: str, body: RemoveIn, user=Depends(admin_user)):
     return {'ok': True}
 
 
-def _disable_sql_login(role):
+def _disable_sql_login(account):
     """Fence reconnects before terminating sessions, including a pre-assumed reader role.
 
     Role changes commit separately: if later erasure fails, the login stays disabled.
@@ -230,13 +230,17 @@ def _disable_sql_login(role):
     for this fixed, catalog-checked login operation, never arbitrary caller SQL.
     """
     import psycopg
+    from .sql_logins import check_owner
+    role=account['sql_role']
     with psycopg.connect(db._conninfo('postgres', db.secret('POSTGRES_PASSWORD')), autocommit=True,
-                         connect_timeout=5, options='-c statement_timeout=15000 -c lock_timeout=5000') as admin:
+                         connect_timeout=5, options='-c statement_timeout=15000 -c lock_timeout=5000 -c search_path=pg_catalog,pg_temp') as admin:
         with admin.transaction():
-            row=admin.execute('SELECT rolsuper,rolcreaterole,rolreplication FROM pg_catalog.pg_roles WHERE rolname=%s',(role,)).fetchone()
-            if not row:return
-            if any(row) or role in ('postgres','fit_app','fit_readers','fit_all_readers','fit_coach') or role.startswith('pg_'):
-                raise RuntimeError('Refusing to disable a service database role')
+            # The deleting transaction holds this account row locked and has not
+            # removed it yet. Re-read its durable mapping, never caller metadata.
+            mapped=admin.execute('SELECT id,login::text,sql_role FROM public.users WHERE id=%s',(account['id'],)).fetchone()
+            if mapped != (account['id'],account['login'],role):
+                raise RuntimeError('SQL login account mapping changed')
+            if not check_owner(admin,account):return
             admin.execute(sql.SQL('ALTER ROLE {} NOLOGIN').format(sql.Identifier(role)))
             grants=admin.execute("""SELECT r.rolname,g.rolname FROM pg_catalog.pg_auth_members m
               JOIN pg_catalog.pg_roles r ON r.oid=m.roleid JOIN pg_catalog.pg_roles g ON g.oid=m.grantor
@@ -256,7 +260,8 @@ def erase(c, t):
     """Delete a person and every row of theirs (all personal tables cascade from users), plus their beta request."""
     # Matchers lock accounts before segment rows. Take the exclusive account lock
     # first too, so their foreign-key/key-share locks cannot deadlock with erasure.
-    c.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (t['id'],))
+    t = c.execute('SELECT id,login::text AS login,sql_role FROM users WHERE id = %s FOR UPDATE', (t['id'],)).fetchone()
+    if not t:return
     c.execute("""DELETE FROM beta_requests WHERE invite_id IN (SELECT id FROM invites WHERE used_by = %s)""", (t['id'],))
     # Public enrollment may never have acquired an invite. Only a verified
     # account address proves ownership of those otherwise unlinked requests.
@@ -270,16 +275,16 @@ def erase(c, t):
     from . import api_segments
     api_segments.take_down(c, [r['id'] for r in c.execute("SELECT id FROM segments WHERE creator_id = %s AND audience = 'everyone' AND status <> 'removed'", (t['id'],)).fetchall()], 'creator_deleted')
     c.execute("DELETE FROM segments WHERE creator_id = %s AND audience = 'me'", (t['id'],))
-    c.execute('DELETE FROM users WHERE id = %s', (t['id'],))
     if t['sql_role'] and c.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (t['sql_role'],)).fetchone():
         # Commit the login fence before signaling, so it cannot reconnect between
         # termination and the account transaction's commit. Do not swallow failures.
-        _disable_sql_login(t['sql_role'])
+        _disable_sql_login(t)
         try:
             with c.transaction():
                 c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(t['sql_role'])))
         except Exception:
             pass    # A dependent object may retain the disabled role, without reader access.
+    c.execute('DELETE FROM users WHERE id = %s', (t['id'],))
 
 
 def erase_files(uid):

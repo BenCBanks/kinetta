@@ -12,6 +12,9 @@ from unittest.mock import patch
 from fastapi import HTTPException
 import psycopg
 from psycopg import sql, errors
+from psycopg.rows import tuple_row
+from psycopg.types.json import Jsonb
+from app import users as U, sql_logins
 from app import db, auth, api_account as A, api_mydata as E
 
 """Explicit schema review: a JOIN is never an export disposition.
@@ -198,7 +201,8 @@ class AccountData(unittest.TestCase):
             finally:c.execute('ALTER TABLE recipes DROP COLUMN zz_test_unreviewed_secret')
 
     def test_sql_login_revoked_when_dependencies_prevent_drop(self):
-        role='zz_test_erasure_'+secrets.token_hex(4)
+        login='zz_test_erasure_'+secrets.token_hex(4)
+        role=login+'_sql'
         session=peer=None
         peer_role=role+'_peer'
         try:
@@ -207,7 +211,9 @@ class AccountData(unittest.TestCase):
                 c.execute(sql.SQL('GRANT fit_readers, fit_all_readers TO {}').format(sql.Identifier(role)))
                 c.execute('CREATE TABLE zz_test_erasure_dependency(x integer)')
                 c.execute(sql.SQL('GRANT SELECT ON zz_test_erasure_dependency TO {}').format(sql.Identifier(role)))
-                uid=c.execute("INSERT INTO users(login,name,sql_role) VALUES(%s,'Departing SQL Person',%s) RETURNING id",(role,role)).fetchone()['id']
+                uid=c.execute("INSERT INTO users(login,name,sql_role) VALUES(%s,'Departing SQL Person',%s) RETURNING id",(login,role)).fetchone()['id']
+                with c.cursor(row_factory=tuple_row) as catalog:
+                    sql_logins.record_owner(catalog,{'id':uid,'login':login,'sql_role':role})
                 other=c.execute("INSERT INTO users(login,name) VALUES(%s,'Distinct Remaining Person') RETURNING id",(role+'_other',)).fetchone()['id']
                 c.execute('INSERT INTO profile(user_id) VALUES(%s)',(other,))
                 c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(peer_role),sql.Literal('fictional peer SQL password')))
@@ -239,10 +245,152 @@ class AccountData(unittest.TestCase):
             if session:session.close()
             if peer:peer.close()
             with db.connect() as c:
-                c.execute('DELETE FROM users WHERE login IN (%s,%s)',(role,role+'_other'))
+                c.execute('DELETE FROM users WHERE login IN (%s,%s)',(login,role+'_other'))
                 c.execute('DROP TABLE IF EXISTS zz_test_erasure_dependency')
                 c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
                 c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(peer_role)))
+
+    def test_foreign_or_shared_sql_roles_are_never_changed(self):
+        for case in ('unmarked','wrong_name','wrong_owner','wrong_database','shared_member','foreign_membership','foreign_database','foreign_session'):
+            with self.subTest(case=case):
+                login='zz_test_ownership_'+secrets.token_hex(4);role=login+'_sql';extra=login+'_peer'
+                session=foreign_session=None
+                with psycopg.connect(db._conninfo('postgres',db.secret('POSTGRES_PASSWORD')),autocommit=True) as admin:
+                    try:
+                        with db.connect() as c:
+                            uid=c.execute("INSERT INTO users(login,name,sql_role) VALUES(%s,'Ownership Fixture',%s) RETURNING id",(login,role)).fetchone()['id']
+                            c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role),sql.Literal('fictional ownership password')))
+                            c.execute(sql.SQL('GRANT fit_readers,fit_all_readers TO {}').format(sql.Identifier(role)))
+                            with c.cursor(row_factory=tuple_row) as catalog:
+                                account={'id':uid,'login':login,'sql_role':role}
+                                if case!='unmarked':sql_logins.record_owner(catalog,account)
+                            if case=='wrong_name':c.execute("UPDATE users SET login=login||'_renamed' WHERE id=%s",(uid,))
+                            if case in ('wrong_owner','wrong_database'):
+                                with c.cursor(row_factory=tuple_row) as catalog:marker=sql_logins.owner_marker(catalog,account)
+                                parts=marker.split(':');parts[3 if case=='wrong_owner' else 2]='999999999'
+                                c.execute(sql.SQL('COMMENT ON ROLE {} IS {}').format(sql.Identifier(role),sql.Literal(':'.join(parts))))
+                            if case in ('shared_member','foreign_membership'):
+                                c.execute(sql.SQL('CREATE ROLE {}').format(sql.Identifier(extra)))
+                                source,target=(role,extra) if case=='shared_member' else (extra,role)
+                                c.execute(sql.SQL('GRANT {} TO {}').format(sql.Identifier(source),sql.Identifier(target)))
+                        if case=='foreign_database':
+                            admin.execute(sql.SQL('GRANT CONNECT ON DATABASE postgres TO {}').format(sql.Identifier(role)))
+                        if case=='foreign_session':
+                            foreign_session=psycopg.connect(db._conninfo(role,'fictional ownership password'),dbname='postgres',autocommit=True)
+                        session=psycopg.connect(db._conninfo(role,'fictional ownership password'),autocommit=True)
+                        session.execute('SET ROLE fit_all_readers');pid=session.info.backend_pid
+                        snapshot=lambda:admin.execute("SELECT rolcanlogin,rolconfig,pg_catalog.shobj_description(oid,'pg_authid') FROM pg_catalog.pg_roles WHERE rolname=%s",(role,)).fetchone()
+                        memberships=lambda:admin.execute('SELECT roleid,member,grantor,admin_option,inherit_option,set_option FROM pg_catalog.pg_auth_members ORDER BY roleid,member,grantor').fetchall()
+                        before=snapshot();grants_before=memberships()
+                        with self.assertRaisesRegex(RuntimeError,'administrator review'):
+                            with db.connect() as c:A.erase(c,{'id':uid,'sql_role':'ignored caller role'})
+                        self.assertEqual(snapshot(),before);self.assertEqual(memberships(),grants_before)
+                        if foreign_session:self.assertEqual(foreign_session.execute('SELECT current_database()').fetchone()[0],'postgres')
+                        self.assertEqual(session.execute('SELECT pg_backend_pid()').fetchone()[0],pid)
+                        for reader in ('fit_readers','fit_all_readers'):
+                            self.assertTrue(admin.execute("SELECT pg_has_role(%s,%s,'MEMBER')",(role,reader)).fetchone()[0])
+                        with db.connect() as c:self.assertIsNotNone(c.execute('SELECT id FROM users WHERE id=%s',(uid,)).fetchone())
+                        # CLI password reset must not silently claim a foreign login either.
+                        if case=='unmarked':
+                            with patch.object(U.db,'migrate'),patch.object(U,'ask',return_value='fictional reset password'):
+                                with self.assertRaisesRegex(RuntimeError,'administrator review'):U.main(['sql-login',login])
+                    finally:
+                        if session:session.close()
+                        if foreign_session:foreign_session.close()
+                        with db.connect() as c:c.execute('DELETE FROM users WHERE login IN (%s,%s)',(login,login+'_renamed'))
+                        admin.execute(sql.SQL('REVOKE CONNECT ON DATABASE postgres FROM {}').format(sql.Identifier(role)))
+                        admin.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(extra)))
+                        admin.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
+
+    def test_sql_login_provisioning_records_owner(self):
+        login='zz_test_provision_'+secrets.token_hex(4);role=login+'_sql'
+        try:
+            with db.connect() as c:uid=c.execute("INSERT INTO users(login,name) VALUES(%s,'SQL Provision Fixture') RETURNING id",(login,)).fetchone()['id']
+            with patch.object(U.db,'migrate'),patch.object(U,'ask',return_value='fictional provisioning password'),patch('builtins.print'):
+                U.main(['sql-login',login]);U.main(['sql-login',login])
+            with db.connect() as c:A.erase(c,{'id':uid,'sql_role':None})
+            with db.connect() as c:self.assertIsNone(c.execute('SELECT 1 FROM pg_roles WHERE rolname=%s',(role,)).fetchone())
+        finally:
+            with db.connect() as c:
+                c.execute('DELETE FROM users WHERE login=%s',(login,))
+                c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
+
+    def test_every_new_export_has_exact_account_records(self):
+        # Expectations are explicit fixture values, never selected from TABLES or
+        # NEW_EXPORTS. Three identities differ in projected fields on EVERY table.
+        ids=[];cleanup=[];expected={}
+        generated=object()
+        with tempfile.TemporaryDirectory() as temp,patch.object(E,'DATA',temp):
+            try:
+                with db.connect() as c:
+                    def seed(table,values):
+                        values={k:(Jsonb(v) if k in ('items','payload','workout','preview','result') else v) for k,v in values.items()}
+                        q=sql.SQL('INSERT INTO {} ({}) VALUES ({}) RETURNING *').format(sql.Identifier(table),sql.SQL(',').join(map(sql.Identifier,values)),sql.SQL(',').join(sql.Placeholder() for _ in values))
+                        row=c.execute(q,tuple(values.values())).fetchone()
+                        if 'id' in row:cleanup.append((table,row['id']))
+                        return row
+                    def add(uid,artifact,table,record,private):
+                        raw={**record,**private}
+                        if record.get('id') is generated:raw.pop('id')
+                        row=seed(table,raw)
+                        if record.get('id') is generated:record['id']=row['id']
+                        expected[uid][artifact].append(record)
+                        return row
+                    for i in range(3):
+                        login='zz_test_exact_'+str(i)+'_'+secrets.token_hex(4)
+                        uid=seed('users',{'login':login,'name':'Exact Person '+str(i),'email':login+'@example.test','email_verified_at':'2026-11-01T00:00:00+00:00'})['id']
+                        ids.append(uid);expected[uid]={name:[] for name in E.NEW_EXPORTS}
+                    groups={uid:str(uuid.uuid4()) for uid in ids}
+                    for i,uid in enumerate(ids):
+                        peer=ids[(i+1)%3];stamp=f'2026-11-{10+i:02d}T10:00:00+00:00';end=f'2026-12-{10+i:02d}T10:00:00+00:00';day=f'2026-11-{10+i:02d}';week=f'2026-11-{2+7*i:02d}'
+                        private={'user_id':uid}
+                        add(uid,'beta_requests','beta_requests',dict(id=generated,name='Exact '+str(i),email=c.execute('SELECT email::text AS e FROM users WHERE id=%s',(uid,)).fetchone()['e'],phone='iPhone '+str(i),watch='Watch '+str(i),note='Enrollment '+str(i),created=stamp,status='new',card_request=bool(i%2),challenge_join=bool(i%2)),{})
+                        add(uid,'recipes','recipes',dict(id=generated,name='Recipe '+str(i),items=[{'name':'oats '+str(i),'grams':100+i,'per100':{'kcal':200+i}}],known_kcal=400+i,known_protein_g=20+i,known_carbs_g=50+i,known_fat_g=10+i,ai_note='Note '+str(i),ai_note_at=stamp,created=stamp,updated=stamp,cooked=stamp),private)
+                        add(uid,'coach_proposals','coach_proposals',dict(id=str(uuid.uuid4()),kind='goal',payload={'candidate':{'before':str(10+i)+' km','after':str(12+i)+' km'}},status='pending',created=stamp,expires=end),{**private,'baseline':'SECRET_BASELINE_'+str(i)})
+                        plan=seed('training_plans',{**private,'race':'5k','level':'beginner','weeks':8,'runs':3,'long_day':6,'start_day':day,'race_day':'2026-12-31','unit':'km'})['id']
+                        add(uid,'plan_adjustments','plan_adjustments',dict(plan_id=plan,day=day,workout={'day':day,'type':'easy','dist':5+i,'title':'Easy '+str(i),'detail':'Run '+str(i)},created=stamp),private)
+                        add(uid,'ai_entitlements','ai_entitlements',dict(feature='coach',enabled=bool(i%2),expires_at=end,updated_at=stamp),private)
+                        add(uid,'admin_account_days','admin_account_days',dict(day=day),private)
+                        add(uid,'admin_login_events','admin_login_events',dict(channel=('web','app','admin')[i],outcome=('success','failure','limited')[i],created=stamp),{**private,'stage':'password'})
+                        add(uid,'api_requests','api_requests',dict(created=stamp,method='GET',route='/api/exact/'+str(i),status=200+i,duration_ms=10+i,channel='web'),{**private,'request_id':uuid.uuid4()})
+                        add(uid,'groups_created','event_groups',dict(id=groups[uid],title='Group '+str(i),event_date='2026-12-31',time_zone='UTC',note='Group note '+str(i),goal_type='distance',goal_target=10+i,goal_unit='km',goal_sports=['run'],goal_start_date=day,training_for='Race '+str(i),joining_closed=bool(i%2),closed_at=None,created=stamp),{'organizer_id':uid})
+                        add(uid,'group_members','group_members',dict(group_id=groups[uid],status=('active','left','active')[i],joined_at=stamp,recap_consent=bool(i%2),notifications_muted=bool(i%2),sharing_level=('just_in','total_shared','just_in')[i],monday_recap_enabled=bool(i%2)),private)
+                        update=add(uid,'group_updates','group_updates',dict(id=generated,group_id=groups[uid],text='Update '+str(i),created=stamp),private)['id']
+                        add(uid,'group_update_reactions','group_update_reactions',dict(update_id=update,kind=('fire','clap','heart')[i],created=stamp),private)
+                        add(uid,'group_weekly_reactions','group_weekly_reactions',dict(group_id=groups[uid],week_start=week,kind=('fire','clap','heart')[i],created=stamp),private)
+                        add(uid,'achievement_moment_reactions','achievement_moment_reactions',dict(owner_id=peer,week_start=week,kind=('fire','clap','heart')[i],created=stamp),private)
+                        activity=seed('activities',{**private,'sport':'run','name':'Exact run '+str(i),'start_time':stamp,'source':'manual'})['id']
+                        add(uid,'notifications','notifications',dict(id=generated,kind='comment',activity_id=activity,dish_id=None,comment_id=None,created=stamp,read_at=stamp,reaction_kind=None,milestone_id=None,challenge_id=None,group_id=None,group_update_id=None,group_week_start=None,group_friend_invite_id=None),{**private,'actor_id':peer})
+                        add(uid,'meal_reminder_attempts','meal_reminder_attempts',dict(day=day,meal=('breakfast','lunch','dinner')[i],attempted_at=stamp,delivered=i),private)
+                        upload=str(uuid.uuid4())
+                        add(uid,'strava_uploads','strava_uploads',dict(id=upload,size=20+i,received=10+i,state='uploading',audience=None,cursor=i,preview={'added':i,'already_here':i+1,'unreadable':i+2},result={'added':i+3,'already_here':i+4,'unreadable':i+5},error_code=None,created=stamp,updated=stamp,expires=end),{**private,'sha256':str(i)*64})
+                        add(uid,'strava_import_stage','strava_import_stage',dict(state='requested',upload_id=upload,reminder_opt_in=bool(i%2),reminder_due=end,reminder_attempted=stamp,reminder_sent=bool(i%2),updated=stamp,expires=end),{**private,'stop_hash':'SECRET_STOP_'+str(i)})
+                        segment=seed('segments',{'creator_id':uid,'client_id':uuid.uuid4(),'name':'Segment '+str(i),'sport':'run','distance_m':100+i,'source':'map','fingerprint':'exact-'+str(uid),'audience':'me'})['id']
+                        add(uid,'segment_scans','segment_scans',dict(segment_id=segment,activity_id=activity,matcher=1+i,outcome=('match','none','ineligible')[i],reason='Reason '+str(i),scanned=stamp,generation=1+i,source_revision=1+i),private)
+                        route=seed('planned_routes',{**private,'client_id':uuid.uuid4(),'sport':'run','name':'Route '+str(i)})['id']
+                        add(uid,'route_reports_made','route_reports',dict(route_id=route,reason='privacy',note='Route report '+str(i),created=stamp,status='open',decided=None,outcome=None),{'reporter':uid,'decided_by':peer})
+                        add(uid,'segment_reports_made','segment_reports',dict(segment_id=segment,reason='privacy',note='Segment report '+str(i),created=stamp,status='open',decided=None,outcome=None),{'reporter':uid,'person':peer,'decided_by':peer})
+                    # Each account has both an outgoing and an incoming invitation;
+                    # a third-party invitation must never enter its archive.
+                    for i,uid in enumerate(ids):
+                        peer=ids[(i+1)%3];record=dict(group_id=groups[uid],status='pending',created_at=f'2026-11-{10+i:02d}T10:00:00+00:00',expires_at=f'2026-12-{10+i:02d}T10:00:00+00:00',responded_at=None)
+                        add(uid,'group_friend_invites','group_friend_invites',record,{'inviter_id':uid,'invitee_id':peer})
+                        expected[peer]['group_friend_invites'].append(record.copy())
+                for uid in ids:
+                    archive=Path(temp)/f'{uid}.zip';E._write_export(uid,archive)
+                    with zipfile.ZipFile(archive) as z:
+                        for name,records in expected[uid].items():
+                            with self.subTest(user=uid,artifact=name):
+                                self.assertTrue(records,'No empty fixture may masquerade as isolation proof')
+                                actual=[json.loads(line) for line in z.read('data/'+name+'.jsonl').splitlines()]
+                                self.assertCountEqual(actual,records)
+            finally:
+                with db.connect() as c:
+                    # Reverse FK insertion order, and remove retained nullable-owner
+                    # rows explicitly, before deleting the three fictional accounts.
+                    for table,rid in reversed(cleanup):
+                        if table!='users':c.execute(sql.SQL('DELETE FROM {} WHERE id=%s').format(sql.Identifier(table)),(rid,))
+                    for uid in ids:c.execute('DELETE FROM users WHERE id=%s',(uid,))
 
     def test_unverified_email_does_not_claim_enrollment(self):
         login='zz_test_unverified_'+secrets.token_hex(4)
