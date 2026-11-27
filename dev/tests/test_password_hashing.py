@@ -26,6 +26,19 @@ PW = 'fictional maple kettle password'
 NEW = 'a different fictional kettle sentence'
 
 
+class AdmissionClock:
+    """Only password_work's deadline clock changes; asyncio/TCP/SQL stay real."""
+    def __init__(self):
+        self.now = 0
+        self.lock = threading.Lock()
+
+    def monotonic(self):
+        with self.lock: return self.now
+
+    def advance(self, seconds):
+        with self.lock: self.now += seconds
+
+
 @contextmanager
 def full_queue():
     with password_work.admission.lock:
@@ -74,6 +87,36 @@ def wire_request(port,path,body=None,token=None,timeout=2):
 
 
 class PasswordWork(unittest.TestCase):
+    def test_counter_queue_expires_at_the_unchanged_deadline(self):
+        async def scenario():
+            clock = AdmissionClock(); queued = asyncio.Event()
+            gate = password_work.Admission(); queue = gate.queue
+            def observe_queue(kind, delta):
+                accepted = queue(kind, delta)
+                if accepted and delta == 1: queued.set()
+                return accepted
+            self.assertTrue(gate.enter('public'))
+            with patch.object(password_work, 'counter_workers', gate), \
+                 patch.object(password_work, 'time', clock), patch.object(gate, 'queue', observe_queue), \
+                 patch.object(password_work, 'source_attempt') as work:
+                job = asyncio.create_task(password_work.source_check(None, 'public'))
+                try:
+                    await asyncio.wait_for(queued.wait(), 5)
+                    clock.advance(.5)
+                    await asyncio.sleep(.005)
+                    self.assertFalse(job.done(), 'a healthy wait below one second stays queued')
+                    clock.advance(.5)
+                    with self.assertRaises(password_work.SourceBusy):
+                        await asyncio.wait_for(job, 5)
+                    work.assert_not_called()
+                    self.assertEqual(gate.waiting, 0)
+                finally:
+                    if not job.done():
+                        job.cancel()
+                        with self.assertRaises(asyncio.CancelledError): await job
+                    gate.leave('public')
+        asyncio.run(scenario())
+
     def test_cost_and_correct_wrong_unknown_passwords_are_unchanged(self):
         stored = auth.hash_pw(PW)
         self.assertEqual(extract_parameters(stored), extract_parameters(PasswordHasher().hash(PW)))
@@ -311,42 +354,70 @@ class PasswordRoutes(unittest.TestCase):
             self.assertEqual(self.anon.post('/api/login',json={'login':'zz_test_hashguard_member','password':PW}).status_code,200)
 
     def test_eight_shared_source_logins_queue_through_slow_healthy_counters(self):
-        # The coach confirmation suite starts eight ordinary logins together. Counter
-        # bookkeeping can take tens of ms on a shared runner; waiting needs no DB lease.
-        original = password_work.source_connection
-        verify_original = PasswordHasher.verify
+        # Exercise actual TCP/routes/accounting, but control admission time and queue
+        # transitions instead of racing pg_sleep + eight Argon2 calls against CI load.
+        # Real Argon2 costs and real SQL/body/queue timeouts have separate contracts.
+        original = password_work.source_attempt
+        clock = AdmissionClock()
+        counter_queued = threading.Event(); release_counter = threading.Event()
+        hash_queued = threading.Event(); release_hash = threading.Event()
+        counter_queue = password_work.counter_workers.queue
+        hash_queue = password_work.admission.queue
         lock = threading.Lock()
         verified = peak = calls = 0
-        @contextmanager
-        def slow_connection():
-            with original() as c:
-                if threading.current_thread().name.startswith('password-source'):
-                    c.execute('SELECT pg_sleep(0.04)')
-                yield c
-        def verify(*args, **kwargs):
+        def observe_queue(queue, gate, event, kind, delta):
+            accepted = queue(kind, delta)
+            if accepted and delta == 1 and gate.public_waiting == 7: event.set()
+            return accepted
+        def slow_counter(*args):
+            self.assertTrue(release_counter.wait(8), 'counter fixture was not released')
+            result = original(*args)
+            clock.advance(.04)  # Eight healthy counter operations take 320ms, not host CPU time.
+            return result
+        def verify(hasher, stored, password):
             nonlocal verified, peak, calls
             with lock:
                 verified += 1; peak = max(peak, verified); calls += 1
-            try: return verify_original(*args, **kwargs)
+            try:
+                self.assertTrue(release_hash.wait(8), 'hash fixture was not released')
+                self.assertTrue(stored)
+                self.assertEqual(password, PW)
+                return True  # Stand-in only in this queue contract; the route/hash guards still run.
             finally:
                 with lock: verified -= 1
-        with real_http() as port, patch.object(password_work, 'source_connection', slow_connection), \
+        with real_http() as port, patch.object(password_work, 'source_attempt', slow_counter), \
+             patch.object(password_work, 'time', clock), \
+             patch.object(password_work.counter_workers, 'queue',
+                          lambda kind, delta: observe_queue(counter_queue, password_work.counter_workers, counter_queued, kind, delta)), \
+             patch.object(password_work.admission, 'queue',
+                          lambda kind, delta: observe_queue(hash_queue, password_work.admission, hash_queued, kind, delta)), \
              patch.object(PasswordHasher, 'verify', verify), ThreadPoolExecutor(max_workers=8) as clients:
             begin = threading.Barrier(9)
             def login(_):
-                begin.wait()
-                return wire_request(port, '/api/login', {'login':'zz_test_hashguard_member','password':PW}, timeout=8)
+                begin.wait(timeout=8)
+                return wire_request(port, '/api/login', {'login':'zz_test_hashguard_member','password':PW}, timeout=15)
             jobs = [clients.submit(login, i) for i in range(8)]
-            begin.wait()
+            try:
+                begin.wait(timeout=8)
+                self.assertTrue(counter_queued.wait(5), 'all seven requests must wait behind one public counter')
+                self.assertEqual(password_work.counter_workers.active, 1)
+                self.assertEqual(password_work.counter_workers.public_waiting, 7)
+                release_counter.set()
+                self.assertTrue(hash_queued.wait(5), 'all seven requests must wait behind one public hash')
+                self.assertEqual(password_work.admission.active, 1)
+                self.assertEqual(password_work.admission.public_waiting, 7)
+            finally:
+                release_counter.set(); release_hash.set()
             results = [job.result(timeout=10) for job in jobs]
         self.assertEqual([status for status, _ in results], [200]*8, results)
         self.assertEqual(calls, 8)
+        self.assertAlmostEqual(clock.monotonic(), .32)
         self.assertLessEqual(peak, 1, 'the public hash lane remains one at a time')
         for gate in (password_work.admission, password_work.counter_workers, password_work.body_readers):
             self.assertEqual((gate.active,gate.public,gate.waiting,gate.public_waiting), (0,0,0,0))
         with db.connect() as c:
             self.assertEqual(c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key LIKE 'password-work:%%'").fetchone()['n'], 0)
-        print('Eight-login shared-source proof: all eight real password checks succeeded; public hash peak', peak, flush=True)
+        print('Eight-login queue proof: eight real HTTP logins, hash stand-in, 320ms counter clock; public hash peak', peak, flush=True)
 
     def test_atomic_counter_across_independent_workers_never_overruns_source(self):
         request=Request({'type':'http','headers':[],'client':('192.0.2.164',1)})
