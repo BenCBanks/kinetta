@@ -15,11 +15,12 @@ final class NativeStravaTransfer: StravaRedirectGuard, URLSessionDataDelegate, @
     private var copyCancellation: StravaImportCancellation?
     private var transitions = StravaImportTransitions()
     private let legacyConfiguration: URLSessionConfiguration?
+    private let controlConfiguration: URLSessionConfiguration?
     // Test seam holds cancellation callbacks, never changes production networking.
     private let beforeCleanup: (@escaping () -> Void) -> Void
     private let afterCopyChunk: () -> Void
-    init(store: StravaImportStore = StravaImportStore(),keychain: StravaImportCredentials = StravaImportKeychain(),legacyConfiguration: URLSessionConfiguration? = nil,beforeCleanup: @escaping (@escaping () -> Void) -> Void = { $0() },afterCopyChunk: @escaping () -> Void = {}) {
-        self.store = store;self.keychain = keychain;self.legacyConfiguration = legacyConfiguration;self.beforeCleanup = beforeCleanup;self.afterCopyChunk = afterCopyChunk;super.init()
+    init(store: StravaImportStore = StravaImportStore(),keychain: StravaImportCredentials = StravaImportKeychain(),legacyConfiguration: URLSessionConfiguration? = nil,controlConfiguration: URLSessionConfiguration? = nil,beforeCleanup: @escaping (@escaping () -> Void) -> Void = { $0() },afterCopyChunk: @escaping () -> Void = {}) {
+        self.store = store;self.keychain = keychain;self.legacyConfiguration = legacyConfiguration;self.controlConfiguration = controlConfiguration;self.beforeCleanup = beforeCleanup;self.afterCopyChunk = afterCopyChunk;super.init()
     }
     #if os(iOS)
     private var execution: UIBackgroundTaskIdentifier = .invalid
@@ -30,6 +31,12 @@ final class NativeStravaTransfer: StravaRedirectGuard, URLSessionDataDelegate, @
     private var cancellationFenced = false
     private var controlPhase = false
     private var backgroundCompletion: (() -> Void)?
+    private struct ControlRead {
+        let stamp: UUID,who: StravaImportSession
+        let done: (Result<[String:Any],Error>) -> Void
+        var bytes = Data()
+    }
+    private var controlReads: [Int:ControlRead] = [:]
     private var responses: [Int:Data] = [:]
     private var responseOverflow = Set<Int>()
     private var uploadGenerations: [Int:UUID] = [:]
@@ -50,7 +57,7 @@ final class NativeStravaTransfer: StravaRedirectGuard, URLSessionDataDelegate, @
         return URLSession(configuration:config,delegate:self,delegateQueue:delegateQueue)
     }()
     private lazy var control: URLSession = {
-        let config = URLSessionConfiguration.ephemeral;config.httpCookieStorage = nil;config.urlCredentialStorage = nil;config.urlCache = nil
+        let config = controlConfiguration ?? URLSessionConfiguration.ephemeral;config.httpCookieStorage = nil;config.urlCredentialStorage = nil;config.urlCache = nil
         config.httpShouldSetCookies = false;config.timeoutIntervalForRequest = 30
         return URLSession(configuration:config,delegate:self,delegateQueue:delegateQueue)
     }()
@@ -168,7 +175,7 @@ final class NativeStravaTransfer: StravaRedirectGuard, URLSessionDataDelegate, @
                 guard self.transitions.accepts(stamp) else { done(StravaImportFailure.account);return }
                 do {
                     if clearStore { try self.store.clear() }
-                    self.responses.removeAll();self.responseOverflow.removeAll();self.uploadGenerations.removeAll();self.stopping = false
+                    self.controlReads.removeAll();self.responses.removeAll();self.responseOverflow.removeAll();self.uploadGenerations.removeAll();self.stopping = false
                     self.cancellationFenced = true;self.controlPhase = false;self.completeEvents();done(nil)
                 } catch { done(error) }
             }
@@ -214,14 +221,11 @@ final class NativeStravaTransfer: StravaRedirectGuard, URLSessionDataDelegate, @
         do {
             var req = try request(who,path:path,method:method)
             if let body = body { req.httpBody = try JSONSerialization.data(withJSONObject:body);req.setValue("application/json",forHTTPHeaderField:"Content-Type") }
-            control.dataTask(with:req) { data,response,error in self.queue.async {
-                guard !self.stopping,self.generation == stamp,self.credential == who else { return }
-                guard error == nil,let http = response as? HTTPURLResponse,(200..<300).contains(http.statusCode),let data = data,data.count < 64*1024,
-                      let object = try? JSONSerialization.jsonObject(with:data) as? [String:Any] else {
-                    done(.failure((response as? HTTPURLResponse)?.statusCode == 401 ? StravaImportFailure.auth : StravaImportFailure.network));return
-                }
-                done(.success(object))
-            }}.resume()
+            // Delegate delivery bounds every chunk; a completion-handler data
+            // task would buffer the entire response before our size check.
+            let task = control.dataTask(with:req)
+            controlReads[task.taskIdentifier] = ControlRead(stamp:stamp,who:who,done:done)
+            task.resume()
         } catch { done(.failure(error)) }
     }
     private func resumeLocked() {
@@ -273,13 +277,38 @@ final class NativeStravaTransfer: StravaRedirectGuard, URLSessionDataDelegate, @
             }
         }
     }
+    private func current(_ read: ControlRead) -> Bool { !stopping && generation == read.stamp && credential == read.who }
+    private func refuseControl(_ task: URLSessionTask) {
+        let read = controlReads.removeValue(forKey:task.taskIdentifier);task.cancel()
+        if let read = read,current(read) { read.done(.failure(StravaImportFailure.network)) }
+    }
+    func urlSession(_ session: URLSession,dataTask: URLSessionDataTask,didReceive response: URLResponse,completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        if session === control {
+            guard let read = controlReads[dataTask.taskIdentifier],current(read),response.expectedContentLength < 64*1024 else {
+                completionHandler(.cancel);refuseControl(dataTask);return
+            }
+        }
+        completionHandler(.allow)
+    }
     func urlSession(_ session: URLSession,dataTask: URLSessionDataTask,didReceive data: Data) {
+        if session === control {
+            guard var read = controlReads[dataTask.taskIdentifier],current(read),read.bytes.count+data.count < 64*1024 else { refuseControl(dataTask);return }
+            read.bytes.append(data);controlReads[dataTask.taskIdentifier] = read;return
+        }
         guard session === uploads,uploadGenerations[dataTask.taskIdentifier] == generation else { return }
         let count = (responses[dataTask.taskIdentifier]?.count ?? 0)+data.count
         guard count <= 64*1024 else { responseOverflow.insert(dataTask.taskIdentifier);dataTask.cancel();return }
         responses[dataTask.taskIdentifier,default:Data()].append(data)
     }
     func urlSession(_ session: URLSession,task: URLSessionTask,didCompleteWithError error: Error?) {
+        if session === control {
+            guard let read = controlReads.removeValue(forKey:task.taskIdentifier),current(read) else { return }
+            guard error == nil,let http = task.response as? HTTPURLResponse,(200..<300).contains(http.statusCode),
+                  let object = try? JSONSerialization.jsonObject(with:read.bytes) as? [String:Any] else {
+                read.done(.failure((task.response as? HTTPURLResponse)?.statusCode == 401 ? StravaImportFailure.auth : StravaImportFailure.network));return
+            }
+            read.done(.success(object));return
+        }
         guard session === uploads else { return }
         let data = responses.removeValue(forKey:task.taskIdentifier);let overflow = responseOverflow.remove(task.taskIdentifier) != nil
         let stamp = session === uploads ? uploadGenerations.removeValue(forKey:task.taskIdentifier) : nil

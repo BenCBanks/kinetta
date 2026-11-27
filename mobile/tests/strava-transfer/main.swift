@@ -92,3 +92,72 @@ for phase in ["done","cancelled","failed"] {
     stopped(engine)
 }
 print("Native transfer: delayed bind vs later sign-out/account, nonblocking copy cancellation/session fence, terminal reuse PASS")
+
+// The actual control URLSession receives an unknown-length body in chunks and
+// never finishes it. It must cancel AT the bound, without waiting for completion.
+final class OversizedControl: URLProtocol {
+    static let cancelled = DispatchSemaphore(value:0)
+    static let entered = DispatchSemaphore(value:0)
+    static var declared = false
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let headers = Self.declared ? ["Content-Length":String(64*1024)] : [:]
+        client?.urlProtocol(self,didReceive:HTTPURLResponse(url:request.url!,statusCode:200,httpVersion:"HTTP/1.1",headerFields:headers)!,cacheStoragePolicy:.notAllowed)
+        if !Self.declared {
+            for _ in 0..<4 { client?.urlProtocol(self,didLoad:Data(repeating:32,count:16*1024)) }
+        }
+        Self.entered.signal()
+        // Intentionally no didFinishLoading: the engine must cancel early.
+    }
+    override func stopLoading() { Self.cancelled.signal() }
+}
+for declared in [false,true] {
+    OversizedControl.declared = declared
+    let configuration = URLSessionConfiguration.ephemeral;configuration.protocolClasses = [OversizedControl.self]
+    let local = StravaImportStore(root:root.appendingPathComponent("bounded-\(declared)"))
+    let engine = NativeStravaTransfer(store:local,keychain:Credentials(who),legacyConfiguration:.ephemeral,controlConfiguration:configuration)
+    bound(engine,who)
+    let staged = DispatchSemaphore(value:0)
+    engine.stage(source) { result in
+        guard case .success(let row) = result else { preconditionFailure("stage failed") }
+        engine.confirm(id:row.id) { error in precondition(error == nil);staged.signal() }
+    }
+    wait(staged);wait(OversizedControl.entered);wait(OversizedControl.cancelled)
+    let current = try local.read();precondition(current?.received == 0,"oversized control cannot advance upload")
+    stopped(engine)
+}
+print("Native control: declared and unknown-length 64KiB response cancelled before completion, no offset advance PASS")
+
+final class SmallControl: URLProtocol {
+    static var metadata: [String:Any] = [:]
+    static var paths: [String] = []
+    static let finalized = DispatchSemaphore(value:0)
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let path = request.url!.path;Self.paths.append(path)
+        let object = request.httpMethod == "GET" ? Self.metadata : ["ok":true]
+        let data = try! JSONSerialization.data(withJSONObject:object)
+        client?.urlProtocol(self,didReceive:HTTPURLResponse(url:request.url!,statusCode:200,httpVersion:"HTTP/1.1",headerFields:[:])!,cacheStoragePolicy:.notAllowed)
+        for start in stride(from:0,to:data.count,by:16) { client?.urlProtocol(self,didLoad:data.subdata(in:start..<min(start+16,data.count))) }
+        client?.urlProtocolDidFinishLoading(self)
+        if path.hasSuffix("/finalize") { Self.finalized.signal() }
+    }
+    override func stopLoading() {}
+}
+let smallConfiguration = URLSessionConfiguration.ephemeral;smallConfiguration.protocolClasses = [SmallControl.self]
+let smallStore = StravaImportStore(root:root.appendingPathComponent("small-control"))
+let smallEngine = NativeStravaTransfer(store:smallStore,keychain:Credentials(who),legacyConfiguration:.ephemeral,controlConfiguration:smallConfiguration)
+bound(smallEngine,who)
+let smallStaged = DispatchSemaphore(value:0)
+smallEngine.stage(source) { result in
+    guard case .success(let row) = result else { preconditionFailure("stage failed") }
+    SmallControl.metadata = ["id":row.id.uuidString,"size":row.size,"sha256":row.sha256,"received":row.size,"state":"uploading"]
+    smallEngine.confirm(id:row.id) { error in precondition(error == nil);smallStaged.signal() }
+}
+wait(smallStaged);wait(SmallControl.finalized)
+precondition(SmallControl.paths.count == 3 && SmallControl.paths.last!.hasSuffix("/finalize"))
+let reconciled = try smallStore.read();precondition(reconciled?.received == reconciled?.size)
+stopped(smallEngine)
+print("Native control: small chunked reservation/status/finalization still completes through actual delegate PASS")

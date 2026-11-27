@@ -21,6 +21,32 @@ function client(){
  const signIn=source.slice(source.indexOf('  const signIn ='),source.indexOf('  N.login ='));
  assert(signIn.indexOf('await N.stopStravaImport()')<signIn.indexOf('N.base = N.address(server)'),'cancel old transfers before changing server');
  const logout=source.slice(source.indexOf('  N.forget ='),source.indexOf('  // Session plumbing only:'));
- assert(logout.indexOf('await N.stopStravaImport()')<logout.indexOf('N.token=null'),'cancellation failure blocks logout cleanup completion');
+ assert(logout.indexOf('N.stopStravaImport()')<logout.indexOf('N.token=null'),'binding disabled before clearing token');
+ // Execute the real forget body as well as the real adapter, including held and
+ // rejected native cancellation. autoSync's entry call is bindStravaImport.
+ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
+ for(const fails of [false,true]){
+  f=client();const held=deferred(),saved=new Map([['token','fictional-session-one']]);
+  f.plugin.stop=()=>{f.events.push(['stop']);return held.promise;};
+  Object.assign(f.ctx,{on:true,put:async(key,value)=>value==null?saved.delete(key):saved.set(key,value)});
+  Object.assign(f.ctx.N,{clearPictures(){},stopActivityShare:async()=>{},stopFoodEntry:async()=>{},disconnectPush:async()=>{},disconnectHealth:async()=>[],healthCall:promise=>promise});
+  vm.runInContext(logout,f.ctx);
+  const forgetting=f.ctx.N.forget();
+  await Promise.resolve();assert.equal(f.ctx.N.token,null,'web token revoked before native cleanup resolves');
+  // Even if another stale caller still carries both old values, binding must
+  // remain disabled for the entire transition and after cleanup.
+  f.ctx.N.token='fictional-session-one';await f.ctx.N.bindStravaImport();
+  assert(!f.events.some(e=>e[0]==='bind'||e[0]==='resume'));
+  f.ctx.N.token=null;
+  if(fails)held.reject(Error('Still stopping'));else held.resolve();
+  await forgetting;
+  assert.equal(f.ctx.N.token,null);assert(!saved.has('token'),'native failure cannot retain persisted token');
+  await f.ctx.N.bindStravaImport();assert.equal(f.events.filter(e=>e[0]==='stop').length,1,'auto bind cannot supersede native stop');
+ }
+ f=client();const held=deferred();f.plugin.stop=()=>held.promise;
+ const cancel=f.ctx.N.stopStravaImport();await Promise.resolve();await f.ctx.N.bindStravaImport();
+ assert(!f.events.some(e=>e[0]==='bind'));held.resolve();await cancel;
+ await f.ctx.N.bindStravaImport();assert(!f.events.some(e=>e[0]==='bind'),'completion alone cannot reopen old binding');
+ f.ctx.N.enableStravaImport();await f.ctx.N.bindStravaImport();assert.equal(f.events.at(-1)[0],'bind','completed explicit sign-in can enable current session');
  console.log('Native Strava adapter: no automatic upload, confirmed-only resume, stale binding fence, awaited cleanup/refusal PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

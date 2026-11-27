@@ -285,7 +285,8 @@ This foundation uses the resumable server API introduced in #1616. It adds no we
 screen or import action to Connections. Older builds still use browser file import.
 The bridge exposes `pick`, `review`, `status`, `resume`, and `stop` for the guided
 client follow-up. The signed-in session adapter binds only after `/api/me` resolves;
-sign-out and account/server replacement await native cancellation before proceeding.
+sign-out immediately fences binding and clears local login state. Account/server
+replacement awaits native cancellation before allowing a new binding.
 
 The ZIP document association allows iOS to offer **Open/Copy to Kinetta** from Files
 or Mail's document-sharing UI. A native ZIP-only document picker is also available.
@@ -328,7 +329,15 @@ Sign-out/account replacement revokes the saved credential, cancels tasks, waits 
 cancellation, then removes the local archive, piece and journal. A cancellation
 failure blocks replacement rather than rebinding old work. External binds and stops
 are serialized with transition tickets: a later sign-out/account change invalidates
-an earlier cancellation/rebind continuation before it can restore credentials. Server-side staged bytes
+an earlier cancellation/rebind continuation before it can restore credentials.
+The JS adapter disables automatic binding synchronously for the entire transition,
+including foreground/online/sessionNeeded callbacks while cancellation is pending.
+Only completed explicit sign-in re-enables it. Sign-out clears the in-memory and
+Preferences token and runs every other cleanup even when native cancellation fails;
+the disabled adapter cannot rebind the old account after a delayed completion.
+Control JSON is received through delegate chunks, refusing a declared size of 64 KiB
+or more and cancelling unknown-length bodies at 64 KiB before parsing; small valid
+responses still reconcile offsets and finalize normally. Server-side staged bytes
 remain account-scoped and expire under #1616's seven-day policy; local sign-out is
 not a claim of guaranteed remote erasure while offline. Unconfirmed local staging
 also expires after seven days. The bridge reports only fixed progress metadata, never
@@ -347,15 +356,17 @@ are completed after cancelling their old tasks.
 
 Foundation-only state tests use fictional identities and prove confirmation gates,
 identity/hash/account/expiry bounds, a killed/reloaded journal and authoritative
-lost-response offsets. Bridge tests prove stale binds cannot open the picker and
-cleanup is awaited. Mac-only temporary-file tests exercise the actual streaming copy,
+lost-response offsets. Bridge tests prove stale binds cannot open the picker, automatic binding stays
+disabled across delayed/rejected cleanup, and sign-out always clears local tokens. Mac-only temporary-file tests exercise the actual streaming copy,
 hash, journal and piece builder; an unsigned build checks UIKit/Capacitor integration.
 Deterministic Mac tests hold the actual native bind cancellation across sign-out,
 hold a copy/hash chunk while checking credential revocation, and try a second
 archive after all three terminal states. Real loopback URLSession file uploads
 exercise 301/302/303/307/308 to same-origin and another server: the initial fictional
 body arrives, and redirected endpoints receive zero requests/bytes/credentials.
-Inbox tests retain incoming files, sweep crash/non-ZIP leftovers and preserve
+Native control tests hold unknown-length and declared 64 KiB responses open and prove
+early cancellation; small chunked JSON still reserves/reconciles/finalizes. Inbox
+tests retain incoming files, sweep crash/non-ZIP leftovers and preserve
 external originals. No test sends archive bytes to production or calls an AI provider.
 
 Still required on a physical iPhone, with disposable accounts and a test server:
