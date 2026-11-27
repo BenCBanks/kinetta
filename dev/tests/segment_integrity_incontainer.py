@@ -40,6 +40,11 @@ class Integrity(unittest.TestCase):
         with patch.object(api_segments.route_providers,'elevation',return_value=None):
             r=self.clients['owner'].post('/api/segments',json={'client_id':str(uuid.uuid4()),'name':'Fictional integrity hill','sport':'run','audience':'everyone','understood_fixed':True,'line':route_geo.encode([north(600),north(1000)])})
         self.assertEqual(r.status_code,200,r.text);self.sid=r.json()['id']
+        with db.connect() as c:
+            # Tests advance scans/rebuilds explicitly. Freeze this course's initial
+            # backfill too: blocking activity jobs alone still lets it refresh a
+            # source between the stale-board and processing-state assertions.
+            c.execute("UPDATE segment_jobs SET attempts=5 WHERE kind='segment' AND ref=%s",(self.sid,))
     def tearDown(self):
         from app.api_account import erase
         with db.connect() as c:
@@ -132,7 +137,11 @@ class Integrity(unittest.TestCase):
             c.execute('UPDATE activity_streams SET t=ARRAY(SELECT unnest(t)*2) WHERE activity_id=%s',(aid,))
             c.execute("UPDATE segment_jobs SET attempts=5 WHERE kind='activity' AND ref=%s",(aid,))
         self.assertEqual(self.board()['count'],0,'old times disappear before a replacement worker runs')
+        segments.run_jobs()  # An unrelated queue pass must not advance the held fixture.
         self.assertEqual(self.mine(aid)['efforts'][0]['why_not'],'processing')
+        with db.connect() as c:segments.scan(c,self.sid,aid)
+        self.assertEqual(self.board()['rows'][0]['elapsed_s'],320)
+        self.assertIsNone(self.mine(aid)['efforts'][0]['why_not'])
     def test_privacy_deletion_and_retirement_fence_staged_work(self):
         aid=self.activity()
         with db.connect() as c:
