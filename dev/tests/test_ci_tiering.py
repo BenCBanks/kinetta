@@ -127,6 +127,40 @@ run_ui loading_audit.cjs
                 self.assertEqual(result.returncode, code, result.stderr)
                 self.assertEqual(events.read_text().splitlines() if events.exists() else [], expected)
 
+    def test_selected_insights_prepares_its_accounts_before_login(self):
+        dispatcher = CHANGED_SCREENS.split("declare -A ran_ui=()", 1)[1].split("\nfor group in", 1)[0]
+        script = "set -euo pipefail\ndeclare -A ran_ui=()\n" + dispatcher
+        script += r'''
+python3() {
+  [[ "$*" == dev/tests/insights_fixture.py ]] || return 91
+  printf 'prepare\n' >> "$events"
+  [[ "$preparation_fails" == 0 ]] || return 27
+  touch "$accounts"
+}
+node() {
+  [[ "$*" == dev/tests/insights_ui.cjs ]] || return 92
+  [[ -f "$accounts" ]] || return 93
+  printf 'insights\n' >> "$events"
+}
+run_ui insights_ui.cjs
+run_ui insights_ui.cjs
+'''
+        for shard, listing, fails, code, expected in (
+            ("1", "0", "0", 0, ["prepare", "insights"]),
+            ("2", "0", "0", 0, []),
+            ("1", "1", "0", 0, []),
+            ("1", "0", "1", 27, ["prepare"]),
+        ):
+            with self.subTest(shard=shard, listing=listing, fails=fails), tempfile.TemporaryDirectory() as tmp:
+                events = Path(tmp)/"events"
+                result = subprocess.run(["bash", "-c", script], cwd=ROOT, text=True, capture_output=True,
+                                        env={**os.environ, "shard_index": shard, "shard_count": "3",
+                                             "ui_shard": f"{shard}/3", "list_tests": listing, "browser": "unused",
+                                             "preparation_fails": fails, "accounts": str(Path(tmp)/"accounts"),
+                                             "events": str(events)})
+                self.assertEqual(result.returncode, code, result.stderr)
+                self.assertEqual(events.read_text().splitlines() if events.exists() else [], expected)
+
     def test_full_browser_shards_are_ready_only(self):
         browser = WORKFLOW.split("\n  browser_shards:\n", 1)[1].split("\n  reviewer_integration:\n", 1)[0]
         self.assertIn("github.event.pull_request.draft == false", browser)

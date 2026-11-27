@@ -308,6 +308,10 @@ run_ui() {
         spacing_fixtures_prepared=1
       fi
       KINETTA_LOADING_SCREENS="Home,Progress,Nutrition day,Me" KINETTA_LOADING_THEMES="light,dark" NODE_PATH="$browser" node "dev/tests/$1" ;;
+    insights_ui.cjs)
+      # Draft quick shards do not run the full browser shard's account setup.
+      python3 dev/tests/insights_fixture.py
+      NODE_PATH="$browser" node "dev/tests/$1" ;;
     inline_reactions_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     weight_progress_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     *) NODE_PATH="$browser" node "dev/tests/$1" ;;
