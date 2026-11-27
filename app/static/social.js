@@ -833,12 +833,13 @@ function commentsSheet(aid, s, onChange) {
       catch(error){if(!current())return;if(!cached)list.replaceChildren();if([401,403,404].includes(error.status)){list.replaceChildren();box._denied=true;box._sync();}
         clearTimeout(loadTimer);loadTimer=0;list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
+      const client_id=SocialData.draftRequest(aid,raw);
       let denied=false;delete button.dataset.failed;button.dataset.posting='1';button.setAttribute('aria-busy','true');status.textContent='Sending…';status.classList.add('is-posting');box._sync();
-      try{const fresh=await api(`/api/activities/${aid}/comments`,json('POST',{text}));if(account!==readOwner())return;
+      try{const fresh=await api(`/api/activities/${aid}/comments`,json('POST',{text,client_id}));if(account!==readOwner())return;
         SocialData.remember(aid,fresh);socialChanged(aid);
         if(f.text.value===raw){f.text.value='';if(SocialData.draft(aid)===raw)SocialData.draft(aid,'');}
         if(current())update(fresh,{posted:true});
-      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current()){status.classList.remove('is-posting');if(!denied){button.dataset.failed='1';status.innerHTML='<span>Not sent</span> <button type="button" class="linkbtn comment-retry">Retry</button>';$('.comment-retry',status).onclick=()=>{if(current())f.requestSubmit();};}else status.textContent='You can’t comment on this activity.';}}
+      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current()){status.classList.remove('is-posting');if(!denied){button.dataset.failed='1';status.innerHTML='<span>Save not confirmed.</span> <button type="button" class="linkbtn comment-retry">Retry</button>';$('.comment-retry',status).onclick=()=>{if(current())f.requestSubmit();};}else status.textContent='You can’t comment on this activity.';}}
       finally{if(current()){status.classList.remove('is-posting');if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
     };
     refresh();

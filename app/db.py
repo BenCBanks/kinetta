@@ -2662,6 +2662,12 @@ MIGRATIONS = [
     CREATE INDEX IF NOT EXISTS auth_attempts_enrollment_expiry ON auth_attempts(created)
       WHERE key LIKE 'enrollment-source:%';
     """,
+    # 131: account-scoped comment retries, after report target129 and enrollment expiry130.
+    """
+    ALTER TABLE comments ADD COLUMN IF NOT EXISTS client_id uuid;
+    CREATE UNIQUE INDEX IF NOT EXISTS comments_request ON comments(user_id,client_id) WHERE client_id IS NOT NULL;
+    """,
+
 ]
 
 

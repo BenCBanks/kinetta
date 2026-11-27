@@ -2,7 +2,8 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
 let owner='fictional-session-one',now=0;const requests=[];
-const ctx={readOwner:()=>owner,Date:{now:()=>now},Map,Set,Promise,api:path=>new Promise((resolve,reject)=>requests.push({path,resolve,reject}))};
+const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},App={me:{id:1}},Native={base:''},location={origin:'https://example.test'};
+const ctx={App,Native,location,localStorage,newId:require('node:crypto').randomUUID,readOwner:()=>owner,Date:{now:()=>now},Map,Set,Promise,api:path=>new Promise((resolve,reject)=>requests.push({path,resolve,reject}))};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/social-data.js','utf8')+'\nglobalThis.data=SocialData;',ctx);const data=ctx.data;
 const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:Array.from({length:n},(_,i)=>({id:i,text:'Fictional comment'})),reactions:{cheer:1}});
 (async()=>{
@@ -11,13 +12,27 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  let updates=0;data.watch(7,fresh=>{updates++;});data.remember(7,state(3));assert.equal(updates,1,'active sheets receive new state without another read');data.remember(7,state(3));assert.equal(updates,1,'identical data does not redraw sheets');
  data.draft(7,'A draft to retain');now=4000;const failure=data.read(7);requests.shift().reject(Object.assign(Error('offline'),{status:503}));await assert.rejects(failure);assert.equal(data.peek(7).comments.length,3);assert.equal(data.draft(7),'A draft to retain');
  const denied=data.read(7);requests.shift().reject(Object.assign(Error('no longer shared'),{status:404}));await assert.rejects(denied);assert.equal(data.peek(7),null,'permission loss clears cached people/comments');assert.equal(data.draft(7),'A draft to retain');
- const late=data.read(7);owner='fictional-session-two';assert.equal(data.peek(7),null);assert.equal(data.draft(7),'');requests.shift().resolve(state(3));assert.equal(await late,null);assert.equal(data.peek(7),null,'late reply never reaches another account/session');
+ const late=data.read(7);owner='fictional-session-two';App.me={id:2};assert.equal(data.peek(7),null);assert.equal(data.draft(7),'');requests.shift().resolve(state(3));assert.equal(await late,null);assert.equal(data.peek(7),null,'late reply never reaches another account/session');
  const invalidated=data.read(7);data.invalidate();const fresh=data.read(7);assert.equal(requests.length,2);requests.shift().resolve(state(1));assert.equal(await invalidated,null);assert.equal(data.read(7),fresh,'old cleanup cannot remove a new pending request');requests.shift().resolve(state(4));await fresh;assert.equal(data.peek(7).comments.length,4);
  const events={};const button={dataset:{},addEventListener:(name,fn)=>events[name]=fn};now=6000;data.warm(button,7);events.pointerdown();events.focus();assert.equal(requests.length,1,'warm and open share one read');requests.shift().resolve(state(4));await new Promise(setImmediate);
  data.remember(11,{...state(1),visibility:'me',details:{map:false},trim_m:800});data.remember(11,state(2));assert.equal(data.peek(11).trim_m,800,'reaction/comment replies preserve existing owner sharing metadata');assert.equal(data.peek(11).details.map,false);
  data.remember(12,state(1));const ownerRead=data.read(12,{ownerDetails:true});assert.equal(requests.length,1,'a summary-only mutation cache cannot replace the owner sharing read');requests.shift().resolve({...state(1),visibility:'me',details:{map:false},trim_m:800});await ownerRead;assert.equal(data.peek(12).trim_m,800);
  let disposed=0;const stop=data.watch(15,()=>{disposed++;});stop();data.remember(15,state(1));assert.equal(disposed,0,'a disposed view no longer receives social updates');
  data.remember(9,{reactions:{cheer:1}});assert.equal(data.peek(9),null,'summary counts are not a complete comments cache');
+ // Persist the request identity as well as text; no token/session identity enters storage.
+ data.draft(70,'Fictional offline draft');const request=data.draftRequest(70,'Fictional offline draft');
+ assert(!localStorage.getItem('fit.comment-drafts').includes(owner),'session identity is not persisted');
+ const reload={...ctx};vm.createContext(reload);vm.runInContext(fs.readFileSync('app/static/social-data.js','utf8')+'\nglobalThis.data=SocialData;',reload);
+ assert.equal(reload.data.draft(70),'Fictional offline draft','reload restores own-account unsent text');
+ assert.equal(reload.data.draftRequest(70,'Fictional offline draft'),request,'reload retry retains original request ID');
+ assert.equal(reload.data.draftRequest(70,' Fictional offline draft '),request,'whitespace edit keeps the same server request');
+ const changed=reload.data.draftRequest(70,'A different intention');assert.notEqual(changed,request,'edited body gets another request ID');
+ reload.data.draft(70,'');assert.equal(reload.data.draft(70),'');assert.equal(localStorage.getItem('fit.comment-drafts'),null,'successful submit clears durable draft');
+ data.draft(72,'Do not cross servers');Native.base='https://other.example.test';owner='other-server';assert.equal(data.draft(72),'');assert.equal(localStorage.getItem('fit.comment-drafts'),null,'changing server clears saved drafts');
+ data.draft(73,'Expire this draft');now+=7*86400000+1;assert.equal(data.draft(73),'','draft expires after seven days');
+ localStorage.setItem('fit.comment-drafts','broken json');assert.equal(data.draft(74),'','corrupt storage does not prevent commenting');
+ const original=localStorage.setItem;localStorage.setItem=()=>{throw Error('quota')};data.draft(74,'Storage unavailable');assert.equal(data.draft(74),'Storage unavailable','quota failure retains memory draft');localStorage.setItem=original;
+ console.log('Social reads: prefetch/in-flight dedupe, mutation ordering, retained drafts/failures, permission clearing, same-login session isolation and refresh epochs PASS');
  // Failed writes may already be saved; never restore an optimistic/previous privacy claim.
  class Node {
   constructor(tag='button'){this.tag=tag;this.children=[];this.hidden=false;this.dataset={};this.isConnected=true;this.attrs=new Map();this.style={visibility:''};this.classList={add(){},remove(){}};}

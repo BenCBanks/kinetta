@@ -1,4 +1,4 @@
-// Session-scoped social reads and drafts. Never shared between accounts or logins.
+// Session-scoped reads; short-lived own-account comment drafts survive reload.
 'use strict';
 const SocialData=(()=>{
   let owner=null,epoch=0;const cache=new Map(),pending=new Map(),versions=new Map(),drafts=new Map(),watchers=new Map();
@@ -33,7 +33,29 @@ const SocialData=(()=>{
   function warm(button,id){if(button.dataset.socialWarm)return;button.dataset.socialWarm='1';
     for(const event of ['pointerenter','pointerdown','focus'])button.addEventListener(event,()=>prefetch(id),{passive:true});
   }
-  function draft(id,text){scope();if(arguments.length>1){text?drafts.set(key(id),text):drafts.delete(key(id));}return drafts.get(key(id))||'';}
+  const draftKey='fit.comment-drafts',draftTTL=7*86400000;
+  function savedDrafts(){
+    scope();
+    for(const [id,row] of drafts)if(Date.now()-row.at>=draftTTL)drafts.delete(id);
+    // Stable server/account identity only: readOwner includes a bearer token and must never be persisted.
+    const account=typeof App!=='undefined'&&App.me?JSON.stringify([Native.base||location.origin,App.me.id]):null;
+    try{
+      const saved=JSON.parse(localStorage.getItem(draftKey)||'null');
+      if(!account||saved?.account!==account){localStorage.removeItem(draftKey);return account;}
+      for(const [id,row] of Object.entries(saved.rows||{}))if(typeof row.text==='string'&&row.text.length<=500&&/^[0-9a-f-]{36}$/i.test(row.client_id)&&Date.now()-row.at<draftTTL)drafts.set(id,row);
+    }catch(_){/* A full/disabled store still allows an in-memory draft. */}
+    return account;
+  }
+  function persistDrafts(account){try{
+    const rows=Object.fromEntries([...drafts].filter(([,row])=>Date.now()-row.at<draftTTL).slice(-40));
+    if(account&&Object.keys(rows).length)localStorage.setItem(draftKey,JSON.stringify({account,rows}));else localStorage.removeItem(draftKey);
+  }catch(_){/* Saving a comment must not depend on device storage. */}}
+  function draft(id,text){const account=savedDrafts(),k=key(id);if(arguments.length>1){
+    const old=drafts.get(k);
+    if(text){if(old?.text!==text)drafts.set(k,{text,client_id:old?.text.trim()===text.trim()?old.client_id:newId(),at:Date.now()});}else drafts.delete(k);
+    persistDrafts(account);
+  }return drafts.get(k)?.text||'';}
+  function draftRequest(id,text){draft(id,text);return drafts.get(key(id)).client_id;}
   // Only an expiry timestamp persists: no reservation can strand ordinary reads.
   // 15s phone wait + 8s admitted server request + 2s margin. Upstream delays are not ordered.
   const RECOVERY_MS=25000,viewsByOwner=new Map(),generations=new Map(),settingsByRoot=new WeakMap();
@@ -199,5 +221,5 @@ const SocialData=(()=>{
     return {save:run,read:()=>run(),get known(){return known;},get failure(){return lastError;},get attempted(){return attempt;}};
   }
 
-  return {remember,peek,read,forget,invalidate,prefetch,warm,draft,watch,confirmSetting};
+  return {remember,peek,read,forget,invalidate,prefetch,warm,draft,draftRequest,watch,confirmSetting};
 })();

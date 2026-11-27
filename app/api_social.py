@@ -17,6 +17,7 @@ import json
 import os
 import secrets
 from zoneinfo import ZoneInfo
+from uuid import UUID
 
 from . import community_filter, analysis
 
@@ -837,6 +838,7 @@ def uncheer(aid:int,user=Depends(current_user)):
 
 class CommentIn(BaseModel):
     text: str = Field(min_length=1, max_length=500)
+    client_id: UUID | None = None
 
 
 @router.post('/activities/{aid}/comments')
@@ -847,11 +849,19 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (user['id'],)).fetchone()
         confirmed(c, user['id'])
         owner = can_see(c, user['id'], aid)
+        # The account lock also serializes concurrent retries. Recheck access before replay.
+        if body.client_id is not None:
+            previous = c.execute('SELECT activity_id,text FROM comments WHERE user_id=%s AND client_id=%s',
+                                 (user['id'],body.client_id)).fetchone()
+            if previous:
+                if previous['activity_id'] != aid or previous['text'] != text:
+                    raise HTTPException(409, 'This retry belongs to a different comment. Reopen Comments and try again.')
+                return _social(c, aid, user['id'], owner)
         private = owner == user['id'] and c.execute("SELECT 1 FROM activities WHERE id=%s AND user_id=%s AND visibility='me' FOR SHARE", (aid,user['id'])).fetchone()
         if not private: community_filter.public(c, user['id'], ('comment', text))
         from .signup import social_action
         social_action(c, user['id'], 'comment')
-        cid = c.execute('INSERT INTO comments (activity_id, user_id, text) VALUES (%s, %s, %s) RETURNING id', (aid, user['id'], text)).fetchone()['id']
+        cid = c.execute('INSERT INTO comments (activity_id, user_id, text, client_id) VALUES (%s, %s, %s, %s) RETURNING id', (aid, user['id'], text, body.client_id)).fetchone()['id']
         notify.add(c, owner, 'comment', user['id'], activity_id=aid, comment_id=cid)
         return _social(c, aid, user['id'], owner)
 

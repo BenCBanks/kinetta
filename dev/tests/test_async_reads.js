@@ -33,6 +33,15 @@ const deleteButton={disabled:false},deletePw={value:'fictional-password',focus()
 const deleteCtx={App:c.ui.App,readOwner:()=>c.ui.App.me?.id,Native:{on:false,forget:async()=>{}},sheet:(title,body,setup)=>setup({},()=>{}),esc:String,$:selector=>selector==='#del'?form:selector==='button.primary'?deleteButton:null,api:async path=>{assert.equal(path,'/api/account/delete');return{};},json:(method,body)=>({method,body}),clearSegmentDrafts:async()=>{},Q:{all:()=>[]},store:{set(){}},forgetKept:c.ui.forgetKept,netbar:async()=>{},history:{replaceState(){}},showLogin:()=>deleteLogin++,toast(){}};
 vm.createContext(deleteCtx);vm.runInContext(deletePage.slice(deleteStart,deleteEnd)+'\nglobalThis.deleteSheet=deleteSheet;',deleteCtx);deleteCtx.deleteSheet();await form.onsubmit({preventDefault(){}});assert.equal(deleteLogin,1,'successful deletion returns to login');assert.equal(c.localStorage.getItem(deleteDraftKey),null,'account deletion clears the prior owner’s onboarding profile draft');assert.equal(c.ui.App.cache.size,0,'account deletion clears in-memory payloads');for(const path of ['/api/activity-food','/api/progress/overview','me:today:2026-11-17',deleteProfilePath])assert.equal(c.localStorage.getItem('fit.c:'+path),null,`account deletion clears persisted ${path}`);
 
+// Only these POSTs are bounded: no blanket write timeout/replay policy.
+for(const path of ['/api/login','/api/activities/42/comments']){
+ c=client();let expire,bound,options;c.setTimeout=(fn,ms)=>{expire=fn;bound=ms;return 1};c.clearTimeout=()=>{};
+ c.fetch=(url,opts)=>{options=opts;return new Promise((ok,no)=>opts.signal.addEventListener('abort',()=>no(Error('aborted'))));};
+ const request=c.ui.api(path,{method:'POST',body:JSON.stringify({text:'Fictional'})});assert.equal(bound,20000);expire();
+ await assert.rejects(request,e=>e.status===504&&!e.offline&&e.message==='This is taking too long. Please try again.');assert(options.signal.aborted);
+}
+c=client();let writeOptions;c.fetch=async(url,opts)=>{writeOptions=opts;return {ok:true,json:async()=>({})}};await c.ui.api('/api/profile',{method:'PUT',body:'{}'});assert.equal(writeOptions.signal,undefined,'other writes keep their existing policy');
+
 // Exercise the real block and activity-sharing handlers against the Home feed cache.
 c=client();c.ui.App.cache.set('feed:home',{data:{rows:['fictional']},at:Date.now()});
 const socialSource=fs.readFileSync('app/static/social.js','utf8'),blockStart=socialSource.indexOf('function friendChangeSheet('),blockEnd=socialSource.indexOf('\nfunction friendshipSheet(',blockStart),changedStart=socialSource.indexOf('function socialChanged(aid)'),changedEnd=socialSource.indexOf('\n// cheers and comments',changedStart);assert(blockStart>=0&&blockEnd>blockStart&&changedStart>=0&&changedEnd>changedStart);

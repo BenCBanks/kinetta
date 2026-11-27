@@ -436,12 +436,13 @@ async function apiRequest(path, opts = {}) {
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
   if (App.me && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
-  const timeout=!opts.signal&&(!opts.method||opts.method.toUpperCase()==='GET')?new AbortController():null;
+  const retryablePost=(opts.method||'GET').toUpperCase()==='POST'&&(path==='/api/login'||/^\/api\/activities\/\d+\/comments$/.test(path));
+  const timeout=!opts.signal&&(!opts.method||opts.method.toUpperCase()==='GET'||retryablePost)?new AbortController():null;
   const timer=timeout?setTimeout(()=>timeout.abort(),20000):null;
   try { r = await fetch(Native.base + requestPath, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, ...(mePath ? {priority: 'high',cache:'no-store'} : {}), ...(timeout?{signal:timeout.signal}:{}), headers: {...headers, ...Native.headers(), ...(opts.headers || {})}});
     try{body=await r.json();}catch(e){if(timeout?.signal.aborted)throw e;}
   }
-  catch (e) { throw Object.assign(new Error(timeout?.signal.aborted ? 'This is taking too long. Try refreshing again.' : "Can't reach Kinetta - check your connection."), timeout?.signal.aborted ? {status:504} : {offline:true}); }
+  catch (e) { throw Object.assign(new Error(timeout?.signal.aborted ? (retryablePost ? 'This is taking too long. Please try again.' : 'This is taking too long. Try refreshing again.') : "Can't reach Kinetta - check your connection."), timeout?.signal.aborted ? {status:504} : {offline:true}); }
   finally { if(timer)clearTimeout(timer); }
   if (owner !== readOwner()) throw Object.assign(new Error('The account changed while this request was running. Please try again.'), {stale: true});
   if (!r.ok) {
@@ -2527,6 +2528,8 @@ function accountSupportError(error) {
   return message||'Sign-in is temporarily unavailable. Please try again.';
 }
 function showLogin(msg = '') {
+  // Unsent comments belong to this sign-in, never a later login on a shared phone.
+  try { localStorage.removeItem('fit.comment-drafts'); } catch (_) { /* storage may be unavailable */ }
   globalThis.CommunityTerms?.reset();
   App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {});
   root.innerHTML = `<div class="login login-signin"><form novalidate>
@@ -2558,6 +2561,7 @@ function showLogin(msg = '') {
     const b = $('button[type=submit]', f), err = $('.err', f);
     const recovery=$('#l-recovery',f),recoveryStatus=$('#l-recovery-status',f);
     const login = f.login.value.trim(), password = f.password.value;
+    if (b.disabled) return;
     if (!login || !password) { err.textContent = 'Enter your email (or username) and your password.'; return; }
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = ''; recovery.hidden=true;recovery.replaceChildren();recoveryStatus.textContent='';
     try { const r=Native.on?await Native.login(f.server.value, login, password):await api('/api/login', json('POST', {login, password}));if(r.password_change_required){showTemporaryPassword(r.change_token);return;}store.del('kinetta.getApp');await start(); }
