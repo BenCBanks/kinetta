@@ -259,14 +259,14 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
      if(r.request().method()==='POST'&&r.request().postDataJSON().login===targetLogin){addWrites.push(r.request().url());await new Promise(resolve=>resolveAdd=resolve);return r.continue();}
      if(r.request().method()==='GET'&&holdRead){holdRead=false;const response=await r.fetch();await new Promise(resolve=>resolveRead=resolve);return r.fulfill({response});}return r.continue();
     });
-    const click=add.click();await until(p,()=>document.querySelector('#fr-found [data-sharing-state="checking"]')?.textContent.includes('Checking saved setting'),'Add waits for confirmed relationship');
+    const click=add.click();await until(p,()=>document.querySelector('#fr-found [data-sharing-state="checking"]')?.textContent.includes('Checking…'),'Add waits for confirmed relationship');
     for(let n=0;n<150&&!resolveAdd;n++)await p.waitForTimeout(20);assert.equal(typeof resolveAdd,'function','one Add request is held');assert.equal(addWrites.length,1,'Add sends once while waiting');
-    assert.equal(await add.isVisible(),false,'unconfirmed Add is concealed while the write is outstanding');assert.equal(await p.locator('#fr-found [data-request-menu]:visible').count(),0,'Requested is not claimed before saved readback');
+    assert.equal(await add.isVisible(),true,'unconfirmed Add keeps its position');assert.equal(await add.getAttribute('aria-disabled'),'true','unconfirmed Add is blocked');assert.equal(await p.locator('#fr-found [data-request-menu]:visible').count(),0,'Requested is not claimed before saved readback');
     await capture(p,`find-friends-add-pending-${viewportWidth}-${theme}`);holdRead=true;resolveAdd();await click;
     for(let n=0;n<150&&!resolveRead;n++)await p.waitForTimeout(20);assert.equal(typeof resolveRead,'function','successful Add reads the saved relationship');
-    assert.equal(await p.locator('#fr-found [data-request-menu]:visible').count(),0,'successful POST alone does not claim Requested');assert.equal(await add.isVisible(),false);resolveRead();
+    assert.equal(await p.locator('#fr-found [data-request-menu]:visible').count(),0,'successful POST alone does not claim Requested');assert.equal(await add.isVisible(),true);assert.equal(await add.getAttribute('aria-disabled'),'true');resolveRead();
     await until(p,()=>document.querySelector('#fr-found [data-request-menu]')?.textContent==='Requested','request becomes the Requested action');const status=await p.locator('#fr-found [data-request-menu]').evaluate(el=>({text:el.textContent,color:getComputedStyle(el).color,body:getComputedStyle(document.body).color,background:getComputedStyle(el).backgroundColor,borderRadius:getComputedStyle(el).borderRadius}));assert.equal(status.text,'Requested');assert.notEqual(status.color,status.body,'Requested stays secondary to the person name');assert.equal(status.background,'rgba(0, 0, 0, 0)','Requested stays unfilled');assert.equal(status.borderRadius,'0px','Requested is not a pill');await capture(p,`find-friends-requested-${viewportWidth}-${theme}`);
-    assert.equal(addWrites.length,1,'Add sends one explicit friend request');assert.deepEqual(errors,[]);await close(c);console.log(`Find friends actions ${theme}: search, concealed pending request and confirmed Requested PASS`);
+    assert.equal(addWrites.length,1,'Add sends one explicit friend request');assert.deepEqual(errors,[]);await close(c);console.log(`Find friends actions ${theme}: search, stable pending request and confirmed Requested PASS`);
    }
   }
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='management'){

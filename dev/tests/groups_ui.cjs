@@ -148,7 +148,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   assert(!/https:|Copy invite|Done|display name/.test(await picker.innerText()),'no raw URL, duplicate actions or display names');
   await capture(page,`group-picker-friends-${width}-${theme}`,null,{fullPage:false});
   await page.locator('[data-invite-friend="alpine_friend"]').click();await inviteStarted;
-  assert(!await page.locator('[data-invite-friend="alpine_friend"]').isVisible(),'unconfirmed invitation is concealed before response');
+  assert(await page.locator('[data-invite-friend="alpine_friend"]').isVisible(),'unconfirmed invitation stays in place before response');assert.equal(await page.locator('[data-invite-friend="alpine_friend"]').getAttribute('aria-disabled'),'true');
   releaseInvite();await page.getByRole('button',{name:'Invited @alpine_friend',exact:true}).waitFor();assert.deepEqual(posts,[{username:'alpine_friend'}],'only the selected username is sent once');
   await capture(page,`group-picker-invited-${width}-${theme}`,null,{fullPage:false});
   mode='invite-fail';await page.locator('[data-invite-friend="zora_trails"]').click();await page.waitForFunction(()=>document.querySelector('[data-invite-friend="zora_trails"]').disabled===false);assert.equal(await page.locator('[data-invite-friend="zora_trails"]').innerText(),'Invite','failed invitation restores its action');mode='list';

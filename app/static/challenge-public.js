@@ -5,7 +5,7 @@
  const account=Number(button.dataset.account)||button.dataset.account,key='kinetta.privacy-until:'+JSON.stringify(['',account]);
  const uncertainKey=key+':challenge:'+button.dataset.code;
  const pending=()=>{const until=Number(localStorage.getItem(key));if(Number.isFinite(until)&&until>Date.now())return true;localStorage.removeItem(key);return false;};
- let unknown=false;
+ let unknown=false,busy=false,waiting=null;
  const unconfirmed=()=>{unknown=true;button.textContent='Retry';status.textContent='Not confirmed. Retry';};
  try{if(pending()||localStorage.getItem(uncertainKey))unconfirmed();}catch(_){/* A new write must persist its state before dispatch. */}
  async function request(url,options={}){
@@ -13,9 +13,13 @@
   try{const response=await fetch(url,{...options,headers:{...options.headers,'X-Kinetta-Account':button.dataset.account},signal:controller.signal,cache:'no-store'}),data=await response.json();if(!response.ok)throw Error('Invitation could not be checked.');return data;}finally{clearTimeout(timer);}
  }
  button.onclick=async()=>{
-  button.disabled=true;status.textContent='Checking invitation…';
+  if(busy||waiting)return;busy=true;button.setAttribute('aria-disabled','true');status.textContent='Checking…';
   try{
-   if(pending()){unconfirmed();return;}
+   if(pending()){
+    unknown=true;status.textContent='Checking…';
+    const check=()=>{waiting=null;if(!button.isConnected)return;if(pending()){waiting=setTimeout(check,Math.min(1000,Math.max(1,Number(localStorage.getItem(key))-Date.now())));return;}button.onclick();};
+    waiting=setTimeout(check,Math.min(1000,Math.max(1,Number(localStorage.getItem(key))-Date.now())));return;
+   }
    if(!unknown){
     // Same finite grace period as the signed-in setting controls; no global GET gate.
     localStorage.setItem(key,String(Date.now()+25000));
@@ -30,6 +34,6 @@
    if(saved.member){location.href='/me/challenges/'+encodeURIComponent(button.dataset.code);return;}
    unknown=false;button.textContent='Join challenge';status.textContent='Not joined. Try again.';
   }catch(_){unconfirmed();}
-  finally{button.disabled=false;}
+  finally{busy=false;if(!waiting)button.removeAttribute('aria-disabled');}
  };
 })();

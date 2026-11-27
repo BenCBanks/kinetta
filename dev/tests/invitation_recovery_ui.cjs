@@ -71,7 +71,7 @@ module.exports=async(browser,base,out='')=>{
     console.log('Invitation recovery '+mode+' '+theme+' '+spec.name+' '+fault+' PASS');continue;
    }
    if(spec.name==='public'){await p.getByRole('button',{name:'Retry',exact:true}).waitFor();unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await p.locator(spec.button).click();}
-   else if(spec.name!=='public'){const note=p.locator('[data-sharing-state=unknown]');await note.waitFor();assert(!await p.locator(spec.button).first().isVisible(),'uncertain action concealed');
+   else if(spec.name!=='public'){const note=p.locator('[data-sharing-state=unknown]');await note.waitFor();assert(await p.locator(spec.button).first().isVisible(),'uncertain action keeps its position');assert.equal(await p.locator(spec.button).first().getAttribute('aria-disabled'),'true','uncertain action is blocked');
     if(out&&fault==='lost-offline'&&mode==='web'&&['friend','group','challenge'].includes(spec.name)){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'invite-'+spec.name+'-'+theme+'-unknown.png')});}
     unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await note.getByRole('button',{name:'Retry',exact:true}).click();
    }
