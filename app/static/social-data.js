@@ -140,11 +140,14 @@ const SocialData=(()=>{
         const focusPath=[];let cursor=focused;
         while(cursor&&cursor!==root){const parent=cursor.parentElement;if(!parent)break;focusPath.unshift([...parent.children].indexOf(cursor));cursor=parent;}
         const hadFocus=cursor===root,scrollers=[];for(let node=focused?.parentElement;node;node=node.parentElement)if(node.scrollTop)scrollers.push([node,node.scrollTop]);
-        await paint(data,{failure});if(!live()||expected!==generation())return null;
-        known=true;await after(data);if(!live()||expected!==generation())return null;restore();
-        if(hadFocus&&!focused.isConnected){let replacement=identity?root.querySelector(`[${identity[0]}="${CSS.escape(identity[1])}"]`):null;if(!replacement){replacement=root;for(const index of focusPath)replacement=replacement?.children[index];}replacement?.focus?.({preventScroll:true});}
-        for(const [node,top] of scrollers)if(node.isConnected)node.scrollTop=top;
-        if(window.scrollX!==scrollX||window.scrollY!==scrollY)window.scrollTo(scrollX,scrollY);
+        const restorePosition=()=>{
+          if(!root.isConnected||account!==readOwner()||expected!==generation())return;
+          if(hadFocus&&!focused.isConnected){let replacement=identity?root.querySelector(`[${identity[0]}="${CSS.escape(identity[1])}"]`):null;if(!replacement){replacement=root;for(const index of focusPath)replacement=replacement?.children[index];}replacement?.focus?.({preventScroll:true});}
+          for(const [node,top] of scrollers)if(node.isConnected)node.scrollTop=top;
+          if(window.scrollX!==scrollX||window.scrollY!==scrollY)window.scrollTo(scrollX,scrollY);
+        };
+        await paint(data,{failure});if(!live()||expected!==generation()){restorePosition();return null;}
+        known=true;await after(data);restorePosition();if(!live()||expected!==generation())return null;restore();
         setUntil(0);affected=null;note.dataset.sharingState='confirmed';note.hidden=true;retry.hidden=true;
         return {data,failure};
       }catch(error){

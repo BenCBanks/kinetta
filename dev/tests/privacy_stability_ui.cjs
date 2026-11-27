@@ -28,6 +28,15 @@ module.exports=async(browser,base,out='')=>{
    await phone.fill('not-a-number');await p.locator('#sh-phone-save').click();await p.locator('[data-sharing-state=unknown]').waitFor();assert.equal(await phone.inputValue(),'not-a-number');assert.equal(await p.locator('#sh-contact-status').innerText(),'Enter a phone number with a country code.','actual validation is shown');await shot('phone-error');
    await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-sharing-state=unknown] button').click();await p.locator('[data-sharing-state=confirmed]').waitFor({state:'attached'});assert.equal(await phone.inputValue(),'not-a-number','readback after failed phone submit retains draft');
    for(fault of ['503','offline']){await other.click();await p.locator('[data-sharing-state=unknown]').waitFor();assert(await other.isVisible());assert.equal(await phone.inputValue(),'not-a-number');await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-sharing-state=unknown] button').click();await p.locator(`[data-vis=${current}][aria-checked=true]`).waitFor();}
+   fault='';
+   for(const phase of ['paint','after'])assert(await p.evaluate(async({phase,current})=>{
+    const root=document.createElement('section');document.querySelector('#page').append(root);
+    const draw=()=>{root.innerHTML='<button id="stable-repaint-control" type="button">Saved setting</button>';SocialData.confirmSetting(root,{path:'/api/sharing',paint:()=>{}});};
+    root.innerHTML='<button id="stable-repaint-control" type="button">Saved setting</button>';
+    const saved=SocialData.confirmSetting(root,{read:async()=>({default:current}),paint:()=>{if(phase==='paint')draw();},after:()=>{if(phase==='after')draw();}});
+    const input=root.querySelector('button');input.focus({preventScroll:true});const top=scrollY;
+    await saved.save('/api/sharing',json('PUT',{default:current}));const result=document.activeElement?.id==='stable-repaint-control'&&scrollY===top;root.remove();return result;
+   },{phase,current}),phase+' replacement preserves the equivalent focused control and scroll');
    assert.deepEqual(errors,[]);console.log('Stable privacy',mode,theme,'PASS: rows/scroll/focus; affected-only lock; automatic GET Retry; phone draft/400; offline/503');
   }finally{await c.close();}
  }
