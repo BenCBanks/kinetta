@@ -87,15 +87,15 @@ async function retryChecks(browser){
    const shot=async(name,selector)=>{if(!out)return;fs.mkdirSync(out,{recursive:true});for(const theme of ['light','dark']){await page.emulateMedia({colorScheme:theme});await page.locator(selector).screenshot({path:path.join(out,`${native?'bridge':'web'}-${name}-${theme}.png`),animations:'disabled'});}await page.emulateMedia({colorScheme:'light'});};
    await open();const field=page.locator('.c-form textarea'),post=page.locator('.c-send'),text='Fictional retry '+Date.now().toString(36);
    await field.fill('Old fictional intention');
-   await page.evaluate(()=>{const original=Storage.prototype.setItem;window.restoreDraftStorage=()=>{Storage.prototype.setItem=original;};Storage.prototype.setItem=function(k,v){if(k==='fit.comment-drafts')throw new DOMException('Fictional quota','QuotaExceededError');return original.call(this,k,v);};});
+   await page.evaluate(()=>{const original=Storage.prototype.setItem;window.restoreDraftStorage=()=>{Storage.prototype.setItem=original;};Storage.prototype.setItem=function(k,v){if(k.startsWith('fit.comment-draft:'))throw new DOMException('Fictional quota','QuotaExceededError');return original.call(this,k,v);};});
    await field.fill(text);fault='lost';await post.click();await page.locator('.comment-retry').waitFor();assert.equal(await count(text),1);
    const quotaKey=attempts.at(-1).client_id;
    for(let n=0;n<2;n++){fault='lost';await page.locator('.comment-retry').click();await page.locator('.comment-retry').waitFor();assert.equal(attempts.at(-1).client_id,quotaKey,'quota plus repeated lost replies keeps one intention');assert.equal(await count(text),1);}
    await page.evaluate(aid=>{window.restoreDraftStorage();SocialData.draft(aid,SocialData.draft(aid));},aid);
    const key=attempts.at(-1).client_id;assert.match(key,/^[0-9a-f-]{36}$/);await shot('lost-reply','.sheet');
-   await open();assert.equal(await field.inputValue(),text,'reload retains unsent text');await shot('reload','.sheet');await post.click();await page.getByText('Comment posted.',{exact:true}).waitFor();assert.equal(await count(text),1,'reload retry never duplicates');assert.equal(attempts.at(-1).client_id,key);await shot('posted','.sheet');assert.equal(await page.evaluate(()=>localStorage.getItem('fit.comment-drafts')),null);
+   await open();assert.equal(await field.inputValue(),text,'reload retains unsent text');await shot('reload','.sheet');await post.click();await page.getByText('Comment posted.',{exact:true}).waitFor();assert.equal(await count(text),1,'reload retry never duplicates');assert.equal(attempts.at(-1).client_id,key);await shot('posted','.sheet');assert.deepEqual(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[]);
    const held='Fictional held '+Date.now().toString(36);await field.fill(held);await page.clock.install();fault='timeout';await post.click();await page.waitForFunction(()=>document.querySelector('.c-send')?.dataset.posting==='1');await page.clock.runFor(20001);await page.locator('.comment-retry').waitFor();assert.equal(await field.inputValue(),held);assert(await post.isEnabled());await shot('comment-timeout','.sheet');release();release=null;await page.locator('.comment-retry').click();await page.getByText('Comment posted.',{exact:true}).waitFor();assert.equal(await count(held),1);await page.clock.resume();
-   const offline='Fictional draft '+Date.now().toString(36);await field.fill(offline);fault='503';await post.click();await page.locator('.comment-retry').waitFor();await open();assert.equal(await field.inputValue(),offline);await page.locator('.sheet').evaluate(n=>n.requestClose());await page.locator('.scrim').waitFor({state:'detached'});await page.evaluate(()=>{App.me=null;App.pageReady=false;App.page=null;history.replaceState(null,'','/login');showLogin();});assert.equal(await page.evaluate(()=>localStorage.getItem('fit.comment-drafts')),null,'sign-in clears prior draft');
+   const offline='Fictional draft '+Date.now().toString(36);await field.fill(offline);fault='503';await post.click();await page.locator('.comment-retry').waitFor();await open();assert.equal(await field.inputValue(),offline);await page.locator('.sheet').evaluate(n=>n.requestClose());await page.locator('.scrim').waitFor({state:'detached'});await page.evaluate(()=>{App.me=null;App.pageReady=false;App.page=null;history.replaceState(null,'','/login');showLogin();});assert.deepEqual(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[],'sign-in clears prior draft');
    const login=page.locator('.login input[name=login]'),password=page.locator('.login input[name=password]'),button=page.locator('.login button[type=submit]');await login.fill('zz_test_inline_owner');await password.fill(pw);let loginCalls=0;
    await page.route('**/api/login',async route=>{loginCalls++;if(loginCalls===1){await new Promise(r=>release=r);return route.abort();}return route.continue();});
    await button.click();await button.evaluate(n=>{n.form.requestSubmit();n.form.requestSubmit();});await page.clock.runFor(20001);await page.getByText('Sign-in is temporarily unavailable. Please try again.',{exact:true}).waitFor();assert(await button.isEnabled());assert.equal(await login.inputValue(),'zz_test_inline_owner');assert.equal(await password.inputValue(),pw);await shot('login-timeout','.login form');release();release=null;await page.clock.resume();await button.click();await page.waitForFunction(()=>App.me&&App.pageReady);assert.equal(loginCalls,2);assert.deepEqual(errors,[]);
@@ -118,7 +118,7 @@ async function retryChecks(browser){
      try{App.me=null;showLogin();}finally{Storage.prototype.setItem=original;}
     });
     await peers[0].waitForFunction(()=>document.querySelector('.c-form textarea')?.value==='');
-    for(const peer of peers){assert.equal(await peer.evaluate(aid=>SocialData.draftRequest(aid,'Never rewrite after logout'),aid),null);assert.equal(await peer.evaluate(()=>localStorage.getItem('fit.comment-drafts')),null);assert(await peer.locator('.c-send').isDisabled());}
+    for(const peer of peers){assert.equal(await peer.evaluate(aid=>SocialData.draftRequest(aid,'Never rewrite after logout'),aid),null);assert.deepEqual(await peer.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[]);assert(await peer.locator('.c-send').isDisabled());}
    }finally{for(const peer of peers)await peer.close();}
    assert.deepEqual(errors,[]);
    console.log(`Durable comments/quota/lost-reply/reload + cross-tab logout/quota fence + sign-in timeout/retry ${native?'bridge':'web'} PASS`);
@@ -151,13 +151,24 @@ async function crossTabDraftChecks(browser){
    await one.evaluate(()=>SocialData.draft(101,''));await two.evaluate(()=>SocialData.draft(102,'Fictional revised B'));
    await one.reload();assert.deepEqual(await one.evaluate(()=>[SocialData.draft(101),SocialData.draft(102)]),['','Fictional revised B'],'stale memory cannot restore another activity cleared elsewhere');
    const pending=await one.evaluate(()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw Error('Fictional quota');};try{return SocialData.draftRequest(103,'Fictional pending A');}finally{Storage.prototype.setItem=set;}});
-   await two.evaluate(()=>SocialData.draft(104,'Fictional separate B'));await one.evaluate(()=>SocialData.draft(105,'Fictional next A'));
-   await two.reload();assert.deepEqual(await two.evaluate(()=>[SocialData.draftRequest(103,'Fictional pending A'),SocialData.draft(104),SocialData.draft(105)]),[pending,'Fictional separate B','Fictional next A']);
+   await two.evaluate(()=>SocialData.draft(104,'Fictional separate B'));await one.evaluate(()=>SocialData.draftRequest(103,'Fictional pending A'));
+   await two.reload();assert.deepEqual(await two.evaluate(()=>[SocialData.draftRequest(103,'Fictional pending A'),SocialData.draft(104)]),[pending,'Fictional separate B']);
+   // Concurrent calls from distinct real tabs; neither operation writes the peer's key.
+   for(let n=0;n<12;n++)await Promise.all([
+    one.evaluate(n=>SocialData.draft(201,'Concurrent A '+n),n),
+    two.evaluate(n=>SocialData.draft(202,'Concurrent B '+n),n)
+   ]);
+   await one.reload();await two.reload();
+   assert.deepEqual(await one.evaluate(()=>[SocialData.draft(201),SocialData.draft(202)]),['Concurrent A 11','Concurrent B 11']);
+   // A's delete overlaps B's edit, including a stale in-memory copy of A in B's tab.
+   await Promise.all([one.evaluate(()=>SocialData.draft(201,'')),two.evaluate(()=>SocialData.draft(202,'B while A deleted'))]);
+   await one.reload();await two.reload();
+   assert.deepEqual(await two.evaluate(()=>[SocialData.draft(201),SocialData.draft(202)]),['','B while A deleted']);
    // Suppress clear events so the stale tab must use the synchronous generation fence.
    await two.evaluate(()=>{window.addEventListener('storage',e=>e.stopImmediatePropagation(),{capture:true});});
    await one.evaluate(()=>clearCommentDrafts());
    assert.equal(await two.evaluate(()=>SocialData.draftRequest(102,'Must not restore after sign-out')),null);
-   assert.equal(await two.evaluate(()=>localStorage.getItem('fit.comment-drafts')),null);
+   assert.deepEqual(await two.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[]);
    console.log(`Two-tab per-activity drafts/reload/clear/quota/generation ${native?'bridge':'web'} PASS`);
   }finally{await context.close();}
  }

@@ -1,8 +1,8 @@
 // Session-scoped reads; short-lived own-account comment drafts survive reload.
 'use strict';
 const SocialData=(()=>{
-  let owner=null,epoch=0,hydrated=false,revoked=false,draftGeneration=null;const cache=new Map(),pending=new Map(),versions=new Map(),drafts=new Map(),dirtyDrafts=new Set(),watchers=new Map();
-  const scope=()=>{const next=readOwner();if(next!==owner){owner=next;epoch++;cache.clear();pending.clear();versions.clear();drafts.clear();dirtyDrafts.clear();watchers.clear();hydrated=false;revoked=false;draftGeneration=generation();}return next;};
+  let owner=null,epoch=0,hydrated=false,revoked=false,draftGeneration=null;const cache=new Map(),pending=new Map(),versions=new Map(),drafts=new Map(),watchers=new Map();
+  const scope=()=>{const next=readOwner();if(next!==owner){owner=next;epoch++;cache.clear();pending.clear();versions.clear();drafts.clear();watchers.clear();hydrated=false;revoked=false;draftGeneration=generation();}return next;};
   const key=id=>String(id);
   function remember(id,data){scope();if(!Array.isArray(data?.cheers)||!Array.isArray(data?.comments))return;
     const k=key(id);data={...cache.get(k)?.data,...data};
@@ -33,17 +33,33 @@ const SocialData=(()=>{
   function warm(button,id){if(button.dataset.socialWarm)return;button.dataset.socialWarm='1';
     for(const event of ['pointerenter','pointerdown','focus'])button.addEventListener(event,()=>prefetch(id),{passive:true});
   }
-  const draftKey='fit.comment-drafts',generationKey=draftKey+'-generation',draftTTL=7*86400000;
+  const draftPrefix='fit.comment-draft:',generationKey='fit.comment-drafts-generation',draftTTL=7*86400000;
   function generation(){try{return localStorage.getItem(generationKey);}catch(_){return null;}}
   // Establish one shared epoch before any tab scopes its reads or drafts.
   try{if(!generation())localStorage.setItem(generationKey,newId());}catch(_){}
   function revokeDrafts(){
-    scope();if(revoked)return;revoked=true;hydrated=true;drafts.clear();dirtyDrafts.clear();
+    scope();if(revoked)return;revoked=true;hydrated=true;drafts.clear();
     globalThis.dispatchEvent?.(new Event('comment-drafts-cleared'));
   }
   globalThis.addEventListener?.('storage',event=>{if(event.key===generationKey||event.key===null)revokeDrafts();});
   try{if(typeof BroadcastChannel==='function'){const channel=new BroadcastChannel('fit.comment-drafts');channel.onmessage=revokeDrafts;}}catch(_){/* Storage checks also revoke suspended tabs. */}
   const validDraft=row=>row&&typeof row.text==='string'&&row.text.length<=500&&/^[0-9a-f-]{36}$/i.test(row.client_id)&&Number.isFinite(row.at)&&Date.now()-row.at<draftTTL;
+  // The generation is part of the key: a delayed old-session write/cleanup can
+  // never replace/remove the same account's newer-session draft.
+  const draftScope=account=>draftPrefix+encodeURIComponent(account)+':'+encodeURIComponent(draftGeneration)+':';
+  function storedDrafts(account){
+    const prefix=draftScope(account),rows=[];
+    const keys=Array.from({length:localStorage.length},(_,i)=>localStorage.key(i));
+    for(const storedKey of keys){
+      if(!storedKey?.startsWith(prefix))continue;
+      let row;try{row=JSON.parse(localStorage.getItem(storedKey));}catch(_){}
+      if(validDraft(row))rows.push({storedKey,id:decodeURIComponent(storedKey.slice(prefix.length)),row});
+      else localStorage.removeItem(storedKey);
+    }
+    rows.sort((a,b)=>b.row.at-a.row.at||a.storedKey.localeCompare(b.storedKey));
+    for(const {storedKey} of rows.slice(40))localStorage.removeItem(storedKey);
+    return rows.slice(0,40);
+  }
   function savedDrafts(){
     scope();
     // Check synchronously too: a suspended tab may write before its storage event is delivered.
@@ -52,36 +68,33 @@ const SocialData=(()=>{
     // Never persist readOwner: it includes a bearer token.
     const account=typeof App!=='undefined'&&App.me?JSON.stringify([Native.base||location.origin,App.me.id]):null;
     if(revoked||hydrated)return revoked?null:account;
-    hydrated=true; // Hydrate once: failed writes must never let older storage replace newer memory.
+    hydrated=true; // Failed writes must never let older storage replace newer memory.
     try{
-      const saved=JSON.parse(localStorage.getItem(draftKey)||'null');
-      if(!account||saved?.account!==account||(saved.generation??null)!==draftGeneration)localStorage.removeItem(draftKey);
-      else for(const [id,row] of Object.entries(saved.rows||{}))if(validDraft(row))drafts.set(id,row);
+      localStorage.removeItem('fit.comment-drafts'); // Retire the unshipped whole-map format.
+      if(account&&draftGeneration)for(const {id,row} of storedDrafts(account))drafts.set(id,row);
     }catch(_){/* A full/disabled store still allows an in-memory draft. */}
-    // Establish the fence before any durable write. Without it, stay memory-only:
-    // logout can revoke old tabs by changing OR removing this fixed-size marker.
+    // Without an established clearing fence, stay memory-only for this session.
     if(!draftGeneration)try{const next=newId();localStorage.setItem(generationKey,next);draftGeneration=next;}catch(_){}
     return account;
   }
-  function persistDrafts(account){try{
-    if(revoked||generation()!==draftGeneration){revokeDrafts();return;}
-    if(!draftGeneration)return; // Quota failure must not create unfenced durable text.
-    // Merge only this tab's pending activity changes into the latest saved map.
-    // Hydrated copies of unrelated activities may be stale or cleared by another tab.
-    let saved;try{saved=JSON.parse(localStorage.getItem(draftKey)||'null');}catch(_){}
-    const rows=saved?.account===account&&saved.generation===draftGeneration
-      ?Object.fromEntries(Object.entries(saved.rows||{}).filter(([,row])=>validDraft(row))):{};
-    for(const id of dirtyDrafts){if(validDraft(drafts.get(id)))rows[id]=drafts.get(id);else delete rows[id];}
-    const bounded=Object.fromEntries(Object.entries(rows).sort((a,b)=>a[1].at-b[1].at).slice(-40));
-    if(account&&Object.keys(bounded).length)localStorage.setItem(draftKey,JSON.stringify({account,generation:draftGeneration,rows:bounded}));else localStorage.removeItem(draftKey);
-    dirtyDrafts.clear(); // Retain pending changes when storage rejects a write.
-    // A clear between the check and write cannot leave this old generation's text on disk.
-    if(generation()!==draftGeneration){try{if(JSON.parse(localStorage.getItem(draftKey)||'null')?.generation===draftGeneration)localStorage.removeItem(draftKey);}finally{revokeDrafts();}}
-  }catch(_){/* Saving a comment must not depend on device storage. */}}
+  function persistDraft(account,id){
+    const storedKey=draftScope(account)+encodeURIComponent(id);
+    try{
+      if(revoked||generation()!==draftGeneration){revokeDrafts();return;}
+      if(!draftGeneration)return;
+      const row=drafts.get(id);
+      // Only this activity is written. No stale copy of another activity is replayed.
+      if(validDraft(row))localStorage.setItem(storedKey,JSON.stringify(row));else localStorage.removeItem(storedKey);
+      if(generation()===draftGeneration)storedDrafts(account); // Expiry and the 40-draft bound are enforced by scanning.
+    }catch(_){/* Saving a comment must not depend on device storage. */}
+    finally{
+      if(generation()!==draftGeneration){try{localStorage.removeItem(storedKey);}catch(_){}revokeDrafts();}
+    }
+  }
   function draft(id,text){const account=savedDrafts(),k=key(id);if(revoked||!account)return '';if(arguments.length>1){
     const old=drafts.get(k);
     if(text){if(old?.text!==text)drafts.set(k,{text,client_id:old?.text.trim()===text.trim()?old.client_id:newId(),at:old?.text.trim()===text.trim()?old.at:Date.now()});}else drafts.delete(k);
-    dirtyDrafts.add(k);persistDrafts(account);
+    persistDraft(account,k);
   }return drafts.get(k)?.text||'';}
   function draftRequest(id,text){draft(id,text);return drafts.get(key(id))?.client_id||null;}
   // Only an expiry timestamp persists: no reservation can strand ordinary reads.
