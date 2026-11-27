@@ -195,8 +195,9 @@ for device in preferred:
       assert not re.search(r'\bkm\b|/km\b',metrics['bodyText']), 'US App Store activity scenes must not show metric distance or pace'
      if stage=='header-activity':assert 'Only me' not in metrics['bodyText'], 'Home own card must not show a private-only audience'
      if stage=='activity':
-      crop=metrics.get('storeCrop');assert crop and crop['selector']=='#d-charts .chartbox[data-chart-index="1"]' and 'Heart rate' in crop['text'] and crop['bottom']<=crop['tabTop']-8, 'Activity crop must show the complete heart-rate chart above the tab bar'
+      activity=metrics['activity'];assert activity['scrollY']==0 and abs(activity['hero']['y'])<=1 and activity['back']['y']>=metrics['safeTop']-1, 'Store Activity starts at the top with native-safe Back control'
       charts={chart['name']:chart for chart in metrics.get('storeCharts',[])};pace=charts.get('Pace');heart=charts.get('Heart rate')
+      assert all(chart['line']==chart['fill'] for chart in (pace,heart) if chart), 'Store chart area tints must follow their series line colors'
       assert pace and '9:39 /mi' in pace['average'] and heart and '145 bpm' in heart['average'], 'Activity chart averages must match its 9:39/mi and 145 bpm header'
       pace_ticks=[int(match.group(1))*60+int(match.group(2)) for label in pace['yLabels'] if (match:=re.search(r'(\d+):(\d+) /mi',label))]
       hr_ticks=[int(match.group(1)) for label in heart['yLabels'] if (match:=re.search(r'(\d+)',label))]
@@ -219,9 +220,11 @@ for device in preferred:
       assert all(item['label']['height']>=10 for item in metrics['navigation']['items']), f'{stage} Store nav must remain expanded: {metrics["navigation"]}'
      if stage=='kit-chart':
       assert metrics.get('storeChart')=={'points':3,'ticks':['200 ft','150 ft','100 ft'],'line':True},metrics
-     if stage=='kit-history':assert metrics.get('storeHistory')=={'rows':2,'resumed':True},metrics
-     if stage=='kit-memory':assert metrics.get('storeMemory')=={'rows':2,'enabled':True},metrics
-     if stage=='food-review':assert metrics.get('storeFoodReview')=={'foods':2,'confirm':True},metrics
+     if stage in ('kit-history','kit-memory'):
+      sheet=metrics['storeSheet'];assert abs(sheet['box']['y'])<=1 and abs(sheet['box']['height']-metrics['viewport']['height'])<=1 and sheet['header']['y']>=metrics['safeTop'], 'Store sheet full-screen capture framing preserves the native header safe area'
+     if stage=='kit-history':assert metrics.get('storeHistory')=={'rows':8,'resumed':True},metrics
+     if stage=='kit-memory':assert metrics.get('storeMemory')=={'rows':6,'enabled':True},metrics
+     if stage=='food-review':assert metrics.get('storeFoodReview')=={'foods':2,'confirm':True,'messages':3,'portionTextFits':True},metrics
      if stage=='notifications':assert metrics.get('storeNotifications',0)==4,metrics
      if stage=='header-me':
       me_text=metrics['bodyText']

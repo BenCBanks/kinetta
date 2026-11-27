@@ -19,6 +19,12 @@
     style.textContent='#p-explore>[data-progress-feature="weight"]~[data-progress-feature]{display:none!important}';
     (document.head||document.documentElement).append(style);
   }
+  if(cfg.store&&!cfg.store.homepage&&['kit-history','kit-memory'].includes(cfg.stage)){
+    // Store-only full-screen framing. The shipped app still uses its normal compact sheets.
+    const style=document.createElement('style');
+    style.textContent='.scrim:has(.kit-history-sheet){background:var(--surface-sheet)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}.sheet.kit-history-sheet{height:100dvh!important;max-height:100dvh!important;border-radius:0!important;padding-top:calc(env(safe-area-inset-top) + 8px)!important;outline:none!important;box-shadow:none!important}.sheet.kit-history-sheet>.grab{display:none!important}';
+    (document.head||document.documentElement).append(style);
+  }
   if(cfg.store&&cfg.stage==='food'){
     const style=document.createElement('style');
     style.textContent='.food-thread #thread-messages{align-content:end!important}.food-thread .thread-day{display:none!important}';
@@ -60,8 +66,8 @@
         'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
         'food-review':()=>document.querySelectorAll('.thread-food').length===2&&!!document.querySelector('#thread-review:not([hidden])'),
         'kit-chart':()=>document.querySelectorAll('.kit-chart circle').length===3,
-        'kit-history':()=>document.querySelectorAll('.kit-history-row').length===2,
-        'kit-memory':()=>document.querySelectorAll('.kit-memory-row').length===2,
+        'kit-history':()=>document.querySelectorAll('.kit-history-row').length===8,
+        'kit-memory':()=>document.querySelectorAll('.kit-memory-row').length===6,
         notifications:()=>document.querySelectorAll('.note').length===4,
         'friends-typical':()=>document.querySelector('#fr-own-list')&&document.querySelectorAll('.fr-friend').length===3,
         achievements:()=>document.querySelector('#profile-achievement-page[aria-busy="false"] h1')?.textContent==='Achievements'&&document.querySelectorAll('#profile-achievement-page .profile-achievement-track .profile-achievement-ladder').length>=3,
@@ -207,7 +213,11 @@
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
     let storeCrop=null;
     let storeMapCrop=null;
-    if(cfg.store&&cfg.stage==='activity'){const selector='#d-charts .chartbox[data-chart-index="1"]';await waitForStoreCrop(selector);storeCrop=await positionStoreCrop(selector);}
+    if(cfg.store&&cfg.stage==='activity'){
+      const selector='#d-charts .chartbox[data-chart-index="1"]';await waitForStoreCrop(selector);
+      if(cfg.store.homepage)storeCrop=await positionStoreCrop(selector);
+      else{window.scrollTo({top:0,behavior:'instant'});await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);}
+    }
     if(cfg.store&&cfg.stage==='header-progress')storeCrop=await positionStoreCrop('#p-explore [data-progress-feature="weight"]');
     if(cfg.store&&cfg.stage==='header-track')storeMapCrop=await frameStoreTrackMap();
     if(cfg.store&&cfg.stage==='food'){
@@ -237,12 +247,12 @@
     await document.fonts.ready;await new Promise(ok=>setTimeout(ok,2000));
     if(cfg.store)await waitForStorePaint();
     if(cfg.store&&cfg.stage==='activity'){
-      // The Store frame ends after the two reviewed series; keep later charts from peeking under the fixed tabs.
-      for(const chart of [...document.querySelectorAll('#d-charts .chartbox')].slice(2))chart.style.setProperty('display','none','important');
+      // Keep the top-framed Store image to one complete series, without a partial next chart beneath the tabs.
+      for(const chart of [...document.querySelectorAll('#d-charts .chartbox')].slice(cfg.store.homepage?2:1))chart.style.setProperty('display','none','important');
       // Production styles use one accent fill for every series; tint each fixture area from its own line color.
-      for(const chart of cfg.store.homepage?document.querySelectorAll('#d-charts .chartbox'):[]){
+      for(const chart of document.querySelectorAll('#d-charts .chartbox')){
         const area=chart.querySelector('.sample-area'),color=area?.nextElementSibling?.getAttribute('stroke');
-        if(area&&color){area.style.setProperty('fill',`color-mix(in srgb, ${color} 22%, var(--card))`,'important');area.style.setProperty('opacity','.22','important');}
+        if(area&&color){chart.dataset.storeOriginalFill=getComputedStyle(area).fill;area.style.setProperty('fill',cfg.store.homepage?`color-mix(in srgb, ${color} 22%, var(--card))`:color,'important');area.style.setProperty('opacity',cfg.store.homepage?'.22':'.12','important');}
         for(const label of chart.querySelectorAll('svg .yl')){label.style.setProperty('paint-order','stroke','important');label.style.setProperty('stroke','var(--card)','important');label.style.setProperty('stroke-width','4px','important');label.style.setProperty('stroke-linejoin','round','important');}
       }
     }
@@ -275,7 +285,7 @@
     for(let n=0;n<50&&!document.documentElement.classList.contains('native-display-ready');n++)await new Promise(ok=>setTimeout(ok,100));
     // Layout/display settling can replace tiles after the early paint check.
     if(cfg.store)await waitForStorePaint();
-    // Store scenes retain the safe-area header except the two deliberate content crops above.
+    // Store scenes retain the safe-area header; Progress alone uses a deliberate content crop.
     const nav=document.querySelector('nav.tabs'),navStyle=getComputedStyle(nav),navigation={
       ready:document.documentElement.classList.contains('native-display-ready'),visible:navStyle.display!=='none',box:rect('nav.tabs'),
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
@@ -286,7 +296,7 @@
     if(cfg.startupTiming)cfg.startupTiming.metricsSnapshotPerfMs=performance.now();
     const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,storeMapCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(headerSelector),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(cfg.stage==='food'?{storeKitTitle:document.querySelector('.food-thread #thread-context .thread-context-label')?.textContent||'',storeKitDateDividers:[...document.querySelectorAll('.food-thread .thread-day')].filter(e=>getComputedStyle(e).display!=='none').length,storeKitGap:foodLastMessage&&foodComposer?foodComposer.y-foodLastMessage.bottom:999}:{}),...(photosSave?{photosSave}:{}),...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
     if(cfg.store&&cfg.stage==='header-food')result.storeNutrition={card:rect('.nutrition-day-summary'),gear:rect('#fd-goal'),ring:rect('.calorie-ring-wrap'),protein:rect('[data-macro="protein_g"]')};
-    if(cfg.store&&cfg.stage==='activity')result.storeCharts=[...document.querySelectorAll('#d-charts .chartbox')].map(chart=>({name:chart.querySelector('.lbl>span:first-child')?.textContent.trim()||'',average:chart.querySelector('[data-chart-value]')?.textContent.trim()||'',yLabels:[...chart.querySelectorAll('.activity-chart-y-label')].map(label=>label.textContent.trim())}));
+    if(cfg.store&&cfg.stage==='activity')result.storeCharts=[...document.querySelectorAll('#d-charts .chartbox')].map(chart=>({name:chart.querySelector('.lbl>span:first-child')?.textContent.trim()||'',average:chart.querySelector('[data-chart-value]')?.textContent.trim()||'',yLabels:[...chart.querySelectorAll('.activity-chart-y-label')].map(label=>label.textContent.trim()),line:chart.querySelector('.ln')?getComputedStyle(chart.querySelector('.ln')).stroke:null,originalFill:chart.dataset.storeOriginalFill,fill:chart.querySelector('.sample-area')?getComputedStyle(chart.querySelector('.sample-area')).fill:null}));
     if(cfg.stage==='achievement-share-track'){const tabs=[...document.querySelectorAll('[data-achievement-scope]')],preview=document.querySelector('[data-achievement-preview-image]'),send=document.querySelector('[data-achievement-share-send]');result.achievementShare={title:document.querySelector('.sheet header h2')?.textContent,tabs:tabs.map(tab=>({label:tab.textContent.trim(),selected:tab.getAttribute('aria-selected')})),preview:{loaded:!!preview?.complete&&preview.naturalWidth>0,alt:preview?.alt||'',width:preview?.naturalWidth||0,height:preview?.naturalHeight||0},sendText:send?.textContent.trim(),sendDisabled:send?.disabled};}
     if(cfg.groups){const fields=document.querySelector('.group-create-fields');result.groups={fields:{...rect('.group-create-fields'),clientWidth:fields.clientWidth,scrollWidth:fields.scrollWidth},date:rect('[data-group-create-date]'),name:rect('[name=title]'),grid:rect('[data-group-create-goal]'),footer:rect('.group-create-footer'),submit:rect('.group-create-footer button'),backgroundInert:!!nav.closest('[inert]'),navHit:document.elementFromPoint(nav.getBoundingClientRect().x+nav.clientWidth/2,nav.getBoundingClientRect().y+nav.clientHeight/2)?.closest('nav.tabs')===nav,hint:document.querySelector('[name=title]')?.placeholder,value:document.querySelector('[name=title]')?.value,labels:[...document.querySelectorAll('.group-create-fields>*')].map(row=>rect(row))};}
     if(cfg.headerPage){
@@ -303,9 +313,10 @@
     if(cfg.activity){const bar=cfg.stage==='activity-sticky'?'.detail-sticky':cfg.stage==='activity-empty'?'.detail-title-back':'.detail-floating',social=document.querySelector('#d-soc'),reactionGroup=social?.querySelector('[data-reaction-group]'),comment=social?.querySelector('[data-ttalk]');result.activity={scrollY,documentHeight:document.documentElement.scrollHeight,hero:rect('.detail-map-hero'),bar:rect(bar),back:rect(bar+' .back'),actions:[...document.querySelectorAll(bar+' .icon-btn')].map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};}),title:rect('.d-title'),tabs:rect('.dtabs'),expanded:!!document.querySelector('.map.full'),close:rect('.map.full .map-full'),secondary:document.querySelectorAll('.detail-secondary .stat').length,social:{hidden:social?.hidden??true,react:rect('#d-soc .reaction-more'),triggerKind:reactionGroup?.dataset.mine||'',triggerGlyph:reactionGroup?.querySelector('.reaction-more .reaction-emoji')?.textContent||'',reactions:[...(social?.querySelectorAll('.reaction-summary-emoji')||[])].map(node=>({kind:node.dataset.summaryKind,count:node.querySelector('.reaction-summary-count')?.textContent.trim()||''})),comments:rect('#d-soc [data-ttalk]'),commentLabel:comment?.getAttribute('aria-label')||'',commentCount:comment?.querySelector('.num')?.textContent.trim()||''}};}
     if(cfg.recording){result.tracking={controls:rect('.track-controls'),captions:[...document.querySelectorAll('.track-live-main .track-controls .round-ctl small')].map(e=>e.getBoundingClientRect().bottom),save:rect('#track-save'),tabs:rect('nav.tabs'),map:rect('#track-map-wrap'),display:document.querySelector('[data-display="stats"]')?.getAttribute('aria-pressed')==='true'?'stats':'map',average:document.querySelector('#track-pace')?.textContent,lap:cfg.stage==='track-live'?cfg.trackLapPace:document.querySelector('#track-lap-pace')?.textContent,photos:rect('#track-photos-add'),title:rect('input[name=activity_name]'),chart:rect('#track-review-charts'),expanded:!!document.querySelector('#track-map-wrap.full')};}
     if(cfg.store&&cfg.stage==='kit-chart')result.storeChart={points:document.querySelectorAll('.kit-chart circle').length,ticks:[...document.querySelectorAll('.kit-chart-tick')].map(e=>e.textContent),line:!!document.querySelector('.kit-chart-line')};
+    if(cfg.store&&!cfg.store.homepage&&['kit-history','kit-memory'].includes(cfg.stage))result.storeSheet={box:rect('.sheet.kit-history-sheet'),header:rect('.sheet.kit-history-sheet>header'),framing:'capture-only-fullscreen'};
     if(cfg.store&&cfg.stage==='kit-history')result.storeHistory={rows:document.querySelectorAll('.kit-history-row').length,resumed:!!cfg.storeHistoryResumed};
     if(cfg.store&&cfg.stage==='kit-memory')result.storeMemory={rows:document.querySelectorAll('.kit-memory-row').length,enabled:!!document.querySelector('#kit-memory-on:checked')};
-    if(cfg.store&&cfg.stage==='food-review')result.storeFoodReview={foods:document.querySelectorAll('.thread-food').length,confirm:!!document.querySelector('#thread-review:not([hidden])')};
+    if(cfg.store&&cfg.stage==='food-review')result.storeFoodReview={foods:document.querySelectorAll('.thread-food').length,confirm:!!document.querySelector('#thread-review:not([hidden])'),messages:document.querySelectorAll('.thread-user').length,portionTextFits:[...document.querySelectorAll('.thread-food .compact-food-meta')].every(e=>e.scrollWidth<=e.clientWidth+1)};
     if(cfg.store&&cfg.stage==='notifications')result.storeNotifications=document.querySelectorAll('.note').length;
     if(cfg.store){
       result.sceneReady=storeReady();

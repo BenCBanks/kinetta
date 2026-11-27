@@ -18,12 +18,14 @@ module.exports=(r,stage,today)=>{
   r['/api/me']={...r['/api/me'],ai_ok:true,coach:true,kit_chat:true,ai_paused:false,ai_access:{coach:{available:true,entitled:true,reason:null}}};
   r[root]={enabled:true,retention:'until_deleted',generation,before:null,conversations:[
    {conversation_id:A,title:'Climb over the last three weeks',created:today+'T09:00:00Z',updated:today+'T09:02:00Z',message_count:1},
-   {conversation_id:B,title:'Planning an easy training week',created:'2026-11-01T09:00:00Z',updated:'2026-11-01T09:02:00Z',message_count:1}]};
+   {conversation_id:B,title:'Planning an easy training week',created:'2026-11-01T09:00:00Z',updated:'2026-11-01T09:02:00Z',message_count:1},
+   ...['Fuelling before a morning run','A week of consistent meals','My next training focus','An easy day after a long run','Lunch from my saved foods','Reviewing my recent workouts'].map((title,i)=>({conversation_id:uuid(13+i),title,created:'2026-10-'+(30-i)+'T09:00:00Z',updated:'2026-10-'+(30-i)+'T09:02:00Z',message_count:1}))]};
   const envelope={conversation_id:A,generation,visit_id:null,ready:true,before:null,messages};
   r[root+'/'+A]=envelope;r['POST '+root+'/'+A+'/resume']=envelope;
   r['/api/coach/conversation/memory']={enabled:true,version:4,memories:[
    {id:1,text:'I prefer morning runs.',kind:'routine',source:'user',updated:'2026-11-01T09:00:00Z'},
-   {id:2,text:"I'm vegetarian.",kind:'preference',source:'user',updated:'2026-10-31T09:00:00Z'}]};
+   {id:2,text:'I like meals I can prepare ahead.',kind:'preference',source:'user',updated:'2026-10-31T09:00:00Z'},
+   ...[['I want to run a comfortable 10K.','goal'],['I usually train on Tuesday and Saturday.','routine'],['I prefer simple lunches.','preference'],['I enjoy running outdoors.','preference']].map(([text,kind],i)=>({id:3+i,text,kind,source:'user',updated:'2026-10-'+(30-i)+'T09:00:00Z'}))]};
  }
  if(stage==='notifications'){
   const who=(login,name)=>({login,name,photo:null});
@@ -35,10 +37,15 @@ module.exports=(r,stage,today)=>{
   r['POST /api/notifications/read']={ok:true};
  }
  if(stage==='food-review'){
-  const entries=r['/api/food/day'].entries.map(e=>({...e,id:null})),draft=uuid(99);
+  // The fictional user supplied the portions; calories remain Kit estimates.
+  const entries=r['/api/food/day'].entries.map(e=>({...e,id:null,ref:{...e.ref,estimated_portion:false}})),draft=uuid(99);
+  const user=(id,body)=>({id,client_id:uuid(id),kind:'user',body,state:'answered',created:today+'T11:'+String(44+id).padStart(2,'0')+':00Z',local_day:today,result:{review_only:true,draft_id:draft}});
+  const reply=(id,body,result)=>({id,reply_to:id-1,kind:'assistant',body,state:'answered',created:today+'T11:'+String(44+id).padStart(2,'0')+':00Z',result});
   r['/api/food/thread']={...r['/api/food/thread'],messages:[
-   {id:10,client_id:draft,kind:'user',body:'Blueberry oatmeal and chicken salad',state:'answered',created:today+'T12:00:00Z',local_day:today,result:{review_only:true,draft_id:draft}},
-   {id:11,reply_to:10,kind:'assistant',body:'Check the portions before adding.',state:'answered',created:today+'T12:00:01Z',result:{kind:'preview',day:today,meal:'lunch',parts:[{index:0,status:'ready',estimated:true,entries,drafts:entries}]}}]};
+   user(10,'I had oatmeal and a salad today.'),reply(11,'What kind of salad?',{kind:'needs'}),
+   user(12,'Chicken salad. The oatmeal had blueberries.'),reply(13,'How much of each did you have?',{kind:'needs'}),
+   user(14,'One serving of oatmeal and 180 g of chicken salad.'),
+   reply(15,'Check the portions before adding.',{kind:'preview',day:today,meal:'lunch',parts:[{index:0,status:'ready',estimated:true,entries,drafts:entries}]})]};
   r['POST /api/food/thread/reviews']={id:9,review:{foods:entries}};
  }
 };

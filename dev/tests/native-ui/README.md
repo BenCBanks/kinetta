@@ -81,3 +81,10 @@ Debug Simulator copy and does not alter app startup behavior.
 Store listing Drafts may build the unsigned Simulator artifact and run `store-ui` when the existing Store path selector matches. Ordinary Drafts still skip these jobs. The `native-ui`/Compact retry gates and the main-only release/signing/TestFlight conditions are unchanged. No signing or App Store Connect action is performed by a Draft preview.
 
 This fixture set consolidates the earlier Draft-preview workflow and expands the capture plan. Fresh exact-head Simulator evidence and owner review are still required; historical images do not verify this revision.
+
+Store weak-frame refinement keeps the app bundle untouched: saved-chat and memory sheets receive explicitly
+capture-only full-screen framing (opaque surface, native-safe header); the actual app retains compact sheets.
+The food-review stand-in includes a fuller exchange with user-specified portions, while calories remain estimates.
+Store Activity starts at scroll zero with only its first chart shown; its chart-area tints follow each series line via capture-only styles. The
+underlying app's shared accent fill and clipped estimated-portion source label are reported separately with crops.
+These presentation overrides are not evidence that those app issues have been fixed. Homepage framing is retained.

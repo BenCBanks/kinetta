@@ -67,14 +67,20 @@ for(const stage of ['kit-chart','kit-history','kit-memory','notifications','food
  assert(!Object.keys(r).some(k=>/messages.*answer|DELETE |memory$/.test(k)&&k.startsWith('POST ')));
  if(stage.startsWith('kit-')){
   assert(r['/api/me'].kit_chat&&r['/api/me'].ai_access.coach.available);
-  assert.equal(r['/api/coach/conversation/threads'].conversations.length,2);
+  assert.equal(r['/api/coach/conversation/threads'].conversations.length,8);
   const e=r['POST /api/coach/conversation/threads/'+A+'/resume'];
   assert.deepEqual(e.messages,r['/api/coach/conversation/threads/'+A].messages);
   assert.deepEqual(e.messages[0].answer.chart.points.map(p=>p.plot_value),[125,171,200]);
-  assert.equal(r['/api/coach/conversation/memory'].memories.length,2);
+  assert.equal(r['/api/coach/conversation/memory'].memories.length,6);
  }
  const day=r['/api/food/day'];assert.equal(day.totals.kcal,915);assert.equal(day.entries.reduce((n,e)=>n+e.kcal,0),915);assert.equal(day.totals.protein_g*4+day.totals.carbs_g*4+day.totals.fat_g*9,915);
- if(stage==='food-review')assert.equal(r['/api/food/thread'].messages[1].result.kind,'preview');
+ if(stage==='food-review'){
+  const messages=r['/api/food/thread'].messages;assert.equal(messages.length,6);
+  assert.equal(new Set(messages.filter(m=>m.kind==='user').map(m=>m.client_id)).size,3);
+  const preview=messages.find(m=>m.result.kind==='preview');assert(preview);
+  assert(preview.result.parts[0].entries.every(e=>e.ref.estimated_portion===false));
+  assert(day.entries.every(e=>e.ref.estimated_portion),'review-specific portion knowledge must not alter the logged Nutrition day');
+ }
  if(stage==='notifications')assert.equal(r['/api/notifications'].items.length,4);
 } """
         result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/appstore.cjs')],cwd=ROOT,capture_output=True,text=True,timeout=10)
