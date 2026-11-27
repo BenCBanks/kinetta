@@ -1532,7 +1532,14 @@ function render(options) {
     const bundleMatch=path.match(bundle?.re||/^$/)||[],bundleTab=typeof bundle?.tab==='function'?bundle.tab(...bundleMatch.slice(1)):bundle?.tab;
     const el=lazyRouteShell(bundleTab);
     el.innerHTML='<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
-    loadRouteStyle(ROUTE_SCREENS_STYLE).then(()=>{if(current())render(renderOptions);}).catch(error=>{
+    let assets=loadRouteStyle(ROUTE_SCREENS_STYLE);
+    if(path==='/activity'&&bundle){
+      // Home needs all three: fetch styles, ordered scripts and feed together,
+      // then keep the existing render gate until the assets are ready.
+      startRouteReads(path,owner,current);
+      assets=Promise.all([assets,loadClassicScripts(bundle.scripts)]);
+    }
+    assets.then(()=>{if(current())render(renderOptions);}).catch(error=>{
       if(current()){showError(el,error,{retry:()=>render({...renderOptions,globalSyncDone:true})});App.pageReady=true;}
     });
     return;
