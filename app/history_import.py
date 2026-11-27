@@ -37,6 +37,15 @@ DATE_FORMATS = ('%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y', '%Y/%m/%d', '%b %d, %Y', '%B
 def _key(h): return re.sub(r'[^a-z]', '', (h or '').lower())
 
 
+def _header_matches(field, header):
+    # Exact names plus explicit units; never consume targets or trends
+    # as actual intake/scale weight. These are generic columns, not vendor adapters.
+    suffixes = {'weight': ('kg', 'lb', 'lbs'), 'eaten': ('kcal', 'kj'),
+                'burned': ('kcal',), 'deficit': ('kcal',)}
+    suffixes = suffixes.get(field, ('g',) if field.endswith('_g') else ())
+    return header in COLS[field] or any(header == name + unit for name in COLS[field] for unit in suffixes)
+
+
 def _date(v):
     v = (v or '').strip().split('T')[0].split(' ')[0] if re.match(r'^\d{4}-\d\d-\d\d', (v or '').strip()) else (v or '').strip()
     for f in DATE_FORMATS:
@@ -57,19 +66,27 @@ def parse(text, units):
     delim = '\t' if '\t' in first else ';' if first.count(';') > first.count(',') else ','
     rows = list(csv.reader(io.StringIO(text), delimiter=delim))
     head = [_key(h) for h in rows[0]]
+    # Group metadata is not itself evidence of overlap. Resolve only a single
+    # known meal, or an explicit day total; ambiguous rows keep legacy acceptance.
+    groups = [i for i, h in enumerate(head) if h in {'group', 'diarygroup', 'diarygrouprows'}]
+    meals = {meal: ('snacks' if meal == 'snack' else meal)
+             for meal in ('breakfast', 'lunch', 'dinner', 'snack', 'snacks')}
+    meal_totals = {meal + suffix: scope for meal, scope in meals.items() for suffix in ('total', 'subtotal')}
+    if any(_header_matches('weight', h) for h in head) and set(head) & {'reps', 'setorder', 'setindex'}:
+        raise HTTPException(400, 'Workout sets are not food or body weight. Choose a nutrition or body-weight export.')
     col = {}
-    for field, names in COLS.items():
-        for i, h in enumerate(head):
-            if i in col.values(): continue
-            if h in names or (field == 'weight' and h.startswith('weight')) or (field == 'eaten' and h.startswith('calories') and 'burn' not in h and 'out' not in h):
-                col[field] = i; break
+    for field in COLS:
+        matches = [i for i, h in enumerate(head) if _header_matches(field, h)]
+        if len(matches) > 1:
+            raise HTTPException(400, 'More than one column describes the same value. Keep one column for each value.')
+        if matches: col[field] = matches[0]
     if 'date' not in col:
         raise HTTPException(400, 'The first row must be column names, with a Date column (e.g. Date, Weight, Calories, Protein, Carbs, Fat, Burned)')
     if len(col) < 2: raise HTTPException(400, 'Found a Date column but none of: Weight, Calories, Protein, Carbs, Fat, Fiber, Burned, Deficit')
     whead = rows[0][col['weight']].lower() if 'weight' in col else ''
     w_kg = 'kg' in whead or (units == 'metric' and 'lb' not in whead)
     kj = 'eaten' in col and 'kj' in rows[0][col['eaten']].lower()
-    days, problems = {}, []
+    days, problems, grouped = {}, [], {}
     for n, r in enumerate(rows[1:], start=2):
         if not any(x.strip() for x in r): continue
         get = lambda f: _num(r[col[f]]) if f in col and col[f] < len(r) else None
@@ -79,8 +96,21 @@ def parse(text, units):
         o = days.setdefault(d, {'day': d.isoformat()})
         w = get('weight')
         if w: o['weight_kg'] = round(w if w_kg else w / LB, 2)
+        labels = {_key(r[i]) for i in groups if i < len(r)} - {''}
+        meal_scopes = {meals.get(label, meal_totals.get(label)) for label in labels} - {None}
+        scope = next(iter(meal_scopes)) if len(meal_scopes) == 1 else None
+        is_total = bool(labels & (meal_totals.keys() | {'total', 'subtotal'}))
+        if labels & {'dailytotal', 'daytotal', 'grandtotal'}:
+            scope, is_total = '*', True
         for f in ('eaten', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'):
             v = get(f)
+            if v is not None and groups:
+                seen, seen_totals = grouped.setdefault((d, f), (set(), set()))
+                previous = seen if is_total else seen_totals
+                if previous and (scope == '*' or '*' in previous or (scope is not None and scope in previous)):
+                    raise HTTPException(400, 'Daily or meal totals overlap other rows. Keep totals or separate meals, not both.')
+                seen.add(scope)
+                if is_total: seen_totals.add(scope)
             if v is not None: o[f] = round(o.get(f, 0) + (v / 4.184 if f == 'eaten' and kj else v), 1)   # several rows a day add up
         for f in ('burned', 'deficit'):
             v = get(f)
@@ -92,7 +122,7 @@ def parse(text, units):
         if o.get('eaten') is None and o.get('burned') is not None and o.get('deficit') is not None: o['eaten'] = o['burned'] - o['deficit']
         o.pop('deficit', None)
         for k, hi in (('weight_kg', 400), ('eaten', 15000), ('burned', 15000)):
-            if o.get(k) is not None and not (0 < o[k] <= hi):
+            if o.get(k) is not None and not ((0 < o[k] if k != 'eaten' else 0 <= o[k]) and o[k] <= hi):
                 problems.append(f"{d}: {k.replace('_kg', '')} {o[k]:g} looks wrong - left out"); o.pop(k)
         if len(o) > 1: out.append(o)
     if len(out) > 3000: raise HTTPException(400, 'That is more than 3,000 days - split it into smaller pieces')
