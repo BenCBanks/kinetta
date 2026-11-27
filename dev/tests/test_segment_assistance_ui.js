@@ -15,7 +15,7 @@ function fixture(){
  f.c.api=async(path,opts)=>{if(opts)calls.push({path,body:JSON.parse(opts.body)});throw Error('Response lost')};
  const event={preventDefault(){},currentTarget:form};await form.onsubmit(event);await form.onsubmit(event);
  assert.equal(form.elements.assistance.value,'unassisted');assert.equal(form.elements.confirmed.checked,true);
- assert.equal(f.node('card').children[0].dataset.sharingState,'unknown','failed readback never claims private eligibility');assert.deepEqual(calls[0],calls[1]);
- f.c.App.me={id:2};await form.onsubmit(event);assert.equal(calls.length,2,'queued old-account form cannot write');
+ assert.equal(f.node('card').children[0].dataset.sharingState,'unknown','failed readback never claims private eligibility');assert.equal(calls.length,1,'an uncertain retry only reads; it cannot submit the declaration twice');assert.deepEqual(calls[0],{path:'/api/activities/4/segment-assistance',body:{assistance:'unassisted',revision:0,confirmed:true}});
+ f.c.App.me={id:2};await form.onsubmit(event);assert.equal(calls.length,1,'queued old-account form cannot write');
  console.log('PASS segment assistance UI: delayed/account/navigation guards, failed review preservation and unchanged retry');
 })().catch(e=>{console.error(e);process.exitCode=1});
