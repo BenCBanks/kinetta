@@ -6,7 +6,7 @@
  const uncertainKey=key+':challenge:'+button.dataset.code;
  const pending=()=>{const until=Number(localStorage.getItem(key));if(Number.isFinite(until)&&until>Date.now())return true;localStorage.removeItem(key);return false;};
  let unknown=false,busy=false,waiting=null;
- const unconfirmed=()=>{unknown=true;button.textContent='Retry';status.textContent='Not confirmed. Retry';};
+ const unconfirmed=()=>{unknown=true;button.textContent='Retry';status.textContent="Couldn't confirm whether you joined.";};
  try{if(pending()||localStorage.getItem(uncertainKey))unconfirmed();}catch(_){/* A new write must persist its state before dispatch. */}
  async function request(url,options={}){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);

@@ -1652,10 +1652,23 @@ route(/^\/groups\/([0-9a-f-]{36})\/challenges\/([0-9a-f-]{36})$/i,groupRouteTab,
   try{const base='/api/groups/'+encodeURIComponent(gid),[group,q]=await Promise.all([api(base),api(base+'/challenges/'+encodeURIComponent(qid))]);if(el.isConnected)groupChallengePage(el,group,q);}catch(error){if(el.isConnected)showError(el,error);}
 });
 function recoverGroupInvitation(el,base,{decline=false}={}){
-  const card=$('.group-invite-card',el),saved=SocialData.confirmSetting(card,{path:base+'/state',failureText:'Invitation checked. Try again if needed.',paint:state=>{
+  const card=$('.group-invite-card',el),saved=SocialData.confirmSetting(card,{path:base+'/state',matches:(state,attempt)=>{
+    if(attempt.path.endsWith('/decline'))return state.declined===true;
+    return state.member===true&&state.share_total===JSON.parse(attempt.options.body).share_total;
+  },paint:(state,{failure})=>{
     if(typeof state?.member!=='boolean')throw Error();
-    if(state.member){if(typeof state.id!=='string'||typeof state.share_total!=='boolean')throw Error();invalidate('/api/groups');go('/groups/'+encodeURIComponent(state.id),{replace:true});}
-    else if(state.declined===true)go('/activity',{replace:true});
+    if(state.member){
+      if(typeof state.id!=='string'||typeof state.share_total!=='boolean')throw Error();
+      if(failure){
+        $('[data-group-join-share]',el).checked=state.share_total;
+        if(saved.attempted?.path.endsWith('/accept')){
+          const wanted=JSON.parse(saved.attempted.options.body).share_total;
+          failure.message='Not saved. You joined, but sharing is '+(state.share_total?'on':'off')+'. You chose '+(wanted?'on':'off')+'.';
+        }
+        return;
+      }
+      invalidate('/api/groups');go('/groups/'+encodeURIComponent(state.id),{replace:true});
+    }else if(state.declined===true&&!failure)go('/activity',{replace:true});
   }});
   const join=$('#group-accept,#group-friend-accept',el);join.onclick=()=>saved.save(base+'/accept',json('POST',{share_total:$('[data-group-join-share]',el).checked}));
   if(decline)$('#group-friend-decline',el).onclick=()=>saved.save(base+'/decline',json('POST',{}));

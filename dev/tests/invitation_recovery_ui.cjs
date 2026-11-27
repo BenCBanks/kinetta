@@ -21,17 +21,17 @@ module.exports=async(browser,base,out='')=>{
   const login=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run',app:mode==='bridge'}});assert(login.ok());
   if(mode==='bridge'){const {token}=await login.json();await c.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});}
   const p=await c.newPage();p.setDefaultTimeout(8000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
-  let spec,armed=false,member=false,declined=false,unreadable=false,fault='',writes=0,reads=0;
+  let spec,armed=false,member=false,declined=false,unreadable=false,fault='',writes=0,reads=0,shareTotal=false;
   await c.route('**/*',async r=>{
    const req=r.request(),u=new URL(req.url()),method=req.method();if(u.origin!==base)return r.abort();
    if(method==='GET'&&u.pathname===spec?.read)reads++;
    if(u.pathname==='/_test/public-invite')return r.fulfill({contentType:'text/html',body:'<button id="challenge-public-join" data-code="'+code+'" data-account="fictional-owner">Join challenge</button><p id="challenge-public-status"></p><script src="/static/challenge-public.js"></script>'});
    if(armed&&spec.name==='public'&&u.pathname.startsWith('/api/challenges/'))assert.equal(req.headers()['x-kinetta-account'],'fictional-owner');
    if(armed&&method==='GET'&&u.pathname===spec.read&&unreadable)return fault.includes('offline')?r.abort():r.fulfill({status:503,json:{detail:'Fictional outage'}});
-   if(armed&&method!=='GET'&&u.pathname===spec.write){writes++;if(fault.startsWith('lost')){if(spec.name==='decline')declined=true;else member=true;return r.abort();}return fault==='offline'?r.abort():r.fulfill({status:503,json:{detail:'Fictional outage'}});}
+   if(armed&&method!=='GET'&&u.pathname===spec.write){writes++;if(fault.includes('mismatch')){member=true;shareTotal=fault.endsWith('-on');return fault.startsWith('lost-')?r.abort():r.fulfill({json:{id:gid,member:true,share_total:shareTotal}});}if(fault.startsWith('lost')){if(spec.name==='decline')declined=true;else member=true;return r.abort();}return fault==='offline'?r.abort():r.fulfill({status:503,json:{detail:'Fictional outage'}});}
    if(u.pathname==='/api/friend-links/'+code+'/state')return r.fulfill({json:{member,name:'@'+person.login,login:person.login}});
-   if(u.pathname==='/api/group-invites/'+code+'/state')return r.fulfill({json:member?{member,id:gid,share_total:false}:{member}});
-   if(u.pathname==='/api/group-friend-invites/77/state')return r.fulfill({json:member?{member,id:gid,share_total:false}:{member,declined,title:group.title,inviter:person.login}});
+   if(u.pathname==='/api/group-invites/'+code+'/state')return r.fulfill({json:member?{member,id:gid,share_total:shareTotal}:{member}});
+   if(u.pathname==='/api/group-friend-invites/77/state')return r.fulfill({json:member?{member,id:gid,share_total:shareTotal}:{member,declined,title:group.title,inviter:person.login}});
    if(u.pathname==='/api/groups/'+gid+'/friends')return r.fulfill({json:{friends:[{username:person.login,state:member?'invited':'none'}],can_invite:true}});
    if(u.pathname==='/api/groups/'+gid)return r.fulfill({json:group});
    if(u.pathname==='/api/groups/'+gid+'/challenges')return r.fulfill({json:[]});
@@ -41,11 +41,20 @@ module.exports=async(browser,base,out='')=>{
    if(u.pathname==='/api/people/suggested')return r.fulfill({json:[]});
    return r.continue();
   });
-  try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503',...(['public','friend','group','addressed','challenge'].includes(spec.name)?['lost-reload','lost-reload-unreadable','503-reload']:[])].filter(f=>!process.env.KINETTA_INVITATION_FAULT||f===process.env.KINETTA_INVITATION_FAULT)){
-   armed=false;member=false;declined=false;unreadable=false;writes=0;reads=0;
+  try{for(spec of specs.filter(s=>!process.env.KINETTA_INVITATION_CASE||process.env.KINETTA_INVITATION_CASE===s.name))for(fault of ['lost','503','offline','lost-offline','lost-503',...(['group','addressed'].includes(spec.name)?['mismatch-on','mismatch-off','lost-mismatch-on','lost-mismatch-off']:[]),...(['public','friend','group','addressed','challenge'].includes(spec.name)?['lost-reload','lost-reload-unreadable','503-reload']:[])].filter(f=>!process.env.KINETTA_INVITATION_FAULT||f===process.env.KINETTA_INVITATION_FAULT)){
+   armed=false;member=false;declined=false;unreadable=false;writes=0;reads=0;shareTotal=false;
    await p.goto(base+spec.route);if(spec.prepare)await spec.prepare(p);await p.locator(spec.button).first().waitFor();
-   if(spec.name==='group'||spec.name==='addressed')await p.locator('[data-group-join-share]').uncheck();
+   if(spec.name==='group'||spec.name==='addressed')await p.locator('[data-group-join-share]').setChecked(fault.endsWith('mismatch-off'));
    armed=true;unreadable=fault.includes('offline')||fault==='lost-503';await p.locator(spec.button).first().click();
+   if(fault.includes('mismatch')){
+    if(fault.startsWith('lost-')){await p.locator('[data-sharing-state=unknown]').waitFor();await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-sharing-state=unknown] button').click();}
+    const note=p.locator('[data-sharing-state=confirmed]');await note.waitFor({state:'visible'});
+    assert.match(await note.innerText(),new RegExp('Not saved.*sharing is '+(shareTotal?'on':'off')+'.*You chose '+(shareTotal?'off':'on')));
+    assert.equal(new URL(p.url()).pathname,spec.route,'membership alone cannot redirect past mismatched sharing');
+    assert.equal(await p.locator('[data-group-join-share]').isChecked(),shareTotal,'the switch shows the saved sharing choice');
+    assert.equal(writes,1);assert(reads>0);if(out&&mode==='web'){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`mismatch-${spec.name}-${fault}-${theme}.png`)});}
+    console.log('Invitation recovery '+mode+' '+theme+' '+spec.name+' '+fault+' PASS');continue;
+   }
    if(fault.includes('reload')){
     await (spec.name==='public'?p.getByRole('button',{name:'Retry',exact:true}):p.locator('[data-sharing-state=unknown]')).waitFor();
     await require('./privacy_recovery_fixture.cjs')(p);
@@ -57,7 +66,7 @@ module.exports=async(browser,base,out='')=>{
      await p.locator(spec.button).click();
     }
     if(unreadable){
-     if(spec.name==='public')await p.waitForFunction(()=>document.querySelector('#challenge-public-status')?.textContent.includes('Not confirmed'));
+     if(spec.name==='public')await p.waitForFunction(()=>document.querySelector('#challenge-public-status')?.textContent.includes("Couldn't confirm whether you joined"));
      else{await p.getByRole('button',{name:'Try again',exact:true}).waitFor();assert.equal(await p.locator(spec.button).count(),0,'failed initial GET cannot offer a join');}
      assert.equal(writes,1,'failed read after reload cannot repeat the write');unreadable=false;await p.reload();
      if(spec.name==='public')await p.locator(spec.button).click();
@@ -87,6 +96,6 @@ module.exports=async(browser,base,out='')=>{
    if(!completed)assert.equal(new URL(p.url()).pathname,spec.route.split('?')[0],'failure cannot navigate as success');
    if(completed&&spec.done&&!['decline','public'].includes(spec.name)){armed=false;await p.goto(base+spec.route);await p.waitForURL(base+spec.done);assert.equal(writes,1,'reopening resumes the saved relationship');}
    console.log('Invitation recovery '+mode+' '+theme+' '+spec.name+' '+fault+' PASS');
-  }assert.deepEqual(errors,[]);}finally{await c.close();}
+  }assert.deepEqual(errors,[]);}finally{await c.unrouteAll({behavior:'wait'});await c.close();}
  }
 };
