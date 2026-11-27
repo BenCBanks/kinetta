@@ -200,13 +200,10 @@ class Contacts(unittest.TestCase):
 
     def test_request_log_keeps_route_metadata_without_body_fields(self):
         rows = []
-        class Loop:
-            def run_in_executor(self, _executor, _function, row):
-                rows.append(row)
         request = SimpleNamespace(method='POST', scope={'route': SimpleNamespace(path='/api/contacts/match')},
                                   state=SimpleNamespace(user_id=self.uid), headers={'authorization': 'Bearer fictional'},
                                   url=SimpleNamespace(path='/api/contacts/match'))
-        with patch('app.request_log.asyncio.get_running_loop', return_value=Loop()):
+        with patch('app.request_log.enqueue', side_effect=lambda row: rows.append(row)):
             self.original_record(request, 200, 1, 'fictional-request-id')
         self.assertEqual(rows[0]['route'], '/api/contacts/match')
         self.assertEqual(set(rows[0]), {'user_id', 'method', 'route', 'status', 'duration_ms', 'channel', 'request_id'})
