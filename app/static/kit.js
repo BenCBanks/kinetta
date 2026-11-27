@@ -649,12 +649,13 @@ Object.assign(KitChat, (() => {
       const title=$('h2',sh),labels={goal:'Goal',preference:'Preference',routine:'Routine'};
       const date=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
       let data=null,swipe=null,suppressTap=false;
-      const saved=SocialData.confirmSetting(box,{path:'/api/coach/conversation/memory',mask:()=>[...box.children,menu],
-        paint:next=>{if(typeof next.enabled!=='boolean'||!Array.isArray(next.memories))throw Error();},
-        after:next=>draw(next)});
       sh.classList.add('kit-history-sheet');
       const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
       menu.setAttribute('aria-label','Memory options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
+      const saved=SocialData.confirmSetting(box,{path:'/api/coach/conversation/memory',mask:()=>[...box.children],
+        uncertain:()=>{menu.hidden=true;},
+        paint:next=>{if(typeof next.enabled!=='boolean'||!Array.isArray(next.memories))throw Error();},
+        after:next=>draw(next)});
       const remove=async(id,button)=>{
         if(!valid())return;
         button.disabled=true;
