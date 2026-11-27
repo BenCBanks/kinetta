@@ -138,9 +138,20 @@ function device(background = null, push = null) {
   changed.base='https://example.test';await changed.disconnectPush({forget:true});const afterOff=posts.length;
   changedEvents.tokenChanged({token:'fe'.repeat(32),environment:'production'});await tick();assert.equal(posts.length,afterOff);
   const d = device(); await d.n.ready; d.n.base = 'https://example.test'; d.n.token = 'first';
+  // Exercise setup against the actual account-bound native preferences, not a
+  // fixture that only posts Health workouts to the API or stubs healthOn=false.
+  Object.assign(d.ctx,{navigator:{userAgent:'iPhone'},matchMedia:()=>({matches:false}),svg:()=>'',esc:String,pendingEmail:()=>false,foodUser:()=>false});
+  d.ctx.window.navigator={};
+  const setupSource=fs.readFileSync('app/static/pages.js','utf8'),setupStart=setupSource.indexOf('function getStarted(');
+  vm.runInContext(setupSource.slice(setupStart,setupSource.indexOf('\nroute(',setupStart)),d.ctx);
+  const checklist=async()=>d.ctx.getStarted(await d.n.anyHealthOn(),true);
+  assert.match(await checklist(),/href="\/track\/health"/,'unconnected account still gets the optional step');
   d.saved.set('health.on', '1');
   assert.equal(await d.n.healthOn(), false, 'legacy device consent is not inherited');
-  await d.n.connectHealth();
+  await d.n.connectAppleHealth();
+  assert.equal(await d.n.anyHealthOn(),true,'completed native setup persists for the current account');
+  assert.match(await checklist(),/Connect to the Health app<span class="vh">, done/);
+  assert.doesNotMatch(await checklist(),/href="\/track\/health"/,'completed setup is a non-actionable done row');
   d.ctx.respond = () => ({added: 0, duplicates: 0, failed: 1, results: [{id: workout.id, result: 'failed'}]});
   await assert.rejects(d.n.syncHealth({days: 365}), /retried/);
   assert.equal(d.saved.has('health.last'), false, 'partial failure does not advance cursor');
@@ -157,6 +168,11 @@ function device(background = null, push = null) {
   assert.ok(+d.saved.get('health.last') >= now);
   assert.equal(d.saved.has('health.retryFrom'), false);
   assert.equal((await d.n.healthStatus()).error, undefined);
+  assert.doesNotMatch(await checklist(),/href="\/track\/health"/,'successful workout import keeps setup complete');
+  d.ctx.App.me={id:2};
+  assert.match(await checklist(),/href="\/track\/health"/,'another account never inherits device setup');
+  d.ctx.App.me={id:1};
+  assert.doesNotMatch(await checklist(),/href="\/track\/health"/,'returning account reads its persistent setup');
 
   d.ctx.query = () => ({workouts: [workout], errors: {route: 'read failed'}});
   const cursor = d.saved.get('health.last'), uploads = d.sent.length;
