@@ -222,6 +222,36 @@ def remove_person(login: str, body: RemoveIn, user=Depends(admin_user)):
     return {'ok': True}
 
 
+def _disable_sql_login(role):
+    """Fence reconnects before terminating sessions, including a pre-assumed reader role.
+
+    Role changes commit separately: if later erasure fails, the login stays disabled.
+    fit_app cannot signal these backends; use the existing bootstrap credential only
+    for this fixed, catalog-checked login operation, never arbitrary caller SQL.
+    """
+    import psycopg
+    with psycopg.connect(db._conninfo('postgres', db.secret('POSTGRES_PASSWORD')), autocommit=True,
+                         connect_timeout=5, options='-c statement_timeout=15000 -c lock_timeout=5000') as admin:
+        with admin.transaction():
+            row=admin.execute('SELECT rolsuper,rolcreaterole,rolreplication FROM pg_catalog.pg_roles WHERE rolname=%s',(role,)).fetchone()
+            if not row:return
+            if any(row) or role in ('postgres','fit_app','fit_readers','fit_all_readers','fit_coach') or role.startswith('pg_'):
+                raise RuntimeError('Refusing to disable a service database role')
+            admin.execute(sql.SQL('ALTER ROLE {} NOLOGIN').format(sql.Identifier(role)))
+            grants=admin.execute("""SELECT r.rolname,g.rolname FROM pg_catalog.pg_auth_members m
+              JOIN pg_catalog.pg_roles r ON r.oid=m.roleid JOIN pg_catalog.pg_roles g ON g.oid=m.grantor
+              JOIN pg_catalog.pg_roles u ON u.oid=m.member
+              WHERE u.rolname=%s AND r.rolname IN ('fit_readers','fit_all_readers')""",(role,)).fetchall()
+            for reader,grantor in grants:
+                admin.execute(sql.SQL('REVOKE {} FROM {} GRANTED BY {}').format(sql.Identifier(reader),sql.Identifier(role),sql.Identifier(grantor)))
+        # usename is the authenticated login, even after SET ROLE fit_all_readers.
+        for _ in range(2):
+            rows=admin.execute("SELECT pg_catalog.pg_terminate_backend(pid,5000) FROM pg_catalog.pg_stat_activity WHERE usename=%s AND pid<>pg_backend_pid()",(role,)).fetchall()
+            if not all(r[0] for r in rows):raise RuntimeError('SQL login sessions could not be stopped')
+        if admin.execute('SELECT 1 FROM pg_catalog.pg_stat_activity WHERE usename=%s',(role,)).fetchone():
+            raise RuntimeError('SQL login sessions remain active')
+
+
 def erase(c, t):
     """Delete a person and every row of theirs (all personal tables cascade from users), plus their beta request."""
     # Matchers lock accounts before segment rows. Take the exclusive account lock
@@ -242,10 +272,9 @@ def erase(c, t):
     c.execute("DELETE FROM segments WHERE creator_id = %s AND audience = 'me'", (t['id'],))
     c.execute('DELETE FROM users WHERE id = %s', (t['id'],))
     if t['sql_role'] and c.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (t['sql_role'],)).fetchone():
-        # Revocation must succeed even if owned objects/grants prevent DROP ROLE.
-        # NOLOGIN stops reconnects; revoking both reader roles fences live sessions.
-        c.execute(sql.SQL('ALTER ROLE {} NOLOGIN').format(sql.Identifier(t['sql_role'])))
-        c.execute(sql.SQL('REVOKE fit_readers, fit_all_readers FROM {}').format(sql.Identifier(t['sql_role'])))
+        # Commit the login fence before signaling, so it cannot reconnect between
+        # termination and the account transaction's commit. Do not swallow failures.
+        _disable_sql_login(t['sql_role'])
         try:
             with c.transaction():
                 c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(t['sql_role'])))

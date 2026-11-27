@@ -28,31 +28,6 @@ _last_export = {}
 # table -> SQL giving one jsonb per row for the person (%s = user id). Personal tables only; secrets left out.
 DROP = " - 'user_id'"
 TABLES = {
-    'beta_requests': """SELECT to_jsonb(t)-'card_code'-'challenge_code'-'invite_id' FROM beta_requests t
-      CROSS JOIN (SELECT id,email,email_verified_at FROM users WHERE id=%s) me
-      WHERE (me.email_verified_at IS NOT NULL AND lower(t.email)=lower(me.email::text))
-        OR t.invite_id IN (SELECT id FROM invites WHERE used_by=me.id) ORDER BY t.id""",
-    'recipes': "SELECT to_jsonb(t)-'user_id' FROM recipes t WHERE user_id=%s ORDER BY id",
-    'coach_proposals': "SELECT to_jsonb(t)-'user_id' FROM coach_proposals t WHERE user_id=%s ORDER BY created,id",
-    'plan_adjustments': "SELECT to_jsonb(t)-'user_id' FROM plan_adjustments t WHERE user_id=%s ORDER BY day",
-    'ai_entitlements': "SELECT to_jsonb(t)-'user_id' FROM ai_entitlements t WHERE user_id=%s ORDER BY feature",
-    'admin_account_days': "SELECT to_jsonb(t)-'user_id' FROM admin_account_days t WHERE user_id=%s ORDER BY day",
-    'admin_login_events': "SELECT to_jsonb(t)-'user_id' FROM admin_login_events t WHERE user_id=%s ORDER BY created,id",
-    'api_requests': "SELECT to_jsonb(t)-'user_id' FROM api_requests t WHERE user_id=%s ORDER BY id",
-    'groups_created': "SELECT to_jsonb(t)-'organizer_id' FROM event_groups t WHERE organizer_id=%s ORDER BY created,id",
-    'group_members': "SELECT to_jsonb(t)-'user_id' FROM group_members t WHERE user_id=%s ORDER BY joined_at,group_id",
-    'group_updates': "SELECT to_jsonb(t)-'user_id' FROM group_updates t WHERE user_id=%s ORDER BY id",
-    'group_update_reactions': "SELECT to_jsonb(t)-'user_id' FROM group_update_reactions t WHERE user_id=%s ORDER BY created",
-    'group_weekly_reactions': "SELECT to_jsonb(t)-'user_id' FROM group_weekly_reactions t WHERE user_id=%s ORDER BY week_start",
-    'group_friend_invites': "SELECT to_jsonb(t) FROM (SELECT group_id,status,created_at,expires_at,responded_at FROM group_friend_invites WHERE %s IN (inviter_id,invitee_id)) t",
-    'achievement_moment_reactions': "SELECT to_jsonb(t)-'user_id' FROM achievement_moment_reactions t WHERE user_id=%s ORDER BY created",
-    'notifications': "SELECT to_jsonb(t)-'user_id' FROM notifications t WHERE user_id=%s ORDER BY id",
-    'meal_reminder_attempts': "SELECT to_jsonb(t)-'user_id' FROM meal_reminder_attempts t WHERE user_id=%s ORDER BY day,meal",
-    'strava_uploads': "SELECT to_jsonb(t)-'user_id'-'sha256' FROM strava_uploads t WHERE user_id=%s ORDER BY created,id",
-    'strava_import_stage': "SELECT to_jsonb(t)-'user_id'-'stop_hash' FROM strava_import_stage t WHERE user_id=%s",
-    'segment_scans': "SELECT to_jsonb(t)-'user_id' FROM segment_scans t WHERE user_id=%s ORDER BY segment_id,activity_id",
-    'route_reports_made': "SELECT to_jsonb(t) FROM (SELECT route_id,reason,note,created,status,decided,outcome FROM route_reports WHERE reporter=%s) t",
-    'segment_reports_made': "SELECT to_jsonb(t) FROM (SELECT segment_id,reason,note,created,status,decided,outcome FROM segment_reports WHERE reporter=%s) t",
     'group_challenges_created': "SELECT to_jsonb(t)-'creator_id' FROM group_challenges t WHERE creator_id=%s ORDER BY created,id",
     'group_challenge_members': "SELECT to_jsonb(t)-'user_id' FROM group_challenge_members t WHERE user_id=%s ORDER BY joined_at,challenge_id",
     'challenges':"SELECT to_jsonb(t)-'user_id'-'code'-'request_id'-'request_body' FROM challenges t WHERE user_id=%s ORDER BY created",
@@ -143,6 +118,79 @@ TABLES = {
     'dishes_shared_with_me': """SELECT jsonb_build_object('dish_id', s.dish_id, 'dish', d.name, 'from', u.login, 'created', s.created)
                    FROM dish_shares s JOIN dishes d ON d.id = s.dish_id JOIN users u ON u.id = d.user_id WHERE s.user_id = %s""",
 }
+# Explicit projections: schema additions never silently enter these exports.
+NEW_EXPORTS = {
+    'beta_requests': ('beta_requests', 'id name email phone watch note created status card_request challenge_join'),
+    'recipes': ('recipes', 'id name items known_kcal known_protein_g known_carbs_g known_fat_g ai_note ai_note_at created updated cooked'),
+    'coach_proposals': ('coach_proposals', 'id kind payload status created expires'),
+    'plan_adjustments': ('plan_adjustments', 'plan_id day workout created'),
+    'ai_entitlements': ('ai_entitlements', 'feature enabled expires_at updated_at'),
+    'admin_account_days': ('admin_account_days', 'day'),
+    'admin_login_events': ('admin_login_events', 'channel outcome created'),
+    'api_requests': ('api_requests', 'created method route status duration_ms channel'),
+    'groups_created': ('event_groups', 'id title event_date time_zone note goal_type goal_target goal_unit goal_sports goal_start_date training_for joining_closed closed_at created'),
+    'group_members': ('group_members', 'group_id status joined_at recap_consent notifications_muted sharing_level monday_recap_enabled'),
+    'group_updates': ('group_updates', 'id group_id text created'),
+    'group_update_reactions': ('group_update_reactions', 'update_id kind created'),
+    'group_weekly_reactions': ('group_weekly_reactions', 'group_id week_start kind created'),
+    'group_friend_invites': ('group_friend_invites', 'group_id status created_at expires_at responded_at'),
+    'achievement_moment_reactions': ('achievement_moment_reactions', 'owner_id week_start kind created'),
+    'notifications': ('notifications', 'id kind activity_id dish_id comment_id created read_at reaction_kind milestone_id challenge_id group_id group_update_id group_week_start group_friend_invite_id'),
+    'meal_reminder_attempts': ('meal_reminder_attempts', 'day meal attempted_at delivered'),
+    'strava_uploads': ('strava_uploads', 'id size received state audience cursor preview result error_code created updated expires'),
+    'strava_import_stage': ('strava_import_stage', 'state upload_id reminder_opt_in reminder_due reminder_attempted reminder_sent updated expires'),
+    'segment_scans': ('segment_scans', 'segment_id activity_id matcher outcome reason scanned generation source_revision'),
+    'route_reports_made': ('route_reports', 'route_id reason note created status decided outcome'),
+    'segment_reports_made': ('segment_reports', 'segment_id reason note created status decided outcome'),
+}
+_SCOPES = {
+    'groups_created': 'organizer_id=%s', 'group_friend_invites': '%s IN (inviter_id,invitee_id)',
+    'route_reports_made': 'reporter=%s', 'segment_reports_made': 'reporter=%s',
+}
+for _name, (_table, _fields) in NEW_EXPORTS.items():
+    _scope = _SCOPES.get(_name, 'user_id=%s')
+    if _name == 'beta_requests':
+        # Bind the requesting identity once; neither an unverified address nor an invite for someone else is ownership.
+        TABLES[_name] = "SELECT to_jsonb(t) FROM (SELECT " + ','.join('beta_requests.'+field for field in _fields.split()) + " FROM beta_requests CROSS JOIN (SELECT %s::bigint AS id) me WHERE invite_id IN (SELECT id FROM invites WHERE used_by=me.id) OR lower(email) IN (SELECT lower(email::text) FROM users WHERE id=me.id AND email_verified_at IS NOT NULL) ORDER BY beta_requests.id) t"
+    else:
+        TABLES[_name] = 'SELECT to_jsonb(t) FROM (SELECT '+_fields.replace(' ', ',')+' FROM '+_table+' WHERE '+_scope+') t'
+
+
+def _scalars(names):
+    return dict.fromkeys(names.split())
+
+
+_NUTRIENTS = _scalars('kcal protein_g carbs_g fat_g fiber_g sodium_mg sugar_g saturated_fat_g')
+_WORKOUT = _scalars('day type dist title detail')
+_FOOD = {**_scalars('candidate_id name source source_id amount unit share grams'), **_NUTRIENTS}
+_PAYLOAD = {**_scalars('plan_id day meal client_id'),
+    'candidate': {**_scalars('candidate_id reason value unit target before after score'),
+                  'changes': [_WORKOUT], 'foods': [_FOOD], 'totals': _NUTRIENTS,
+                  'goal': _scalars('id sport period metric target')},
+    'receipt': _scalars('proposal_id goal_id before after saved_at')}
+_NESTED = {
+    'recipes': {'items': [{**_scalars('id name grams amount unit source'), **_NUTRIENTS, 'per100': _NUTRIENTS}]},
+    'coach_proposals': {'payload': _PAYLOAD}, 'plan_adjustments': {'workout': _WORKOUT},
+    'strava_uploads': {'preview': _scalars('added already_here unreadable'), 'result': _scalars('added already_here unreadable')},
+}
+
+
+def _project_json(value, schema):
+    """Unknown nested fields/containers are omitted, not recursively dumped."""
+    if isinstance(schema, dict):
+        return {k:_project_json(value[k],child) for k,child in schema.items() if k in value} if isinstance(value,dict) else None
+    if isinstance(schema, list):
+        return [_project_json(item,schema[0]) for item in value if isinstance(item,dict)] if isinstance(value,list) else None
+    return value if value is None or isinstance(value,(str,int,float,bool)) else None
+
+
+def export_record(name, value):
+    if name not in NEW_EXPORTS:return value
+    result={k:value[k] for k in NEW_EXPORTS[name][1].split() if k in value}
+    for key,schema in _NESTED.get(name,{}).items():
+        if key in result:result[key]=_project_json(result[key],schema)
+    return result
+
 CSVS = {
     'activities.csv': """SELECT start_time, sport, name, distance_m, moving_s, elapsed_s, ascent_m, avg_hr, max_hr, calories, effort, device
                          FROM activities WHERE user_id = %s ORDER BY start_time""",
@@ -152,12 +200,12 @@ CSVS = {
 }
 README = """Your Kinetta data, downloaded {when}.
 
-data/*.jsonl  every table Kinetta keeps about you, one JSON object per line (activity tracks are GeoJSON).
+data/*.jsonl  your exported account records, one JSON object per line (activity tracks are GeoJSON).
 *.csv         your activities, food log and weigh-ins, ready for a spreadsheet. Distances in meters, times in seconds.
 files/        the original activity files (FIT, GPX, TCX) you or your watch uploaded.
 photos/       your profile photo and the photos on your activities (activity id - photo id.jpg).
 
-Left out on purpose: your password (only a scrambled form is stored), login sessions and connection keys.
+Left out on purpose: passwords, login sessions, connection keys, internal worker/moderation records and other people’s private content.
 """
 
 
@@ -171,7 +219,7 @@ def _write_export(uid, path):
                 cur.itersize = 500
                 cur.execute(q, (uid,))
                 for r in cur:
-                    f.write((json.dumps(next(iter(r.values())), default=str, separators=(',', ':')) + '\n').encode())
+                    f.write((json.dumps(export_record(name,next(iter(r.values()))), default=str, separators=(',', ':')) + '\n').encode())
         for name, q in CSVS.items():
             rows = c.execute(q, (uid,)).fetchall()
             buf = io.StringIO(); w = csv.writer(buf)
@@ -185,11 +233,13 @@ def _write_export(uid, path):
             cur.execute('SELECT id, activity_id, img FROM activity_photos WHERE user_id = %s ORDER BY id', (uid,))
             for r in cur: z.writestr(f"photos/activities/{r['activity_id']}-{r['id']}.jpg", bytes(r['img']))
     base = os.path.join(DATA, 'files', str(uid))
-    if os.path.isdir(base):
+    if os.path.isdir(base) and not os.path.islink(base):
         with zipfile.ZipFile(path, 'a', zipfile.ZIP_STORED) as z:     # already compressed (.fit / .gz) mostly
             for root, _, files in os.walk(base):
                 for fn in files:
                     full = os.path.join(root, fn)
+                    if os.path.islink(full) or not os.path.isfile(full):continue
+                    if os.path.commonpath((os.path.realpath(base),os.path.realpath(full))) != os.path.realpath(base):continue
                     z.write(full, 'files/' + os.path.relpath(full, base))
 
 
