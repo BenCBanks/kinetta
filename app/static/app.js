@@ -2699,6 +2699,8 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
 }
 function showSignupPending(result) {
   const email=String(result.pending||''),login=String(result.login||''),phone=getAppFirst();
+  // Keep only this tab's signup account, never its email link or password.
+  try { sessionStorage.setItem('kinetta.signupWelcome', login); } catch (_) { /* storage is optional */ }
   history.replaceState(null,'','/signup');
   root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Check your inbox</h1>
     <p>We sent a confirmation link to <b>${esc(email)}</b>. Open it to confirm your email.</p>
@@ -2945,8 +2947,18 @@ async function showReset(token = location.hash.slice(1)) {
 async function showConfirmEmail(token) {
   const active=enrollmentView();
   root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Confirming your email…</h1></div></div>`;
-  let title, text, failed=false;
-  try { const r = await api('/api/account/email/confirm', json('POST', {token})); if(!active())return;if(r.challenge_joined)store.set('kinetta.challengeLink',r.challenge_joined); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
+  let title, text, failed=false, next='/activity';
+  try { const r = await api('/api/account/email/confirm', json('POST', {token})); if(!active())return;
+    try {
+      const login = sessionStorage.getItem('kinetta.signupWelcome');
+      if (login) {
+        const me = await api('/api/me');
+        if (!active()) return;
+        if (me.login === login && me.email === r.email) next = '/welcome';
+        sessionStorage.removeItem('kinetta.signupWelcome');
+      }
+    } catch (_) { /* confirmation still works without this tab's signed-in account */ }
+    if(r.challenge_joined)store.set('kinetta.challengeLink',r.challenge_joined); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
   catch (x) { failed=true; title = "This link doesn't work"; text = x.status===404?'This link has expired or has already been used. Request a new one below.':x.message; }
   if(!active())return;
   // Email links open in the phone's browser. On an iPhone, offer the app itself (kinetta:// is registered by the app,
@@ -2963,8 +2975,8 @@ async function showConfirmEmail(token) {
     $('#c-login',root).onclick=e=>{e.preventDefault();history.replaceState(null,'','/');showLogin();};
     return;
   }
-  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? '<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="/activity" id="c-go">Continue in browser</a>' : '<a class="primary wide" href="/activity" id="c-go">Open Kinetta</a>'}</div></div>`;
-  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/activity'); root.innerHTML = LAUNCH; start(); };
+  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? `<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="${next}" id="c-go">Continue in browser</a>` : `<a class="primary wide" href="${next}" id="c-go">Open Kinetta</a>`}</div></div>`;
+  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', next); root.innerHTML = LAUNCH; start(); };
 }
 async function showWelcome() {
   Native.preLogin?.();
@@ -3018,6 +3030,9 @@ async function start() {
     if(cardLink){store.del('kinetta.cardLink');if(['/me','/activity'].includes(location.pathname))history.replaceState(null,'','/card/'+encodeURIComponent(cardLink));}
     const challengeLink=store.get('kinetta.challengeLink');
     if(challengeLink){store.del('kinetta.challengeLink');if(['/activity','/me','/welcome'].includes(location.pathname))history.replaceState(null,'','/me/challenges/'+encodeURIComponent(challengeLink));}
+    if (location.pathname === '/welcome') {
+      try { if (sessionStorage.getItem('kinetta.signupWelcome') === App.me.login) sessionStorage.removeItem('kinetta.signupWelcome'); } catch (_) { /* storage is optional */ }
+    }
     // The first time a new account opens the iPhone app, the welcome steps lead, with Apple Health (2026-10-24)
     const seen = 'kinetta.welcomed:' + readOwner();
     if (Native.on && !store.get(seen) && App.me?.created && Date.now() - new Date(App.me.created) < 14 * 864e5 && location.pathname === '/me') history.replaceState(null, '', '/welcome');
