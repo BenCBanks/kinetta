@@ -23,7 +23,7 @@ route(/^\/welcome$/, 'me', async (el) => {
   // Saves, then moves on; a failure keeps the step and what was typed.
   const step = (save, then) => {let saving=false;return async () => {
     if(saving)return;saving=true;const id=currentStep;$('#wc-err', el).textContent = '';
-    try { await save(); if (here(id)) then(); }
+    try { const proceed = await save(); if (proceed !== false && here(id)) then(); }
     catch (x) { if (here(id)) $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown],[data-sharing-state=checking],[data-sharing-state=confirmed]:not([hidden])') ? '' : x.message; }
     finally { saving=false; }
   };};
@@ -85,10 +85,10 @@ route(/^\/welcome$/, 'me', async (el) => {
   }
   async function phone() {
     frame('phone',3 + k, 'Phone number', 'Used for contact matching and never shown to others. Include + and your country code.',
-      `<label class="form">Number · optional<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" disabled></label><p class="small muted" id="wc-phone-saved" role="status" hidden></p>`);
-    const input=$('input[name=phone_e164]',el),next=$('#wc-next',el),skip=$('#wc-skip',el),summary=$('#wc-phone-saved',el);
+      `<div id="wc-phone-settings"><label class="form">Number · optional<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" disabled></label><p class="small muted" id="wc-phone-saved" role="status" hidden></p></div>`);
+    const input=$('input[name=phone_e164]',el),next=$('#wc-next',el),skip=$('#wc-skip',el),summary=$('#wc-phone-saved',el),phoneSettings=$('#wc-phone-settings',el);
     let savedPhone=null;
-    const saved=SocialData.confirmSetting($('.welcome',el),{path:'/api/contacts/settings',mask:()=>[input.closest('label'),next,summary],
+    const saved=SocialData.confirmSetting(phoneSettings,{path:'/api/contacts/settings',mask:()=>[input.closest('label'),next,summary],
       paint:(data,{failure})=>{if(data.phone_e164!==null&&typeof data.phone_e164!=='string')throw Error();savedPhone=data.phone_e164;if(!failure)input.value=savedPhone||'';summary.textContent='Saved number: '+(savedPhone||'None')+'.';summary.hidden=!failure;input.disabled=false;next.disabled=false;},
       uncertain:()=>invalidate('/api/contacts/settings')});
     const load=async()=>{
@@ -101,7 +101,7 @@ route(/^\/welcome$/, 'me', async (el) => {
           const value=input.value.trim();if(value===(savedPhone||''))return;
           try{
             const result=await saved.save('/api/contacts/settings',json('PUT',{phone_e164:value||null}));
-            if(!result||result.failure)throw Error('Your number was not saved. Check the saved number below.');
+            if(!result||result.failure)return false;
           }finally{if(here('phone'))input.disabled=false;}
         },workouts);
       }catch(x){

@@ -34,7 +34,7 @@ module.exports=async(browser,base,login,password,out='')=>{
    if(fault==='lost'){
     assert(await summary.isHidden(),'confirmed success removes failure-only saved summary');assert.equal(await input.inputValue(),stored);await p.locator('#wc-next').click();await p.locator('#wc-connections').waitFor();
    }else{
-    const note=p.locator('[data-sharing-state=confirmed]');await note.waitFor({state:'visible'});assert.match(await note.innerText(),/Not saved/);if(fault==='422')assert.match(await note.innerText(),/Include \+ and your country code/);
+    const note=p.locator('[data-sharing-state=confirmed]');await note.waitFor({state:'visible'});assert.match(await note.innerText(),/Not saved/);assert.equal(await note.evaluate(node=>node.parentElement?.id),'wc-phone-settings','phone failure sits beside the saved number');if(fault==='422')assert.match(await note.innerText(),/Include \+ and your country code/);
     assert.equal(await input.inputValue(),draft,'failed save retains typed draft');assert.equal(await summary.innerText(),'Saved number: '+(stored||'None')+'.','saved value is separate from draft');assert(!/Saved number shown/.test(await p.locator('.welcome').innerText()));assert.equal(await p.locator('#wc-err').innerText(),'','one accurate failure message');
     if(out&&mode==='web'&&fault==='422'){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'phone-saved-'+theme+'.png')});}
     fault='retry';await p.locator('#wc-next').click();await p.locator('#wc-connections').waitFor();assert.equal(stored,'+15550102222');
