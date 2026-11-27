@@ -14,7 +14,7 @@ from fastapi import APIRouter,Depends,HTTPException,Request,Response
 from fastapi.responses import HTMLResponse
 from PIL import Image,ImageDraw,ImageFont,ImageOps
 from pydantic import BaseModel,ConfigDict,Field,StrictBool,model_validator
-from . import db,auth,recaps,signup,account_email,notify,achievement_tracks,api_achievements
+from . import db,auth,recaps,signup,account_email,notify,achievement_tracks,api_achievements,image_work
 from .auth import current_user
 
 router=APIRouter()
@@ -422,12 +422,12 @@ def cached_result(c,row,request,kind='picture'):
             if item:_pictures.move_to_end(key);return item[1]
     found=get()
     if found is not None:return found
-    if not _render_slots.acquire(timeout=1):
+    if not _render_slots.acquire(blocking=False):
         raise HTTPException(429,'The picture is busy. Try again in a moment.',headers={'Retry-After':'1'})
     try:
         found=get()
         if found is not None:return found
-        picture=image(c,row,request) if kind=='picture' else payload(c,row,request)
+        picture=image_work.run(image,c,row,request) if kind=='picture' else payload(c,row,request)
         with _picture_lock:
             _pictures[key]=(time.monotonic()+PICTURE_TTL,picture);_pictures.move_to_end(key)
             while len(_pictures)>PICTURE_LIMIT:_pictures.popitem(last=False)

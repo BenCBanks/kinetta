@@ -18,12 +18,13 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 
-from . import account_email, db, email_confirmation
+from . import account_email, db, email_confirmation, image_work
 from .api_social import blocked, can_see, unconfirmed
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
 Image.MAX_IMAGE_PIXELS = 50_000_000        # bigger than any phone photo; stops "decompression bomb" files
+WEBP_PIXELS = 16_000_000                    # WebP needs several native canvas buffers, even for thumbnails
 PROFILE_PX = 512                           # profile photos: a square this size
 FULL_PX, THUMB_PX = 1600, 480              # activity photos: longest side
 PER_ACTIVITY, PER_PERSON = 10, 2000
@@ -36,14 +37,26 @@ class PhotoIn(BaseModel):
     image: str = Field(min_length=10, max_length=12_000_000)   # base64 (a data: URL prefix is fine)
 
 
-def _open(body):
+def _open(body, px, square=False):
     try:
         raw = base64.b64decode(body.image.split(',', 1)[-1], validate=True)
-        im = Image.open(io.BytesIO(raw), formats=['JPEG', 'PNG', 'WEBP'])
-        if im.width * im.height > Image.MAX_IMAGE_PIXELS:
-            raise ValueError('Photo exceeds the pixel limit')
-        im = ImageOps.exif_transpose(im)
-        return im.convert('RGB')
+        with Image.open(io.BytesIO(raw), formats=['JPEG', 'PNG', 'WEBP']) as original:
+            limit = min(Image.MAX_IMAGE_PIXELS, WEBP_PIXELS) if original.format == 'WEBP' else Image.MAX_IMAGE_PIXELS
+            if original.width * original.height > limit:
+                raise ValueError('Photo exceeds the pixel limit')
+            # Decode JPEGs at reduced resolution; shrink other formats before
+            # EXIF/RGB copies. A centre square crop commutes with EXIF rotation.
+            original.draft('RGB', (px, px))
+            pixels = original
+            try:
+                if square:
+                    pixels = ImageOps.fit(original, (px, px), Image.LANCZOS)
+                else:
+                    original.thumbnail((px, px), Image.LANCZOS)
+                with ImageOps.exif_transpose(pixels) as upright:
+                    return upright.convert('RGB')
+            finally:
+                if pixels is not original: pixels.close()
     except (binascii.Error, ValueError, OSError, Image.DecompressionBombError):
         raise HTTPException(400, "That photo couldn't be opened. Try a JPEG or PNG.")
 
@@ -72,11 +85,16 @@ def _jpeg_response(data):
     return Response(bytes(data), media_type='image/jpeg', headers=CACHE)
 
 
+def _profile_jpeg(body):
+    with _open(body, PROFILE_PX, square=True) as pixels:
+        return _jpeg(pixels)
+
+
 # ---------- profile photo ----------
 @router.put('/me/photo')
 def set_profile_photo(body: PhotoIn, user=Depends(current_user)):
     upload_attempt(user['id'])
-    img = _jpeg(ImageOps.fit(_open(body), (PROFILE_PX, PROFILE_PX), Image.LANCZOS))
+    img = image_work.run(_profile_jpeg, body)
     v = secrets.token_urlsafe(6)
     with db.connect() as c:
         c.execute("""INSERT INTO profile_photos (user_id, img) VALUES (%s, %s)
@@ -106,9 +124,13 @@ def profile_photo(login: str, user=Depends(current_user)):
 # ---------- activity photos ----------
 def prepare_activity_photo(body: PhotoIn):
     """Decode/orient/re-encode before opening a database transaction. No original metadata is retained."""
-    im = _open(body)
-    full, thumb = _scaled(im, FULL_PX), _scaled(im, THUMB_PX)
-    return (_jpeg(full), _jpeg(thumb, 78), *full.size)
+    return image_work.run(_activity_jpegs, body)
+
+
+def _activity_jpegs(body):
+    with _open(body, FULL_PX) as im:
+        with _scaled(im, FULL_PX) as full, _scaled(im, THUMB_PX) as thumb:
+            return (_jpeg(full), _jpeg(thumb, 78), *full.size)
 
 
 def insert_activity_photo(c, aid, user_id, prepared):

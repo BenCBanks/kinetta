@@ -143,6 +143,7 @@ node dev/tests/test_native_sync.js
 PYTHONPATH=. python3 dev/tests/test_notification_words.py
 node dev/tests/test_native_pictures.js
 node dev/tests/test_share_photo.js
+node dev/tests/test_image_retry.js
 node dev/tests/test_push_invitation.js
 node dev/tests/test_kit_chat_ui.js
 node --check dev/tests/kit_answer_ui.cjs
@@ -264,6 +265,7 @@ if [[ "$MODE" == --quick ]]; then echo "== quick unit/API checks passed"; exit 0
 echo "== in the app container"
 docker compose -p "$P" exec -T app python - < dev/tests/framework_security_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/photo_safety_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/image_work_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_photo_privacy_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/track_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/friend_count_incontainer.py

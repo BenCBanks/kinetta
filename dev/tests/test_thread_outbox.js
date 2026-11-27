@@ -41,6 +41,10 @@ function fixture(){
  assert.equal(ctx.foodThreadError({status:404,message:'Food not found'},'/api/food/thread/messages/7'),'Food not found');
  assert.equal(ctx.foodThreadError({status:404,message:'Recipe not found',detail:'Recipe not found'},'/api/food/thread/reviews/dish'),'Recipe not found');
  assert.equal(ctx.foodThreadError({status:422,message:'Enter a portion',detail:[{type:'greater_than',loc:['body','amount']}]},'/api/food/thread/messages'),'Enter a portion');
+ f=fixture();await f.db.put('owner-a','busy-photo',{body:'Fictional lunch',mid:7,phase:'resolve',images:['fictional-jpeg'],previews:['fictional-preview']});
+ f.setFail({status:503,message:'Photo processing is busy. Your photo is kept; try again shortly.'});await f.outbox.flush('owner-a');
+ assert.deepEqual(f.rows.get('busy-photo').images,['fictional-jpeg']);assert.deepEqual(f.rows.get('busy-photo').previews,['fictional-preview']);assert.match(f.rows.get('busy-photo').error,/busy/);
+ await f.db.update('owner-a','busy-photo',j=>({...j,error:null}));f.setFail(null);await f.outbox.flush('owner-a');assert.equal(f.rows.size,0);assert.deepEqual(f.calls[0].body,f.calls[1].body,'busy retry retains the exact photo and message');
  await require('./test_food_removal.js')();
  console.log('food outbox: stable UUID/capture, offline replay, retained errors, account switches, cancellation races, tombstones and serialization PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -1856,13 +1856,28 @@ function profilePhotoSheet(done) {
     <input type="file" accept="image/*" hidden id="pp-file">
     <button type="button" class="primary wide" id="pp-pick">${svg('camera')}${me.photo ? 'Choose a new photo' : 'Choose a photo'}</button>
     ${me.photo ? '<button type="button" class="ghost wide" id="pp-rm">Remove photo</button>' : ''}</div>`, (b, close) => {
-    const file = $('#pp-file', b), pick = $('#pp-pick', b), rm = $('#pp-rm', b);
-    pick.onclick = () => {if(!globalThis.EmailConfirmation?.lock(true))file.click();};
-    file.onchange = async () => {
-      const f = file.files && file.files[0]; if (!f) return;
+    const file = $('#pp-file', b), pick = $('#pp-pick', b), rm = $('#pp-rm', b), owner = readOwner();
+    let pending = null;
+    const live = () => b.isConnected && readOwner() === owner && App.me?.id === me.id;
+    const save = async () => {
       pick.disabled = true; pick.textContent = 'Saving…';
-      try { const image = await shrinkPhoto(f, 1024); me.photo = (await api('/api/me/photo', json('PUT', {image}))).photo; syncMeTabPhoto(); close(); toast('Photo saved'); done(); }
-      catch (x) { toast(x.message || "That photo couldn't be opened"); pick.disabled = false; pick.textContent = 'Choose a photo'; }
+      try {
+        const result = await api('/api/me/photo', json('PUT', {image:pending}));
+        if (!live()) return;
+        pending = null; App.me.photo = result.photo; syncMeTabPhoto(); close(); toast('Photo saved'); done();
+      } catch (x) {
+        if (!live()) { pending = null; return; }
+        toast(x.message || "That photo couldn't be opened");
+        if (x.status !== 503) pending = null;
+        pick.disabled = false; pick.textContent = pending ? 'Retry photo' : 'Choose a photo';
+      }
+    };
+    pick.onclick = () => {if(live()&&!globalThis.EmailConfirmation?.lock(true)){if(pending)save();else file.click();}};
+    file.onchange = async () => {
+      const f = file.files && file.files[0]; if (!f || !live()) return;
+      pick.disabled = true;
+      try { pending = await shrinkPhoto(f, 1024); if(live())await save();else pending=null; }
+      catch (x) { if(live()){toast(x.message || "That photo couldn't be opened");pick.disabled=false;pick.textContent='Choose a photo';} }
     };
     if (rm) rm.onclick = async () => {
       rm.disabled = true;
