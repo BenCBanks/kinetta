@@ -2017,3 +2017,7 @@ These rules guide new UI and scoped cleanup of existing screens. Keep the emoji 
 - Remove duplicate paths to an action, decorative row icons, outlined circles around toolbar icons and colour without meaning first. Never combine a decorative leading icon, chevron and trailing action on one row. Offer sharing once per object.
 - Use 30–34 pt page titles, 20–22 pt section titles, 17 pt body text and 13–15 pt metadata, one blue accent, and flat lists with inset separators.
 - Achievement lists use their title/summary as the detail target. Remove per-row Share and redundant runner/chevron icons; put one Share action in achievement detail.
+
+## Food entry shortcuts · owner choice, 27 November 2026
+
+Above the Add food composer, show Scan, Photo, Usuals and Manual in a compact two-column, two-row grid, in that order. Keep the actions unboxed, with whole 20px icons beside labels and at least 44px touch targets in both themes and at phone/desktop widths. Retain every tool in the + menu. A typed draft or prepared food review replaces the shortcuts as before. The manual entry form says **Review food** when preparing food for the log; the explicit **Add to log** step remains. Recipe ingredient forms keep their existing Add action.

@@ -988,11 +988,10 @@ html.keyboard-open .food-thread { font-size: 1rem; }
 .tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
 .tcard .extra-nutrients dd small {display:block;font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);}
 
-/* Food chat suggestions align to the viewport edge like the plain Kit rows. */
-.food-thread .thread-quick-actions.chat-suggestions {margin:0 calc(0px - var(--space-5)) 8px;}
-.food-thread .thread-quick-actions.chat-suggestions > button {gap:16px;min-height:44px;padding:0 16px;border:0;font-size:15px;font-weight:500;color:var(--tx);text-align:left;}
-.food-thread .thread-quick-actions.chat-suggestions > button::after {left:52px;}
-.food-thread .thread-quick-actions.chat-suggestions > button svg {width:20px;height:20px;}
+/* Four direct food actions in two compact, unboxed rows above the composer. */
+.food-thread .thread-quick-actions.chat-suggestions {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px;margin:0 0 8px;}
+.food-thread .thread-quick-actions.chat-suggestions > button {gap:10px;min-height:44px;padding:0;border:0;font-size:15px;font-weight:500;color:var(--tx);text-align:left;}
+.food-thread .thread-quick-actions.chat-suggestions > button::after {left:30px;}
+.food-thread .thread-quick-actions.chat-suggestions > button:nth-last-child(-n+2)::after {content:none;}
+.food-thread .thread-quick-actions.chat-suggestions > button svg {width:20px;height:20px;flex:none;overflow:visible;}
 html.keyboard-open .food-thread .thread-quick-actions.chat-suggestions {display:grid;}
-@media(max-width:360px){.food-thread .thread-quick-actions.chat-suggestions {margin-inline:-16px;}}
-@media(min-width:1000px){.food-thread .thread-quick-actions.chat-suggestions {margin-inline:-32px;}}
