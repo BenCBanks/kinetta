@@ -117,14 +117,16 @@ def reserve(model, label, payload=None):
     limit = budget_micros()
     rid = uuid4()
     with db.connect() as c:
-        # Deferred jobs and every retry must still belong to an eligible account.
-        from . import ai_account
-        ai_account.require(uid, c)
         # The service row survives account deletion. Independent workers/restarts
         # share the same short lock; no network work is done under it.
         c.execute('SELECT pg_advisory_xact_lock(122006)')
         c.execute("INSERT INTO ai_service_budget(day) VALUES ((now() AT TIME ZONE 'UTC')::date) ON CONFLICT DO NOTHING")
         row = c.execute("SELECT day,charged_micros FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date FOR UPDATE").fetchone()
+        # Read current committed account state after every blocking budget lock.
+        # No users row lock: callers may already hold account locks in another
+        # transaction; adding the reverse budget->account order can deadlock.
+        from . import ai_account
+        ai_account.require(uid, c)
         own = c.execute("""SELECT coalesce(sum(charged_micros),0) AS spent,count(*) AS requests
                             FROM ai_food_attempts WHERE user_id=%s AND day=%s""",(uid,row['day'])).fetchone()
         counts = c.execute("""SELECT count(*) FILTER (WHERE lease_until>now() AND state='reserved') AS active,

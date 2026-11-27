@@ -418,5 +418,44 @@ class AccountEligibility(unittest.TestCase):
  def test_deleted_account_cannot_reserve(self):
   with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(self.uid,))
   with B.scope(self.uid):self.denied(lambda:B.reserve('gemini-3.1-flash-lite','queued'))
+ def test_restriction_committed_while_waiting_for_budget_lock_prevents_spend(self):
+  import threading,time
+  from contextlib import contextmanager
+  from concurrent.futures import ThreadPoolExecutor
+  connect=db.connect;main_thread=threading.get_ident()
+  for lock in ('advisory','service_row'):
+   for kind in ('suspended','reset_expired','unconfirmed'):
+    with self.subTest(lock=lock,kind=kind):
+     self.state('legacy');ready=threading.Event();backend=[]
+     @contextmanager
+     def tracked_connection():
+      with connect() as c:
+       if threading.get_ident()!=main_thread:
+        backend.append(c.info.backend_pid);ready.set()
+       yield c
+     def reserve():
+      with B.scope(self.uid):return B.reserve('gemini-3.1-flash-lite','queued')
+     with connect() as blocker:
+      blocker.execute("INSERT INTO ai_service_budget(day) VALUES ((now() AT TIME ZONE 'UTC')::date) ON CONFLICT DO NOTHING")
+      blocker.commit()
+      before=blocker.execute("SELECT charged_micros FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date").fetchone()['charged_micros']
+      if lock=='advisory':blocker.execute('SELECT pg_advisory_xact_lock(122006)')
+      else:blocker.execute("SELECT day FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date FOR UPDATE")
+      with ThreadPoolExecutor(max_workers=1) as pool,patch.object(db,'connect',tracked_connection):
+       future=pool.submit(reserve)
+       try:
+        self.assertTrue(ready.wait(5),'reservation connection opened')
+        until=time.monotonic()+5
+        while not blocker.execute('SELECT 1 FROM pg_locks WHERE pid=%s AND NOT granted',(backend[0],)).fetchone():
+         self.assertLess(time.monotonic(),until,'reservation reached a real database lock wait')
+         time.sleep(.005)
+        # This update must complete while the reservation is still waiting.
+        # No account row lock is taken before/below the budget lock order.
+        self.state(kind)
+        self.assertFalse(future.done())
+       finally:blocker.commit()
+       self.denied(lambda:future.result(timeout=5))
+      self.assertEqual(blocker.execute("SELECT charged_micros FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date").fetchone()['charged_micros'],before)
+      self.assertFalse(blocker.execute('SELECT 1 FROM ai_food_attempts WHERE user_id=%s',(self.uid,)).fetchone())
 
 unittest.main()

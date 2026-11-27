@@ -93,5 +93,11 @@ Background AI follows the same account-state restrictions as interactive access.
 Suspended accounts, outstanding password-change restrictions (even expired ones),
 and public-signup accounts still awaiting email confirmation cannot start paid work.
 Every provider-attempt reservation rechecks these states, including retries and
-fallbacks from already queued jobs. Denial creates no attempt or budget hold.
-Existing calls already sent to a provider cannot be recalled.
+fallbacks from already queued jobs. The check reads current committed account state
+after acquiring both the service advisory lock and budget-row lock, so a restriction
+committed while either lock is awaited prevents that reservation. Denial creates
+no attempt or budget hold. It takes no account row lock: callers may already hold
+account locks in a different transaction, and reversing that order could deadlock.
+This is an admission check, not cancellation of a reservation already admitted.
+A call already dispatched is in flight and cannot be recalled; retries must pass
+the admission check again.
