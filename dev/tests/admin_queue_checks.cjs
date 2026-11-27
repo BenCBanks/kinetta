@@ -38,7 +38,7 @@ module.exports=async function queueChecks(page,base){
   review={...review,report:{...review.report,kind:'group'},item:{name:'Weekend runners',scope:'Reported group name only; members, totals and updates are not shown.'},actions:[{value:'dismiss',label:'Dismiss report'},{value:'remove_group',label:'Remove this group'}]};
   await page.reload();await go('reports','[data-review]');await page.locator('[data-review]').click();await page.locator('[data-decision=remove_group]').waitFor();
   assert.equal(await page.locator('.reported-item').innerText(),'Weekend runners\n\n'+review.item.scope);
-  const shot=async state=>{if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SHOT_DIR,`group-report-${state}-${page.viewportSize().width}-${await page.evaluate(()=>matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}.png`),animations:'disabled'});}};
+  const shot=async(state,prefix='group-report')=>{if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SHOT_DIR,`${prefix}-${state}-${page.viewportSize().width}-${await page.evaluate(()=>matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}.png`),animations:'disabled'});}};
   await shot('review');const beforeGroup=calls.length;
   await page.locator('[data-decision=remove_group]').click();await page.locator('#tool-form').waitFor();
   assert.match(await page.locator('#dialog-body').innerText(),/People keep their workouts/);assert.equal(calls.length,beforeGroup,'opening confirmation never removes');
@@ -48,6 +48,23 @@ module.exports=async function queueChecks(page,base){
   // Closing precedes its asynchronous queue refresh; let that finish before changing tabs.
   await page.waitForFunction(()=>current==='reports'&&document.querySelector('#content').textContent.includes('No open reports.'));
   const groupDecision=calls.at(-1).body;assert.equal(groupDecision.action,'remove_group');assert.equal(groupDecision.confirm,person.login);assert.equal(groupDecision.version,review.version);assert(groupDecision.request_key&&groupDecision.requested_at);
+  reported=true;report={...report,what:'Group update: See you at the park on Saturday.'};
+  review={...review,item:{id:8601,text:'See you at the park on Saturday.',scope:'Reported update only; other group updates are not shown.'},actions:[{value:'dismiss',label:'Dismiss report'},{value:'remove_group_update',label:'Remove this update'}]};
+  await page.reload();await go('reports','[data-review]');await page.locator('[data-review]').click();await page.locator('[data-decision=remove_group_update]').waitFor();
+  assert.equal(await page.locator('[data-decision=remove_group]').count(),0,'an update report never offers whole-group removal');
+  assert.equal(await page.locator('.reported-item blockquote').innerText(),review.item.text);
+  await shot('review','group-update');const beforeUpdate=calls.length;
+  await page.locator('[data-decision=remove_group_update]').click();await page.locator('#tool-form').waitFor();
+  assert.match(await page.locator('#dialog-body').innerText(),/only the reported update/);
+  await shot('confirm','group-update');await page.locator('#close').click();assert.equal(calls.length,beforeUpdate,'cancel leaves the update untouched');
+  await go('reports','[data-review]');await page.locator('[data-review]').click();await page.locator('[data-decision=remove_group_update]').click();
+  await page.locator('#tool-form input[name=confirm]').fill('@'+person.login);await page.locator('#tool-form button[type=submit]').click();await page.locator('#dialog').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>current==='reports'&&document.querySelector('#content').textContent.includes('No open reports.'));
+  const updateDecision=calls.at(-1).body;assert.equal(updateDecision.action,'remove_group_update');assert.equal(updateDecision.version,review.version);assert.equal(updateDecision.confirm,person.login);assert(!('group_update_id' in updateDecision),'the server owns target selection');
+  reported=true;review={...review,item:{text:report.what,scope:'Submitted report only; no current target is available.'},actions:[{value:'dismiss',label:'Dismiss report'}]};
+  await page.reload();await go('reports','[data-review]');await page.locator('[data-review]').click();await page.locator('[data-decision=dismiss]').waitFor();
+  assert.equal(await page.locator('[data-decision^=remove_group]').count(),0,'legacy reports cannot remove a guessed item');await shot('legacy','group-update');
+  if(await page.locator('#dialog').isVisible())await page.locator('#close').click();
   await go('requests','[data-action=respond]');await page.locator('[data-action=respond]').first().click();await page.locator('#response button').click();await page.locator('#preview:not([hidden])').waitFor();
   assert((await page.locator('#preview').innerText()).includes('Fictional complete preview.'));assert(!calls.some(c=>c.path.endsWith('/send')),'preview never sends email');
   const sentRevision=await page.evaluate(()=>revision);await page.locator('#send').click();await page.waitForFunction(r=>revision>r&&current==='beta'&&document.querySelector('#requests [data-action=respond]'),sentRevision);

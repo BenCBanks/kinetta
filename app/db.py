@@ -2638,6 +2638,10 @@ MIGRATIONS = [
     GRANT SELECT ON strava_uploads,strava_import_stage TO fit_readers;
     """,
 
+    # 129. Bind new update reports to exactly one item; older reports remain untargeted.
+    """ALTER TABLE reports ADD COLUMN group_update_id bigint REFERENCES group_updates(id) ON DELETE SET NULL;
+    CREATE INDEX reports_group_update ON reports(group_update_id) WHERE group_update_id IS NOT NULL;""",
+
 ]
 
 
