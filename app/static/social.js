@@ -1356,11 +1356,12 @@ function groupInviteSheet(group,initialUrl=null){
   },{keyboardAttached:true,focusContainer:true});
 }
 function groupCreateSheet(done){
+  const creationId=crypto.randomUUID();
   sheet('Create a group',`<form class="form group-create-form" id="group-create-form"><div class="group-create-fields"><label class="group-create-name-label">Group name<input name="title" maxlength="80" required autocomplete="off" enterkeyhint="go" placeholder="Name"></label></div><div class="group-create-footer"><button type="submit" class="primary wide" disabled>Create group</button></div></form>`,(body,close)=>{
     const form=$('#group-create-form',body),name=form.elements.title,submit=$('button[type=submit]',form);
     const update=()=>submit.disabled=!name.value.trim();name.oninput=update;
     form.onsubmit=async event=>{event.preventDefault();if(submit.disabled)return;submit.disabled=true;
-      try{const group=await api('/api/groups/people',json('POST',{title:name.value.trim(),time_zone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}));if(!body.isConnected)return;close();done(group);}
+      try{const group=await api('/api/groups/people',json('POST',{id:creationId,title:name.value.trim(),time_zone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}));if(!body.isConnected)return;close();done(group);}
       catch(error){if(body.isConnected){toast(error.message);update();}}
     };
   },{flow:'new',keyboardAttached:true,focusContainer:true});

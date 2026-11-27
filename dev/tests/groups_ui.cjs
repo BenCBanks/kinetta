@@ -175,6 +175,25 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.deepEqual(groupDateChanges,[{event_date:'2026-11-14'},{event_date:null}]);assert.equal(ongoingState().updates[0].reactions.clap,1,'date edits preserve updates');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
   }
   if(process.env.KINETTA_GROUPS_DATE_ONLY==='1'){for(const theme of ['light','dark'])await eventDateJourney(theme);console.log('Group end date native row: unset/set/remove/save and preservation390 light/dark PASS');return;}
+  async function checkCreateRetry(theme){
+   const {context,page,errors}=await open(theme);const attempts=[];
+   await context.route('**/api/groups/people',async route=>{const body=route.request().postDataJSON();attempts.push(body);
+    if(attempts.length===1)return route.abort();
+    return route.fulfill({json:{...empty,id:body.id,invite_url:`https://example.test/group-invite/${token}`}});
+   });
+   await page.goto(base+'/me/groups?create=1');await page.locator('#group-create-form [name=title]').fill('Fictional retry crew');
+   const submit=page.locator('#group-create-form button[type=submit]');await submit.click();
+   await page.waitForFunction(()=>document.querySelector('#group-create-form button[type=submit]')?.disabled===false);
+   assert.equal(await page.locator('#group-create-form [name=title]').inputValue(),'Fictional retry crew');
+   await submit.click();await page.locator('[data-group-share]').waitFor();
+   assert.equal(attempts.length,2);assert.match(attempts[0].id,/^[0-9a-f-]{36}$/);assert.deepEqual(attempts[1],attempts[0]);
+   await page.keyboard.press('Escape');await page.goto(base+'/me/groups?create=1');await page.locator('#group-create-form [name=title]').fill('Fictional second crew');
+   await page.locator('#group-create-form button[type=submit]').click();await page.locator('[data-group-share]').waitFor();
+   assert.notEqual(attempts[2].id,attempts[0].id,'a separate create sheet gets a fresh key');
+   assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+  }
+  if(process.env.KINETTA_GROUPS_CREATE_RETRY_ONLY==='1'){for(const theme of ['light','dark'])await checkCreateRetry(theme);console.log('Group create retry key390light/dark PASS');return;}
+  for(const theme of ['light','dark'])await checkCreateRetry(theme);
   if(GROUP_PICKER_ONLY||GROUP_UPDATES_ONLY){for(const theme of ['light','dark'])for(const width of [390,330])await checkFriendPicker(theme,width);console.log('Groups friend picker 390/330 light/dark PASS');if(GROUP_PICKER_ONLY)return;}
   if(GROUP_LOADING_ONLY){
    for(const theme of ['light','dark'])await checkGroupLoading(theme);
@@ -299,7 +318,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert(await page.locator('.group-create-footer button[type=submit]').isDisabled());
    for(const width of [390,375,330])await checkCreateSheet(page,width,16,theme);
    await page.locator('[name=title]').fill('Fictional Alpine Weekend');await page.locator('#group-create-form button[type=submit]').click();await page.locator('[data-group-share]').waitFor();
-   assert.deepEqual(postedGroups.at(-1),{title:'Fictional Alpine Weekend',time_zone:'America/New_York'},'no hidden goal or date is created');
+   assert.match(postedGroups.at(-1).id,/^[0-9a-f-]{36}$/);assert.deepEqual(postedGroups.at(-1),{id:postedGroups.at(-1).id,title:'Fictional Alpine Weekend',time_zone:'America/New_York'},'only a retry key accompanies the name and timezone');
    assert.equal(await page.locator('[data-group-share]').count(),1,'One docked Share invite link action replaces raw URLs and copy actions');
    await page.keyboard.press('Escape');await context.close();contexts.splice(contexts.indexOf(context),1);
 
