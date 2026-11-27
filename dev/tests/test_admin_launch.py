@@ -309,6 +309,21 @@ class Launch(unittest.TestCase):
                 c.execute('UPDATE users SET sql_role=NULL WHERE id=%s',(self.ids['other'],))
                 c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
 
+    def test_group_update_report_export_keeps_the_existing_field_allowlist(self):
+        from app import api_mydata
+        rid,_,update_id,_ = self.group_report(update=True)
+        with db.connect() as c:
+            source = c.execute('SELECT created,group_update_id FROM reports WHERE id=%s',(rid,)).fetchone()
+            self.assertEqual(source['group_update_id'],update_id)
+            exported = [r['jsonb_build_object'] for r in c.execute(api_mydata.TABLES['reports_made'],(self.ids['other'],))]
+            self.assertEqual(c.execute(api_mydata.TABLES['reports_made'],(self.ids['plain'],)).fetchall(),[])
+        self.assertEqual(len(exported),1)
+        record = exported[0]
+        self.assertEqual(dt.datetime.fromisoformat(record.pop('created')),source['created'])
+        self.assertEqual(record,{'about':'zz_test_launch_plain',
+            'what':'Group update in Fictional reported group by @zz_test_launch_plain: "Unrelated update sentinel"',
+            'reason':'abuse','note':'Fictional complaint','status':'open'})
+
     def test_group_update_reports_follow_account_erasure(self):
         from app.api_account import erase
         rid,gid,update_id,_ = self.group_report(update=True)
