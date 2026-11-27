@@ -243,15 +243,20 @@ function clearCommentDrafts() {
     // Removing a previously established marker also revokes suspended tabs.
     try{localStorage.removeItem(key);}catch(_){} }};
   fence();
-  try {
-    // Login may already have cleared App.me; clear every account namespace on this device.
-    const keys=Array.from({length:localStorage.length},(_,i)=>localStorage.key(i));
-    for(const storedKey of keys)if(storedKey?.startsWith('fit.comment-draft:'))localStorage.removeItem(storedKey);
-    localStorage.removeItem('fit.comment-drafts'); // Unshipped legacy map.
-  } catch (_) { /* storage may be unavailable; the generation still revokes readers */ }
-  fence(); // Removing the larger draft may have freed enough quota for the small marker.
+  const clear=()=>{
+    try {
+      // Login may already have cleared App.me; clear every account namespace on this device.
+      const keys=Array.from({length:localStorage.length},(_,i)=>localStorage.key(i));
+      for(const storedKey of keys)if(storedKey?.startsWith('fit.comment-draft:'))localStorage.removeItem(storedKey);
+      localStorage.removeItem('fit.comment-drafts'); // Unshipped legacy map.
+    } catch (_) { /* storage may be unavailable; the generation still revokes readers */ }
+    fence(); // Removal may have freed enough quota for the small marker.
+  };
+  const cleared=globalThis.navigator?.locks?.request
+    ?navigator.locks.request('fit.comment-drafts',clear).catch(()=>{}):Promise.resolve(clear());
   if(typeof SocialData!=='undefined')SocialData.revokeDrafts();
   try{if(typeof BroadcastChannel==='function'){const channel=new BroadcastChannel('fit.comment-drafts');channel.postMessage('clear');channel.close();}}catch(_){/* The synchronous storage fence remains. */}
+  return cleared;
 }
 let pendingDishEntry = null;
 async function loadNewDish(btn, where = null) {

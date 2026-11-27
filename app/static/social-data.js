@@ -46,19 +46,33 @@ const SocialData=(()=>{
   const validDraft=row=>row&&typeof row.text==='string'&&row.text.length<=500&&/^[0-9a-f-]{36}$/i.test(row.client_id)&&Number.isFinite(row.at)&&Date.now()-row.at<draftTTL;
   // The generation is part of the key: a delayed old-session write/cleanup can
   // never replace/remove the same account's newer-session draft.
-  const draftScope=account=>draftPrefix+encodeURIComponent(account)+':'+encodeURIComponent(draftGeneration)+':';
-  function storedDrafts(account){
-    const prefix=draftScope(account),rows=[];
+  const draftScope=(account,gen=draftGeneration)=>draftPrefix+encodeURIComponent(account)+':'+encodeURIComponent(gen)+':';
+  const draftJobs=new Set();
+  function draftStorage(account,work){
+    const gen=draftGeneration,identity=owner;
+    const run=locked=>{try{
+      if(identity!==readOwner()||gen!==draftGeneration||revoked||!gen)return;
+      if(generation()!==gen){revokeDrafts();return;}
+      work(gen,locked);
+    }catch(_){/* Storage failure leaves this tab's draft in memory. */}};
+    if(globalThis.navigator?.locks?.request){
+      const job=navigator.locks.request('fit.comment-drafts',()=>run(true)).catch(()=>{});
+      draftJobs.add(job);job.then(()=>draftJobs.delete(job));
+    }else run(false);
+  }
+  const draftsSettled=()=>Promise.all([...draftJobs]);
+  function storedDrafts(account,gen=draftGeneration,cleanup=false,locked=false){
+    const prefix=draftScope(account,gen),rows=[];
     const keys=Array.from({length:localStorage.length},(_,i)=>localStorage.key(i));
     for(const storedKey of keys){
       if(!storedKey?.startsWith(prefix))continue;
-      let row;try{row=JSON.parse(localStorage.getItem(storedKey));}catch(_){}
+      const raw=localStorage.getItem(storedKey);let row;try{row=JSON.parse(raw);}catch(_){}
       if(validDraft(row))rows.push({storedKey,id:decodeURIComponent(storedKey.slice(prefix.length)),row});
-      else localStorage.removeItem(storedKey);
+      else if(cleanup&&(locked||(Number.isFinite(row?.at)&&Date.now()-row.at>=draftTTL&&localStorage.getItem(storedKey)===raw)))localStorage.removeItem(storedKey);
     }
     rows.sort((a,b)=>b.row.at-a.row.at||a.storedKey.localeCompare(b.storedKey));
-    for(const {storedKey} of rows.slice(40))localStorage.removeItem(storedKey);
-    return rows.slice(0,40);
+    if(cleanup&&locked)for(const {storedKey} of rows.slice(40))localStorage.removeItem(storedKey);
+    return rows; // No cross-key cap eviction without Web Locks.
   }
   function savedDrafts(){
     scope();
@@ -70,26 +84,24 @@ const SocialData=(()=>{
     if(revoked||hydrated)return revoked?null:account;
     hydrated=true; // Failed writes must never let older storage replace newer memory.
     try{
-      localStorage.removeItem('fit.comment-drafts'); // Retire the unshipped whole-map format.
       if(account&&draftGeneration)for(const {id,row} of storedDrafts(account))drafts.set(id,row);
     }catch(_){/* A full/disabled store still allows an in-memory draft. */}
     // Without an established clearing fence, stay memory-only for this session.
     if(!draftGeneration)try{const next=newId();localStorage.setItem(generationKey,next);draftGeneration=next;}catch(_){}
+    if(account)draftStorage(account,(gen,locked)=>{localStorage.removeItem('fit.comment-drafts');storedDrafts(account,gen,true,locked);});
     return account;
   }
   function persistDraft(account,id){
-    const storedKey=draftScope(account)+encodeURIComponent(id);
-    try{
-      if(revoked||generation()!==draftGeneration){revokeDrafts();return;}
-      if(!draftGeneration)return;
-      const row=drafts.get(id);
-      // Only this activity is written. No stale copy of another activity is replayed.
-      if(validDraft(row))localStorage.setItem(storedKey,JSON.stringify(row));else localStorage.removeItem(storedKey);
-      if(generation()===draftGeneration)storedDrafts(account); // Expiry and the 40-draft bound are enforced by scanning.
-    }catch(_){/* Saving a comment must not depend on device storage. */}
-    finally{
-      if(generation()!==draftGeneration){try{localStorage.removeItem(storedKey);}catch(_){}revokeDrafts();}
-    }
+    const row=drafts.get(id); // Capture this intent before asynchronous lock admission.
+    draftStorage(account,(gen,locked)=>{
+      const storedKey=draftScope(account,gen)+encodeURIComponent(id);
+      try{
+        if(validDraft(row))localStorage.setItem(storedKey,JSON.stringify(row));else localStorage.removeItem(storedKey);
+        if(generation()===gen)storedDrafts(account,gen,true,locked);
+      }finally{
+        if(generation()!==gen){try{localStorage.removeItem(storedKey);}catch(_){}revokeDrafts();}
+      }
+    });
   }
   function draft(id,text){const account=savedDrafts(),k=key(id);if(revoked||!account)return '';if(arguments.length>1){
     const old=drafts.get(k);
@@ -262,5 +274,5 @@ const SocialData=(()=>{
     return {save:run,read:()=>run(),get known(){return known;},get failure(){return lastError;},get attempted(){return attempt;}};
   }
 
-  return {remember,peek,read,forget,invalidate,prefetch,warm,draft,draftRequest,revokeDrafts,watch,confirmSetting};
+  return {remember,peek,read,forget,invalidate,prefetch,warm,draft,draftRequest,draftsSettled,revokeDrafts,watch,confirmSetting};
 })();

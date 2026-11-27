@@ -43,7 +43,7 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  localStorage.setItem=original;
  // Two tabs sharing storage. Test the synchronous fence before delivering the storage event.
  const listeners=[];
- function tab(){const t={...ctx,addEventListener:(name,fn)=>{if(name==='storage')listeners.push(fn);}};vm.createContext(t);vm.runInContext(fs.readFileSync('app/static/social-data.js','utf8')+'\nglobalThis.data=SocialData;',t);return t;}
+ function tab(extra={}){const t={...ctx,...extra,addEventListener:(name,fn)=>{if(name==='storage')listeners.push(fn);}};vm.createContext(t);vm.runInContext(fs.readFileSync('app/static/social-data.js','utf8')+'\nglobalThis.data=SocialData;',t);return t;}
  const parallelOne=tab(),parallelTwo=tab();parallelOne.data.peek(99);parallelTwo.data.peek(99);parallelOne.data.draft(99,'First tab');assert.equal(parallelTwo.data.draft(99,'Second tab'),'Second tab','opening a second tab is not a sign-out');
  // Both tabs hydrate before either types; each write must preserve the other activity.
  const activityA=tab(),activityB=tab();activityA.data.draft(101);activityB.data.draft(102);
@@ -100,20 +100,48 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  // Scan bounds/expiry/corruption apply only to the current account/session namespace.
  storage.clear();const bounded=tab();
  for(let id=3000;id<3041;id++){now++;bounded.data.draft(id,'Bounded fictional '+id);}
- assert.equal(draftKeys().length,40);assert.equal(entryKey(3000),undefined);assert(entryKey(3040));
+ assert.equal(draftKeys().length,41,'fallback skips cap eviction');assert(entryKey(3000));assert(entryKey(3040));
  const latestKey=entryKey(3040),latest=JSON.parse(localStorage.getItem(latestKey));
  const expiredKey=latestKey.replace(':3040',':9998'),corruptKey=latestKey.replace(':3040',':9999');
  localStorage.setItem(expiredKey,JSON.stringify({...latest,at:now-7*86400000}));localStorage.setItem(corruptKey,'broken json');
  const anotherAccount=latestKey.replace(encodeURIComponent(JSON.stringify([Native.base||location.origin,App.me.id])),encodeURIComponent(JSON.stringify([Native.base||location.origin,999])));
  localStorage.setItem(anotherAccount,JSON.stringify({...latest,text:'Other account fictional draft'}));
  const scanned=tab();assert.equal(scanned.data.draft(3040),'Bounded fictional 3040');assert.equal(scanned.data.draft(9998),'');
- assert.equal(localStorage.getItem(expiredKey),null);assert.equal(localStorage.getItem(corruptKey),null);assert(localStorage.getItem(anotherAccount),'scan does not delete other account keys');
+ assert.equal(localStorage.getItem(expiredKey),null);assert.equal(localStorage.getItem(corruptKey),'broken json','fallback does not remove an unverified corrupt key');assert(localStorage.getItem(anotherAccount),'scan does not delete other account keys');
  assert.equal(localStorage.getItem('fit.comment-drafts'),null,'no shared draft map is stored');
  assert(!draftKeys().some(k=>decodeURIComponent(k).includes(owner)),'storage keys never contain the session token');
  const clearSource=fs.readFileSync('app/static/app.js','utf8').split('function clearCommentDrafts() {')[1].split('\nlet pendingDishEntry')[0];
  App.me=null;vm.runInContext('function clearCommentDrafts() {'+clearSource+'\nclearCommentDrafts();',scanned);
  assert.deepEqual(draftKeys(),[],'sign-out clears all account namespaces, including when App.me is already gone');
  App.me={id:2};
+ // Fallback expiry rechecks the value immediately before removal.
+ storage.clear();const expiry=tab();expiry.data.draft(401,'Expired candidate');const expiryKey=entryKey(401);
+ now+=7*86400000+1;const freshValue=JSON.stringify({text:'Peer rewrote expired draft',client_id:require('node:crypto').randomUUID(),at:now});
+ const readBeforeExpiry=localStorage.getItem;let expiryReads=0;
+ localStorage.getItem=k=>{if(k===expiryKey&&++expiryReads===3)localStorage.setItem(k,freshValue);return readBeforeExpiry(k);};
+ tab().data.draft(402);localStorage.getItem=readBeforeExpiry;
+ assert.equal(localStorage.getItem(expiryKey),freshValue,'expiry must not remove a value changed before its final read');
+ // All content writes and cleanup run under the same shared Web Lock.
+ storage.clear();let lockTail=Promise.resolve(),held=false;
+ const locks={request:(name,fn)=>{assert.equal(name,'fit.comment-drafts');const job=lockTail.then(async()=>{held=true;try{return await fn();}finally{held=false;}});lockTail=job.catch(()=>{});return job;}};
+ const lockedOne=tab({navigator:{locks}}),lockedTwo=tab({navigator:{locks}}),setUnlocked=localStorage.setItem,removeUnlocked=localStorage.removeItem;
+ const contentKey=k=>k==='fit.comment-drafts'||k.startsWith('fit.comment-draft:');
+ localStorage.setItem=(k,v)=>{if(contentKey(k))assert(held,'draft writes require the shared lock');return setUnlocked(k,v);};
+ localStorage.removeItem=k=>{if(contentKey(k))assert(held,'cleanup requires the shared lock');return removeUnlocked(k);};
+ for(let id=5000;id<5041;id++){now++;lockedOne.data.draft(id,'Locked draft '+id);}
+ await lockedOne.data.draftsSettled();assert.equal(draftKeys().length,40);assert.equal(entryKey(5000),undefined);
+ let unlock,entered;const admitted=new Promise(r=>entered=r),holding=locks.request('fit.comment-drafts',()=>{entered();return new Promise(r=>unlock=r);});await admitted;
+ now++;lockedTwo.data.draft(5001,'Peer refreshed oldest');now++;lockedOne.data.draft(5041,'New draft triggers cleanup');
+ assert.equal(JSON.parse(localStorage.getItem(entryKey(5001))).text,'Locked draft 5001','writer waits behind an existing lock');
+ unlock();await holding;await Promise.all([lockedOne.data.draftsSettled(),lockedTwo.data.draftsSettled()]);
+ assert.equal(JSON.parse(localStorage.getItem(entryKey(5001))).text,'Peer refreshed oldest','cleanup cannot evict a just-rewritten draft');assert.equal(draftKeys().length,40);
+ let releaseClear,readyClear;const clearReady=new Promise(r=>readyClear=r),heldClear=locks.request('fit.comment-drafts',()=>{readyClear();return new Promise(r=>releaseClear=r);});await clearReady;
+ lockedOne.data.draft(6000,'Queued before sign-out');
+ const clearing=vm.runInContext('function clearCommentDrafts() {'+clearSource+'\nclearCommentDrafts();',lockedOne);
+ assert.equal(lockedOne.data.draftRequest(6000,'Cannot persist after sign-out'),null,'generation fences before lock admission');
+ releaseClear();await heldClear;await clearing;await lockedOne.data.draftsSettled();
+ assert.deepEqual(draftKeys(),[],'queued old writes cannot survive locked sign-out cleanup');
+ localStorage.setItem=setUnlocked;localStorage.removeItem=removeUnlocked;
  // A first draft with a completely unavailable store remains stable in memory,
  // and cannot later write unfenced text after another tab clears the account.
  storage.clear();

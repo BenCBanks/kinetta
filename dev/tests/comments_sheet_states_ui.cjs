@@ -133,43 +133,57 @@ async function retryChecks(browser){
 async function crossTabDraftChecks(browser){
  const source=fs.readFileSync('app/static/social-data.js','utf8');
  const clear=fs.readFileSync('app/static/app.js','utf8').split('function clearCommentDrafts() {')[1].split('\nlet pendingDishEntry')[0];
- for(const native of [false,true]){
+ for(const native of [false,true])for(const webLocks of [true,false]){
   const context=await browser.newContext({serviceWorkers:'block'});
   try{
    await context.route('**/*',route=>route.request().resourceType()==='document'?route.fulfill({contentType:'text/html',body:'<!doctype html><title>Fictional draft storage check</title>'}):route.abort());
+   if(!webLocks)await context.addInitScript(()=>Object.defineProperty(navigator,'locks',{value:undefined}));
    await context.addInitScript(`window.App={me:{id:1}};window.Native={base:${JSON.stringify(native?'https://bridge.example.test':'')}};window.readOwner=()=> 'fictional-session';window.newId=()=>crypto.randomUUID();`+source+'\nwindow.SocialData=SocialData;\nfunction clearCommentDrafts() {'+clear+'\nwindow.clearCommentDrafts=clearCommentDrafts;');
    const one=await context.newPage(),two=await context.newPage();
+   const settled=()=>Promise.all([one,two].map(p=>p.evaluate(()=>SocialData.draftsSettled())));
    await one.goto('http://drafts.localhost/');await two.goto('http://drafts.localhost/');
    await one.evaluate(()=>SocialData.draft(101));await two.evaluate(()=>SocialData.draft(102));
    const a=await one.evaluate(()=>SocialData.draftRequest(101,'Fictional draft A'));
    const b=await two.evaluate(()=>SocialData.draftRequest(102,'Fictional draft B'));
    for(const page of [one,two]){
-    await page.reload();
+    await settled();await page.reload();
     assert.deepEqual(await page.evaluate(()=>[SocialData.draft(101),SocialData.draft(102)]),['Fictional draft A','Fictional draft B']);
     assert.deepEqual(await page.evaluate(()=>[SocialData.draftRequest(101,'Fictional draft A'),SocialData.draftRequest(102,'Fictional draft B')]),[a,b]);
    }
    await one.evaluate(()=>SocialData.draft(101,''));await two.evaluate(()=>SocialData.draft(102,'Fictional revised B'));
-   await one.reload();assert.deepEqual(await one.evaluate(()=>[SocialData.draft(101),SocialData.draft(102)]),['','Fictional revised B'],'stale memory cannot restore another activity cleared elsewhere');
-   const pending=await one.evaluate(()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw Error('Fictional quota');};try{return SocialData.draftRequest(103,'Fictional pending A');}finally{Storage.prototype.setItem=set;}});
+   await settled();await one.reload();assert.deepEqual(await one.evaluate(()=>[SocialData.draft(101),SocialData.draft(102)]),['','Fictional revised B'],'stale memory cannot restore another activity cleared elsewhere');
+   const pending=await one.evaluate(async()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw Error('Fictional quota');};try{const id=SocialData.draftRequest(103,'Fictional pending A');await SocialData.draftsSettled();return id;}finally{Storage.prototype.setItem=set;}});
    await two.evaluate(()=>SocialData.draft(104,'Fictional separate B'));await one.evaluate(()=>SocialData.draftRequest(103,'Fictional pending A'));
-   await two.reload();assert.deepEqual(await two.evaluate(()=>[SocialData.draftRequest(103,'Fictional pending A'),SocialData.draft(104)]),[pending,'Fictional separate B']);
+   await settled();await two.reload();assert.deepEqual(await two.evaluate(()=>[SocialData.draftRequest(103,'Fictional pending A'),SocialData.draft(104)]),[pending,'Fictional separate B']);
    // Concurrent calls from distinct real tabs; neither operation writes the peer's key.
    for(let n=0;n<12;n++)await Promise.all([
     one.evaluate(n=>SocialData.draft(201,'Concurrent A '+n),n),
     two.evaluate(n=>SocialData.draft(202,'Concurrent B '+n),n)
    ]);
-   await one.reload();await two.reload();
+   await settled();await one.reload();await two.reload();
    assert.deepEqual(await one.evaluate(()=>[SocialData.draft(201),SocialData.draft(202)]),['Concurrent A 11','Concurrent B 11']);
    // A's delete overlaps B's edit, including a stale in-memory copy of A in B's tab.
    await Promise.all([one.evaluate(()=>SocialData.draft(201,'')),two.evaluate(()=>SocialData.draft(202,'B while A deleted'))]);
-   await one.reload();await two.reload();
+   await settled();await one.reload();await two.reload();
    assert.deepEqual(await two.evaluate(()=>[SocialData.draft(201),SocialData.draft(202)]),['','B while A deleted']);
+   await one.evaluate(async()=>{for(let id=3000;id<3042;id++)SocialData.draft(id,'Cap fixture '+id);await SocialData.draftsSettled();});
+   const count=await one.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:')).length);
+   if(webLocks){
+    assert.equal(count,40);
+    const oldest=await one.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:')).map(k=>({id:k.split(':').at(-1),at:JSON.parse(localStorage.getItem(k)).at})).sort((a,b)=>a.at-b.at)[0].id);
+    await one.evaluate(()=>new Promise(ready=>{window.heldDraftLock=navigator.locks.request('fit.comment-drafts',()=>{ready();return new Promise(release=>window.releaseDraftLock=release);});}));
+    await two.evaluate(id=>SocialData.draft(id,'Refreshed before cleanup'),oldest);
+    await one.evaluate(()=>SocialData.draft(4000,'New draft runs cap cleanup'));
+    await one.evaluate(()=>{window.releaseDraftLock();return window.heldDraftLock;});await settled();
+    const saved=await one.evaluate(id=>{const k=Object.keys(localStorage).find(k=>k.startsWith('fit.comment-draft:')&&k.endsWith(':'+id));return k?JSON.parse(localStorage.getItem(k)).text:null;},oldest);
+    assert.equal(saved,'Refreshed before cleanup','shared lock prevents stale cap cleanup from deleting the peer rewrite');
+   }else assert(count>40,'fallback skips cross-key cap eviction');
    // Suppress clear events so the stale tab must use the synchronous generation fence.
    await two.evaluate(()=>{window.addEventListener('storage',e=>e.stopImmediatePropagation(),{capture:true});});
    await one.evaluate(()=>clearCommentDrafts());
    assert.equal(await two.evaluate(()=>SocialData.draftRequest(102,'Must not restore after sign-out')),null);
    assert.deepEqual(await two.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.comment-draft:'))),[]);
-   console.log(`Two-tab per-activity drafts/reload/clear/quota/generation ${native?'bridge':'web'} PASS`);
+   console.log(`Two-tab per-activity drafts/reload/clear/quota/generation ${native?'bridge':'web'} ${webLocks?'WebLocks':'fallback'} PASS`);
   }finally{await context.close();}
  }
 }
