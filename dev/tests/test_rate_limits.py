@@ -172,7 +172,8 @@ class Limits(unittest.TestCase):
 
     def test_track_photo_contention_is_retryable_without_partial_save(self):
         import base64, datetime as dt, uuid
-        from pathlib import Path
+        import io
+        from PIL import Image
         from app.main import app
         from app.api_account import erase_files
         login='zz_test_limit_track_'+uuid.uuid4().hex[:10]
@@ -187,10 +188,11 @@ class Limits(unittest.TestCase):
                 c.execute('DELETE FROM auth_attempts WHERE key=%s',(f'photo-upload:{uid}',))
             erase_files(uid)
         self.addCleanup(remove)
-        image=Path(__file__).resolve().parents[2]/'dev/demo/photos/curry-rice-bowl.jpg'
+        image=io.BytesIO()
+        Image.new('RGB',(16,16),'orange').save(image,format='JPEG')
         payload={'client_id':str(uuid.uuid4()),'sport':'walk','name':'Fictional walk',
             'start':(dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=1)).isoformat(),
-            'elapsed_s':60,'moving_s':60,'points':[], 'review_version':1, 'photos':[base64.b64encode(image.read_bytes()).decode()]}
+            'elapsed_s':60,'moving_s':60,'points':[], 'review_version':1, 'photos':[base64.b64encode(image.getvalue()).decode()]}
         holder=self.hold('rate:photo-upload:'+str(uid))
         client=TestClient(app);self.addCleanup(client.close)
         client.headers.update({'Authorization':'Bearer '+token,'Origin':'http://testserver'})
