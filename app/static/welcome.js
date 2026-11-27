@@ -24,7 +24,7 @@ route(/^\/welcome$/, 'me', async (el) => {
   const step = (save, then) => {let saving=false;return async () => {
     if(saving)return;saving=true;const id=currentStep;$('#wc-err', el).textContent = '';
     try { await save(); if (here(id)) then(); }
-    catch (x) { if (here(id)) $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown]') ? '' : x.message; }
+    catch (x) { if (here(id)) $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown],[data-sharing-state=checking],[data-sharing-state=confirmed]:not([hidden])') ? '' : x.message; }
     finally { saving=false; }
   };};
 
@@ -85,11 +85,11 @@ route(/^\/welcome$/, 'me', async (el) => {
   }
   async function phone() {
     frame('phone',3 + k, 'Phone number', 'Used for contact matching and never shown to others. Include + and your country code.',
-      `<label class="form">Number · optional<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" disabled></label>`);
-    const input=$('input[name=phone_e164]',el),next=$('#wc-next',el),skip=$('#wc-skip',el);
+      `<label class="form">Number · optional<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" disabled></label><p class="small muted" id="wc-phone-saved" role="status" hidden></p>`);
+    const input=$('input[name=phone_e164]',el),next=$('#wc-next',el),skip=$('#wc-skip',el),summary=$('#wc-phone-saved',el);
     let savedPhone=null;
-    const saved=SocialData.confirmSetting($('.welcome',el),{path:'/api/contacts/settings',mask:()=>[input.closest('label'),next],
-      paint:(data,{failure})=>{if(data.phone_e164!==null&&typeof data.phone_e164!=='string')throw Error();savedPhone=data.phone_e164;if(!failure)input.value=savedPhone||'';input.disabled=false;next.disabled=false;},
+    const saved=SocialData.confirmSetting($('.welcome',el),{path:'/api/contacts/settings',mask:()=>[input.closest('label'),next,summary],
+      paint:(data,{failure})=>{if(data.phone_e164!==null&&typeof data.phone_e164!=='string')throw Error();savedPhone=data.phone_e164;if(!failure)input.value=savedPhone||'';summary.textContent='Saved number: '+(savedPhone||'None')+'.';summary.hidden=!failure;input.disabled=false;next.disabled=false;},
       uncertain:()=>invalidate('/api/contacts/settings')});
     const load=async()=>{
       if(!here('phone'))return;
@@ -100,8 +100,8 @@ route(/^\/welcome$/, 'me', async (el) => {
         next.onclick=step(async()=>{
           const value=input.value.trim();if(value===(savedPhone||''))return;
           try{
-            if(!await saved.save('/api/contacts/settings',json('PUT',{phone_e164:value||null})))throw Error('Saved number not confirmed.');
-            if(value.replace(/[\s().-]/g,'')!==(savedPhone||''))throw Error('Saved number shown. Check it before continuing.');
+            const result=await saved.save('/api/contacts/settings',json('PUT',{phone_e164:value||null}));
+            if(!result||result.failure)throw Error('Your number was not saved. Check the saved number below.');
           }finally{if(here('phone'))input.disabled=false;}
         },workouts);
       }catch(x){

@@ -67,6 +67,7 @@ const until=async(p,f,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(f))ret
    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)));assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);assert(!saves.some(([path,body])=>path==='/api/profile'&&(body.health_ai_ok||body.garmin_ai_ok)),'No bundled provider consent');console.log('Welcome polish '+size.width+'/'+size.root+' '+theme+' PASS');
   }finally{if(releaseContactRead){holdContactRead=false;releaseContactRead();releaseContactRead=null;}await c.unrouteAll({behavior:'wait'});await c.close();}
  }
+if(!profileDraftOnly&&!signupLinkOnly&&!process.env.KINETTA_WELCOME_CAPTURE)await require('./welcome_phone_recovery_ui.cjs')(browser,base,'zz_test_welcome_polish',pw,out);
 if(!profileDraftOnly&&!signupLinkOnly&&!process.env.KINETTA_WELCOME_CAPTURE)await require('./assert_keyboard_forms.cjs')({browser,base,state,login:'zz_test_welcome_polish',password:pw,out});
  await require('./enrollment_rate_ui.cjs').run(browser,base);
 }finally{await auth.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});await auth.close();await browser.close();}console.log(process.env.KINETTA_WELCOME_CAPTURE?'Welcome phone checkpoint captures PASS':'Welcome polish: '+cases+' cases passed; product writes blocked');})().catch(e=>{console.error(e);process.exitCode=1});
