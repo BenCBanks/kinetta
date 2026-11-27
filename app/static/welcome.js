@@ -21,11 +21,13 @@ route(/^\/welcome$/, 'me', async (el) => {
     $('#wc-leave', el).onclick = () => go('/me');
   };
   // Saves, then moves on; a failure keeps the step and what was typed.
-  const step = (save, then) => async () => {
-    const id=currentStep,controls=$$('.welcome-actions button',el);if(controls.some(button=>button.getAttribute('aria-disabled')==='true'))return;controls.forEach(button=>button.setAttribute('aria-disabled','true')); $('#wc-err', el).textContent = '';
+  const step = (save, then) => {let saving=false;return async () => {
+    if(saving)return;saving=true;const id=currentStep;$('#wc-err', el).textContent = '';
     try { await save(); if (here(id)) then(); }
-    catch (x) { if (here(id)) { $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown]') ? '' : x.message;controls.forEach(button=>button.removeAttribute('aria-disabled')); } }
-  };
+    catch (x) { if (here(id)) $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown]') ? '' : x.message; }
+    finally { saving=false; }
+  };};
+
   function profile() {
     const me = App.me,draft=store.get(profileDraftKey),draftName=typeof draft?.name==='string'?draft.name:me.name,draftBio=typeof draft?.bio==='string'?draft.bio:(me.bio||'');
     frame('profile',1, 'Your profile', 'Shown with your name to friends and people who find you. Your photo and bio are optional. Skip keeps your current profile.',
