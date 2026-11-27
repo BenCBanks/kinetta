@@ -1704,7 +1704,8 @@ class GroupChallengeCompatibility(unittest.TestCase):
             patches.enter_context(patch.object(main.threading, 'Thread', side_effect=after_migration))
             for module, method in [(main.segments,'start_worker'), (main.milestones,'start_worker'),
                     (main.challenges,'start_worker'), (main.personal_notifications,'start_worker'),
-                    (main.groups,'start_worker'), (main.admin_features,'start_cleanup')]:
+                    (main.groups,'start_worker'), (main.admin_features,'start_cleanup'),
+                    (main.enrollment_requests,'start_cleanup')]:
                 patches.enter_context(patch.object(module, method, side_effect=lambda: (after_migration(), Mock())))
             async def serve():
                 async with main.lifespan(app):
