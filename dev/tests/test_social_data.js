@@ -18,5 +18,27 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  data.remember(12,state(1));const ownerRead=data.read(12,{ownerDetails:true});assert.equal(requests.length,1,'a summary-only mutation cache cannot replace the owner sharing read');requests.shift().resolve({...state(1),visibility:'me',details:{map:false},trim_m:800});await ownerRead;assert.equal(data.peek(12).trim_m,800);
  let disposed=0;const stop=data.watch(15,()=>{disposed++;});stop();data.remember(15,state(1));assert.equal(disposed,0,'a disposed view no longer receives social updates');
  data.remember(9,{reactions:{cheer:1}});assert.equal(data.peek(9),null,'summary counts are not a complete comments cache');
+ // Failed writes may already be saved; never restore an optimistic/previous privacy claim.
+ class Node {constructor(){this.children=[];this.hidden=false;this.dataset={};this.isConnected=true;}setAttribute(){}append(...nodes){this.children.push(...nodes);}prepend(node){this.children.unshift(node);}}
+ Object.assign(ctx,{document:{createElement:()=>new Node()},AbortController,setTimeout,clearTimeout});
+ for(const fault of ['lost reply','offline','503']){
+  const root=new Node(),field=new Node(),alreadyHidden=new Node();alreadyHidden.hidden=true;root.append(field,alreadyHidden);
+  let saved='me',shown='me',reads=0,writes=0,readable=true;
+  ctx.api=async()=>{writes++;assert(field.hidden,'hide private claim before the request');if(fault==='lost reply')saved='everyone';throw Error(fault);};
+  ctx.apiRequest=async(path,opts)=>{reads++;assert.equal(opts.cache,'no-store');if(!readable)throw Error('offline');return {visibility:saved};};
+  const confirmation=data.confirmSetting(root,{path:'/saved',paint:fresh=>{if(!fresh.visibility)throw Error('invalid');shown=fresh.visibility;}});
+  await confirmation.save('/save',{method:'PUT'});assert.equal(shown,saved);assert.equal(field.hidden,false);assert.equal(alreadyHidden.hidden,true);assert.equal(reads,1);
+  readable=false;await confirmation.save('/save',{method:'PUT'});assert(field.hidden,'unavailable readback conceals all stale choices');assert.equal(confirmation.known,false);
+  const note=root.children[0];assert.equal(note.dataset.sharingState,'unknown');assert.equal(note.children[0].textContent,'Not confirmed. ');assert.equal(note.children[1].hidden,false);
+  readable=true;saved='everyone';await note.children[1].onclick();assert.equal(writes,2,'Retry reads without replaying a write');assert.equal(shown,'everyone');assert(confirmation.known);assert(!field.hidden);
+ }
+ const invalidRoot=new Node(),invalidField=new Node();invalidRoot.append(invalidField);ctx.api=async()=>{};ctx.apiRequest=async()=>({});
+ const invalid=data.confirmSetting(invalidRoot,{path:'/saved',paint:fresh=>{if(typeof fresh.enabled!=='boolean')throw Error('invalid');}});await invalid.save('/save',{method:'PUT'});assert(!invalid.known&&invalidField.hidden,'successful transport with invalid readback never paints a private default');
+ const root=new Node(),field=new Node();root.append(field);let release,painted=false;
+ ctx.api=async()=>{};ctx.apiRequest=()=>new Promise(resolve=>release=resolve);
+ const confirmation=data.confirmSetting(root,{path:'/saved',paint:()=>painted=true});
+ const saving=confirmation.save('/save',{method:'PUT'});await new Promise(setImmediate);owner='another-fictional-session';release({visibility:'everyone'});await saving;
+ assert.equal(painted,false,'late sharing reads never reach another account');assert(field.hidden);
+ console.log('Uncertain privacy: committed lost reply/offline/503, concealed unreadable values, GET-only retry and account isolation PASS');
  console.log('Social reads: prefetch/in-flight dedupe, mutation ordering, retained drafts/failures, permission clearing, same-login session isolation and refresh epochs PASS');
 })().catch(e=>{console.error(e);process.exit(1)});

@@ -443,14 +443,17 @@ async function liftSummary(el, aid, r) {
   window.scrollTo(0, 0); // Finish starts at the title and totals, even after logging near the bottom.
   wireBack(el, '/track');
   const f = $('#lf-sum', el), err = $('#lf-sum-error', el), done = $('#lf-sum-done', el), carry = $('#lf-carry', el);
+  const confirmation=SocialData.confirmSetting(f,{path:`/api/activities/${aid}/social`,mask:()=>[f.visibility.closest('label'),done],paint:fresh=>{
+    if(!['me','friends','everyone'].includes(fresh?.visibility))throw Error('Sharing unavailable');a.visibility=fresh.visibility;f.visibility.value=a.visibility;invalidate('/api/');if(typeof socialChanged==='function')socialChanged(aid);
+  }});
   f.onsubmit = async (ev) => {
     ev.preventDefault(); if (!active()) return; done.disabled = carry.disabled = true; err.textContent = '';
-    const name = f.activity_name.value.trim(), visibility = f.visibility.value;
+    const name = f.activity_name.value.trim(), visibility = f.visibility.value;let sharingAttempted=false;
     try {
       if (name && name !== a.name) await api(`/api/activities/${aid}`, json('PATCH', {name}));
-      if (visibility !== a.visibility) { await api(`/api/activities/${aid}/sharing`, json('PUT', {visibility})); if (typeof socialChanged === 'function') socialChanged(aid); }
+      if(visibility!==a.visibility){sharingAttempted=true;const result=await confirmation.save(`/api/activities/${aid}/sharing`,json('PUT',{visibility}));if(!result||result.data.visibility!==visibility)throw Error('Sharing was not saved. Check the saved setting.');}
       if (!active()) return; invalidate('/api/'); App.cache.delete('feed:home'); go(`/track?done=${aid}`, {replace: true}); toast('Session saved');
-    } catch (x) { if (!active()) return; done.disabled = carry.disabled = false; err.textContent = x.offline ? "Can't reach Kinetta. The session is saved; try again to keep the new title or sharing." : x.message; }
+    } catch(x){if(!active())return;if(!sharingAttempted)await confirmation.read();if(!active())return;done.disabled=carry.disabled=false;err.textContent=confirmation.known?x.message:'';}
   };
   $('#lf-sum-del', el).onclick = () => discardLift(aid);
   // finished by mistake: back into the logger, within the session's 4 hours (unticked sets were already left out)

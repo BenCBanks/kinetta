@@ -34,5 +34,38 @@ const SocialData=(()=>{
     for(const event of ['pointerenter','pointerdown','focus'])button.addEventListener(event,()=>prefetch(id),{passive:true});
   }
   function draft(id,text){scope();if(arguments.length>1){text?drafts.set(key(id),text):drafts.delete(key(id));}return drafts.get(key(id))||'';}
-  return {remember,peek,read,forget,invalidate,prefetch,warm,draft,watch};
+  // A failed write may already have committed. Conceal saved-state claims until a fresh read succeeds.
+  function confirmSetting(root,{path,read:fetchSaved,paint,mask=()=>[...root.children],uncertain=()=>{},after=()=>{}}){
+    const account=readOwner(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
+    note.className='small muted';note.setAttribute('role','status');note.dataset.sharingState='confirmed';note.hidden=true;
+    retry.type='button';retry.className='linkbtn';retry.textContent='Retry';retry.hidden=true;
+    note.append(text,retry);root.prepend(note);
+    const live=()=>root.isConnected&&account===readOwner();let busy=false,known=true,hidden=new Map();
+    function conceal(){
+      for(const node of mask().filter(n=>n&&n!==note)){if(!hidden.has(node))hidden.set(node,node.hidden);node.hidden=true;}
+      uncertain();known=false;note.hidden=false;note.dataset.sharingState='checking';text.textContent='Checking saved setting… ';retry.hidden=true;
+    }
+    async function run(writePath,options){
+      if(busy||!live())return null;busy=true;conceal();let failure=null;
+      try{
+        if(writePath){
+          const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+          try{await api(writePath,{...options,signal:controller.signal});}catch(error){failure=error;}finally{clearTimeout(timer);}
+        }
+        if(!live())return null;
+        const data=await (fetchSaved?fetchSaved():apiRequest(path,{cache:'no-store'}));
+        if(!live())return null;
+        await paint(data);if(!live())return null;
+        for(const [node,was] of hidden)node.hidden=was;hidden.clear();known=true;
+        note.dataset.sharingState='confirmed';note.hidden=!failure;text.textContent=failure?'Saved setting shown. ':'';retry.hidden=true;
+        await after(data);return {data,failure};
+      }catch(error){
+        if(live()){conceal();note.dataset.sharingState='unknown';text.textContent='Not confirmed. ';retry.hidden=false;}
+        return null;
+      }finally{busy=false;}
+    }
+    retry.onclick=()=>run();
+    return {save:run,read:()=>run(),get known(){return known;}};
+  }
+  return {remember,peek,read,forget,invalidate,prefetch,warm,draft,watch,confirmSetting};
 })();
