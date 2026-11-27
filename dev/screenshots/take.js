@@ -16,17 +16,7 @@ const KIT_COACH_EXAMPLE = require('./kit-coach-answer.json');
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const MAP_SHOTS = new Set(['home-feed','activity-detail','feed','activity','activity-splits','route']);
 const NEEDS_MAP = !ONLY || ONLY.some(name => MAP_SHOTS.has(name));
-// The screenshot-only public PMTiles relay can see transient resets on large range reads.
-async function fetchArchive(route, headers) {
-  for (let attempt = 0; ; attempt++) {
-    try { return await route.fetch({headers, timeout: 60_000}); }
-    catch (error) {
-      const transient = error?.name === 'TimeoutError' || /ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|socket hang up/i.test(error?.message || '');
-      if (!transient || attempt >= 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
-  }
-}
+const {waitForMaps, installArchiveRelay, closeCaptureContext} = require('./map-capture.cjs');
 const W = Number(process.env.SCREENSHOT_WIDTH || 393);
 const H = Number(process.env.SCREENSHOT_HEIGHT || 852);
 const SCALE = Number(process.env.SCREENSHOT_SCALE || 2);
@@ -188,57 +178,6 @@ async function settle(page) {
   await page.locator('.thread-pending').first().waitFor({state: 'detached', timeout: 30000}).catch(() => {});
   await page.waitForTimeout(600);
 }
-async function waitForMaps(page, {advanceMapFade = false, requireMap = false} = {}){
-  let visibleMaps=0;
-  for(const preview of await page.locator('.fmap:visible').all()){
-    if(!await preview.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.left<innerWidth&&r.right>0&&r.width>0&&r.height>0;}))continue;
-    visibleMaps++;
-    const deadline=Date.now()+15000;
-    while(Date.now()<deadline&& !await preview.evaluate(el=>el.classList.contains('ready')))await page.waitForTimeout(100);
-    if(!await preview.evaluate(el=>el.classList.contains('ready')))throw Error('Visible feed map did not initialize within 15 seconds');
-  }
-  let fadeClockAdvanced=false;
-  for(const map of await page.locator('.leaflet-container:visible').all()){
-    if(!await map.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.left<innerWidth&&r.right>0&&r.width>0&&r.height>0;}))continue;
-    visibleMaps++;
-    const snapshot=()=>map.evaluate(el=>{
-      const box=el.getBoundingClientRect(),tiles=[...el.querySelectorAll('.leaflet-tile')].filter(tile=>{const r=tile.getBoundingClientRect();return r.width>0&&r.height>0&&r.left<Math.min(box.right,innerWidth)&&r.right>Math.max(box.left,0)&&r.top<Math.min(box.bottom,innerHeight)&&r.bottom>Math.max(box.top,0);});
-      return tiles.map(tile=>({url:tile.currentSrc||tile.src||'(tile URL unavailable)',loaded:tile.classList.contains('leaflet-tile-loaded'),opacity:Number(getComputedStyle(tile).opacity)}));
-    });
-    let stable=0,previous='',tiles=[];
-    const tileDeadline=Date.now()+15000;
-    while(Date.now()<tileDeadline&&stable<3){
-      tiles=await snapshot();const signature=JSON.stringify(tiles.map(tile=>[tile.url,tile.loaded]));
-      stable=tiles.length&&tiles.every(tile=>tile.loaded)&&signature===previous?stable+1:0;previous=signature;
-      if(stable<3)await page.waitForTimeout(100);
-    }
-    const describeFailures=items=>items.filter(tile=>!tile.loaded||tile.opacity<0.999).map(tile=>`${tile.url} [${tile.loaded?'loaded':'not loaded'}, opacity ${tile.opacity}]`);
-    if(stable<3){
-      tiles=await snapshot();
-      const failed=describeFailures(tiles);throw Error(`Visible basemap tiles did not become loaded and idle within 15 seconds; failed tiles: ${failed.length?failed.join('; '):'tile set kept changing or no visible tiles were found'}`);
-    }
-    if(advanceMapFade){
-      // These screenshot scenes freeze Date.now(); advance only Leaflet's 200 ms tile fade after loading.
-      if(!fadeClockAdvanced){
-        await page.clock.setFixedTime(new Date(await page.evaluate(()=>Date.now())+250));
-        fadeClockAdvanced=true;
-      }
-      let opaqueStable=0,fadeSignature='',fadeTiles=[];const fadeDeadline=Date.now()+5000;
-      while(Date.now()<fadeDeadline&&opaqueStable<3){
-        fadeTiles=await snapshot();const failed=describeFailures(fadeTiles),signature=JSON.stringify(fadeTiles.map(tile=>[tile.url,tile.opacity]));
-        const opaque=fadeTiles.length>0&&failed.length===0&&fadeTiles.every(tile=>tile.opacity>=0.999);
-        opaqueStable=opaque&&signature===fadeSignature?opaqueStable+1:0;fadeSignature=signature;
-        if(opaqueStable<3)await page.waitForTimeout(100);
-      }
-      if(opaqueStable<3){
-        fadeTiles=await snapshot();const failed=describeFailures(fadeTiles);
-        throw Error(`Visible basemap tiles did not finish fading in within 5 seconds; failed tiles: ${failed.length?failed.join('; '):'tile opacity kept changing or stayed below 0.999'}`);
-      }
-    }
-  }
-  if(requireMap&&!visibleMaps)throw Error('Visible basemap map did not appear in the capture viewport');
-  if(await page.locator('.map-unavailable:visible').count())throw Error('Visible basemap unavailable; the capture requires a loaded approved basemap');
-}
 async function loadedMaps(page, options={}){
   let firstError;
   for(let attempt=0;attempt<2;attempt++){
@@ -266,12 +205,6 @@ async function say(page, text) {
   await page.fill('#thread-text', text); await page.click('#thread-send');
   await page.locator('#thread-messages article').nth(before).waitFor({timeout: 30000});   // locator waits work under the app's strict CSP
   await settle(page);
-}
-async function closeCaptureContext(context) {
-  if (!context) return;
-  for (const page of context.pages()) await page.unrouteAll({behavior: 'wait'});
-  await context.unrouteAll({behavior: 'wait'});
-  await context.close();
 }
 (async () => {
   const browser = await chromium.launch(), errors = [];
@@ -306,13 +239,8 @@ async function closeCaptureContext(context) {
       // the range bytes and map renderer stay unchanged, and no production setting is edited.
       const archiveOrigin = new URL(basemap.url).origin;
       const publishedOrigin = process.env.KINETTA_SCREENSHOT_MAP_ORIGIN || 'https://login.kinetta.app';
-      await ctx.route(archiveOrigin+'/**',async route=>{
-        const request=route.request();
-        if(!['GET','HEAD'].includes(request.method())||basemap.kind==='pmtiles'&&request.method()==='GET'&&!request.headers().range)return route.abort();
-        const response=await fetchArchive(route,{...request.headers(),origin:publishedOrigin,referer:publishedOrigin+'/'});
-        if(!response.ok())throw Error('Approved capture map source returned HTTP '+response.status());
-        await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
-      });
+      await installArchiveRelay(ctx, {archiveOrigin, publishedOrigin, browserOrigin:new URL(B).origin,requireRange:basemap.kind==='pmtiles',
+        onError:error=>errors.push('Map relay: '+error.message)});
     }
     const page = await ctx.newPage();
     await page.addInitScript(() => {
