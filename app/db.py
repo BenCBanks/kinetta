@@ -2688,6 +2688,24 @@ MIGRATIONS = [
     GRANT SELECT ON comment_receipts TO fit_readers;
     """,
 
+    # 133: account-scoped photo retry receipts; preserve deletion tombstones for seven days.
+    """
+    CREATE TABLE photo_upload_receipts (
+     user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     client_id uuid NOT NULL,
+     activity_id bigint REFERENCES activities(id) ON DELETE SET NULL,
+     photo_id bigint REFERENCES activity_photos(id) ON DELETE SET NULL,
+     request_hash text NOT NULL CHECK(request_hash ~ '^[0-9a-f]{64}$'),
+     created timestamptz NOT NULL DEFAULT now(),
+     expires timestamptz NOT NULL DEFAULT now()+interval '7 days',
+     CHECK(expires>created AND expires<=created+interval '7 days'),
+     PRIMARY KEY(user_id,client_id));
+    CREATE INDEX photo_upload_receipts_expiry ON photo_upload_receipts(expires);
+    ALTER TABLE photo_upload_receipts ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON photo_upload_receipts FOR SELECT TO fit_readers USING(user_id=public.fit_me());
+    GRANT SELECT ON photo_upload_receipts TO fit_readers;
+    """,
+
 ]
 
 

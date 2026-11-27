@@ -12,6 +12,10 @@ Keeping people safe:
 import base64
 import binascii
 import io
+import hashlib
+import logging
+import threading
+from uuid import UUID
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -29,11 +33,13 @@ PROFILE_PX = 512                           # profile photos: a square this size
 FULL_PX, THUMB_PX = 1600, 480              # activity photos: longest side
 PER_ACTIVITY, PER_PERSON = 10, 2000
 UPLOADS_PER_MINUTE = 30
+MAX_REPLAY_RECEIPTS = 2000  # Refuse new intentions rather than evict unexpired replay protection.
 # Access can change without the photo URL changing (blocking, unsharing or removal).
 CACHE = {'Cache-Control': 'private, no-cache'}
 
 
 class PhotoIn(BaseModel):
+    client_id: UUID | None = None  # Older clients keep their existing non-idempotent contract.
     image: str = Field(min_length=10, max_length=12_000_000)   # base64 (a data: URL prefix is fine)
 
 
@@ -154,14 +160,76 @@ def lock_activity_photos(c, user_id):
     c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', (f'activity-photos:{user_id}',))
 
 
+def photo_request_hash(aid, image):
+    digest = hashlib.sha256(str(aid).encode() + b'\0')
+    for offset in range(0, len(image), 65536):
+        digest.update(image[offset:offset+65536].encode())
+    return digest.hexdigest()
+
+
+def photo_replay(c, aid, uid, client_id, request_hash):
+    receipt = c.execute("SELECT photo_id,request_hash FROM photo_upload_receipts "
+                        "WHERE user_id=%s AND client_id=%s AND expires>now()", (uid, client_id)).fetchone()
+    if not receipt:
+        return None
+    if receipt['request_hash'] != request_hash:
+        raise HTTPException(409, 'That photo retry has changed. Choose the photo again.')
+    saved = c.execute('SELECT id,w,h FROM activity_photos WHERE id=%s AND activity_id=%s AND user_id=%s',
+                      (receipt['photo_id'], aid, uid)).fetchone()
+    if not saved:
+        raise HTTPException(410, 'That photo was removed. Choose a photo to add it again.')
+    return saved
+
+
+def prune_photo_receipts():
+    # A bounded batch also runs without uploads, so inactive accounts are cleaned.
+    with db.connect() as c:
+        c.execute("SET LOCAL lock_timeout='200ms'")
+        c.execute("SET LOCAL statement_timeout='1s'")
+        return c.execute("WITH expired AS MATERIALIZED (SELECT user_id,client_id FROM photo_upload_receipts "
+                         "WHERE expires<=now() ORDER BY expires LIMIT 1000 FOR UPDATE SKIP LOCKED) "
+                         "DELETE FROM photo_upload_receipts r USING expired e "
+                         "WHERE r.user_id=e.user_id AND r.client_id=e.client_id").rowcount
+
+
+def start_receipt_cleanup():
+    stop = threading.Event()
+    def run():
+        while not stop.is_set():
+            try:
+                removed = prune_photo_receipts()
+            except Exception:
+                logging.getLogger(__name__).warning('Photo retry receipt cleanup delayed')
+                removed = 0
+            stop.wait(1 if removed == 1000 else 60)
+    worker = threading.Thread(target=run, daemon=True); worker.start()
+    return stop, worker
+
+
 @router.post('/activities/{aid}/photos')
 def add_activity_photo(aid: int, body: PhotoIn, user=Depends(current_user)):
     upload_attempt(user['id'])
+    request_hash = photo_request_hash(aid, body.image) if body.client_id else None
+    if body.client_id:
+        with db.connect() as c:
+            replay = photo_replay(c, aid, user['id'], body.client_id, request_hash)
+            if replay:
+                return replay  # No repeat decoding, even when the activity has reached its photo limit.
     prepared = prepare_activity_photo(body)
     with db.connect() as c:
         lock_activity_photos(c, user['id'])
-        r = insert_activity_photo(c, aid, user['id'], prepared)
-    return r
+        if body.client_id:
+            replay = photo_replay(c, aid, user['id'], body.client_id, request_hash)
+            if replay:
+                return replay  # Another request committed while this one decoded.
+            c.execute('DELETE FROM photo_upload_receipts WHERE user_id=%s AND expires<=now()', (user['id'],))
+            if c.execute('SELECT count(*) AS n FROM photo_upload_receipts WHERE user_id=%s', (user['id'],)).fetchone()['n'] >= MAX_REPLAY_RECEIPTS:
+                raise HTTPException(429, 'Too many recent photo uploads. Try again later.')
+        saved = insert_activity_photo(c, aid, user['id'], prepared)
+        if body.client_id:
+            c.execute('INSERT INTO photo_upload_receipts(user_id,client_id,activity_id,photo_id,request_hash) '
+                      'VALUES(%s,%s,%s,%s,%s)', (user['id'], body.client_id, aid, saved['id'], request_hash))
+    return saved
 
 
 @router.get('/activity-photos/{pid}')

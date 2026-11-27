@@ -953,9 +953,9 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null, def
       try{
         const next=pending[0];next.image ||= await shrinkPhoto(next.file,1600);
         if(!live()){pending=[];return;}
-        if(draft)draft.photos.push({pending:true,preview:next.image});
+        if(draft)draft.photos.push({pending:true,preview:next.image,client_id:next.client_id});
         else{
-          const saved=await api(`/api/activities/${a.id}/photos`,json('POST',{image:next.image}));
+          const saved=await api(`/api/activities/${a.id}/photos`,json('POST',{image:next.image,client_id:next.client_id}));
           if(!live()){pending=[];return;}
           a.photos=[...(a.photos||[]),saved];changed=true;
         }
@@ -973,7 +973,7 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null, def
   };
   add.onclick=()=>{if(live()&&!globalThis.EmailConfirmation?.lock(true)){if(pending.length)upload();else file.click();}};
   file.onchange=()=>{
-    pending=[...file.files].slice(0,PHOTO_MAX-photos().length).map(file=>({file}));
+    pending=[...file.files].slice(0,PHOTO_MAX-photos().length).map(file=>({file,client_id:crypto.randomUUID()}));
     completed=0;total=pending.length;
     if(pending.length)return upload();
   };
@@ -986,7 +986,7 @@ async function saveActivityPhotoDraft(a) {
     draft.initial=draft.initial.filter(p=>p.id!==old.id);changed=true;
   }
   for(let i=0;i<draft.photos.length;i++)if(draft.photos[i].pending){
-    const saved=await api(`/api/activities/${a.id}/photos`,json('POST',{image:draft.photos[i].preview}));
+    const saved=await api(`/api/activities/${a.id}/photos`,json('POST',{image:draft.photos[i].preview,client_id:draft.photos[i].client_id ||= crypto.randomUUID()}));
     draft.photos[i]=saved;draft.initial.push(saved);changed=true;
   }
   a.photos=draft.photos;delete a._photoDraft;if(changed)photoChanged(a.id);
