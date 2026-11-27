@@ -4,16 +4,14 @@ import datetime as dt
 import json
 import math
 import os
-import re
 import shutil
-import secrets
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, ConfigDict
 
-from . import community_filter, activities, analysis, coach, db, importer, plans, reactions
+from . import community_filter, activities, analysis, coach, db, importer, import_upload, plans, reactions
 from .api_lifts import FEED_SQL as LIFTS_SQL, plan_of as lift_plan, copy_into as copy_lift
 from .auth import current_user
 from .activity_chart import sunday, weekly_distances, distance_days
@@ -53,31 +51,37 @@ def _line(c, aid, tol):
 
 # ---------- import ----------
 @router.post('/import')
-async def upload(request: Request, files: list[UploadFile], user=Depends(current_user)):
-    if not files: raise HTTPException(400, 'No files')
-    names = [f.filename or 'file' for f in files]
-    job = importer.new_job(user['id'], names[0] if len(names) == 1 else f'{names[0]} and {len(names) - 1} more file{"s" if len(names) > 2 else ""}')
-    d = os.path.join(DATA, 'uploads', str(user['id']), str(job)); os.makedirs(d, exist_ok=True)
-    paths, total = [], 0
+async def upload(request: Request, user=Depends(current_user)):
+    # Do not declare UploadFile parameters: framework parsing would spool the
+    # whole body before current_user, admission and disk checks run.
+    length = import_upload.body_limit(request, UPLOAD_MAX)
+    lease = await import_upload.offload(import_upload.reserve, user['id'], os.path.join(DATA, 'uploads'), length, cancelled=lambda lease: lease.release())
+    parser, job, directory, handed_off = None, None, None, False
     try:
-        for f in files:
-            name = re.sub(r'[^A-Za-z0-9._-]', '_', os.path.basename(f.filename or 'file'))[:120] or 'file'
-            p = os.path.join(d, name)
-            with open(p, 'wb') as out:
-                while chunk := await f.read(1024 * 1024):
-                    total += len(chunk)
-                    if total > UPLOAD_MAX: raise HTTPException(413, 'This upload is too large. Ask the person who runs Kinetta to import a large export.')
-                    out.write(chunk)
-            if not name.lower().endswith(importer.EXTS + ('.zip',)):
-                os.remove(p); continue
-            paths.append(p)
-        if not paths: raise HTTPException(400, 'No FIT, GPX, TCX or ZIP files in the upload')
-    except BaseException as e:      # too big, cut off, or nothing to import: no half-saved files left behind (2026-10-12)
-        shutil.rmtree(d, ignore_errors=True)
-        importer.cancel(job, e.detail if isinstance(e, HTTPException) else 'upload interrupted')
+        job = await import_upload.offload(importer.new_job, user['id'], 'File import',
+            cancelled=lambda job: importer.cancel(job, 'upload interrupted'))
+        parser, files = await import_upload.receive(request, lease, UPLOAD_MAX, length)
+        names = [file.filename or 'file' for file in files]
+        label = names[0] if len(names) == 1 else f'{names[0]} and {len(names) - 1} more file{"s" if len(names) > 2 else ""}'
+        await import_upload.offload(importer._update, job, label=label[:200])
+        directory = os.path.join(DATA, 'uploads', str(user['id']), str(job))
+        paths = await import_upload.offload(import_upload.save, files, directory, lease, importer.EXTS)
+        parser.close()
+        await import_upload.offload(lease.staged, paths)
+        future = importer.submit(job, user['id'], paths, capacity=lease)
+        future.add_done_callback(lambda _: lease.release())
+        handed_off = True
+        return {'job': job}
+    except BaseException as error:
+        if directory: await import_upload.offload(shutil.rmtree, directory, True)
+        if job is not None:
+            await import_upload.offload(importer.cancel, job, error.detail if isinstance(error, HTTPException) else 'upload interrupted')
         raise
-    importer.submit(job, user['id'], paths)
-    return {'job': job}
+    finally:
+        try:
+            if parser: parser.close()
+        finally:
+            if not handed_off: lease.release()
 
 
 @router.get('/imports')
