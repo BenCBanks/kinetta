@@ -241,7 +241,9 @@ def note(user_id, aid):
     with db.connect() as c:
         if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         # every note counts, the ones written after an import too (2026-10-12 review: imports could run up the bill)
-        n = c.execute("""SELECT count(*) AS n FROM activities WHERE user_id = %s AND ai_note_at > now() - interval '1 day'""", (user_id,)).fetchone()['n']
+        n = c.execute("""SELECT count(*) AS n FROM activities a WHERE user_id = %s AND ai_note_at > now() - interval '1 day'
+                        AND NOT EXISTS (SELECT 1 FROM ai_food_attempts t WHERE t.user_id=a.user_id
+                          AND t.kind='activity note:' || a.id::text AND t.created <= a.ai_note_at)""", (user_id,)).fetchone()['n']
         if n >= DAILY_LIMIT: raise ValueError('Daily limit for Kit’s notes reached - try again tomorrow.')
     with db.coach_connect(user_id) as c:
         ctx = _context(c, user_id, aid)

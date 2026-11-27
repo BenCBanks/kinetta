@@ -158,7 +158,12 @@ class Service(unittest.TestCase):
 
  def note_success(self,*args,**kwargs):
   from app import coach_limits
-  coach_limits.started();return 'Fictional note'
+  # Stand in for the transport, preserving real durable attempt provenance.
+  rid=B.reserve('gemini-3.1-flash-lite','coach note')
+  coach_limits.started()
+  B.settle(rid,{'usageMetadata':{'promptTokenCount':0,'candidatesTokenCount':0}})
+  B.finish(rid)
+  return 'Fictional note'
 
  def note_failure(self,*args,**kwargs):
   self.note_success();raise ValueError('Uncertain stand-in failure')
@@ -193,7 +198,7 @@ class Service(unittest.TestCase):
    def attempt(_):
     try:coach.note(uid,aid);return True
     except ValueError as exc:self.assertIn('Daily limit',str(exc));return False
-   with patch.object(coach,'DAILY_LIMIT',3),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_success) as provider:
+   with patch.dict(os.environ,{'KINETTA_AI_USER_CONCURRENT':'3'}),patch.object(coach,'DAILY_LIMIT',3),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_success) as provider:
     with ThreadPoolExecutor(max_workers=6) as pool:self.assertEqual(sum(pool.map(attempt,range(12))),3)
     self.assertEqual(provider.call_count,3)
   finally:self.clear_note_fixture(uid,aid)
@@ -291,10 +296,39 @@ class Service(unittest.TestCase):
    self.assertEqual(len(seen),3)
    with db.connect() as c:
     self.assertEqual(c.execute('SELECT count(*) AS n FROM auth_attempts WHERE key LIKE %s',('coach-note:'+str(uid)+':%',)).fetchone()['n'],1)
-    rows=c.execute('SELECT charged_micros,state FROM ai_food_attempts WHERE user_id=%s ORDER BY created DESC LIMIT 3',(uid,)).fetchall()
+    rows=c.execute('SELECT charged_micros,state,kind FROM ai_food_attempts WHERE user_id=%s ORDER BY created DESC LIMIT 3',(uid,)).fetchall()
     self.assertTrue(all(r['state']=='measured' for r in rows));self.assertEqual(sum(r['charged_micros'] for r in rows),40)
+    self.assertTrue(all(r['kind']=='activity note:'+str(aid) for r in rows))
     self.assertEqual(c.execute('SELECT count(*) AS n FROM ai_food_attempts WHERE user_id=%s',(uid,)).fetchone()['n'],previous+3)
     self.assertEqual(c.execute("SELECT charged_micros FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date").fetchone()['charged_micros']-before,40)
   finally:self.clear_note_fixture(uid,aid)
+
+ def test_19_tracked_note_does_not_turn_legacy_when_earlier_reservation_expires(self):
+  from app import account_email
+  uid=self.uids[0];aid=self.note_fixture(uid);prefix='coach-note:'+str(uid)+':%'
+  try:
+   with patch.object(coach,'DAILY_LIMIT',1),patch.object(coach,'_context',return_value={'fictional':1}),patch.object(coach,'_gemini',side_effect=self.note_success) as provider:
+    self.assertEqual(coach.note(uid,aid),'Fictional note')
+    with db.connect() as c:
+     attempt=c.execute('SELECT id,kind FROM ai_food_attempts WHERE user_id=%s ORDER BY created DESC LIMIT 1',(uid,)).fetchone()
+     self.assertEqual(attempt['kind'],'activity note:'+str(aid))
+     # At the boundary, the reservation is older than 24h but its result was
+     # saved a little later and is still inside the legacy-note lookback.
+     c.execute("UPDATE ai_food_attempts SET created=now()-interval '1 day 1 second' WHERE id=%s",(attempt['id'],))
+     c.execute("UPDATE auth_attempts SET created=now()-interval '1 day 1 second' WHERE key LIKE %s",(prefix,))
+     c.execute("UPDATE activities SET ai_note_at=now()-interval '23 hours 59 minutes' WHERE id=%s",(aid,))
+     # Authentication/email cleanup may remove quota rows before note runs.
+     account_email.limited(c,'zz_test_note_boundary_clean',1,1)
+     self.assertFalse(c.execute('SELECT 1 FROM auth_attempts WHERE key LIKE %s',(prefix,)).fetchone())
+    self.assertEqual(coach.note(uid,aid),'Fictional note','expired request is not recharged at its later save time')
+    with self.assertRaisesRegex(ValueError,'Daily limit'):coach.note(uid,aid)
+    self.assertEqual(provider.call_count,2)
+    with db.connect() as c:
+     keys=c.execute('SELECT key FROM auth_attempts WHERE key LIKE %s',(prefix,)).fetchall()
+     self.assertEqual(len(keys),1);self.assertFalse(keys[0]['key'].endswith(':legacy'))
+     self.assertTrue(c.execute('SELECT 1 FROM ai_food_attempts WHERE id=%s',(attempt['id'],)).fetchone())
+  finally:
+   self.clear_note_fixture(uid,aid)
+   with db.connect() as c:c.execute("DELETE FROM auth_attempts WHERE key='zz_test_note_boundary_clean'")
 
 unittest.main()
