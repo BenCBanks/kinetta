@@ -19,7 +19,7 @@ module.exports=async function({browser,storageState,base}){
   try{
    await visit('/me/settings');await p.locator('#m-kit').click();
    for(const [id,label]of [['m-kit-memory','What Kit remembers'],['m-kit-history','Earlier Kit reviews']]){
-    const row=p.locator('#'+id);assert.equal(await row.innerText(),label);assert.equal(await row.locator('.inset-label').innerText(),label);assert.equal(await row.locator('.inset-value').count(),0,'destination is a label, not a value');
+    const row=p.locator('#'+id);await row.waitFor({state:'visible'});assert.equal(await row.innerText(),label);assert.equal(await row.locator('.inset-label').innerText(),label);assert.equal(await row.locator('.inset-value').count(),0,'destination is a label, not a value');
     assert((await row.boundingBox()).height>=44,'Kit row keeps its tap target');
    }
    await p.keyboard.press('Escape');
