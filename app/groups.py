@@ -830,10 +830,10 @@ def report_group_update(group_id: str, update_id: int, body: GroupReport, user=D
         if c.execute("SELECT count(*) AS n FROM reports WHERE reporter=%s AND status='open'", (user['id'],)).fetchone()['n'] >= 20:
             raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
         what = f'Group update in {group["title"]} by @{update["username"]}: "{update["text"]}"'
-        rid = c.execute('''INSERT INTO reports(reporter,person,kind,what,reason,note,group_id)
-            VALUES(%s,%s,'group',%s,%s,%s,%s) RETURNING id''',
+        rid = c.execute('''INSERT INTO reports(reporter,person,kind,what,reason,note,group_id,group_update_id)
+            VALUES(%s,%s,'group',%s,%s,%s,%s,%s) RETURNING id''',
                         (user['id'], update['user_id'], what[:1000], body.reason,
-                         (body.note or '').strip() or None, group['id'])).fetchone()['id']
+                         (body.note or '').strip() or None, group['id'], update['id'])).fetchone()['id']
         for admin in c.execute('SELECT id FROM users WHERE is_admin AND id<>%s', (user['id'],)).fetchall():
             notify.add(c, admin['id'], 'report', user['id'])
     return {'ok': True, 'id': rid}

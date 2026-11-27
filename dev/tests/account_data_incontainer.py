@@ -130,7 +130,9 @@ TABLE_REVIEW = {
     'push_subscriptions': ('exclude:credentials', 'id user_id endpoint p256dh auth created'),
     'recipe_link_drafts': ('export:recipe_link_drafts', 'user_id id url state data error_code error_message created expires saved_dish_id'),
     'recipes': ('export:recipes', 'id user_id name items known_kcal known_protein_g known_carbs_g known_fat_g ai_note ai_note_at created updated cooked'),
-    'reports': ('export:reports_made', 'id reporter person activity_id comment_id what reason note created status kind dish_id challenge_id group_id'),
+    # group_update_id is an internal moderation target, like the other item FKs.
+    # reports_made keeps its existing explicit projection; deletion is tested in test_admin_launch.
+    'reports': ('export:reports_made', 'id reporter person activity_id comment_id what reason note created status kind dish_id challenge_id group_id group_update_id'),
     'route_copy_receipts': ('export:route_copy_receipts', 'user_id client_id source_route_id destination_id snapshot_key created'),
     'route_drafts': ('export:route_drafts', 'user_id draft_key data updated'),
     'route_publications': ('export:route_publications', 'route_id user_id revision source_version data geom hidden_start_m hidden_end_m created'),
@@ -198,9 +200,10 @@ class AccountData(unittest.TestCase):
                 with patch.dict(E.TABLES,{'joined_only':'SELECT 1 FROM users JOIN zz_test_new_personal_table ON true'}):
                     self.assertEqual(uncovered(c),{'zz_test_new_personal_table'})
             finally:c.execute('DROP TABLE zz_test_new_personal_table')
-            c.execute('ALTER TABLE recipes ADD COLUMN zz_test_unreviewed_secret text')
-            try:self.assertEqual(unreviewed_columns(c),{'recipes'})
-            finally:c.execute('ALTER TABLE recipes DROP COLUMN zz_test_unreviewed_secret')
+            for table in ('recipes','reports'):
+                c.execute(sql.SQL('ALTER TABLE {} ADD COLUMN zz_test_unreviewed_secret text').format(sql.Identifier(table)))
+                try:self.assertEqual(unreviewed_columns(c),{table})
+                finally:c.execute(sql.SQL('ALTER TABLE {} DROP COLUMN zz_test_unreviewed_secret').format(sql.Identifier(table)))
 
     def test_sql_login_revoked_when_dependencies_prevent_drop(self):
         login='zz_test_erasure_'+secrets.token_hex(4)
