@@ -106,9 +106,16 @@ class DatabaseHelpers(unittest.TestCase):
             c.execute(sql.SQL('DROP ROLE {}').format(sql.Identifier(self.role)))
             c.execute(sql.SQL('DROP ROLE {}').format(sql.Identifier(self.unmapped_role)))
 
+    @contextmanager
     def reader(self):
         # Fresh SQL logins exercise session_user and avoid plans cached before temporary relations exist.
-        return psycopg.connect(db._conninfo(self.role, self.password), row_factory=dict_row, autocommit=True)
+        with psycopg.connect(db._conninfo(self.role, self.password), row_factory=dict_row, autocommit=True) as reader:
+            try:
+                yield reader
+            finally:
+                # Closing the socket does not wait for server-side temp-table
+                # cleanup. Finish it synchronously before tearDown drops roles.
+                reader.execute('DISCARD TEMP')
 
     def shadow(self, reader, name, columns):
         reader.execute(sql.SQL('CREATE TEMP TABLE {} ({})').format(sql.Identifier(name), sql.SQL(columns)))
