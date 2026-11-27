@@ -33,7 +33,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   const earnedFixture=['journey','workouts','lifted','sport:run','climbing','consistency'].map(code=>({code,rank:1}));
   p.on('pageerror',e=>errors.push(e.message));
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
-  await c.route('**/api/**',async r=>{if(await require('./privacy_ticket_fixture.cjs')(r))return;
+  await c.route('**/api/**',async r=>{
    const q=r.request(),u=new URL(q.url());
    if(q.method()==='PUT'&&u.pathname==='/api/achievements/showcase/pins'){
     const body=q.postDataJSON();if(failFeatureSave){failFeatureSave=false;return r.fulfill({status:503,json:{detail:'Fictional save failure'}});}
@@ -126,7 +126,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const retrySave=p.locator('[data-card-save]');
    await p.locator('[data-featured-toggle="climbing"]').click();assert.equal(await retrySave.isDisabled(),false);
    failFeatureSave=true;response=waitSave();await retrySave.click();assert.equal((await response).status(),503);
-   await p.locator('[data-sharing-state=confirmed]').filter({hasText:'Saved setting shown.'}).waitFor();
+   await p.locator('[data-sharing-state=unknown]').waitFor();await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-sharing-state=unknown] button').click();
+   await p.locator('[data-sharing-state=confirmed]').waitFor({state:'attached'});
    assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run'],'failed Save rereads the stored pins rather than presenting draft hiding as saved');
    assert.equal(await retrySave.isDisabled(),true,'confirmed saved choices do not repeat an uncertain write');
    await p.locator('[data-featured-toggle="climbing"]').click(); // An explicit new edit can still be discarded.

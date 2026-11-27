@@ -6,7 +6,7 @@ module.exports=async(browser,base,out='')=>{
  const specs=[
   {name:'welcome',route:'/welcome?step=audience',write:'/api/sharing',read:'/api/sharing',target:'#wc-aud',
    change:async p=>{await p.locator('[name=aud][value=me]').check();await p.locator('#wc-next').click();},
-   check:async(p,s)=>{if(s.default==='me')assert.equal(new URL(p.url()).searchParams.get('step'),'phone');else assert(await p.locator('[name=aud][value=everyone]').isChecked());}},
+   check:async(p,s)=>{if(new URL(p.url()).searchParams.get('step')==='audience')assert(await p.locator('[name=aud][value='+s.default+']').isChecked());else assert.equal(new URL(p.url()).searchParams.get('step'),'phone');}},
   {name:'kit',route:'/me/settings',write:'/api/profile',read:'/api/me',control:'[data-ai="0"]',target:'.seg[aria-label="AI features"]',
    ready:async p=>{await p.locator('#m-kit').click();await p.locator('[data-ai="0"]').waitFor();},
    check:async(p,s)=>assert.equal(await p.locator('[data-ai="0"]').getAttribute('aria-pressed'),String(!s.ai_ok))},
@@ -43,7 +43,7 @@ module.exports=async(browser,base,out='')=>{
   if(mode==='bridge'){const {token}=await login.json();await c.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});}
   const p=await c.newPage();p.setDefaultTimeout(10000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
   let spec=null,state={},armed=false,unreadable=false,fault='',writes=0;
-  await c.route('**/*',async r=>{if(await require('./privacy_ticket_fixture.cjs')(r))return;
+  await c.route('**/*',async r=>{
    const q=r.request(),u=new URL(q.url()),method=q.method();if(u.origin!==base)return r.abort();
    if(armed&&method==='GET'&&u.pathname===spec.read&&unreadable)return fault==='offline'?r.abort():r.fulfill({status:503,json:{detail:'Fictional outage'}});
    if(armed&&method!=='GET'&&u.pathname===spec.write){writes++;if(fault.startsWith('lost')){const body=q.postDataJSON();if(spec.name==='pin-menu')state.pinned=body.pinned?[...state.pinned,body.code]:state.pinned.filter(code=>code!==body.code);else Object.assign(state,body);if(body.enabled===false)state.memories=[];return r.abort();}return fault==='offline'?r.abort():r.fulfill({status:503,json:{detail:'Fictional outage'}});}
@@ -65,9 +65,9 @@ module.exports=async(browser,base,out='')=>{
    armed=true;unreadable=!fault.startsWith('lost');
    if(spec.change)await spec.change(p);else if(spec.name==='kit')await p.locator(spec.control).click();else await p.locator(spec.control).click();
    for(let n=0;n<100&&writes===0;n++)await wait(20);assert.equal(writes,1,spec.name+' write');await wait(300);
-   if(unreadable){const note=p.locator('[data-sharing-state=unknown]').last();await note.waitFor();assert.match(await note.innerText(),/Not confirmed.*Retry/);assert(!await p.locator(spec.target).isVisible(),spec.name+' hides stale consent');
+   {const note=p.locator('[data-sharing-state=unknown]').last();await note.waitFor();assert.match(await note.innerText(),/Not confirmed.*Retry/);assert(!await p.locator(spec.target).isVisible(),spec.name+' hides stale consent');
     if(out&&mode==='web')await p.screenshot({path:path.join(out,`${spec.name}-${theme}-unknown.png`)});
-    unreadable=false;await note.getByRole('button',{name:'Retry',exact:true}).click();await wait(250);assert.equal(writes,1,'Retry never repeats the write');}
+    unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await note.getByRole('button',{name:'Retry',exact:true}).click();await wait(250);assert.equal(writes,1,'Retry never repeats the write');}
    await spec.check(p,state);if(await p.locator(spec.target).count())assert(await p.locator(spec.target).evaluate(node=>{for(let p=node.parentElement;p;p=p.parentElement){const note=p.querySelector(':scope > [data-sharing-state]');if(note)return note.dataset.sharingState==='confirmed';}return true;}),spec.name+' affected control reconciled; other controls remain masked until their own readback');
    if(out&&mode==='web'&&fault==='offline')await p.screenshot({path:path.join(out,`${spec.name}-${theme}-confirmed.png`)});
    console.log('Consent readback',mode,theme,spec.name,fault,'PASS');
