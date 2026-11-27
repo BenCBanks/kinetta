@@ -28,10 +28,11 @@ function client(){
  for(const fails of [false,true]){
   f=client();const held=deferred(),saved=new Map([['token','fictional-session-one']]);
   f.plugin.stop=()=>{f.events.push(['stop']);return held.promise;};
-  Object.assign(f.ctx,{on:true,put:async(key,value)=>value==null?saved.delete(key):saved.set(key,value)});
+  Object.assign(f.ctx,{on:true,discardRouteReads(full){assert.equal(full,true);f.events.push(['discard-reads']);},put:async(key,value)=>value==null?saved.delete(key):saved.set(key,value)});
   Object.assign(f.ctx.N,{clearPictures(){},stopActivityShare:async()=>{},stopFoodEntry:async()=>{},disconnectPush:async()=>{},disconnectHealth:async()=>[],healthCall:promise=>promise});
   vm.runInContext(logout,f.ctx);
   const forgetting=f.ctx.N.forget();
+  assert.equal(f.events[0][0],'discard-reads','discard early reads before native cleanup yields');
   await Promise.resolve();assert.equal(f.ctx.N.token,null,'web token revoked before native cleanup resolves');
   // Even if another stale caller still carries both old values, binding must
   // remain disabled for the entire transition and after cleanup.
