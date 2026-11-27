@@ -18,8 +18,8 @@ const scenes=fixtures=>[
  {name:'Add food',login:'zz_test_food_compact_empty',route:'/food/describe?meal=lunch',ready:'#thread-text'},
  {name:'Recipes and foods',login:'zz_test_recipes_ui_typical',route:'/food/meals',ready:'#tm-new'},
  {name:'Friends',login:'zz_test_fc_typical',route:'/me/friends?find=1',ready:'.friends-page #fr-invite'},
- {name:'Groups',login:'alex',route:'/me/groups',ready:'#group-new',groups:true},
- {name:'Group create',login:'alex',route:'/me/groups',entryReady:'#group-new',ready:'#group-create-form',modal:'group-create',groups:true},
+ {name:'Groups',login:'alex',route:'/me/groups',ready:'#group-empty-create',groups:true},
+ {name:'Group create',login:'alex',route:'/me/groups',entryReady:'#group-empty-create',ready:'#group-create-form',modal:'group-create',groups:true},
  {name:'Group empty roster',login:'alex',route:'/groups/'+GROUP_EMPTY.id,ready:'.group-roster',group:'empty'},
  {name:'Group full roster',login:'alex',route:'/groups/'+GROUP_FULL.id,entryReady:'.group-roster',ready:'.group-member:nth-child(50)',modal:'group-full',group:'full'},
  {name:'Invite acceptance',login:'alex',route:'/group-invite/'+GROUP_INVITE_TOKEN,ready:'#group-accept',invite:true},
@@ -66,7 +66,7 @@ async function modalState(page,kind){
  else if(kind==='card'){await page.evaluate(()=>KinettaCard.open());await page.locator('#card-new').click();}
  else if(kind==='photo')await page.locator('[data-media-photo]').first().click();
  else if(kind==='map')await page.locator('.detail-map-hero .map-full').click();
- else if(kind==='group-create')await page.locator('#group-new').click();
+ else if(kind==='group-create')await page.locator('#group-empty-create').click();
  else if(kind==='group-full'){await page.locator('[data-group-more]').click();await page.locator('.group-member:nth-child(50)').waitFor({state:'attached'});await page.evaluate(()=>window.scrollTo(0,0));}
  else if(kind==='remove'||kind==='block'){
   await page.locator('#person-profile [data-person-manage]').click();
