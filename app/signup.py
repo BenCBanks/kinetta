@@ -14,8 +14,9 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import Field, StrictBool
 from . import db, auth, account_email
 from .api_account import NewAccountIn, _create, require_signup_age
+from .enrollment_requests import EnrollmentRoute
 
-router = APIRouter()
+router = APIRouter(route_class=EnrollmentRoute)
 
 
 def mode():
