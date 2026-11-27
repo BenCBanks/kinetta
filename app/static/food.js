@@ -316,7 +316,7 @@ function drawDay(el, D) {
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div class="meal-food"><span class="meal-food-copy"><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></span></div>
         <span class="nutrition-row-calories"><b class="num">${r0(e.kcal)}</b></span></button>`;
         // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
-        return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
+        return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[m]}">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       </section>`;
   }).join('')}</section>`;
   $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
