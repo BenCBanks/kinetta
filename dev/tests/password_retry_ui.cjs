@@ -27,6 +27,8 @@ const busy='Kinetta is busy. Please try again in a few seconds.';
      globalThis.readOwner=()=> 'fictional-owner';globalThis.api=(path,opts)=>apiRequest(path,opts);
      globalThis.store={get(){},set(){},del(){}};globalThis.enrollmentView=()=>()=>true;globalThis.enrollmentStatus=()=>{root.textContent='Checking';};
      globalThis.cleanViews=()=>{};globalThis.lazyUsernameAvailability=()=>null;globalThis.forgetKept=()=>{};
+     // Route prefetch is outside this isolated form fixture; native sign-in clears it.
+     globalThis.discardRouteReads=()=>{};
      globalThis.start=()=>{throw Error('busy request must not sign in');};globalThis.getAppFirst=()=>false;
      globalThis.toast=s=>document.querySelector('#toast').textContent=s;
      globalThis.sheet=(title,html,mount)=>{root.innerHTML=html;mount(root,()=>{throw Error('busy must keep sheet');});};
@@ -58,7 +60,13 @@ const busy='Kinetta is busy. Please try again in a few seconds.';
      if(await p.locator('input[name=age_ok]').count())await p.locator('input[name=age_ok]').check();
      const before=await p.locator('form').evaluate(f=>[...f.elements].filter(e=>e.tagName==='INPUT').map(e=>[e.name,e.value,e.checked]));
      const button=p.locator('form button.primary').first(),posts=await p.evaluate(()=>globalThis.posts||0);await button.click();
-     await p.waitForFunction(()=>typeof finishBusy==='function');assert(await button.isDisabled(),mode+' is disabled while pending');
+     const state=await p.waitForFunction(()=>{
+      if(typeof finishBusy==='function')return {pending:true};
+      const error=document.querySelector('form .err, .field-err')?.textContent||document.querySelector('#toast')?.textContent;
+      if(error)return {error};
+     });
+     assert.deepEqual(await state.jsonValue(),{pending:true},`${engine.name()} ${native?'bridge':'web'} ${theme} ${mode}: request must start`);
+     await state.dispose();assert(await button.isDisabled(),mode+' is disabled while pending');
      await p.evaluate(()=>finishBusy());await p.waitForFunction(()=>document.body.textContent.includes('Kinetta is busy.'));
      assert.equal(await button.isDisabled(),false,mode+' can retry');
      assert.equal(await p.evaluate(()=>globalThis.posts),posts+1,'no automatic password retry');
