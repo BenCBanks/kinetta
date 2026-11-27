@@ -1,6 +1,6 @@
 # Listing source review — 27 November 2026
 
-Baseline: main `46bbe8c1b3ed49e9e6a4815f438b0f16dd6a7ee8`. This is an offline code/document audit, not a deployed-configuration inspection, final-image approval, provider-quality evaluation or physical-iPhone pass. The Draft remains preparation; owner decisions are separate in [submission-readiness.md](submission-readiness.md). All paths below are repository-relative.
+Baseline: frozen TestFlight source `f1811e87ceb4b16d33cf965953fc2887b3aa41c2`. This is an offline code/document audit, not a deployed-configuration inspection, final-image approval, provider-quality evaluation or physical-iPhone pass. The Draft remains preparation; owner decisions are separate in [submission-readiness.md](submission-readiness.md). All paths below are repository-relative.
 
 ## Listing, promotional text and proposed release notes
 
@@ -26,7 +26,15 @@ Baseline: main `46bbe8c1b3ed49e9e6a4815f438b0f16dd6a7ee8`. This is an offline co
 | Export/delete in Me → Settings → Your data | `app/api_mydata.py`, `api_account.py`, `app/static/pages.js`. Includes saved Kit data; separate memory deletion and policy backup/provider exceptions apply. |
 | URLs, copyright, version/build | Site `index.html`, `about.html`, `privacy.html`, `terms.html` exist. HTTPS URL syntax checked offline; live availability, legal holder, exact release/build and custom EULA remain owner checks. |
 
-Name/subtitle and the remaining keywords identify implemented categories; promo repeats the supported workouts/food/history/memory/chart claims above. What's New is an owner template, conditional on the exact selected bundle/server. No listing claim relies on the unmerged native Strava flow, keyboard/layout Drafts, unreviewed AI releases or a future capture runner.
+Name/subtitle and the remaining keywords identify implemented categories; promo repeats the supported workouts/food/history/memory/chart claims above. What's New is pinned to f1811e87; only the version/build heading remains an owner field. Feature availability still depends on the selected server. No listing claim relies on the unmerged native Strava flow, following-build #1644/#1645/#1656/#1658, unreviewed AI releases or a future capture runner.
+
+## Frozen-build delta reviewed
+
+- Food entry: `app/static/thread.js` renders Scan/Photo/Usuals/Manual in the compact grid; `cook.js` uses **Review food** for manual review; **Add to log** remains the final save. `food-route.css` owns the layout.
+- Comment recovery: `social-data.js` keeps bounded seven-day server/account-scoped drafts; `social.js` sends the same `client_id` on explicit retry. `api_social.py` rechecks account/access before replay and `db.py` migrations131–132 enforce own-account uniqueness and seven-day receipts, including removed comments. This supports duplicate-safe **comment** retries, not a general upload guarantee.
+- Sign-in/sign-up: `app.js` bounds POST waits and retains form fields on failure. Enrollment admission and password-work limits are server checks, not promises of uninterrupted service.
+- Photos: `pages.js` and `profile.js` retain prepared pixels for explicit retry after the permitted transient failures. **#1656 photo receipts are not in this build**; do not advertise duplicate-safe photo uploads or automatic resend.
+- Native/runtime dependencies: the frozen Capacitor package versions and bundled source are the build target. No claim of physical GPS, Health, push, keyboard or share-sheet verification is added.
 
 ## Privacy answer coverage
 
@@ -44,7 +52,7 @@ The [full inventory](privacy-audit.md) covers every existing manifest category; 
 | Saved-answer redaction, bounded replay and separate memory | `app/db.py` Kit source/consent triggers, `kit_thread.py`, `kit_history.py`, `kit_memory.py`, `api_mydata.py`. At most six prior permitted turns / twelve role messages and twelve notes; prior chart payloads excluded. Invalidated answers are erased in storage; unknown legacy provenance is quarantined. Consent restoration does not revive erased answers. |
 | Third-party processing / tracking No | `app/ai_release.py`, `coach.py`, `food_photo.py`, `map_config.py`, `app/static/maps.js`, `api_food.py`, native dependencies. No first-party ad/IDFA integration found. Actual configured AI/mail/maps/food partners' retention and legal classifications still need owner verification. |
 
-The website policy still has older group-threshold/name wording; that discrepancy is expressly open, not certified aligned. Age-rating answers remain proposals: social/UGC/health/contests are implemented; exact content frequency, unrestricted web access, final Apple rating and device accessibility cannot be settled by this source audit.
+The frozen website policy includes #1632's factual corrections: first/full-name display, per-challenge sharing and recap-only three-member thresholds, browser archive staging, and precise 180-day memory filtering/access cleanup. These earlier discrepancies are resolved in source; publication and final legal/Apple classifications remain separate. Age-rating answers remain proposals: social/UGC/health/contests are implemented; exact content frequency, unrestricted web access, final Apple rating and device accessibility cannot be settled by this source audit.
 
 ## Screenshot captions
 

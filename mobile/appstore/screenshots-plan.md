@@ -1,6 +1,6 @@
 # Current-app screenshot brief — owner review required
 
-Source-reviewed 27 November 2026 against main `46bbe8c1`; capture only after the exact submission source and fixes are frozen. Existing #1330/#1511 artifacts are historical references, not refreshed by this document. Nothing is captured, dispatched or uploaded by this refresh. See [source-review.md](source-review.md) for claim evidence and [submission-readiness.md](submission-readiness.md) for owner decisions.
+Source-reviewed 27 November 2026 against frozen TestFlight source `f1811e87`; #1607 is recapturing this exact app source unsigned. Existing #1330/#1511 artifacts are historical references, not refreshed by this document. Nothing is captured, dispatched or uploaded by this refresh. See [source-review.md](source-review.md) for claim evidence and [submission-readiness.md](submission-readiness.md) for owner decisions.
 
 Propose ten full-screen portrait images at1320×2868, light mode, from one unsigned native Simulator bundle with real UIKit safe areas. Use the actual large-display slot accepted by Connect; Apple's [current specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/) accept these dimensions. No resizing website captures, stitched views, fake system prompts or transparency. Start with raw app screens; an optional caption treatment needs a separate Ben preview.
 
@@ -10,9 +10,9 @@ Propose ten full-screen portrait images at1320×2868, light mode, from one unsig
 | 2. Start with Track | Idle Track, outdoor Run selected, larger map and compact Start controls; fixed fictional park location | Existing `header-track`; #1587 is merged; retake exact bundle, no real GPS |
 | 3. Review your run | Saved3mi run with matching time/pace, map, Pace and Heart rate charts | Existing `activity`; use current #1608/#1620 layout and matching elapsed-pace summary, not an old selector crop |
 | 4. See your food day | Two fictional meals,915/1800kcal, units and macros agree; no medical/weight-loss claim | Existing `header-food`; reconcile exact fixture totals |
-| 5. Review before logging | Add food with editable, unconfirmed food/portion card and clear Add to log action | Existing `food`; use deterministic stand-in, no provider call |
+| 5. Review before logging | Add food with editable, unconfirmed food/portion card and clear Add to log action | `food-review` in #1607; use deterministic stand-in, no provider call |
 | 6. Chart your recorded progress | Actual Kit average-climb line card:125/171/200ft, round100/150/200ft axis, dates, selection and missing-data note | Separate capture Draft #1607 adds this scene; validate against `dev/tests/kit_chart_ui.cjs`, not website phone framing |
-| 7. Pick up a saved chat | Actual Kit history list with2 fictional chats and dates; reopen returns the same saved answer | #1607 scene; compare `dev/tests/kit_history_ui.cjs`; no real history |
+| 7. Pick up a saved chat | Actual Kit history list with8 fictional chats and dates; reopen returns the same saved answer | #1607 scene; compare `dev/tests/kit_history_ui.cjs`; no real history |
 | 8. Choose what Kit remembers | Actual What Kit remembers list: “I prefer morning runs.” and “I'm vegetarian.”, toggle and editable rows | #1607 scene; compare `dev/tests/kit_memory_ui.cjs`; show supported controls, not all sheets at once |
 | 9. Catch up in Notifications | Current flat inbox: fictional reaction, comment and friend request, Today/Earlier groups and clear timestamps | #1607 scene; compare `dev/tests/notifications_compact_ui.cjs`; no sent push/email |
 | 10. Follow your progress | Progress with fictional activity totals/achievements that satisfy their thresholds | Existing `header-progress`; retake exact bundle |

@@ -1,6 +1,6 @@
 # App Store preparation — Draft, owner review required
 
-Source-reviewed 27 November 2026 against main `46bbe8c1`. Start with [submission-readiness.md](submission-readiness.md), then [source-review.md](source-review.md), [listing-en-US.json](listing-en-US.json), [screenshots-plan.md](screenshots-plan.md) and [privacy-label-changes.md](privacy-label-changes.md). The full inventory is [privacy-audit.md](privacy-audit.md); [age-rating.md](age-rating.md) and [review-notes.md](review-notes.md) remain owner-review worksheets.
+Source-reviewed 27 November 2026 against frozen TestFlight source `f1811e87`. Start with [submission-readiness.md](submission-readiness.md), then [source-review.md](source-review.md), [listing-en-US.json](listing-en-US.json), [screenshots-plan.md](screenshots-plan.md) and [privacy-label-changes.md](privacy-label-changes.md). The full inventory is [privacy-audit.md](privacy-audit.md); [age-rating.md](age-rating.md) and [review-notes.md](review-notes.md) remain owner-review worksheets.
 
 This directory prepares proposed metadata, captions and answers. It does not upload assets, enter Connect answers, submit an app, certify a signed build or verify physical-device behavior. Copyright, release version/build and private review credentials intentionally remain placeholders. Source inclusion does not prove deployment or enabled server gates.
 
@@ -34,7 +34,7 @@ Groups and per-challenge sharing are merged; an optional Groups replacement stil
 
 ## Submission gates
 
-Owner decisions are listed separately in [submission-readiness.md](submission-readiness.md). Resolve current website-policy discrepancies (group totals/defaults and name display), Health-derived analytics eligibility, provider terms, contact-hash classification, exact build/configuration, rating/accessibility and physical acceptance before any submission-ready claim. The manifest and App Store Connect answers are separate declarations; neither changes when these docs change.
+Owner decisions are listed separately in [submission-readiness.md](submission-readiness.md). The frozen website source includes #1632's factual corrections for groups, names, archive staging and memory expiry. Resolve Health-derived analytics eligibility, provider terms, contact-hash classification, exact build/configuration, rating/accessibility and physical acceptance before any submission-ready claim. The manifest and App Store Connect answers are separate declarations; neither changes when these docs change.
 
 After Ben approves the final assets and exact processed signed build, the owner can enter approved metadata/privacy/review information in Connect and choose submission. This task performs none of those steps. Private credentials belong only in Connect, never in source, screenshots or PRs.
 

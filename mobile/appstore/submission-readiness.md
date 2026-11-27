@@ -1,6 +1,6 @@
 # Submission readiness — 27 November 2026, owner-review Draft
 
-Source baseline: `46bbe8c1b3ed49e9e6a4815f438b0f16dd6a7ee8` (current main). This includes Track #1587, Notifications #1592, Kit batch #1564, Groups/challenge cutover, training-plan checks, approved screen fixes, and the server/web resumable import. Native guided Strava import remains an unmerged Draft and is excluded. Source inclusion is not proof of deployment, a processed signed build or enabled reviewer-server features. No App Store Connect entry, upload, submission, provider call or real-account access is part of this preparation.
+Source baseline: `f1811e87ceb4b16d33cf965953fc2887b3aa41c2` (frozen TestFlight source). This includes Track #1587, Notifications #1592, Kit batch #1564, Groups/challenge cutover, training-plan checks, approved screen fixes, compact food entry, bounded sign-in/sign-up recovery, duplicate-safe comment retries (migrations131–132), photo error/retry feedback, and the server/web resumable import. Native guided Strava import remains an unmerged Draft and is excluded. Source inclusion is not proof of deployment, a processed signed build or enabled reviewer-server features. No App Store Connect entry, upload, submission, provider call or real-account access is part of this preparation.
 
 ## What is ready for review
 
@@ -8,6 +8,8 @@ Source baseline: `46bbe8c1b3ed49e9e6a4815f438b0f16dd6a7ee8` (current main). This
 - [Screenshot plan](screenshots-plan.md): ten proposed fictional scenes, including current Track, Notifications, Kit line card, saved chats and memory. It is a capture brief, not a new artifact or device acceptance claim.
 - [Privacy-label changes](privacy-label-changes.md): explicit linked/tracking/purpose answers for metrics, retained chats and memory, checked against existing manifest and policy. The full inventory remains [privacy-audit.md](privacy-audit.md).
 - [Review notes](review-notes.md): current entry points and the controls the reviewer should inspect. Supply server/login/contact privately.
+
+The build cutoff excludes #1644, #1645, #1656 and #1658. In particular, do not promise photo-upload receipt/idempotency behavior from the following build. #1617 native Strava receipt/picker/upload is also excluded. The owner reports a TestFlight upload from this source in progress; this preparation does not inspect, repeat or certify that upload.
 
 ## Scope and differences from #415 / #1330
 
@@ -21,7 +23,7 @@ The [source review](source-review.md) maps listing claims, privacy answers and a
 
 - **Release identity and assets:** choose the exact version/build, copyright, category, availability, EULA, reviewer service and final screenshot selection/order. Main source alone is not the selected signed build; old tester images are not automatically current.
 - **Privacy/configuration:** confirm actual AI partners/tiers, retention/training terms, permissions and Health-derived analytics eligibility/withdrawal; the current operator-wide metrics switch is not a per-person consent control. Confirm Contacts hash/social graph classification and final Connect entries against the manifest.
-- **Policy alignment:** the current website policy still assigns the three-member threshold to all group totals and omits the name-display distinction. Code applies that threshold to recap paths, not ordinary shared totals; sharing can default on and current controls are per challenge. Approve a separate accurate policy update before submission. Name inventory here includes required first/last names; ordinary non-friends receive first name. Also resolve whether the policy's simplified six-month memory wording should state 180-day filtering/access cleanup.
+- **Final disclosure acceptance:** #1632 already corrected the website source for group thresholds, first/full-name display, archive staging and precise memory expiry. These factual corrections are no longer open choices. Confirm the actual submitted service/partners and final legal/Apple disclosures; this Draft changes no policy or runtime setting.
 - **Content/device acceptance:** confirm age-rating questionnaire/Apple result, accessibility claims and enabled AI behavior. Do not claim Larger Text, VoiceOver, uninterrupted background recording/upload or real push/Health delivery from source or fictional Simulator captures. Physical acceptance remains outstanding unless the release record supplies it.
 
 ## Owner checklist before uploading
