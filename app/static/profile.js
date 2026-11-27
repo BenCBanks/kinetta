@@ -1126,7 +1126,7 @@ const MeCard=(()=>{
     };
     sheet('This is what friends see','<div class="me-friend-preview" data-profile-preview aria-busy="true"><p class="small muted" role="status">Loading your shared profile…</p></div>',body=>load($('[data-profile-preview]',body)));
   }
-  const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
+  const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit aria-label="Edit profile">${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
   function ownFriends(count){
     return `<a class="me-friends-link" href="/me/friends"><span class="me-friends-count"><span data-friend-count>${Number.isInteger(count)?friendCountText(count):'Friends'}</span>${svg('chev')}</span></a>`;
   }

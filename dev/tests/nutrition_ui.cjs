@@ -140,6 +140,10 @@ async function assertBodyFieldPairs(p){for(const [left,right,name] of [['select[
     }
 
     if(size.root===16){const lunch=await p.locator('.meal-lunch').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();if(who==='typical')assert(lunch.y+lunch.height<nav.y-8,'Breakfast and Lunch clear the tab bar');}
+    for(const row of await p.locator('#fd-meals .swipe').all()){
+     const name=await row.locator('.meal-food-copy b').innerText(),meal=await row.evaluate(n=>n.closest('.meal').querySelector('h2 > span').textContent);
+     assert.equal(await row.getByRole('button',{name:`Remove ${name} from ${meal}`,exact:true}).count(),1,'the removal control identifies its food and meal');
+    }
     assert.equal(await p.locator('#fd-meals > .nutrition-meals-group').count(),1,'all meal sections share one grouped card');assert.equal(await p.locator('.meal-food-icon').count(),0,'food rows have no guessed emoji tile');
     assert(await p.locator('.nutrition-row-calories').first().innerText().then(t=>/^\s*\d[\d,]*\s*$/.test(t)),'food rows show one right-aligned calorie number without repeating kcal');assert.equal(await p.locator('.meal-calories').count(),0,'food calories have no grey pill');
     if(who==='typical'&&size.width===390){const row=p.locator('#fd-meals .fe').first(),box=await row.boundingBox();await p.mouse.move(box.x+box.width/2,box.y+box.height/2);await p.mouse.down();const pressed=await row.evaluate(n=>{const m=new DOMMatrixReadOnly(getComputedStyle(n).transform);return{scale:m.a,opacity:getComputedStyle(n).opacity,background:getComputedStyle(n).backgroundColor};});assert(Math.abs(pressed.scale-.985)<.001,'Nutrition food rows use the quiet row press scale');assert.equal(pressed.opacity,'1','Nutrition food text stays fully readable while pressed');assert.notEqual(pressed.background,'rgba(0, 0, 0, 0)','Nutrition food rows retain their surface tint while pressed');await p.mouse.up();await p.keyboard.press('Escape');}

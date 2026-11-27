@@ -75,6 +75,7 @@ async function cardChecks(p,size){
 }
 async function weeklyCardChecks(p,size){
  const card=p.locator('.me-card');assert.equal(await card.locator('.me-card-weekly').count(),1,'Me shows the weekly summary card');
+ assert.equal(await card.getByRole('button',{name:'Edit profile',exact:true}).count(),1,'Me edit control identifies the profile');
  const cardSurface=await card.evaluate(node=>{const style=getComputedStyle(node);return{shadow:style.boxShadow,borderWidth:style.borderTopWidth,borderStyle:style.borderTopStyle};});assert.deepEqual(cardSurface,{shadow:'none',borderWidth:'1px',borderStyle:'solid'},'Me card uses the shared one-pixel divider with no shadow');
  assert.equal(await card.locator('.me-card-bars').evaluate(node=>getComputedStyle(node).backgroundColor),'rgba(0, 0, 0, 0)','weekly distance bars sit directly on the card surface');
  assert.equal(await card.getAttribute('data-profile-card-period'),'week','Me passes the week option to the shared card');assert.equal(await card.locator('.me-profile-chevron').count(),0,'the name has no extra chevron');
@@ -314,7 +315,7 @@ const focusedOnly=durationOnly||unitsOnly||compositionOnly||profileClockOnly||sh
  assert.equal(await p.locator('[data-me-milestones]').count(),0,'private milestone row is absent from full profiles');
  assert.equal(await p.locator('.profile-page-title').innerText(),'Your profile');
  assert.equal(await p.locator('#person-profile .me-card-open-link,.me-card .me-profile-chevron').count(),0,'the full profile does not link back to itself');
- assert.equal(await p.locator('#person-profile .me-card [data-card-edit]').count(),1);assert.equal(await p.locator('#person-profile .me-card [data-card-share]').count(),1);
+ assert.equal(await p.locator('#person-profile .me-card [data-card-edit]').count(),1);assert.equal(await p.locator('#person-profile .me-card').getByRole('button',{name:'Edit profile',exact:true}).count(),1,'the edit control names its purpose');assert.equal(await p.locator('#person-profile .me-card [data-card-share]').count(),1);
  assert.equal(await p.locator('#pf-card, #pf-edit-profile, #pf-share').count(),0,'old profile parts are gone');
  assert.equal(await p.locator('#person-profile .me-card-row').count(),0,'no link row back to the same page');
  assert.equal(await p.locator('#person-profile .me-week').count(),12,'same distance chart as Me');
