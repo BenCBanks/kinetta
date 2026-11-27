@@ -2462,7 +2462,7 @@ route(/^\/me\/devices$/, 'me', async (el) => {
     if (!el.isConnected || owner !== readOwner()) return;
     const others = rows.filter((d) => !d.this);
     const previousBulk=$('#dv-all',el);if(previousBulk)previousBulk.remove();
-    $('#dv-list', el).innerHTML = rows.length ? `${rows.map((d) => `<div class="inset-row has-detail device-row"><span class="inset-icon" aria-hidden="true">${svg('shield')}</span><span class="inset-label has-detail"><span>${esc(d.device)}</span><small>${d.this ? 'This device · ' : ''}Last used ${esc(day(d.last_used))} · signed in ${esc(day(d.signed_in))}</small></span>${d.this ? '<span class="inset-value">This device</span>' : `<button type="button" class="device-action" data-dv="${esc(d.id)}" aria-label="Sign out ${esc(d.device)}">Sign out</button>`}</div>`).join('')}`
+    $('#dv-list', el).innerHTML = rows.length ? `${rows.map((d) => `<div class="inset-row has-detail device-row"><span class="inset-icon" aria-hidden="true">${svg('shield')}</span><span class="inset-label has-detail"><span>${esc(d.device)}</span><small>Last used ${esc(day(d.last_used))} · signed in ${esc(day(d.signed_in))}</small></span>${d.this ? '<span class="inset-value">This device</span>' : `<button type="button" class="device-action" data-dv="${esc(d.id)}" aria-label="Sign out ${esc(d.device)}">Sign out</button>`}</div>`).join('')}`
       : `<p class="device-empty">No signed-in devices yet. Sign in on another phone or browser and it will appear here.</p>`;
     $$('[data-dv]', el).forEach((b) => b.onclick = async () => {
       if(owner!==readOwner()||b.disabled)return;b.disabled = true;

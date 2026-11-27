@@ -1405,7 +1405,7 @@ route(/^\/me\/groups$/, 'me', async el=>{
   const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{invalidate('/api/groups');go('/groups/'+encodeURIComponent(group.id));groupInviteSheet(group,group.invite_url);});
   $('#group-new',el).onclick=create;
   if(createRequested){const address=new URL(location.href);address.searchParams.delete('create');replacePageAddress(el,address.pathname+address.search+address.hash);create();}
-  try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groupListMarkup(groups);
+  try{const groups=await api('/api/groups');if(!live())return;$('#group-new',el).hidden=!groups.length;$('#group-list',el).innerHTML=groupListMarkup(groups);
     $('#group-empty-create',el)?.addEventListener('click',create);
   }catch(error){if(live())$('#group-list',el).innerHTML=`<div class="card empty">${esc(error.message)}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/me/groups',{replace:true}));}
 });

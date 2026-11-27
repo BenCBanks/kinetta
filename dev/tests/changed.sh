@@ -262,6 +262,7 @@ done
 export KINETTA_URL="${KINETTA_URL:-http://localhost:8798}"
 export KINETTA_PROJECT="${KINETTA_PROJECT:-kinettatest}"
 export TZ="${TZ:-America/New_York}"
+spacing_fixtures_prepared=0
 if [[ $list_tests == 0 ]]; then
 browser="${PLAYWRIGHT_NODE_MODULES:-$PWD/dev/tests/browser/node_modules}"
 if ! NODE_PATH="$browser" node -e "require('playwright')" >/dev/null 2>&1; then npm ci --prefix "${browser%/node_modules}"; fi
@@ -275,6 +276,7 @@ if [[ "${KINETTA_CHANGED_SPACING:-1}" == 1 ]] && [[ $all_scenes == 1 || -n "$sce
   export KINETTA_SPACING_FIXTURES="$audit_tmp/fixtures.json"
   export KINETTA_SPACING_REPORT="$audit_tmp/report.json"
   python3 dev/tests/spacing_prepare.py
+  spacing_fixtures_prepared=1
   node dev/tests/test_spacing_geometry.cjs
   NODE_PATH="$browser" node dev/tests/test_spacing_dom.cjs
   if [[ $all_scenes == 1 ]]; then
@@ -299,9 +301,12 @@ run_ui() {
   echo "Running changed-screen suite: $1 (shard $ui_shard)"
   case "$1" in
     loading_audit.cjs)
-      # Draft CI skips the duplicate spacing audit, but loading still needs its
-      # fixtures. Prepare them only on the shard that actually runs this suite.
-      if [[ "${KINETTA_CHANGED_SPACING:-1}" != 1 ]]; then python3 dev/tests/spacing_prepare.py; fi
+      # A selected suite owns its fixture dependency even when spacing is skipped
+      # (Draft CI or no mapped scenes). Reuse only preparation from this run.
+      if [[ ${spacing_fixtures_prepared:-0} != 1 ]]; then
+        python3 dev/tests/spacing_prepare.py
+        spacing_fixtures_prepared=1
+      fi
       KINETTA_LOADING_SCREENS="Home,Progress,Nutrition day,Me" KINETTA_LOADING_THEMES="light,dark" NODE_PATH="$browser" node "dev/tests/$1" ;;
     inline_reactions_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     weight_progress_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;

@@ -326,7 +326,7 @@
   background:var(--surface-raised); box-shadow:none;
 }
 .progress-grid.explore-list.progress-inset-list .progress-tile {
-  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,45%) 14px;
+  display:grid; grid-template-columns:minmax(0,1fr) fit-content(45%) 14px;
   align-items:center; column-gap:10px; row-gap:0; min-height:56px; margin:0;
   padding:8px 12px; border:0; border-bottom:1px solid var(--line); border-radius:0;
   background:transparent; box-shadow:none; color:var(--tx); text-decoration:none;

@@ -116,7 +116,7 @@
   async function capture(){
     const initialReady=()=>cfg.startupTiming
       ?App.pageReady&&!!document.querySelector('#page .me-card-sections[aria-busy="false"]')
-      :cfg.groups?(App.pageReady&&document.querySelector('#group-new')):cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name');
+      :cfg.groups?(App.pageReady&&document.querySelector('#group-empty-create')):cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name');
     for(let n=0;n<150;n++){
       if(initialReady())break;
       await new Promise(ok=>setTimeout(ok,100));
@@ -135,7 +135,7 @@
       await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);cfg.startupTiming.firstUsefulRenderPerfMs=performance.now();
     }
     if(cfg.activity){let socialReady=false;for(let n=0;n<150;n++){const box=document.querySelector('#d-soc'),requested=cfg.requests.includes('/api/activities/1/social'),social=cfg.store?.responses?.['/api/activities/1/social']||cfg.activity.social,hasContent=social.cheers.length||social.comments.length;socialReady=!!box&&(requested||hasContent)&&(hasContent?!box.hidden:box.hidden);if(socialReady)break;await new Promise(ok=>setTimeout(ok,100));}if(!socialReady)throw Error('Owner activity empty-social state did not finish loading');}
-    if(cfg.groups){document.querySelector('#group-new')?.click();let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#group-create-form');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Groups create form did not open');}
+    if(cfg.groups){document.querySelector('#group-empty-create')?.click();let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#group-create-form');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Groups create form did not open');}
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
     if(cfg.stage==='review')finishDish(cfg.dish);
     if(cfg.stage==='achievement-share-track'){

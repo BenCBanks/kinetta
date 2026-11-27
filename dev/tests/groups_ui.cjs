@@ -291,8 +291,10 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.equal(await page.locator('#fr-groups-discover').getAttribute('href'),'/me/groups','Groups remains reachable from Find friends');
    await capture(page,`friends-groups-row-390-${theme}`);
    await page.goto(base+'/me/friends');await page.locator('#fr-groups').waitFor();await page.locator('#fr-groups').click();await page.waitForURL('**/me/groups');
-   await page.waitForFunction(()=>App.pageReady&&!!document.querySelector('#group-new'));
-   await page.locator('#group-new').click();await page.getByLabel('Group name').waitFor();
+   await page.locator('#group-empty-create').waitFor();
+   assert(await page.locator('#group-new').isHidden(),'empty Groups has only its central Create action');
+   assert.equal(await page.locator('#group-list button:visible').count(),1);
+   await page.locator('#group-empty-create').click();await page.getByLabel('Group name').waitFor();
    assert.equal(await page.locator('#group-create-form').count(),1);assert.equal(await page.locator('#group-create-form select').count(),0,'units and advanced choices are not on Create');assert.equal(await page.locator('[name=training_for],[name=note],[name=goal_start_date]').count(),0);
    assert(await page.locator('.group-create-footer button[type=submit]').isDisabled());
    for(const width of [390,375,330])await checkCreateSheet(page,width,16,theme);
