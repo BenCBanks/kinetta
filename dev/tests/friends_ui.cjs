@@ -171,12 +171,21 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const {c,p}=await open('retry',theme),targetLogin=theme==='light'?'zz_test_fc_peer19':'zz_test_fc_peer20';let fail=true,friendPosts=0;
     await p.route('**/api/friends',route=>{if(route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin)friendPosts++;if(fail&&route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin){fail=false;return route.fulfill({status:503,json:{message:'fixture failure'}});}return route.continue();});
     await p.locator('#fr-find input').fill(targetLogin);await until(p,()=>document.querySelector('#fr-found [data-add]'),'Add error target');await p.locator('#fr-found [data-add]').click();
-    const recovery=p.locator('#fr-found [data-sharing-state=unknown]');await recovery.waitFor();assert.match(await recovery.innerText(),/Not confirmed.*Retry/);
-    assert.equal(await p.locator('#fr-found [data-add]').isVisible(),false,'uncertain Add never claims a failed or successful request');
+    const recovery=p.locator('#fr-found .setting-recovery');await recovery.getByRole('button',{name:'Retry',exact:true}).waitFor();assert.match(await recovery.innerText(),/Not confirmed.*Retry/s);
+    const add=p.locator('#fr-found [data-add]');
+    assert(await add.isVisible(),'uncertain Add keeps the relationship row visible');
+    assert.equal(await add.getAttribute('aria-disabled'),'true','uncertain Add is locked without claiming success');
+    assert.equal(await p.locator('#fr-found [data-request-menu]').count(),0,'uncertain Add never claims Requested');
     if(out)await capture(p,`find-friends-add-error-${viewportWidth}-${theme}`);
-    await recovery.getByRole('button',{name:'Retry',exact:true}).click();assert.equal(await recovery.isVisible(),true,'early Retry stays unconfirmed');
-    await require('./privacy_recovery_fixture.cjs')(p);await recovery.getByRole('button',{name:'Retry',exact:true}).click();
-    await p.locator('#fr-found [data-add]').waitFor();assert.equal(friendPosts,1,'Retry only rereads, never sends another friend request');assert.equal(await p.locator('#fr-found [data-add]').isDisabled(),false,'saved relationship readback makes Add available again');
+    await recovery.getByRole('button',{name:'Retry',exact:true}).click();
+    assert.equal(await recovery.getAttribute('data-sharing-state'),'checking','early Retry shows Checking');
+    assert.equal(friendPosts,1,'early Retry never repeats the friend request');
+    await require('./privacy_recovery_fixture.cjs')(p);
+    await p.locator('#fr-found [data-sharing-state=confirmed]').waitFor({state:'attached'});
+    assert.equal(friendPosts,1,'automatic Retry only rereads, never sends another friend request');
+    assert.equal(await add.isDisabled(),false,'saved relationship readback makes Add available again');
+    if(out)await capture(p,`find-friends-add-not-saved-${viewportWidth}-${theme}`);
+    assert(await add.evaluate(button=>{const r=button.getBoundingClientRect(),at=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.width>=44&&r.height>=44&&(at===button||button.contains(at));}),'the recovered Add action retains an unobstructed 44px target');
     await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'Add retry shows Requested');await close(c);
    }
    {

@@ -513,6 +513,10 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 #fr-status:empty { display: none; }
 #fr-lists .person b, #fr-found .person b { white-space: normal; overflow-wrap: anywhere; }
 #fr-lists .person .btnrow, #fr-found .person .btnrow { flex-shrink: 0; }
+/* Recovery belongs below the relationship, so feedback cannot squeeze its action. */
+.friends-page .person:has(> .setting-recovery) { display:grid;grid-template-columns:minmax(0,1fr) auto;row-gap:0; }
+.friends-page .person > .setting-recovery { grid-column:1 / -1;min-width:0; }
+
 #fr-lists .person .sm, #fr-found .person .sm { min-height: 44px; }
 
 /* Friends list and profile relationship count (#325). */
