@@ -1,6 +1,12 @@
 {
   "contracts": [
     {
+      "screen": "Activity upload",
+      "sources": ["app/static/activity-upload.js", "app/static/upload-hash-worker.js", "app/static/activity-import.css"],
+      "tests": ["activity_upload_ui.cjs"],
+      "assertions": ["bounded resumable ZIP requests", "explicit preview confirmation", "recording uploads"]
+    },
+    {
       "screen": "Home feed",
       "sources": ["app/static/pages.js", "app/static/activity-home.css"],
       "tests": ["activity_home_ui.cjs"],

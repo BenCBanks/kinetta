@@ -1,7 +1,14 @@
 # Guided Strava history: backend contract
 
-This is the server foundation for a future guided import. It adds no screens. Existing
-`POST /api/import` and `GET /api/imports` retain their contracts.
+The web **Upload activities** page uses this resumable flow for Strava ZIP archives.
+Single FIT, GPX, TCX and gzip recording uploads keep using `POST /api/import` and
+`GET /api/imports`, whose contracts are unchanged.
+
+The browser hashes the archive in bounded slices on a worker, sends pieces of at most
+8 MiB, and shows the dry-run counts and current activity privacy before confirmation.
+Leaving the page pauses transfer; reselect the same ZIP to resume from the server
+offset after a reload or on another device. A different file cannot resume it.
+Confirmed imports continue on the server. The upload page never opts into reminders.
 
 All endpoints below require the signed-in account, except the opaque reminder-stop link.
 Cookie and native bearer authentication use the same ownership checks, including

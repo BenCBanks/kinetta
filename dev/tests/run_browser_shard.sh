@@ -81,6 +81,7 @@ case "$1" in
     ;;
   6)
     node dev/tests/track_home_ui.cjs
+    node dev/tests/activity_upload_ui.cjs
     node dev/tests/track_review_recovery_ui.cjs
     node dev/tests/activity_detail_ui.cjs
     node dev/tests/media_routes_ui.cjs

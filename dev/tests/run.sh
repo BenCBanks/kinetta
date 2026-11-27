@@ -83,6 +83,8 @@ python3 dev/tests/test_notification_removal.py
 node --check dev/tests/notification_edit_ui.cjs
 node dev/tests/test_activity_detail.js
 node --check dev/tests/activity_detail_ui.cjs
+node dev/tests/upload_hash.cjs
+node --check dev/tests/activity_upload_ui.cjs
 node dev/tests/test_map_failure.js
 node dev/tests/test_challenges.js
 node dev/tests/test_join_context.js
