@@ -1868,7 +1868,7 @@ function profilePhotoSheet(done) {
       } catch (x) {
         if (!live()) { pending = null; return; }
         toast(x.message || "That photo couldn't be opened");
-        if (x.status !== 503) pending = null;
+        if (!(x.status === 429 || x.status === 503 || x.offline)) pending = null;
         pick.disabled = false; pick.textContent = pending ? 'Retry photo' : 'Choose a photo';
       }
     };

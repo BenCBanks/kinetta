@@ -409,12 +409,17 @@ function labelButton(el, d, set) {
     const files=[...(file.files||[])];file.value='';
     await reviewFoodPhotos(files,async photos=>{
     if(!active())return;
-    sheet('Nutrition label', `<div id="lb-box"><p class="small muted center">${svg('sparkle')} Reading the label…</p></div>`, async (b, close) => {
+    sheet('Nutrition label', `<div id="lb-box"><p class="small muted center">${svg('sparkle')} Reading the label…</p></div>`, (b, close) => {
       const box = $('#lb-box', b);
+      const read = async () => {
+      if(!active()||!box.isConnected)return;
+      box.innerHTML = `<p class="small muted center">${svg('sparkle')} Reading the label…</p>`;
       let L;
       try { L = await api('/api/food/label', json('POST', {images: photos})); }
-      catch (x) { if(!active()||!box.isConnected)return;box.innerHTML = `<p class="err">${esc(x.message)}</p><div class="actions"><button class="primary" id="lb-again">Try another photo</button></div>`;
-        $('#lb-again', b).onclick = () => { close(); file.click(); }; return; }
+      catch (x) { if(!active()||!box.isConnected)return;
+        const retry = x.status===429 || x.status===503 || x.offline;
+        box.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><div class="actions"><button class="primary" id="lb-again">${retry?'Retry photo':'Try another photo'}</button></div>`;
+        $('#lb-again', b).onclick = retry ? read : () => { close(); file.click(); }; return; }
       if(!active()||!box.isConnected)return;
       const S = L.per_serving, pkg = L.package_g;
       box.innerHTML = `<form class="form" id="lb">
@@ -446,6 +451,8 @@ function labelButton(el, d, set) {
           close.closeAll(true);toast(`Added ${name}: ${gfmt(g)}${f.save.checked ? ', saved to My foods' : ''}`);
         } catch (x) { toast(x.message); sb.disabled = false; }
       };
+      };
+      read();
     });
     },{flow:'auto',label:true,active});
   };
