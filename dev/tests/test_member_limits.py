@@ -193,6 +193,88 @@ class MemberLimits(unittest.TestCase):
         self.assertEqual(self.comment('Nice fictional run', key).status_code, 404)
         self.assertEqual(self.comment('New blocked text', uuid.uuid4()).status_code, 404)
 
+    def test_group_update_admission_is_independent_of_private_block_and_mute(self):
+        gid=self.group();path=f'/api/groups/{gid}/updates'
+        for mode in ('open','muted','incoming_block','outgoing_block'):
+            with self.subTest(mode=mode):
+                with db.connect() as c:
+                    c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                    c.execute('DELETE FROM blocks WHERE (user_id=%s AND blocked=%s) OR (user_id=%s AND blocked=%s)',(self.uid,self.oid,self.oid,self.uid))
+                    c.execute('DELETE FROM notifications WHERE group_id=%s',(gid,))
+                    c.execute('UPDATE group_members SET notifications_muted=%s WHERE group_id=%s AND user_id=%s',(mode=='muted',gid,self.oid))
+                    if mode in ('incoming_block','outgoing_block'):
+                        pair=(self.oid,self.uid) if mode=='incoming_block' else (self.uid,self.oid)
+                        c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',pair)
+                self.seed('comment_delivery',9,age=120,recipient=self.oid)
+                body={'text':'Fictional update '+mode,'client_id':str(uuid.uuid4())}
+                allowed=self.actor.post(path,json=body)
+                self.assertEqual(allowed.status_code,200,allowed.text)
+                refused=self.actor.post(path,json={'text':'Next fictional update '+mode})
+                self.assertEqual(refused.status_code,429,refused.text)
+                self.assertGreater(int(refused.headers['Retry-After']),3400)
+                self.assertEqual(len(self.events('comment')),1,'rejected post rolls back actor admission')
+                self.assertEqual([r['recipient_id'] for r in self.events('comment_delivery')],[self.oid]*10)
+                self.assertEqual(self.actor.post(path,json=body).status_code,200,'committed replay stays free')
+                self.assertEqual(len(self.events('comment_delivery')),10,'replay never charges again')
+                with db.connect() as c:
+                    delivered=c.execute("SELECT count(*) AS n FROM notifications WHERE group_id=%s AND user_id=%s AND kind='group_update'",(gid,self.oid)).fetchone()['n']
+                    self.assertEqual(delivered,1 if mode=='open' else 0,'delivery alone follows private block/mute state')
+
+    def test_comment_admission_uses_owner_not_delivery_preferences(self):
+        for push_enabled in (True,False):
+            with self.subTest(push_enabled=push_enabled):
+                with db.connect() as c:
+                    c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                    c.execute('UPDATE profile SET notify=%s WHERE user_id=%s',(Jsonb({'comments':push_enabled}),self.oid))
+                self.seed('comment_delivery',9,age=120,recipient=self.oid)
+                self.assertEqual(self.comment('Fictional cross-surface comment '+str(push_enabled),uuid.uuid4()).status_code,200)
+                denied=self.comment('Next fictional comment '+str(push_enabled),uuid.uuid4())
+                self.assertEqual(denied.status_code,429,denied.text)
+                self.assertEqual(len(self.events('comment')),1)
+        for first,second in ((self.uid,self.oid),(self.oid,self.uid)):
+            with db.connect() as c:
+                c.execute('DELETE FROM blocks WHERE user_id=ANY(%s)',([self.uid,self.oid],))
+                c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(first,second))
+            for full in (False,True):
+                with db.connect() as c:c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                if full:self.seed('comment',10,age=120,recipient=self.oid)
+                missing=self.comment('Hidden activity comment',uuid.uuid4())
+                self.assertEqual(missing.status_code,404,'invisible target stays missing before budget admission')
+                self.assertNotIn('Retry-After',missing.headers)
+                self.assertEqual(len(self.events('comment')),10 if full else 0)
+
+    def test_invitation_admission_uses_explicit_target_not_notification_delivery(self):
+        gid=self.group();path=f'/api/groups/{gid}/friend-invites'
+        with db.connect() as c:
+            login=c.execute('SELECT login FROM users WHERE id=%s',(self.tid,)).fetchone()['login']
+            c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(self.uid,self.tid))
+        for push_enabled in (True,False):
+            with self.subTest(push_enabled=push_enabled):
+                with db.connect() as c:
+                    c.execute('DELETE FROM group_friend_invites WHERE group_id=%s',(gid,))
+                    c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                    c.execute('UPDATE profile SET notify=%s WHERE user_id=%s',(Jsonb({'friends':push_enabled}),self.tid))
+                self.seed('invite',2,age=120,recipient=self.tid)
+                sent=self.actor.post(path,json={'username':login})
+                self.assertEqual(sent.status_code,200,sent.text)
+                self.assertEqual(self.actor.post(path,json={'username':login}).status_code,200,'pending retry is unchanged')
+                self.assertEqual(len(self.events('invite')),3)
+                with db.connect() as c:c.execute('DELETE FROM group_friend_invites WHERE group_id=%s',(gid,))
+                denied=self.actor.post(path,json={'username':login})
+                self.assertEqual(denied.status_code,429,denied.text)
+                self.assertEqual(len(self.events('invite')),3)
+        for pair in ((self.uid,self.tid),(self.tid,self.uid),(self.oid,self.tid),(self.tid,self.oid)):
+            with db.connect() as c:
+                c.execute('DELETE FROM blocks WHERE user_id=ANY(%s)',(self.ids,))
+                c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',pair)
+            for full in (False,True):
+                with db.connect() as c:c.execute('DELETE FROM member_action_events WHERE user_id=%s',(self.uid,))
+                if full:self.seed('invite',3,age=120,recipient=self.tid)
+                missing=self.actor.post(path,json={'username':login})
+                self.assertEqual(missing.status_code,404,'unavailable invitation target stays missing before budget admission')
+                self.assertNotIn('Retry-After',missing.headers)
+                self.assertEqual(len(self.events('invite')),3 if full else 0)
+
     def test_pair_comment_cap_crosses_targets_and_group_updates(self):
         self.seed('comment', 9, age=120, recipient=self.oid)
         with db.connect() as c:
@@ -405,7 +487,7 @@ class MemberLimits(unittest.TestCase):
             c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.tid,self.uid))
         sent=self.actor.post(f'/api/groups/{gid}/updates',json={'text':'Fictional meeting point'})
         self.assertEqual(sent.status_code,200,sent.text)
-        self.assertEqual([r['recipient_id'] for r in self.events('comment_delivery')],[self.oid])
+        self.assertCountEqual([r['recipient_id'] for r in self.events('comment_delivery')],[self.oid,self.tid],'budgeting is independent of private blocks')
         with tempfile.TemporaryDirectory() as folder:
             archive=Path(folder)/'private-counters.zip';api_mydata._write_export(self.uid,archive)
             with zipfile.ZipFile(archive) as z:

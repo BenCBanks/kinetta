@@ -816,7 +816,9 @@ def create_group_update(group_id: str, body: GroupUpdateCreate, user=Depends(cur
             prior=next((x for x in _group_updates(c,group,user['id']) if str(x['id'])==counted['result']),None)
             if prior: return prior
             raise HTTPException(409,'This update was already posted or removed. Refresh the group.')
-        recipients=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",(group['id'],)).fetchall() if not _blocked(c,user['id'],r['user_id'])]
+        # Admission uses the whole active audience, independently of private
+        # block/mute choices. Only notification delivery filters those choices.
+        recipients=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",(group['id'],)).fetchall()]
         member_limits.comment_recipients(c,user['id'],recipients)
         community_filter.public(c, user['id'], ('group comment', body.text))
         from .signup import social_action
