@@ -3,7 +3,10 @@
 const {chromium,webkit}=require('playwright'),fs=require('node:fs'),assert=require('node:assert/strict');
 const app=fs.readFileSync('app/static/app.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8');
 const part=(text,a,b)=>text.slice(text.indexOf(a),text.indexOf(b));
-const handlers=part(app,'async function apiRequest(','function aiCan(')+
+// Include the real eager sign-out cleanup used by showLogin; the deferred social bundle is absent.
+const handlers=part(app,'function clearCommentDrafts()','let pendingDishEntry')+
+ part(app,'const newId =','// change a day of the food log')+
+ part(app,'async function apiRequest(','function aiCan(')+
  part(app,'function accountSupportError(','// The phone\'s own time zone')+
  part(app,'function phoneDefaults(','// Email-first')+
  part(app,'const namePrivacy =','function showSignupPending(')+
