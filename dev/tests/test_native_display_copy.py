@@ -81,7 +81,12 @@ for(const stage of ['kit-chart','kit-history','kit-memory','notifications','food
   assert(preview.result.parts[0].entries.every(e=>e.ref.estimated_portion===false));
   assert(day.entries.every(e=>e.ref.estimated_portion),'review-specific portion knowledge must not alter the logged Nutrition day');
  }
- if(stage==='notifications')assert.equal(r['/api/notifications'].items.length,4);
+ if(stage==='notifications'){
+  assert.equal(r['/api/notifications'].items.length,4);
+  const request=r['/api/notifications'].items.find(row=>row.kind==='friend_request');
+  assert.equal(request.text,'Taylor wants to be friends','non-friend request matches the server first-name privacy rule');
+  assert.equal(request.who.name,'Taylor');
+ }
 } """
         result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/appstore.cjs')],cwd=ROOT,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)

@@ -32,7 +32,7 @@ module.exports=(r,stage,today)=>{
   r['/api/notifications']={items:[
    {id:1,kind:'cheer',text:'Jordan Example reacted 🔥 to your Morning park run',compact_text:'Jordan Example reacted 🔥 to Morning park run',reaction_kind:'fire',activity:'Morning park run',link:'/activity/1',who:who('jordan','Jordan Example'),read:false,created:today+'T11:30:00Z'},
    {id:2,kind:'comment',text:'Casey Example commented: “Great morning for a run!”',link:'/activity/1',who:who('casey','Casey Example'),read:false,created:today+'T10:30:00Z'},
-   {id:3,kind:'friend_request',text:'Taylor Example wants to be friends',link:'/me/friends',who:who('taylor','Taylor Example'),read:false,created:today+'T09:30:00Z'},
+   {id:3,kind:'friend_request',text:'Taylor wants to be friends',link:'/me/friends',who:who('taylor','Taylor'),read:false,created:today+'T09:30:00Z'},
    {id:4,kind:'friend_accepted',text:'You and Jordan Example are now friends',link:'/activity',who:who('jordan','Jordan Example'),read:true,created:'2026-11-01T09:30:00Z'}],unread:3,push:{}};
   r['POST /api/notifications/read']={ok:true};
  }
