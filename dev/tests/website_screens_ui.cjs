@@ -22,10 +22,10 @@ async function assertKitCapture(p,theme){
  assert.equal(await section.locator('h2').innerText(),'Meet Kit, the coach that knows your training and your food.');
  assert.deepEqual(await section.locator('.home-kit-questions li').allInnerTexts(),['Review my week','What should I focus on next?','Suggest a meal from my saved foods.']);
  assert.equal(await section.locator('.home-kit-small-print').innerText(),'For adults 18+. Kit is not medical advice.');
- assert.doesNotMatch(await section.innerText(),/saved chats|memory|charts|private by default|free during beta/i);
- assert.equal(await section.locator('[data-demo],svg,button').count(),0,'Kit uses an app capture with examples, without invented controls or charts');
+ assert.doesNotMatch(await section.innerText(),/saved chats|memory|private by default|free during beta/i);
+ assert.equal(await section.locator('[data-demo],svg,button').count(),0,'Kit uses an app capture with examples, without invented website controls');
  const asset=await image.evaluate(i=>({src:i.currentSrc,w:i.naturalWidth,h:i.naturalHeight,fit:getComputedStyle(i).objectFit}));
- assert(asset.src.includes(`${theme}-kit-insight-progress`),'Kit uses the themed current-app capture');
+ assert(asset.src.includes(`${theme}-kit-chart-progress`),'Kit uses the themed current-app capture');
  assert([393,786].includes(asset.w)&&Math.abs(asset.w/asset.h-393/852)<.003&&asset.fit==='contain','Kit preserves the whole app screen');
  return frame;
 }
@@ -89,7 +89,7 @@ assertSafeAreaReport(path.join(root,'assets/tour/safe-area-audit.json'),['light-
      assert(parseFloat(challengeSpacing.challengeTop)>=56&&parseFloat(challengeSpacing.challengeTop)<=64,`Challenges has 56–64px top spacing: ${JSON.stringify(challengeSpacing)}`);
      assert(parseFloat(challengeSpacing.foodTop)>=48&&parseFloat(challengeSpacing.foodTop)<=64,`Food follows Challenges with 48–64px spacing: ${JSON.stringify(challengeSpacing)}`);
      assert.equal(await p.locator('.home-hero .phone-frame').count(),1);
-     assert.equal(await p.locator('[data-week-chart]').count(),0,'Home does not advertise unshipped Kit charts');
+     assert.equal(await p.locator('[data-week-chart]').count(),0,'Home uses the app capture instead of a website-drawn chart');
      assert.equal(await p.locator('.home-hero .btn').count(),1,'Home has one primary hero action');
      assert.equal(await p.locator('.home-beta-link').count(),1,'The beta link is secondary text');
      assert.equal(await p.locator('.home-jumps').count(),0,'The hero has no feature-chip row');

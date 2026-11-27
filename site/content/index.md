@@ -75,7 +75,7 @@ Suggest a meal from my saved foods.
 
 ## home-kit-example-caption
 
-Tested Kit answer · fictional data
+Kit chart · fictional data
 
 ## home-kit-small-print
 

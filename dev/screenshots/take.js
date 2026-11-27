@@ -12,6 +12,7 @@ const OWNER_LOGIN = process.env.KINETTA_SCREENSHOT_FIXTURE === '1' ? 'nia' : 'al
 // name, address, and optionally a card title to scroll to, or something to do first
 const SHOTS = require('./scenes.json');
 const KIT_COACH_EXAMPLE = require('./kit-coach-answer.json');
+const KIT_CHART_EXAMPLE = require('./kit-chart-answer.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const MAP_SHOTS = new Set(['home-feed','activity-detail','feed','activity','activity-splits','route']);
@@ -283,7 +284,14 @@ async function say(page, text) {
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
       const kitInsightRoute = /\/api\/coach\/conversation(?:\/.*)?(?:\?.*)?$/;
-      const kitInsightFixture = name === 'kit-insight-progress';
+      const kitInsightFixture = ['kit-insight-progress','kit-chart-progress'].includes(name);
+      const kitExample = name === 'kit-chart-progress' ? KIT_CHART_EXAMPLE : KIT_COACH_EXAMPLE;
+      const chartMeRoute = '**/api/me';
+      if (name === 'kit-chart-progress') await page.route(chartMeRoute, async route => {
+        const response = await route.fetch(), me = await response.json();
+        return route.fulfill({response, json: {...me, ai_ok:true, coach:true, kit_chat:true, ai_paused:false,
+          ai_access:{...me.ai_access, coach:{entitled:true, available:true, reason:null}}}});
+      });
       if (kitInsightFixture) await page.route(kitInsightRoute, async route => {
         const request = route.request(), url = new URL(request.url());
         // Fixture only: exercise today's renderer without history or any provider call.
@@ -297,8 +305,8 @@ async function say(page, text) {
           const visit_id = url.searchParams.get('visit_id');
           return route.fulfill({json: {generation: '00000000-0000-4000-8000-000000001049', visit_id, before: null, ready: true,
             messages: [{id: 1, client_id: '1049-progress-insight', generation: '00000000-0000-4000-8000-000000001049', visit_id,
-              question: KIT_COACH_EXAMPLE.question, context: {screen: 'progress'}, state: 'answered', error: null,
-              answer: KIT_COACH_EXAMPLE.answer, created: '2026-11-13T14:00:00Z'}]}});
+              question: kitExample.question, context: {screen: 'progress'}, state: 'answered', error: null,
+              answer: kitExample.answer, created: '2026-11-13T14:00:00Z'}]}});
         }
         if (request.method() === 'POST' && url.pathname.endsWith('/end')) return route.fulfill({json: {ok: true}});
         return route.fulfill({status: 404, json: {detail: 'Unneeded screenshot fixture request.'}});
@@ -529,10 +537,17 @@ async function say(page, text) {
         await page.getByText('Vegetables and rice', {exact: true}).waitFor({state: 'visible'});
       }
       if (kitInsightFixture) {
-        await page.locator('#kit-messages .kit-answer').filter({hasText: KIT_COACH_EXAMPLE.answer.answer_blocks[0].text}).waitFor({state: 'visible'});
+        await page.locator('#kit-messages .kit-answer').filter({hasText: kitExample.answer.answer_blocks[0].text}).waitFor({state: 'visible'});
         const actual = await page.locator('.kit-answer-blocks > p,.kit-answer-blocks > ul').allInnerTexts();
-        const expected = KIT_COACH_EXAMPLE.answer.answer_blocks.map(block => block.kind === 'paragraph' ? block.text : block.items.join('\n'));
+        const expected = kitExample.answer.answer_blocks.map(block => block.kind === 'paragraph' ? block.text : block.items.join('\n'));
         if (JSON.stringify(actual) !== JSON.stringify(expected)) throw Error('The tested Kit answer must render verbatim.');
+        if (name === 'kit-chart-progress') {
+          if (await page.locator('.kit-chart circle').count() !== 3 || !/L/.test(await page.locator('.kit-chart-line').getAttribute('d') || '')) throw Error('Website chart requires the real joined-line card with three points.');
+          if (await page.locator('.kit-chart rect').count()) throw Error('Average climb must be a line, not bars.');
+          const ticks = await page.locator('.kit-chart-tick').allTextContents();
+          if (JSON.stringify(ticks) !== JSON.stringify(['200 ft','150 ft','100 ft'])) throw Error('Website chart requires the released round axis labels.');
+          if (await page.getByText('Kit is unavailable. Your saved answers and draft are kept.', {exact:true}).count()) throw Error('Chart capture requires the ready fictional Kit state.');
+        }
         if ((await page.locator('#kit-status').innerText()).trim()) throw Error('Kit insight screenshot should not show a stale-chat warning.');
       }
       if(name==='activity'||name==='activity-detail'){
@@ -546,7 +561,7 @@ async function say(page, text) {
         await page.locator(`#activity-pane-${opt.tab}:visible`).waitFor();
       }
       await page.evaluate((scene) => {
-        if (scene === 'kit-insight-progress' && App.scroll) App.scroll[location.pathname + location.search] = 0;
+        if (['kit-insight-progress','kit-chart-progress'].includes(scene) && App.scroll) App.scroll[location.pathname + location.search] = 0;
         window.scrollTo({top: 0, behavior: 'instant'});
       }, name);
       await page.evaluate(() => document.fonts.ready);
@@ -729,6 +744,7 @@ async function say(page, text) {
         delete el.dataset.captureSafeHidden;
       }));
       if (kitInsightFixture) await page.unroute(kitInsightRoute);
+      if (name === 'kit-chart-progress') await page.unroute(chartMeRoute);
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
       // the other screenshots start from the same demo data.

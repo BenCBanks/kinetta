@@ -36,6 +36,10 @@
     "/me/kit?from=progress"
   ],
   [
+    "kit-chart-progress",
+    "/me/kit?from=progress"
+  ],
+  [
     "achievements",
     "/me/achievements"
   ],
@@ -153,7 +157,7 @@
     "recipecoach",
     "DISH",
     {
-      "to": "Kit’s take"
+      "to": "Kit\u2019s take"
     }
   ],
   [
