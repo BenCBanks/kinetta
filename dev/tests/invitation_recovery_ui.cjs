@@ -22,7 +22,7 @@ module.exports=async(browser,base,out='')=>{
   if(mode==='bridge'){const {token}=await login.json();await c.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});}
   const p=await c.newPage();p.setDefaultTimeout(8000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
   let spec,armed=false,member=false,declined=false,unreadable=false,fault='',writes=0;
-  await c.route('**/*',async r=>{if(await require('./privacy_ticket_fixture.cjs')(r))return;
+  await c.route('**/*',async r=>{
    const req=r.request(),u=new URL(req.url()),method=req.method();if(u.origin!==base)return r.abort();
    if(u.pathname==='/_test/public-invite')return r.fulfill({contentType:'text/html',body:'<button id="challenge-public-join" data-code="'+code+'" data-account="fictional-owner">Join challenge</button><p id="challenge-public-status"></p><script src="/static/challenge-public.js"></script>'});
    if(armed&&spec.name==='public'&&u.pathname.startsWith('/api/challenges/'))assert.equal(req.headers()['x-kinetta-account'],'fictional-owner');
@@ -45,10 +45,10 @@ module.exports=async(browser,base,out='')=>{
    await p.goto(base+spec.route);if(spec.prepare)await spec.prepare(p);await p.locator(spec.button).first().waitFor();
    if(spec.name==='group'||spec.name==='addressed')await p.locator('[data-group-join-share]').uncheck();
    armed=true;unreadable=fault.includes('offline')||fault==='lost-503';await p.locator(spec.button).first().click();
-   if(unreadable&&spec.name==='public'){await p.getByRole('button',{name:'Retry',exact:true}).waitFor();unreadable=false;await p.locator(spec.button).click();}
-   else if(unreadable){const note=p.locator('[data-sharing-state=unknown]');await note.waitFor();assert(!await p.locator(spec.button).first().isVisible(),'uncertain action concealed');
+   if(spec.name==='public'){await p.getByRole('button',{name:'Retry',exact:true}).waitFor();unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await p.locator(spec.button).click();}
+   else if(spec.name!=='public'){const note=p.locator('[data-sharing-state=unknown]');await note.waitFor();assert(!await p.locator(spec.button).first().isVisible(),'uncertain action concealed');
     if(out&&fault==='lost-offline'&&mode==='web'&&['friend','group','challenge'].includes(spec.name)){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'invite-'+spec.name+'-'+theme+'-unknown.png')});}
-    unreadable=false;await note.getByRole('button',{name:'Retry',exact:true}).click();
+    unreadable=false;await require('./privacy_recovery_fixture.cjs')(p);await note.getByRole('button',{name:'Retry',exact:true}).click();
    }
    const completed=fault.startsWith('lost');
    if(completed&&spec.done)await p.waitForURL(base+spec.done);
