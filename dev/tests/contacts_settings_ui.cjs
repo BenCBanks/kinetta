@@ -12,6 +12,7 @@ async function runTheme(browser,theme){
   let state={phone_e164:null,email_ready:true,find_by_email:true,find_by_phone:true},shareAchievements=false,shareWrites=[],sharingState={default:'everyone',findable:true,trim_m:400,trims:[0,200,400,800]},blocked=[{login:'zz_test_blocked',name:'Riley Sample',photo:null}];
   const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:theme,isMobile:true,hasTouch:true,serviceWorkers:'block',timezoneId:'UTC'});
   await context.route('**/*',async route=>{
+    if(await require('./privacy_ticket_fixture.cjs')(route))return;
     const request=route.request(),url=new URL(request.url());
     if(url.origin!==base)return route.abort();
     if(url.pathname==='/api/sharing'){
@@ -148,6 +149,7 @@ async function uncertainSaves(browser,mode){
  if(mode==='bridge')await context.addInitScript(({base,token})=>{const values={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:values[key]??null}),set:async({key,value})=>values[key]=value,remove:async({key})=>delete values[key]}}};},{base,token});
  const headers=mode==='bridge'?{Authorization:'Bearer '+token}:{};
  let saved=await(await context.request.get(base+'/api/sharing',{headers})).json(),fault=null,unreadable=false,writes=0;
+ await context.route('**/api/privacy-save*',route=>require('./privacy_ticket_fixture.cjs')(route));
  await context.route('**/api/sharing',route=>{
   if(route.request().method()==='GET')return unreadable?route.abort():route.fulfill({json:saved});
   writes++;if(fault==='lost'){saved={...saved,...route.request().postDataJSON()};return route.abort();}
@@ -181,7 +183,7 @@ async function uncertainSaves(browser,mode){
 
 (async()=>{
   const browser=await chromium.launch();
-  try{for(const theme of ['light','dark'])await runTheme(browser,theme);for(const mode of ['web','bridge'])await uncertainSaves(browser,mode);}
+  try{for(const theme of ['light','dark'])await runTheme(browser,theme);for(const mode of ['web','bridge'])await uncertainSaves(browser,mode);await require('./privacy_ordering_ui.cjs')(browser,base,out);}
   finally{await browser.close();}
   console.log('Sharing Settings: achievement switch API sync, contact choices, phone save, 330/390px light/dark, all writes intercepted PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

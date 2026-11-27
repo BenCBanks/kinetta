@@ -170,6 +170,7 @@ node dev/tests/test_reaction_picker.js
 node --check dev/tests/inline_reactions_ui.cjs
 node --check dev/tests/inline_reactions_actions.cjs
 node dev/tests/test_social_data.js
+node dev/tests/test_group_privacy.js
 node dev/tests/test_semantic_colours.js
 node dev/tests/test_card_taps.js
 node dev/tests/test_ui_state.js
@@ -333,6 +334,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_account_email.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_signup.py
 docker compose -p "$P" exec -T app python - < dev/tests/signup_uniqueness_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_friend_links.py
+docker compose -p "$P" exec -T app python - < dev/tests/privacy_save_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_password_hashing.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_request_bodies.py

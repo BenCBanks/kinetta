@@ -1522,9 +1522,9 @@ function groupChallengeRow(group,q){
   return `<a class="row-link group-challenge-row" href="/groups/${encodeURIComponent(group.id)}/challenges/${encodeURIComponent(q.id)}"><span class="grow"><b>${esc(q.title)}</b><small>${q.ended_at?'Ended · ':''}${esc(groupAmount(value,q.unit))} of ${esc(groupAmount(q.target,q.unit))}</small><progress max="${max}" value="${Math.min(max,Math.max(0,Number(value)||0))}" aria-label="${esc(q.title)} progress"></progress></span>${svg('chev')}</a>`;
 }
 function groupPage(el,group,unused='members',keepExpanded=false){
-  let expanded=keepExpanded;
+  const owner=readOwner();let expanded=keepExpanded;
   const base='/api/groups/'+encodeURIComponent(group.id);
-  const reload=async()=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected)groupPage(el,{...fresh,challenges},'members',expanded);}catch(error){if(el.isConnected)toast(error.message);}};
+  const reload=async()=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected&&owner===readOwner())groupPage(el,{...fresh,challenges},'members',expanded);else throw Error('Group changed');}catch(error){if(el.isConnected&&owner===readOwner())toast(error.message);throw error;}};
   const draw=()=>{
     const people={...group,sharing_level:'total_shared',members:group.members.map(m=>({...m,value:undefined,sharing_total_only:false}))};
     el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<button type="button" class="group-header-invite" id="group-header-invite">${svg('people')}<span>Invite</span></button><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
@@ -1567,7 +1567,7 @@ function groupChallengePage(el,group,q){
   el.innerHTML=`<div class="top">${backBtn('Group')}<span class="grow group-challenge-parent">${esc(group.title)}</span>${q.can_manage&&!q.ended_at?'<button type="button" class="icon-btn" data-challenge-options aria-label="Challenge options">'+svg('more')+'</button>':''}</div><header class="group-title"><h1>${esc(q.title)}</h1><p class="group-title-summary">${esc(GROUP_GOALS[q.metric])} · ${q.ended_at?'Ended':q.end_date?esc(groupDate(q.end_date,q.time_zone)):'No end date'}</p></header>${q.training_for?`<p class="group-training-for">Training for ${esc(q.training_for)}</p>`:''}${q.note?`<p class="group-note">${esc(q.note)}</p>`:''}${groupGoal(goal)}${q.legacy_goal&&group.event_state==='today'?'<section class="group-event-day card">Today’s the day</section>':q.legacy_goal&&group.event_state==='complete'?groupRecapCard(group):''}<section class="group-members-section"><h2>Members</h2><div class="card group-roster">${groupRoster({...roster,goal_unit:q.unit},true)}</div></section><label class="group-join-share"><span>Share my total</span><input type="checkbox" role="switch" data-challenge-sharing${q.share_total?' checked':''}></label>`;
   wireBack(el,new URLSearchParams(location.search).get('from')==='challenges'?'/me/challenges':'/groups/'+group.id);
   const recap=$('[data-group-recap-share]',el);if(recap)recap.onclick=()=>openGroupRecapShare(el,group,recap);
-  $('[data-challenge-sharing]',el).closest('label').insertAdjacentHTML('afterend',App.me?.share_achievements?'':'<p class="small muted">Totals are hidden while activity sharing is off in Settings.</p>');
+  $('[data-challenge-sharing]',el).closest('label').insertAdjacentHTML('afterend',App.me?.share_achievements===false?'<p class="small muted">Totals are hidden while activity sharing is off in Settings.</p>':App.me?.share_achievements==null?'<p class="small muted">Activity sharing not confirmed.</p>':'');
   const confirmation=SocialData.confirmSetting(el,{path,mask:()=>[$('[data-challenge-sharing]',el).closest('label'),$('.group-roster',el),$('[data-challenge-sharing]',el).closest('label').nextElementSibling],paint:fresh=>{
     if(typeof fresh?.share_total!=='boolean')throw Error('Sharing unavailable');invalidate('/api/groups');groupChallengePage(el,group,fresh);
   }});
@@ -1580,7 +1580,7 @@ function groupChallengePage(el,group,q){
 function groupActionSheet(title,html,handler){sheet(title,html,handler);}
 function groupInvite(group){groupInviteSheet(group);}
 function groupMenu(group,reload,onLeave){
-  const opts=[];
+  const owner=readOwner(),opts=[];
   if(group.is_organizer&&!group.closed)opts.push(group.joining_closed?`<button type="button" class="row-link" data-gact="reopen"><span>Make a new invite</span>${svg('chev')}</button>`:`<button type="button" class="row-link" data-gact="stop"><span>Stop new members</span>${svg('chev')}</button>`);
   if(group.is_organizer&&group.member_count>1)opts.push(`<button type="button" class="row-link" data-gact="transfer"><span>Transfer organizer</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="remove"><span>Remove a member</span>${svg('chev')}</button>`);
   if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link danger" data-gact="close"><span>Close group</span>${svg('chev')}</button>`);
@@ -1590,7 +1590,7 @@ function groupMenu(group,reload,onLeave){
   opts.push(`<button type="button" class="row-link" data-gact="leave"><span>Leave group</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="report"><span>Report group</span>${svg('chev')}</button>`);
   groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div>`,(body,close)=>{
     const run=async(path,method='POST',payload={})=>{try{await api(path,json(method,payload));close();toast('Group updated');reload();}catch(error){toast(error.message);}};
-    $$('[data-gact]',body).forEach(button=>button.onclick=()=>{const action=button.dataset.gact;close();
+    $$('[data-gact]',body).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;const action=button.dataset.gact;close();
       if(action==='invite'||action==='reopen')groupInvite(group);
       else if(action==='event-date')groupEventDateSheet(group,reload);
       else if(action==='stop')run('/api/groups/'+encodeURIComponent(group.id)+'/stop-joining');
@@ -1599,9 +1599,12 @@ function groupMenu(group,reload,onLeave){
       else if(action==='transfer'||action==='remove')groupMemberAction(group,action==='transfer'?'Transfer organizer':'Remove a member',action==='transfer'?'transfer':'remove',reload);
       else if(action==='notifications')run('/api/groups/'+encodeURIComponent(group.id)+'/notifications','POST',{muted:!group.notifications_muted});
       else if(action==='monday-recap')api('/api/groups/'+encodeURIComponent(group.id)+'/monday-recap',json('POST',{enabled:!group.monday_recap_enabled})).then(()=>{toast(group.monday_recap_enabled?'Monday recap off':'Monday recap on');reload();}).catch(error=>toast(error.message));
-      else if(action==='recap-consent'){
+      else if(action==='sharing'||action==='recap-consent'){
         const root=document.querySelector('.group-page'),path='/api/groups/'+encodeURIComponent(group.id);
-        SocialData.confirmSetting(root,{path,mask:()=>[...root.children],paint:fresh=>{if(typeof fresh?.recap_consent!=='boolean')throw Error('Sharing unavailable');Object.assign(group,fresh);reload();}}).save(path+'/recap-consent',json('POST',{consent:!group.recap_consent}));
+        SocialData.confirmSetting(root,{path,mask:()=>[...root.children],paint:async fresh=>{
+          if(typeof fresh?.recap_consent!=='boolean'||!['just_in','total_shared'].includes(fresh?.sharing_level))throw Error('Sharing unavailable');
+          Object.assign(group,fresh);await reload();
+        }}).save(path+(action==='sharing'?'/sharing':'/recap-consent'),json('POST',action==='sharing'?{level:group.sharing_level==='total_shared'?'just_in':'total_shared'}:{consent:!group.recap_consent}));
       }
       else if(action==='report')groupReport(group);
     });
@@ -1703,7 +1706,8 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   $('#sh-trim-open',box).onclick=()=>go('/me/sharing/routes');
   const confirmation=SocialData.confirmSetting(box,{
     read:async()=>{const [sharing,contacts]=await Promise.all(['/api/sharing','/api/contacts/settings'].map(path=>apiRequest(path,{cache:'no-store'})));return{sharing,contacts};},
-    uncertain:()=>{App.me.share_default=null;keep('/api/me',App.me);invalidate('/api/');MeCard.clearPreviewCache?.();},
+    uncertain:()=>{App.me.share_default=null;App.me.share_achievements=null;keep('/api/me',App.me);invalidate('/api/');MeCard.clearPreviewCache?.();},
+    cache:({sharing})=>{if(!Object.hasOwn(VIS,sharing?.default)||typeof sharing.share_achievements!=='boolean')throw Error('Sharing unavailable');App.me.share_default=sharing.default;App.me.share_achievements=sharing.share_achievements;keep('/api/me',App.me);},
     paint:({sharing,contacts:fresh})=>{
       if(!Object.hasOwn(VIS,sharing?.default)||typeof sharing.share_achievements!=='boolean'||typeof sharing.findable!=='boolean'||Object.keys(DETAIL_NAMES).some(k=>typeof sharing.details?.[k]!=='boolean')||!Number.isFinite(sharing.trim_m)||typeof fresh?.find_by_email!=='boolean'||typeof fresh.find_by_phone!=='boolean')throw Error('Sharing unavailable');
       Object.assign(s,sharing);Object.assign(contacts,fresh);

@@ -19,7 +19,16 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  let disposed=0;const stop=data.watch(15,()=>{disposed++;});stop();data.remember(15,state(1));assert.equal(disposed,0,'a disposed view no longer receives social updates');
  data.remember(9,{reactions:{cheer:1}});assert.equal(data.peek(9),null,'summary counts are not a complete comments cache');
  // Failed writes may already be saved; never restore an optimistic/previous privacy claim.
- class Node {constructor(){this.children=[];this.hidden=false;this.dataset={};this.isConnected=true;}setAttribute(){}append(...nodes){this.children.push(...nodes);}prepend(node){this.children.unshift(node);}}
+ class Node {constructor(){this.children=[];this.hidden=false;this.dataset={};this.isConnected=true;}setAttribute(){}append(...nodes){this.children.push(...nodes);for(const node of nodes)node.parentElement=this;}prepend(node){this.children=this.children.filter(n=>n!==node);this.children.unshift(node);node.parentElement=this;}}
+ // Default ticket protocol stand-in; cases below still exercise the real coordinator.
+ let providerRead,protocolRead=async()=>({settled:true}),ticketNumber=0,protocolReserve=async()=>({ticket:'fictional-ticket-'+(++ticketNumber)});
+ Object.defineProperty(ctx,'apiRequest',{configurable:true,set:fn=>providerRead=fn,get:()=>async(path,options)=>{
+  if(path==='/api/privacy-save')return protocolReserve();
+  if(path.startsWith('/api/privacy-save?'))return protocolRead(path);
+  return providerRead(path,options);
+ }});
+ ctx.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
+ ctx.json=(method,body)=>({method,body:JSON.stringify(body)});
  Object.assign(ctx,{document:{createElement:()=>new Node()},AbortController,setTimeout,clearTimeout});
  for(const fault of ['lost reply','offline','503']){
   const root=new Node(),field=new Node(),alreadyHidden=new Node();alreadyHidden.hidden=true;root.append(field,alreadyHidden);
@@ -39,6 +48,37 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  const confirmation=data.confirmSetting(root,{path:'/saved',paint:()=>painted=true});
  const saving=confirmation.save('/save',{method:'PUT'});await new Promise(setImmediate);owner='another-fictional-session';release({visibility:'everyone'});await saving;
  assert.equal(painted,false,'late sharing reads never reach another account');assert(field.hidden);
+ // An aborted HTTP wait says nothing about whether the server endpoint is still running.
+ owner='deadline-session';let outstanding=true,serverValue='me',sent=0;
+ protocolRead=async()=>{if(outstanding)throw Error('pending server transaction');return {settled:true};};
+ ctx.api=async()=>{sent++;throw Error('HTTP timeout');};ctx.apiRequest=async()=>({visibility:serverValue});
+ const oldRoot=new Node();oldRoot.append(new Node());
+ const timed=data.confirmSetting(oldRoot,{path:'/saved',paint:r=>serverValue=r.visibility});
+ await timed.save('/save',{method:'PUT'});assert(!timed.known&&oldRoot.children[1].hidden);
+ oldRoot.isConnected=false;const newRoot=new Node(),newField=new Node();newRoot.append(newField);let shownValue=null;
+ const reopened=data.confirmSetting(newRoot,{path:'/saved',paint:r=>shownValue=r.visibility});await new Promise(setImmediate);
+ assert(newField.hidden&&!reopened.known,'navigation cannot instantiate an independent private claim');
+ await newRoot.children[0].children[1].onclick();assert.equal(sent,1,'Retry while an old write is pending is GET-only');
+ assert.equal(shownValue,null,'old private snapshot is never painted while public can still commit');
+ serverValue='everyone';outstanding=false;await newRoot.children[0].children[1].onclick();
+ assert.equal(shownValue,'everyone');assert(reopened.known&&!newField.hidden);assert.equal(sent,1);
+ // Late reservations/reads from an earlier helper must not replace the newer account fence.
+ let releaseReservation;protocolReserve=()=>new Promise(resolve=>releaseReservation=resolve);
+ const earlyRoot=new Node();earlyRoot.append(new Node());let stalePaint=false;
+ const early=data.confirmSetting(earlyRoot,{path:'/saved',paint:()=>stalePaint=true});
+ const firstWrite=early.save('/save',{method:'PUT'});await new Promise(setImmediate);
+ protocolReserve=async()=>({ticket:'latest-ticket'});ctx.api=async()=>{sent++;};
+ const laterRoot=new Node();laterRoot.append(new Node());let latestPaint=false;
+ const later=data.confirmSetting(laterRoot,{path:'/saved',paint:()=>latestPaint=true});
+ await new Promise(setImmediate);await later.save('/save',{method:'PUT'});
+ releaseReservation({ticket:'earlier-ticket'});await firstWrite;
+ assert(latestPaint);assert(!stalePaint,'old helper cannot paint after a newer operation');assert.equal(sent,2,'late reservation never dispatches its obsolete write');
+ owner='storage-unavailable-session';const blockedRoot=new Node();blockedRoot.append(new Node());let blockedWrites=0;
+ ctx.localStorage.setItem=()=>{throw Error('Storage blocked');};ctx.api=async()=>blockedWrites++;
+ const blocked=data.confirmSetting(blockedRoot,{path:'/saved',paint:()=>{}});await blocked.save('/save',{method:'PUT'});
+ assert.equal(blockedWrites,0,'a ticket must persist before dispatching a write that could outlive reload');
+ ctx.localStorage.setItem=()=>{};
+ console.log('Outstanding write fences: timeout + navigation + GET-only Retry + stale reservation ordering PASS');
  console.log('Uncertain privacy: committed lost reply/offline/503, concealed unreadable values, GET-only retry and account isolation PASS');
  console.log('Social reads: prefetch/in-flight dedupe, mutation ordering, retained drafts/failures, permission clearing, same-login session isolation and refresh epochs PASS');
 })().catch(e=>{console.error(e);process.exit(1)});

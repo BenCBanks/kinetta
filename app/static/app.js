@@ -417,6 +417,7 @@ function bootstrapMe() {
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
+  if(method==='GET'&&typeof SocialData!=='undefined')await SocialData.settled();
   if (method === 'GET' && !opts.signal) {
     const key = routeReadKey(readOwner(), path), early = earlyRouteReads.get(key);
     if (early) {
@@ -430,11 +431,12 @@ async function api(path, opts = {}) {
   return apiRequest(path, opts);
 }
 async function apiRequest(path, opts = {}) {
-  const owner = readOwner();
+  const owner = readOwner(),privacyFence=typeof SocialData==='undefined'?null:SocialData.privacyFence();
+  if((opts.method||'GET').toUpperCase()==='GET'&&!path.startsWith('/api/privacy-save')&&typeof SocialData!=='undefined'){await SocialData.settled();if(owner!==readOwner())throw Object.assign(Error('The account changed.'),{stale:true});}
   const mePath=path==='/api/me',requestPath=mePath?'/api/me?refresh=1':path;
   let r,body=null;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
-  if (App.me && !mePath && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
+  if (App.me && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
   const timeout=!opts.signal&&(!opts.method||opts.method.toUpperCase()==='GET')?new AbortController():null;
   const timer=timeout?setTimeout(()=>timeout.abort(),20000):null;
@@ -443,6 +445,7 @@ async function apiRequest(path, opts = {}) {
   }
   catch (e) { throw Object.assign(new Error(timeout?.signal.aborted ? 'This is taking too long. Try refreshing again.' : "Can't reach Kinetta - check your connection."), timeout?.signal.aborted ? {status:504} : {offline:true}); }
   finally { if(timer)clearTimeout(timer); }
+  if((opts.method||'GET').toUpperCase()==='GET'&&!path.startsWith('/api/privacy-save')&&typeof SocialData!=='undefined'&&privacyFence!==SocialData.privacyFence())throw Object.assign(Error('Saved setting changed. Retry.'),{stale:true});
   if (owner !== readOwner()) throw Object.assign(new Error('The account changed while this request was running. Please try again.'), {stale: true});
   if (!r.ok) {
     const d = body && body.detail;
@@ -1627,6 +1630,7 @@ function render(options) {
   });
 }
 function loadErrorCopy(e) {
+  if(e?.code==='privacy_save_pending')return 'Sharing not confirmed. Try again to check the saved setting.';
   if (e && e.status === 403) return "This item isn't available to you.";
   if (e && e.status === 404) return 'This item may have been removed or is not shared with you.';
   if (e && e.status === 429) return 'Too many requests. Wait a moment, then try again.';
