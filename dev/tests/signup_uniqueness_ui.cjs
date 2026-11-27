@@ -192,6 +192,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
   console.log('Real email-free invite → create → welcome → Done → Me, private audience and Kit off PASS');
  }finally{if(created){const me=await (await c.request.get(base+'/api/me')).json();assert.equal(me.login,fixture.login);const removed=await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password}});assert.equal(removed.status(),200);assert.equal((await c.request.get(base+'/api/me')).status(),401);}await c.close();}
  }
+  await require('./enrollment_timeout_cases.cjs')(browser,base);
  }finally{await browser.close();}
  console.log(`Signup uniqueness: ${cases} rendered journey checks passed`);
 })().catch(error=>{console.error(error);process.exit(1);});

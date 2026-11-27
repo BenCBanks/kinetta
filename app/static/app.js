@@ -458,7 +458,7 @@ async function apiRequest(path, opts = {}) {
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
   if (App.me && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
-  const retryablePost=(opts.method||'GET').toUpperCase()==='POST'&&(path==='/api/login'||/^\/api\/activities\/\d+\/comments$/.test(path));
+  const retryablePost=(opts.method||'GET').toUpperCase()==='POST'&&(path==='/api/login'||path==='/api/signup'||/^\/api\/activities\/\d+\/comments$/.test(path));
   const timeout=!opts.signal&&(!opts.method||opts.method.toUpperCase()==='GET'||retryablePost)?new AbortController():null;
   const timer=timeout?setTimeout(()=>timeout.abort(),20000):null;
   try { r = await fetch(Native.base + requestPath, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, ...(mePath ? {priority: 'high',cache:'no-store'} : {}), ...(timeout?{signal:timeout.signal}:{}), headers: {...headers, ...Native.headers(), ...(opts.headers || {})}});
