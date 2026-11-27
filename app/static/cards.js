@@ -29,7 +29,9 @@ const KinettaCard=(()=>{
           $$('input[name="card-period"]',b).forEach(input=>input.checked=input.value===data.period);invalidate('/api/');MeCard.clearPreviewCache?.();
         },after:async()=>{if(!busy)await refresh();}
       });
-      const disable=value=>{$$('input,button',b).filter(x=>!x.closest('[data-sharing-state]')).forEach(x=>x.disabled=value);if(!value)for(const id of ['#card-share','#card-copy','#card-qr'])$(id,b).disabled=!data.enabled||!blob;};
+      // Saving settings uses confirmSetting's focus-preserving lock. Picture loading
+      // only blocks the actions that need the picture; never disable the focused input.
+      const disable=value=>{for(const id of ['#card-share','#card-copy','#card-qr'])$(id,b).disabled=value||!data.enabled||!blob;};
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
       viewResources.set(b,()=>{seq++;if(imageURL)URL.revokeObjectURL(imageURL);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
       const values=()=>({enabled:$('#card-enabled',b).checked,photo:$('#card-photo',b).checked,sports:$('#card-sports',b).checked,allow_requests:$('#card-requests',b).checked,period:$('input[name="card-period"]:checked',b).value});
@@ -56,7 +58,7 @@ const KinettaCard=(()=>{
         catch{if(qrLive())status.textContent='QR code could not load. Tap Show QR code to try again.';}
         finally{qrLoading=false;}
       };
-      $('#card-new',b).onclick=()=>{close();sheet('Make a new card link?',`<p>The old link and QR code will stop working immediately. Existing friendships stay.</p><div class="actions"><button type="button" class="ghost" id="card-keep">Keep current link</button><button type="button" class="primary" id="card-rotate">Make new link</button></div>`,(confirm,leave)=>{guardFoodSheet(confirm,leave,owner);$('#card-keep',confirm).onclick=()=>{leave();open();};$('#card-rotate',confirm).onclick=()=>SocialData.confirmSetting(confirm,{path:'/api/card',paint:fresh=>{if(typeof fresh?.enabled!=='boolean')throw Error('Sharing unavailable');leave();open();}}).save('/api/card/new',{method:'POST'});});};
+      $('#card-new',b).onclick=()=>{close();sheet('Make a new card link?',`<p>The old link and QR code will stop working immediately. Existing friendships stay.</p><div class="actions"><button type="button" class="ghost" id="card-keep">Keep current link</button><button type="button" class="primary" id="card-rotate">Make new link</button></div>`,(confirm,leave)=>{guardFoodSheet(confirm,leave,owner);$('#card-keep',confirm).onclick=()=>{leave();open();};$('#card-rotate',confirm).onclick=()=>SocialData.confirmSetting(confirm,{path:'/api/card',matches:fresh=>typeof fresh.url==='string'?fresh.url!==data.url:null,paint:(fresh,{failure})=>{if(typeof fresh?.enabled!=='boolean')throw Error('Sharing unavailable');if(!failure){leave();open();}}}).save('/api/card/new',{method:'POST'});});};
       refresh();
     });
   }

@@ -46,14 +46,33 @@ const SocialData=(()=>{
     return until;
   }
   function setUntil(until,required=false){try{until?localStorage.setItem(storageKey(),String(until)):localStorage.removeItem(storageKey());}catch(error){if(required)throw Error('Saved setting cannot be confirmed on this device.');}}
+  // Compare only the requested settings with their authoritative readback, not the whole response.
+  function requestedSetting(data,attempt){
+    if(!attempt?.options?.body)return null;
+    let wanted;try{wanted=JSON.parse(attempt.options.body);}catch(_){return null;}
+    const path=attempt.path;
+    if(path==='/api/sharing')data=data.sharing||data;
+    else if(path==='/api/contacts/settings')data=data.contacts||data;
+    else if(path.startsWith('/api/card'))data=data.card||data;
+    else if(path==='/api/account'||path==='/api/profile')data=data.me||data;
+    else if(path.startsWith('/api/achievements/showcase'))data=data.showcase||data;
+    if(path==='/api/profile'){wanted={...wanted};delete wanted.ai_adult;}
+    if(/\/groups\/[^/]+\/sharing$/.test(path))wanted={sharing_level:wanted.level};
+    if(/\/recap-consent$/.test(path))wanted={recap_consent:wanted.consent};
+    if(wanted.usual_details){wanted={...wanted,custom:false};delete wanted.usual_details;}
+    if(Object.hasOwn(wanted,'phone_e164'))wanted={...wanted,phone_e164:wanted.phone_e164?.replace(/[\s()-]/g,'')||null};
+    const keys=Object.keys(wanted);if(!keys.length||keys.some(k=>!Object.hasOwn(data||{},k)))return null;
+    const equal=(saved,value)=>value&&typeof value==='object'?Array.isArray(value)?JSON.stringify(saved)===JSON.stringify(value):Object.keys(value).every(k=>equal(saved?.[k],value[k])):saved===value;
+    return keys.every(k=>equal(data[k],wanted[k]));
+  }
   // A failed write may already be saved. Only this control delays readback until a possibly outstanding write is bounded.
-  function confirmSetting(root,{path,read:fetchSaved,paint,cache:saveCache=()=>{},mask=()=>[...root.querySelectorAll('input,select,textarea,button:not(.back):not([data-close]),.vis-note,.card-preview,#card-counts')],uncertain=()=>{},after=()=>{},unknownText='Not confirmed.'}){
-    const view={},account=readOwner(),key=fenceKey(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
+  function confirmSetting(root,{path,read:fetchSaved,paint,cache:saveCache=()=>{},mask=()=>[...root.querySelectorAll('input,select,textarea,button:not(.back):not([data-close]),.vis-note,.card-preview,#card-counts')],uncertain=()=>{},after=()=>{},unknownText='Not confirmed.',matches=requestedSetting}){
+    const prior=settingsByRoot.get(root),previous=prior?.account===readOwner()?prior.result:null,view={account:readOwner(),result:previous},account=readOwner(),key=fenceKey(),note=document.createElement('p'),text=document.createElement('span'),retry=document.createElement('button');
     note.className='setting-recovery small';note.setAttribute('role','status');note.dataset.sharingState='confirmed';note.hidden=true;
     retry.type='button';retry.className='linkbtn';retry.textContent='Retry';retry.hidden=true;
     note.append(text,retry);root.append(note);
     settingsByRoot.get(root)?.retire?.();settingsByRoot.set(root,view);
-    const live=()=>root.isConnected&&account===readOwner()&&settingsByRoot.get(root)===view;let busy=false,known=true,lastError=null,waiting=null,affected=null;
+    const live=()=>root.isConnected&&account===readOwner()&&settingsByRoot.get(root)===view;let busy=false,known=true,lastError=null,waiting=null,affected=null,attempt=previous?.attempt||null,returnFocus=false;lastError=previous?.failure||null;
     const held=new Map(),controlSelector='button,input,select,textarea,[role="radio"],[role="switch"]';
     // aria-disabled plus event guards keeps keyboard focus on the original control.
     // Clear selection indicators, not rows: an uncertain value must not look private/off.
@@ -117,9 +136,12 @@ const SocialData=(()=>{
       // A repainted list must reconcile uncertainty before accepting another write.
       if(writePath&&!known){await run();return null;}
       if(waiting){clearTimeout(waiting);waiting=null;}
-      busy=true;lastError=null;
-      if(writePath&&known)affected=mask(writePath,options);
-      conceal();state(true);let failure=null,expected=generation();
+      busy=true;
+      if(writePath&&known){
+        lastError=null;view.result=null;affected=mask(writePath,options);
+        attempt={path:writePath,options,focus:document.activeElement,error:null};
+      }
+      conceal();state(true);let failure=attempt?.error||lastError,expected=generation();
       try{
         if(writePath){
           if(pendingUntil()){schedule();return null;}
@@ -133,7 +155,7 @@ const SocialData=(()=>{
           try{
             await api(writePath,{...options,signal:controller.signal});
             if(account===readOwner()&&expected===generation())setUntil(0);
-          }catch(error){failure=lastError=error;}finally{clearTimeout(timer);}
+          }catch(error){failure=lastError=attempt.error=error;}finally{clearTimeout(timer);}
         }
         if(account!==readOwner()||expected!==generation())return null;
         if(pendingUntil()){state(false);return null;}
@@ -144,28 +166,37 @@ const SocialData=(()=>{
         await saveCache(data);if(!live()||expected!==generation())return {data,failure};
         // Keep uncertain summaries neutral until asynchronous saved-state paints finish.
         // Keep scroll and the equivalent focused control through a saved-state repaint.
-        const focused=document.activeElement,scrollX=window.scrollX,scrollY=window.scrollY;
+        const matched=attempt?matches(data,attempt):null;
+        if(matched===true){failure=lastError=null;attempt.error=null;}
+        else if(attempt&&(matched===false||failure)){
+          let detail=failure?.message?.replace(/^Not saved\. /,'')||'Your requested change was not applied.';
+          const wanted=JSON.parse(attempt.options?.body||'{}'),labels={me:'Only me',friends:'Approved friends',everyone:'Everyone on Kinetta'},value=wanted.default??wanted.visibility,saved=data.sharing||data;
+          if(Object.hasOwn(labels,value))detail=`You chose ${labels[value]}. Saved: ${labels[saved.default??saved.visibility]||'a different choice'}.`;
+          failure=lastError=Object.assign(Error((matched===false||failure?.status>=400&&failure.status<500?'Not saved. ':'Request not confirmed. ')+detail),{status:failure?.status});
+        }
+        view.result={attempt,failure};
+        const focused=returnFocus&&attempt?.focus?attempt.focus:document.activeElement,scrollX=window.scrollX,scrollY=window.scrollY;
         const identity=focused?.id?['id',focused.id]:[...(focused?.attributes||[])].filter(a=>a.name.startsWith('data-')).map(a=>[a.name,a.value])[0];
         const focusPath=[];let cursor=focused;
         while(cursor&&cursor!==root){const parent=cursor.parentElement;if(!parent)break;focusPath.unshift([...parent.children].indexOf(cursor));cursor=parent;}
         const hadFocus=cursor===root,scrollers=[];for(let node=focused?.parentElement;node;node=node.parentElement)if(node.scrollTop)scrollers.push([node,node.scrollTop]);
         const restorePosition=()=>{
           if(!root.isConnected||account!==readOwner()||expected!==generation())return;
-          if(hadFocus&&!focused.isConnected){let replacement=identity?root.querySelector(`[${identity[0]}="${CSS.escape(identity[1])}"]`):null;if(!replacement){replacement=root;for(const index of focusPath)replacement=replacement?.children[index];}replacement?.focus?.({preventScroll:true});}
+          if(hadFocus&&(returnFocus||!focused.isConnected)){let replacement=focused.isConnected?focused:identity?root.querySelector(`[${identity[0]}="${CSS.escape(identity[1])}"]`):null;if(!replacement){replacement=root;for(const index of focusPath)replacement=replacement?.children[index];}replacement?.focus?.({preventScroll:true});}
           for(const [node,top] of scrollers)if(node.isConnected)node.scrollTop=top;
           if(window.scrollX!==scrollX||window.scrollY!==scrollY)window.scrollTo(scrollX,scrollY);
         };
         await paint(data,{failure});if(!live()||expected!==generation()){restorePosition();return null;}
-        known=true;await after(data);restorePosition();if(!live()||expected!==generation())return null;restore();
-        setUntil(0);affected=null;note.dataset.sharingState='confirmed';note.hidden=true;retry.hidden=true;
-        return {data,failure};
+        known=true;await after(data,{failure});if(!live()||expected!==generation()){restorePosition();return null;}restore();restorePosition();
+        setUntil(0);affected=null;if(note.parentElement!==root)root.append(note);note.dataset.sharingState='confirmed';note.hidden=!failure;text.textContent=failure?.message||'';retry.hidden=true;
+        returnFocus=false;return {data,failure};
       }catch(error){
         lastError=failure||error;if(live()){conceal();state(false);}return null;
       }finally{busy=false;}
     }
-    retry.onclick=()=>{if(pendingUntil()){schedule();return Promise.resolve(null);}return run();};
-    if(pendingUntil()){conceal();state(false);}
-    return {save:run,read:()=>run(),get known(){return known;},get failure(){return lastError;}};
+    retry.onclick=()=>{returnFocus=true;if(pendingUntil()){schedule();return Promise.resolve(null);}return run();};
+    if(pendingUntil()){conceal();state(false);}else if(lastError){note.hidden=false;text.textContent=lastError.message;retry.hidden=true;}
+    return {save:run,read:()=>run(),get known(){return known;},get failure(){return lastError;},get attempted(){return attempt;}};
   }
 
   return {remember,peek,read,forget,invalidate,prefetch,warm,draft,watch,confirmSetting};

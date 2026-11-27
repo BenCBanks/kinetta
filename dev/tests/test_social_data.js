@@ -92,6 +92,37 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  data.confirmSetting(sameRoot,{path:'/saved',paint:()=>{}});
  const replacement=data.confirmSetting(sameRoot,{path:'/saved',paint:()=>{}});await replacement.save('/save',{method:'PUT'});
  assert(replacement.known);assert.equal(sameField.getAttribute('aria-disabled'),null,'a retired helper cannot leave replacement controls locked');
+ // Retry retains the original requested value/error, and compares it with saved state.
+ for(const [path,body,saved] of [
+  ['/api/sharing',{default:'me'},{sharing:{default:'everyone'}}],
+  ['/api/sharing',{details:{map:false}},{details:{map:true}}],
+  ['/api/contacts/settings',{find_by_phone:false},{contacts:{find_by_phone:true}}],
+  ['/api/card',{photo:false},{card:{photo:true}}],
+  ['/api/profile',{ai_ok:false},{ai_ok:true}],
+  ['/api/groups/demo/sharing',{level:'just_in'},{sharing_level:'total_shared'}],
+  ['/api/groups/demo/recap-consent',{consent:false},{recap_consent:true}],
+ ]){
+  owner='rejected-'+path;let submitted=0;const target=new Node();target.append(new Node());
+  const error=Object.assign(Error('Fictional rejected choice'),{status:400});
+  ctx.api=async()=>{submitted++;throw error;};ctx.apiRequest=async()=>saved;
+  const changes=data.confirmSetting(target,{path,paint:()=>{}}),options=ctx.json('PUT',body);
+  await changes.save(path,options);assert.equal(changes.failure,error);
+  const requested=changes.attempted;now+=25001;const note=target.children.find(n=>n.dataset.sharingState);
+  await note.children[1].onclick();assert(changes.known,'readback confirms the stored value, not the rejected attempt');
+  assert.equal(changes.attempted,requested,'Retry keeps the attempted change');assert.equal(changes.attempted.options,options);
+  assert.match(changes.failure.message,/Not saved/);assert.equal(changes.attempted.error,error,'original write error survives readback');assert.equal(note.hidden,false);
+  assert.match(note.children[0].textContent,/Not saved/);assert.equal(submitted,1,'Retry only reads');
+ }
+ owner='matched-lost-reply';const matchRoot=new Node();matchRoot.append(new Node());
+ ctx.api=async()=>{throw Error('Lost reply');};ctx.apiRequest=async()=>({visibility:'everyone'});
+ const matched=data.confirmSetting(matchRoot,{path:'/saved',paint:()=>{}});await matched.save('/save',ctx.json('PUT',{visibility:'everyone'}));now+=25001;
+ const confirmed=await matched.read();assert.equal(confirmed.failure,null,'a saved requested value wins over a lost transport reply');assert.equal(matched.failure,null);
+ owner='successful-mismatch';const mismatchRoot=new Node();mismatchRoot.append(new Node());ctx.api=async()=>{};ctx.apiRequest=async()=>({visibility:'everyone'});
+ const mismatch=data.confirmSetting(mismatchRoot,{path:'/saved',paint:()=>{}});await mismatch.save('/save',ctx.json('PUT',{visibility:'me'}));
+ assert.match(mismatch.failure.message,/Not saved/,'a successful HTTP reply cannot conceal a mismatched saved value');
+ const replaced=data.confirmSetting(mismatchRoot,{path:'/saved',paint:()=>{}});assert.match(replaced.failure.message,/Not saved/,'same-surface repaints retain the rejected attempt');
+ owner='different-repaint-account';const clean=data.confirmSetting(mismatchRoot,{path:'/saved',paint:()=>{}});assert.equal(clean.failure,null,'an account switch never inherits another account attempt or error');
+ console.log('Rejected settings: requested value and error survive GET-only Retry; mismatches stay visible, committed lost replies confirm PASS');
  owner='storage-unavailable-session';const blockedRoot=new Node();blockedRoot.append(new Node());let blockedWrites=0;
  ctx.localStorage.setItem=()=>{throw Error('Storage blocked');};ctx.api=async()=>blockedWrites++;
  const blocked=data.confirmSetting(blockedRoot,{path:'/saved',paint:()=>{}});await blocked.save('/save',{method:'PUT'});
