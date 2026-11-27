@@ -1,5 +1,7 @@
 """Fictional participants: aggregate privacy, explicit joining, dates, limits, lifecycle and retention."""
 import datetime as dt,json,unittest,uuid,os,threading,time,io
+from contextlib import contextmanager
+from types import SimpleNamespace
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 import psycopg
@@ -239,6 +241,100 @@ class Challenges(unittest.TestCase):
   with db.connect() as c:
    rows=c.execute(api_mydata.TABLES['challenges'],(self.ids[0],)).fetchall();self.assertTrue(rows);self.assertNotIn(q['code'],json.dumps(rows,default=str));members=c.execute(api_mydata.TABLES['challenge_members'],(self.ids[1],)).fetchall();self.assertEqual(len(members),1)
    for table in ('challenges','challenge_members'):self.assertTrue(c.execute('SELECT relrowsecurity FROM pg_class WHERE relname=%s',(table,)).fetchone()['relrowsecurity'])
+ def test_list_preview_batch_is_one_query_and_matches_legacy_preview(self):
+  codes=[self.make(kind)[0]['code'] for kind in C.KINDS]
+  with db.connect() as c:
+   rows=c.execute('SELECT q.*,u.login::text AS creator FROM challenges q JOIN users u ON u.id=q.user_id WHERE q.code=ANY(%s)',(codes,)).fetchall()
+   class Counted:
+    def __init__(self):self.calls=0
+    def execute(proxy,*args,**kwargs):proxy.calls+=1;return c.execute(*args,**kwargs)
+   for selected in [[],rows[:1],rows]:
+    counted=Counted();facts=C._list_preview_facts(counted,selected,self.ids[0])
+    self.assertEqual(counted.calls,1 if selected else 0)
+    for row in selected:
+     self.assertEqual(C.preview(c,row,self.ids[0],facts=facts[row['id']]),C.preview(c,row,self.ids[0]))
+
+ def test_own_list_equivalence_visibility_clocks_and_transaction_boundaries(self):
+  from starlette.requests import Request
+  request=Request({'type':'http','scheme':'https','server':('example.test',443),'path':'/api/challenges','headers':[]})
+  # Same fixed clock for old per-row reads and the batch; progress still reads it per challenge.
+  moment=self.now
+  class Clock(dt.datetime):
+   @classmethod
+   def now(cls,tz=None):return moment.astimezone(tz) if tz else moment.replace(tzinfo=None)
+  fixed=SimpleNamespace(datetime=Clock,date=dt.date,time=dt.time,timedelta=dt.timedelta,timezone=dt.timezone)
+  own,_=self.make();invited,_=self.make('food_days',who=1);self.join(invited['code'],who=0)
+  for kind in ['active_days','activities','protein_days']:self.make(kind)
+  outsider,_=self.make(who=2)
+  self.activity(seconds=900,source='manual');self.food(protein=150)
+  self.join(own['code'],who=1);self.join(own['code'],who=2)
+  original_connect=db.connect
+  def read(legacy=False,include_groups=False):
+   borrows=[];statements=[];boundaries=[]
+   @contextmanager
+   def connect():
+    with original_connect() as c:
+     borrows.append(c)
+     before=c.execute("SELECT now() AS clock,pg_current_xact_id() AS tx,current_user AS role,current_setting('transaction_isolation') AS isolation").fetchone()
+     class Counted:
+      def execute(proxy,statement,*args,**kwargs):statements.append(statement);return c.execute(statement,*args,**kwargs)
+     yield Counted()
+     after=c.execute("SELECT now() AS clock,pg_current_xact_id() AS tx,current_user AS role,current_setting('transaction_isolation') AS isolation").fetchone()
+     boundaries.append((before,after))
+   # Only challenges' module reference is replaced; auth/logging/other threads retain real db.connect.
+   with patch.object(C,'db',SimpleNamespace(connect=connect,valid_tz=db.valid_tz,DEFAULT_TZ=db.DEFAULT_TZ)):
+    if legacy:
+     # facts=None selects the unchanged preview path: membership/count/block as separate real SQL reads.
+     with patch.object(C,'_list_preview_facts',side_effect=lambda c,rows,uid:{r['id']:None for r in rows}):
+      result=C.own(request,{'id':self.ids[0]},include_groups)
+    else:result=C.own(request,{'id':self.ids[0]},include_groups)
+   self.assertEqual(len(borrows),1);self.assertEqual(boundaries[0][0],boundaries[0][1])
+   self.assertEqual(boundaries[0][0]['isolation'],'read committed');self.assertEqual(boundaries[0][0]['role'],'fit_app')
+   return result,len(statements)
+  def same():
+   with patch.object(C,'dt',fixed):
+    old,old_n=read(legacy=True);new,new_n=read()
+    self.assertEqual(new,old);self.assertEqual(old_n-new_n,3*len(old)-1 if old else 0)
+    old_groups,_=read(legacy=True,include_groups=True);new_groups,_=read(include_groups=True)
+    self.assertEqual(new_groups,old_groups)
+   self.assertNotIn(outsider['code'],{r['code'] for r in new})
+   return {r['code']:r for r in new}
+  self.assertEqual(same()[own['code']]['participants'],3)
+  changes=[
+   ("UPDATE users SET needs_email_confirm=true WHERE id=%s",(self.ids[2],)),
+   ("UPDATE users SET needs_email_confirm=false,suspended_at=now() WHERE id=%s",(self.ids[2],)),
+   ("UPDATE users SET suspended_at=NULL WHERE id=%s",(self.ids[2],)),
+   ("INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)",(self.ids[0],self.ids[1])),
+   ("DELETE FROM blocks WHERE user_id=%s",(self.ids[0],)),
+   ("INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)",(self.ids[1],self.ids[0])),
+   ("UPDATE challenge_members SET status='left' WHERE user_id=%s AND challenge_id=(SELECT id FROM challenges WHERE code=%s)",(self.ids[0],invited['code'])),
+   ("UPDATE challenge_members SET status='removed' WHERE user_id=%s AND challenge_id=(SELECT id FROM challenges WHERE code=%s)",(self.ids[0],own['code'])),
+   ("UPDATE challenges SET ended_at=%s WHERE code=%s",(moment-dt.timedelta(days=1),own['code'])),
+   ("UPDATE challenges SET start_day=%s,end_day=%s WHERE code=%s",((moment+dt.timedelta(days=2)).date(),(moment+dt.timedelta(days=5)).date(),own['code'])),
+   ("UPDATE users SET needs_email_confirm=true WHERE id=%s",(self.ids[1],)),
+  ]
+  for sql,params in changes:
+   with db.connect() as c:c.execute(sql,params)
+   result=same()
+   if sql.startswith('INSERT INTO blocks'):self.assertIsNone(result[invited['code']]['creator'])
+  # No listed challenges means no batch read, but the endpoint transaction is still preserved.
+  with db.connect() as c:c.execute('DELETE FROM challenge_members WHERE user_id=%s',(self.ids[0],))
+  self.assertEqual(same(),{})
+
+ def test_list_batch_failure_keeps_prior_commit_and_rolls_back_endpoint_work(self):
+  from starlette.requests import Request
+  self.make()
+  with db.connect() as c:c.execute('UPDATE profile SET protein_target=151 WHERE user_id=%s',(self.ids[0],))
+  def fail(c,rows,uid):
+   # A test-only write exposes the rollback boundary; the production list is read-only.
+   c.execute('UPDATE profile SET protein_target=152 WHERE user_id=%s',(uid,))
+   raise RuntimeError('fictional batch failure')
+  request=Request({'type':'http','scheme':'https','server':('example.test',443),'path':'/api/challenges','headers':[]})
+  with patch.object(C,'_list_preview_facts',side_effect=fail):
+   with self.assertRaisesRegex(RuntimeError,'fictional batch failure'):C.own(request,{'id':self.ids[0]})
+  with db.connect() as c:
+   self.assertEqual(c.execute('SELECT protein_target FROM profile WHERE user_id=%s',(self.ids[0],)).fetchone()['protein_target'],151)
+
  def test_actual_reader_sees_only_own_membership_and_cannot_read_invitation_codes(self):
   q,_=self.make();self.join(q['code']);role='zz_test_ch_reader_'+uuid.uuid4().hex[:8];password='fictional reader testing phrase'
   try:
