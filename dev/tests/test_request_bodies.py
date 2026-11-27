@@ -36,10 +36,9 @@ class Bodies(unittest.TestCase):
     def tearDownClass(cls):
         with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(cls.uid,))
 
-    def test_small_json_adds_no_session_lookup(self):
+    def test_anonymous_small_json_adds_no_session_lookup(self):
         with TestClient(fixture()) as client, patch.object(B,'session_exists',side_effect=AssertionError('extra session query')):
-            for headers in ({},{'authorization':'Bearer '+self.token},{'cookie':auth.COOKIE+'='+self.token}):
-                self.assertEqual(client.post('/api/json',json={'ok':True},headers=headers).json(),{'ok':True})
+            self.assertEqual(client.post('/api/json',json={'ok':True}).json(),{'ok':True})
 
     def test_oversized_and_invalid_session_fail_before_json_parser(self):
         with TestClient(fixture()) as client:
@@ -56,6 +55,15 @@ class Bodies(unittest.TestCase):
                 self.assertEqual(client.post('/api/import',files={'files':('fictional.fit',b'x'*(2*1024**2))},headers=headers).json(),{'size':2*1024**2})
                 r=client.post('/api/import',files={'files':('fictional.fit',b'x')},headers={**headers,'x-kinetta-account':'999999'})
                 self.assertEqual(r.status_code,409)
+
+    def test_real_web_and_bridge_sessions_ignore_full_anonymous_capacity(self):
+        readers=threading.BoundedSemaphore(1);readers.acquire()
+        with patch.object(B,'_readers',readers),TestClient(fixture()) as client:
+            for headers in ({'authorization':'Bearer '+self.token},{'cookie':auth.COOKIE+'='+self.token}):
+                self.assertEqual(client.post('/api/json',json={'ok':True},headers=headers).json(),{'ok':True})
+                self.assertEqual(client.post('/api/import',files={'files':('fictional.fit',b'x'*100)},headers=headers).status_code,200)
+            self.assertEqual(client.post('/api/json',json={'ok':True}).status_code,503)
+        readers.release()
 
     def test_anonymous_multipart_never_spools(self):
         with TestClient(fixture()) as client, patch('starlette.formparsers.SpooledTemporaryFile',side_effect=AssertionError('anonymous parser ran')):
@@ -188,7 +196,7 @@ class Streams(unittest.IsolatedAsyncioTestCase):
         entered=threading.Event();finish=threading.Event();slots=threading.BoundedSemaphore(1)
         def lookup(token):entered.set();finish.wait(2);return True
         request=Request({'type':'http','headers':[(b'authorization',b'Bearer fictional')]})
-        with patch.object(B,'_session_slots',slots),patch.object(B,'session_exists',lookup):
+        with patch.object(B,'_session_slots',slots),patch.object(B,'session_exists',lookup),patch.object(B,'SESSION_WAIT_SECONDS',.02):
             task=asyncio.create_task(B.signed_in(request))
             while not entered.is_set():await asyncio.sleep(.001)
             task.cancel()
@@ -201,6 +209,39 @@ class Streams(unittest.IsolatedAsyncioTestCase):
                 if slots.acquire(False):slots.release();break
                 await asyncio.sleep(.005)
             else:self.fail('session slot not returned')
+
+    async def test_verified_session_bypasses_occupied_anonymous_readers(self):
+        slots=threading.BoundedSemaphore(1);slots.acquire()
+        async def receive():return {'type':'http.request','body':b'{}','more_body':False}
+        with patch.object(B,'_readers',slots),patch.object(B,'signed_in',return_value=True):
+            self.assertEqual(await self.request(receive),200)
+        slots.release()
+
+    async def test_eight_session_checks_wait_without_extra_workers_or_refusals(self):
+        active=peak=0;lock=threading.Lock()
+        def lookup(token):
+            nonlocal active,peak
+            with lock:active+=1;peak=max(peak,active)
+            import time
+            time.sleep(.02)
+            with lock:active-=1
+            return True
+        request=Request({'type':'http','headers':[(b'authorization',b'Bearer fictional')]})
+        with patch.object(B,'session_exists',lookup):
+            self.assertEqual(await asyncio.gather(*[B.signed_in(request) for _ in range(8)]),[True]*8)
+        self.assertLessEqual(peak,2)
+
+    async def test_session_wait_queue_is_bounded_and_cancellation_returns_credit(self):
+        slots=threading.BoundedSemaphore(1);slots.acquire();waiters=threading.BoundedSemaphore(1)
+        request=Request({'type':'http','headers':[(b'authorization',b'Bearer fictional')]})
+        with patch.object(B,'_session_slots',slots),patch.object(B,'_session_waiters',waiters):
+            task=asyncio.create_task(B.signed_in(request));await asyncio.sleep(.01)
+            with self.assertRaises(HTTPException) as error:await B.signed_in(request)
+            self.assertEqual(error.exception.status_code,503)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):await task
+            self.assertTrue(waiters.acquire(False));waiters.release()
+        slots.release()
 
     async def test_session_pool_timeout_is_plain_retry(self):
         with patch.object(B,'session_exists',side_effect=B.PoolTimeout('fictional')):
