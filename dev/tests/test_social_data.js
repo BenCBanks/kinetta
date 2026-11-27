@@ -180,6 +180,20 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
   const note=root.children.find(n=>n.dataset.sharingState);assert.equal(note.dataset.sharingState,'unknown');assert.equal(note.children[0].textContent,'Not confirmed. ');assert.equal(note.children[1].hidden,false);
   readable=true;saved='everyone';await note.children[1].onclick();assert(!confirmation.known,'early Retry never paints old private');assert.equal(note.dataset.sharingState,'checking');await advance(25001);assert.equal(writes,2,'Retry reads without replaying a write');assert.equal(shown,'everyone');assert(confirmation.known);assert.equal(field.getAttribute('aria-disabled'),null);
  }
+ // Admission feedback remains visible while saved-state recovery forbids replay.
+ for(const status of [429,503]){
+  const root=new Node(),field=new Node();root.append(field);let writes=0,reads=0;
+  const message=status===429?'Too many requests. Try again in 37 seconds.':'Kinetta is busy. Try again in 2 seconds.';
+  ctx.api=async()=>{writes++;throw Object.assign(Error(message),{status,retryAfter:status===429?37:2});};
+  ctx.apiRequest=async()=>{reads++;return {visibility:'me'};};
+  const recovery=data.confirmSetting(root,{path:'/saved',paint:()=>{}});
+  await recovery.save('/save',{method:'PUT'});
+  const note=root.children.find(n=>n.dataset.sharingState);
+  assert.equal(note.children[0].textContent,message+' ','show the numeric retry delay immediately');
+  assert.equal(field.getAttribute('aria-disabled'),'true');assert.equal(reads,0);assert(!recovery.known);
+  await recovery.save('/save',{method:'PUT'});assert.equal(writes,1,'a retry cannot bypass saved-state admission');
+  await advance(25001);await recovery.read();assert.equal(writes,1);assert(reads>0);assert(recovery.known);
+ }
  // Memory/profile surfaces redraw children after a confirmed read; the next uncertainty must still be recoverable.
  const redrawRoot=new Node();redrawRoot.append(new Node());let readableAgain=true;
  ctx.api=async()=>{};ctx.apiRequest=async()=>{if(!readableAgain)throw Error('offline');return {enabled:true};};

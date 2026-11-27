@@ -192,7 +192,7 @@ const SocialData=(()=>{
     const block=event=>{if([...held.keys()].some(node=>node===event.target||node.contains(event.target)||(event.type==='submit'&&event.target.contains(node)))){event.preventDefault();event.stopImmediatePropagation();}};
     for(const type of ['click','pointerdown','change','beforeinput','submit'])root.addEventListener(type,block,true);
     root.addEventListener('keydown',event=>{if([' ','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(event.key))block(event);},true);
-    function state(checking){note.hidden=false;note.dataset.sharingState=checking?'checking':'unknown';text.textContent=checking?'Checking… ':unknownText+' ';retry.hidden=checking;}
+    function state(checking){note.hidden=false;note.dataset.sharingState=checking?'checking':'unknown';text.textContent=checking?'Checking… ':(lastError?.status===429||lastError?.retryAfter?lastError.message:unknownText)+' ';retry.hidden=checking;}
     const views=viewsByOwner.get(key)||new Set();viewsByOwner.set(key,views);
     views.add(()=>{if(!live())return false;conceal();if(!busy)state(false);return true;});
     function schedule(){
