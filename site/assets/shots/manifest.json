@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-11-27T03:22:14.215224+00:00",
-  "revision": "02890656ed220f6bfdd1a3a7498239712c55eff6",
+  "generated_at": "2026-11-27T04:34:54.602973+00:00",
+  "revision": "ec7e8a0828baf987cd348726a8a059720defcee1",
   "simulator_captures": {
-    "source_revision": "02890656ed220f6bfdd1a3a7498239712c55eff6",
+    "source_revision": "ec7e8a0828baf987cd348726a8a059720defcee1",
     "device": "iPhone 16",
     "runtime": "iOS 26.5",
     "sdk": "26.5",
@@ -17,7 +17,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "543e08dbd63459d35d4b44d9941a25aa8f0637cd8631f8a358275954464f9319",
+        "source_sha256": "5991a526cda9c190b905f00429c5b7fdf3359f10a884a8a888c3070c61c33318",
         "two_x": "dark-achievements.webp",
         "one_x": "dark-achievements-1x.webp"
       },
@@ -29,7 +29,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "8a5142004bc79dd033aba81754030f21c2e84be5310c9e37a2293263064a43c0",
+        "source_sha256": "c651e6ecbe435a78f17a26658de3660a044d6b9a26db01587340b0ae80cbee95",
         "two_x": "light-achievements.webp",
         "one_x": "light-achievements-1x.webp"
       },
@@ -53,7 +53,7 @@
         "sdk": "26.5",
         "safe_top_points": 59,
         "fixture": "dev/tests/native-ui/appstore.cjs",
-        "source_sha256": "262c2a6ee421aabd25bafa754bd7cc5d45f77b300113c696db3898e0965ab023",
+        "source_sha256": "0a7ba72e9bd3af9feb997881033d29f8f7e08b28a1868dcba6e84f788078c8db",
         "two_x": "light-activity-detail.webp",
         "one_x": "light-activity-detail-1x.webp"
       },
@@ -82,23 +82,5 @@
         "one_x": "1319-profile-light-1x.webp"
       }
     ]
-  },
-  "kit_chart_capture": {
-    "source_revision": "bb8512d636d22ef837a5a334a70adf9b89ef7b52",
-    "fixture": "dev/screenshots/kit-chart-answer.json",
-    "kind": "fictional-browser-renderer-fixture",
-    "release_pending": false,
-    "round_ticks": [
-      "200 ft",
-      "150 ft",
-      "100 ft"
-    ],
-    "assets": {
-      "light-kit-chart-progress.webp": "87000b4b8f6fb5eada365a7f69dd4b3b948ecce7be0a51508bb0132251240696",
-      "light-kit-chart-progress-1x.webp": "3ee1592d1d7b150132a75717120b99289bdff9461bd3154c1795a8544c7439e3",
-      "dark-kit-chart-progress.webp": "0cffdebf83e92890ba102eab5b5307e1f2f66e59aa4c4767a07ddbd9661422ab",
-      "dark-kit-chart-progress-1x.webp": "c893da64997bdaae6b393eeb724dee319ee46eb0c3fe408ee5ee541b7cbfc5ce"
-    },
-    "captured_at": "2026-11-26T23:11:09.079800+00:00"
   }
 }
