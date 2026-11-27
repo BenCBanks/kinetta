@@ -304,6 +304,9 @@ class Import(unittest.TestCase):
         self.assertEqual(self.status(healthy)['state'],'review','a later healthy queued job progresses')
 
     def test_cleanup_keeps_receipt_until_removal_and_reconciles_deleted_account(self):
+        # Keep deliberate failure leftovers outside the running app's recovery sweep.
+        storage=tempfile.TemporaryDirectory();self.addCleanup(storage.cleanup)
+        root=patch.object(U,'DATA',Path(storage.name));root.start();self.addCleanup(root.stop)
         identity,raw=self.create();self.piece(identity,raw);directory=U.path(self.me,identity).parent
         with db.connect() as c:c.execute("UPDATE strava_uploads SET expires=now()-interval '1 second' WHERE id=%s",(identity,))
         for error in (PermissionError,FileNotFoundError):
@@ -314,8 +317,7 @@ class Import(unittest.TestCase):
         with db.connect() as c:self.assertIsNone(c.execute('SELECT 1 FROM strava_uploads WHERE id=%s',(identity,)).fetchone())
         identity,raw=self.create();self.piece(identity,raw);directory=U.path(self.me,identity).parent
         unrelated=directory.parent/'legacy-upload';unrelated.mkdir()
-        from app import api_account
-        with patch.object(api_account.shutil,'rmtree',side_effect=PermissionError('fictional delayed erasure')):
+        with patch.object(U.shutil,'rmtree',side_effect=PermissionError('fictional delayed erasure')):
             # Simulate process interruption after the existing SQL cascade, before file erasure.
             with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(self.me,))
             U.cleanup()

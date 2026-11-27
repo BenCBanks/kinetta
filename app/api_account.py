@@ -10,7 +10,6 @@ import os
 import re
 import secrets
 import unicodedata
-import shutil
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, Query
 from pydantic import BaseModel, Field, StrictBool, ConfigDict
 from psycopg import errors, sql
@@ -288,9 +287,10 @@ def erase(c, t):
 
 
 def erase_files(uid):
-    """Their original activity files and uploads (call after the rows are gone)."""
-    for d in (os.path.join(DATA, 'files', str(uid)), os.path.join(DATA, 'uploads', str(uid))):
-        if os.path.isdir(d): shutil.rmtree(d, ignore_errors=True)
+    """Attempt now after commit; startup/periodic recovery retries any leftovers."""
+    from . import account_files, api_mydata
+    api_mydata.forget_exports(uid)
+    account_files.erase_user(uid, DATA)
 
 
 # ---------- first run + invite links ----------

@@ -244,6 +244,7 @@ for t in $api_tests; do python3 "$t.py"; done
 cd ../..
 
 docker compose -p "$P" exec -T app python - < dev/tests/account_data_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/account_files_incontainer.py
 
 docker compose -p "$P" exec -T app python - < dev/tests/test_contacts.py
 docker compose -p "$P" exec -T app python - < dev/tests/contacts_blocks_incontainer.py
