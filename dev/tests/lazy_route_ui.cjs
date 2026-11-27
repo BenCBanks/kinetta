@@ -507,6 +507,18 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitne
  };
  return {context,page,assets,assetUrls,fitnessReads,recordsReads,errors,writes,previews,held,release:()=>releaseHeld(),close};
 }
+async function previewAfterReadiness(fixture){
+ const {page,previews,writes}=fixture;
+ assert.deepEqual(previews,[],'opening setup waits for the two running answers before requesting a preview');
+ await page.locator('[data-logs="yes"]').click();
+ assert.deepEqual(previews,[],'one readiness answer does not request a preview');
+ const preview=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/plans/preview'&&response.request().method()==='POST');
+ await page.locator('[data-break="0"]').click();
+ const response=await preview;
+ assert.equal(response.request().postDataJSON().break_days,0,'the preview carries the explicit time-off answer');
+ assert.deepEqual(previews,['/api/plans/preview'],'both running answers request exactly one read-only preview');
+ assert.deepEqual(writes,[],'answering readiness never saves a plan');
+}
 // Observe the real deferred renderer while keeping all Fitness records fictional and writes blocked.
 async function fitnessRouteCase(browser){
  const asset='/static/progress-routes.js',fitness='/progress?view=fitness';
@@ -1641,6 +1653,7 @@ async function foodWarmupCase(browser){
     await planDirect.page.goto(base+'/plan');await ready(planDirect.page,'.plan-page','direct Training plan route');
     assert.equal(new URL(planDirect.page.url()).pathname,'/plan');
     assert.deepEqual(planDirect.assets,['/static/intervals.js','/static/plan.js'],'direct Training plan loads interval support before Plan');
+    await previewAfterReadiness(planDirect);
     assert.deepEqual(planDirect.previews,['/api/plans/preview'],'the preview request is read-only and distinct from saving a plan');
     assert.deepEqual(planDirect.errors,[]);assert.deepEqual(planDirect.writes,[]);
   }finally{await planDirect.context.close();}
@@ -1652,7 +1665,8 @@ async function foodWarmupCase(browser){
     await link.click();await ready(planFromMe.page,'.plan-page','Training plan after an in-app Me tap');
     assert.equal(new URL(planFromMe.page.url()).pathname,'/plan');
     assert.deepEqual(planFromMe.assets,['/static/intervals.js','/static/plan.js'],'in-app navigation loads interval support before Training plan');
-    assert.deepEqual(planFromMe.previews,['/api/plans/preview'],'in-app Plan opening only computes its read-only preview');
+    await previewAfterReadiness(planFromMe);
+    assert.deepEqual(planFromMe.previews,['/api/plans/preview'],'in-app Plan readiness only computes its read-only preview');
     assert.deepEqual(planFromMe.errors,[]);assert.deepEqual(planFromMe.writes,[]);
   }finally{await planFromMe.context.close();}
 
@@ -1662,6 +1676,7 @@ async function foodWarmupCase(browser){
     assert.equal(new URL(planRetry.page.url()).pathname,'/plan','a failed direct Training plan load keeps its route');
     await planRetry.page.locator('#retry').click();await ready(planRetry.page,'.plan-page','Training plan after explicit retry');
     assert.deepEqual(planRetry.assets,['/static/intervals.js','/static/plan.js','/static/plan.js'],'Training plan retries its failed bundle without reloading intervals');
+    await previewAfterReadiness(planRetry);
     assert.deepEqual(planRetry.previews,['/api/plans/preview'],'retry computes the preview without saving a plan');
     assert.deepEqual(planRetry.errors,[]);assert.deepEqual(planRetry.writes,[]);
   }finally{await planRetry.context.close();}
