@@ -131,7 +131,7 @@ class CIPolicyTests(unittest.TestCase):
         self.assertNotIn('paths:',tests) # required full-suite workflow must run for every ready PR
         gate=tests.split('\n  tests:\n',1)[1].split('\n  spacing:\n',1)[0]
         self.assertIn('name: tests',gate)
-        self.assertIn('if: ${{ always() && !cancelled() }}',gate)
+        self.assertIn('if: always()',gate)
         self.assertIn('needs: [quick, changed-screen-map, backend, browser_shards, reviewer_integration, spacing]',gate)
         self.assertIn('for result in "$QUICK_RESULT" "$CHANGED_SCREEN_MAP_RESULT" "$BACKEND_RESULT" "$SPACING_RESULT"; do',gate)
         self.assertIn('test "$result" = success',gate)

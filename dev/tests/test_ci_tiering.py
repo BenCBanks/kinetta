@@ -147,9 +147,22 @@ run_ui loading_audit.cjs
         self.assertIn('success|skipped', gate)
         self.assertIn('test "$result" = success', gate)
 
-    def test_cancelled_workflows_do_not_create_a_false_aggregate_failure(self):
+    def test_aggregate_job_condition_evaluates_even_when_latest_run_is_cancelled(self):
         gate = WORKFLOW.split("\n  tests:\n", 1)[1].split("\n  spacing:\n", 1)[0]
-        self.assertIn('if: ${{ always() && !cancelled() }}', gate)
+        # Evaluate the actual job-level condition, before testing its shell.
+        # Skipping a required job is treated as success by GitHub; neither a
+        # manual cancellation nor a dependency failure proves supersession.
+        condition = next(line.strip()[4:] for line in gate.splitlines() if line.strip().startswith('if: '))
+        condition = condition.removeprefix('${{').removesuffix('}}').strip()
+        expression = condition.replace('&&', ' and ').replace('||', ' or ').replace('!', 'not ')
+        for cancelled in (False, True):
+            with self.subTest(cancelled=cancelled):
+                actual = eval(expression, {'__builtins__': {}},
+                              {'always': lambda: True, 'cancelled': lambda: cancelled})
+                self.assertTrue(actual, 'the aggregate must evaluate, including on a cancelled latest head')
+
+    def test_aggregate_script_rejects_cancelled_and_missing_required_results(self):
+        gate = WORKFLOW.split("\n  tests:\n", 1)[1].split("\n  spacing:\n", 1)[0]
         script = gate.split('        run: |\n', 1)[1]
         script = '\n'.join(line[10:] for line in script.splitlines())
         required = ['CHANGED_SCREEN_MAP_RESULT', 'BACKEND_RESULT', 'SPACING_RESULT']
