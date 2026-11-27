@@ -455,7 +455,7 @@ body:has(#page.friends-page) nav.tabs.material { background:var(--card);-webkit-
 .group-update-form {display:grid;grid-template-columns:minmax(0,1fr) 46px;align-items:end;gap:8px;margin:0;}
 .group-update-list + .group-update-form {padding-top:12px;border-top:1px solid var(--line);}
 .group-update-form textarea {display:block;width:100%;min-width:0;height:46px;min-height:46px;max-height:134px;padding:11px 12px;border-radius:23px;font-size:16px;line-height:22px;resize:none;scroll-margin-block:12px;}
-.group-update-form button {padding:0;box-shadow:none;font-size:13px;font-weight:600;}
+.group-update-form button {width:46px;min-width:44px;height:46px;min-height:44px;padding:0;box-shadow:none;font-size:13px;font-weight:600;}
 .group-update-status {grid-column:1/-1;margin:0;min-height:0;overflow-wrap:anywhere;}
 .group-update-status:empty {display:none;}
 @media(prefers-reduced-motion:reduce){.group-detail-tabs button::after{transition:none;}}

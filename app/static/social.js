@@ -1528,7 +1528,7 @@ function groupChallengeRow(group,q){
 function groupPage(el,group,unused='members',keepExpanded=false){
   const owner=readOwner();let expanded=keepExpanded;
   const base='/api/groups/'+encodeURIComponent(group.id);
-  const reload=async()=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected&&owner===readOwner())groupPage(el,{...fresh,challenges},'members',expanded);else throw Error('Group changed');}catch(error){if(el.isConnected&&owner===readOwner())toast(error.message);throw error;}};
+  const reload=async(silent=false)=>{invalidate(base);invalidate(base+'/challenges');try{const [fresh,challenges]=await Promise.all([api(base),api(base+'/challenges')]);if(el.isConnected&&owner===readOwner())groupPage(el,{...fresh,challenges},'members',expanded);else throw Error('Group changed');}catch(error){if(!silent&&el.isConnected&&owner===readOwner())toast(error.message);throw error;}};
   const draw=()=>{
     const people={...group,sharing_level:'total_shared',members:group.members.map(m=>({...m,value:undefined,sharing_total_only:false}))};
     el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<button type="button" class="group-header-invite" id="group-header-invite">${svg('people')}<span>Invite</span></button><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
@@ -1554,8 +1554,12 @@ function groupPage(el,group,unused='members',keepExpanded=false){
       form.onsubmit=async event=>{
         event.preventDefault();const text=field.value.trim();if(!text||posting)return;
         posting=true;button.disabled=true;field.readOnly=true;status.textContent='Posting…';
-        try{await api(base+'/updates',json('POST',{text}));field.value='';await reload();}
-        catch(error){if(el.isConnected&&owner===readOwner()){status.textContent=error.message;posting=false;field.readOnly=false;fit();}}
+        try{await api(base+'/updates',json('POST',{text}));}
+        catch(error){if(form.isConnected&&owner===readOwner()){status.textContent=error.message;posting=false;field.readOnly=false;fit();}return;}
+        if(!form.isConnected||owner!==readOwner())return;
+        field.value='';fit();status.textContent='Comment posted.';
+        try{await reload(true);}
+        catch(error){if(form.isConnected&&owner===readOwner()){posting=false;field.readOnly=false;fit();status.textContent="Comment posted. Couldn't refresh comments.";}}
       };
     }
   };draw();
