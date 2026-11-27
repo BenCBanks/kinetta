@@ -22,6 +22,14 @@ for(const name of Object.keys(tour.scenes)){
  assert.equal(r['/api/activities/1'].social.visibility,'friends');
  assert(!Object.keys(r).some(key=>/messages\/.*\/answer/.test(key)),'no provider-capable answer endpoint');
 }
+const r=tour('kit-weekly-insight').responses,threads=r['/api/coach/conversation/threads'];
+assert.equal(threads.enabled,true);assert.equal(threads.retention,'until_deleted');
+const saved=r['POST /api/coach/conversation/threads/'+threads.conversations[0].conversation_id+'/resume'];
+const answer=saved.messages[0].answer;
+assert.equal(answer.answer_blocks[0].kind,'paragraph');assert(!('verdict' in answer));
+assert.equal(answer.chart.aggregate,'average');assert.equal(answer.chart.workouts,3);
+assert.deepEqual(answer.chart.points.map(p=>p.plot_value),[140,180,160]);
+assert.equal(tour.scenes['kit-weekly-insight'].chart,'.kit-chart-line');
 assert.equal(tour.scenes['training-lift-session'].route,'/activity/3');
 assert.throws(()=>tour('unknown'),/Unknown native tour scene/);'''
         subprocess.run(['node','-e',script,str(FIXTURE/'tour.cjs')],cwd=ROOT,check=True)
@@ -34,9 +42,13 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);
 (async()=>{
  const visit=await vm.runInContext("fetch('/api/coach/conversation/visits',{method:'POST',body:JSON.stringify({visit_id:'fictional-visit'})}).then(r=>r.json())",c);
  assert.equal(visit.visit_id,'fictional-visit');
+ const threads=await vm.runInContext("fetch('/api/coach/conversation/threads').then(r=>r.json())",c);
+ const resume='/api/coach/conversation/threads/'+threads.conversations[0].conversation_id+'/resume';
+ const saved=await vm.runInContext(`fetch('${resume}',{method:'POST',body:JSON.stringify({visit_id:'fictional-resume'})}).then(r=>r.json())`,c);
+ assert.equal(saved.visit_id,'fictional-resume');assert.equal(saved.messages.length,1);
  const photo=await vm.runInContext("fetch('/api/activity-photos/1?size=thumb')",c);assert.equal(photo.headers.get('Content-Type'),'image/jpeg');
- for(const p of ['/api/coach/conversation/messages','/api/food/thread/messages','/api/profile'])await assert.rejects(vm.runInContext(`fetch('${p}',{method:'POST'})`,c),/blocked unexpected request/);
- assert.equal(config.blocked.length,3);
+ for(const p of ['/api/coach/conversation/messages','/api/food/thread/messages','/api/profile','/api/coach/conversation/threads/00000000-0000-4000-8000-000000000099/resume','/api/coach/conversation/threads/00000000-0000-4000-8000-000000000012/messages/1/answer'])await assert.rejects(vm.runInContext(`fetch('${p}',{method:'POST'})`,c),/blocked unexpected request/);
+ assert.equal(config.blocked.length,5);
 })().catch(e=>{console.error(e);process.exitCode=1;});'''
         subprocess.run(['node','-e',script,str(FIXTURE/'early.js'),str(FIXTURE/'tour.cjs')],cwd=ROOT,check=True)
 

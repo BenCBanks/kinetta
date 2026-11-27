@@ -1,8 +1,8 @@
 // Fictional responses only; rendered by the unchanged app in an unsigned Simulator bundle.
 'use strict';
 const scenes={
- 'kit-weekly-insight':{route:'/me/kit?from=progress',ready:'.kit-answer .kit-verdict'},
- 'challenge-start':{route:'/me/challenges',actions:['#challenge-start'],ready:'.challenge-templates [data-challenge-kind="protein_days"]'},
+ 'kit-weekly-insight':{route:'/me/kit?from=progress',ready:'.kit-answer .kit-answer-blocks p',chart:'.kit-chart-line'},
+ 'challenge-start':{route:'/me/challenges',actions:['#challenge-start','[data-challenge-scope="me"]'],ready:'.challenge-templates [data-challenge-kind="protein_days"]'},
  'challenge-detail':{route:'/me/challenges/demo-distance',ready:'.challenge-person-row'},
  'training-activity-detail':{route:'/activity/1',actions:['[data-dt="charts"]'],ready:'#d-charts svg',map:'#d-map'},
  'training-sport-profile':{route:'/people/alex',ready:'.me-card-sections[aria-busy="false"]'},
@@ -55,9 +55,16 @@ module.exports=function(name){
  r['/api/dishes']=[];r['/api/food/foods']=[];r['/api/food/usual']=[];
  r['/api/food/insights']={top_foods:[],rows:Array.from({length:30},(_,i)=>({day:day(29-i),eaten:1700+(i%5)*30,burned:2200,goal:1800,protein_g:100+(i%4)*5,carbs_g:190,fat_g:60,entries:4,counted:i<29,today:i===29,weight:70-i*.01,trend:70-i*.01})),summary:{start:day(29),days:30,logged:29,avg_eaten:1760,avg_protein_g:107,avg_carbs_g:190,avg_fat_g:60},targets:{kcal_target:1800,protein_target:110}};
  r['/api/food/review']={enabled:false,latest:null};
- const generation='00000000-0000-4000-8000-000000000010',answer={verdict:'Your recent running is building steadily.',reason:'You have kept a regular rhythm while adding distance.',facts:[{label:'Distance this week',display_value:'18.4 mi',path:['distance_m'],evidence_id:'e2'},{label:'Active days',display_value:'4 days',path:['active_days'],evidence_id:'e2'}],follow_ups:['Review my consistency','Help me plan my next week']};
+ const generation='00000000-0000-4000-8000-000000000010',conversation='00000000-0000-4000-8000-000000000012';
+ const text='Your average climb was 140 ft, 180 ft and 160 ft per run over these three weeks. If you want an easier run next, choose a flatter route.';
+ const chart={metric:'ascent',aggregate:'average',group_by:'week',sport:'run',period_count:3,period_unit:'weeks',timezone:'America/New_York',start:'2026-10-12',end:'2026-11-01',axis_unit:'ft',workouts:3,missing:0,truncated:false,
+  points:['2026-10-12','2026-10-19','2026-10-26'].map((start,i)=>({start,plot_value:[140,180,160][i],display_value:[140,180,160][i]+' ft',n:1,missing:0}))};
+ const answer={answer_blocks:[{kind:'paragraph',text}],interpretation:text,facts:[],chart,follow_ups:['Show my recorded distance','Review my consistency']};
+ const messages=[{id:1,client_id:'00000000-0000-4000-8000-000000000011',question:'Show my average climb over the last three weeks.',state:'answered',answer}];
  r['POST /api/coach/conversation/visits']={generation,ready:true};
- r['/api/coach/conversation']={generation,ready:true,before:null,messages:[{client_id:'00000000-0000-4000-8000-000000000011',question:'Am I improving?',state:'answered',answer}]};
+ r['/api/coach/conversation']={generation,ready:true,before:null,messages};
+ r['/api/coach/conversation/threads']={enabled:true,retention:'until_deleted',generation,conversations:[{conversation_id:conversation,title:messages[0].question,updated:today+'T12:00Z'}],before:null};
+ r['POST /api/coach/conversation/threads/'+conversation+'/resume']={conversation_id:conversation,generation,ready:true,before:null,messages,stream_supported:true};
  if(name==='food-chat-review'){
   const entries=r['/api/food/day'].entries.map(e=>({...e,id:null,source:'ai',ref:{origin:'ai',estimated_portion:true},estimated:true,amount:1,unit:'serving'})),parts=[{index:0,status:'ready',estimated:true,entries,drafts:entries}];
   r['/api/food/thread'].messages=[{id:10,client_id:generation,kind:'user',body:'Oatmeal with blueberries and a chicken salad bowl',state:'answered',created:today+'T12:00Z',local_day:today,result:{review_only:true}},{id:11,reply_to:10,kind:'assistant',body:'Check the portions before adding.',state:'answered',created:today+'T12:00:01Z',result:{kind:'preview',day:today,meal:'lunch',parts}}];

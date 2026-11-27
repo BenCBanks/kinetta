@@ -52,6 +52,7 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 python3 dev/tests/test_native_ui_lifecycle.py
+python3 dev/tests/test_native_tour.py
 node dev/tests/test_boot.js
 node dev/tests/test_explore_hints.js
 node dev/tests/test_feature_usage.js
