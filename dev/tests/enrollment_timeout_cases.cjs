@@ -21,7 +21,7 @@ module.exports=async function enrollmentTimeout(browser,base){
     }
     if(u.pathname==='/api/terms')return route.fulfill({json:{version:null,draft:true}});
     if(u.pathname==='/api/signup'&&req.method()==='GET')return route.fulfill({json:{open:true,full:false,email:true}});
-    if(u.pathname.includes('/username-availability'))return route.fulfill({json:{available:true,login:'fictional_timeout'}});
+    if(u.pathname==='/api/account/username-availability')return route.fulfill({json:{available:true,login:'fictional_timeout'}});
     if(u.pathname==='/api/me')return route.fulfill({status:401,json:{detail:'Not signed in'}});
     if(req.method()!=='GET')return route.fulfill({status:503,json:{detail:'Unrelated test write blocked'}});
     return route.continue();
