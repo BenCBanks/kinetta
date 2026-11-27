@@ -70,7 +70,8 @@ def parse(text, units):
     # values for the same date/field overlap; separate meal rows still sum.
     groups = [i for i, h in enumerate(head) if h in {'group', 'diarygroup', 'diarygrouprows'}]
     total_groups = dict.fromkeys(('total', 'dailytotal', 'daytotal', 'grandtotal', 'subtotal'), '*')
-    total_groups.update({meal + suffix: meal for meal in ('breakfast', 'lunch', 'dinner', 'snacks')
+    total_groups.update({meal + suffix: ('snacks' if meal == 'snack' else meal)
+                         for meal in ('breakfast', 'lunch', 'dinner', 'snack', 'snacks')
                          for suffix in ('total', 'subtotal')})
     if any(_header_matches('weight', h) for h in head) and set(head) & {'reps', 'setorder', 'setindex'}:
         raise HTTPException(400, 'Workout sets are not food or body weight. Choose a nutrition or body-weight export.')
@@ -99,9 +100,13 @@ def parse(text, units):
         for f in ('eaten', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'):
             v = get(f)
             if v is not None and groups:
-                labels = {_key(r[i]) if i < len(r) else '' for i in groups}
-                is_total = bool(labels & total_groups.keys())
-                scopes = {total_groups.get(label, label) for label in labels}
+                labels = {_key(r[i]) for i in groups if i < len(r)} - {''}
+                labels = {'snacks' if label == 'snack' else label for label in labels}
+                total_scopes = {total_groups[label] for label in labels if label in total_groups}
+                is_total = bool(total_scopes)
+                # A total describes its own scope, not its shared parent metadata.
+                # '?' tracks an unlabelled value for a later daily-total check.
+                scopes = total_scopes or labels or {'?'}
                 seen, seen_totals = grouped.setdefault((d, f), (set(), set()))
                 previous = seen if is_total else seen_totals
                 if previous and ('*' in scopes or '*' in previous or scopes & previous):

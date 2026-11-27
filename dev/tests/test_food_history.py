@@ -51,6 +51,26 @@ try:
   status, result = a.post('/api/food/history/preview', {'text': text})
   assert status == 200 and result['rows'] == [{'day': day, 'eaten': 1000.0, 'protein_g': 50.0,
           'food_logged_here': False, 'weight_replaces': False}], result
+ # Empty group columns and a shared parent do not make distinct meals overlap.
+ for breakfast, dinner in (('Breakfast Total,', 'Dinner,'),
+                            (',Breakfast Total', ',Dinner'),
+                            ('Meals,Breakfast Total', 'Meals,Dinner'),
+                            ('Breakfast Total,Meals', 'Dinner,Meals')):
+  for rows in ((breakfast, dinner), (dinner, breakfast)):
+   text = 'Date,Group,Diary Group,Calories\n' + '\n'.join(
+       f'2024-02-10,{labels},{400 if "Breakfast" in labels else 600}' for labels in rows)
+   status, result = a.post('/api/food/history/preview', {'text': text})
+   assert status == 200 and result['rows'][0]['eaten'] == 1000 and not result['problems'], (text, result)
+ # Singular/plural snack names are the same meal; subtotal + detail double counts.
+ for meal in ('Snack', 'Snacks'):
+  for total in ('Snack Total', 'Snacks Total', 'Snack Subtotal', 'Snacks Subtotal'):
+   for rows in ((meal, total), (total, meal)):
+    text = 'Date,Group,Diary Group,Calories\n' + '\n'.join(f'2024-02-10,Meals,{label},100' for label in rows)
+    assert a.post('/api/food/history/preview', {'text': text})[0] == 400, text
+ # An unlabelled value still overlaps a daily total, in either order.
+ for rows in (('', 'Daily Total'), ('Daily Total', '')):
+  text = 'Date,Group,Calories\n' + '\n'.join(f'2024-02-10,{label},100' for label in rows)
+  assert a.post('/api/food/history/preview', {'text': text})[0] == 400, text
  # Previously supported actual headers still work; targets/trends beside them are metadata.
  for header in ('Calories', 'Calories Eaten', 'Calories In', 'Food Calories', 'Energy (kcal)'):
   text = f'Date,{header},Calories Target,Weight Trend\n2024-02-10,1000,2000,70'
