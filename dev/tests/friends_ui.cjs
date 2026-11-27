@@ -168,10 +168,16 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('#fr-found [data-retry]').click();await until(p,()=>document.querySelector('#fr-found')?.getAttribute('aria-busy')==='false'&&document.querySelector('#fr-found [data-add="zz_test_fc_peer06"]'),'search retry succeeds');await close(c);
    }
    {
-    const {c,p}=await open('retry',theme),targetLogin=theme==='light'?'zz_test_fc_peer19':'zz_test_fc_peer20';let fail=true;
-    await p.route('**/api/friends',route=>{if(fail&&route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin){fail=false;return route.fulfill({status:503,json:{message:'fixture failure'}});}return route.continue();});
-    await p.locator('#fr-find input').fill(targetLogin);await until(p,()=>document.querySelector('#fr-found [data-add]'),'Add error target');await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found .friend-row-error')?.textContent==="Couldn't send. Try again.",'Add error copy');assert.equal(await p.locator('#fr-found [data-add]').isDisabled(),false,'failed Add returns to an enabled action');
-    if(out)await capture(p,`find-friends-add-error-${viewportWidth}-${theme}`);await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'Add retry shows Requested');await close(c);
+    const {c,p}=await open('retry',theme),targetLogin=theme==='light'?'zz_test_fc_peer19':'zz_test_fc_peer20';let fail=true,friendPosts=0;
+    await p.route('**/api/friends',route=>{if(route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin)friendPosts++;if(fail&&route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin){fail=false;return route.fulfill({status:503,json:{message:'fixture failure'}});}return route.continue();});
+    await p.locator('#fr-find input').fill(targetLogin);await until(p,()=>document.querySelector('#fr-found [data-add]'),'Add error target');await p.locator('#fr-found [data-add]').click();
+    const recovery=p.locator('#fr-found [data-sharing-state=unknown]');await recovery.waitFor();assert.match(await recovery.innerText(),/Not confirmed.*Retry/);
+    assert.equal(await p.locator('#fr-found [data-add]').isVisible(),false,'uncertain Add never claims a failed or successful request');
+    if(out)await capture(p,`find-friends-add-error-${viewportWidth}-${theme}`);
+    await recovery.getByRole('button',{name:'Retry',exact:true}).click();assert.equal(await recovery.isVisible(),true,'early Retry stays unconfirmed');
+    await require('./privacy_recovery_fixture.cjs')(p);await recovery.getByRole('button',{name:'Retry',exact:true}).click();
+    await p.locator('#fr-found [data-add]').waitFor();assert.equal(friendPosts,1,'Retry only rereads, never sends another friend request');assert.equal(await p.locator('#fr-found [data-add]').isDisabled(),false,'saved relationship readback makes Add available again');
+    await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'Add retry shows Requested');await close(c);
    }
    {
     const {c,p}=await open('typical',theme);await c.setOffline(true);await p.waitForFunction(()=>navigator.onLine===false);await p.evaluate(()=>window.dispatchEvent(new Event('offline')));
