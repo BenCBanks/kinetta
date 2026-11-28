@@ -21,11 +21,13 @@ route(/^\/welcome$/, 'me', async (el) => {
     $('#wc-leave', el).onclick = () => go('/me');
   };
   // Saves, then moves on; a failure keeps the step and what was typed.
-  const step = (save, then) => async () => {
-    const id=currentStep,controls=$$('.welcome-actions button',el);controls.forEach(button=>button.disabled=true); $('#wc-err', el).textContent = '';
-    try { await save(); if (here(id)) then(); }
-    catch (x) { if (here(id)) { $('#wc-err', el).textContent = x.message;controls.forEach(button=>button.disabled=false); } }
-  };
+  const step = (save, then) => {let saving=false;return async () => {
+    if(saving)return;saving=true;const id=currentStep;$('#wc-err', el).textContent = '';
+    try { const proceed = await save(); if (proceed !== false && here(id)) then(); }
+    catch (x) { if (here(id)) $('#wc-err', el).textContent = el.querySelector?.('[data-sharing-state=unknown],[data-sharing-state=checking],[data-sharing-state=confirmed]:not([hidden])') ? '' : x.message; }
+    finally { saving=false; }
+  };};
+
   function profile() {
     const me = App.me,draft=store.get(profileDraftKey),draftName=typeof draft?.name==='string'?draft.name:me.name,draftBio=typeof draft?.bio==='string'?draft.bio:(me.bio||'');
     frame('profile',1, 'Your profile', 'Shown with your name to friends and people who find you. Your photo and bio are optional. Skip keeps your current profile.',
@@ -53,10 +55,13 @@ route(/^\/welcome$/, 'me', async (el) => {
       `<p class="small muted">Only what a request needs goes to ${esc(App.me.ai_provider || 'the AI provider')}, never your whole account. Sharing Health or Garmin data with Kit needs separate permission. Turn Kit off any time in Me.</p>
       <details class="welcome-kit"><summary>What Kit sees</summary>${aiExplain()}</details><p class="small">Kit is for people 18 or older.</p>${aiAdultBox()}`, 'Turn on Kit');
     $('#wc-skip', el).textContent='Keep Kit off';$('#wc-skip', el).onclick = audience;
+    const saved=SocialData.confirmSetting($('.welcome',el),{path:'/api/me',mask:()=>$$('.welcome-kit,.ai-adult,.welcome-actions',el),
+      cache:me=>{if(typeof me.ai_ok!=='boolean')throw Error();refreshMe(me);},paint:()=>{$('#wc-next',el).disabled=false;},
+      uncertain:()=>{App.me.ai_ok=null;keep('/api/me',App.me);invalidate('/api/me');}});
     $('#wc-next', el).onclick = step(async () => {
       if (!$('[name=ai_adult]', el).checked) throw new Error('Tick the box to confirm you’re 18 or older.');
-      await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true}));
-      if(!here('kit'))return;App.me.ai_ok = true; keep('/api/me', App.me); invalidate('/api/coach'); toast('Kit is on');
+      if(!await saved.save('/api/profile',json('PUT',{ai_ok:true,ai_adult:true}))||!App.me.ai_ok)throw Error('Kit is not confirmed on.');
+      if(!here('kit'))return;invalidate('/api/coach');toast('Kit is on');
     }, audience);
   }
   async function audience() {
@@ -68,17 +73,24 @@ route(/^\/welcome$/, 'me', async (el) => {
     $('#wc-aud', el).innerHTML = `<fieldset class="goal-options"><legend class="vh">Who sees your activities</legend>${WELCOME_AUDIENCE.map(([k, name, help]) =>
       `<label class="goal-choice"><input type="radio" name="aud" value="${k}"${k === current ? ' checked' : ''}><span><b>${name}</b><small>${help}</small></span></label>`).join('')}</fieldset>
       <p class="small muted">Shared maps trim the start and end to reduce location clues. Other parts of a route or its photos can still reveal places.</p>`;
+    const saved=SocialData.confirmSetting($('.welcome',el),{path:'/api/sharing',mask:()=>[$('#wc-aud',el),$('#wc-next',el)],
+      cache:data=>{if(!WELCOME_AUDIENCE.some(([v])=>v===data.default))throw Error();App.me.share_default=data.default;App._meRefreshVersion=(App._meRefreshVersion||0)+1;keep('/api/me',App.me);},paint:data=>{current=data.default;
+        $$('[name=aud]',el).forEach(input=>input.checked=input.value===current);
+        $$('.welcome-actions button',el).forEach(button=>button.disabled=false);},uncertain:()=>{App.me.share_default=null;keep('/api/me',App.me);invalidate('/api/sharing');}});
     $('#wc-next',el).disabled=false;$('#wc-next', el).onclick = step(async () => {
       const pick = $('input[name="aud"]:checked', el)?.value;
       if(!pick)throw Error('Choose who sees new activities, or skip to keep your current choice.');
-      if (pick !== current) await api('/api/sharing', json('PUT', {default: pick}));
+      if(pick!==current&&(!await saved.save('/api/sharing',json('PUT',{default:pick}))||current!==pick))throw Error('Saved choice not confirmed.');
     }, phone);
   }
   async function phone() {
     frame('phone',3 + k, 'Phone number', 'Used for contact matching and never shown to others. Include + and your country code.',
-      `<label class="form">Number · optional<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" disabled></label>`);
-    const input=$('input[name=phone_e164]',el),next=$('#wc-next',el),skip=$('#wc-skip',el);
+      `<div id="wc-phone-settings"><label class="form">Number · optional<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" disabled></label><p class="small muted" id="wc-phone-saved" role="status" hidden></p></div>`);
+    const input=$('input[name=phone_e164]',el),next=$('#wc-next',el),skip=$('#wc-skip',el),summary=$('#wc-phone-saved',el),phoneSettings=$('#wc-phone-settings',el);
     let savedPhone=null;
+    const saved=SocialData.confirmSetting(phoneSettings,{path:'/api/contacts/settings',mask:()=>[input.closest('label'),next,summary],
+      paint:(data,{failure})=>{if(data.phone_e164!==null&&typeof data.phone_e164!=='string')throw Error();savedPhone=data.phone_e164;if(!failure)input.value=savedPhone||'';summary.textContent='Saved number: '+(savedPhone||'None')+'.';summary.hidden=!failure;input.disabled=false;next.disabled=false;},
+      uncertain:()=>invalidate('/api/contacts/settings')});
     const load=async()=>{
       if(!here('phone'))return;
       input.disabled=true;next.disabled=true;next.textContent='Save and continue';$('#wc-err',el).textContent='';
@@ -87,10 +99,9 @@ route(/^\/welcome$/, 'me', async (el) => {
         savedPhone=settings.phone_e164||null;input.value=savedPhone||'';input.disabled=false;next.disabled=false;
         next.onclick=step(async()=>{
           const value=input.value.trim();if(value===(savedPhone||''))return;
-          input.disabled=true;
           try{
-            const updated=await api('/api/contacts/settings',json('PUT',{phone_e164:value||null}));if(!here('phone'))return;
-            savedPhone=updated.phone_e164||null;input.value=savedPhone||'';
+            const result=await saved.save('/api/contacts/settings',json('PUT',{phone_e164:value||null}));
+            if(!result||result.failure)return false;
           }finally{if(here('phone'))input.disabled=false;}
         },workouts);
       }catch(x){

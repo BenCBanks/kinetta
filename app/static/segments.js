@@ -260,17 +260,20 @@ const Segments = (() => {
       ${r.public && !r.paused ? (r.rows.length ? `<ol class="lb card">${r.rows.map(row).join('')}</ol>` : (me.private_best?'<p class="small muted">No public times yet.</p>':'')) : ''}
       <div id="lb-more"></div>
       ${r.scope?`<p class="small muted">${esc(r.scope)}</p>`:''}`;
-    const j = $('#lb-join', box); if (j) j.onclick = () => joinSheet(() => board(box, s));
+    const j = $('#lb-join', box); if (j) j.onclick = () => joinSheet(() => board(box, s),box);
     wireRows(box, s); moreBtn(box, s, r);
   }
   function wireRows(box, s) { $$('[data-rep]', box).forEach((b) => b.onclick = () => report(s, {login: b.dataset.rep, name: b.dataset.name})); }
   function moreBtn(box, s, r) { const m = $('#lb-more', box); m.innerHTML = r.next ? '<button class="ghost wide" id="lb-next">Show more</button>' : ''; if (r.next) $('#lb-next', m).onclick = () => board(box, s, r.next); }
-  async function joinSheet(after) {
+  async function joinSheet(after,claims=null) {
     let st; try { st = await api('/api/segment-settings'); } catch (e) { toast(e.message); return; }
     sheet('Segment leaderboards', `<label class="switch-row"><span><b>Show my segment times on leaderboards</b><small>Your best time on each segment appears with your name and photo, from activities you share with Everyone. Joining includes your past eligible activities too.</small></span><input type="checkbox" role="switch" id="lj"${st.joined ? ' checked' : ''}></label>
       <ul class="small muted"><li>Never shown: heart rate, notes, exact start times, or activities shared only with you or friends.</li><li>Passes inside the start and finish your privacy settings hide stay private.</li><li>Keep one activity off leaderboards from that activity’s page.</li><li>Leave any time: your times come off every board at once.</li></ul>
       <button class="primary wide" data-close>Done</button>`, (b) => {
-      $('#lj', b).onchange = async (e) => { try { await api('/api/segment-settings', json('PUT', {joined: e.target.checked})); toast(e.target.checked ? 'You’ve joined leaderboards' : 'Your times are off the leaderboards'); after?.(); } catch (x) { e.target.checked = !e.target.checked; toast(x.message); } };
+      const saved=SocialData.confirmSetting(b,{path:'/api/segment-settings',uncertain:()=>{
+        if(claims){claims.innerHTML='<p class="small muted" role="status">Not confirmed. <button type="button" class="linkbtn">Retry</button></p>';$('button',claims).onclick=()=>after?.();}
+      },cache:async data=>{if(typeof data.joined!=='boolean')throw Error();await after?.();},paint:data=>{$('#lj',b).checked=data.joined;}});
+      $('#lj',b).onchange=e=>saved.save('/api/segment-settings',json('PUT',{joined:e.target.checked}));
     });
   }
   async function mine(box, s) {
@@ -309,10 +312,10 @@ const Segments = (() => {
   }
 
   // ---------- on an activity, and in settings ----------
-  async function activityCard(box, aid) {
+  async function activityCard(box, aid, confirmed=null) {
     const owner=reviewOwner(),seq=box._segmentRevision=(box._segmentRevision||0)+1;
     const live=()=>owner&&owner===reviewOwner()&&box.isConnected&&seq===box._segmentRevision;
-    let r; try { r = await api(`/api/activities/${aid}/segment-efforts`); } catch (_) { if(live())box.innerHTML = ''; return; }
+    let r; try { r = confirmed||await apiRequest(`/api/activities/${aid}/segment-efforts`,{cache:'no-store'}); } catch (_) { if(live())box.innerHTML = ''; return; }
     if(!live())return;
     box.innerHTML = `<div class="card"><h2>Segments</h2>${r.processing ? '<p class="small muted" role="status">Checking for segments…</p>' : ''}
       ${r.efforts.length ? `<ol class="list seg-efforts">${r.efforts.map((e) => `<li class="row-link seg-effort"><a class="grow" href="/segments/${e.segment_id}?tab=mine"><b>${esc(e.segment_name)}</b>${e.personal_best ? ' <span class="badge on">Your best</span>' : ''}
@@ -323,15 +326,22 @@ const Segments = (() => {
         <label class="check-row"><input name="confirmed" type="checkbox" required><span>I confirm this describes this activity.</span></label><button class="primary wide">Save declaration</button><p id="sa-status" class="small" role="status"></p></form></details>
       <label class="switch-row"><span><b>Keep off leaderboards</b><small>Times from this activity stay private, without changing who can see the activity.</small></span><input type="checkbox" role="switch" id="sa-ex"${r.excluded ? ' checked' : ''}></label>
       <div class="list"><button class="row-link" id="sa-seg">${svg('flag')}<span class="grow">Make a segment from part of this</span>${svg('chev')}</button></div></div>`;
+    const saved=SocialData.confirmSetting(box,{path:`/api/activities/${aid}/segment-efforts`,matches:(data,attempt)=>{
+      const wanted=JSON.parse(attempt.options.body);return attempt.path.endsWith('/segment-assistance')?data.assistance===wanted.assistance:data.excluded===wanted.excluded;
+    },paint:data=>{
+      if(typeof data.excluded!=='boolean'||!Array.isArray(data.efforts)||!Number.isSafeInteger(data.assistance_revision))throw Error();
+      r=data;$('#sa-ex',box).checked=data.excluded;
+      // The summary is saved state, even after rejection; the form stays a draft.
+      $('.segment-assistance summary',box).textContent='Assistance: '+({unassisted:'outdoors, no motor assistance',assisted:'motor assisted',virtual:'virtual or indoors'}[r.assistance]||'not declared');
+    },after:()=>{
+      $('#sa-status',box).textContent='';
+    }});
     $('#sa-declare',box).onsubmit=async(e)=>{
       e.preventDefault();if(!live())return;const f=e.currentTarget,button=$('button',f),status=$('#sa-status',f);
-      button.disabled=true;status.textContent='Saving declaration…';
-      try{await api(`/api/activities/${aid}/segment-assistance`,json('PUT',{assistance:f.elements.assistance.value||null,revision:r.assistance_revision,confirmed:f.elements.confirmed.checked}));
-        if(live()){toast('Declaration saved');activityCard(box,aid);}}
-      catch(x){if(live())status.textContent=x.message+' Your selection is kept.';}
-      finally{if(live())button.disabled=false;}
+      status.textContent='Saving declaration…'; // confirmSetting locks without dropping focused-button focus.
+      await saved.save(`/api/activities/${aid}/segment-assistance`,json('PUT',{assistance:f.elements.assistance.value||null,revision:r.assistance_revision,confirmed:f.elements.confirmed.checked}));
     };
-    $('#sa-ex', box).onchange = async (e) => { if(!live())return;try { await api(`/api/activities/${aid}/leaderboards`, json('PUT', {excluded: e.target.checked})); } catch (x) { e.target.checked = !e.target.checked; toast(x.message); } };
+    $('#sa-ex',box).onchange=e=>{if(live())saved.save(`/api/activities/${aid}/leaderboards`,json('PUT',{excluded:e.target.checked}));};
     $('#sa-seg', box).onclick = async () => {
       if(!live())return;
       try { await loadClassicScript(PLANNER_ROUTE_ASSET); }
@@ -348,9 +358,10 @@ const Segments = (() => {
     };
   }
   function settingsRow(box) {
-    box.innerHTML = `<div class="card list"><button class="row-link" id="sg-set">${svg('trophy')}<span class="grow"><b>Segment leaderboards</b><small class="muted" id="sg-set-s">Off until you join</small></span>${svg('chev')}</button></div>`;
-    api('/api/segment-settings').then((s) => { const x = $('#sg-set-s', box); if (x) x.textContent = s.joined ? 'On: your eligible best times appear' : 'Off: your segment times stay private'; }).catch(() => {});
-    $('#sg-set', box).onclick = () => joinSheet(() => settingsRow(box));
+    box.innerHTML = `<div class="card list"><button class="row-link" id="sg-set">${svg('trophy')}<span class="grow"><b>Segment leaderboards</b><small class="muted" id="sg-set-s">Checking…</small></span>${svg('chev')}</button></div>`;
+    const saved=SocialData.confirmSetting(box,{path:'/api/segment-settings',paint:s=>{
+      if(typeof s.joined!=='boolean')throw Error();$('#sg-set-s',box).textContent=s.joined?'On: your eligible best times appear':'Off: your segment times stay private';}});saved.read();
+    $('#sg-set', box).onclick = () => joinSheet(() => settingsRow(box),box);
   }
   return {list, review, reviewPage, page, activityCard, settingsRow, pending: null};
 })();

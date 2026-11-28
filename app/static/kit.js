@@ -648,18 +648,26 @@ Object.assign(KitChat, (() => {
       const box=$('#kit-memory',body),sh=body.closest('.sheet'),valid=()=>session===readOwner()&&body.isConnected;
       const title=$('h2',sh),labels={goal:'Goal',preference:'Preference',routine:'Routine'};
       const date=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
-      let data=null,swipe=null,suppressTap=false;
+      let data=null,swipe=null,suppressTap=false,editing=null;
       sh.classList.add('kit-history-sheet');
       const menu=document.createElement('button');menu.className='icon-btn kit-history-menu';menu.type='button';
       menu.setAttribute('aria-label','Memory options');menu.innerHTML=svg('more');$('header',sh).prepend(menu);
+      const saved=SocialData.confirmSetting(box,{path:'/api/coach/conversation/memory',mask:()=>[...box.children],
+        uncertain:()=>{menu.setAttribute('aria-disabled','true');},
+        paint:next=>{if(typeof next.enabled!=='boolean'||!Array.isArray(next.memories))throw Error();},
+        after:next=>{
+          menu.removeAttribute('aria-disabled');data=next;
+          // A rejected Delete must not discard an unsubmitted correction.
+          // Keep the editor (and its type/focus); subsequent saves use this version.
+          if(editing!==null&&next.memories.some(m=>String(m.id)===String(editing)))return;
+          draw(next);
+        }});
       const remove=async(id,button)=>{
         if(!valid())return;
-        button.disabled=true;
-        try{await api('/api/coach/conversation/memory'+(id?'/'+id:''),{method:'DELETE'});if(valid())await draw();}
-        catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;button.disabled=false;}}
+        await saved.save('/api/coach/conversation/memory'+(id?'/'+id:''),{method:'DELETE'});
       };
       menu.onclick=()=>{
-        if(!valid())return;
+        if(!valid()||!saved.known)return;
         sheet('Memory options','<button type="button" class="linkbtn wide danger kit-history-action" id="kit-forget-all">Forget all memories</button>',(b,done)=>{
           $('#kit-forget-all',b).onclick=async event=>{
             if(!valid())return;
@@ -677,6 +685,7 @@ Object.assign(KitChat, (() => {
       box.addEventListener('touchcancel',()=>{swipe=null;});
       const edit=memory=>{
         if(!valid())return;
+        editing=memory?.id??null;
         const editable=Number.isSafeInteger(data.version)&&data.enabled;let kind=memory?.kind||'preference';
         title.textContent=memory?'Edit detail':'Add a detail';menu.hidden=true;
         box.innerHTML=`<form id="kit-memory-form"><div class="underline-tabs" role="group" aria-label="Type">${Object.entries(labels).map(([key,label])=>`<button type="button" data-kit-kind="${key}" aria-pressed="${kind===key}" ${editable?'':'disabled'}>${label}</button>`).join('')}</div><label class="vh" for="kit-memory-text">Detail</label><textarea id="kit-memory-text" rows="3" maxlength="400" required placeholder="I prefer morning runs." ${editable?'':'readonly'}>${esc(memory?.text||'')}</textarea><p class="err" id="kit-memory-error" role="alert"></p><div class="kit-memory-edit-actions"><button type="button" class="ghost" id="kit-memory-cancel">Cancel</button>${editable?'<button type="submit" class="primary" id="kit-memory-save">Save</button>':''}</div>${memory?'<button type="button" class="linkbtn wide danger kit-history-action" id="kit-memory-delete">Delete</button>':''}</form>`;
@@ -695,10 +704,10 @@ Object.assign(KitChat, (() => {
           }catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;save.disabled=false;}}
         };
       };
-      const draw=async()=>{
+      const draw=async(confirmed)=>{
         try{
-          const next=await api('/api/coach/conversation/memory');if(!valid())return;data=next;
-          title.textContent='What Kit remembers';menu.hidden=!data.memories.length;
+          const next=confirmed||await apiRequest('/api/coach/conversation/memory',{cache:'no-store'});if(!valid())return;data=next;
+          editing=null;title.textContent='What Kit remembers';menu.hidden=!data.memories.length;
           const editable=Number.isSafeInteger(data.version)&&data.enabled;
           box.innerHTML=`${editable&&data.memories.length<12?`<button type="button" class="linkbtn kit-history-action" id="kit-memory-add">${svg('plus')}<span>Add a detail</span></button>`:''}<label class="switch-row kit-memory-switch"><span>Remember useful details</span><input type="checkbox" role="switch" id="kit-memory-on" ${data.enabled?'checked':''}></label><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<div class="kit-history-row kit-memory-row"><button type="button" class="kit-history-delete" data-kit-forget="${m.id}" aria-label="Delete" aria-hidden="true" inert>${svg('trash')}</button><div class="kit-history-front"><button type="button" class="kit-history-open" data-kit-edit="${m.id}"><span><strong>${esc(m.text)}</strong><small>${esc([labels[m.kind]||'Detail',date(m.updated)].filter(Boolean).join(' · '))}</small></span></button></div></div>`).join(''):'<p class="muted kit-memory-empty">No saved details yet.</p>'}</div><p class="err" id="kit-memory-error" role="alert"></p>`;
           const add=$('#kit-memory-add',box);if(add)add.onclick=()=>edit(null);
@@ -711,12 +720,10 @@ Object.assign(KitChat, (() => {
             if(!valid())return;
             const toggle=e.target,enabled=toggle.checked;
             if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Kit will forget your saved details.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
-            toggle.disabled=true;
-            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}
-            catch(error){if(valid()){$('#kit-memory-error',box).textContent=error.message;toggle.checked=!enabled;toggle.disabled=false;}}
+            await saved.save('/api/coach/conversation/memory',json('PUT',{enabled}));
           };
-        }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
-      };draw();
+        }catch(error){if(valid())box.innerHTML=`<p class="err">${esc(error.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=()=>draw();}
+      };saved.read();
     });
   }
   async function mount(el){

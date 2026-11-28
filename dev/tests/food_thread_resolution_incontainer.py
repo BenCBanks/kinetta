@@ -1,5 +1,5 @@
 """Thread source/portion/replay tests: fictional accounts and provider stand-ins only."""
-import base64,datetime as dt,io,json,threading,unittest,uuid
+import base64,datetime as dt,io,json,threading,time,unittest,uuid
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -42,7 +42,14 @@ class Resolution(unittest.TestCase):
  def no_ai(self):
   with db.connect() as c:c.execute('UPDATE profile SET ai_ok=false WHERE user_id=%s',(self.uid,))
  def post(self,path,body=None,client=None,status=200):
-  r=(client or self.a).post(path,json=body or {});self.assertEqual(r.status_code,status,r.text[:800]);return r.json()
+  # Body-session admission can legitimately refuse before the route runs. Retry
+  # only this keyed append, with the identical body/UUID, for its exact busy reply.
+  for attempt in range(3):
+   r=(client or self.a).post(path,json=body or {})
+   if (r.status_code==status or path!='/api/food/thread/messages' or not (body or {}).get('client_id')
+       or r.status_code!=503 or r.json().get('detail')!='Kinetta is busy. Please try again shortly.' or attempt==2):break
+   time.sleep(.05*(attempt+1))
+  self.assertEqual(r.status_code,status,r.text[:800]);return r.json()
  def send(self,text,media='text',**extra):
   key=str(uuid.uuid4());m=self.post('/api/food/thread/messages',{'client_id':key,'body':text,'media':media,**extra},status=201)['message']
   r=self.post(f"/api/food/thread/messages/{m['id']}/process");return m,r
@@ -131,6 +138,35 @@ class Resolution(unittest.TestCase):
   key=str(uuid.uuid4());self.post('/api/food/thread/cancel',{'client_id':key})
   self.post('/api/food/thread/messages',{'client_id':key,'body':'Cancelled offline food'},status=409)
   self.post('/api/food/thread/messages',{'client_id':key,'body':'Other private food'},client=self.b,status=201)
+ def test_message_admission_busy_reuses_identity(self):
+  from app import request_bodies
+  from psycopg.errors import QueryCanceled
+  original=request_bodies.session_exists;lookups=0
+  body={'client_id':str(uuid.uuid4()),'body':'Fictional busy admission'}
+  def lookup(token):
+   nonlocal lookups
+   lookups+=1
+   if lookups==1:raise QueryCanceled('Fictional session-lookup budget')
+   with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM food_chat_messages WHERE user_id=%s',(self.uid,)).fetchone()['n'],0)
+   return original(token)
+  with patch.object(request_bodies,'session_exists',side_effect=lookup),patch.object(self.a,'post',wraps=self.a.post) as sent:
+   result=self.post('/api/food/thread/messages',body,status=201)
+  self.assertEqual(sent.call_count,2);self.assertTrue(all(call.kwargs['json']==body for call in sent.call_args_list))
+  self.assertEqual(str(result['message']['client_id']),body['client_id']);self.model.assert_not_called()
+  with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM food_chat_messages WHERE user_id=%s',(self.uid,)).fetchone()['n'],1)
+ def test_message_admission_busy_retry_is_bounded(self):
+  from app import request_bodies
+  from psycopg.errors import QueryCanceled
+  body={'client_id':str(uuid.uuid4()),'body':'Fictional sustained busy admission'}
+  with patch.object(request_bodies,'session_exists',side_effect=QueryCanceled('Fictional session-lookup budget')),patch.object(self.a,'post',wraps=self.a.post) as sent:
+   with self.assertRaisesRegex(AssertionError,'503 != 201'):self.post('/api/food/thread/messages',body,status=201)
+  self.assertEqual(sent.call_count,3);self.assertTrue(all(call.kwargs['json']==body for call in sent.call_args_list))
+  from httpx import Response
+  with patch.object(self.a,'post',return_value=Response(503,json={'detail':'Fictional provider unavailable'})) as other:
+   with self.assertRaisesRegex(AssertionError,'503 != 201'):self.post('/api/food/thread/messages',body,status=201)
+  self.assertEqual(other.call_count,1,'other provider/server failures must not be hidden by the fixture')
+  self.model.assert_not_called()
+  with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM food_chat_messages WHERE user_id=%s',(self.uid,)).fetchone()['n'],0)
  def test_07_manual_missing_macros_and_no_implicit_save(self):
   m=self.root();path=f"/api/food/thread/messages/{m['id']}/manual"
   self.post(path,{'items':[{'name':'Manual lunch','kcal':400}],'confirm':False},status=400);self.assertEqual(self.entries(),[])

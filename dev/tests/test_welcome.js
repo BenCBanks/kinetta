@@ -4,15 +4,15 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 let route,calls=[],went=[];const drafts=new Map();
 const field=v=>({value:v});
 const el={isConnected:true,innerHTML:''},nodes={};
-const node=(sel)=>nodes[sel]||(nodes[sel]={onclick:null,disabled:false,textContent:'',innerHTML:'',remove(){}});
+const node=(sel)=>nodes[sel]||(nodes[sel]={onclick:null,disabled:false,textContent:'',innerHTML:'',remove(){},closest(){return this;}});
 const form={elements:{name:field('Sam Fictional'),bio:field('')},reportValidity:()=>true};
 const c={App:{me:{name:'Sam Fictional',bio:''}},Native:{on:false,base:''},readOwner:()=>'one',route:(re,tab,fn)=>route=fn,go:p=>went.push(p),
   $:(sel)=>sel==='#wc-form'?form:sel==='input[name="aud"]:checked'?{value:c.pick}:node(sel),
   location:{origin:'https://example.test',search:''},URLSearchParams,replacePageAddress:(_el,href)=>{c.location.search=new URL(href,'https://example.test').search;},$$:()=>[node('#wc-next'),node('#wc-skip'),node('#wc-leave')],
-  phoneValue:null,api:async(path,opts)=>{calls.push([path,opts&&opts.body]);if(path==='/api/contacts/settings'){if(opts?.method==='PUT')c.phoneValue=opts.body.phone_e164;return{phone_e164:c.phoneValue};}return path==='/api/sharing'?{default:'everyone'}:path==='/api/account/inviter'?{inviter:null}:{name:'Sam Fictional'};},
+  shareValue:'everyone',phoneValue:null,api:async(path,opts)=>{calls.push([path,opts&&opts.body]);if(path==='/api/contacts/settings'){if(opts?.method==='PUT')c.phoneValue=opts.body.phone_e164;return{phone_e164:c.phoneValue};}if(path==='/api/sharing'){if(opts?.method==='PUT')c.shareValue=opts.body.default;return {default:c.shareValue};}if(path==='/api/profile')return c.meSaved={...c.App.me,...opts.body};if(path==='/api/me')return c.meSaved;return path==='/api/account/inviter'?{inviter:null}:{name:'Sam Fictional'};},
   json:(m,b)=>({method:m,body:b}),esc:String,svg:()=>'',avatar:()=>'',skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',store:{get:key=>drafts.get(key)||null,set:(key,value)=>drafts.set(key,value),del:key=>drafts.delete(key)},keep(){},invalidate(){},toast(){},profilePhotoSheet(){},aiExplain:()=>'Kit sends what a feature needs.',aiAdultBox:()=>'<input name=ai_adult>',pick:'everyone'};
  c.ContactsUI={welcomeLink:()=>'<a class="contacts-welcome-link" href="/me/friends/contacts?return=welcome">Find friends with contacts</a>'};
-vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/welcome.js','utf8'),c);
+vm.createContext(c);require('./confirmed_setting_fixture.cjs')(c);vm.runInContext(fs.readFileSync('app/static/welcome.js','utf8'),c);
 const tick=()=>new Promise(r=>setTimeout(r,0));
 (async()=>{
   c.location.search='';await route(el);assert.match(el.innerHTML,/1 of 4/);

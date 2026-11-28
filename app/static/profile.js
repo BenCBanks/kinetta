@@ -860,24 +860,27 @@ const ProfileLayout=(()=>{
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
       onInteraction('open');
-      const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=FEATURED_ACHIEVEMENT_LIMIT;
+      const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code);
       sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
         const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
-        button.onclick=async()=>{
-          onInteraction('save-start');button.disabled=true;
-          try{
-            const result=await api('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
-            if(!box.isConnected||owner!==readOwner())return;
-            pinnedCodes.clear();for(const item of Array.isArray(result?.pinned)?result.pinned:[])pinnedCodes.add(String(item));
+        const recovery=document.createElement('p');recovery.className='setting-recovery small';recovery.setAttribute('role','status');
+        const saved=SocialData.confirmSetting(body,{path:'/api/achievements/showcase',matches:(data,attempt)=>Array.isArray(data.pinned)?data.pinned.includes(code)===JSON.parse(attempt.options.body).pinned:null,uncertain:()=>{
+          invalidate('/api/achievements/showcase');invalidate('/api/people/');MeCard.clearPreviewCache?.();
+          recovery.innerHTML='Not confirmed. <button type="button" class="linkbtn">Retry</button>';if(!body.isConnected)box.before(recovery);$('button',recovery).onclick=()=>render();
+        },mask:()=>[...body.children,box],cache:result=>{
+            if(!Array.isArray(result?.pinned))throw Error();
+            pinnedCodes.clear();for(const item of result.pinned)pinnedCodes.add(String(item));
             box.querySelectorAll('.profile-achievement-list.is-grid [data-achievement-pin-target="true"], .profile-achievement-sport-cards [data-achievement-pin-target="true"]').forEach(row=>{
               const active=pinnedCodes.has(row.dataset.achievementCode);row.dataset.showcasePinned=String(active);
               const label=row.getAttribute('aria-label')||'';row.setAttribute('aria-label',label.replace(/, Pinned to profile$/,'')+(active?', Pinned to profile':''));
               row.setAttribute('aria-description',`Long press to ${active?'remove this medal from':'pin this medal to'} your profile.`);
             });
-            onInteraction();
-            close();toast(result?.replaced||replace?'Pinned to profile. Oldest pin replaced.':pinned?'Removed from profile.':'Pinned to profile.');
-          }catch(error){button.disabled=false;toast(error?.message||'Showcase could not be updated.');}
-          finally{onInteraction('save-end');}
+            onInteraction();box.hidden=false;recovery.remove();onInteraction('save-end');
+        },paint:()=>{button.disabled=false;
+        },after:(_,{failure,writeResult})=>{if(!failure){close();const replaced=writeResult?.replaced===true;toast(replaced?'Pinned to profile. Oldest pin replaced.':pinned?'Removed from profile.':'Pinned to profile.');}}});
+        button.onclick=async()=>{
+          onInteraction('save-start');
+          await saved.save('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
         };
       },{onClose:()=>onInteraction('close')});
     };
@@ -1410,24 +1413,29 @@ const MeCard=(()=>{
       const close=()=>{finish();if(fromSettings&&live())go('/me',{replace:true});};
       const previewEdit=$('[data-card-preview-edit]',box);if(previewEdit)previewEdit.onclick=()=>{if(valid())viewAsFriend();};
       const cancel=$('[data-card-cancel]',box);cancel.onclick=async()=>{if(!valid()||busy||featuredBusy)return;if(dirty()&&(!await confirmSheet('Discard your changes?',{body:'Your profile edits won’t be saved.',action:'Discard',cancel:'Keep editing'})||!valid()||busy||featuredBusy))return;close();};
+      const saved=SocialData.confirmSetting(form,{read:async()=>{
+        const [me,showcase]=await Promise.all([apiRequest('/api/me',{cache:'no-store'}),apiRequest('/api/achievements/showcase',{cache:'no-store'})]);return {me,showcase};
+      },cache:({me,showcase})=>{if(!me.profile_layout||!Array.isArray(showcase?.pinned))throw Error();refreshMe(me);},mask:()=>[...form.children].filter(node=>node!==$('.me-editor-head',form)),uncertain:()=>{
+        App.me.profile_layout=null;keep('/api/me',App.me);invalidate('/api/me');invalidate('/api/people/');invalidate('/api/achievements/showcase');clearPreviewCache();data=null;
+
+      },paint:({me,showcase},{failure})=>{
+        start.name=me.name;start.bio=me.bio||'';start.layout=ProfileLayout.singlePeriod(me.profile_layout);start.featuredPins=[...showcase.pinned];
+        // Readback updates the saved baseline, never the editor's remaining draft.
+        // In particular, an account save does not submit the selected pins.
+        if(!failure&&saved.attempted?.path==='/api/account'){name.value=start.name;bio.value=start.bio;}
+        busy=false;featuredBusy=false;cancel.disabled=false;save.textContent='Save';sizeBio();changed();
+      }});
       form.onsubmit=async e=>{
         e.preventDefault();if(!valid()||busy||featuredBusy||!dirty())return;
         const trimmed=name.value.trim();if(!trimmed||trimmed.length>60){nameError.textContent='Enter a name between 1 and 60 characters.';name.setAttribute('aria-invalid','true');name.focus();return;}
         const body={name:trimmed,bio:bio.value.trim(),profile_layout:ProfileLayout.singlePeriod(value)};
-        const savePins=JSON.stringify(featuredPins)!==JSON.stringify(start.featuredPins);busy=true;featuredBusy=savePins;cancel.disabled=true;save.disabled=true;save.textContent='Saving…';status.textContent='';renderFeatured();
-        try{
-          if(name.value!==start.name||bio.value!==start.bio||JSON.stringify(value)!==JSON.stringify(start.layout)){
-            const account=await api('/api/account',json('PUT',body));if(owner!==readOwner())return;
-            App.me.name=account.name??body.name;App.me.bio=account.bio??body.bio;App.me.profile_layout=account.profile_layout||body.profile_layout;
-            start.name=App.me.name;start.bio=App.me.bio;start.layout=ProfileLayout.singlePeriod(App.me.profile_layout||body.profile_layout);
-            invalidate('/api/me');invalidate('/api/people/');clearPreviewCache();invalidateFeed();keep('/api/me',App.me);
-          }
-          if(savePins){
-            const result=await api('/api/achievements/showcase/pins',json('PUT',{pinned:featuredPins}));if(!valid())return;
-            featuredPins=Array.isArray(result?.pinned)?result.pinned:[...featuredPins];start.featuredPins=[...featuredPins];invalidate('/api/achievements/showcase');
-          }
-          if(valid()){finish(true);toast('Card saved');if(fromSettings)go('/me',{replace:true});else (onSaved||reload)?.();}
-        }catch(x){if(valid()){status.textContent=x.message;save.textContent='Save';busy=false;featuredBusy=false;cancel.disabled=false;renderFeatured();changed();}}
+        const pins=[...featuredPins],savePins=JSON.stringify(pins)!==JSON.stringify(start.featuredPins);
+        busy=true;featuredBusy=savePins;save.textContent='Saving…';status.textContent='';
+        if(name.value!==start.name||bio.value!==start.bio||JSON.stringify(value)!==JSON.stringify(start.layout)){
+          const result=await saved.save('/api/account',json('PUT',body));if(!result||result.failure||!valid())return;
+        }
+        if(savePins){const result=await saved.save('/api/achievements/showcase/pins',json('PUT',{pinned:pins}));if(!result||result.failure||!valid())return;}
+        if(valid()){invalidateFeed();finish(true);toast('Card saved');if(fromSettings)go('/me',{replace:true});else (onSaved||reload)?.();}
       };
       loadFeatured();
       sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});

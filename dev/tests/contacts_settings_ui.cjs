@@ -183,7 +183,7 @@ async function uncertainSaves(browser,mode){
 
 (async()=>{
   const browser=await chromium.launch();
-  try{for(const theme of ['light','dark'])await runTheme(browser,theme);for(const mode of ['web','bridge'])await uncertainSaves(browser,mode);await require('./privacy_ordering_ui.cjs')(browser,base,out);await require('./privacy_stability_ui.cjs')(browser,base,out);}
+  try{for(const theme of ['light','dark'])await runTheme(browser,theme);for(const mode of ['web','bridge'])await uncertainSaves(browser,mode);await require('./privacy_ordering_ui.cjs')(browser,base,out);await require('./privacy_stability_ui.cjs')(browser,base,out);await require('./consent_confirmation_ui.cjs')(browser,base,out);}
   finally{await browser.close();}
   console.log('Sharing Settings: achievement switch API sync, contact choices, phone save, 330/390px light/dark, all writes intercepted PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

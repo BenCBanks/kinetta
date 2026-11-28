@@ -192,7 +192,7 @@ const SocialData=(()=>{
     const block=event=>{if([...held.keys()].some(node=>node===event.target||node.contains(event.target)||(event.type==='submit'&&event.target.contains(node)))){event.preventDefault();event.stopImmediatePropagation();}};
     for(const type of ['click','pointerdown','change','beforeinput','submit'])root.addEventListener(type,block,true);
     root.addEventListener('keydown',event=>{if([' ','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(event.key))block(event);},true);
-    function state(checking){note.hidden=false;note.dataset.sharingState=checking?'checking':'unknown';text.textContent=checking?'Checking… ':unknownText+' ';retry.hidden=checking;}
+    function state(checking){note.hidden=false;note.dataset.sharingState=checking?'checking':'unknown';text.textContent=checking?'Checking… ':(lastError?.status===429||lastError?.retryAfter?lastError.message:unknownText)+' ';retry.hidden=checking;}
     const views=viewsByOwner.get(key)||new Set();viewsByOwner.set(key,views);
     views.add(()=>{if(!live())return false;conceal();if(!busy)state(false);return true;});
     function schedule(){
@@ -228,7 +228,7 @@ const SocialData=(()=>{
           try{for(const name of Object.keys(localStorage))if(name.startsWith('fit.c:'))localStorage.removeItem(name);}catch(_){}
           const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
           try{
-            await api(writePath,{...options,signal:controller.signal});
+            attempt.writeResult=await api(writePath,{...options,signal:controller.signal});
             if(account===readOwner()&&expected===generation())setUntil(0);
           }catch(error){failure=lastError=attempt.error=error;}finally{clearTimeout(timer);}
         }
@@ -262,7 +262,7 @@ const SocialData=(()=>{
           if(window.scrollX!==scrollX||window.scrollY!==scrollY)window.scrollTo(scrollX,scrollY);
         };
         await paint(data,{failure});if(!live()||expected!==generation()){restorePosition();return null;}
-        known=true;await after(data,{failure});if(!live()||expected!==generation()){restorePosition();return null;}restore();restorePosition();
+        known=true;await after(data,{failure,writeResult:attempt?.writeResult});if(!live()||expected!==generation()){restorePosition();return null;}restore();restorePosition();
         setUntil(0);affected=null;if(note.parentElement!==root)root.append(note);note.dataset.sharingState='confirmed';note.hidden=!failure;text.textContent=failure?.message||'';retry.hidden=true;
         returnFocus=false;return {data,failure};
       }catch(error){
