@@ -302,10 +302,12 @@ class Milestones(unittest.TestCase):
   self.assertEqual((first_run['name'],first_run['rank']),('First run',0))
 
  def test_legacy_starter_is_preserved_separately_from_canonical_rank_and_replay(self):
-  for _ in range(10):self.activity(days=20,distance=0)
   legacy_details={'track':'workouts','rank':1,'threshold':1,'label':'First workout','unit':'workouts','big':False,'quiet':True}
   state_details={'track':'workouts','label':'Workouts','value':10,'unit':'workouts','level':1,'big':False}
   with db.connect() as c:
+   # Seed historical state before the app worker can compute current state.
+   c.execute("SELECT pg_advisory_xact_lock(hashtextextended('kinetta-milestones:'||%s::text,0))",(self.ids[0],))
+   for _ in range(10):self.activity(days=20,distance=0)
    c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details,silent)
                 VALUES(%s,'track:workouts:1','track','First workout',1001,%s,%s,%s,true)''',
              (self.ids[0],self.now.date(),self.now,json.dumps(legacy_details)))
@@ -394,12 +396,16 @@ class Milestones(unittest.TestCase):
                    'shared history exposes saved awards only, not future levels')
 
  def test_deleted_source_keeps_canonical_award_date_without_regenerating_removed_starters(self):
-  deleted=self.activity(days=20,distance=0)
-  for _ in range(5):self.activity(distance=0)
   zone=M.ZoneInfo('America/New_York');old_day=(self.now-dt.timedelta(days=20)).astimezone(zone).date()
   state_details={'track':'workouts','label':'Workouts','value':10,'unit':'workouts','level':1,'big':False}
   legacy_details={'track':'workouts','rank':1,'threshold':10,'label':'Seed','unit':'workouts','big':False}
   with db.connect() as c:
+   # Activity dirty triggers may wake the running app between fixture inserts.
+   c.execute("SELECT pg_advisory_xact_lock(hashtextextended('kinetta-milestones:'||%s::text,0))",(self.ids[0],))
+   deleted=self.activity(days=20,distance=0)
+   for _ in range(5):self.activity(distance=0)
+   with db.connect() as worker:
+    self.assertFalse(M.process(worker,self.ids[0],self.now),'a competing worker must wait for the complete historical fixture')
    c.execute('DELETE FROM activities WHERE user_id=%s AND id=%s',(self.ids[0],deleted))
    c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details,silent)
                 VALUES(%s,'track-state:workouts','track_state','Workouts',0,%s,%s,%s,true)''',
