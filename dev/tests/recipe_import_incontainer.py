@@ -1,5 +1,8 @@
 """Actual authenticated HTTP/SQL recipe drafts; only fictional network stand-ins."""
-import json,os,secrets,tempfile,threading,uuid,zipfile
+import datetime as dt
+import json,os,re,secrets,tempfile,threading,uuid,zipfile
+from contextlib import ExitStack,contextmanager
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 import psycopg
@@ -13,6 +16,39 @@ URL='https://recipes.example/fictional-bowls'
 recipe={'@type':'Recipe','name':'Fictional bean bowls','recipeYield':'2 servings','recipeIngredient':['100 g fictional beans','a handful of fictional leaves'],'nutrition':{'calories':'210 kcal','proteinContent':'12 g'}}
 HTML='<script type="application/ld+json">'+json.dumps(recipe)+'</script><p>This page must never be stored.</p>'
 def page(value):return {'html':HTML,'url':value}
+
+# Keep the 36-second stale-worker probe in one UTC day, independent of CI's clock.
+# A future fictional date also keeps the separate app worker's real-time cleanup
+# from touching these fixtures. Frozen purge queries are limited to our accounts.
+NOW=dt.datetime(2100,11,28,12,tzinfo=dt.timezone.utc)
+class FrozenDateTime(dt.datetime):
+ @classmethod
+ def now(cls,tz=None):return NOW.astimezone(tz) if tz else NOW.replace(tzinfo=None)
+class ClockConnection:
+ def __init__(self,c):self.c=c
+ def __getattr__(self,name):return getattr(self.c,name)
+ def execute(self,query,params=None,**kwargs):
+  if isinstance(query,str) and 'recipe_link_drafts' in query:
+   stamp=sql.Literal(NOW).as_string(self.c)
+   query=query.replace('now()',stamp)
+   # DEFAULT now() is bound to pg_catalog at schema creation; pin new draft
+   # timestamps explicitly without changing the shared table's defaults.
+   insert=re.match(r'(INSERT INTO recipe_link_drafts\s*\()([^)]*)(\)\s*VALUES\s*\()',query)
+   if insert:
+    columns=insert[2].split(',');missing=[name for name in ('created','expires') if name not in columns]
+    if missing:
+     values=[stamp if name=='created' else stamp+"+interval '24 hours'" for name in missing]
+     query=insert[1]+','.join(missing)+','+insert[2]+insert[3]+','.join(values)+','+query[insert.end():]
+   if query.startswith(('DELETE FROM recipe_link_drafts WHERE created',"UPDATE recipe_link_drafts SET url=''")):
+    query+=' AND user_id=ANY(%s)';params=(*(params or ()),uids)
+  return self.c.execute(query,params,**kwargs)
+real_connect=db.connect
+@contextmanager
+def clock_connect():
+ with real_connect() as c:yield ClockConnection(c)
+clock=ExitStack()
+clock.enter_context(patch.object(db,'connect',clock_connect))
+clock.enter_context(patch.object(R,'dt',SimpleNamespace(datetime=FrozenDateTime,timezone=dt.timezone,timedelta=dt.timedelta)))
 try:
  for _ in range(2):
   login='zz_test_recipe_'+uuid.uuid4().hex[:12]
@@ -100,11 +136,21 @@ try:
   with zipfile.ZipFile(path) as z:
    rows=[json.loads(line) for line in z.read('data/recipe_link_drafts.jsonl').splitlines()]
    assert len(rows)==30 and all('user_id' not in row for row in rows)
+ # Crossing the pinned UTC boundary must still discard yesterday's identities.
+ NOW=NOW.replace(hour=0)+dt.timedelta(days=1)
+ with patch.object(F,'fetch',side_effect=page) as next_day_fetch:
+  assert read(b,identity).json()['state']=='ready' and next_day_fetch.call_count==1
  with db.connect() as c:
+  assert not c.execute('SELECT 1 FROM recipe_link_drafts WHERE user_id=%s AND id=%s',(uid,pending_id)).fetchone()
+ with patch.object(F,'fetch',side_effect=page):assert read(identity=pending_id).json()['state']=='ready'
+ with db.connect() as c:
+  assert c.execute('SELECT count(*) AS n FROM recipe_link_drafts WHERE user_id=%s',(uid,)).fetchone()['n']==1
   c.execute('DELETE FROM users WHERE id=%s',(uid,));assert not c.execute('SELECT 1 FROM recipe_link_drafts WHERE user_id=%s',(uid,)).fetchone()
   assert c.execute('SELECT 1 FROM recipe_link_drafts WHERE user_id=%s',(other,)).fetchone()
  print('Recipe draft API/SQL: auth, own matching/no AI, explicit reads only, no recipe/food save, replay/concurrency/cancel/late/expiry/crash, failed-attempt cap, sanitized errors/no page retention, real RLS/coach denial/export/account cascade PASS')
 finally:
- with db.connect() as c:
-  c.execute('DELETE FROM users WHERE id=ANY(%s)',(uids,))
-  c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
+ try:
+  with db.connect() as c:
+   c.execute('DELETE FROM users WHERE id=ANY(%s)',(uids,))
+   c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
+ finally:clock.close()
