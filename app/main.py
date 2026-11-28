@@ -36,10 +36,12 @@ async def lifespan(app):
     files_stop,files_worker=account_files.start_cleanup()
     enrollment_stop,enrollment_worker=enrollment_requests.start_cleanup()
     rate_stop,rate_worker=rate_limits.start_cleanup()
+    photos_stop,photos_worker=api_photos.start_receipt_cleanup()
     try:yield
     finally:
         rate_stop.set();rate_worker.join(timeout=1)
         enrollment_stop.set();enrollment_worker.join(timeout=3)
+        photos_stop.set();photos_worker.join(timeout=3)
         files_stop.set();files_worker.join(timeout=3)
         strava_stop.set();strava_worker.join(timeout=3)
         feature_stop.set();feature_worker.join(timeout=3)

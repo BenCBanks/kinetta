@@ -136,6 +136,7 @@ async function mediaBeforeRender(page,requests,label,renderPaths,errors,networkI
    assert(await p.locator('#track-map-wrap .map-full').count()===1,'restored Track map wires its full-map controls');assert.deepEqual(errors,[],'restored Track has no page errors');await c.close();
   }
   await require('./photo_feedback_cases.cjs')(browser,base,{login:'zz_test_detail_owner',password});
+  await require('./photo_replay_cases.cjs')(browser,base,{login:'zz_test_detail_owner',password});
   console.log('Media routes: cold Me after Social warmup, Activity/detail/shared/profile/legacy routes and restored Track map load media before rendering PASS');
  }finally{
   for(const user of ['owner','friend']){

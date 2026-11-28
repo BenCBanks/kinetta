@@ -30,6 +30,7 @@ TABLE_REVIEW = {
     'achievement_moment_reactions': ('export:achievement_moment_reactions', 'owner_id week_start user_id kind created'),
     'activities': ('export:activities', 'id user_id sport sub_sport name auto_name description private_note commute start_time tz elapsed_s moving_s distance_m ascent_m descent_m avg_hr max_hr avg_cad avg_power max_power max_speed avg_temp calories avg_vo avg_gct avg_stride gap_s_per_km effort decoupling vo2max zones laps splits_km splits_mi power_curve chart device source source_id file_sha256 file_path strava_id gear_id route_id geom start_pt end_pt ai_note ai_note_at created updated sport_label max_alt min_alt vam norm_power steps pool_length_m lengths strokes swolf visibility share_details lift_open healthkit_id health_details summary_overrides summary_original leaderboard_excluded segment_assistance segment_assistance_rev segment_revision'),
     'activity_intervals': ('export:activity_intervals', 'user_id recording_id activity_id payload request_hash'),
+    'photo_upload_receipts': ('export:photo_upload_receipts', 'user_id client_id activity_id photo_id request_hash created expires'),
     'activity_photos': ('export:activity_photos', 'id activity_id user_id img thumb w h created'),
     'activity_route_plans': ('export:activity_route_plans', 'activity_id user_id source_kind route_id version snapshot_key name distance_m'),
     'activity_streams': ('export:activity_streams', 'activity_id user_id t lat lon alt dist hr cad power speed temp vo gct stride'),
