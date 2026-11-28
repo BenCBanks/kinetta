@@ -28,6 +28,10 @@ async function exercise(browser,base){
     }));
     assert(measures.length>=(scene==='signup'?6:1),'all visible field labels/date are measured');
     for(const m of measures){assert.equal(m.font,root*ratio,`${scene} label follows chosen text size`);assert(m.text.left>=m.box.left-1&&m.text.right<=m.box.right+1&&m.text.top>=m.box.top-1&&m.text.bottom<=m.box.bottom+1,`${scene} complete label fits: ${JSON.stringify(m)}`);assert(m.scroll<=m.width+1,`${scene} has no horizontal overflow`);}
+    if(scene==='people'){
+     const hierarchy=await p.locator('.person-row').evaluateAll(rows=>rows.map(row=>Object.fromEntries([['name','.person-row-main strong'],['status','.person-row-status>span'],['date','time']].map(([key,selector])=>[key,parseFloat(getComputedStyle(row.querySelector(selector)).fontSize)]))));
+     for(const sizes of hierarchy){assert.equal(sizes.name,root*(width>=1100?.875:.9375),'name scales from its normal size');assert.equal(sizes.status,root*(width>=1100?.75:.8125),'status scales from its normal size');assert(sizes.date<=sizes.status&&sizes.status<=sizes.name,`date/status stay subordinate to name: ${JSON.stringify(sizes)}`);}
+    }
     const target=p.locator(scene==='signup'?'button[type=submit]':'.person-row').first();const rect=await target.boundingBox();assert(rect&&rect.width>=44&&rect.height>=44,`${scene} keeps 44px control`);
     if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`${scene}-${width}-${root}-${theme}.png`),animations:'disabled'});}
    }
