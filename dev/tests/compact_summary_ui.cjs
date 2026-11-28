@@ -6,10 +6,10 @@ async function settle(page){await page.evaluate(async()=>{await document.fonts.r
 async function exercise(browser,base,{assertLayout=true}={}){
  assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'disposable loopback only');
  const rows=[],out=process.env.COMPACT_SHOTS;
- for(const width of [320,375,390])for(const theme of ['light','dark'])for(const native of [false,true]){
+ for(const width of [320,375,390,1280])for(const theme of ['light','dark'])for(const native of (width>500?[false]:[false,true])){
   const fixture=require('./native-ui/appstore.cjs')(true),responses=fixture.responses,errors=[],unexpected=[];
   Object.assign(responses['/api/me'],{ai_ok:true,coach:true,kit_chat:true,ai_access:{coach:{available:true,entitled:true}}});
-  const c=await browser.newContext({viewport:{width,height:width===390?844:667},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});
+  const c=await browser.newContext({viewport:{width,height:width>500?900:width===390?844:667},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:width<500,hasTouch:width<500,timezoneId:'UTC'});
   try{
    await c.addInitScript(initialize,{root:16,native,base,token:'fictional-compact-summary',id:1});
    await c.route('**/*',async route=>{
@@ -30,6 +30,7 @@ async function exercise(browser,base,{assertLayout=true}={}){
    const summary=await p.locator('.detail-primary .stat').evaluateAll(nodes=>nodes.map(n=>{const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,height:r.height};};return{label:n.querySelector('small').textContent,value:n.querySelector('b').textContent,number:box(n.querySelector('b')),labelBox:box(n.querySelector('small'))};}));
    assert.deepEqual(summary.map(s=>s.label),['Distance','Elapsed time','Pace (elapsed)'],'elapsed-pace distinction retained');
    assert.equal(summary.length,3);assert(summary[2].labelBox.height>0);
+   if(assertLayout)assert.equal(await p.locator('.detail-primary .stat').first().evaluate(n=>getComputedStyle(n).justifyContent),width<=360?'flex-end':'normal','value anchoring is scoped to narrow phones');
    if(assertLayout){
     assert(Math.max(...summary.map(s=>s.number.y))-Math.min(...summary.map(s=>s.number.y))<1,'all three values share a top baseline despite wrapped pace label: '+JSON.stringify(summary));
     assert(Math.max(...summary.map(s=>s.number.bottom))-Math.min(...summary.map(s=>s.number.bottom))<1,'all three value baselines align');
@@ -58,6 +59,10 @@ async function exercise(browser,base,{assertLayout=true}={}){
     assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'large text remains on screen');
     for(const target of await p.locator('.progress-home-heading .acts > *').all()){const box=await target.boundingBox();assert(box.width>=44&&box.height>=44&&box.x>=0&&box.x+box.width<=width,'large text retains every44px target');}
    }
+   // Only Progress home owns the fixed-title class; subpage headings may contain longer text.
+   await p.goto(base+'/progress?view=fitness');await p.locator('.progress-subpage-heading').waitFor();await p.waitForFunction(()=>App.pageReady);await settle(p);
+   assert.equal(await p.locator('.progress-home-heading').count(),0,'subpage titles cannot match the home nowrap selector');
+   assert.equal(await p.locator('.progress-subpage-heading h1').innerText(),'Fitness');
    assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[],'no unprovided API, provider or write');rows.push({width,theme,native,summary,header});
   }finally{await c.close();}
  }

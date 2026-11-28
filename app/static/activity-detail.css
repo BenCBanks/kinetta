@@ -315,7 +315,8 @@ body.ph-open { overflow: hidden; }
 .activity-detail .detail-moving,
 .activity-detail .detail-secondary { display: contents; }
 .activity-detail .detail-moving { align-items: start; }
-.activity-detail .detail-stat-stack .stat { display: flex; flex-direction: column-reverse; align-items: flex-start; justify-content: flex-end; min-width: 0; gap: 2px; }
+.activity-detail .detail-stat-stack .stat { display: flex; flex-direction: column-reverse; align-items: flex-start; min-width: 0; gap: 2px; }
+@media (max-width:360px) { .activity-detail .detail-stat-stack .stat { justify-content:flex-end; } }
 .activity-detail .detail-stat-stack .stat small { color: var(--tx3); font-size: 13px; font-weight: 500; line-height: 1.2; }
 .activity-detail .detail-stat-stack .stat b { max-width: 100%; margin: 0; color: var(--tx); font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; white-space: normal; }
 .activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) .detail-stat-stack { padding-bottom:0; }
