@@ -2706,6 +2706,61 @@ MIGRATIONS = [
     GRANT SELECT ON photo_upload_receipts TO fit_readers;
     """,
 
+    # 134: durable member action budgets and seven-day retry metadata.
+    """
+    CREATE TABLE IF NOT EXISTS member_action_events (
+      id bigserial PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK(kind IN ('comment','comment_delivery','friend','invite','group','group_challenge',
+          'reaction','reaction_notice','search','report')),
+      target_hash text NOT NULL CHECK(target_hash ~ '^[0-9a-f]{64}$'),
+      payload_hash text NOT NULL CHECK(payload_hash ~ '^[0-9a-f]{64}$'),
+      recipient_id bigint REFERENCES users(id) ON DELETE SET NULL,
+      result text,
+      created timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX IF NOT EXISTS member_action_owner ON member_action_events(user_id,kind,created);
+    CREATE INDEX IF NOT EXISTS member_action_pair ON member_action_events(user_id,kind,recipient_id,created);
+    CREATE INDEX IF NOT EXISTS member_action_expiry ON member_action_events(created);
+    CREATE TABLE IF NOT EXISTS member_action_receipts (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id uuid NOT NULL,
+      fingerprint text NOT NULL CHECK(fingerprint ~ '^[0-9a-f]{64}$'),
+      result text,
+      created timestamptz NOT NULL DEFAULT now(),
+      expires timestamptz NOT NULL DEFAULT now()+interval '7 days',
+      CHECK(expires>created AND expires<=created+interval '7 days'),
+      PRIMARY KEY(user_id,client_id));
+    CREATE INDEX IF NOT EXISTS member_receipt_expiry ON member_action_receipts(expires);
+    CREATE TABLE IF NOT EXISTS member_pair_cooldowns (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires timestamptz NOT NULL,
+      PRIMARY KEY(user_id,recipient_id));
+    CREATE INDEX IF NOT EXISTS member_cooldown_expiry ON member_pair_cooldowns(expires);
+    ALTER TABLE member_action_events ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE member_action_receipts ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE member_pair_cooldowns ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS own_rows ON member_action_events;
+    -- Own action history is readable; private delivery counters are not actor data.
+    CREATE POLICY own_rows ON member_action_events FOR SELECT TO fit_readers
+      USING(user_id=public.fit_me() AND kind NOT IN ('reaction_notice','comment_delivery'));
+    REVOKE ALL ON member_action_events FROM PUBLIC;
+    GRANT SELECT ON member_action_events TO fit_readers;
+    DROP POLICY IF EXISTS own_rows ON member_action_receipts;
+    CREATE POLICY own_rows ON member_action_receipts FOR SELECT TO fit_readers USING(user_id=public.fit_me());
+    DROP POLICY IF EXISTS own_rows ON member_pair_cooldowns;
+    -- A recipient's decline changes this row: ordinary readers must not infer it.
+    REVOKE ALL ON member_pair_cooldowns FROM PUBLIC,fit_readers;
+    GRANT SELECT ON member_pair_cooldowns TO fit_all_readers;
+    GRANT SELECT ON member_action_receipts TO fit_readers;
+    DROP POLICY IF EXISTS all_rows ON member_action_events;
+    CREATE POLICY all_rows ON member_action_events FOR SELECT TO fit_all_readers USING(true);
+    DROP POLICY IF EXISTS all_rows ON member_action_receipts;
+    CREATE POLICY all_rows ON member_action_receipts FOR SELECT TO fit_all_readers USING(true);
+    DROP POLICY IF EXISTS all_rows ON member_pair_cooldowns;
+    CREATE POLICY all_rows ON member_pair_cooldowns FOR SELECT TO fit_all_readers USING(true);
+    """,
+
 ]
 
 

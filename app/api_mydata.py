@@ -121,6 +121,7 @@ TABLES = {
 }
 # Explicit projections: schema additions never silently enter these exports.
 NEW_EXPORTS = {
+    'member_action_receipts': ('member_action_receipts', 'client_id fingerprint result created expires'),
     'beta_requests': ('beta_requests', 'id name email phone watch note created status card_request challenge_join'),
     'recipes': ('recipes', 'id name items known_kcal known_protein_g known_carbs_g known_fat_g ai_note ai_note_at created updated cooked'),
     'coach_proposals': ('coach_proposals', 'id kind payload status created expires'),

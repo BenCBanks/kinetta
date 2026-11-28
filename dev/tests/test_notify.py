@@ -28,10 +28,13 @@ ck(r['items'][0]['who']['name'] == 'Noah', 'non-friend request sender has first 
 ck(n1.get('/api/me')[1]['notifications'] == 1 and n1.get('/api/notifications/count')[1]['unread'] == 1, 'counts')
 n1.post('/api/friends/zz_test_note2/decline')
 ck(notes(n1)['unread'] == 0, 'declined: the request notification goes')
-n2.post('/api/friends', {'login': 'zz_test_note1'}); n1.post('/api/friends/zz_test_note2/accept')
-ck(notes(n1)['unread'] == 0, 'accepted: the request notification goes')
-r = notes(n2); ck(r['items'][0]['kind'] == 'friend_accepted' and r['items'][0]['text']=='You and Nora Meadow are now friends', 'accepted friend sees the full name')
-ck(r['items'][0]['who']['name'] == 'Nora Meadow', 'accepted friend sender keeps full name')
+ck(n2.post('/api/friends', {'login':'zz_test_note1'})[0]==429,'declined sender cannot immediately ask again')
+# The recipient may start a new request; accepting it is not an unsolicited resend.
+ck(n1.post('/api/friends', {'login':'zz_test_note2'})[0]==200,'recipient can initiate')
+ck(n2.post('/api/friends/zz_test_note1/accept')[0]==200,'new request accepted')
+ck(notes(n2)['unread'] == 0, 'accepted: the request notification goes')
+r = notes(n1); ck(r['items'][0]['kind'] == 'friend_accepted' and r['items'][0]['text']=='You and Noah Cedar are now friends', 'accepted friend sees the full name')
+ck(r['items'][0]['who']['name'] == 'Noah Cedar', 'accepted friend sender keeps full name')
 
 # cheers: once per person and activity, even after un-cheering; comments with a snippet; deleting removes it
 s, a = n1.post('/api/activities/manual', {'sport': 'run', 'start': '2026-10-01T07:00', 'duration_s': 1800, 'distance_m': 5000})

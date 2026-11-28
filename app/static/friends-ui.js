@@ -124,9 +124,9 @@ const FriendsUI=(()=>{
       else if(kind==='accept')await api(`/api/friends/${encodeURIComponent(login)}/accept`,json('POST',{}));
       else await api(`/api/friends/${encodeURIComponent(login)}`,{method:'DELETE'});
       if(live())await refresh();
-    }catch(x){if(live()){button.disabled=false;button.removeAttribute('aria-busy');if(kind==='add'){button.classList.remove('is-pending');if(label)button.setAttribute('aria-label',label);}resultError(row,kind==='add'?"Couldn't send. Try again.":kind==='accept'?"Couldn't accept. Try again.":"Couldn't cancel. Try again.");availability();}}
+    }catch(x){if(live()){button.disabled=false;button.removeAttribute('aria-busy');if(kind==='add'){button.classList.remove('is-pending');if(label)button.setAttribute('aria-label',label);}resultError(row,x.status===429||x.retryAfter?x.message:kind==='add'?"Couldn't send. Try again.":kind==='accept'?"Couldn't accept. Try again.":"Couldn't cancel. Try again.");availability();}}
   }
-  const showSearchError=()=>{statusText.textContent='';found.innerHTML='<p class="friend-state-message" role="alert">Search isn\'t working right now.</p><button type="button" class="friend-state-retry" data-retry>Try again</button>';found.setAttribute('aria-busy','false');$('[data-retry]',found).onclick=()=>find(true);};
+  const showSearchError=x=>{statusText.textContent='';found.innerHTML=`<p class="friend-state-message" role="alert">${esc(x?.status===429||x?.retryAfter?x.message:"Search isn't working right now.")}</p><button type="button" class="friend-state-retry" data-retry>Try again</button>`;found.setAttribute('aria-busy','false');$('[data-retry]',found).onclick=()=>find(true);};
   const showOfflineSearch=()=>{statusText.textContent='';found.innerHTML='<p class="friend-state-message" role="status">You’re offline. Reconnect to search.</p>';found.setAttribute('aria-busy','false');};
   function drawListError(x){
     if(!live())return;error.innerHTML=`<p class="friend-state-message" role="status">${!navigator.onLine?'You’re offline. Friend requests will update when you reconnect.':'Friend requests aren’t available right now.'}</p>${navigator.onLine?'<button type="button" class="friend-state-retry" id="fr-list-retry">Try again</button>':''}`;
@@ -162,7 +162,7 @@ const FriendsUI=(()=>{
     if(q===last&&!again)return;last=q;const request=++searchVersion;found.setAttribute('aria-busy','true');statusText.textContent='Searching…';
     try{const rows=await api('/api/people/search?q='+encodeURIComponent(q));if(request!==searchVersion||!live()||!found.isConnected)return;
       people=[...new Map(people.concat(rows).map(p=>[p.login,p])).values()];drawResults(rows,false,q);statusText.textContent=rows.length?`${rows.length} ${rows.length===1?'person':'people'} found`:'';
-    }catch(x){if(request===searchVersion&&live()&&found.isConnected){last=null;if(x.offline||!navigator.onLine)showOfflineSearch();else showSearchError();}}
+    }catch(x){if(request===searchVersion&&live()&&found.isConnected){last=null;if(x.offline||!navigator.onLine)showOfflineSearch();else showSearchError(x);}}
     finally{if(request===searchVersion)found.setAttribute('aria-busy','false');}
   }
   const queryHasResults=q=>q.replace(/^@/,'').trim().length>=2;

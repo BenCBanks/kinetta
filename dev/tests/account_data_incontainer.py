@@ -69,6 +69,9 @@ TABLE_REVIEW = {
     'coach_notes': ('export:coach_notes', 'id user_id kind period_start text created'),
     'coach_proposals': ('export:coach_proposals', 'id user_id kind payload baseline status created expires'),
     # Hash-only deleted-comment replay metadata; seven-day validity, pruned on next owner write; FK erasure.
+    'member_action_events': ('server-only:recipient-sensitive counters; expires after eight days; cascades on deletion', 'id user_id kind target_hash payload_hash recipient_id result created'),
+    'member_action_receipts': ('export:member_action_receipts', 'user_id client_id fingerprint result created expires'),
+    'member_pair_cooldowns': ('server-only:recipient-sensitive resend protection; expires; cascades on deletion', 'user_id recipient_id expires'),
     'comment_receipts': ('export:comment_receipts', 'user_id client_id activity_id text_hash created expires'),
     # client_id is the owner's non-secret retry key; exported only with that owner's written comments.
     'comments': ('export:comments_written', 'id activity_id user_id text created client_id'),
@@ -333,7 +336,7 @@ class AccountData(unittest.TestCase):
             try:
                 with db.connect() as c:
                     def seed(table,values):
-                        values={k:(Jsonb(v) if k in ('items','payload','workout','preview','result') else v) for k,v in values.items()}
+                        values={k:(Jsonb(v) if (k in ('items','payload','workout','preview') or (k=='result' and table=='strava_uploads')) else v) for k,v in values.items()}
                         q=sql.SQL('INSERT INTO {} ({}) VALUES ({}) RETURNING *').format(sql.Identifier(table),sql.SQL(',').join(map(sql.Identifier,values)),sql.SQL(',').join(sql.Placeholder() for _ in values))
                         row=c.execute(q,tuple(values.values())).fetchone()
                         if 'id' in row:cleanup.append((table,row['id']))
@@ -353,6 +356,7 @@ class AccountData(unittest.TestCase):
                     for i,uid in enumerate(ids):
                         peer=ids[(i+1)%3];stamp=f'2026-11-{10+i:02d}T10:00:00+00:00';end=f'2026-12-{10+i:02d}T10:00:00+00:00';day=f'2026-11-{10+i:02d}';week=f'2026-11-{2+7*i:02d}'
                         private={'user_id':uid}
+                        add(uid,'member_action_receipts','member_action_receipts',dict(client_id=str(uuid.uuid4()),fingerprint=str(i+6)*64,result='Receipt '+str(i),created=stamp,expires=f'2026-11-{11+i:02d}T10:00:00+00:00'),private)
                         add(uid,'beta_requests','beta_requests',dict(id=generated,name='Exact '+str(i),email=c.execute('SELECT email::text AS e FROM users WHERE id=%s',(uid,)).fetchone()['e'],phone='iPhone '+str(i),watch='Watch '+str(i),note='Enrollment '+str(i),created=stamp,status='new',card_request=bool(i%2),challenge_join=bool(i%2)),{})
                         add(uid,'recipes','recipes',dict(id=generated,name='Recipe '+str(i),items=[{'name':'oats '+str(i),'grams':100+i,'per100':{'kcal':200+i}}],known_kcal=400+i,known_protein_g=20+i,known_carbs_g=50+i,known_fat_g=10+i,ai_note='Note '+str(i),ai_note_at=stamp,created=stamp,updated=stamp,cooked=stamp),private)
                         add(uid,'coach_proposals','coach_proposals',dict(id=str(uuid.uuid4()),kind='goal',payload={'candidate':{'before':str(10+i)+' km','after':str(12+i)+' km'}},status='pending',created=stamp,expires=end),{**private,'baseline':'SECRET_BASELINE_'+str(i)})

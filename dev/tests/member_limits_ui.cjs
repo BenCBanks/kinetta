@@ -1,0 +1,59 @@
+'use strict';
+// Fictional comments, intercepted responses and native-bridge stand-ins only.
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {initialize}=require('./spacing_screens.cjs');
+const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_MEMBER_LIMIT_SHOTS;
+(async()=>{
+ const browser=await chromium.launch();
+ try{for(const native of [false,true])for(const theme of ['light','dark']){
+  const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:theme,isMobile:true,hasTouch:true,serviceWorkers:'block',reducedMotion:'reduce'});
+  try{
+   const signed=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_inline_owner',password:'green teapot on the hill',app:native}});assert.equal(signed.status(),200);
+   const {token}=await signed.json();await context.addInitScript(initialize,{root:16,native,base,token});
+   await context.route('**/*',route=>new URL(route.request().url()).origin===new URL(base).origin?route.continue():route.abort());
+   const page=await context.newPage(),errors=[],attempts=[];page.on('pageerror',e=>errors.push(e.message));
+   await page.goto(base+'/me/activities');await page.waitForFunction(()=>App.pageReady);
+   await page.locator('article.post').filter({hasText:'Fictional empty run'}).locator('.activity-comments').click();await page.locator('.c-form textarea').waitFor();
+   let fault='limit';
+   await page.route('**/api/activities/*/comments',route=>{
+    if(route.request().method()!=='POST')return route.continue();attempts.push(route.request().postDataJSON());
+    return route.fulfill({status:fault==='limit'?429:503,headers:{'Retry-After':fault==='limit'?'37':'2'},json:{detail:fault==='limit'?'Too many requests. Try again in 37 seconds.':'Kinetta is busy. Please try again shortly.'}});
+   });
+   const text='Fictional trail looks lovely.',field=page.locator('.c-form textarea');await field.fill(text);await page.locator('.c-send').click();
+   await page.getByText('Too many requests. Try again in 37 seconds.',{exact:true}).waitFor();assert.equal(await field.inputValue(),text);assert(await page.locator('.c-send').isEnabled());
+   const key=attempts[0].client_id;assert.match(key,/^[a-f0-9-]{36}$/);
+   if(out){fs.mkdirSync(out,{recursive:true});await page.locator('.sheet').screenshot({path:path.join(out,`${native?'bridge':'web'}-limited-${theme}.png`),animations:'disabled'});}
+   await page.locator('.comment-retry').click();await page.getByText('Too many requests. Try again in 37 seconds.',{exact:true}).waitFor();assert.equal(attempts[1].client_id,key);
+   fault='busy';await page.locator('.comment-retry').click();await page.getByText('Kinetta is busy. Try again in 2 seconds.',{exact:true}).waitFor();assert.equal(attempts[2].client_id,key);assert.equal(await field.inputValue(),text);assert(await page.locator('.c-send').isEnabled());
+   // The shared error path must retain the numeric delay, including read errors.
+   await page.route('**/api/member-limit-fixture',route=>route.fulfill({status:429,headers:{'Retry-After':'19'},json:{detail:'Too many requests.'}}));
+   const feedback=await page.evaluate(async()=>{try{await api('/api/member-limit-fixture');}catch(e){return {status:e.status,delay:e.retryAfter,message:e.message,read:loadErrorCopy(e)};}});
+   assert.deepEqual(feedback,{status:429,delay:19,message:'Too many requests. Try again in 19 seconds.',read:'Too many requests. Try again in 19 seconds.'});assert.deepEqual(errors,[]);
+   // A failed reaction keeps its UUID; a successful new choice gets another one.
+   await page.keyboard.press('Escape');
+   const card=page.locator('article.post').filter({hasText:'Fictional empty run'}),reaction=card.locator('[data-reaction-group]'),reactionAttempts=[];
+   await page.route('**/api/activities/*/reaction',route=>{
+    if(route.request().method()!=='POST')return route.continue();
+    const body=route.request().postDataJSON();reactionAttempts.push(body);
+    return route.fulfill(reactionAttempts.length===1?{status:503,json:{detail:'Fictional save failed'}}:{json:{my_reaction:body.kind,reactions:{[body.kind]:1},reaction_order:[body.kind],comments:[]}});
+   });
+   const choose=async kind=>{await reaction.locator('.reaction-more').click();await page.locator(`.reaction-picker:not([hidden]) [data-react="${kind}"]`).click();await page.waitForFunction(()=>document.querySelector('article.post [data-reaction-group]')?.getAttribute('aria-busy')==='false');};
+   await choose('fire');assert.equal(await reaction.getAttribute('data-mine'),'');
+   await choose('fire');assert.equal(await reaction.getAttribute('data-mine'),'fire');
+   assert.match(reactionAttempts[0].client_id,/^[a-f0-9-]{36}$/);
+   assert.equal(reactionAttempts[1].client_id,reactionAttempts[0].client_id,'failed intention keeps its retry key');
+   await choose('clap');assert.equal(await reaction.getAttribute('data-mine'),'clap');
+   assert.notEqual(reactionAttempts[2].client_id,reactionAttempts[1].client_id,'new intention gets a new key');
+   // Discovery has specialized error rows; they must not hide quota wait times.
+   let searchLimited=false;
+   await page.route('**/api/people/search?*',route=>route.fulfill(searchLimited?{status:429,headers:{'Retry-After':'19'},json:{detail:'Too many requests.'}}:{json:[{login:'zz_test_limit_peer',name:'Fictional Member',status:null}]}));
+   await page.route('**/api/friends',route=>route.request().method()==='POST'?route.fulfill({status:429,headers:{'Retry-After':'37'},json:{detail:'Too many requests.'}}):route.continue());
+   await page.goto(base+'/me/friends?find=1');await page.locator('#fr-find input').fill('Fictional');
+   const add=page.locator('#fr-found [data-add]');await add.click();await page.getByText('Too many requests. Try again in 37 seconds.',{exact:true}).waitFor();assert(await add.isEnabled());
+   if(out)await page.screenshot({path:path.join(out,`${native?'bridge':'web'}-friend-limited-${theme}.png`),animations:'disabled'});
+   searchLimited=true;await page.locator('#fr-find input').fill('Another fictional');await page.getByText('Too many requests. Try again in 19 seconds.',{exact:true}).waitFor();assert.equal(await page.locator('#fr-find input').inputValue(),'Another fictional');
+   searchLimited=false;await page.locator('#fr-found [data-retry]').click();await add.waitFor();assert.deepEqual(errors,[]);
+   console.log(`Member limits + busy retry, retained text/request key ${native?'bridge':'web'} 390 ${theme}: PASS`);
+  }finally{await context.close();}
+ }}finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

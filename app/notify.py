@@ -134,6 +134,9 @@ def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=N
     if prior:
         if kind=='cheer':c.execute('UPDATE notifications SET reaction_kind=%s,cancelled=false WHERE id=%s',(reaction_kind or 'clap',prior['id']))
         return
+    if kind=='cheer':
+        from . import member_limits
+        if not member_limits.notice(c,actor_id,user_id): return
     nid=c.execute("""INSERT INTO notifications(user_id,kind,actor_id,activity_id,dish_id,comment_id,reaction_kind)
       VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id""",(user_id,kind,actor_id,activity_id,dish_id,comment_id,reaction_kind if kind=='cheer' else None)).fetchone()['id']
     threading.Thread(target=_push_later, args=(nid,), daemon=True).start()

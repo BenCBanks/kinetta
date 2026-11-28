@@ -137,7 +137,11 @@ try:
         results = []
         for body, response in zip(bodies, responses):
             if response.status_code == 503:
-                assert response.json() == {'detail': 'Kinetta is busy. Please try again shortly.'}
+                # Either independent admission gate may be busy; retry only its exact response.
+                assert response.json() in (
+                    {'detail': 'Kinetta is busy. Please try again shortly.'},
+                    {'detail': 'Photo processing is busy. Your photo is kept; try again shortly.'},
+                ), response.json()
                 assert response.headers['Retry-After'] == '2'
                 response = client.post('/api/activities/track', json=body)
             results.append(response.status_code)

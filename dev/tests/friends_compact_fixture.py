@@ -18,8 +18,10 @@ req=[actor(f'zz_test_fc_request{i}',f'Casey Request {i+1}') for i in range(3)]
 out=[actor(f'zz_test_fc_sent{i}',f'Fictional Sent {i+1}') for i in range(2)]
 action_friend=actor('zz_test_fc_action_friend','Fictional Action Friend')
 ok(main['actions'].post('/api/friends',{'login':'zz_test_fc_action_friend'}));ok(action_friend.post('/api/friends/zz_test_fc_actions/accept',{}));ok(main['actions'].post('/api/friends',{'login':'zz_test_fc_sent0'}));ok(req[0].post('/api/friends',{'login':'zz_test_fc_actions'}))
+# Each fictional peer initiates one request; the heavy account accepts. Build
+# the same forty accepted friendships without an impossible one-actor send burst.
 for i,c in enumerate(peers):
- ok(main['heavy'].post('/api/friends',{'login':f'zz_test_fc_peer{i:02}'}));ok(c.post('/api/friends/zz_test_fc_heavy/accept',{}))
+ ok(c.post('/api/friends',{'login':'zz_test_fc_heavy'}));ok(main['heavy'].post(f'/api/friends/zz_test_fc_peer{i:02}/accept',{}))
  if 1<=i<=6:
   ok(c.post('/api/friends',{'login':'zz_test_fc_peer00'}));ok(peers[0].post(f'/api/friends/zz_test_fc_peer{i:02}/accept',{}))
 ok(main['typical'].post('/api/friends',{'login':'zz_test_fc_peer00'}));ok(peers[0].post('/api/friends/zz_test_fc_typical/accept',{}))

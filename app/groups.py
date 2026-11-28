@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
-from . import account_email, auth, community_filter, db, notify, reactions, names, group_challenges
+from . import account_email, auth, community_filter, db, notify, reactions, names, group_challenges, member_limits
 from .group_limits import MAX_MEMBERS
 from .parsers import SPORTS as ACTIVITY_SPORTS
 from .auth import current_user
@@ -79,6 +79,7 @@ class MemberAction(BaseModel):
 
 
 class GroupReport(BaseModel):
+    client_id: UUID | None = None
     model_config = ConfigDict(extra='forbid')
     reason: str = Field(pattern='^(spam|abuse|inappropriate|other)$')
     note: str | None = Field(None, max_length=500)
@@ -121,6 +122,7 @@ class GroupFriendInviteAccept(BaseModel):
 
 
 class GroupUpdateCreate(BaseModel):
+    client_id: UUID | None = None
     model_config = ConfigDict(extra='forbid')
     text: str = Field(min_length=1, max_length=200)
 
@@ -134,6 +136,7 @@ class GroupUpdateCreate(BaseModel):
 
 
 class GroupReaction(BaseModel):
+    client_id: UUID | None = None
     model_config = ConfigDict(extra='forbid')
     kind: str = Field(min_length=1, max_length=32)
 
@@ -616,6 +619,7 @@ def _group_notice(c, group_id, recipient, actor, kind, update_id=None, week_star
                           WHERE group_id=%s AND user_id=%s AND status='active' ''', (group_id, recipient)).fetchone()
     if not member or member['notifications_muted']:
         return
+    if kind=='group_cheer' and not member_limits.notice(c,actor,recipient): return
     c.execute('''INSERT INTO notifications(user_id,kind,actor_id,group_id,group_update_id,group_week_start)
         VALUES(%s,%s,%s,%s,%s,%s)
         ON CONFLICT(user_id,group_id) WHERE group_id IS NOT NULL AND kind IN ('group_update','group_cheer')
@@ -691,6 +695,7 @@ def _create_group(body, request, user, *, legacy_goal=True, creation_id=None):
     start_date = body.goal_start_date or _now().astimezone(_zone(body.time_zone)).date()
     _validate_goal_start(start_date, body.event_date, body.time_zone)
     with db.connect() as c:
+        member_limits.lock(c,user['id'])
         from . import challenges
         challenges.account_locks(c, [user['id']])
         challenges.confirmed_for_challenge(c, user['id'])
@@ -702,6 +707,10 @@ def _create_group(body, request, user, *, legacy_goal=True, creation_id=None):
                 if existing['title'] != body.title or existing['time_zone'] != body.time_zone:
                     raise HTTPException(409, 'This group was already created. Open Groups to see it.')
                 return _answer(c, existing, user['id'])
+        active=c.execute("SELECT count(*) AS n FROM event_groups WHERE organizer_id=%s AND closed_at IS NULL AND (event_date IS NULL OR event_date>=(now() AT TIME ZONE time_zone)::date)",(user['id'],)).fetchone()['n']
+        if active>=20: raise HTTPException(429,'You have 20 active groups. Close one before creating another.',headers={'Retry-After':'3600'})
+        counted=member_limits.claim(c,user['id'],'group',str(creation_id or ''),payload=body.model_dump(mode='json'),request_key=creation_id)
+        if counted['replayed']: raise HTTPException(409,'This group was already created. Open Groups to see it.')
         community_filter.check(body.title, 'group name')
         community_filter.check(body.note, 'group note')
         community_filter.check(body.training_for, 'training goal')
@@ -713,6 +722,7 @@ def _create_group(body, request, user, *, legacy_goal=True, creation_id=None):
                            body.goal_target, body.goal_unit, body.goal_sports, start_date, body.training_for)).fetchone()
         if not group:
             raise HTTPException(409, 'Could not create this group. Close this sheet and try again.')
+        member_limits.finish(c,counted,group['id'])
         c.execute("INSERT INTO group_members(group_id,user_id,sharing_level) VALUES(%s,%s,%s)",
                   (group['id'], user['id'], 'just_in' if legacy_goal else 'total_shared'))
         invite_url = _new_invite(c, group, request)
@@ -795,16 +805,27 @@ def update_group_event_date(group_id: str, body: GroupEventDate, user=Depends(cu
 @router.post('/api/groups/{group_id}/updates')
 def create_group_update(group_id: str, body: GroupUpdateCreate, user=Depends(current_user)):
     with db.connect() as c:
+        member_limits.lock(c,user['id'])
         group = _group(c, group_id, user['id'], lock=True)
         if group['closed_at']:
             raise HTTPException(409, 'This group is closed')
         from . import challenges
         challenges.confirmed_for_challenge(c, user['id'])
+        counted=member_limits.claim(c,user['id'],'comment',f'group:{group_id}',payload=body.text,request_key=body.client_id,quiet=True)
+        if counted['replayed']:
+            prior=next((x for x in _group_updates(c,group,user['id']) if str(x['id'])==counted['result']),None)
+            if prior: return prior
+            raise HTTPException(409,'This update was already posted or removed. Refresh the group.')
+        # Admission uses the whole active audience, independently of private
+        # block/mute choices. Only notification delivery filters those choices.
+        recipients=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",(group['id'],)).fetchall()]
+        member_limits.comment_recipients(c,user['id'],recipients)
         community_filter.public(c, user['id'], ('group comment', body.text))
         from .signup import social_action
         social_action(c, user['id'], 'comment')
         row = c.execute('''INSERT INTO group_updates(group_id,user_id,text) VALUES(%s,%s,%s) RETURNING id''',
                         (group['id'], user['id'], body.text)).fetchone()
+        member_limits.finish(c,counted,row['id'])
         _group_notice_members(c, group['id'], user['id'], 'group_update', update_id=row['id'])
         return next(update for update in _group_updates(c, group, user['id']) if update['id'] == row['id'])
 
@@ -827,13 +848,14 @@ def report_group_update(group_id: str, update_id: int, body: GroupReport, user=D
         update = _visible_update(c, group, user['id'], update_id)
         if update['user_id'] == user['id']:
             raise HTTPException(400, "You can't report your own comment")
-        if c.execute("SELECT count(*) AS n FROM reports WHERE reporter=%s AND status='open'", (user['id'],)).fetchone()['n'] >= 20:
-            raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
+        previous=member_limits.report(c,user['id'],'reports','group_id=%s AND group_update_id=%s',(group['id'],update_id),body.client_id)
+        if previous is not None: return {'ok':True,'id':previous}
         what = f'Group comment in {group["title"]} by @{update["username"]}: "{update["text"]}"'
         rid = c.execute('''INSERT INTO reports(reporter,person,kind,what,reason,note,group_id,group_update_id)
             VALUES(%s,%s,'group',%s,%s,%s,%s,%s) RETURNING id''',
                         (user['id'], update['user_id'], what[:1000], body.reason,
                          (body.note or '').strip() or None, group['id'], update['id'])).fetchone()['id']
+        member_limits.report_saved(c,user['id'],body.client_id,rid)
         for admin in c.execute('SELECT id FROM users WHERE is_admin AND id<>%s', (user['id'],)).fetchall():
             notify.add(c, admin['id'], 'report', user['id'])
     return {'ok': True, 'id': rid}
@@ -842,10 +864,16 @@ def report_group_update(group_id: str, update_id: int, body: GroupReport, user=D
 @router.post('/api/groups/{group_id}/updates/{update_id}/reaction')
 def react_to_group_update(group_id: str, update_id: int, body: GroupReaction, user=Depends(current_user)):
     with db.connect() as c:
+        member_limits.lock(c,user['id'])
         group = _group(c, group_id, user['id'])
         if group['closed_at']:
             raise HTTPException(409, 'This group is closed')
         update = _visible_update(c, group, user['id'], update_id)
+        current=c.execute('SELECT kind FROM group_update_reactions WHERE update_id=%s AND user_id=%s FOR UPDATE',(update_id,user['id'])).fetchone()
+        counted=member_limits.claim(c,user['id'],'reaction',f'group-update:{update_id}',payload=body.kind,request_key=body.client_id,
+                                    unchanged=bool(current and current['kind']==body.kind))
+        if counted['replayed']: return _reaction_summary(_update_reaction_rows(c,group,user['id'],update_id),user['id'])
+        member_limits.finish(c,counted,update_id)
         changed = c.execute('''INSERT INTO group_update_reactions(update_id,user_id,kind) VALUES(%s,%s,%s)
             ON CONFLICT(update_id,user_id) DO UPDATE SET kind=EXCLUDED.kind
             WHERE group_update_reactions.kind<>EXCLUDED.kind RETURNING user_id''',
@@ -882,10 +910,17 @@ def _current_group_week(group, now):
 @router.post('/api/groups/{group_id}/weekly-reaction')
 def react_to_group_week(group_id: str, body: GroupReaction, user=Depends(current_user)):
     with db.connect() as c:
+        member_limits.lock(c,user['id'])
         group = _group(c, group_id, user['id'])
         if group['closed_at']:
             raise HTTPException(409, 'This group is closed')
         week_start = _current_group_week(group, _now())
+        current=c.execute('SELECT kind FROM group_weekly_reactions WHERE group_id=%s AND week_start=%s AND user_id=%s FOR UPDATE',
+                          (group['id'],week_start,user['id'])).fetchone()
+        counted=member_limits.claim(c,user['id'],'reaction',f'group-week:{group_id}:{week_start}',payload=body.kind,request_key=body.client_id,
+                                    unchanged=bool(current and current['kind']==body.kind))
+        if counted['replayed']: return _reaction_summary(_weekly_reaction_rows(c,group,user['id'],week_start),user['id'])
+        member_limits.finish(c,counted,str(week_start))
         changed = c.execute('''INSERT INTO group_weekly_reactions(group_id,week_start,user_id,kind)
             VALUES(%s,%s,%s,%s) ON CONFLICT(group_id,week_start,user_id) DO UPDATE SET kind=EXCLUDED.kind
             WHERE group_weekly_reactions.kind<>EXCLUDED.kind RETURNING user_id''',
@@ -1106,6 +1141,7 @@ def create_friend_invite(group_id: str, body: GroupFriendInviteCreate, user=Depe
     from . import challenges
     group_id=_group_id(group_id)
     with db.connect() as c:
+        member_limits.lock(c,user['id'])
         # Check membership before resolving the submitted username so a
         # non-member cannot use this endpoint as an account-existence oracle.
         _group(c,group_id,user['id'])
@@ -1133,8 +1169,6 @@ def create_friend_invite(group_id: str, body: GroupFriendInviteCreate, user=Depe
             raise HTTPException(404,INVITE_UNAVAILABLE)
         active_ids=[r['user_id'] for r in c.execute("SELECT user_id FROM group_members WHERE group_id=%s AND status='active'",
                                                     (group_id,)).fetchall()]
-        if any(_blocked(c,candidate['id'],member) for member in active_ids):
-            raise HTTPException(404,INVITE_UNAVAILABLE)
         expired=c.execute('''UPDATE group_friend_invites SET status='expired'
             WHERE group_id=%s AND invitee_id=%s AND status IN ('pending','declined') AND expires_at<=now()
             RETURNING id''',(group_id,candidate['id'])).fetchall()
@@ -1144,12 +1178,19 @@ def create_friend_invite(group_id: str, body: GroupFriendInviteCreate, user=Depe
             (group_id,candidate['id'])).fetchone()
         if held:
             # A declined invitation stays quiet and holds the pair until the original expiry.
+            if any(_blocked(c,candidate['id'],member) for member in active_ids):
+                raise HTTPException(404,INVITE_UNAVAILABLE)
             return {'state':'invited'}
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',('group-friend-invite:'+str(user['id']),))
         sent=c.execute('''SELECT count(DISTINCT invitee_id) AS n FROM group_friend_invites
             WHERE inviter_id=%s AND created_at>now()-interval '24 hours' ''',(user['id'],)).fetchone()['n']
         if sent>=30:
             raise HTTPException(429,'Too many group invitations. Try again tomorrow.')
+        # Eligibility above is independent of blocks. At an exhausted budget,
+        # private blocks must not turn the refusal into a different response.
+        member_limits.claim(c,user['id'],'invite',str(group_id),recipient=candidate['id'])
+        if any(_blocked(c,candidate['id'],member) for member in active_ids):
+            raise HTTPException(404,INVITE_UNAVAILABLE)
         invite=c.execute('''INSERT INTO group_friend_invites(group_id,inviter_id,invitee_id,expires_at)
             VALUES(%s,%s,%s,now()+interval '30 days') RETURNING id''',
             (group_id,user['id'],candidate['id'])).fetchone()
@@ -1315,13 +1356,13 @@ def leave_group(group_id: str, user=Depends(current_user)):
 def report_group(group_id: str, body: GroupReport, user=Depends(current_user)):
     with db.connect() as c:
         group = _group(c, group_id, user['id'])
-        n = c.execute("SELECT count(*) AS n FROM reports WHERE reporter=%s AND status='open'", (user['id'],)).fetchone()['n']
-        if n >= 20:
-            raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
+        previous=member_limits.report(c,user['id'],'reports',"kind='group' AND group_id=%s AND group_update_id IS NULL",(group['id'],),body.client_id)
+        if previous is not None: return {'ok':True,'id':previous}
         rid = c.execute('''INSERT INTO reports(reporter,person,kind,what,reason,note,group_id)
                            VALUES(%s,%s,'group',%s,%s,%s,%s) RETURNING id''',
                         (user['id'], group['organizer_id'], 'Group: ' + group['title'], body.reason,
                          (body.note or '').strip() or None, group['id'])).fetchone()['id']
+        member_limits.report_saved(c,user['id'],body.client_id,rid)
         for admin in c.execute('SELECT id FROM users WHERE is_admin AND id<>%s', (user['id'],)).fetchall():
             notify.add(c, admin['id'], 'report', user['id'])
     return {'ok': True, 'id': rid}
