@@ -32,6 +32,8 @@ const fixtureVersion='fixture-approved-v1';
      if(u.pathname==='/api/reports'){
       reportCalls.push(request.postDataJSON());if(reportWait){const wait=reportWait;reportWait=null;return wait(route);}return route.fulfill({json:{ok:true,id:999999}});
      }
+     // Export preparation is an authenticated read; other writes stay blocked.
+     if(u.pathname==='/api/account/export-ready'&&request.method()==='POST')return route.continue();
      if(!['GET','HEAD'].includes(request.method()))return route.fulfill({status:503,json:{detail:'Fictional test: writes blocked'}});
      return route.continue();
     });

@@ -57,6 +57,8 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
      if(saveFailure)return r.fulfill({status:409,json:{detail:'That username is taken'}});
      const body=request.postDataJSON();if(body.first_name)return r.fulfill({json:{first_name:body.first_name,last_name:body.last_name,name:body.first_name+' '+body.last_name}});return new Promise(resolve=>{saveRelease=()=>r.fulfill({json:{ok:true,login:body.login.trim().toLowerCase()}}).then(resolve);});
     }
+    // Export preparation is an authenticated read; other writes stay blocked.
+    if(u.pathname==='/api/account/export-ready'&&request.method()==='POST')return r.continue();
     if(!['GET','HEAD'].includes(request.method()))return r.fulfill({status:503,json:{detail:'Fictional test: write blocked'}});
     return r.continue();
    });
