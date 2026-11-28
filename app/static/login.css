@@ -12,7 +12,7 @@
 .first-run-status:empty { display: none; }
 /* One account form, with two name columns only when they fit. */
 .login:has(.account-enrollment) { align-items: start; padding: 24px 22px; }
-.account-enrollment label { font-size: 13px; font-weight: 500; color: var(--tx3); }
+.account-enrollment label { font-size: .8125rem; font-weight: 500; color: var(--tx3); }
 .account-enrollment input:not([type=checkbox]) { font-size: 16px; color: var(--tx); min-height: 44px; }
 .account-names { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; min-width: 0; }
 .account-names label { min-width: 0; }

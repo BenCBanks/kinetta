@@ -45,12 +45,15 @@ class CIPolicyTests(unittest.TestCase):
         progress_large_text_test='dev/tests/progress_large_text_ui.cjs'
         self.assertEqual([root for root in configured_roots((ROOT/progress_large_text_test).read_text()) if root>16],[24],
                          'the isolated Progress sticky-header case deliberately checks 24px text')
+        labels_test='dev/tests/readable_labels_ui.cjs'
+        self.assertEqual([root for root in configured_roots((ROOT/labels_test).read_text()) if root>16],[24],
+                         'assigned sign-up/People label regression deliberately checks 24px text')
         offenders=[]
         for path in (ROOT/'dev/tests').rglob('*'):
             if not path.is_file() or path.suffix not in {'.cjs','.js','.py','.sh'}:continue
             relative=path.relative_to(ROOT).as_posix()
             if relative=='dev/tests/test_ci_policy.py':continue
-            large=[root for root in configured_roots(path.read_text()) if root>16 and not ((relative==large_text_test and root==20) or (relative==progress_large_text_test and root==24))]
+            large=[root for root in configured_roots(path.read_text()) if root>16 and not ((relative==large_text_test and root==20) or (relative==progress_large_text_test and root==24) or (relative==labels_test and root==24))]
             if large:offenders.append((relative,large))
         self.assertEqual(offenders,[],'test roots above 16 are out of scope for this app')
 

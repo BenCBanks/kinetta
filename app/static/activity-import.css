@@ -22,8 +22,9 @@
 .activity-import .upload-counts > div { flex:1; min-width:0; }
 .activity-import .upload-counts dt { color:var(--tx3); font-size:13px; }
 .activity-import .upload-counts dd { margin:4px 0 0; font-size:24px; font-weight:600; }
-.activity-import .upload-privacy { display:flex; justify-content:space-between; gap:12px; padding:12px 0; border-top:1px solid var(--line); font-size:15px; }
-.activity-import .upload-privacy b { font-weight:500; }
+.activity-import .upload-privacy { display:flex; align-items:center; width:100%; min-height:44px; border:0; border-radius:0; background:transparent; text-align:left; box-shadow:none; justify-content:space-between; gap:12px; padding:12px 0; border-top:1px solid var(--line); font-size:15px; }
+.activity-import .upload-audience { display:flex; align-items:center; gap:4px; color:var(--accent); font-weight:500; }
+.activity-import .upload-audience svg { flex:none; width:16px; height:16px; }
 .activity-import .upload-error { font-size:15px; margin:12px 0; overflow-wrap:anywhere; }
 .activity-import .upload-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
 .activity-import .upload-actions button { min-height:44px; flex:1 1 auto; font-size:15px; box-shadow:none; }

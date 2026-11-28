@@ -2,7 +2,8 @@
 'use strict';
 window.ActivityZipUpload={mount(el,valid,account,choose){
   const box=document.querySelector('#u-zip',el),prefix='/api/strava-import';
-  let upload=null,file=null,fileHash='',audience,chunk=8*1024*1024,max=2*1024**3,busy=false,fileWork=false,message='',phase='',fraction=0,timer,control,worker,xhr,disposed=false;
+  let upload=null,file=null,fileHash='',audience,chunk=8*1024*1024,max=2*1024**3,busy=false,fileWork=false,message='',phase='',fraction=0,timer,control,worker,xhr,disposed=false,privacyClose;
+  const audiences={me:'Only me',friends:'Friends',everyone:'Everyone'};
   const live=()=>!disposed&&valid(),total=p=>['added','already_here','unreadable'].reduce((n,k)=>n+(p?.[k]||0),0);
   const terminal=()=>upload&&['done','failed','cancelled'].includes(upload.state);
   const errors={expired:'This upload expired. Choose the archive to start again.',not_strava_export:'Choose the ZIP from your Strava account export.',no_workouts:'No activities were found in this archive.',storage_full:'Import paused: storage is full. Check again later.',processing_failed:'This archive could not be processed. Choose a new export.'};
@@ -26,7 +27,7 @@ window.ActivityZipUpload={mount(el,valid,account,choose){
     const progress=busy&&phase?fraction:state==='importing'?total(r)/Math.max(1,total(p)):state==='uploading'?upload.received/upload.size:null;
     box.innerHTML=`<div class="upload-status" role="status"><b>${esc(title)}</b>${detail?`<p class="small muted">${esc(detail)}</p>`:''}</div>
       ${progress!==null?`<progress max="1" value="${Math.min(1,progress)}" aria-label="${esc(title)}"></progress>`:''}${counts}
-      ${state==='review'?`<div class="upload-privacy"><span>Activity privacy</span><b>${esc({me:'Only me',friends:'Friends',everyone:'Everyone'}[audience]||'')}</b></div>`:''}
+      ${state==='review'?`<button type="button" class="upload-privacy" data-upload="privacy"${busy?' disabled':''}><span>Activity privacy</span><span class="upload-audience">${esc(audiences[audience]||'Check privacy')}${svg('chev')}</span></button>`:''}
       ${message||upload?.error_code?`<p class="upload-error" role="alert">${esc(message||errors[upload.error_code]||'This archive could not be read. Choose a new Strava export.')}</p>`:''}
       <div class="upload-actions">${busy?(fileWork?'<button type="button" data-upload="pause" class="ghost">Pause</button>':''):state==='review'?'<button type="button" data-upload="confirm" class="primary">Import activities</button>':state==='uploading'?`<button type="button" data-upload="resume" class="primary">${file?'Resume upload':'Choose ZIP to resume'}</button>`:terminal()?'<button type="button" data-upload="new" class="ghost">Choose another file</button>':message&&!upload?'<button type="button" data-upload="retry" class="ghost">Retry</button>':''}
       ${upload&&!terminal()?'<button type="button" data-upload="cancel" class="ghost">Cancel import</button>':''}${message&&upload&&!terminal()&&state!=='uploading'?'<button type="button" data-upload="retry" class="ghost">Retry</button>':''}</div>`;
@@ -97,7 +98,32 @@ window.ActivityZipUpload={mount(el,valid,account,choose){
     if(!upload||terminal())upload=await q('/uploads',json('POST',{id:crypto.randomUUID(),size:source.size,sha256:hash}));
     await transfer();
   });
+  function changePrivacy(displayedId){
+    if(!live()||busy||privacyClose||upload?.id!==displayedId||upload?.state!=='review')return;
+    sheet('Activity privacy',`<form class="form" id="upload-privacy-form"><label>Who sees new activities<select name="audience">${Object.entries(audiences).map(([value,label])=>`<option value="${value}"${value===audience?' selected':''}>${label}</option>`).join('')}</select></label><p class="small muted">Includes this import. Existing activities keep their audience.</p><button type="submit" class="primary wide">Save privacy</button></form>`,(root,close)=>{
+      privacyClose=close;const form=root.querySelector('form'),select=form.elements.audience;
+      const confirmation=SocialData.confirmSetting(root,{
+        path:'/api/sharing',unknownText:'Privacy not confirmed.',
+        read:async()=>{
+          const sharing=await apiRequest('/api/sharing',{cache:'no-store'});
+          const stage=await apiRequest(prefix+'/stage',{cache:'no-store'});
+          if(!live()||!Object.hasOwn(audiences,sharing?.default)||!Object.hasOwn(audiences,stage?.current_audience))throw Error('Check privacy again.');
+          return {...sharing,stage};
+        },
+        matches:(data,attempt)=>data.default===JSON.parse(attempt.options.body).default&&data.stage.current_audience===data.default,
+        uncertain:()=>{if(live()){audience=null;draw();}},
+        cache:data=>{App.me.share_default=data.default;keep('/api/me',App.me);},
+        paint:data=>{if(live()){upload=data.stage.upload;audience=data.stage.current_audience;draw();}}
+      });
+      form.onsubmit=async event=>{
+        event.preventDefault();if(!live())return;
+        const result=await confirmation.save('/api/sharing',json('PUT',{default:select.value}));
+        if(result&&!result.failure&&live())close();
+      };
+    },{onClose:()=>{privacyClose=null;}});
+  }
   const actions={
+    privacy:changePrivacy,
     pause:()=>{if(fileWork){stop();draw();}},
     resume:()=>file?act(transfer):choose(),
     retry:()=>act(async()=>{await refresh();if(!upload&&file)upload=await q('/uploads',json('POST',{id:crypto.randomUUID(),size:file.size,sha256:fileHash}));if(upload?.state==='uploading'&&file)await transfer();}),
@@ -113,5 +139,5 @@ window.ActivityZipUpload={mount(el,valid,account,choose){
     })
   };
   act(refresh);
-  return {select,blocked:()=>busy||(upload&&!terminal()),dispose:()=>{disposed=true;stop();}};
+  return {select,blocked:()=>busy||(upload&&!terminal()),dispose:()=>{disposed=true;privacyClose?.(true);stop();}};
 }};
