@@ -10,6 +10,8 @@ async function observed(request){let timer;try{await Promise.race([request,new P
   if(out)fs.mkdirSync(out,{recursive:true});
   const browser=await(process.env.KINETTA_BROWSER==='webkit'?webkit:chromium).launch();
   try{
+    await require('./import_privacy_ui.cjs')(browser,base);
+    await require('./readable_labels_ui.cjs')(browser,base);
     for(const width of [390,1280])for(const theme of ['light','dark']){
       const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block'});
       try{
