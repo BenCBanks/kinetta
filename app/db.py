@@ -2761,6 +2761,12 @@ MIGRATIONS = [
     CREATE POLICY all_rows ON member_pair_cooldowns FOR SELECT TO fit_all_readers USING(true);
     """,
 
+    # 135: index photo receipt references for activity/photo deletion and lookup.
+    """
+    CREATE INDEX IF NOT EXISTS photo_upload_receipts_activity ON photo_upload_receipts(activity_id);
+    CREATE INDEX IF NOT EXISTS photo_upload_receipts_photo ON photo_upload_receipts(photo_id);
+    """,
+
 ]
 
 

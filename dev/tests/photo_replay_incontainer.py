@@ -113,6 +113,32 @@ class PhotoReplay(unittest.TestCase):
         r=self.clients[0].post(f'/api/activities/{self.aids[0]}/photos',json={'image':self.image})
         self.assertEqual(r.status_code,200);self.assertEqual(self.count(),2)
 
+    def test_receipt_failure_after_photo_insert_rolls_back_both(self):
+        # Fail the real receipt INSERT after observing the photo in its transaction.
+        name='zz_test_receipt_failure_'+uuid.uuid4().hex[:12]
+        inserted=[];real_insert=P.insert_activity_photo
+        def insert(c,aid,uid,prepared):
+            saved=real_insert(c,aid,uid,prepared)
+            self.assertIsNotNone(c.execute('SELECT 1 FROM activity_photos WHERE id=%s',(saved['id'],)).fetchone())
+            inserted.append(saved['id'])
+            return saved
+        with db.connect() as c:
+            c.execute(sql.SQL("CREATE FUNCTION {}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fictional receipt failure' USING ERRCODE='23514'; END $$").format(sql.Identifier(name)))
+            c.execute(sql.SQL('CREATE TRIGGER {} BEFORE INSERT ON photo_upload_receipts FOR EACH ROW WHEN (NEW.user_id={}) EXECUTE FUNCTION {}()').format(sql.Identifier(name),sql.Literal(self.users[0]['id']),sql.Identifier(name)))
+        try:
+            with patch.object(P,'insert_activity_photo',side_effect=insert):
+                with self.assertRaisesRegex(psycopg.errors.CheckViolation,'fictional receipt failure'):
+                    self.send()
+            self.assertEqual(len(inserted),1,'the photo INSERT succeeded before the receipt failed')
+            self.assertEqual(self.count(),0)
+            self.assertEqual(self.count('photo_upload_receipts'),0)
+        finally:
+            with db.connect() as c:
+                c.execute(sql.SQL('DROP TRIGGER {} ON photo_upload_receipts').format(sql.Identifier(name)))
+                c.execute(sql.SQL('DROP FUNCTION {}()').format(sql.Identifier(name)))
+        self.assertEqual(self.send().status_code,200,'the same intention remains retryable')
+        self.assertEqual(self.count(),1);self.assertEqual(self.count('photo_upload_receipts'),1)
+
     def test_unconfirmed_and_suspended_cannot_replay(self):
         self.assertEqual(self.send().status_code,200)
         with db.connect() as c:c.execute('UPDATE users SET needs_email_confirm=true,email_verified_at=NULL WHERE id=%s',(self.users[0]['id'],))
