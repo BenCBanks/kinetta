@@ -24,6 +24,7 @@ from .api_account import DATA, erase, erase_files
 
 router = APIRouter()
 _last_export = {}
+_export_revocations = {}
 _prepared_lock = threading.Lock()
 
 # table -> SQL giving one jsonb per row for the person (%s = user id). Personal tables only; secrets left out.
@@ -294,11 +295,17 @@ _links = {}
 
 
 def forget_exports(uid):
-    expire_prepared_exports(uid)
-    _last_export.pop(uid, None)
-    for key, (owner, _, _) in list(_links.items()):
-        if owner == uid:
-            _links.pop(key, None)
+    with _prepared_lock:
+        # Fence in-flight builds as well as tokens that are already published.
+        _export_revocations[uid] = _export_revocations.get(uid, 0) + 1
+        responses = [_prepared_exports.pop(key)[2] for key, item in list(_prepared_exports.items())
+                     if item[0] == uid]
+        _last_export.pop(uid, None)
+        for key, (owner, _, _) in list(_links.items()):
+            if owner == uid:
+                _links.pop(key, None)
+    for response in responses:
+        response.cleanup()
 
 
 @router.post('/api/account/export-link')
@@ -342,13 +349,19 @@ def _prepare_export(user, native=False):
     prefix = '/api/account/export/' if native else '/api/account/export-ready/'
     expire_prepared_exports()
     with _prepared_lock:
+        generation = _export_revocations.get(user['id'], 0)
         for key, (owner, _, _, is_native) in _prepared_exports.items():
             if owner == user['id'] and is_native == native:
                 return {'path': prefix + key}
     response = _send_export(user)  # Existing own-data queries, rate limit and file lease.
     key = secrets.token_urlsafe(32)
     with _prepared_lock:
-        _prepared_exports[key] = (user['id'], time.time() + 300, response, native)
+        revoked = generation != _export_revocations.get(user['id'], 0)
+        if not revoked:
+            _prepared_exports[key] = (user['id'], time.time() + 300, response, native)
+    if revoked:
+        response.cleanup()
+        raise HTTPException(409, 'This download is no longer available. Please try again.')
     return {'path': prefix + key}
 
 
