@@ -50,14 +50,10 @@ async function exercise(browser,base,{assertLayout=true}={}){
     assert(header.actions.at(-1).right<=width,'last action stays on screen');
    }
    await shot('progress');
-   // The sticky compact state and large-text wrapping must keep every control reachable too.
+   // Keep the normal-text fixture within the CI root-font policy; the isolated suite owns large text.
    if(assertLayout){
     await p.evaluate(()=>scrollTo(0,200));await p.waitForFunction(()=>document.querySelector('.progress-home-heading').classList.contains('is-compact'));await settle(p);
     const sticky=await p.locator('.progress-home-heading').boundingBox();assert(sticky.y>=-1&&sticky.y+sticky.height<await p.evaluate(()=>innerHeight),'compact heading stays visible');
-    await p.evaluate(()=>{scrollTo(0,0);document.documentElement.style.fontSize='24px';dispatchEvent(new Event('scroll'));});await settle(p);
-    assert(await p.locator('.progress-home-heading').evaluate(n=>n.classList.contains('is-large-text')),'large-text layout remains active');
-    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'large text remains on screen');
-    for(const target of await p.locator('.progress-home-heading .acts > *').all()){const box=await target.boundingBox();assert(box.width>=44&&box.height>=44&&box.x>=0&&box.x+box.width<=width,'large text retains every44px target');}
    }
    // Only Progress home owns the fixed-title class; subpage headings may contain longer text.
    await p.goto(base+'/progress?view=fitness');await p.locator('.progress-subpage-heading').waitFor();await p.waitForFunction(()=>App.pageReady);await settle(p);
@@ -67,7 +63,7 @@ async function exercise(browser,base,{assertLayout=true}={}){
   }finally{await c.close();}
  }
  if(out)fs.writeFileSync(path.join(out,'measurements.json'),JSON.stringify(rows,null,2));
- console.log(`Compact summary: ${rows.length} contexts, value alignment, single-row header,44px targets, sticky and large-text ${assertLayout?'PASS':'CAPTURE ONLY'}`);
+ console.log(`Compact summary: ${rows.length} contexts, value alignment, single-row header,44px targets, sticky ${assertLayout?'PASS':'CAPTURE ONLY'}`);
  return rows;
 }
 module.exports=exercise;
