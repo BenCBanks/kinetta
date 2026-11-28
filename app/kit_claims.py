@@ -96,7 +96,7 @@ def safe_wording(text,facts,evidence,question=''):
 def validate(texts, facts, evidence, *, question='', reference, selection=None, weekly_review=False):
     # Facts, values, paths and source identity are checked separately. Prose quality belongs
     # to evaluation, not nearest-word heuristics that mistake advice for a personal claim.
-    traces=activity_scopes(texts,facts,evidence)
+    traces=strength_sets(texts,facts,evidence,reference)+activity_scopes(texts,facts,evidence)
     for text in texts:
         counted,checks=food_count_phrase(text,facts,evidence);traces.extend(checks)
         prose,count_checks = kit_record_counts.bind(reference.sub('',counted),evidence,weekly_review=weekly_review)
@@ -111,6 +111,65 @@ def validate(texts, facts, evidence, *, question='', reference, selection=None, 
         if NUMBER_WORD.search(advice_quantities(bound_logged_days(prose,evidence))):raise ClaimRejected('numeric_unsupported')
     if eating_safety_answer(question) is not None:raise ClaimRejected('health_claim')
     return traces+food_scopes(texts,facts,evidence)+missing_nutrient_evidence(texts,evidence)+claim_evidence(texts,evidence,facts,selection=selection)
+
+
+def strength_sets(texts,facts,evidence,reference):
+    """Bind joint measurements to one recorded set, never independent maxima.
+
+    Each clause/list item describes one set. Multiple sets need complete metric
+    groups; partial groups across sentences/blocks cannot establish a pairing.
+    Ambiguous wording is rejected rather than repaired by matching numeric values.
+    """
+    metrics={'reps','kg','secs'}
+    summaries={
+        'max_recorded_reps':r'(?:most|maximum) (?:recorded )?(?:reps|repetitions)',
+        'max_recorded_kg':r'(?:highest|maximum) (?:recorded )?(?:weight|load)',
+        'completed_sets':r'(?:recorded |completed )sets',
+        'recorded_volume_kg':r'(?:total )?recorded volume',
+    }
+    groups=[];traces=[]
+    for text in texts:
+        # Separators allow a list of complete sets, but never erase provenance:
+        # splitting a bad pair still leaves incompatible partial metric groups.
+        for clause in re.split(r'(?<=[.!?;])\s+|\n|,\s+(?:(?:and|followed by)\s+)?(?=\{e)|\s+and\s+(?=\{e)',text):
+            cited=[]
+            slots=list(reference.finditer(clause))
+            for slot in slots:
+                index=int(slot[2])
+                if index>=len(facts) or facts[index]['evidence_id']!=slot[1]:
+                    raise ClaimRejected('relation_unsupported')
+                fact=facts[index]
+                if fact['tool']!='strength_history':continue
+                sources=[e for e in successful(evidence,'strength_history') if e['evidence_id']==slot[1]]
+                path=fact['path']
+                if (len(sources)!=1 or len(path)!=3 or type(path[1]) is not int or path[1]<0
+                        or path[0] not in {'sets','summary_by_exercise'}):
+                    raise ClaimRejected('relation_unsupported')
+                rows=sources[0]['data'].get(path[0])
+                if not isinstance(rows,list) or path[1]>=len(rows) or not isinstance(rows[path[1]],dict):
+                    raise ClaimRejected('relation_unsupported')
+                if path[0]=='summary_by_exercise':
+                    # No summary value describes an individual set, even when
+                    # maxima happen to coincide with some values in listed sets.
+                    label=summaries.get(path[2])
+                    if (label is None or len(slots)!=1 or not re.fullmatch(
+                            r'(?:Your |The )?'+label+r'(?: was| were| is| are|:)?\s+'
+                            +re.escape(slot[0])+r'[.!?;]?',clause.strip(),re.I)):
+                        raise ClaimRejected('relation_unsupported')
+                    traces.append(proof(sources[0],path,'independent_strength_summary'))
+                elif path[2] in metrics:
+                    cited.append(((slot[1],path[1]),path[2]))
+                    traces.append(proof(sources[0],path,'same_recorded_set'))
+                else:raise ClaimRejected('relation_unsupported')
+            if cited:
+                origins={origin for origin,field in cited}
+                if len(origins)!=1:raise ClaimRejected('relation_unsupported')
+                groups.append((next(iter(origins)),{field for origin,field in cited}))
+    if len({origin for origin,fields in groups})>1:
+        all_metrics=set().union(*(fields for origin,fields in groups))
+        if any(fields!=all_metrics for origin,fields in groups):
+            raise ClaimRejected('relation_unsupported')
+    return traces
 
 
 

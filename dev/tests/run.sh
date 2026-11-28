@@ -300,6 +300,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/kit_polish_incontainer.p
 docker compose -p "$P" exec -T app python - < dev/tests/kit_context_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_context_chart_regressions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_set_grounding_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-final-wording.json app:/tmp/kit-final-wording.json
 docker compose -p "$P" exec -T app python - < dev/tests/kit_final_wording_incontainer.py
 docker compose -p "$P" cp dev/evals/fixtures/kit-weekly-live-replay.json app:/tmp/kit-weekly-live-replay.json
