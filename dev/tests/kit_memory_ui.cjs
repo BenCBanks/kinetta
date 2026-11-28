@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 module.exports=async(browser,state,base,out)=>{
   for(const width of [390,330])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:state,viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,deviceScaleFactor:2}),p=await c.newPage();
-   let version=4,enabled=true,failSave=false,failRead=false,reads=0;
+   let version=4,enabled=true,failSave=false,failRead=false,reads=0,loseDelete=false;
    let memories=[{id:1,text:'I want to finish my first half marathon comfortably.',kind:'goal',source:'chat',updated:'2026-11-24T12:00:00Z'},
     {id:2,text:'I prefer vegetarian meals.',kind:'preference',source:'user',updated:'2026-11-25T12:00:00Z'},
     {id:3,text:'I train on Tuesday, Thursday and Sunday.',kind:'routine',source:'edit',updated:'2026-11-25T12:00:00Z'}];
@@ -25,7 +25,7 @@ module.exports=async(browser,state,base,out)=>{
        const row={id:id||4,text:payload.text,kind:payload.kind,source:id?'edit':'user',updated:'2026-11-25T14:00:00Z'};
        memories=id?memories.map(m=>m.id===id?row:m):[...memories,row];
       }
-      if(method==='DELETE')memories=id?memories.filter(m=>m.id!==id):[];
+      if(method==='DELETE'){memories=id?memories.filter(m=>m.id!==id):[];if(loseDelete){loseDelete=false;version++;return route.abort('failed');}}
       if(method==='PUT'){enabled=payload.enabled;if(!enabled)memories=[];}
       return route.fulfill({json:{ok:true,version:++version}});
      }
@@ -64,13 +64,15 @@ module.exports=async(browser,state,base,out)=>{
     await p.locator('#kit-memory-text').fill('I prefer a short walk after lunch.');await p.locator('#kit-memory-save').click();await p.getByText('I prefer a short walk after lunch.',{exact:true}).waitFor();
     await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-cancel').click();await p.locator('[data-kit-edit="4"]').waitFor();assert.equal(memories.length,4,'Cancel does not delete or edit');
     await p.locator('[data-kit-edit="4"]').click();failSave=true;
+    const draft='I prefer a quiet evening walk instead.';await p.locator('#kit-memory-text').fill(draft);await p.locator('[data-kit-kind="routine"]').click();
+    await p.locator('#kit-memory-form').evaluate(n=>{window.fixtureMemoryEditor=n;});
     const form=p.locator('#kit-memory-form'),beforeDelete=await form.boundingBox();
     await p.locator('#kit-memory-delete').click();
     const recovery=p.locator('#kit-memory > .setting-recovery');await recovery.locator('button').waitFor();
     assert.equal(await recovery.getAttribute('data-sharing-state'),'unknown');assert.match(await recovery.innerText(),/Not confirmed.*Retry/s);
     assert(await form.isVisible(),'uncertain Delete keeps the editor visible');
     const afterDelete=await form.boundingBox();assert.deepEqual({width:afterDelete.width,height:afterDelete.height},{width:beforeDelete.width,height:beforeDelete.height},'the recovery row does not collapse or resize the editor');
-    assert.equal(await p.locator('#kit-memory-text').inputValue(),'I prefer a short walk after lunch.','uncertain Delete keeps the draft');
+    assert.equal(await p.locator('#kit-memory-text').inputValue(),draft,'uncertain Delete keeps the unsaved draft');
     assert.equal(await p.locator('#kit-memory-text').getAttribute('aria-disabled'),'true');
     assert.equal(await p.locator('#kit-memory-text').evaluate(n=>n.readOnly),true);
     assert.equal(await p.locator('#kit-memory-delete').getAttribute('aria-disabled'),'true');
@@ -80,15 +82,24 @@ module.exports=async(browser,state,base,out)=>{
     assert.equal(await recovery.getAttribute('data-sharing-state'),'checking');assert.match(await recovery.innerText(),/Checking/);
     assert.equal(writes.length,beforeRetry,'early Retry never repeats Delete');assert.equal(reads,beforeRead,'early Retry waits out the outstanding write');
     await require('./privacy_recovery_fixture.cjs')(p);
-    await p.locator('[data-kit-edit="4"]').waitFor();assert.equal(memories.length,4,'automatic readback restores the saved list after the deadline');
+    await p.waitForFunction(()=>document.querySelector('#kit-memory > .setting-recovery')?.dataset.sharingState==='confirmed');assert.equal(memories.length,4,'rejected Delete leaves the saved memory intact');
+    assert(await form.evaluate(n=>n===window.fixtureMemoryEditor),'rejected Delete readback retains the same editor DOM');
+    assert.equal(await p.locator('#kit-memory-text').inputValue(),draft,'rejected Delete readback keeps the unsaved text');
+    assert.equal(await p.locator('[data-kit-kind="routine"]').getAttribute('aria-pressed'),'true','rejected Delete readback keeps the unsaved type');
+    assert.equal(await p.locator('#kit-memory-text').evaluate(n=>n.readOnly),false,'readback unlocks the retained editor');
+    assert(await p.locator('#kit-memory-delete').evaluate(n=>n===document.activeElement),'Retry returns focus to the retained Delete control');
+    await shot('rejected-delete-draft');
     assert.equal(reads,beforeRead+1,'one automatic GET after the uncertainty window');assert.equal(writes.length,beforeRetry,'readback performs no write');
-    await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-delete').click();await recovery.locator('button').waitFor();
+    await p.locator('#kit-memory-delete').click();await recovery.locator('button').waitFor();
     await p.keyboard.press('Escape');await p.evaluate(()=>KitChat.memorySettings());await recovery.locator('button').waitFor();
     assert.equal(await p.locator('#kit-memory-on').count(),0,'reopening does not claim memory consent while a write may still be outstanding');
     const reopenWrites=writes.length,reopenReads=reads;await recovery.getByRole('button',{name:'Retry',exact:true}).click();
     await require('./privacy_recovery_fixture.cjs')(p);await p.locator('[data-kit-edit="4"]').waitFor();
     assert.equal(reads,reopenReads+1);assert.equal(writes.length,reopenWrites,'reopening recovery is GET-only');
-    failSave=false;await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-delete').click();await p.locator('[data-kit-edit="4"]').waitFor({state:'detached'});
+    failSave=false;loseDelete=true;await p.locator('[data-kit-edit="4"]').click();await p.locator('#kit-memory-text').fill(draft);await p.locator('#kit-memory-delete').click();await recovery.locator('button').waitFor();
+    const committedWrites=writes.length;await recovery.getByRole('button',{name:'Retry',exact:true}).click();await require('./privacy_recovery_fixture.cjs')(p);
+    await p.locator('#kit-memory-on').waitFor();assert.equal(await p.locator('#kit-memory-form').count(),0,'a committed Delete with a lost reply returns to the confirmed list');
+    assert.equal(await p.locator('[data-kit-edit="4"]').count(),0);assert.equal(writes.length,committedWrites,'committed Delete reconciliation never repeats the write');
     const row=p.locator('[data-kit-edit="2"]').locator('..').locator('..');
     await row.evaluate(el=>{const touch=(type,touches)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:touches});el.dispatchEvent(e);};touch('touchstart',[{clientX:250,clientY:150}]);touch('touchmove',[{clientX:140,clientY:151}]);touch('touchend',[]);});
     await p.waitForFunction(()=>{const n=document.querySelector('.kit-memory-row.is-revealed .kit-history-front');return n&&Math.abs(new DOMMatrix(getComputedStyle(n).transform).m41+56)<.1&&Math.abs(new DOMMatrix(getComputedStyle(n.querySelector('.kit-history-open')).transform).m41-56)<.1;});

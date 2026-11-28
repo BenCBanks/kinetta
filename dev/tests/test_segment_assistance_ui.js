@@ -22,6 +22,7 @@ function fixture(){
  assert.equal(f.node('card')._segmentRevision,version,'failed declaration readback must not rebuild the card');
  assert.equal(f.node('card').innerHTML,markup);assert.equal(form.elements.assistance.value,'unassisted');assert.equal(form.elements.confirmed.checked,true);
  assert.equal(f.node('#sa-ex').checked,true,'leaderboard privacy still shows the saved value');
+ assert.equal(f.node('.segment-assistance summary').textContent,'Assistance: motor assisted','a rejected declaration still displays the confirmed saved summary');
  assert.equal(f.node('#sa-status').textContent,'','Saving is cleared after a rejected declaration');
  const status=f.node('card').children.find(n=>n.dataset.sharingState);assert.match(status.children[0].textContent,/Not saved/);
  f.c.App.me={id:2};await form.onsubmit(event);assert.equal(calls.length,1,'queued old-account form cannot write');
