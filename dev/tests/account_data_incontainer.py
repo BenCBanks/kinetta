@@ -10,7 +10,7 @@ import tempfile
 import unittest
 import uuid
 import zipfile
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from fastapi import HTTPException
 import psycopg
 from psycopg import sql, errors
@@ -443,15 +443,21 @@ class AccountData(unittest.TestCase):
             E._last_export[user['id']]=900
             with self.assertRaises(HTTPException) as error:E._send_export(user)
             self.assertEqual(error.exception.status_code,429)
-            path=E.export_link(user=user)['path'];key=path.rsplit('/',1)[1]
-            with patch.object(E,'_send_export',return_value='own archive') as send:
-                self.assertEqual(E.export_by_link(key),'own archive');send.assert_called_once_with(user)
+            E._last_export.clear()
+            archive=Mock(cleanup=Mock())
+            # Native preparation now happens before the link is reported ready.
+            with patch.object(E,'_send_export',return_value=archive) as send:
+                path=E.export_link(user=user)['path'];key=path.rsplit('/',1)[1]
+                send.assert_called_once_with(user)
+                send.reset_mock()
+                self.assertIs(E.export_by_link(key),archive);send.assert_not_called()
                 with self.assertRaises(HTTPException) as error:E.export_by_link(key)
                 self.assertEqual(error.exception.status_code,404)
-            key=E.export_link(user=user)['path'].rsplit('/',1)[1]
+                key=E.export_link(user=user)['path'].rsplit('/',1)[1]
             with patch.object(E.time,'time',return_value=1301),patch.object(E,'_send_export') as send:
                 with self.assertRaises(HTTPException) as error:E.export_by_link(key)
                 self.assertEqual(error.exception.status_code,404);send.assert_not_called()
+                archive.cleanup.assert_called_once()
             E._last_export.clear()
             with tempfile.TemporaryDirectory() as directory:
                 fd,path=tempfile.mkstemp(dir=directory)

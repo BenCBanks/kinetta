@@ -1949,30 +1949,38 @@ function emailSheet() {
   });
 }
 let accountExportPending = null;
+const accountExportControls = new WeakMap();
 async function downloadMyData(control) {
   const owner = readOwner();
   if (!owner || accountExportPending?.owner === owner) return;
   const pending = accountExportPending = {owner}, value = $('.inset-value', control) || control;
+  accountExportControls.set(control, pending);
+  const active = () => owner === readOwner() && control.isConnected && accountExportControls.get(control) === pending;
   const original = control.dataset.exportLabel ||= value.textContent, timeout = new AbortController();
   const timer = setTimeout(() => timeout.abort(), 120000);
   control.setAttribute('aria-disabled', 'true'); value.textContent = 'Preparing';
   try {
     const r = await api(Native.on ? '/api/account/export-link' : '/api/account/export-ready', {...json('POST', {}), signal: timeout.signal});
-    if (owner !== readOwner() || !control.isConnected) return;
+    if (!active()) return;
+    const expected = Native.on ? /^\/api\/account\/export\/[A-Za-z0-9_-]{43}$/ : /^\/api\/account\/export-ready\/[A-Za-z0-9_-]{43}$/;
+    if (!expected.test(r?.path || '')) throw new Error('Could not prepare your download. Please try again.');
     if (Native.on) { window.open(Native.base + r.path, '_blank'); toast('Opening Safari to download your data'); }
     else {
-      if (!/^\/api\/account\/export-ready\/[A-Za-z0-9_-]{43}$/.test(r?.path || '')) throw new Error('Could not prepare your download. Please try again.');
       const link = document.createElement('a'); link.href = r.path; link.download = ''; document.body.append(link); link.click(); link.remove();
       toast('Your download is ready. Check your browser downloads.');
     }
     value.textContent = original;
   } catch (error) {
-    if (owner === readOwner() && control.isConnected) {
+    if (active()) {
       value.textContent = value === control ? 'Retry download' : 'Retry';
       toast(timeout.signal.aborted ? 'The download took too long. Please try again.' : error.message);
     }
   } finally {
-    clearTimeout(timer); control.removeAttribute('aria-disabled');
+    clearTimeout(timer);
+    if (accountExportControls.get(control) === pending) {
+      if (value.textContent === 'Preparing') value.textContent = original;
+      control.removeAttribute('aria-disabled'); accountExportControls.delete(control);
+    }
     if (accountExportPending === pending) accountExportPending = null;
   }
 }

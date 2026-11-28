@@ -303,30 +303,30 @@ def forget_exports(uid):
 
 @router.post('/api/account/export-link')
 def export_link(user=Depends(current_user)):
-    now = time.time()
-    for k, (_, _, t) in list(_links.items()):
-        if t < now: _links.pop(k, None)
-    key = secrets.token_urlsafe(32)
-    _links[key] = (user['id'], user['login'], now + 300)
-    return {'path': f'/api/account/export/{key}'}
+    return _prepare_export(user, native=True)
 
 
 @router.get('/api/account/export/{key}')
 def export_by_link(key: str):
+    expire_prepared_exports()
+    with _prepared_lock:
+        item = _prepared_exports.get(key)
+        if item is not None and item[3]:
+            return _prepared_exports.pop(key)[2]
+    # Retain existing outstanding-link behavior; new links are already prepared.
     uid, login, until = _links.pop(key, (None, None, 0))
     if not uid or until < time.time(): raise HTTPException(404, 'This download link has expired - ask for a new one in the app')
     return _send_export({'id': uid, 'login': login})
 
 
-# Browser downloads cannot inspect HTTP errors after handing a link to the
-# download manager. Prepare once via JSON, then stream the leased file to disk.
-# Native Safari links above retain their existing behavior.
+# Prepare via JSON before either browser downloads or the native Safari handoff.
+# Only native links are bearer capabilities; browser links still require login.
 _prepared_exports = {}
 
 
 def expire_prepared_exports(uid=None):
     with _prepared_lock:
-        stale = [key for key, (owner, until, _) in _prepared_exports.items()
+        stale = [key for key, (owner, until, _, _) in _prepared_exports.items()
                  if owner == uid or until <= time.time()]
         responses = [_prepared_exports.pop(key)[2] for key in stale]
     for response in responses:
@@ -335,16 +335,21 @@ def expire_prepared_exports(uid=None):
 
 @router.post('/api/account/export-ready')
 def prepare_export(user=Depends(current_user)):
+    return _prepare_export(user)
+
+
+def _prepare_export(user, native=False):
+    prefix = '/api/account/export/' if native else '/api/account/export-ready/'
     expire_prepared_exports()
     with _prepared_lock:
-        for key, (owner, _, _) in _prepared_exports.items():
-            if owner == user['id']:
-                return {'path': f'/api/account/export-ready/{key}'}
+        for key, (owner, _, _, is_native) in _prepared_exports.items():
+            if owner == user['id'] and is_native == native:
+                return {'path': prefix + key}
     response = _send_export(user)  # Existing own-data queries, rate limit and file lease.
     key = secrets.token_urlsafe(32)
     with _prepared_lock:
-        _prepared_exports[key] = (user['id'], time.time() + 300, response)
-    return {'path': f'/api/account/export-ready/{key}'}
+        _prepared_exports[key] = (user['id'], time.time() + 300, response, native)
+    return {'path': prefix + key}
 
 
 @router.get('/api/account/export-ready/{key}')
@@ -352,7 +357,7 @@ def download_prepared_export(key: str, user=Depends(current_user)):
     expire_prepared_exports()
     with _prepared_lock:
         item = _prepared_exports.get(key)
-        if item is None or item[0] != user['id']:
+        if item is None or item[0] != user['id'] or item[3]:
             raise HTTPException(404, 'This download expired. Please try again.')
         return _prepared_exports.pop(key)[2]
 

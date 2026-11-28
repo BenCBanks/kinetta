@@ -238,6 +238,39 @@ class PreparedExport(unittest.TestCase):
         self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
         self.assertEqual(self.request('POST', '/api/account/export-ready').status_code, 429)
 
+    def test_native_prepares_before_link_and_safari_only_sends_ready_zip(self):
+        self.assertEqual(self.request('POST', '/api/account/export-link', None).status_code, 401)
+        with patch.object(E, '_write_export', side_effect=HTTPException(503, 'Fictional ZIP generation failed')):
+            failed = self.request('POST', '/api/account/export-link')
+        self.assertEqual(failed.status_code, 503)
+        self.assertNotIn('path', failed.json())
+        self.assertNotIn(101, E._last_export)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        path = self.request('POST', '/api/account/export-link').json()['path']
+        self.assertEqual(self.request('POST', '/api/account/export-link').json()['path'], path)
+        self.assertEqual(self.writes, [101])
+        key = path.rsplit('/', 1)[1]
+        self.assertEqual(self.request('GET', '/api/account/export-ready/'+key).status_code, 404)
+        with patch.object(E, '_write_export', side_effect=AssertionError('Safari must not build again')):
+            downloaded = self.request('GET', path, None)
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(downloaded.headers['content-type'], 'application/zip')
+        self.assertEqual(self.request('GET', path, None).status_code, 404)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+
+    def test_native_tokens_expire_revoke_and_never_expose_browser_keys(self):
+        with patch.object(E.time, 'time', return_value=1000):
+            native = self.request('POST', '/api/account/export-link').json()['path']
+        with patch.object(E.time, 'time', return_value=1301):
+            self.assertEqual(self.request('GET', native, None).status_code, 404)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        native = self.request('POST', '/api/account/export-link').json()['path']
+        E.forget_exports(101)
+        self.assertEqual(self.request('GET', native, None).status_code, 404)
+        browser = self.request('POST', '/api/account/export-ready', 102).json()['path']
+        self.assertEqual(self.request('GET', '/api/account/export/'+browser.rsplit('/',1)[1], None).status_code, 404)
+        self.assertEqual(self.request('GET', browser, 102).status_code, 200)
+
     def test_concurrent_preparations_keep_one_file_per_account(self):
         entered, release = threading.Event(), threading.Event()
         original = E._write_export
