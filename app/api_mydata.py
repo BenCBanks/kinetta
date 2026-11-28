@@ -11,6 +11,7 @@ import io
 import json
 import os
 import secrets
+import threading
 import time
 import weakref
 import zipfile
@@ -23,6 +24,7 @@ from .api_account import DATA, erase, erase_files
 
 router = APIRouter()
 _last_export = {}
+_prepared_lock = threading.Lock()
 
 # table -> SQL giving one jsonb per row for the person (%s = user id). Personal tables only; secrets left out.
 DROP = " - 'user_id'"
@@ -261,8 +263,9 @@ class ExportResponse(FileResponse):
 
 def _send_export(user):
     now = time.time()
-    if now - _last_export.get(user['id'], 0) < 300: raise HTTPException(429, 'You just downloaded your data - try again in 5 minutes')
-    _last_export[user['id']] = now
+    with _prepared_lock:
+        if now - _last_export.get(user['id'], 0) < 300: raise HTTPException(429, 'You just downloaded your data - try again in 5 minutes')
+        _last_export[user['id']] = now
     try:
         lease = account_files.ExportFile(user['id'], DATA)
         try:
@@ -273,7 +276,9 @@ def _send_export(user):
             lease.close()
             raise
     except BaseException:
-        _last_export.pop(user['id'], None)
+        with _prepared_lock:
+            if _last_export.get(user['id']) == now:
+                _last_export.pop(user['id'], None)
         raise
 
 
@@ -289,6 +294,7 @@ _links = {}
 
 
 def forget_exports(uid):
+    expire_prepared_exports(uid)
     _last_export.pop(uid, None)
     for key, (owner, _, _) in list(_links.items()):
         if owner == uid:
@@ -310,6 +316,45 @@ def export_by_link(key: str):
     uid, login, until = _links.pop(key, (None, None, 0))
     if not uid or until < time.time(): raise HTTPException(404, 'This download link has expired - ask for a new one in the app')
     return _send_export({'id': uid, 'login': login})
+
+
+# Browser downloads cannot inspect HTTP errors after handing a link to the
+# download manager. Prepare once via JSON, then stream the leased file to disk.
+# Native Safari links above retain their existing behavior.
+_prepared_exports = {}
+
+
+def expire_prepared_exports(uid=None):
+    with _prepared_lock:
+        stale = [key for key, (owner, until, _) in _prepared_exports.items()
+                 if owner == uid or until <= time.time()]
+        responses = [_prepared_exports.pop(key)[2] for key in stale]
+    for response in responses:
+        response.cleanup()
+
+
+@router.post('/api/account/export-ready')
+def prepare_export(user=Depends(current_user)):
+    expire_prepared_exports()
+    with _prepared_lock:
+        for key, (owner, _, _) in _prepared_exports.items():
+            if owner == user['id']:
+                return {'path': f'/api/account/export-ready/{key}'}
+    response = _send_export(user)  # Existing own-data queries, rate limit and file lease.
+    key = secrets.token_urlsafe(32)
+    with _prepared_lock:
+        _prepared_exports[key] = (user['id'], time.time() + 300, response)
+    return {'path': f'/api/account/export-ready/{key}'}
+
+
+@router.get('/api/account/export-ready/{key}')
+def download_prepared_export(key: str, user=Depends(current_user)):
+    expire_prepared_exports()
+    with _prepared_lock:
+        item = _prepared_exports.get(key)
+        if item is None or item[0] != user['id']:
+            raise HTTPException(404, 'This download expired. Please try again.')
+        return _prepared_exports.pop(key)[2]
 
 
 class DeleteIn(BaseModel):

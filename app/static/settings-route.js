@@ -77,10 +77,8 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   if (new URLSearchParams(location.search).get('email') === 'add') { replacePageAddress(el, '/me/settings'); emailSheet(); }
   $('#m-export', el).onclick = async (e) => {
     if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_data');
-    if (!Native.on) { toast('Preparing your download - this can take a minute'); return; }
-    e.preventDefault();        // the app can't save downloads: a one-time link opens in Safari, which saves it to Files
-    try { const r = await api('/api/account/export-link', json('POST', {})); window.open(Native.base + r.path, '_blank'); toast('Opening Safari to download your data'); }
-    catch (x) { toast(x.message); }
+    e.preventDefault();
+    downloadMyData(e.currentTarget);
   };
   $('#m-del', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_data');deleteSheet();};
   $$('.units-toggle button[data-u]', el).forEach((b) => b.onclick = async () => {

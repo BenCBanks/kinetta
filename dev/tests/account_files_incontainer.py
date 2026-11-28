@@ -185,5 +185,104 @@ class Recovery(unittest.TestCase):
         self.assertTrue(fresh.exists()); self.assertTrue(link.is_symlink())
 
 
+class PreparedExport(unittest.TestCase):
+    """Real routes/file leases, fictional ZIP writer; no database/provider needed."""
+    def setUp(self):
+        import httpx
+        from fastapi import FastAPI, Request
+        self.httpx = httpx
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.app = FastAPI()
+        self.app.include_router(E.router)
+        async def own_user(request: Request):
+            uid = request.headers.get('X-Fictional-User')
+            if not uid: raise HTTPException(401, 'Sign in')
+            return {'id':int(uid), 'login':'fictional_'+uid}
+        self.app.dependency_overrides[E.current_user] = own_user
+        self.writes = []
+        def write(uid, path):
+            self.writes.append(uid)
+            with E.zipfile.ZipFile(path, 'w') as z:
+                z.writestr(E.zipfile.ZipInfo('fictional.txt', (2026,1,1,0,0,0)), 'own fixture '+str(uid))
+        self.patches = [patch.object(E, 'DATA', str(self.root)),
+                        patch.object(E, '_write_export', side_effect=write),
+                        patch.dict(E._last_export, {}, clear=True)]
+        for item in self.patches: item.start()
+        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(lambda: [item.stop() for item in reversed(self.patches)])
+        self.addCleanup(lambda: [E.expire_prepared_exports(uid) for uid in [101,102]])
+
+    def request(self, method, path, uid=101):
+        async def send():
+            async with self.httpx.AsyncClient(transport=self.httpx.ASGITransport(app=self.app, raise_app_exceptions=True), base_url='http://fixture') as client:
+                return await client.request(method, path, headers={} if uid is None else {'X-Fictional-User':str(uid)})
+        return asyncio.run(send())
+
+    def test_prepare_retry_download_owner_and_replay(self):
+        self.assertEqual(self.request('POST', '/api/account/export-ready', None).status_code, 401)
+        path = self.request('POST', '/api/account/export-ready').json()['path']
+        # A lost preparation reply can be retried without building a second ZIP.
+        self.assertEqual(self.request('POST', '/api/account/export-ready').json()['path'], path)
+        self.assertEqual(self.writes, [101])
+        self.assertEqual(self.request('GET', path, None).status_code, 401)
+        self.assertEqual(self.request('GET', path, 102).status_code, 404)
+        self.assertEqual(len(list((self.root/'exports'/'101').glob('*.zip'))), 1)
+        reply = self.request('GET', path)
+        self.assertEqual(reply.status_code, 200)
+        self.assertEqual(reply.headers['content-type'], 'application/zip')
+        import io
+        with E.zipfile.ZipFile(io.BytesIO(reply.content)) as z:
+            self.assertEqual(z.read('fictional.txt'), b'own fixture 101')
+        self.assertEqual(self.request('GET', path).status_code, 404)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        self.assertEqual(self.request('POST', '/api/account/export-ready').status_code, 429)
+
+    def test_concurrent_preparations_keep_one_file_per_account(self):
+        entered, release = threading.Event(), threading.Event()
+        original = E._write_export
+        replies = []
+        def held(*args):
+            entered.set()
+            if not release.wait(3): raise RuntimeError('Fixture did not release preparation')
+            return original(*args)
+        with patch.object(E, '_write_export', side_effect=held):
+            worker = threading.Thread(target=lambda: replies.append(self.request('POST', '/api/account/export-ready')))
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(3))
+                self.assertEqual(self.request('POST', '/api/account/export-ready').status_code, 429)
+            finally:
+                release.set(); worker.join(3)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(replies[0].status_code, 200)
+        self.assertEqual(self.writes, [101])
+        self.assertEqual(len(list((self.root/'exports'/'101').glob('*.zip'))), 1)
+
+    def test_failed_preparation_is_json_and_can_retry(self):
+        with patch.object(E, '_write_export', side_effect=HTTPException(503, 'Fictional busy')):
+            reply = self.request('POST', '/api/account/export-ready')
+        self.assertEqual(reply.status_code, 503)
+        self.assertEqual(reply.json()['detail'], 'Fictional busy')
+        self.assertNotIn(101, E._last_export)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        self.assertEqual(self.request('POST', '/api/account/export-ready').status_code, 200)
+
+    def test_expiry_and_deletion_release_only_owned_leases(self):
+        with patch.object(E.time, 'time', return_value=1000):
+            path = self.request('POST', '/api/account/export-ready').json()['path']
+        with patch.object(E.time, 'time', return_value=1301):
+            with patch.object(F, '_absent', return_value=False), patch.object(F.tempfile, 'gettempdir', return_value=str(self.root)):
+                F.sweep(self.root)  # The existing background cleanup also retires abandoned preparations.
+        self.assertFalse(E._prepared_exports)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        self.assertEqual(self.request('GET', path).status_code, 404)
+        self.request('POST', '/api/account/export-ready')
+        peer = self.request('POST', '/api/account/export-ready', 102).json()['path']
+        E.forget_exports(101)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        self.assertEqual(self.request('GET', peer, 102).status_code, 200)
+
+
 if __name__ == '__main__':
     unittest.main()
