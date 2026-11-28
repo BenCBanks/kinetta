@@ -1,5 +1,8 @@
 """Actual authenticated HTTP/SQL recipe drafts; only fictional network stand-ins."""
+import datetime as dt
 import json,os,secrets,tempfile,threading,uuid,zipfile
+from contextlib import contextmanager
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 import psycopg
@@ -13,6 +16,19 @@ URL='https://recipes.example/fictional-bowls'
 recipe={'@type':'Recipe','name':'Fictional bean bowls','recipeYield':'2 servings','recipeIngredient':['100 g fictional beans','a handful of fictional leaves'],'nutrition':{'calories':'210 kcal','proteinContent':'12 g'}}
 HTML='<script type="application/ld+json">'+json.dumps(recipe)+'</script><p>This page must never be stored.</p>'
 def page(value):return {'html':HTML,'url':value}
+
+@contextmanager
+def past_worker_deadline(uid,identity):
+ # Advance only the expiry probe's Python clock, never the stored creation time:
+ # backdating that row can move it into yesterday's legitimate purge window.
+ with db.connect() as c:
+  created=c.execute('SELECT created FROM recipe_link_drafts WHERE user_id=%s AND id=%s',(uid,identity)).fetchone()['created']
+ now=created+dt.timedelta(seconds=R.WORKER_LIMIT+1)
+ class FrozenDateTime(dt.datetime):
+  @classmethod
+  def now(cls,tz=None):return now.astimezone(tz) if tz else now.replace(tzinfo=None)
+ with patch.object(R,'dt',SimpleNamespace(datetime=FrozenDateTime,timezone=dt.timezone,timedelta=dt.timedelta)):
+  yield
 try:
  for _ in range(2):
   login='zz_test_recipe_'+uuid.uuid4().hex[:12]
@@ -21,6 +37,13 @@ try:
    c.execute('INSERT INTO profile(user_id) VALUES(%s)',(uid,))
   client=TestClient(app,raise_server_exceptions=False);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':login,'password':PW}).status_code==200;clients.append(client)
  a,b=clients;uid,other=uids
+ # Exercise PostgreSQL's actual defaults through an ordinary, unmodified insert.
+ with db.connect() as c:
+  probe=uuid.uuid4()
+  defaults=c.execute('INSERT INTO recipe_link_drafts(user_id,id,url) VALUES(%s,%s,%s) RETURNING created,expires,now() AS transaction_now',(uid,probe,URL)).fetchone()
+  assert defaults['created']==defaults['transaction_now'],'created must use the database transaction clock'
+  assert defaults['expires']==defaults['created']+dt.timedelta(hours=24),'the real draft expiry must be 24 hours'
+  c.execute('DELETE FROM recipe_link_drafts WHERE user_id=%s AND id=%s',(uid,probe))
  def read(client=a,identity=None,url=URL):
   response=client.post('/api/recipe-links/read',json={'url':url,'client_id':str(identity or uuid.uuid4())})
   return response
@@ -49,8 +72,8 @@ try:
   with patch.object(F,'fetch',side_effect=slow) as slow_fetch,ThreadPoolExecutor(max_workers=1) as pool:
    work=pool.submit(read,identity=pending_id);assert started.wait(3)
    assert read(identity=pending_id).json()['state']=='pending'
-   with db.connect() as c:c.execute("UPDATE recipe_link_drafts SET created=now()-interval '36 seconds' WHERE user_id=%s AND id=%s",(uid,pending_id))
-   assert a.get('/api/recipe-links/'+str(pending_id)).json()['state']=='pending' # active worker owns its session lock
+   with past_worker_deadline(uid,pending_id):
+    assert a.get('/api/recipe-links/'+str(pending_id)).json()['state']=='pending' # active worker owns its session lock
    cancel=a.delete('/api/recipe-links/'+str(pending_id),headers={'Content-Type':'application/json'});assert cancel.json()['state']=='cancelled'
    release.set();assert work.result().json()['state']=='cancelled' and slow_fetch.call_count==1
   assert read(identity=pending_id).json()['state']=='cancelled'
@@ -61,8 +84,9 @@ try:
   with db.connect() as c:c.execute("UPDATE recipe_link_drafts SET expires=now()-interval '1 second' WHERE user_id=%s AND id=%s",(uid,identity))
   expired=a.get(path).json();assert expired['state']=='cancelled' and not expired['candidates'] and expired['error_code']=='expired'
   crash=uuid.uuid4()
-  with db.connect() as c:c.execute("INSERT INTO recipe_link_drafts(user_id,id,url,created) VALUES(%s,%s,%s,now()-interval '36 seconds')",(uid,crash,URL))
-  assert a.get('/api/recipe-links/'+str(crash)).json()['state']=='failed'
+  with db.connect() as c:c.execute('INSERT INTO recipe_link_drafts(user_id,id,url) VALUES(%s,%s,%s)',(uid,crash,URL))
+  with past_worker_deadline(uid,crash):
+   assert a.get('/api/recipe-links/'+str(crash)).json()['state']=='failed'
   assert read(identity=crash).json()['state']=='ready'
  retry_id=uuid.uuid4()
  with patch.object(F,'fetch',side_effect=F.RecipeFetchError('busy','Fictional busy fetch')):
