@@ -5,7 +5,17 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const {instant:fixtureInstant}=require('./fixture-clock.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 async function until(page,fn,label){for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label+' '+JSON.stringify(await page.evaluate(()=>({url:location.href,key:App?.page?.key,ready:App?.pageReady,scrollY,scrollHeight:document.documentElement.scrollHeight,clientHeight:innerHeight}))));}
-(async()=>{
+async function assertLargeTextActions(page){
+ // Display-only capability fixture: exercise all three controls without generating an answer.
+ await page.evaluate(()=>{Object.assign(App.me,{ai_ok:true,coach:true,kit_chat:true,ai_access:{...(App.me.ai_access||{}),coach:{available:true,entitled:true}}});KitChat.entry(document.querySelector('#page'),location.pathname);});
+ await page.locator('.progress-home-heading [data-kit-entry]').waitFor();
+ assert(await page.locator('.progress-home-heading').evaluate(n=>n.classList.contains('is-large-text')),'large-text layout remains active');
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'large text remains on screen');
+ const targets=page.locator('.progress-home-heading .acts > *');assert.equal(await targets.count(),3,'Share, Notifications and Kit remain available');
+ for(const target of await targets.all()){const box=await target.boundingBox(),width=await page.evaluate(()=>innerWidth);assert(box.width>=44&&box.height>=44&&box.x>=0&&box.x+box.width<=width,'large text retains every 44px target');}
+}
+module.exports={assertLargeTextActions};
+if(require.main===module)(async()=>{
  setProgressFlags(false);
  cp.execFileSync('python3',[path.join(__dirname,'test_progress_overview.py')],{env:{...process.env,KINETTA_KEEP_PROGRESS:'1'},stdio:'inherit'});
  setProgressFlags(false);
@@ -22,7 +32,7 @@ async function until(page,fn,label){for(let i=0;i<150;i++){if(await page.evaluat
    page.on('pageerror',error=>errors.push(error.message));
    await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/api/notifications/count')return route.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});if(!['GET','HEAD'].includes(request.method())){if(url.pathname!=='/api/challenges/signup/continue')writes.push(url.pathname);return route.abort();}return route.continue();});
    await page.goto(base+'/progress');await until(page,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key==='/progress','large-text Progress ready');
-   await page.locator('#p-explore a').first().waitFor();await page.evaluate(()=>document.fonts.ready);
+   await page.locator('#p-explore a').first().waitFor();await page.evaluate(()=>document.fonts.ready);await assertLargeTextActions(page);
    await page.evaluate(()=>{const root=document.scrollingElement;root.scrollTo({top:root.scrollHeight-root.clientHeight,behavior:'instant'});});
    await page.waitForFunction(()=>{const root=document.scrollingElement,heading=document.querySelector('.progress-home .sec-head');if(!heading||root.scrollTop<root.scrollHeight-root.clientHeight-1)return false;const rect=heading.getBoundingClientRect(),now={top:rect.top,bottom:rect.bottom,scrollTop:root.scrollTop,height:root.scrollHeight};const prior=window.__progressLargeTextLayout;const stable=prior&&Object.keys(now).every(key=>Math.abs(now[key]-prior[key])<.25)?(prior.stable||0)+1:0;window.__progressLargeTextLayout={...now,stable};return stable>=2;},{polling:'raf',timeout:10000});
    const settled=await page.waitForFunction(()=>{const heading=document.querySelector('.progress-home-heading'),section=document.querySelector('.progress-home .sec-head'),nav=document.querySelector('nav.tabs');if(!heading||!section||!nav)return false;const h=heading.getBoundingClientRect(),s=section.getBoundingClientRect(),n=nav.getBoundingClientRect();return{position:getComputedStyle(heading).position,heading:{top:s.top,bottom:s.bottom},sticky:{top:h.top,bottom:h.bottom},navTop:n.top,scrollY, max:document.scrollingElement.scrollHeight-document.scrollingElement.clientHeight};},{timeout:30000});

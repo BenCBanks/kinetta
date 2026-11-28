@@ -79,6 +79,7 @@ function assertPlotStayed(before,after,label){
  cp.execFileSync('python3',[path.join(__dirname,'test_progress_overview.py')],{env:{...process.env,KINETTA_KEEP_PROGRESS:'1'},stdio:'inherit'});
  const b=await chromium.launch(),cleanup=[];
  try{
+ await require('./compact_summary_ui.cjs')(b,base);
  if(process.env.KINETTA_PROGRESS_CASE) setProgressFlags(true);
  else {
  setProgressFlags(false);
