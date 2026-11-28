@@ -2,6 +2,12 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+// Picture locks preserve focus with aria-disabled; the previous complete image can
+// remain in the DOM while a setting write is still pending.
+const cardIsSettled=()=>{
+ const img=document.querySelector('#card-picture'),toggle=document.querySelector('#card-enabled');
+ return !!(img?.complete&&img.naturalWidth===1080&&!img.hidden&&toggle&&!toggle.disabled&&toggle.getAttribute('aria-disabled')!=='true');
+};
 (async()=>{
  const browser=await chromium.launch(),login=await browser.newContext();
  assert((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).ok());
@@ -18,7 +24,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   const enabled=p.getByRole('switch',{name:'Share card',exact:true}),photo=p.locator('#card-photo'),sports=p.locator('#card-sports'),requests=p.locator('#card-requests'),thisWeek=p.getByRole('radio',{name:'This week',exact:true}),allTime=p.getByRole('radio',{name:'All time',exact:true}),none=p.getByRole('radio',{name:'None',exact:true});
   // Evaluate directly: older Playwright's waitForFunction injects eval, rejected by the app's strict CSP.
   const settled=async()=>{for(let attempt=0;attempt<150;attempt++){
-   if(await p.evaluate(()=>{const img=document.querySelector('#card-picture'),toggle=document.querySelector('#card-enabled');return !!(img?.complete&&img.naturalWidth===1080&&toggle&&!toggle.disabled);}))return;
+   if(await p.evaluate(cardIsSettled))return;
    await p.waitForTimeout(100);
   }throw Error('Card picture and settings did not settle');};
   const waitForSocialWarmup=async()=>{for(let attempt=0;attempt<100;attempt++){if(await p.evaluate(()=>performance.getEntriesByType('resource').some(r=>new URL(r.name).pathname==='/static/social.js')))return;await p.waitForTimeout(50);}throw Error('Me Social warmup did not complete');};
@@ -80,7 +86,28 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   await achievements.check();await settled();const sharedAchievements=(await(await c.request.get(base+'/api/card')).json()).preview;
   assert(Array.isArray(sharedAchievements.achievements),'the opted-in owner preview returns only featured achievements');
   if(sharingBefore)await achievements.check();else await achievements.uncheck();await settled();
-  await enabled.uncheck();await settled();assert(await p.locator('#card-share').isDisabled());assert.equal((await anonymous.request.get(data.url)).status(),404);
+  // Hold revocation before it reaches the server: an old complete preview must
+  // not make the capture test advance past a pending setting write.
+  let releaseRevocation,revocationFinished,revocationStarted=false;
+  const revocationDone=new Promise(resolve=>revocationFinished=resolve);
+  const holdRevocation=async route=>{
+   if(route.request().method()==='PUT'&&route.request().postDataJSON().enabled===false){
+    revocationStarted=true;await new Promise(resolve=>releaseRevocation=resolve);
+   }
+   try{await route.continue();}finally{revocationFinished();}
+  };
+  await p.route('**/api/card',holdRevocation);
+  try{
+   await enabled.uncheck();
+   for(let attempt=0;attempt<100&&!revocationStarted;attempt++)await p.waitForTimeout(20);
+   assert(revocationStarted,'revocation reaches the held request');
+   assert(await p.locator('#card-picture').evaluate(img=>img.complete&&img.naturalWidth===1080),'the previous complete picture remains while saving');
+   assert.equal(await enabled.getAttribute('aria-disabled'),'true','pending save keeps its focus-preserving lock');
+   assert.equal(await p.evaluate(cardIsSettled),false,'a pending save cannot count as settled');
+   assert((await anonymous.request.get(data.url)).ok(),'the held write has not revoked the public card yet');
+   releaseRevocation();releaseRevocation=null;await settled();
+  }finally{releaseRevocation?.();if(revocationStarted)await revocationDone;await p.unroute('**/api/card',holdRevocation);}
+  assert(await p.locator('#card-share').isDisabled());assert.equal((await anonymous.request.get(data.url)).status(),404);
   await p.reload();await ready();await p.evaluate(()=>KinettaCard.open());await settled();assert(!(await enabled.isChecked()),'off survives returning to the sheet');
   await enabled.check();await settled();assert((await anonymous.request.get(data.url)).ok());
   assert.equal(await p.locator('body').evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'no horizontal overflow');
