@@ -312,6 +312,10 @@ run_ui() {
       # Draft quick shards do not run the full browser shard's account setup.
       python3 dev/tests/insights_fixture.py
       NODE_PATH="$browser" node "dev/tests/$1" ;;
+    account_export_ui.cjs)
+      # This suite covers both engines; quick shards otherwise install Chromium only.
+      if [[ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ]]; then "$browser/.bin/playwright" install webkit; else "$browser/.bin/playwright" install --with-deps webkit; fi
+      NODE_PATH="$browser" node "dev/tests/$1" ;;
     inline_reactions_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     weight_progress_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     *) NODE_PATH="$browser" node "dev/tests/$1" ;;
