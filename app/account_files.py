@@ -124,6 +124,8 @@ def erase_user(uid, data=DATA):
 
 
 def sweep(data=DATA):
+    from .api_mydata import expire_prepared_exports
+    expire_prepared_exports()
     failures = 0
     for kind in ('files', 'uploads'):
         root = _root(data, kind)

@@ -312,6 +312,10 @@ run_ui() {
       # Draft quick shards do not run the full browser shard's account setup.
       python3 dev/tests/insights_fixture.py
       NODE_PATH="$browser" node "dev/tests/$1" ;;
+    account_export_ui.cjs)
+      # This suite covers both engines; quick shards otherwise install Chromium only.
+      if [[ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ]]; then "$browser/.bin/playwright" install webkit; else "$browser/.bin/playwright" install --with-deps webkit; fi
+      NODE_PATH="$browser" node "dev/tests/$1" ;;
     inline_reactions_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     weight_progress_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     *) NODE_PATH="$browser" node "dev/tests/$1" ;;
@@ -344,7 +348,7 @@ for group in $group_order; do
     lift) tests="lift_compact_ui.cjs lift_ui.cjs lift_lazy_route_ui.cjs" ;;
     plan) tests="plan_ui.cjs plan_readiness_ui.cjs" ;;
     progress) tests="progress_ui.cjs progress_large_text_ui.cjs fitness_ui.cjs heatmap_ui.cjs recaps_ui.cjs weight_progress_ui.cjs weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs profile_card_ui.cjs" ;;
-    profile) tests="notifications_compact_ui.cjs profile_card_ui.cjs me_card_ui.cjs personal_notifications_ui.cjs notification_settings_ui.cjs password_visibility_ui.cjs" ;;
+    profile) tests="notifications_compact_ui.cjs profile_card_ui.cjs me_card_ui.cjs personal_notifications_ui.cjs notification_settings_ui.cjs password_visibility_ui.cjs account_export_ui.cjs" ;;
     admin) tests="admin_features_ui.cjs admin_people_ui.cjs feature_collection_ui.cjs"; if [[ $list_tests == 0 ]]; then node dev/tests/test_admin_logins.js; node dev/tests/test_admin_tools.js; node dev/tests/test_temporary_login.js; fi ;;
     welcome) tests="signup_uniqueness_ui.cjs welcome_polish_ui.cjs" ;;
     hints) tests="explore_hints_ui.cjs" ;;

@@ -185,5 +185,223 @@ class Recovery(unittest.TestCase):
         self.assertTrue(fresh.exists()); self.assertTrue(link.is_symlink())
 
 
+class PreparedExport(unittest.TestCase):
+    """Real routes/file leases, fictional ZIP writer; no database/provider needed."""
+    def setUp(self):
+        import httpx
+        from fastapi import FastAPI, Request
+        self.httpx = httpx
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.app = FastAPI()
+        self.app.include_router(E.router)
+        async def own_user(request: Request):
+            uid = request.headers.get('X-Fictional-User')
+            if not uid: raise HTTPException(401, 'Sign in')
+            return {'id':int(uid), 'login':'fictional_'+uid}
+        self.app.dependency_overrides[E.current_user] = own_user
+        self.writes = []
+        def write(uid, path):
+            self.writes.append(uid)
+            with E.zipfile.ZipFile(path, 'w') as z:
+                z.writestr(E.zipfile.ZipInfo('fictional.txt', (2026,1,1,0,0,0)), 'own fixture '+str(uid))
+        self.patches = [patch.object(E, 'DATA', str(self.root)),
+                        patch.object(E, '_write_export', side_effect=write),
+                        patch.dict(E._last_export, {}, clear=True),
+                        patch.dict(E._export_revocations, {}, clear=True)]
+        for item in self.patches: item.start()
+        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(lambda: [item.stop() for item in reversed(self.patches)])
+        self.addCleanup(lambda: [E.expire_prepared_exports(uid) for uid in [101,102]])
+
+    def request(self, method, path, uid=101):
+        async def send():
+            async with self.httpx.AsyncClient(transport=self.httpx.ASGITransport(app=self.app, raise_app_exceptions=True), base_url='http://fixture') as client:
+                return await client.request(method, path, headers={} if uid is None else {'X-Fictional-User':str(uid)})
+        return asyncio.run(send())
+
+    def test_prepare_retry_download_owner_and_replay(self):
+        self.assertEqual(self.request('POST', '/api/account/export-ready', None).status_code, 401)
+        path = self.request('POST', '/api/account/export-ready').json()['path']
+        # A lost preparation reply can be retried without building a second ZIP.
+        self.assertEqual(self.request('POST', '/api/account/export-ready').json()['path'], path)
+        self.assertEqual(self.writes, [101])
+        self.assertEqual(self.request('GET', path, None).status_code, 401)
+        self.assertEqual(self.request('GET', path, 102).status_code, 404)
+        self.assertEqual(len(list((self.root/'exports'/'101').glob('*.zip'))), 1)
+        reply = self.request('GET', path)
+        self.assertEqual(reply.status_code, 200)
+        self.assertEqual(reply.headers['content-type'], 'application/zip')
+        import io
+        with E.zipfile.ZipFile(io.BytesIO(reply.content)) as z:
+            self.assertEqual(z.read('fictional.txt'), b'own fixture 101')
+        self.assertEqual(self.request('GET', path).status_code, 404)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        self.assertEqual(self.request('POST', '/api/account/export-ready').status_code, 429)
+
+    def test_native_prepares_before_link_and_safari_only_sends_ready_zip(self):
+        self.assertEqual(self.request('POST', '/api/account/export-link', None).status_code, 401)
+        with patch.object(E, '_write_export', side_effect=HTTPException(503, 'Fictional ZIP generation failed')):
+            failed = self.request('POST', '/api/account/export-link')
+        self.assertEqual(failed.status_code, 503)
+        self.assertNotIn('path', failed.json())
+        self.assertNotIn(101, E._last_export)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        path = self.request('POST', '/api/account/export-link').json()['path']
+        self.assertEqual(self.request('POST', '/api/account/export-link').json()['path'], path)
+        self.assertEqual(self.writes, [101])
+        key = path.rsplit('/', 1)[1]
+        self.assertEqual(self.request('GET', '/api/account/export-ready/'+key).status_code, 404)
+        with patch.object(E, '_write_export', side_effect=AssertionError('Safari must not build again')):
+            downloaded = self.request('GET', path, None)
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(downloaded.headers['content-type'], 'application/zip')
+        self.assertEqual(self.request('GET', path, None).status_code, 404)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+
+    def test_native_tokens_expire_revoke_and_never_expose_browser_keys(self):
+        with patch.object(E.time, 'time', return_value=1000):
+            native = self.request('POST', '/api/account/export-link').json()['path']
+        with patch.object(E.time, 'time', return_value=1301):
+            self.assertEqual(self.request('GET', native, None).status_code, 404)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        native = self.request('POST', '/api/account/export-link').json()['path']
+        E.forget_exports(101)
+        self.assertEqual(self.request('GET', native, None).status_code, 404)
+        browser = self.request('POST', '/api/account/export-ready', 102).json()['path']
+        self.assertEqual(self.request('GET', '/api/account/export/'+browser.rsplit('/',1)[1], None).status_code, 404)
+        self.assertEqual(self.request('GET', browser, 102).status_code, 200)
+
+    def test_revocation_between_build_and_registration_rejects_and_cleans(self):
+        for native in (False, True):
+            with self.subTest(native=native):
+                E.forget_exports(101)
+                E.forget_exports(102)
+                route = '/api/account/export-link' if native else '/api/account/export-ready'
+                peer = self.request('POST', route, 102).json()['path']
+                entered, release = threading.Event(), threading.Event()
+                gate = threading.Lock()
+                keys, replies, errors = [], [], []
+                token = E.secrets.token_urlsafe
+                def before_registration(*args):
+                    key = token(*args)
+                    with gate:
+                        pause = not entered.is_set()
+                        if pause:
+                            keys.append(key)
+                            entered.set()
+                    if pause and not release.wait(5):
+                        raise RuntimeError('Fixture did not release registration')
+                    return key
+                def prepare():
+                    try:
+                        replies.append(self.request('POST', route))
+                    except BaseException as error:
+                        errors.append(error)
+                with patch.object(E.secrets, 'token_urlsafe', side_effect=before_registration):
+                    worker = threading.Thread(target=prepare)
+                    worker.start()
+                    try:
+                        self.assertTrue(entered.wait(5))
+                        # ZIP exists, but no token has been registered yet.
+                        self.assertEqual(len(list((self.root/'exports'/'101').glob('*.zip'))), 1)
+                        E.forget_exports(101)
+                        # A newer, explicitly requested export must survive the old
+                        # build's eventual cleanup and retain its own quota.
+                        current = self.request('POST', route)
+                        self.assertEqual(current.status_code, 200)
+                        current_path = current.json()['path']
+                    finally:
+                        release.set()
+                        worker.join(5)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual(errors, [])
+                self.assertEqual(replies[0].status_code, 409)
+                self.assertNotIn('path', replies[0].json())
+                self.assertNotIn(keys[0], E._prepared_exports)
+                self.assertEqual(len(list((self.root/'exports'/'101').glob('*.zip'))), 1)
+                stale_path = ('/api/account/export/' if native else '/api/account/export-ready/') + keys[0]
+                self.assertEqual(self.request('GET', stale_path, None if native else 101).status_code, 404)
+                self.assertEqual(self.request('GET', current_path, None if native else 101).status_code, 200)
+                self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+                self.assertEqual(self.request('POST', route).status_code, 429)
+                self.assertEqual(self.request('GET', peer, None if native else 102).status_code, 200)
+
+    def test_concurrent_preparations_keep_one_file_per_account(self):
+        for route in ('/api/account/export-ready', '/api/account/export-link'):
+            with self.subTest(route=route):
+                E.forget_exports(101)
+                self.writes.clear()
+                entered, release = threading.Event(), threading.Event()
+                original = E._write_export
+                replies = []
+                def held(*args):
+                    entered.set()
+                    if not release.wait(3): raise RuntimeError('Fixture did not release preparation')
+                    return original(*args)
+                with patch.object(E, '_write_export', side_effect=held):
+                    worker = threading.Thread(target=lambda: replies.append(self.request('POST', route)))
+                    worker.start()
+                    try:
+                        self.assertTrue(entered.wait(3))
+                        for method, other in [('POST', '/api/account/export-ready'), ('POST', '/api/account/export-link'), ('GET', '/api/account/export')]:
+                            self.assertEqual(self.request(method, other).status_code, 429)
+                    finally:
+                        release.set(); worker.join(3)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual(replies[0].status_code, 200)
+                self.assertEqual(self.writes, [101])
+                self.assertEqual(len(list((self.root/'exports'/'101').glob('*.zip'))), 1)
+
+    def test_prepared_send_success_failure_and_cancel_release_leases(self):
+        for native in (False, True):
+            for mode in ('success', 'error', 'cancel'):
+                with self.subTest(native=native, mode=mode):
+                    E.forget_exports(101)
+                    route = '/api/account/export-link' if native else '/api/account/export-ready'
+                    key = self.request('POST', route).json()['path'].rsplit('/', 1)[1]
+                    response = E.export_by_link(key) if native else E.download_prepared_export(key, user={'id':101})
+                    async def receive():
+                        return {'type':'http.disconnect'}
+                    async def send(message):
+                        if message['type'] == 'http.response.body':
+                            self.assertEqual(len(list((self.root/'exports'/'101').glob('*.zip'))), 1)
+                            if mode == 'error': raise OSError('Fictional transfer failure')
+                            if mode == 'cancel': raise asyncio.CancelledError()
+                    scope = {'type':'http', 'method':'GET', 'headers':[], 'asgi':{'spec_version':'2.4'}}
+                    if mode == 'success':
+                        asyncio.run(response(scope, receive, send))
+                    else:
+                        with self.assertRaises(OSError if mode == 'error' else asyncio.CancelledError):
+                            asyncio.run(response(scope, receive, send))
+                    self.assertNotIn(key, E._prepared_exports)
+                    self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+                    self.assertEqual(self.request('POST', route).status_code, 429)
+
+    def test_failed_preparation_is_json_and_can_retry(self):
+        with patch.object(E, '_write_export', side_effect=HTTPException(503, 'Fictional busy')):
+            reply = self.request('POST', '/api/account/export-ready')
+        self.assertEqual(reply.status_code, 503)
+        self.assertEqual(reply.json()['detail'], 'Fictional busy')
+        self.assertNotIn(101, E._last_export)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        self.assertEqual(self.request('POST', '/api/account/export-ready').status_code, 200)
+
+    def test_expiry_and_deletion_release_only_owned_leases(self):
+        with patch.object(E.time, 'time', return_value=1000):
+            path = self.request('POST', '/api/account/export-ready').json()['path']
+        with patch.object(E.time, 'time', return_value=1301):
+            with patch.object(F, '_absent', return_value=False), patch.object(F.tempfile, 'gettempdir', return_value=str(self.root)):
+                F.sweep(self.root)  # The existing background cleanup also retires abandoned preparations.
+        self.assertFalse(E._prepared_exports)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        self.assertEqual(self.request('GET', path).status_code, 404)
+        self.request('POST', '/api/account/export-ready')
+        peer = self.request('POST', '/api/account/export-ready', 102).json()['path']
+        E.forget_exports(101)
+        self.assertEqual(list((self.root/'exports'/'101').glob('*.zip')), [])
+        self.assertEqual(self.request('GET', peer, 102).status_code, 200)
+
+
 if __name__ == '__main__':
     unittest.main()
