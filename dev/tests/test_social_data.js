@@ -282,6 +282,12 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  assert.match(mismatch.failure.message,/Not saved/,'a successful HTTP reply cannot conceal a mismatched saved value');
  const replaced=data.confirmSetting(mismatchRoot,{path:'/saved',paint:()=>{}});assert.match(replaced.failure.message,/Not saved/,'same-surface repaints retain the rejected attempt');
  owner='different-repaint-account';const clean=data.confirmSetting(mismatchRoot,{path:'/saved',paint:()=>{}});assert.equal(clean.failure,null,'an account switch never inherits another account attempt or error');
+ owner='restored-group-choice';const restoredRoot=new Node();restoredRoot.append(new Node());let restoredWrites=0;
+ ctx.api=async()=>{restoredWrites++;};ctx.apiRequest=async()=>({member:true,share_total:true});
+ const initialAttempt={path:'/api/group-invites/fictional/accept',options:ctx.json('POST',{share_total:false}),error:null};
+ const restoredChoice=data.confirmSetting(restoredRoot,{path:'/state',initialAttempt,paint:()=>{}});await restoredChoice.read();
+ assert.match(restoredChoice.failure.message,/Not saved/);assert.equal(restoredChoice.attempted,initialAttempt);assert.equal(restoredWrites,0,'restored choice is reconciled with GET only');
+ ctx.apiRequest=async()=>({member:true,share_total:false});await restoredChoice.read();assert.equal(restoredChoice.failure,null);assert.equal(restoredWrites,0);
  console.log('Rejected settings: requested value and error survive GET-only Retry; mismatches stay visible, committed lost replies confirm PASS');
  owner='storage-unavailable-session';const blockedRoot=new Node();blockedRoot.append(new Node());let blockedWrites=0;
  ctx.localStorage.setItem=()=>{throw Error('Storage blocked');};ctx.api=async()=>blockedWrites++;
@@ -289,6 +295,14 @@ const state=n=>({cheers:[{login:'fictional',name:'Demo',kind:'cheer'}],comments:
  assert.equal(blockedWrites,0,'expiry must persist before a possibly-outstanding write');
  console.log('Expiring uncertainty: delayed readback, early GET-only Retry, navigation/full reload, stale-owner/read guards PASS');
  console.log('Uncertain privacy: lost reply/offline/503, stable disabled controls, same-account dismissal cache recovery PASS');
+ const persisted=new Map(),choiceContext={Native:{base:''},location:{origin:'https://example.test'},App:{me:{id:1}},localStorage:{getItem:k=>persisted.get(k)||null,setItem:(k,v)=>persisted.set(k,v),removeItem:k=>persisted.delete(k)}};
+ vm.createContext(choiceContext);const socialSource=fs.readFileSync('app/static/social.js','utf8');
+ vm.runInContext(socialSource.slice(socialSource.indexOf('function groupInvitationChoice('),socialSource.indexOf('function recoverGroupInvitation(')),choiceContext);
+ const choose=choiceContext.groupInvitationChoice,invite='/api/group-invites/fictional';choose(invite,{action:'accept',share_total:false});
+ assert.equal(choose(invite).share_total,false);assert.equal(choose('/api/group-friend-invites/77'),null,'invite paths have independent choices');
+ choiceContext.App.me.id=2;assert.equal(choose(invite),null,'another account cannot inherit the sharing choice');choiceContext.App.me.id=1;choiceContext.Native.base='https://other.example.test';assert.equal(choose(invite),null,'server scopes remain separate');choiceContext.Native.base='';
+ const reloadedContext=vm.createContext({...choiceContext});vm.runInContext(socialSource.slice(socialSource.indexOf('function groupInvitationChoice('),socialSource.indexOf('function recoverGroupInvitation(')),reloadedContext);assert.equal(reloadedContext.groupInvitationChoice(invite).share_total,false,'fresh helper restores an explicit off');
+ choose(invite,null);assert.equal(choose(invite),null);choiceContext.localStorage.setItem=()=>{throw Error('Quota exceeded');};assert.throws(()=>choose(invite,{action:'accept',share_total:true}),/Quota/);
  console.log('Social reads/cache/drafts/account isolation PASS');
  }
 })().catch(e=>{console.error(e);process.exit(1)});

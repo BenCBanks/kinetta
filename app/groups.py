@@ -1075,6 +1075,44 @@ def _limit_accept(request, uid):
         raise HTTPException(429, 'Too many invite attempts. Wait 15 minutes.')
 
 
+def _invitation_membership(c, group_id, uid):
+    # A secret invite must never reveal the group to someone who has not joined.
+    if not _invite_accounts_ready(c, uid): raise HTTPException(404, INVITE_UNAVAILABLE)
+    member = _active_member(c, group_id, uid)
+    if not member: return {'member': False}
+    people = [r['user_id'] for r in c.execute(
+        "SELECT user_id FROM group_members WHERE group_id=%s AND status='active'", (group_id,)).fetchall()]
+    if any(_blocked(c, uid, other) for other in people): raise HTTPException(404, INVITE_UNAVAILABLE)
+    return {'member': True, 'id': str(group_id), 'share_total': member['sharing_level'] == 'total_shared'}
+
+
+@router.get('/api/group-invites/{token}/state')
+def invite_state(token: str, request: Request, user=Depends(current_user)):
+    _limit_invite_preview(request)
+    with db.connect() as c:
+        row = c.execute('SELECT group_id FROM group_invites WHERE token_hash=%s', (_token_hash(token),)).fetchone()
+        if not row: raise HTTPException(404, INVITE_UNAVAILABLE)
+        state = _invitation_membership(c, row['group_id'], user['id'])
+        if not state['member']: _invite(c, token)
+        return state
+
+
+@router.get('/api/group-friend-invites/{invite_id}/state')
+def friend_invite_state(invite_id: int, request: Request, user=Depends(current_user)):
+    _limit_invite_preview(request)
+    with db.connect() as c:
+        invite = c.execute('SELECT * FROM group_friend_invites WHERE id=%s AND invitee_id=%s',
+                           (invite_id, user['id'])).fetchone()
+        if not invite: raise HTTPException(404, INVITE_UNAVAILABLE)
+        state = _invitation_membership(c, invite['group_id'], user['id'])
+        if state['member']: return state
+        if invite['status'] == 'declined': return {**state, 'declined': True}
+        if _friend_invite_unavailable(c, invite, user['id']): raise HTTPException(404, INVITE_UNAVAILABLE)
+        group = c.execute('SELECT title FROM event_groups WHERE id=%s', (invite['group_id'],)).fetchone()
+        inviter = c.execute('SELECT login FROM users WHERE id=%s', (invite['inviter_id'],)).fetchone()
+        return {**state, 'title': group['title'], 'inviter': inviter['login']}
+
+
 @router.post('/api/group-invites/{token}/accept')
 def accept_invite(token: str, request: Request, body: GroupLinkJoin = GroupLinkJoin(), user=Depends(current_user)):
     _limit_accept(request, user['id'])

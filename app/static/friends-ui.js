@@ -4,6 +4,13 @@ const FriendsUI=(()=>{
  const identity=p=>`${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span>`;
  const profile=(p,cls='')=>`<a class="person-link ${cls}" href="${profileHref(p)}" title="${esc(p.name)} · @${esc(p.login)}">${identity(p)}</a>`;
  const status=label=>`<span class="friend-status" role="status"><span aria-hidden="true">✓</span> ${label}</span>`;
+ const reconcile=(root,write,options,done)=>{
+  const saved=SocialData.confirmSetting(root,{path:'/api/friends',paint:(r,{failure})=>{
+   if(!['friends','incoming','outgoing'].every(key=>Array.isArray(r?.[key])))throw Error();
+   invalidate('/api/friends');invalidate('/api/people/');invalidate('/api/me');invalidateFeed();
+   App.cache.set('/api/friends',{data:r,at:Date.now()});keep('/api/friends',r);if(!failure)return done(r);
+  }});return saved.save(write,options);
+ };
  const bindLargeTitle=el=>{
   const bar=el.querySelector(':scope > .top.large-title'),heading=el.querySelector(':scope > .large-title-heading');if(!bar||!heading)return;
   bar.dataset.titleCollapsed=String(!('IntersectionObserver' in window));if(!('IntersectionObserver' in window))return;
@@ -25,8 +32,8 @@ const FriendsUI=(()=>{
   toggle.onclick=()=>{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));content.hidden=!open;};
   $$('[data-request-accept],[data-request-decline],[data-request-cancel]',content).forEach(button=>button.onclick=async()=>{
    if(!live()||!content.isConnected||button.disabled)return;button.disabled=true;
-   try{const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline||button.dataset.requestCancel);if(button.hasAttribute('data-request-accept'))await api(`/api/friends/${login}/accept`,json('POST',{}));else if(button.hasAttribute('data-request-decline'))await api(`/api/friends/${login}/decline`,json('POST',{}));else await api(`/api/friends/${login}`,{method:'DELETE'});if(live())await refresh();}
-   catch(x){if(live()&&content.isConnected){toast(x.message);button.disabled=false;}}
+   const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline||button.dataset.requestCancel),action=button.hasAttribute('data-request-accept')?'/accept':button.hasAttribute('data-request-decline')?'/decline':'';
+   button.disabled=false;await reconcile(button.closest('.fr-request'),`/api/friends/${login}${action}`,action?json('POST',{}):{method:'DELETE'},r=>{if(live()){drawRequests(container,r,live,refresh);return refresh();}});
   });
  };
  async function mountList(el){
@@ -66,7 +73,7 @@ const FriendsUI=(()=>{
   function requestSheet(r){
     const incoming=r.incoming||[];if(!incoming.length)return;
     const html=`<div class="friend-request-sheet">${incoming.map(p=>`<div class="person person-row fr-request">${profile(p)}<span class="friend-inline-actions"><button type="button" class="friend-inline-accept" data-request-accept="${esc(p.login)}">Accept</button><button type="button" class="friend-inline-muted" data-request-decline="${esc(p.login)}">Decline</button></span></div>`).join('')}</div>`;
-    sheet('Requests',html,(body,close)=>$$('[data-request-accept],[data-request-decline]',body).forEach(button=>button.onclick=async()=>{if(!live()||button.disabled)return;button.disabled=true;const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline);try{await api(button.hasAttribute('data-request-accept')?`/api/friends/${login}/accept`:`/api/friends/${login}/decline`,json('POST',{}));if(live()){close();await refresh();}}catch(x){if(live()){toast(x.message);button.disabled=false;}}}));
+    sheet('Requests',html,(body,close)=>$$('[data-request-accept],[data-request-decline]',body).forEach(button=>button.onclick=async()=>{if(!live()||button.disabled)return;button.disabled=true;const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline);button.disabled=false;await reconcile(body,button.hasAttribute('data-request-accept')?`/api/friends/${login}/accept`:`/api/friends/${login}/decline`,json('POST',{}),r=>{if(live()){close();draw(r);}});}));
   }
   $('#fr-list-add',el).onclick=addSheet;
   $('#fr-requests',el).onclick=e=>{if(e.target.closest('#fr-requests-open')&&currentFriends)requestSheet(currentFriends);};
@@ -117,14 +124,12 @@ const FriendsUI=(()=>{
   const resultError=(row,message)=>{let note=row.nextElementSibling?.classList.contains('friend-row-error')?row.nextElementSibling:null;if(!note){note=document.createElement('small');note.className='friend-row-error';note.setAttribute('role','status');row.insertAdjacentElement('afterend',note);}note.textContent=message;};
   const availability=()=>$$('[data-add],[data-friend-accept],[data-request-menu],[data-request-cancel],[data-request-accept],[data-request-decline]',el).forEach(button=>{button.disabled=!navigator.onLine||button.getAttribute('aria-busy')==='true';});
   async function changeFriend(login,kind,button,row){
-    if(!live()||button.disabled||!navigator.onLine)return;const label=button.getAttribute('aria-label');button.disabled=true;button.setAttribute('aria-busy','true');
+    if(!live()||button.disabled||!navigator.onLine)return;clearTimeout(timer);searchVersion++;const label=button.getAttribute('aria-label');button.disabled=true;button.setAttribute('aria-busy','true');
     if(kind==='add'){button.classList.add('is-pending');if(label)button.setAttribute('aria-label',label.replace(/^Add /,'Sending request to '));}
-    try{
-      if(kind==='add')await api('/api/friends',json('POST',{login}));
-      else if(kind==='accept')await api(`/api/friends/${encodeURIComponent(login)}/accept`,json('POST',{}));
-      else await api(`/api/friends/${encodeURIComponent(login)}`,{method:'DELETE'});
-      if(live())await refresh();
-    }catch(x){if(live()){button.disabled=false;button.removeAttribute('aria-busy');if(kind==='add'){button.classList.remove('is-pending');if(label)button.setAttribute('aria-label',label);}resultError(row,x.status===429||x.retryAfter?x.message:kind==='add'?"Couldn't send. Try again.":kind==='accept'?"Couldn't accept. Try again.":"Couldn't cancel. Try again.");availability();}}
+    button.disabled=false;button.removeAttribute('aria-busy');button.classList.remove('is-pending');if(label)button.setAttribute('aria-label',label);
+    await reconcile(row,kind==='add'?'/api/friends':`/api/friends/${encodeURIComponent(login)}${kind==='accept'?'/accept':''}`,kind==='add'?json('POST',{login}):kind==='accept'?json('POST',{}):{method:'DELETE'},async r=>{
+      if(!live())return;draw(r);await find(true);
+    });
   }
   const showSearchError=x=>{statusText.textContent='';found.innerHTML=`<p class="friend-state-message" role="alert">${esc(x?.status===429||x?.retryAfter?x.message:"Search isn't working right now.")}</p><button type="button" class="friend-state-retry" data-retry>Try again</button>`;found.setAttribute('aria-busy','false');$('[data-retry]',found).onclick=()=>find(true);};
   const showOfflineSearch=()=>{statusText.textContent='';found.innerHTML='<p class="friend-state-message" role="status">You’re offline. Reconnect to search.</p>';found.setAttribute('aria-busy','false');};
@@ -185,8 +190,8 @@ const FriendsUI=(()=>{
     sentToggle.textContent=`Sent requests${outgoing.length?` · ${outgoing.length}`:''}`;
     $$('[data-request-accept],[data-request-decline],[data-request-cancel]',el).forEach(button=>button.onclick=async()=>{
       if(!live()||button.disabled)return;button.disabled=true;
-      try{const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline||button.dataset.requestCancel);if(button.hasAttribute('data-request-accept'))await api(`/api/friends/${login}/accept`,json('POST',{}));else if(button.hasAttribute('data-request-decline'))await api(`/api/friends/${login}/decline`,json('POST',{}));else await api(`/api/friends/${login}`,{method:'DELETE'});if(live())await refresh();}
-      catch(x){if(live()){resultError(button.closest('.fr-request'),button.hasAttribute('data-request-accept')?"Couldn't accept. Try again.":button.hasAttribute('data-request-decline')?"Couldn't decline. Try again.":"Couldn't cancel. Try again.");button.disabled=false;}}
+      const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline||button.dataset.requestCancel),action=button.hasAttribute('data-request-accept')?'/accept':button.hasAttribute('data-request-decline')?'/decline':'';
+   button.disabled=false;await reconcile(button.closest('.fr-request'),`/api/friends/${login}${action}`,action?json('POST',{}):{method:'DELETE'},r=>{if(live())draw(r);});
     });
     availability();
   }

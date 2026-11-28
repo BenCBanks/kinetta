@@ -41,6 +41,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  async function settle(p){await p.evaluate(async()=>{await document.fonts.ready;const animations=[...document.querySelectorAll('.scrim,.sheet')].flatMap(el=>el.getAnimations());await Promise.all(animations.map(a=>a.finished.catch(()=>{})));});}
  async function capture(p,name){if(!out)return;await settle(p);fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,name+'.png'),fullPage:!/^(?:friends-|my-friends-)/.test(name)});}
  try{
+  if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='recovery')await require('./invitation_recovery_ui.cjs')(browser,base,out);
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='new-list')for(const width of [390,330])for(const theme of ['light','dark'])for(const state of ['empty','typical','heavy']){
    const {c,p,errors,writes}=await open(state,theme,{width,height:844},'/me/friends',state==='heavy'?{alphabetical:true}:{});
    const friends={empty:0,typical:1,heavy:40}[state];await until(p,n=>document.querySelectorAll('#fr-own-list .fr-friend').length===n,'Friends list rows',friends);
@@ -167,10 +168,25 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('#fr-found [data-retry]').click();await until(p,()=>document.querySelector('#fr-found')?.getAttribute('aria-busy')==='false'&&document.querySelector('#fr-found [data-add="zz_test_fc_peer06"]'),'search retry succeeds');await close(c);
    }
    {
-    const {c,p}=await open('retry',theme),targetLogin=theme==='light'?'zz_test_fc_peer19':'zz_test_fc_peer20';let fail=true;
-    await p.route('**/api/friends',route=>{if(fail&&route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin){fail=false;return route.fulfill({status:503,json:{message:'fixture failure'}});}return route.continue();});
-    await p.locator('#fr-find input').fill(targetLogin);await until(p,()=>document.querySelector('#fr-found [data-add]'),'Add error target');await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found .friend-row-error')?.textContent==="Couldn't send. Try again.",'Add error copy');assert.equal(await p.locator('#fr-found [data-add]').isDisabled(),false,'failed Add returns to an enabled action');
-    if(out)await capture(p,`find-friends-add-error-${viewportWidth}-${theme}`);await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'Add retry shows Requested');await close(c);
+    const {c,p}=await open('retry',theme),targetLogin=theme==='light'?'zz_test_fc_peer19':'zz_test_fc_peer20';let fail=true,friendPosts=0;
+    await p.route('**/api/friends',route=>{if(route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin)friendPosts++;if(fail&&route.request().method()==='POST'&&route.request().postDataJSON().login===targetLogin){fail=false;return route.fulfill({status:503,json:{message:'fixture failure'}});}return route.continue();});
+    await p.locator('#fr-find input').fill(targetLogin);await until(p,()=>document.querySelector('#fr-found [data-add]'),'Add error target');await p.locator('#fr-found [data-add]').click();
+    const recovery=p.locator('#fr-found .setting-recovery');await recovery.getByRole('button',{name:'Retry',exact:true}).waitFor();assert.match(await recovery.innerText(),/Not confirmed.*Retry/s);
+    const add=p.locator('#fr-found [data-add]');
+    assert(await add.isVisible(),'uncertain Add keeps the relationship row visible');
+    assert.equal(await add.getAttribute('aria-disabled'),'true','uncertain Add is locked without claiming success');
+    assert.equal(await p.locator('#fr-found [data-request-menu]').count(),0,'uncertain Add never claims Requested');
+    if(out)await capture(p,`find-friends-add-error-${viewportWidth}-${theme}`);
+    await recovery.getByRole('button',{name:'Retry',exact:true}).click();
+    assert.equal(await recovery.getAttribute('data-sharing-state'),'checking','early Retry shows Checking');
+    assert.equal(friendPosts,1,'early Retry never repeats the friend request');
+    await require('./privacy_recovery_fixture.cjs')(p);
+    await p.locator('#fr-found [data-sharing-state=confirmed]').waitFor({state:'attached'});
+    assert.equal(friendPosts,1,'automatic Retry only rereads, never sends another friend request');
+    assert.equal(await add.isDisabled(),false,'saved relationship readback makes Add available again');
+    if(out)await capture(p,`find-friends-add-not-saved-${viewportWidth}-${theme}`);
+    assert(await add.evaluate(button=>{const r=button.getBoundingClientRect(),at=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.width>=44&&r.height>=44&&(at===button||button.contains(at));}),'the recovered Add action retains an unobstructed 44px target');
+    await p.locator('#fr-found [data-add]').click();await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'Add retry shows Requested');await close(c);
    }
    {
     const {c,p}=await open('typical',theme);await c.setOffline(true);await p.waitForFunction(()=>navigator.onLine===false);await p.evaluate(()=>window.dispatchEvent(new Event('offline')));
@@ -183,7 +199,10 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='pr2-actions'||process.env.KINETTA_FRIEND_CASE==='pr2-states'){
    const {c,p}=await open('actions','light');
    await p.locator('#fr-find input').fill('Fictional Action Friend');await until(p,()=>document.querySelector('#fr-found')?.getAttribute('aria-busy')==='false'&&document.querySelector('#fr-found .friend-status'),'existing friend search');assert.equal(await p.locator('#fr-found .person-link b').innerText(),'Fictional Action Friend','accepted friend search retains the full name');assert.equal((await p.locator('#fr-found .friend-status').innerText()).replace(/\s+/g,' ').trim(),'✓ Friends');
-   await p.locator('#fr-find input').fill('zz_test_fc_sent0');await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'sent request search');await p.locator('#fr-found [data-request-menu]').click();assert.equal(await p.locator('#fr-found [data-request-cancel]').innerText(),'Cancel');assert.equal(await p.locator('#fr-found [data-request-keep]').innerText(),'Keep');await p.locator('#fr-found [data-request-keep]').click();assert.equal(await p.locator('#fr-found [data-request-menu]').isVisible(),true,'Keep restores Requested');await p.locator('#fr-found [data-request-menu]').click();await p.locator('#fr-found [data-request-cancel]').click();await until(p,()=>document.querySelector('#fr-found [data-add]'),'Cancel restores Add');
+   // A cached Requested row is actionable while its older search response is still pending.
+   let releaseSearch,searchStarted,holdSearch=true;const searchReady=new Promise(resolve=>{searchStarted=resolve;}),searchGate=new Promise(resolve=>{releaseSearch=resolve;});
+   await p.route('**/api/people/search?q=zz_test_fc_sent0',async route=>{if(!holdSearch)return route.fallback();holdSearch=false;const response=await route.fetch();searchStarted();await searchGate;return route.fulfill({response});});
+   await p.locator('#fr-find input').fill('zz_test_fc_sent0');await searchReady;await until(p,()=>document.querySelector('#fr-found [data-request-menu]'),'sent request search');await p.locator('#fr-found [data-request-menu]').click();assert.equal(await p.locator('#fr-found [data-request-cancel]').innerText(),'Cancel');assert.equal(await p.locator('#fr-found [data-request-keep]').innerText(),'Keep');await p.locator('#fr-found [data-request-keep]').click();assert.equal(await p.locator('#fr-found [data-request-menu]').isVisible(),true,'Keep restores Requested');await p.locator('#fr-found [data-request-menu]').click();const cancelled=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/friends/zz_test_fc_sent0'&&r.request().method()==='DELETE');await p.locator('#fr-found [data-request-cancel]').click();assert.equal((await cancelled).status(),200);releaseSearch();await until(p,()=>document.querySelector('#fr-found [data-add]'),'Cancel restores Add despite the late older search');
    await p.locator('#fr-find input').fill('zz_test_fc_request0');await until(p,()=>document.querySelector('#fr-found [data-friend-accept]'),'incoming request search');await p.locator('#fr-found [data-friend-accept]').click();await until(p,()=>document.querySelector('#fr-found .friend-status')?.textContent.includes('Friends'),'search Accept refreshes to Friends');
    await close(c);console.log('Find friends PR2 action states: Friends, Requested/Keep and incoming Accept PASS');
   }
@@ -221,7 +240,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const {c,p,errors,writes,homeKitAssets,homeProgressWarmups}=await open('empty',theme,{width,height:844},'/activity'),entry=p.locator('#feed-top .shell-topbar-root .shell-topbar-actions .home-find-friends');
    await p.waitForTimeout(1700);assert.deepEqual(homeKitAssets,[],'Home entry is in the shell; the full Kit module stays unloaded until opened');assert.deepEqual(homeProgressWarmups,[],'Home does not fetch Progress volume before Progress intent');
    const kit=p.locator('#feed-top [data-kit-entry]');assert.equal(await kit.count(),1,'Home Kit/Add food action renders from the initial bundle');
-   await p.evaluate(()=>{App.me.ai_ok=true;App.me.kit_chat=true;App.me.coach=true;homeKitEntry(document.querySelector('#page'));});assert.equal(await kit.getAttribute('href'),'/me/kit?from=activity','enabled Home Kit opens its dedicated route');
+   await p.evaluate(()=>{App.me.ai_ok=true;App.me.kit_chat=true;App.me.coach=true;App.me.ai_paused=false;App.me.ai_access={...App.me.ai_access,coach:{available:true,entitled:true}};homeKitEntry(document.querySelector('#page'));});assert.equal(await kit.getAttribute('href'),'/me/kit?from=activity','enabled Home Kit opens its dedicated route');
    const loadedKit=p.waitForRequest(request=>new URL(request.url()).pathname==='/static/kit.js');await kit.click();await p.waitForURL('**/me/kit?from=activity');await loadedKit;assert.equal(homeKitAssets.length,1,'full Kit code loads only after the Home action is opened');await p.evaluate(()=>go('/activity'));await until(p,()=>location.pathname==='/activity'&&App.pageReady,'Home restored after Kit route');
    const progress=p.locator('nav.tabs [data-tab="progress"]');await progress.evaluate(el=>{el.dispatchEvent(new PointerEvent('pointerenter',{bubbles:true,pointerType:'mouse'}));el.focus();});await p.waitForTimeout(100);assert.deepEqual(homeProgressWarmups,[],'Hover and programmatic focus do not warm Progress before activation');const progressRead=p.waitForResponse(response=>{const u=new URL(response.url());return u.pathname==='/api/progress/volume'&&u.searchParams.get('period')==='week';});await progress.click();await progressRead;await until(p,()=>location.pathname==='/progress'&&App.pageReady,'Progress route opened after intent');
    await p.goto(base+'/activity');await until(p,()=>App.pageReady&&!!document.querySelector('#feed-top .acts'),'Home restored after Progress route');
@@ -245,10 +264,18 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
      await p.locator('#fr-sent-toggle').click();const sent=p.locator('#fr-sent');await sent.waitFor({state:'visible'});const cancel=sent.locator('[data-request-cancel]');assert.equal(await cancel.count(),1,'sent requests appear under More ways');await cancel.click();await until(p,()=>document.querySelector('#fr-sent-toggle')?.textContent==='Sent requests'&&!document.querySelector('#fr-sent [data-request-cancel]'),'cancelled sent request refresh');
      await p.goto(base+'/me/friends?find=1');await until(p,()=>App.pageReady&&!!document.querySelector('#fr-invite'),'Find friends restored after requests');}
     await p.locator('#fr-find input').fill(targetLogin);await until(p,login=>document.querySelector('#fr-found')?.getAttribute('aria-busy')==='false'&&document.querySelector(`#fr-found [data-add="${login}"]`),'search Add target',targetLogin);assert.equal(await p.locator('#fr-status').innerText(),'1 person found','the live result count is the only heading');assert.equal(await p.locator('#fr-found h2').count(),0,'search results have no duplicate People heading');assert.equal(await p.locator('#fr-found > .card').count(),0,'search results have no card wrapper');assert.equal(await p.locator('#fr-found > .person').count(),1,'search result is a plain row');const rowStyle=await p.locator('#fr-found > .person').evaluate(el=>{const s=getComputedStyle(el);return{background:s.backgroundColor,borders:[s.borderTopWidth,s.borderRightWidth,s.borderBottomWidth,s.borderLeftWidth],shadow:s.boxShadow};});assert.equal(rowStyle.background,'rgba(0, 0, 0, 0)','search result row has no filled box');assert.deepEqual(rowStyle.borders,['0px','0px','0px','0px'],'search result row has no border');assert.equal(rowStyle.shadow,'none','search result row has no box shadow');assert.equal(await p.locator('#fr-found [data-add] svg').count(),1,'search action uses the supported plus icon');const searchBox=await p.locator('#fr-found [data-add]').boundingBox();assert(searchBox.width>=44&&searchBox.height>=44,'search action keeps a 44px target');await p.locator('#fr-title').scrollIntoViewIfNeeded();await capture(p,`find-friends-search-${viewportWidth}-${theme}`);
-    let resolveAdd,addWrites=[];const add=p.locator('#fr-found [data-add]').first();await p.route('**/api/friends',async r=>{if(r.request().method()==='POST'&&r.request().postDataJSON().login===targetLogin){addWrites.push(r.request().url());await new Promise(resolve=>resolveAdd=resolve);return r.continue();}return r.continue();});
-    const click=add.click();await until(p,()=>document.querySelector('#fr-found [data-add]')?.classList.contains('is-pending'),'Add enters pending');assert.equal(typeof resolveAdd,'function','the pending Add request is held for the style check');const pendingStyle=await add.evaluate(el=>({background:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color,busy:el.getAttribute('aria-busy'),label:el.getAttribute('aria-label'),icon:!!el.querySelector('svg')}));assert.notEqual(pendingStyle.background,'rgba(0, 0, 0, 0)','pending Add fills with accent');assert.equal(pendingStyle.color,'rgb(255, 255, 255)','pending Add uses white text');assert.equal(pendingStyle.busy,'true');assert.match(pendingStyle.label,/Sending request to/);assert.equal(pendingStyle.icon,true,'pending Add keeps the plus inside its 44px circle');await capture(p,`find-friends-add-pending-${viewportWidth}-${theme}`);resolveAdd();await click;
+    let resolveAdd,resolveRead,holdRead=false,addWrites=[];const add=p.locator('#fr-found [data-add]').first();await p.route('**/api/friends',async r=>{
+     if(r.request().method()==='POST'&&r.request().postDataJSON().login===targetLogin){addWrites.push(r.request().url());await new Promise(resolve=>resolveAdd=resolve);return r.continue();}
+     if(r.request().method()==='GET'&&holdRead){holdRead=false;const response=await r.fetch();await new Promise(resolve=>resolveRead=resolve);return r.fulfill({response});}return r.continue();
+    });
+    const click=add.click();await until(p,()=>document.querySelector('#fr-found [data-sharing-state="checking"]')?.textContent.includes('Checking…'),'Add waits for confirmed relationship');
+    for(let n=0;n<150&&!resolveAdd;n++)await p.waitForTimeout(20);assert.equal(typeof resolveAdd,'function','one Add request is held');assert.equal(addWrites.length,1,'Add sends once while waiting');
+    assert.equal(await add.isVisible(),true,'unconfirmed Add keeps its position');assert.equal(await add.getAttribute('aria-disabled'),'true','unconfirmed Add is blocked');assert.equal(await p.locator('#fr-found [data-request-menu]:visible').count(),0,'Requested is not claimed before saved readback');
+    await capture(p,`find-friends-add-pending-${viewportWidth}-${theme}`);holdRead=true;resolveAdd();await click;
+    for(let n=0;n<150&&!resolveRead;n++)await p.waitForTimeout(20);assert.equal(typeof resolveRead,'function','successful Add reads the saved relationship');
+    assert.equal(await p.locator('#fr-found [data-request-menu]:visible').count(),0,'successful POST alone does not claim Requested');assert.equal(await add.isVisible(),true);assert.equal(await add.getAttribute('aria-disabled'),'true');resolveRead();
     await until(p,()=>document.querySelector('#fr-found [data-request-menu]')?.textContent==='Requested','request becomes the Requested action');const status=await p.locator('#fr-found [data-request-menu]').evaluate(el=>({text:el.textContent,color:getComputedStyle(el).color,body:getComputedStyle(document.body).color,background:getComputedStyle(el).backgroundColor,borderRadius:getComputedStyle(el).borderRadius}));assert.equal(status.text,'Requested');assert.notEqual(status.color,status.body,'Requested stays secondary to the person name');assert.equal(status.background,'rgba(0, 0, 0, 0)','Requested stays unfilled');assert.equal(status.borderRadius,'0px','Requested is not a pill');await capture(p,`find-friends-requested-${viewportWidth}-${theme}`);
-    assert(addWrites.some(url=>new URL(url).pathname==='/api/friends'),'Add sends one explicit friend request');assert.deepEqual(errors,[]);await close(c);console.log(`Find friends actions ${theme}: search, pending accent plus and muted Requested tick PASS`);
+    assert.equal(addWrites.length,1,'Add sends one explicit friend request');assert.deepEqual(errors,[]);await close(c);console.log(`Find friends actions ${theme}: search, stable pending request and confirmed Requested PASS`);
    }
   }
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='management'){
@@ -278,9 +305,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const theme of ['light','dark'])for(const width of [390,330]){
     const {c,p,errors}=await openInvite(theme,width);let accepted=0;
-    await p.route('**/api/friend-links/invite-ui-test',route=>{
+    await p.route('**/api/friend-links/invite-ui-test{,/state}',route=>{
      if(route.request().method()==='POST'){accepted++;return route.fulfill({json:{status:'friends',name:'Fictional Sender',login:'zz_test_fc_sender',new:true}});}
-     return route.fulfill({json:{name:'@river'}});
+     return route.fulfill({json:{member:accepted>0,name:'@river',login:'zz_test_fc_sender'}});
     });
     await p.goto(base+'/add/invite-ui-test');await p.locator('#af-yes').waitFor();
     assert.equal(await p.locator('.friend-invite-screen h1').innerText(),'River');assert.equal(await p.locator('.friend-invite-handle').innerText(),'@river');
@@ -292,7 +319,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const theme of ['light','dark'])for(const width of [390,330]){
     const {c,p,errors}=await openInvite(theme,width);
-    await p.route('**/api/friend-links/invite-expired',route=>route.fulfill({status:404,json:{detail:'This invite link has expired or was replaced. Ask for a new one.'}}));
+    await p.route('**/api/friend-links/invite-expired{,/state}',route=>route.fulfill({status:404,json:{detail:'This invite link has expired or was replaced. Ask for a new one.'}}));
     await p.goto(base+'/add/invite-expired');await p.locator('.friend-invite-unavailable').waitFor();const text=await p.locator('.friend-invite-unavailable').innerText();
     assert.equal(text.replace(/\n+/g,'\n'),'This invite isn’t available\nGo home','invalid link has one generic line and a home action');assert(!text.includes('expired')&&!text.includes('replaced'),'invalid state does not reveal token status');await capture(p,`friend-invite-invalid-${width}-${theme}`);assert.deepEqual(errors,[]);await close(c);
    }

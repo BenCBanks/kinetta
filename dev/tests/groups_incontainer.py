@@ -119,6 +119,48 @@ class Groups(unittest.TestCase):
         check = f"count(*) FROM group_members fm WHERE fm.group_id=fi.group_id AND fm.status='active')<{groups.MAX_MEMBERS}"
         self.assertIn(check, notify.NOTICE_VISIBLE)
 
+    def test_invitation_recovery_never_reveals_nonmember_group_and_preserves_choice(self):
+        group, token = self.make()
+        path = f'/api/group-invites/{token}/state'
+        self.assertEqual(self.anon.get(path).status_code, 401)
+        self.assertEqual(self.clients[1].get(path).json(), {'member': False})
+        self.assertEqual(self.clients[2].get(path).json(), {'member': False})
+        self.assertEqual(self.accept(token).status_code, 200)
+        expected = {'member': True, 'id': group['id'], 'share_total': False}
+        self.assertEqual(self.clients[1].get(path).json(), expected)
+        # A repeat join must not flip a previously saved OFF choice or duplicate membership.
+        self.assertEqual(self.clients[1].post(f'/api/group-invites/{token}/accept', json={'share_total': True}).status_code, 200)
+        self.assertEqual(self.clients[1].get(path).json(), expected)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM group_members WHERE group_id=%s AND user_id=%s', (group['id'], self.ids[1])).fetchone()['n'], 1)
+            c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s', (group['id'],))
+        self.assertEqual(self.clients[1].get(path).json(), expected, 'own saved membership survives invite rotation')
+        self.assertEqual(self.clients[2].get(path).status_code, 404)
+        with db.connect() as c:
+            c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[1]))
+        self.assertEqual(self.clients[1].get(path).status_code, 404)
+
+    def test_addressed_invitation_recovery_is_recipient_only_and_reads_decline(self):
+        group, token = self.make(); self.friend(0, 1)
+        username = self.clients[1].get('/api/me').json()['login']
+        self.assertEqual(self.clients[0].post(f"/api/groups/{group['id']}/friend-invites", json={'username': username}).status_code, 200)
+        with db.connect() as c:
+            iid = c.execute('SELECT id FROM group_friend_invites WHERE group_id=%s AND invitee_id=%s', (group['id'], self.ids[1])).fetchone()['id']
+        path = f'/api/group-friend-invites/{iid}'
+        self.assertEqual(self.clients[2].get(path+'/state').status_code, 404)
+        self.assertNotIn('id', self.clients[1].get(path+'/state').json())
+        self.assertEqual(self.clients[1].post(path+'/decline', json={}).status_code, 200)
+        self.assertEqual(self.clients[1].get(path+'/state').json(), {'member': False, 'declined': True})
+        with db.connect() as c:
+            c.execute("UPDATE group_friend_invites SET status='pending',responded_at=NULL WHERE id=%s", (iid,))
+        self.assertEqual(self.clients[1].post(path+'/accept', json={'share_total': False}).status_code, 200)
+        self.assertEqual(self.clients[1].get(path+'/state').json(), {'member': True, 'id': group['id'], 'share_total': False})
+        self.assertEqual(self.clients[1].post(path+'/accept', json={'share_total': True}).status_code, 200)
+        self.assertFalse(self.clients[1].get(path+'/state').json()['share_total'])
+        with db.connect() as c:
+            c.execute('UPDATE users SET needs_email_confirm=true WHERE id=%s', (self.ids[1],))
+        self.assertEqual(self.clients[1].get(path+'/state').status_code, 404)
+
     def test_group_update_names_are_first_only_for_non_friends(self):
         group,token=self.make()
         self.assertEqual(self.accept(token,who=1).status_code,200)
