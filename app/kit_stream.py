@@ -147,7 +147,13 @@ async def events(uid, client_id, body, request):
             if now-heartbeat >= HEARTBEAT_SECONDS:
                 yield ': keep-alive\n\n'
                 heartbeat = now
-            await asyncio.sleep(POLL_SECONDS)
+            # Completion wakes the stream immediately; pending work keeps the original
+            # one-second SQL/consent polling cadence. A lease-only reconnect whose
+            # worker already returned must sleep rather than spin on a done task.
+            if worker.done():
+                await asyncio.sleep(POLL_SECONDS)
+            else:
+                await asyncio.wait({worker}, timeout=POLL_SECONDS)
         yield frame('error', {'code':'answer_timeout'})
     except HTTPException as error:
         # discard_unstarted commits before generate returns. A read may see the
