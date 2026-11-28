@@ -331,9 +331,10 @@ const Segments = (() => {
     },paint:data=>{
       if(typeof data.excluded!=='boolean'||!Array.isArray(data.efforts)||!Number.isSafeInteger(data.assistance_revision))throw Error();
       r=data;$('#sa-ex',box).checked=data.excluded;
-    },after:(data,{failure})=>{
-      if(!failure)return activityCard(box,aid,data);
-      // Keep the declaration, confirmation checkbox and focus for an explicit retry.
+    },after:(_,{failure})=>{
+      // A keep-off save must not rebuild this card: an unsubmitted declaration
+      // belongs to the open editor and must survive the confirmed readback.
+      if(!failure&&saved.attempted?.path.endsWith('/segment-assistance'))$('.segment-assistance summary',box).textContent='Assistance: '+({unassisted:'outdoors, no motor assistance',assisted:'motor assisted',virtual:'virtual or indoors'}[r.assistance]||'not declared');
       $('#sa-status',box).textContent='';
     }});
     $('#sa-declare',box).onsubmit=async(e)=>{

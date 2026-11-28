@@ -228,7 +228,7 @@ const SocialData=(()=>{
           try{for(const name of Object.keys(localStorage))if(name.startsWith('fit.c:'))localStorage.removeItem(name);}catch(_){}
           const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
           try{
-            await api(writePath,{...options,signal:controller.signal});
+            attempt.writeResult=await api(writePath,{...options,signal:controller.signal});
             if(account===readOwner()&&expected===generation())setUntil(0);
           }catch(error){failure=lastError=attempt.error=error;}finally{clearTimeout(timer);}
         }
@@ -262,7 +262,7 @@ const SocialData=(()=>{
           if(window.scrollX!==scrollX||window.scrollY!==scrollY)window.scrollTo(scrollX,scrollY);
         };
         await paint(data,{failure});if(!live()||expected!==generation()){restorePosition();return null;}
-        known=true;await after(data,{failure});if(!live()||expected!==generation()){restorePosition();return null;}restore();restorePosition();
+        known=true;await after(data,{failure,writeResult:attempt?.writeResult});if(!live()||expected!==generation()){restorePosition();return null;}restore();restorePosition();
         setUntil(0);affected=null;if(note.parentElement!==root)root.append(note);note.dataset.sharingState='confirmed';note.hidden=!failure;text.textContent=failure?.message||'';retry.hidden=true;
         returnFocus=false;return {data,failure};
       }catch(error){

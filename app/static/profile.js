@@ -860,7 +860,7 @@ const ProfileLayout=(()=>{
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
       onInteraction('open');
-      const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=FEATURED_ACHIEVEMENT_LIMIT;
+      const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code);
       sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
         const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
         const recovery=document.createElement('p');recovery.className='setting-recovery small';recovery.setAttribute('role','status');
@@ -877,7 +877,7 @@ const ProfileLayout=(()=>{
             });
             onInteraction();box.hidden=false;recovery.remove();onInteraction('save-end');
         },paint:()=>{button.disabled=false;
-        },after:(_,{failure})=>{if(!failure){close();toast(replace?'Pinned to profile. Oldest pin replaced.':pinned?'Removed from profile.':'Pinned to profile.');}}});
+        },after:(_,{failure,writeResult})=>{if(!failure){close();const replaced=writeResult?.replaced===true;toast(replaced?'Pinned to profile. Oldest pin replaced.':pinned?'Removed from profile.':'Pinned to profile.');}}});
         button.onclick=async()=>{
           onInteraction('save-start');
           await saved.save('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
