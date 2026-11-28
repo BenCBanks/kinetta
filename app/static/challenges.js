@@ -167,7 +167,7 @@ const ChallengeRoutes=(()=>{
       const listen=(id,fn)=>{const n=$(id,el);if(n)n.onclick=fn;};
       if(actions)actions.onclick=()=>openActions(q);listen('#challenge-report',()=>reportSheet({login:q.creator,name:'@'+q.creator},{challenge_code:q.code},()=>go('/me/challenges')));listen('#challenge-invite',()=>share(q,false,el));listen('#challenge-finish-picture',()=>share(q,true,el));
       const join=$('#challenge-join',el);
-      if(join){const saved=SocialData.confirmSetting($('.challenge-join-card',el),{path:'/api/challenges/'+encodeURIComponent(code),failureText:'Not joined. Try again.',paint:state=>{
+      if(join){const saved=SocialData.confirmSetting($('.challenge-join-card',el),{path:'/api/challenges/'+encodeURIComponent(code),paint:state=>{
         if(typeof state?.member!=='boolean')throw Error();joining=false;if(state.member){invalidate('/api/challenges');draw(state);}
       }});join.onclick=()=>{generation++;joining=true;return saved.save('/api/challenges/'+encodeURIComponent(code)+'/join',json('POST',{}));};}
     }
