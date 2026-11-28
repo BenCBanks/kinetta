@@ -297,8 +297,27 @@ def coaching_wording(blocks, facts, evidence, *, weekly_review=False):
             if block['kind']=='list' and all(re.match(r'^(?:Schedule|Review|Choose|Make|Keep)\b',item) and not re.search(r'\d',item) for item in block['items']):
                 block['items']=block['items'][:1]
         result=[b for b in result if not (b['kind']=='paragraph' and re.match(r'^To support recovery, consider\b',b['text']) and not re.search(r'\d',b['text']))]
+    if weekly_review:
+        for block in result:
+            texts=[block['text']] if block['kind']=='paragraph' else block['items']
+            for i,text in enumerate(texts):
+                text=re.sub(r'\bduring this review period\b','over the past week',text)
+                text=re.sub(r'^Training volume was (\d+ workouts?)\b',r'You logged \1',text)
+                text=re.sub(r'^Recorded distance reached\b','Your logged distance was',text)
+                text=re.sub(r'^On (?:the nutrition side|nutrition), ','For food, ',text)
+                text=text.replace('Incomplete food logs mean full-week intake remains unknown rather than low.',
+                    'Meals you haven’t logged are still unknown; missing entries don’t tell us that you ate too little.')
+                texts[i]=text
+            if block['kind']=='paragraph':block['text']=texts[0]
+            else:block['items']=texts
     copy_text=' '.join(b['text'] if b['kind']=='paragraph' else ' '.join(b['items']) for b in result)
-    concrete=re.search(r'\b(?:log (?:your |the |a |all )?(?:next |typical |regular )?(?:meals?|food|drinks|sessions)|'
+    meal_step=r'\b(?:log|logging) (?:your |the |a |all )?(?:(?:next|typical|regular|routine|full|complete) )*(?:meals?|food|drinks|sessions)\b'
+    meal_step+=r'|\b(?:next|regular|routine) meal\b[^.!?]{0,80}\b(?:log it|logging it)\b'
+    meal_invitation=any(re.search(meal_step,sentence,re.I) and (
+        re.match(r'^\s*Log\b',sentence,re.I) or
+        re.search(r'\b(?:could|can|try|start|focus|next step|starting point)\b',sentence,re.I))
+        for sentence in re.split(r'(?<=[.!?])\s+',copy_text))
+    concrete=meal_invitation or re.search(r'\b(?:'
                        r'(?:schedule|choose|pick|plan) (?:an? |the |your )?(?:easy |next |rest )?(?:day|session|workout)|'
                        r'(?:keep|make) (?:your |the )?next (?:session|workout) easy|'
                        r'(?:open|review) your (?:training plan|daily food logs)|add a note)\b',copy_text,re.I)
@@ -306,9 +325,9 @@ def coaching_wording(blocks, facts, evidence, *, weekly_review=False):
         nutrition=[e['data'] for e in evidence if e.get('tool')=='nutrition_adequacy'
                    and isinstance(e.get('data'),dict) and 'error' not in e and 'error' not in e['data']]
         missing=len(nutrition)==1 and type(nutrition[0].get('unlogged_finished_days')) is int and nutrition[0]['unlogged_finished_days']>0
-        step=('Log your next meal as you eat it, including drinks and snacks.' if weekly_review and missing
-              else 'Choose a day for your next workout and decide what you will do before you start.' if weekly_review
-              else 'Make your next session easy, or take a rest day if you still feel tired.')
+        step=('You could log your next meal as you eat it, including drinks and snacks.' if weekly_review and missing
+              else 'You could choose a day for your next workout and decide what you will do before you start.' if weekly_review
+              else 'You could keep your next session easy, or rest if you still feel tired.')
         if result and result[-1]['kind']=='paragraph' and re.match(r'^(?:A (?:helpful|practical) next step|To get a clearer)',result[-1]['text'],re.I) and not re.search(r'\d',result[-1]['text']):
             result[-1]['text']=step
         elif len(result)<10:result.append({'kind':'paragraph','text':step})

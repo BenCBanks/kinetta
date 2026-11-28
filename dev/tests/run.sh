@@ -45,6 +45,7 @@ python3 dev/evals/test_workout_review_report.py
 python3 dev/evals/test_kit_gate.py
 python3 dev/evals/test_kit_gate_resume.py
 python3 dev/evals/test_kit_setting_smoke.py
+python3 dev/evals/test_kit_polish_replay.py
 
 echo "== syntax"
 python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
@@ -295,6 +296,7 @@ cat dev/tests/coach_incontainer.py dev/tests/workout_review_fixtures.py | docker
 docker compose -p "$P" exec -T app python - < dev/tests/kit_conversation_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_charts_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_coaching_quality_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_polish_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_context_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_context_chart_regressions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_claims_incontainer.py

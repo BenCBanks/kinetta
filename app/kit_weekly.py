@@ -101,12 +101,13 @@ def fallback(uid, question, state, active):
         paragraphs.append(sentence.replace('{}', slot))
     periods = kit_claims.successful(evidence, 'period_compare')
     if len(periods) == 1 and all(periods[0]['data'].get('current', {}).get(k) == v for k, v in (('start', start), ('end', end))):
-        add(periods[0], ['current', 'totals', 'workouts'], 'You have {} workout in your log this week—a starting point for your next session.' if periods[0]['data']['current'].get('totals',{}).get('workouts') == 1 else 'You have {} workouts in your log this week—a starting point for your next session.')
+        add(periods[0], ['current', 'totals', 'workouts'], 'You logged {} workout over the past week.' if periods[0]['data']['current'].get('totals',{}).get('workouts') == 1 else 'You logged {} workouts over the past week.')
         add(periods[0], ['current', 'totals', 'distance_m'], 'Together, your recorded workouts covered {}.')
+    if len(paragraphs)>1:paragraphs=[' '.join(paragraphs)]
     nutrition = kit_claims.successful(evidence, 'nutrition_adequacy')
     if len(nutrition) == 1 and all(nutrition[0]['data'].get(k) == v for k, v in (('start', start), ('end', end))):
-        add(nutrition[0], ['logged_days'], 'Your food log covers {} day; the rest of your intake is unknown.' if nutrition[0]['data'].get('logged_days') == 1 else 'Your food log covers {} days; the rest of your intake is unknown.')
-    if not paragraphs:paragraphs.append('Your recorded details are unavailable for this review period.')
+        add(nutrition[0], ['logged_days'], 'You logged food on {} day. Meals and snacks you have not logged are still unknown.' if nutrition[0]['data'].get('logged_days') == 1 else 'You logged food on {} days. Meals and snacks you have not logged are still unknown.')
+    if not paragraphs:paragraphs.append("I can’t see enough recorded detail for a weekly recap yet.")
     paragraphs.append('You could log your next meal as you eat it, including drinks and snacks.')
     raw = dict(blocks=[dict(kind='paragraph', text=p) for p in paragraphs], facts=facts)
     checked = kit_conversation.checked_answer(raw, evidence, question=question, weekly_review=True)
