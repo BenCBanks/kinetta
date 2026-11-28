@@ -474,10 +474,10 @@ def checked_answer(raw, evidence, *, kit=False, weekly_review=False, workout_rev
                          'day': ev['arguments'].get('day'), 'confirmation_required': True}
     result={'facts':facts,'selection':selection,'actions':answer.actions}
     if kit:
-        from . import kit_claims
-        kit_claims.strength_sets([answer.verdict,answer.reason],facts,evidence,PLACEHOLDER)
         verdict=_kit_prose(answer.verdict,facts)
         reason=_kit_prose(answer.reason,facts) if answer.reason else ''
+        from . import kit_claims
+        kit_claims.strength_sets([answer.verdict,answer.reason],facts,evidence,PLACEHOLDER)
         interpretation=verdict+(' '+reason if reason else '')
         result.update(verdict=verdict,reason=reason,interpretation=interpretation,follow_ups=follow_ups)
         if weekly_review:

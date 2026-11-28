@@ -37,7 +37,7 @@ class SetGrounding(unittest.TestCase):
                self.fact(0,'max_recorded_kg',collection='summary_by_exercise')]
         text='You recorded completed squat sets in your log, working with sets of {e2:0} reps at {e2:1}.'
         self.reject(text,facts)
-        self.reject(text,facts,legacy=True)
+        self.reject('Recorded: {e2:0} with {e2:1}.',facts,legacy=True)
 
     def test_every_metric_pair_requires_the_same_row(self):
         for left,right in itertools.permutations(('reps','kg','secs'),2):
@@ -130,6 +130,17 @@ class SetGrounding(unittest.TestCase):
             self.evidence[1]['data']['sets'][0]['kg']=value
             with self.subTest(value=value),self.assertRaises(ValueError):
                 self.check('{e2:0} reps at {e2:1}.',facts)
+
+    def test_non_strength_reference_errors_keep_their_diagnostics(self):
+        evidence=[self.evidence[0],{'evidence_id':'e2','tool':'activity','data':{'distance_m':1000}}]
+        fact={'evidence_id':'e2','path':['distance_m'],'value':1000}
+        for text,expected in [('{e9:0}.','Unknown or mismatched numeric reference'),
+                              ('{e2:2}.','Unknown or mismatched numeric reference'),
+                              ('{e2:0} miles.','Unsupported text attached to numeric reference')]:
+            with self.subTest(text=text),self.assertRaises(ValueError) as error:
+                coach_chat.checked_answer({'verdict':text,'reason':'Recorded values.','facts':[fact]},
+                                          evidence,kit=True)
+            self.assertEqual(str(error.exception),expected)
 
     def test_bad_pair_cannot_escape_via_correction_or_recovery(self):
         facts=[self.fact(0,'max_recorded_reps',collection='summary_by_exercise'),
