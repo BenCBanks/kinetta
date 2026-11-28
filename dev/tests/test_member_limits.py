@@ -475,6 +475,13 @@ class MemberLimits(unittest.TestCase):
         r = self.actor.post('/api/friends', json={'login': target})
         self.assertEqual(r.status_code, 429, r.text); self.assertGreater(int(r.headers['Retry-After']), 86000)
         with db.connect() as c: c.execute("UPDATE member_pair_cooldowns SET expires=now()-interval '1 second' WHERE user_id=%s", (self.uid,))
+        replay=self.actor.post('/api/friends',json={'login':target,'client_id':key})
+        self.assertEqual(replay.status_code,200,replay.text)
+        self.assertEqual(replay.json()['status'],'none')
+        self.assertEqual(len(self.events('friend')),1)
+        with db.connect() as c:
+            self.assertIsNone(c.execute('SELECT 1 FROM friendships WHERE requester=%s AND addressee=%s',(self.uid,self.oid)).fetchone())
+            self.assertIsNone(c.execute("SELECT 1 FROM notifications WHERE user_id=%s AND actor_id=%s AND kind='friend_request'",(self.oid,self.uid)).fetchone())
         self.assertEqual(self.actor.post('/api/friends', json={'login': target}).status_code, 200)
         self.assertEqual(self.owner.post('/api/friends/' + actor + '/decline', json={}).status_code, 200)
         r = self.actor.post('/api/friends', json={'login': target})
@@ -622,8 +629,8 @@ class MemberLimits(unittest.TestCase):
                 self.assertFalse(any('member_action_events' in name or 'member_pair_cooldowns' in name for name in z.namelist()))
         with db.connect() as c:
             for table in ('member_action_events','member_pair_cooldowns'):
-                for role in ('fit_readers','fit_all_readers'):
-                    self.assertFalse(c.execute("SELECT has_table_privilege(%s,%s,'SELECT') AS ok",(role,table)).fetchone()['ok'])
+                self.assertTrue(c.execute("SELECT has_table_privilege('fit_all_readers',%s,'SELECT') AS ok",(table,)).fetchone()['ok'])
+                self.assertEqual(c.execute("SELECT has_table_privilege('fit_readers',%s,'SELECT') AS ok",(table,)).fetchone()['ok'],table=='member_action_events')
                 self.assertTrue(c.execute('SELECT relrowsecurity AS ok FROM pg_class WHERE oid=%s::regclass',(table,)).fetchone()['ok'])
 
     def test_account_export_explicit_fields_rls_and_erasure(self):
@@ -632,6 +639,8 @@ class MemberLimits(unittest.TestCase):
             M.cooldown(c, self.uid, self.oid, 86400)
             peer_claim=M.claim(c, self.tid, 'friend', self.uid, request_key=uuid.uuid4());M.finish(c,peer_claim,self.uid)
             M.cooldown(c,self.tid,self.uid,86400)
+            for kind in ('reaction_notice','comment_delivery'):
+                c.execute("INSERT INTO member_action_events(user_id,kind,target_hash,payload_hash,recipient_id) VALUES(%s,%s,repeat('0',64),repeat('1',64),%s)",(self.uid,kind,self.oid))
         for table in ('member_action_receipts',):
             with db.connect() as c:
                 rows = c.execute(api_mydata.TABLES[table], (self.uid,)).fetchall()
@@ -655,12 +664,19 @@ class MemberLimits(unittest.TestCase):
             with psycopg.connect(db._conninfo(role, 'fictional reader password'),row_factory=dict_row,autocommit=True) as reader:
                 rows=reader.execute('SELECT user_id FROM member_action_receipts').fetchall()
                 self.assertEqual(rows,[{'user_id':self.uid}])
-                reader.execute('SET ROLE fit_readers')
-                for table in ('member_action_events','member_pair_cooldowns'):
+                for assume_role in (False,True):
+                    if assume_role:reader.execute('SET ROLE fit_readers')
+                    self.assertEqual(reader.execute('SELECT user_id,kind FROM member_action_events').fetchall(),[{'user_id':self.uid,'kind':'friend'}])
                     with self.assertRaises(psycopg.errors.InsufficientPrivilege):
-                        reader.execute(sql.SQL('SELECT * FROM {}').format(sql.Identifier(table)))
+                        reader.execute('SELECT * FROM member_pair_cooldowns')
                 with self.assertRaises(psycopg.errors.InsufficientPrivilege):
                     reader.execute("DELETE FROM member_action_events")
+            with psycopg.connect(root,row_factory=dict_row) as admin:
+                admin.execute('SET ROLE fit_all_readers')
+                for table,expected in [('member_action_events',4),('member_action_receipts',2),('member_pair_cooldowns',2)]:
+                    rows=admin.execute(sql.SQL('SELECT user_id FROM {} WHERE user_id=ANY(%s)').format(sql.Identifier(table)),([self.uid,self.tid],)).fetchall()
+                    self.assertEqual(len(rows),expected,table)
+                    self.assertEqual({r['user_id'] for r in rows},{self.uid,self.tid})
             with db.connect() as c:
                 c.execute('DELETE FROM users WHERE id=%s', (self.uid,))
                 for table in ('member_action_events','member_action_receipts','member_pair_cooldowns'):

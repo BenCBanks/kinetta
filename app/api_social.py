@@ -354,7 +354,9 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
         if not f:
             member_limits.cooldown(c,user['id'],t['id'])
             sent=member_limits.claim(c,user['id'],'friend',t['id'],request_key=body.client_id)
-            if sent['replayed']: return {'status':'sent','name':t['name']}
+            # No relationship exists under the account/pair locks. A committed
+            # receipt must not resurrect a subsequently cancelled/declined request.
+            if sent['replayed']: return {'status':'none','name':t['name']}
             n = c.execute("SELECT count(*) AS n FROM friendships WHERE requester = %s AND status = 'pending'", (user['id'],)).fetchone()['n']
             if n >= MAX_PENDING: raise HTTPException(429, 'You have a lot of requests waiting - cancel some first')
             try:

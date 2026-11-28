@@ -2741,13 +2741,24 @@ MIGRATIONS = [
     ALTER TABLE member_action_receipts ENABLE ROW LEVEL SECURITY;
     ALTER TABLE member_pair_cooldowns ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS own_rows ON member_action_events;
-    -- Delivery counters depend on other members' private notification/block choices.
-    REVOKE ALL ON member_action_events FROM PUBLIC,fit_readers,fit_all_readers;
+    -- Own action history is readable; private delivery counters are not actor data.
+    CREATE POLICY own_rows ON member_action_events FOR SELECT TO fit_readers
+      USING(user_id=public.fit_me() AND kind NOT IN ('reaction_notice','comment_delivery'));
+    REVOKE ALL ON member_action_events FROM PUBLIC;
+    GRANT SELECT ON member_action_events TO fit_readers;
     DROP POLICY IF EXISTS own_rows ON member_action_receipts;
     CREATE POLICY own_rows ON member_action_receipts FOR SELECT TO fit_readers USING(user_id=public.fit_me());
     DROP POLICY IF EXISTS own_rows ON member_pair_cooldowns;
-    REVOKE ALL ON member_pair_cooldowns FROM PUBLIC,fit_readers,fit_all_readers;
+    -- A recipient's decline changes this row: ordinary readers must not infer it.
+    REVOKE ALL ON member_pair_cooldowns FROM PUBLIC,fit_readers;
+    GRANT SELECT ON member_pair_cooldowns TO fit_all_readers;
     GRANT SELECT ON member_action_receipts TO fit_readers;
+    DROP POLICY IF EXISTS all_rows ON member_action_events;
+    CREATE POLICY all_rows ON member_action_events FOR SELECT TO fit_all_readers USING(true);
+    DROP POLICY IF EXISTS all_rows ON member_action_receipts;
+    CREATE POLICY all_rows ON member_action_receipts FOR SELECT TO fit_all_readers USING(true);
+    DROP POLICY IF EXISTS all_rows ON member_pair_cooldowns;
+    CREATE POLICY all_rows ON member_pair_cooldowns FOR SELECT TO fit_all_readers USING(true);
     """,
 
 ]
